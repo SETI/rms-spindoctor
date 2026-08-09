@@ -77,13 +77,22 @@ def boundary_crossing_offsets(inside: NDArrayBoolType, ts: NDArrayFloatType) -> 
     Returns:
         ``(N,)`` crossing offsets in pixels along each vertex's normal,
         ``NaN`` where undetermined.
+
+    Raises:
+        ValueError: ``ts`` does not match the ``inside`` columns, is not
+            finite and strictly increasing, or has no exact ``0.0`` entry.
     """
     n_vertices, n_probes = inside.shape
     if ts.shape != (n_probes,):
         raise ValueError(
             f'ts must have shape ({n_probes},) matching inside columns; got {ts.shape}'
         )
-    zero_idx = int(np.argmin(np.abs(ts)))
+    if not np.all(np.isfinite(ts)) or not np.all(np.diff(ts) > 0.0):
+        raise ValueError('ts must be finite and strictly increasing')
+    zero_matches = np.nonzero(ts == 0.0)[0]
+    if zero_matches.size != 1:
+        raise ValueError('ts must contain exactly one 0.0 entry (the vertex itself)')
+    zero_idx = int(zero_matches[0])
     offsets = np.full(n_vertices, np.nan, dtype=np.float64)
 
     inside0 = inside[:, zero_idx]
@@ -154,12 +163,15 @@ def refined_vertex_positions(
             corresponding vertex unchanged.
 
     Returns:
-        ``(N, 2)`` refined copy of ``vertices_vu``.  A vertex whose offset or
-        normal is non-finite keeps its input position: the refinement must
-        never corrupt a vertex it cannot place.
+        ``(N, 2)`` refined copy of ``vertices_vu``.  A vertex whose offset is
+        non-finite, or whose normal has any non-finite component, keeps its
+        input position whole: the refinement must never corrupt a vertex it
+        cannot place.
     """
-    move = np.where(np.isfinite(offsets), offsets, 0.0)[:, None] * normals_vu
-    return vertices_vu + np.where(np.isfinite(move), move, 0.0)
+    valid = np.isfinite(offsets) & np.all(np.isfinite(normals_vu), axis=1)
+    shift = np.where(valid, offsets, 0.0)
+    safe_normals: NDArrayFloatType = np.where(valid[:, None], normals_vu, 0.0)
+    return vertices_vu + shift[:, None] * safe_normals
 
 
 def refine_polyline_vertices(

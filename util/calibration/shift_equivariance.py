@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import multiprocessing
 import os
 import sys
@@ -74,7 +75,19 @@ DEFAULT_SHIFTS: list[tuple[float, float]] = [
 
 
 def _navigate_one(task: tuple[str, tuple[float, float] | None]) -> dict[str, Any]:
-    """Worker: navigate one library image under one planted shift (or none)."""
+    """Navigate one library image under one planted shift (or none) in a pool worker.
+
+    Parameters:
+        task: ``(sidecar_path, shift_vu)`` pair; ``shift_vu`` is the planted
+            ``(dv, du)`` pointing shift in pixels, or ``None`` for the
+            reference (as-is) navigation.
+
+    Returns:
+        One JSONL-ready row with the image identity, the planted shift, the
+        elapsed time, the ensemble offset, and the per-technique offsets with
+        their spurious / at-edge flags and confidences.  A navigation that
+        raises returns a row carrying an ``error`` string instead of results.
+    """
     import time
 
     from filecache import FCPath
@@ -152,7 +165,12 @@ def _navigate_one(task: tuple[str, tuple[float, float] | None]) -> dict[str, Any
 
 
 def _init_worker() -> None:
-    """Silence loggers in each pool worker (same rationale as collect.py)."""
+    """Silence the navigation loggers in each pool worker.
+
+    Same rationale as ``collect.py``: the per-image log stream from many
+    concurrent navigations is noise here, and the null handler keeps
+    pdslogger from writing through an inherited handler after ``fork``.
+    """
     import pdslogger
 
     from spindoctor.config import IMAGE_LOGGER, MAIN_LOGGER
@@ -162,8 +180,53 @@ def _init_worker() -> None:
         logger.add_handler(pdslogger.NULL_HANDLER)
 
 
+def _read_jsonl_rows(path: Path) -> tuple[list[dict[str, Any]], bool]:
+    """Read a sweep JSONL file, tolerating an interrupted final record.
+
+    A collection run can be killed mid-write, leaving a partial final line
+    that would otherwise break both resume and report mode (and a resumed
+    append would then corrupt the file further).  The final line is therefore
+    allowed to be unparseable and is dropped; an unparseable line anywhere
+    else means the file is corrupt and raises.
+
+    Parameters:
+        path: The JSONL file to read.
+
+    Returns:
+        ``(rows, dropped_partial)``: the parsed rows, and whether a partial
+        final line was dropped.
+
+    Raises:
+        ValueError: A non-final line failed to parse, with its line number.
+    """
+    lines = path.read_text().splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    rows: list[dict[str, Any]] = []
+    for lineno, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            if lineno == len(lines):
+                return rows, True
+            raise ValueError(f'{path}:{lineno}: corrupt JSONL record: {exc}') from exc
+    return rows, False
+
+
 def _collect(args: argparse.Namespace) -> int:
-    """Run the sweep and write one JSON line per (image, shift) navigation."""
+    """Run the sweep and write one JSON line per (image, shift) navigation.
+
+    Parameters:
+        args: Parsed CLI namespace; uses ``images`` / ``shifts`` to select
+            the task set, ``workers`` for the pool width, ``resume`` to skip
+            rows already present in ``out``, and ``out`` for the JSONL path.
+
+    Returns:
+        Process exit status: 0 on success, 1 when the holdings environment
+        is not configured.
+    """
     if not os.environ.get('PDS3_HOLDINGS_DIR'):
         print('PDS3_HOLDINGS_DIR must be set', file=sys.stderr)
         return 1
@@ -183,12 +246,16 @@ def _collect(args: argparse.Namespace) -> int:
     tasks = [(p, s) for p in paths for s in shifts]
     args.out.parent.mkdir(parents=True, exist_ok=True)
     if args.resume and args.out.exists():
+        rows, dropped_partial = _read_jsonl_rows(args.out)
+        if dropped_partial:
+            # Rewrite the file without the interrupted final record so the
+            # coming append starts on a clean line.
+            args.out.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+            print('resume: dropped an interrupted partial final record')
         have = set()
-        for line in args.out.read_text().splitlines():
-            if line.strip():
-                row = json.loads(line)
-                shift = tuple(row['shift_vu']) if row['shift_vu'] is not None else None
-                have.add((row['image_id'], shift))
+        for row in rows:
+            shift = tuple(row['shift_vu']) if row['shift_vu'] is not None else None
+            have.add((row['image_id'], shift))
 
         def _key(task: tuple[str, tuple[float, float] | None]) -> tuple[str, Any]:
             from tests.integration.sidecar import load_sidecar as _load
@@ -224,6 +291,16 @@ def _residual_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     a perfectly shift-equivariant technique.  Only techniques present in
     both runs produce a residual row; spurious flags from both runs are
     carried so the report can separate trusted from rejected fits.
+
+    Parameters:
+        rows: Sweep rows as written by the collector, mixing reference
+            (``shift_vu is None``) and shifted navigations for any number of
+            images; rows carrying an ``error`` key are skipped.
+
+    Returns:
+        One residual row per (image, shift, technique) pair present in both
+        the shifted and the reference run, plus an ``ENSEMBLE`` row per
+        (image, shift) where both ensemble offsets exist.
     """
     reference: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -274,7 +351,15 @@ def _residual_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _quantile(sorted_values: list[float], q: float) -> float:
-    """Nearest-rank quantile of an already-sorted list."""
+    """Nearest-rank quantile of an already-sorted list.
+
+    Parameters:
+        sorted_values: Values in ascending order; may be empty.
+        q: Quantile in ``[0, 1]``.
+
+    Returns:
+        The nearest-rank element, or ``NaN`` for an empty list.
+    """
     if not sorted_values:
         return float('nan')
     idx = min(len(sorted_values) - 1, max(0, round(q * (len(sorted_values) - 1))))
@@ -282,8 +367,18 @@ def _quantile(sorted_values: list[float], q: float) -> float:
 
 
 def _report(args: argparse.Namespace) -> int:
-    """Aggregate a sweep JSONL into the per-technique residual report."""
-    rows = [json.loads(line) for line in args.report.read_text().splitlines() if line.strip()]
+    """Aggregate a sweep JSONL into the per-technique residual report.
+
+    Parameters:
+        args: Parsed CLI namespace; ``report`` names the input JSONL and
+            ``out`` the markdown report to write.
+
+    Returns:
+        Process exit status: always 0.
+    """
+    rows, dropped_partial = _read_jsonl_rows(args.report)
+    if dropped_partial:
+        print('report: dropped an interrupted partial final record')
     residuals = _residual_rows(rows)
     lines = [
         '# Shift-equivariance sweep (planted OffsetFOV shifts vs reference run)',
@@ -361,13 +456,40 @@ def _report(args: argparse.Namespace) -> int:
 
 
 def _parse_shift(text: str) -> tuple[float, float]:
-    """Parse a ``dv,du`` command-line shift."""
-    dv_str, du_str = text.split(',')
-    return float(dv_str), float(du_str)
+    """Parse a ``dv,du`` command-line shift.
+
+    Parameters:
+        text: The raw argument, two comma-separated pixel components (a
+            leading space lets a negative ``dv`` pass through argparse).
+
+    Returns:
+        The ``(dv, du)`` shift in pixels.
+
+    Raises:
+        argparse.ArgumentTypeError: The argument is not two comma-separated
+            finite numbers.
+    """
+    parts = text.split(',')
+    if len(parts) != 2:
+        raise argparse.ArgumentTypeError(f'expected dv,du; got {text!r}')
+    try:
+        dv, du = float(parts[0]), float(parts[1])
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f'expected dv,du as numbers; got {text!r}') from exc
+    if not (math.isfinite(dv) and math.isfinite(du)):
+        raise argparse.ArgumentTypeError(f'shift components must be finite; got {text!r}')
+    return dv, du
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Dispatch to the sweep collector or the report aggregator."""
+    """Dispatch to the sweep collector or the report aggregator.
+
+    Parameters:
+        argv: CLI arguments; ``None`` reads ``sys.argv`` as usual.
+
+    Returns:
+        Process exit status from the selected mode.
+    """
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--workers', type=int, default=8)
     parser.add_argument('--out', type=Path, required=True)

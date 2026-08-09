@@ -948,6 +948,17 @@ def test_ncc_quadratic_axis_offset_neighbor_tie_is_half_pixel() -> None:
     assert _ncc_quadratic_axis_offset(0.5, 1.0, 1.0) == pytest.approx(0.5)
 
 
+def test_ncc_quadratic_axis_offset_neighbor_above_center_returns_zero() -> None:
+    """A neighbor above the center is not a local maximum; keep the integer peak.
+
+    A steeply tilted concave triple has negative curvature yet its highest
+    sample is a neighbor; fitting it would report a clipped half-pixel shift
+    away from the true maximum.
+    """
+    assert _ncc_quadratic_axis_offset(1.0, 0.9, 0.0) == 0.0
+    assert _ncc_quadratic_axis_offset(0.0, 0.9, 1.0) == 0.0
+
+
 def _evaluate_candidate_for_shift(
     true_shift_vu: tuple[float, float],
     corr: np.ndarray | None = None,
@@ -958,6 +969,17 @@ def _evaluate_candidate_for_shift(
     ``rc=(0, 0)`` makes the refinement window span ``[-0.5, +0.5]`` px, so a
     true shift beyond half a pixel saturates the window.  ``corr`` defaults
     to a surface whose quadratic vertex along v is ``+0.25``.
+
+    Parameters:
+        true_shift_vu: The ``(dv, du)`` shift in pixels planted between the
+            image and the model via a Fourier shift.
+        corr: Optional fabricated NCC surface handed to the candidate; the
+            default puts the integer peak at ``(0, 0)`` with v-neighbors 0.8
+            and 0.4 (quadratic vertex ``+0.25``) and a flat u axis.
+
+    Returns:
+        The candidate dictionary from :func:`evaluate_candidate`; the tests
+        read its ``offset`` entry.
     """
     base = _gaussian_patch((64, 64), 3.0)
     shifted = fourier_shift(base, true_shift_vu[0], true_shift_vu[1])

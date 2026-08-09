@@ -105,6 +105,43 @@ def test_refined_positions_apply_crossing_along_normal() -> None:
     assert refined[1, 1] == pytest.approx(8.0)
 
 
+def test_crossing_rejects_nonfinite_ladder() -> None:
+    """A ladder with a non-finite offset is a contract violation, not a guess."""
+    inside = np.array([[True, True, False]])
+    ts = np.array([-0.5, 0.0, float('nan')])
+    with pytest.raises(ValueError, match='finite and strictly increasing'):
+        boundary_crossing_offsets(inside, ts)
+
+
+def test_crossing_rejects_non_increasing_ladder() -> None:
+    """A non-monotone ladder would misorder the bracketing; reject it."""
+    inside = np.array([[True, True, False]])
+    ts = np.array([-0.5, 0.5, 0.0])
+    with pytest.raises(ValueError, match='finite and strictly increasing'):
+        boundary_crossing_offsets(inside, ts)
+
+
+def test_crossing_rejects_ladder_without_exact_zero() -> None:
+    """The vertex's own probe must exist; a nearest-to-zero stand-in is wrong."""
+    inside = np.array([[True, True, False]])
+    ts = np.array([-0.5, 0.1, 0.6])
+    with pytest.raises(ValueError, match=r'exactly one 0\.0 entry'):
+        boundary_crossing_offsets(inside, ts)
+
+
+def test_refined_positions_mixed_finite_normal_leaves_vertex_whole() -> None:
+    """A normal with one finite component still keeps the whole vertex in place.
+
+    Moving only the finite coordinate would bend the vertex off its normal;
+    the contract is all-or-nothing per vertex.
+    """
+    vertices_vu = np.array([[5.0, 6.0]])
+    normals_vu = np.array([[float('nan'), 1.0]])
+    refined = refined_vertex_positions(vertices_vu, normals_vu, np.array([0.25]))
+    assert refined[0, 0] == pytest.approx(5.0)
+    assert refined[0, 1] == pytest.approx(6.0)
+
+
 def test_refined_positions_nonfinite_normal_leaves_vertex_unchanged() -> None:
     """A non-finite normal must not corrupt the vertex it belongs to.
 

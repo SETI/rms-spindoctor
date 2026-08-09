@@ -613,6 +613,11 @@ def _ncc_quadratic_axis_offset(minus: float, center: float, plus: float) -> floa
     """
     if not (math.isfinite(minus) and math.isfinite(center) and math.isfinite(plus)):
         return 0.0
+    # A neighbor above the center contradicts the center being the axis-local
+    # maximum (possible only on malformed input; the caller passes the global
+    # argmax); such a triple carries no trustworthy vertex.
+    if center < minus or center < plus:
+        return 0.0
     denom = minus - 2.0 * center + plus
     # NCC values are O(1), so an absolute curvature floor suffices: a
     # near-flat neighborhood (or one degenerate to rounding noise) carries
@@ -657,6 +662,8 @@ def evaluate_candidate(
         upsample_factor: The upsample factor.
         model_shape: The shape of the model.
         image_shape: The shape of the image.
+        logger: Logger for the saturated-refinement diagnostic; ``None``
+            disables that debug line and changes nothing else.
         prior_shift: The prior shift.
         prior_weight: The prior weight.
         metric: The metric to use for the navigation.
