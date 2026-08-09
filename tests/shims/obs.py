@@ -68,7 +68,18 @@ class FakeMeshgrid:
     a model hands the geometry layer rather than only the shape of what comes
     back.
 
+    Two construction forms mirror the real class: the rectangular ``for_fov``
+    factory (origin / limit / oversample), and the scattered
+    ``FakeMeshgrid(fov, uv_pair)`` form the silhouette probe uses, where
+    ``uv_pair`` carries explicit ``(u, v)`` probe positions.  Fake backplanes
+    read ``origin`` / ``limit`` / ``oversample`` for the grid form and ``uv``
+    (via :func:`probe_grid_vu`) for the scattered form.
+
     Parameters:
+        fov: The FOV of the scattered form; ignored.
+        uv_pair: ``polymath.Pair`` of explicit ``(u, v)`` sample positions for
+            the scattered form, in the pixel corner coordinates the geometry
+            layer reads; None for the grid form.
         origin: ``(u, v)`` low corner of the grid, in the pixel corner
             coordinates the geometry layer reads.
         limit: ``(u, v)`` high corner, in the same coordinates.
@@ -78,12 +89,16 @@ class FakeMeshgrid:
 
     def __init__(
         self,
+        fov: FakeFOV | None = None,
+        uv_pair: Any | None = None,
+        *,
         origin: tuple[float, float] | None = None,
         limit: tuple[float, float] | None = None,
-        *,
         oversample: tuple[int, int] | None = None,
         swap: bool = False,
     ) -> None:
+        del fov
+        self.uv = uv_pair
         self.origin = origin
         self.limit = limit
         self.oversample = oversample
@@ -100,7 +115,28 @@ class FakeMeshgrid:
         swap: bool = False,
     ) -> FakeMeshgrid:
         """Mirror the ``oops.Meshgrid.for_fov`` factory signature."""
-        return cls(origin, limit, oversample=oversample, swap=swap)
+        return cls(origin=origin, limit=limit, oversample=oversample, swap=swap)
+
+
+def probe_grid_vu(
+    meshgrid: FakeMeshgrid,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Return ``(vv, uu)`` for a scattered probe meshgrid, or ``None`` for a grid.
+
+    The silhouette probe builds its meshgrid from explicit ``(u, v)`` pairs;
+    fake backplanes call this first and fall back to their rectangular-grid
+    coordinates when it returns ``None``.
+
+    Parameters:
+        meshgrid: The fake meshgrid handed to the backplane.
+
+    Returns:
+        ``(vv, uu)`` coordinate arrays of the probe positions, or ``None``.
+    """
+    if meshgrid.uv is None:
+        return None
+    vals = np.asarray(meshgrid.uv.vals, np.float64)
+    return vals[..., 1], vals[..., 0]
 
 
 @dataclass

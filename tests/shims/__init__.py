@@ -48,6 +48,7 @@ from tests.shims.obs import (
     FakeObs,
     FakePSF,
     FakeUV,
+    probe_grid_vu,
 )
 
 __all__ = [
@@ -65,4 +66,5 @@ __all__ = [
     'install_fake_catalogs',
     'make_star',
     'plant_circular_body',
+    'probe_grid_vu',
 ]

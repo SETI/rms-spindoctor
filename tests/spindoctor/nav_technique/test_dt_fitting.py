@@ -683,6 +683,53 @@ def test_lm_subpixel_refine_recovers_subpixel_translation() -> None:
     assert result.inlier_count == 64
 
 
+def test_lm_subpixel_refine_is_shift_equivariant_for_translated_polyline() -> None:
+    """A rigidly translated copy of the polyline converges to the same absolute pose.
+
+    Shift equivariance of the DT fit: against one fixed image DT, fitting
+    vertices ``V`` and fitting ``V + delta`` must return offsets that differ
+    by ``-delta``, because the translated polyline's cost function is exactly
+    the original's evaluated at a translated argument.  The tolerance is the
+    measured optimizer floor at this scale (about 0.04 px): the LM stalls at
+    slightly different points of the rasterized DT's plateau depending on
+    where the seed sits relative to the optimum.  A systematic pull toward
+    the seed or toward the pixel grid would exceed it by an order of
+    magnitude.
+    """
+    shape = (96, 96)
+    radius = 18.0
+    dt = _build_dt_for_circle(shape, radius)
+    center = (shape[0] / 2.0 + 0.4, shape[1] / 2.0 - 0.3)
+    vertices, outward_normals = _build_circle_polyline(center, radius, 64)
+    sigmas = np.full(vertices.shape[0], 0.5, dtype=np.float64)
+    delta = (0.37, -0.61)
+    shifted_vertices = vertices.copy()
+    shifted_vertices[:, 0] += delta[0]
+    shifted_vertices[:, 1] += delta[1]
+    result_base = lm_subpixel_refine(
+        vertices_vu=vertices,
+        normals_vu=-outward_normals,
+        sigma_normal_per_vertex_px=sigmas,
+        image_edge_dt=dt,
+        initial_offset_vu=(0.0, 0.0),
+        use_polarity=False,
+    )
+    result_shifted = lm_subpixel_refine(
+        vertices_vu=shifted_vertices,
+        normals_vu=-outward_normals,
+        sigma_normal_per_vertex_px=sigmas,
+        image_edge_dt=dt,
+        initial_offset_vu=(0.0, 0.0),
+        use_polarity=False,
+    )
+    assert result_shifted.offset_vu[0] - result_base.offset_vu[0] == pytest.approx(
+        -delta[0], abs=0.06
+    )
+    assert result_shifted.offset_vu[1] - result_base.offset_vu[1] == pytest.approx(
+        -delta[1], abs=0.06
+    )
+
+
 def test_lm_subpixel_refine_rejects_polarity_vertex_with_enormous_sigma() -> None:
     """CODE-NAV-019: a polarity-rejected vertex is excluded regardless of sigma.
 

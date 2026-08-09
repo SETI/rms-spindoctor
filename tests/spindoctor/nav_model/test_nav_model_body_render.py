@@ -34,7 +34,14 @@ from typing import Any, cast
 import numpy as np
 import polymath
 import pytest
-from tests.shims import BodyBackplaneData, FakeBackplane, FakeMeshgrid, FakeObs, bare_nav_context
+from tests.shims import (
+    BodyBackplaneData,
+    FakeBackplane,
+    FakeMeshgrid,
+    FakeObs,
+    bare_nav_context,
+    probe_grid_vu,
+)
 
 import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.annotation import Annotations
@@ -111,6 +118,9 @@ def _sphere_backplane_class(spec: _SphereSpec) -> type:
 
         def _grid(self) -> tuple[NDArrayFloatType, NDArrayFloatType]:
             """Return ``(vv, uu)`` sample-center coordinate arrays."""
+            scattered = probe_grid_vu(self._mg)
+            if scattered is not None:
+                return scattered
             assert self._mg.origin is not None
             assert self._mg.limit is not None
             assert self._mg.oversample is not None
@@ -878,29 +888,6 @@ def _limb_feature(model: NavModelBody, context: NavContext) -> NavFeature:
     return next(f for f in features if f.feature_type.name == 'LIMB_ARC')
 
 
-def test_limb_arc_vertices_are_whole_pixel_centric_positions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Every LIMB_ARC vertex names a pixel, so it carries no fraction.
-
-    The ridge is read off a mask, so each vertex is a row and a column stated
-    in pixel centric coordinates.  Any fraction in a vertex means a conversion
-    reached the polyline, and the vertices are what every distance-transform
-    residual downstream is measured from.
-
-    Parameters:
-        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
-    """
-    model, obs = _make_model(monkeypatch, _SphereSpec((50.0, 50.0), 20.0))
-    model.create_model()
-    limb = _limb_feature(model, bare_nav_context(cast(Any, obs)))
-    geometry = limb.geometry
-    assert isinstance(geometry, LimbPolyline)
-    vertices = geometry.vertices_vu
-    assert vertices.shape[0] > 0
-    assert np.array_equal(vertices, np.rint(vertices))
-
-
 def test_limb_arc_vertices_center_on_the_stated_sphere_center(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -930,36 +917,40 @@ def test_limb_arc_vertices_center_on_the_stated_sphere_center(
 def test_limb_arc_vertices_lie_on_silhouette_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every LIMB_ARC vertex is a silhouette pixel adjacent to space.
+    """Every LIMB_ARC vertex sits on the sub-pixel silhouette boundary.
 
-    This is a membership property between the polyline and the mask it was
-    read off, so it says nothing about where either sits on the sky.  The
-    vertex is rounded up at a half rather than truncated toward zero, which
-    lets a vertex displaced half a pixel down the axis address its neighbor
-    and fail; a displacement the other way rounds back onto the pixel it
-    started from, which is why the position of the ring is pinned separately.
+    The probe refinement moves each ridge-pixel vertex onto the true
+    silhouette, so for the analytic sphere every vertex's distance from the
+    body center must equal the radius to within the probe resolution (the
+    0.125 px ladder step bracketed at its midpoint, widened by the
+    8-quantized normal directions).  A vertex left on its ridge-pixel center
+    sits up to a pixel inside the boundary and fails.
 
     Parameters:
         monkeypatch: Patches the module's oops Meshgrid / Backplane names.
     """
-    model, obs = _make_model(monkeypatch, _SphereSpec((50.0, 50.0), 20.0))
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    model, obs = _make_model(monkeypatch, spec)
     model.create_model()
     limb = _limb_feature(model, bare_nav_context(cast(Any, obs)))
     geometry = limb.geometry
     assert isinstance(geometry, LimbPolyline)
-    assert model._body_mask is not None
-    body = model._body_mask
-    off = ~body
-    has_space_neighbor = (
-        np.roll(off, 1, axis=0)
-        | np.roll(off, -1, axis=0)
-        | np.roll(off, 1, axis=1)
-        | np.roll(off, -1, axis=1)
+    # The vertices are extfov pixel centric; the sphere is stated in the
+    # FOV's pixel corner coordinates.
+    pos_v = (
+        geometry.vertices_vu[:, 0]
+        - obs.extfov_margin_v
+        + PIXEL_CENTER_TO_CORNER_PX
+        - spec.center_vu[0]
     )
-    vs = np.floor(geometry.vertices_vu[:, 0] + PIXEL_CENTER_TO_CORNER_PX).astype(int)
-    us = np.floor(geometry.vertices_vu[:, 1] + PIXEL_CENTER_TO_CORNER_PX).astype(int)
-    assert bool(body[vs, us].all())
-    assert bool(has_space_neighbor[vs, us].all())
+    pos_u = (
+        geometry.vertices_vu[:, 1]
+        - obs.extfov_margin_u
+        + PIXEL_CENTER_TO_CORNER_PX
+        - spec.center_vu[1]
+    )
+    radial_error = np.hypot(pos_v, pos_u) - spec.radius_px
+    assert float(np.abs(radial_error).max()) < 0.15
 
 
 def test_limb_arc_normals_point_outward(monkeypatch: pytest.MonkeyPatch) -> None:
