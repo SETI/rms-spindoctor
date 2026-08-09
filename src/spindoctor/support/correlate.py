@@ -744,18 +744,19 @@ def evaluate_candidate(
     upy, upx = np.unravel_index(np.argmax(np.abs(Up)), Up.shape)
     dy = dy_i + (int(upy) - oy) / upsample_factor
     dx = dx_i + (int(upx) - ox) / upsample_factor
-    # The refinement window spans exactly +-0.5 px around the integer NCC
-    # peak.  An argmax on the window boundary means the cross-power surface's
-    # own peak lies beyond half a pixel from the NCC peak — the two surfaces
-    # disagree, which happens when the template constrains an axis poorly
-    # (e.g. a disc that overflows the FOV) and the raw surface's scale bias
-    # takes over.  Following the raw surface farther is not safe (its peak
-    # can sit pixels away from the true alignment), and reporting the
-    # boundary value pins the offset at exactly +-0.5 px, which breaks shift
-    # equivariance (#447).  Instead fall back, per saturated axis, to the
-    # quadratic vertex of the NCC surface itself — the surface that selected
-    # the peak — which is bounded to the same half-pixel and consistent with
-    # the peak choice.
+    # The refinement window spans the half-pixel neighborhood of the integer
+    # NCC peak (exactly +-0.5 px for the even upsample factors in use; an odd
+    # factor would make it asymmetric by one upsampled step).  An argmax on
+    # the window boundary means the cross-power surface's own peak lies
+    # beyond half a pixel from the NCC peak, so the two surfaces disagree.
+    # That happens when the template constrains an axis poorly (e.g. a disc
+    # that overflows the FOV) and the raw surface's scale bias takes over.
+    # Following the raw surface farther is not safe (its peak can sit pixels
+    # away from the true alignment), and reporting the boundary value pins
+    # the offset at exactly +-0.5 px, which breaks shift equivariance (#447).
+    # Instead fall back, per saturated axis, to the quadratic vertex of the
+    # NCC surface itself -- the surface that selected the peak -- which is
+    # bounded to the same half-pixel and consistent with the peak choice.
     saturated_v = upy in (0, region_v - 1)
     saturated_u = upx in (0, region_u - 1)
     if saturated_v or saturated_u:

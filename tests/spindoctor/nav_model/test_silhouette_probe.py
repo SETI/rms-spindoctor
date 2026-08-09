@@ -105,6 +105,24 @@ def test_refined_positions_apply_crossing_along_normal() -> None:
     assert refined[1, 1] == pytest.approx(8.0)
 
 
+def test_refined_positions_nonfinite_normal_leaves_vertex_unchanged() -> None:
+    """A non-finite normal must not corrupt the vertex it belongs to.
+
+    A finite crossing offset multiplied by a NaN normal is NaN; the
+    refinement's contract is to leave any vertex it cannot place exactly
+    where it was, so the NaN move is dropped rather than propagated.
+    """
+    vertices_vu = np.array([[5.0, 6.0], [7.0, 8.0]])
+    normals_vu = np.array([[float('nan'), float('nan')], [0.0, 1.0]])
+    offsets = np.array([0.25, 0.25])
+    refined = refined_vertex_positions(vertices_vu, normals_vu, offsets)
+    assert refined[0, 0] == pytest.approx(5.0)
+    assert refined[0, 1] == pytest.approx(6.0)
+    # The well-formed row still refines normally.
+    assert refined[1, 0] == pytest.approx(7.0)
+    assert refined[1, 1] == pytest.approx(8.25)
+
+
 def test_refined_positions_do_not_mutate_input() -> None:
     """The input vertex array is returned as a refined copy, never mutated."""
     vertices_vu = np.array([[5.0, 6.0]])

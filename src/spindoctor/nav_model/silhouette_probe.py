@@ -154,10 +154,12 @@ def refined_vertex_positions(
             corresponding vertex unchanged.
 
     Returns:
-        ``(N, 2)`` refined copy of ``vertices_vu``.
+        ``(N, 2)`` refined copy of ``vertices_vu``.  A vertex whose offset or
+        normal is non-finite keeps its input position: the refinement must
+        never corrupt a vertex it cannot place.
     """
-    shift = np.where(np.isfinite(offsets), offsets, 0.0)
-    return vertices_vu + shift[:, None] * normals_vu
+    move = np.where(np.isfinite(offsets), offsets, 0.0)[:, None] * normals_vu
+    return vertices_vu + np.where(np.isfinite(move), move, 0.0)
 
 
 def refine_polyline_vertices(
