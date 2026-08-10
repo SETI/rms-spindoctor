@@ -174,8 +174,8 @@ Corrected-pointing C-kernels
 **No corrected kernels are produced for this instrument.** ``sd_create_ck
 gossi`` is a valid invocation and runs to completion, but every otherwise
 eligible image is omitted with ``rotation_unsupported`` and no kernel, and no
-meta-kernel, is written. The report is still written and names the reason on
-every row.
+meta-kernel, is written. A run that selected images still writes the report,
+naming the reason on every row.
 
 The cause is the rotation fitting described above. A fitted rotation turns
 about a pivot chosen per technique, which the navigation result does not

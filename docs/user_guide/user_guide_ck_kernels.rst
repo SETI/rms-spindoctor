@@ -542,13 +542,13 @@ every file it wrote, and each of them is a complete, valid kernel.
   over a quiet span, so it is refused by name instead.
 
 * **A metadata document that cannot be read as a navigated image**; an image
-  whose baseline supplied pointing at every record but angular velocity at only
-  some of them; and an exposure whose window is so long that the cadence would
-  need more records than a segment holds, which means the recorded epochs are
-  not an exposure. None has an entry in the closed set of omission reasons, so
-  none is reported as one. An exposure its baseline does not cover is not among
-  them: that one has a reason, ``baseline_coverage_gap``, and omits the one
-  image.
+  whose segment copies its baseline's rates and whose baseline supplied
+  pointing at every record but angular velocity at only some of them; and an
+  exposure whose window is so long that the cadence would need more records
+  than a segment holds, which means the recorded epochs are not an exposure.
+  None has an entry in the closed set of omission reasons, so none is reported
+  as one. An exposure its baseline does not cover is not among them: that one
+  has a reason, ``baseline_coverage_gap``, and omits the one image.
 
 Related chapters
 ================
