@@ -62,6 +62,20 @@ signal, making the cross-power peak non-smooth at its apex) into the reported of
 template gradient structure provides the matched-filter statistical covariance term (see
 "Sources of uncertainty").
 
+The refinement window spans half a pixel either side of the integer NCC peak (exactly so
+for the even upsample factors in use; an odd factor would offset one boundary by a single
+upsampled step). When
+the upsampled-DFT argmax lands on the window boundary, the cross-power surface's own peak
+lies farther than half a pixel from the NCC peak -- the two surfaces disagree, which happens
+when the template constrains an axis poorly (a disc that overflows the FOV constrains the
+overflow axis only weakly) and the raw surface's scale bias takes over. Following the raw
+surface farther is unsafe (its peak can sit pixels from the true alignment), and reporting
+the boundary value would pin the offset at exactly half a pixel from the integer peak, an
+answer that does not move when the true alignment does. Each saturated axis instead falls
+back to the vertex of the quadratic through the three NCC samples around the peak -- the
+surface that selected the peak -- which is bounded to the same half pixel and consistent
+with the peak choice. Interior (non-saturated) refinements are untouched.
+
 Sub-pixel refinement band-limit (``refine_lowpass_sigma_px``)
 -------------------------------------------------------------
 

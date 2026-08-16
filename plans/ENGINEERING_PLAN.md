@@ -102,7 +102,10 @@ characterizes when the coarse search's top basins are ambiguous, and either
 widens the second-opinion gate to the other DT techniques or adds
 per-feature-type edge masking. Needs the library cohort; coordinate with
 Track A so the fix is measured, not guessed. #346 supplies the concrete
-wrong-lock datapoints.
+wrong-lock datapoints, and #476 quantifies the round-trip cost: under
+planted pointing shifts RingEdgeNav re-locks onto the wrong ring edge
+(median residual 2.67 / 1.19 px v/u, growing with the shift), with the
+shift-equivariance sweep as the before-measurement any fix must move.
 
 ### #128 / #150 — Limb navigation redesign and the ~0.1 px systematic
 
@@ -268,10 +271,20 @@ round trip does on Cassini NAC, Cassini WAC, Voyager and LORRI; the reader
 comparison (`tests/integration/test_cmatrix_readers.py`) holds the two
 consumption paths together through the switched consumers themselves.
 
-The round trip also measured something that belongs to Track B rather than
-here: a technique re-measuring a corrected frame does not return exactly
-the negative of the shift it was given, which costs up to 0.49 px on frames
-carried by the correlation and distance-transform body techniques (#447).
+The round trip also measured something that belonged to Track B rather than
+here: a technique re-measuring a corrected frame did not return exactly the
+negative of the shift it was given, costing up to 0.49 px on frames carried
+by the correlation and distance-transform body techniques. Both body-side
+causes are fixed (#447): the limb / terminator polyline vertices are
+probe-refined onto the sub-pixel geometric boundary, and the correlator's
+sub-pixel refinement falls back to the NCC quadratic vertex when the
+upsampled-DFT window saturates instead of pinning at half a pixel. The
+`util/calibration/shift_equivariance.py` sweep is the standing measurement
+(baseline in `util/calibration/shift_equivariance_baseline_20260808.md`).
+What remains is filed: RingEdgeNav's wrong-edge re-locks under planted
+shifts (#476), the disc correlator's ~0.5-1 px miss on a weakly-constrained
+axis now that the pinning no longer hides it (#482), and the library-pin
+re-ratchet for the five frames the fix legitimately moved (#483).
 
 The plan's own follow-ups are filed: the oops API replacing the hand-derived
 derivation (#433), fitted-twist support (#434) with the static-twist FK/IK

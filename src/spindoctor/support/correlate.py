@@ -498,6 +498,40 @@ def matched_filter_covariance(
     return cast(NDArrayFloatType, area * cov_white)
 
 
+def _ncc_quadratic_axis_offset(minus: float, center: float, plus: float) -> float:
+    """Sub-pixel offset of a 1-D quadratic through three equally-spaced samples.
+
+    Fits a parabola through ``(-1, minus)``, ``(0, center)``, ``(+1, plus)``
+    and returns its vertex abscissa, clamped to ``[-0.5, 0.5]`` (a vertex
+    outside that range would contradict ``center`` being the integer argmax).
+    Returns ``0.0`` when any sample is non-finite (the bi-directional masked
+    NCC marks invalid shifts with ``-inf``) or when the samples do not form
+    a local maximum along this axis.
+
+    Parameters:
+        minus: Sample one step below the peak.
+        center: Sample at the integer peak.
+        plus: Sample one step above the peak.
+
+    Returns:
+        Vertex offset from the center sample, in samples.
+    """
+    if not (math.isfinite(minus) and math.isfinite(center) and math.isfinite(plus)):
+        return 0.0
+    # A neighbor above the center contradicts the center being the axis-local
+    # maximum (possible only on malformed input; the caller passes the global
+    # argmax); such a triple carries no trustworthy vertex.
+    if center < minus or center < plus:
+        return 0.0
+    denom = minus - 2.0 * center + plus
+    # NCC values are O(1), so an absolute curvature floor suffices: a
+    # near-flat neighborhood (or one degenerate to rounding noise) carries
+    # no sub-pixel information and keeps the integer peak.
+    if denom >= -1.0e-12:
+        return 0.0
+    return float(np.clip(0.5 * (minus - plus) / denom, -0.5, 0.5))
+
+
 # ==============================================================
 # Single-scale, K-peak evaluation (with optional prior)
 # ==============================================================
@@ -513,7 +547,7 @@ def evaluate_candidate(
     upsample_factor: int,
     model_shape: tuple[int, int],
     image_shape: tuple[int, int],
-    logger: PdsLogger,
+    logger: PdsLogger | None,
     prior_shift: tuple[float, float] | None = None,
     prior_weight: float = 0.0,
     metric: str = 'psr',
@@ -533,6 +567,8 @@ def evaluate_candidate(
         upsample_factor: The upsample factor.
         model_shape: The shape of the model.
         image_shape: The shape of the image.
+        logger: Logger for the saturated-refinement diagnostic; ``None``
+            disables that debug line and changes nothing else.
         prior_shift: The prior shift.
         prior_weight: The prior weight.
         metric: The metric to use for the navigation.
@@ -608,8 +644,50 @@ def evaluate_candidate(
         (oy - dy_i * upsample_factor, ox - dx_i * upsample_factor),
     )
     upy, upx = np.unravel_index(np.argmax(np.abs(Up)), Up.shape)
-    dy = dy_i + (upy - oy) / upsample_factor
-    dx = dx_i + (upx - ox) / upsample_factor
+    dy = dy_i + (int(upy) - oy) / upsample_factor
+    dx = dx_i + (int(upx) - ox) / upsample_factor
+    # The refinement window spans the half-pixel neighborhood of the integer
+    # NCC peak (exactly +-0.5 px for the even upsample factors in use; an odd
+    # factor would make it asymmetric by one upsampled step).  An argmax on
+    # the window boundary means the cross-power surface's
+    # own peak lies beyond half a pixel from the NCC peak — the two surfaces
+    # disagree, which happens when the template constrains an axis poorly
+    # (e.g. a disc that overflows the FOV) and the raw surface's scale bias
+    # takes over.  Following the raw surface farther is not safe (its peak
+    # can sit pixels away from the true alignment), and reporting the
+    # boundary value pins the offset at exactly +-0.5 px, which breaks shift
+    # equivariance (#447).  Instead fall back, per saturated axis, to the
+    # quadratic vertex of the NCC surface itself — the surface that selected
+    # the peak — which is bounded to the same half-pixel and consistent with
+    # the peak choice.
+    saturated_v = upy in (0, region_v - 1)
+    saturated_u = upx in (0, region_u - 1)
+    if saturated_v or saturated_u:
+        corr_v_size, corr_u_size = corr.shape
+        if saturated_v:
+            dy = dy_i + _ncc_quadratic_axis_offset(
+                float(corr[(p - 1) % corr_v_size, q]),
+                float(corr[p, q]),
+                float(corr[(p + 1) % corr_v_size, q]),
+            )
+        if saturated_u:
+            dx = dx_i + _ncc_quadratic_axis_offset(
+                float(corr[p, (q - 1) % corr_u_size]),
+                float(corr[p, q]),
+                float(corr[p, (q + 1) % corr_u_size]),
+            )
+        if logger is not None:
+            logger.debug(
+                'Sub-pixel refinement saturated at the half-pixel window edge '
+                '(v: %s, u: %s) around integer peak (%d, %d); using the NCC '
+                'quadratic vertex for the saturated axis: offset (%.4f, %.4f)',
+                saturated_v,
+                saturated_u,
+                dy_i,
+                dx_i,
+                dy,
+                dx,
+            )
 
     # Align combined model and compute residual stats (model_h/w, image_h/w
     # were unpacked and validated at the top of the function).

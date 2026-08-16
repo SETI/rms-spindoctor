@@ -43,8 +43,8 @@ The feature-by-feature emission rules:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import polymath
@@ -77,7 +77,9 @@ from spindoctor.nav_model.nav_model_body_base import (
     NavModelBodyBase,
     _sigmoid,
 )
+from spindoctor.nav_model.silhouette_probe import refine_polyline_vertices
 from spindoctor.nav_model.stars.predicted_snr import psf_sigma_px
+from spindoctor.obs import ObsSnapshot
 from spindoctor.support.constants import HALFPI
 from spindoctor.support.image import filter_downsample, shift_array
 from spindoctor.support.time import now_dt
@@ -770,6 +772,18 @@ class NavModelBody(NavModelBodyBase):
             ext_v0=ext_v0,
             ext_u0=ext_u0,
         )
+        # Move each ridge vertex from its integer pixel center onto the probed
+        # sub-pixel boundary along its outward normal.  Without this the
+        # polyline is quantized to the pixel grid, so a sub-pixel pointing
+        # change re-rasterizes the ridge instead of translating it and the
+        # DT-based limb / terminator fits inherit a sub-pixel-phase-dependent
+        # bias of up to half a pixel that breaks shift equivariance (#447).
+        limb_sampler = _refine_sampler_to_boundary(
+            obs, body_name, limb_sampler, region='silhouette'
+        )
+        terminator_sampler = _refine_sampler_to_boundary(
+            obs, body_name, terminator_sampler, region='lit'
+        )
 
         sensor_v0 = obs.extfov_margin_v
         sensor_v1 = obs.extfov_margin_v + obs.data_shape_v
@@ -1073,6 +1087,49 @@ def shape_features_suppressed(
         shape.shape_class_hint == 'highly_irregular'
         and predicted_diameter_px > resolved_diameter_px
     )
+
+
+def _refine_sampler_to_boundary(
+    obs: ObsSnapshot,
+    body_name: str,
+    sampler: _PolylineSampler,
+    *,
+    region: Literal['silhouette', 'lit'],
+) -> _PolylineSampler:
+    """Return ``sampler`` with its vertices probed onto the sub-pixel boundary.
+
+    Thin wrapper over
+    :func:`spindoctor.nav_model.silhouette_probe.refine_polyline_vertices`
+    that rebuilds the frozen sampler dataclass around the refined vertex
+    positions.  The per-vertex incidence and km/px samples keep their
+    ridge-pixel values: they vary smoothly at the pixel scale, so re-sampling
+    them at the refined position would change nothing measurable.
+
+    Parameters:
+        obs: The observation whose FOV defines the probe lines of sight.
+        body_name: SPICE body name whose boundary is probed.
+        sampler: The discrete-ridge sampler to refine.
+        region: ``'silhouette'`` for the limb, ``'lit'`` for the terminator.
+
+    Returns:
+        A sampler with refined ``vertices_vu``; the input sampler when it
+        holds no vertices.
+    """
+    if sampler.vertices_vu.shape[0] == 0:
+        return sampler
+    # Pass this module's Meshgrid / Backplane names so the hermetic render
+    # tests' monkeypatched doubles intercept the probe exactly as they
+    # intercept the silhouette render.
+    refined = refine_polyline_vertices(
+        obs,
+        body_name,
+        sampler.vertices_vu,
+        sampler.normals_vu,
+        region=region,
+        meshgrid_cls=Meshgrid,
+        backplane_cls=Backplane,
+    )
+    return replace(sampler, vertices_vu=refined)
 
 
 def _build_limb_arc(

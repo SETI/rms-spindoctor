@@ -21,7 +21,14 @@ from typing import Any, cast
 import numpy as np
 import polymath
 import pytest
-from tests.shims import BodyBackplaneData, FakeBackplane, FakeMeshgrid, FakeObs, bare_nav_context
+from tests.shims import (
+    BodyBackplaneData,
+    FakeBackplane,
+    FakeMeshgrid,
+    FakeObs,
+    bare_nav_context,
+    probe_grid_vu,
+)
 
 import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.feature.feature import NavFeature
@@ -54,6 +61,9 @@ class _Sphere:
 
 def _grid(mg: FakeMeshgrid) -> tuple[NDArrayFloatType, NDArrayFloatType]:
     """Return ``(vv, uu)`` sample-centre coordinate arrays for a meshgrid."""
+    scattered = probe_grid_vu(mg)
+    if scattered is not None:
+        return scattered
     assert mg.origin is not None
     assert mg.limit is not None
     assert mg.oversample is not None
@@ -386,7 +396,7 @@ def test_instances_for_obs_wires_nearer_siblings(monkeypatch: pytest.MonkeyPatch
 def _helper_backplane(target: _Sphere, occluder: _Sphere) -> Any:
     """Instantiate the two-body backplane stand-in over a one-sample-per-pixel box."""
     backplane_cls = _two_body_backplane_class(target, occluder)
-    meshgrid = FakeMeshgrid((0.5, 0.5), (79.5, 79.5), oversample=(1, 1), swap=True)
+    meshgrid = FakeMeshgrid(origin=(0.5, 0.5), limit=(79.5, 79.5), oversample=(1, 1), swap=True)
     return backplane_cls(None, meshgrid=meshgrid)
 
 

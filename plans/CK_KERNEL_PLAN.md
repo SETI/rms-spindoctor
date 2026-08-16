@@ -1261,9 +1261,13 @@ two answers against the correction actually applied: `BodyLimbNav` falls
 0.139 px short on `W1637520502_1_CALIB`, and `BodyDiscCorrelateNav` falls
 0.504 px short on `C3446143_GEOMED`, where it answers `du` on a 0.25 px grid
 (-5.75 px in the first run and -0.5 px in the second) and the ensemble
-weights it at 0.73. The techniques are not exactly shift-equivariant, and
-re-measuring after a shift does not return exactly the negative of that
-shift.
+weights it at 0.73. The techniques were not exactly shift-equivariant, and
+re-measuring after a shift did not return exactly the negative of that
+shift. The body-technique causes are since fixed under #447 (probe-refined
+polyline vertices; the correlator's NCC-quadratic fallback when its
+sub-pixel refinement saturates), with the standing measurement in
+`util/calibration/shift_equivariance.py`; RingEdgeNav's larger wrong-edge
+re-locks remain open as #476.
 
 The decision rule stands as written. What these measurements add is how to
 tell its two outcomes apart: a section 2 convention error leaves about

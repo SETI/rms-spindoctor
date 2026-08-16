@@ -34,7 +34,14 @@ from typing import Any, cast
 import numpy as np
 import polymath
 import pytest
-from tests.shims import BodyBackplaneData, FakeBackplane, FakeMeshgrid, FakeObs, bare_nav_context
+from tests.shims import (
+    BodyBackplaneData,
+    FakeBackplane,
+    FakeMeshgrid,
+    FakeObs,
+    bare_nav_context,
+    probe_grid_vu,
+)
 
 import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.annotation import Annotations
@@ -105,6 +112,9 @@ def _sphere_backplane_class(spec: _SphereSpec) -> type:
 
         def _grid(self) -> tuple[NDArrayFloatType, NDArrayFloatType]:
             """Return ``(vv, uu)`` sample-centre coordinate arrays."""
+            scattered = probe_grid_vu(self._mg)
+            if scattered is not None:
+                return scattered
             assert self._mg.origin is not None
             assert self._mg.limit is not None
             assert self._mg.oversample is not None
@@ -740,25 +750,25 @@ def _limb_feature(model: NavModelBody, context: NavContext) -> NavFeature:
 def test_limb_arc_vertices_lie_on_silhouette_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every LIMB_ARC vertex is a silhouette pixel adjacent to space."""
-    model, obs = _make_model(monkeypatch, _SphereSpec((50.0, 50.0), 20.0))
+    """Every LIMB_ARC vertex sits on the sub-pixel silhouette boundary.
+
+    The probe refinement moves each ridge-pixel vertex onto the true
+    silhouette, so for the analytic sphere every vertex's distance from the
+    body centre must equal the radius to within the probe resolution
+    (0.125 px ladder step bracketed at its midpoint, widened by the
+    8-quantized normal directions).
+    """
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    model, obs = _make_model(monkeypatch, spec)
     model.create_model()
     limb = _limb_feature(model, bare_nav_context(cast(Any, obs)))
     geometry = limb.geometry
     assert isinstance(geometry, LimbPolyline)
-    assert model._body_mask is not None
-    body = model._body_mask
-    off = ~body
-    has_space_neighbour = (
-        np.roll(off, 1, axis=0)
-        | np.roll(off, -1, axis=0)
-        | np.roll(off, 1, axis=1)
-        | np.roll(off, -1, axis=1)
-    )
-    vs = geometry.vertices_vu[:, 0].astype(int)
-    us = geometry.vertices_vu[:, 1].astype(int)
-    assert bool(body[vs, us].all())
-    assert bool(has_space_neighbour[vs, us].all())
+    margin_v, margin_u = obs.extfov_margin_v, obs.extfov_margin_u
+    pos_v = geometry.vertices_vu[:, 0] - margin_v + 0.5 - spec.center_vu[0]
+    pos_u = geometry.vertices_vu[:, 1] - margin_u + 0.5 - spec.center_vu[1]
+    radial_error = np.hypot(pos_v, pos_u) - spec.radius_px
+    assert float(np.abs(radial_error).max()) < 0.15
 
 
 def test_limb_arc_normals_point_outward(monkeypatch: pytest.MonkeyPatch) -> None:

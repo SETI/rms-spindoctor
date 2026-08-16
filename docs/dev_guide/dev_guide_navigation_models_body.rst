@@ -105,7 +105,8 @@ Polyline sampling
 Each polyline vertex is a pixel that survived the discrete-mask construction. At every vertex
 the model records:
 
-- The vertex position in the extended-FOV pixel frame.
+- The vertex position in the extended-FOV pixel frame, refined onto the sub-pixel boundary
+  (see "Sub-pixel boundary refinement" below).
 - The outward-pointing unit normal, estimated from the mask gradient: a body-side neighbour
   contributes a +1 in the outward direction, an off-body neighbour contributes a -1, and the
   resulting two-component vector is normalised.
@@ -115,6 +116,28 @@ the model records:
 The km/px scale at the limb sets the sensitivity that converts physical km uncertainties into
 pixel sigmas. An empty mask collapses the sampler to zero-length arrays so the downstream
 emission gates skip the corresponding feature without special-case handling.
+
+Sub-pixel boundary refinement
+-----------------------------
+
+A ridge pixel names the boundary only to whole-pixel precision, so a polyline built from
+ridge-pixel centers is quantized to the pixel grid: a sub-pixel change in the predicted
+pointing re-rasterizes the ridge instead of translating it, and a fit against the polyline
+inherits a sub-pixel-phase-dependent bias of up to half a pixel that breaks shift
+equivariance (re-navigating with corrected pointing does not return the correction). After
+the samplers are built, :mod:`spindoctor.nav_model.silhouette_probe` therefore moves every
+vertex onto the probed sub-pixel boundary: a short ladder of probe points is laid along the
+vertex's outward normal (1/8 px steps from 1 px inward to 1.5 px outward), each probe is
+classified inside / outside the region by evaluating the body geometry at that exact line of
+sight (an oops ``Backplane`` over a scattered ``Meshgrid`` -- about 21 probes per vertex,
+negligible next to the silhouette render), and the vertex moves to the midpoint of the two
+probes bracketing the boundary. The limb probes the body-intercept silhouette; the
+terminator probes the lit region. The probing is purely geometric and independent of the
+rendering oversample factor, so it stays sub-pixel-accurate for bodies too large for
+oversampled rendering. Per-vertex incidence and km/px keep their ridge-pixel samples: they
+vary smoothly at the pixel scale, so re-sampling them at the refined position would change
+nothing measurable. A vertex whose crossing is undetermined (no boundary within the ladder)
+keeps its ridge-pixel position.
 
 Per-vertex position covariance
 ------------------------------
