@@ -1,0 +1,60 @@
+# Template cloud_tasks job configuration for a SpinDoctor navigation run.
+#
+# Copy it, fill in every CHANGE-ME, and run one task file through it:
+#
+#     cloud_tasks run --config my_job.yml --task-file coiss_tasks_01_...json
+#
+# The numbers below are starting points, not measurements.  Run one small task
+# file first, read the per-task times and memory out of the event log, and set
+# max_runtime, min_memory_per_task and the boot disk sizes from what you see.
+
+provider: gcp
+
+gcp:
+  project_id: CHANGE-ME
+  job_id: spindoctor-nav
+  region: us-central1
+
+  # The zone must be pinned, and must be the zone of the data disk the startup
+  # script attaches.  Left unset, cloud_tasks spreads instances over every zone
+  # of the region and the instances in the wrong zone cannot see the disk.
+  zone: us-central1-a
+
+  # Required for the workers, and it needs enough IAM to attach the data disk
+  # (compute.instances.attachDisk, compute.disks.use) and to write the results
+  # bucket.  cloud_tasks gives the instance the cloud-platform scope, so IAM is
+  # what decides.
+  service_account: CHANGE-ME@CHANGE-ME.iam.gserviceaccount.com
+
+  startup_script_file: cloud_support/startup_script.sh
+
+  # Instance shape.  One image is one task and navigation is single-threaded,
+  # so tasks and vCPUs go one to one.
+  instance_types: ["^n2-.*", "^n2d-.*", "^c3-.*"]
+  min_cpu: 8
+  max_cpu: 32
+  cpus_per_task: 1
+  min_memory_per_task: 4  # GB
+
+  # Boot disk carries the venv and the file cache of downloaded images.
+  boot_disk_types: pd-balanced
+  boot_disk_base_size: 30  # GB
+  boot_disk_per_task: 5  # GB
+
+  # How much of the job runs at once, and what it may cost.
+  max_instances: 10
+  max_simultaneous_tasks: 200
+  max_total_price_per_hour: 10.00
+  use_spot: true
+
+  # A task is one navigated image.  A generous ceiling only matters for the
+  # images that hang; it is not the expected time.
+  max_runtime: 1800  # seconds
+  retry_on_exit: true  # a spot preemption should not lose the image
+  retry_on_exception: false  # a failed navigation is a result, not an error
+  retry_on_timeout: false
+
+  # Installing from git and mounting the disk takes a few minutes before the
+  # first keep-alive arrives; without this, cloud_tasks decides the startup
+  # script is broken and tears the pool down.
+  keepalive_startup_timeout: 900  # seconds

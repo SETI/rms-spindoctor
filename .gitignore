@@ -174,3 +174,16 @@ tests/integration/sim_sweeps/results/
 
 # convenience symlink to .venv (local only)
 /venv
+
+# Editor swap and backup files
+*.swp
+*.swo
+*~
+
+# What a cloud run leaves behind in the tree: the task files the generators
+# write (their default output directory is the working directory) and the job
+# configuration an operator copies from cloud_support/job_config_template.yml
+# and fills in with their own project
+*_tasks.json
+*_tasks_*.json
+cloud_support/job_config.yml

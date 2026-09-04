@@ -456,6 +456,13 @@ Fields:
   ``null``) and ``extra_params`` (arbitrary key/value dictionary forwarded
   to the task implementation; optional, may be ``null`` or omitted).
 
+Whole-mission task files
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+A mission is more than one ``sd_offset`` invocation to enumerate: Cassini ISS holds far more images than one queue should carry, and Voyager ISS is run one planetary encounter at a time. ``cloud_support/scripts/`` holds a generator per instrument that makes the selections and writes the files a queue is loaded from -- Galileo SSI and New Horizons LORRI as a single file each, Voyager ISS as one file per encounter, and Cassini ISS as consecutive groups of whole volumes holding roughly fifty thousand images apiece. Each generator requires the holdings root the cloud workers will read, because the image and label URLs a task carries are absolute and are fixed when the task is written.
+
+These scripts are part of the repository rather than of the installed package. ``cloud_support/README.md`` describes them together with the compute-instance startup script and the job configuration they are used with.
+
 .. _selecting-models-and-techniques:
 
 Selecting models and techniques

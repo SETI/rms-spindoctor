@@ -540,7 +540,8 @@ asserts the generated half matches the registries.
   did not fix is now three issues — #418, #423, #424 below — and what
   remains under #108 itself is the cloud-operation half: whether each
   driver's cloud path actually works end to end, which is untested for
-  several of them.
+  several of them. The task files such a run needs, and the instance
+  startup script it runs under, are scripted in `cloud_support/`.
 - **#418** — a `sd_mosaic_cloud_tasks` task returns `status: success` no
   matter how many of its images failed. The counts are in the result now
   (`n_uncorrected`, `pointing_reasons`, `rejected_stubs`), so the
