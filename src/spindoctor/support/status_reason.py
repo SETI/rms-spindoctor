@@ -64,6 +64,14 @@ class NavStatusReason(StrEnum):
     - ``CONTRACT_VIOLATION``: an internal navigation invariant was violated
       (``NavContractError``); a programming error upstream, not bad image
       data.  The full traceback is in the error log.
+    - ``BODY_FILLS_FOV``: a body's bounding box reaches past every corner of
+      the extended field of view, so the image is all body and no sky: no limb
+      on any edge, no measurable disc extent, nothing for a shape-based
+      technique to match. Separated from ``NO_FEATURES_EXTRACTED`` because it
+      is a fact about the geometry rather than about what the models managed
+      to find -- these frames are unnavigable by construction and a statistics
+      report should be able to set them aside rather than count them as
+      failures to explain.
     - ``INTERNAL_ERROR``: a NavModel or NavTechnique raised an exception
       nothing anticipated (``NavInternalError``), so the image was not
       navigated as designed and is failed rather than answered from the
@@ -83,6 +91,7 @@ class NavStatusReason(StrEnum):
     IMAGE_CORRUPT = 'image_corrupt'
     KERNELS_UNAVAILABLE = 'kernels_unavailable'
     INSTRUMENT_NOT_CONFIGURED = 'instrument_not_configured'
+    BODY_FILLS_FOV = 'body_fills_fov'
     NO_FEATURES_EXTRACTED = 'no_features_extracted'
     ALL_FEATURES_GATED = 'all_features_gated'
     NO_FEASIBLE_TECHNIQUES = 'no_feasible_techniques'

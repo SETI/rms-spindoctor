@@ -438,3 +438,86 @@ def test_occluder_helper_fails_on_a_backplane_failure(capsys: pytest.CaptureFixt
     assert 'cannot resolve occlusion' in str(exc_info.value)
     logged = capsys.readouterr().out
     assert 'Body TARGET: occlusion by OCCLUDER could not be evaluated' in logged
+
+
+# ---------------------------------------------------------------------------
+# A body that covers the frame
+# ---------------------------------------------------------------------------
+
+
+def _fov_obs(shape: tuple[int, int] = (100, 100), margin: tuple[int, int] = (10, 10)) -> FakeObs:
+    """An observation whose extended frame the tests place a body against."""
+    return FakeObs(data=np.zeros(shape), extfov_margin_vu=margin)
+
+
+def _entry(*, centre: tuple[float, float], size: tuple[float, float]) -> dict[str, Any]:
+    """An inventory record placing a disc of the given centre and pixel size.
+
+    Parameters:
+        centre: ``(u, v)`` centre of the disc in field-of-view coordinates.
+        size: ``(u, v)`` full pixel extent of the disc.
+    """
+    return {
+        'center_uv': np.array([centre[0], centre[1]]),
+        'u_pixel_size': size[0],
+        'v_pixel_size': size[1],
+        'u_min_unclipped': centre[0] - size[0] / 2.0,
+        'u_max_unclipped': centre[0] + size[0] / 2.0,
+        'v_min_unclipped': centre[1] - size[1] / 2.0,
+        'v_max_unclipped': centre[1] + size[1] / 2.0,
+        'range': 1.0e5,
+    }
+
+
+def test_a_body_covering_every_corner_fills_the_frame() -> None:
+    """A disc large enough to swallow the extended frame reports that it does."""
+    obs = _fov_obs()
+    entry = _entry(centre=(50.0, 50.0), size=(4000.0, 4000.0))
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is True
+
+
+def test_a_body_leaving_one_corner_uncovered_does_not_fill_the_frame() -> None:
+    """One corner outside the limb is sky, and sky is what navigation needs.
+
+    The disc's bounding box covers the frame here and the disc does not, which
+    is why the test is against the ellipse: the box would call this unnavigable
+    and it is the case that navigates.
+    """
+    obs = _fov_obs()
+    # Chosen so the box clears the frame on every side and the ellipse does
+    # not: the far corner sits at 1.02 of the ellipse's radius.
+    entry = _entry(centre=(50.0, 50.0), size=(400.0, 122.0))
+    assert entry['u_min_unclipped'] <= obs.extfov_u_min
+    assert entry['u_max_unclipped'] >= obs.extfov_u_max
+    assert entry['v_min_unclipped'] <= obs.extfov_v_min
+    assert entry['v_max_unclipped'] >= obs.extfov_v_max
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
+
+
+def test_a_body_off_to_one_side_does_not_fill_the_frame() -> None:
+    """Size alone does not decide it; where the body sits does."""
+    obs = _fov_obs()
+    entry = _entry(centre=(-2000.0, 50.0), size=(4000.0, 4000.0))
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
+
+
+def test_a_body_with_no_measurable_size_does_not_fill_the_frame() -> None:
+    """A record that cannot be measured is looked at rather than dismissed."""
+    obs = _fov_obs()
+    entry = _entry(centre=(50.0, 50.0), size=(0.0, 0.0))
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
+
+
+def test_a_body_with_a_missing_field_does_not_fill_the_frame() -> None:
+    """Nor is an incomplete record read as covering the frame."""
+    obs = _fov_obs()
+    entry = _entry(centre=(50.0, 50.0), size=(4000.0, 4000.0))
+    del entry['u_pixel_size']
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
+
+
+def test_a_non_finite_size_does_not_fill_the_frame() -> None:
+    """A NaN extent fails every comparison, so it is rejected explicitly."""
+    obs = _fov_obs()
+    entry = _entry(centre=(50.0, 50.0), size=(float('nan'), 4000.0))
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False

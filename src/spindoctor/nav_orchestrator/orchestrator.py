@@ -577,8 +577,28 @@ class NavOrchestrator(NavBase):
         model_metadata = self._collect_model_metadata(built_models)
         annotations = self._collect_annotations(context, built_models)
         if not all_features:
+            # A body covering the frame is a fact about the geometry, not a
+            # shortfall in what the models found: there is no limb on any edge
+            # and no disc extent to measure, so no model could have found
+            # anything. Reported as itself so a statistics report can set these
+            # frames aside as unnavigable rather than count them among the
+            # images whose failure wants explaining. One such body is enough --
+            # it covers the frame, so nothing else is in view either.
+            fills_fov = [
+                name
+                for name, meta in model_metadata.items()
+                if isinstance(meta, dict) and meta.get('fills_extfov')
+            ]
+            if fills_fov:
+                self._logger.info(
+                    'No features: %s covers the extended frame', ', '.join(sorted(fills_fov))
+                )
             return self._fail(
-                status_reason=NavStatusReason.NO_FEATURES_EXTRACTED,
+                status_reason=(
+                    NavStatusReason.BODY_FILLS_FOV
+                    if fills_fov
+                    else NavStatusReason.NO_FEATURES_EXTRACTED
+                ),
                 image_classifier=image_classifier,
                 provenance=provenance,
                 feature_inventory=feature_inventory,

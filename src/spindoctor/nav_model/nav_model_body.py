@@ -248,6 +248,54 @@ def bodies_in_extfov(
     return out
 
 
+def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
+    """Whether a body's disc covers every corner of the extended frame.
+
+    A body whose disc reaches past all four corners leaves no sky around it:
+    the limb is off the edge on every side, the disc has no measurable extent,
+    and there is nothing in the image a shape-based technique can match. The
+    frame is unnavigable by that body.
+
+    Saying so from the inventory alone is the point. The backplane over such a
+    body's box is the largest one a navigation ever asks for -- on a Voyager
+    frame it is the whole extended frame -- and it is built to render a
+    silhouette that fills the image and carries no edge.
+
+    The disc is the ellipse the inventory's pixel sizes describe, centred where
+    the inventory puts it, and the question is where the frame's corners fall
+    against it. The bounding box will not do: a corner inside the box can still
+    be outside the limb, which is precisely the case where the image does show
+    sky and is navigable. An ellipse is convex, so covering the four corners is
+    covering the frame.
+
+    Parameters:
+        obs: Observation snapshot, for the extended frame's bounds.
+        inventory: The body's inventory record.
+
+    Returns:
+        True when every corner of the extended frame lies inside the disc.
+        False when the record does not carry what the test needs, because a
+        body that cannot be measured has to be looked at rather than dismissed.
+    """
+    try:
+        centre = inventory['center_uv']
+        u_c = float(centre[0])
+        v_c = float(centre[1])
+        semi_u = float(inventory['u_pixel_size']) / 2.0
+        semi_v = float(inventory['v_pixel_size']) / 2.0
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if not (semi_u > 0.0 and semi_v > 0.0):
+        return False
+    if not all(math.isfinite(x) for x in (u_c, v_c, semi_u, semi_v)):
+        return False
+    return all(
+        ((u - u_c) / semi_u) ** 2 + ((v - v_c) / semi_v) ** 2 <= 1.0
+        for u in (obs.extfov_u_min, obs.extfov_u_max)
+        for v in (obs.extfov_v_min, obs.extfov_v_max)
+    )
+
+
 def occluder_mask_for_body(
     restr_bp: Backplane,
     body_name: str,
@@ -451,7 +499,19 @@ class NavModelBody(NavModelBodyBase):
         self._metadata['elapsed_time_sec'] = None
         self._metadata['body_name'] = self._body_name
         with self.log_section(f'CREATE BODY MODEL FOR: {self._body_name}'):
-            self._render()
+            if self._inventory is not None and body_fills_extfov(self.obs, self._inventory):
+                # Declined here rather than after rendering: the backplane over
+                # a body that covers the frame is the largest one a navigation
+                # builds, and it would be built to draw a silhouette with no
+                # edge in it.
+                self._metadata['fills_extfov'] = True
+                self._logger.info(
+                    'Body %s covers the extended frame; no limb or disc extent to '
+                    'measure, so no model is built',
+                    self._body_name,
+                )
+            else:
+                self._render()
             self._log_geometry_summary()
             end_time = now_dt()
             self._metadata['end_time'] = end_time.isoformat()
