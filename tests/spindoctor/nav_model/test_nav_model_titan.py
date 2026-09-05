@@ -797,10 +797,12 @@ def test_every_titan_backplane_stays_within_the_sample_cap(
 def test_the_mask_backplane_is_clipped_to_the_extended_frame(
     scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The mask box never reaches outside the frame, whose pixels alone survive.
+    """No mask backplane reaches outside the frame, whose pixels alone survive.
 
-    The mask backplane is the last one the geometry builds, after the
-    symmetry axis has had its unclipped envelope box.
+    The mask box is evaluated a strip of rows at a time, so what is asserted is
+    the property every one of those strips has to have rather than the identity
+    of any one of them: the symmetry axis gets its unclipped envelope box, and
+    every box after it lies inside the extended frame.
     """
     scene.titan_center_vu = (60.5, 60.5)
     scene.titan_radius_px = 2000.0
@@ -814,9 +816,13 @@ def test_the_mask_backplane_is_clipped_to_the_extended_frame(
     )
     rows, cols = geometry.extfov_shape_vu
     margin_v, margin_u = geometry.extfov_margin_vu
-    u_min, u_max, v_min, v_max = calls[-1][0]
-    assert (u_min, v_min) == (-margin_u, -margin_v)
-    assert (u_max, v_max) == (cols - margin_u - 1, rows - margin_v - 1)
+    # The first call is the symmetry axis, whose box is deliberately unclipped.
+    mask_boxes = [box for box, _ in calls[1:]]
+    assert mask_boxes
+    assert all(u_min >= -margin_u for u_min, _, _, _ in mask_boxes)
+    assert all(u_max <= cols - margin_u - 1 for _, u_max, _, _ in mask_boxes)
+    assert all(v_min >= -margin_v for _, _, v_min, _ in mask_boxes)
+    assert all(v_max <= rows - margin_v - 1 for _, _, _, v_max in mask_boxes)
 
 
 def test_a_strided_envelope_box_still_points_the_axis_sunward(

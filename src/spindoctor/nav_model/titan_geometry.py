@@ -120,6 +120,13 @@ _RING_TARGET_SUFFIX: str = ':ring'
 """Suffix appended to a lowercase planet name to name its ring surface."""
 
 
+OCCLUDER_STRIP_ROWS: int = 128
+"""How many rows one sibling-occlusion evaluation covers at a time.
+
+See :func:`_striped_occluder_mask`. The same bound, for the same reason, as
+:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS`.
+"""
+
 _MASK_BOX_SLOP_PX: float = 0.5
 """Slop added when converting a field-of-view centre to a bounding-box index.
 
@@ -761,6 +768,77 @@ class _ContaminantMask:
     occluded_fraction: float
 
 
+def _striped_occlusion(
+    obs: Observation,
+    bbox_nominal: tuple[int, int, int, int],
+    sibling_ranges: list[tuple[str, float]],
+    subject_range_km: float,
+    planet: str | None,
+    ring_radii_km: tuple[float, float],
+) -> tuple[NDArrayBoolType | None, NDArrayBoolType | None]:
+    """Both occlusion masks over a box, a strip of rows at a time.
+
+    The bodies and the rings are asked about together because they are asked
+    about over the same box: one set of strips, and each strip's backplane
+    answers both questions before it is discarded.
+
+    Parameters:
+        obs: Observation snapshot.
+        bbox_nominal: ``(u_min, u_max, v_min, v_max)`` of the mask box.
+        sibling_ranges: ``(body name, range_km)`` for the other bodies in the
+            field of view.
+        subject_range_km: Center range of the subject body; only strictly
+            nearer siblings and ring intercepts can hide it.
+        planet: The planet whose rings might occlude, or None for a frame with
+            no planet to speak of, which asks the rings nothing.
+        ring_radii_km: Inner and outer radius of the annulus treated as opaque.
+
+    Returns:
+        ``(body mask, ring mask)`` box-local, each None when nothing is hidden
+        -- the same answers the whole-box calls give.
+    """
+    u_min, u_max, v_min, v_max = bbox_nominal
+    height = v_max - v_min + 1
+    width = u_max - u_min + 1
+    if height <= 0 or width <= 0:
+        return None, None
+    body_parts: list[NDArrayBoolType] = []
+    ring_parts: list[NDArrayBoolType] = []
+    any_body = False
+    any_ring = False
+    for start in range(0, height, OCCLUDER_STRIP_ROWS):
+        stop = min(start + OCCLUDER_STRIP_ROWS, height)
+        try:
+            strip_bp, _ = _restricted_backplane(
+                obs, (u_min, u_max, v_min + start, v_min + stop - 1)
+            )
+        except Exception as exc:
+            IMAGE_LOGGER.error('Titan: mask-box backplane could not be evaluated: %s', exc)
+            raise
+        empty = np.zeros((stop - start, width), dtype=bool)
+        body = occluder_mask_for_body(
+            strip_bp,
+            TITAN_BODY_NAME,
+            sibling_ranges,
+            subject_range_km,
+            oversample_v=1,
+            oversample_u=1,
+        )
+        body_parts.append(empty if body is None else body)
+        any_body = any_body or body is not None
+        ring = (
+            None
+            if planet is None
+            else _ring_occlusion_local(strip_bp, planet, subject_range_km, ring_radii_km)
+        )
+        ring_parts.append(empty if ring is None else ring)
+        any_ring = any_ring or ring is not None
+    return (
+        np.vstack(body_parts) if any_body else None,
+        np.vstack(ring_parts) if any_ring else None,
+    )
+
+
 def _contaminant_mask(
     obs: Observation,
     config: Config,
@@ -806,35 +884,29 @@ def _contaminant_mask(
     # dropped twice downstream, once by the embed and once by the box region,
     # so the only thing evaluating it ever bought was the memory it took.
     clipped_bbox = _clip_bbox_to_extfov(mask_bbox, extfov_shape_vu, margin_vu)
-    bp = None
     if clipped_bbox is None:
         IMAGE_LOGGER.info('Titan: mask box lies outside the extended frame; occlusion not masked')
     else:
-        try:
-            bp, _ = _restricted_backplane(obs, clipped_bbox)
-        except Exception as exc:
-            IMAGE_LOGGER.error('Titan: mask-box backplane could not be evaluated: %s', exc)
-            raise
-    if bp is not None and clipped_bbox is not None:
         sibling_ranges = [
             (name.upper(), float(entry.get('range', float('inf')))) for name, entry in siblings
         ]
-        body_local = occluder_mask_for_body(
-            bp,
-            TITAN_BODY_NAME,
-            sibling_ranges,
-            subject_range_km,
-            oversample_v=1,
-            oversample_u=1,
-        )
+        # Evaluated a strip of rows at a time. Each sibling costs one whole-box
+        # occlusion backplane, and the box is the envelope plus twice the search
+        # window -- which is the extfov margin, 400 pixels on Voyager, so the box
+        # is most of the frame however small the body in it. Sixteen siblings
+        # over that box measured 12.3 GB (2026-09-05). oops materializes its
+        # intermediates over whatever meshgrid it is handed, so handing it a
+        # strip costs a strip's worth; the mask assembled from the strips is the
+        # mask the whole-box call returns.
         planet = obs.closest_planet
         radii = nav_config['ring_occlusion_radii_km']
-        ring_local = (
-            None
-            if planet is None
-            else _ring_occlusion_local(
-                bp, str(planet), subject_range_km, (float(radii[0]), float(radii[1]))
-            )
+        body_local, ring_local = _striped_occlusion(
+            obs,
+            clipped_bbox,
+            sibling_ranges,
+            subject_range_km,
+            None if planet is None else str(planet),
+            (float(radii[0]), float(radii[1])),
         )
         for local in (body_local, ring_local):
             if local is not None:

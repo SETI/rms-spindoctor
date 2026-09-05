@@ -114,12 +114,39 @@ class _DelegatingSparseBackplane:
     """
 
     def __init__(self, obs: Any, meshgrid: Any = None) -> None:
-        del meshgrid
         self._obs = obs
+        self._meshgrid = meshgrid
+
+    def _rows(self) -> slice:
+        """Rows of the dense arrays this stand-in was built to cover.
+
+        The render evaluates its whole-frame backplanes a strip of rows at a
+        time, so a stand-in for one strip has to answer for that strip and not
+        for the frame. The strip is read back from the meshgrid's origin and
+        limit, which is where the caller put it.
+        """
+        mg = self._meshgrid
+        if mg is None or not hasattr(mg, 'origin') or not hasattr(mg, 'limit'):
+            return slice(None)
+        first = round(mg.origin[1] - 0.5) - self._obs.extfov_v_min
+        last = round(mg.limit[1] - 0.5) - self._obs.extfov_v_min
+        return slice(first, last + 1)
 
     def ring_radius(self, ring_target: str) -> Any:
         """Return the dense fake backplane's ring radius Scalar."""
         return self._obs.ext_bp.ring_radius(ring_target)
+
+    def distance(self, ring_target: str, direction: str = 'dep') -> Any:
+        """Return this strip's rows of the dense ring-plane distance."""
+        return self._obs.ext_bp.distance(ring_target, direction=direction)[self._rows()]
+
+    def where_inside_shadow(self, ring_target: str, planet: str) -> Any:
+        """Return this strip's rows of the dense planet-shadow mask."""
+        return self._obs.ext_bp.where_inside_shadow(ring_target, planet)[self._rows()]
+
+    def where_in_front(self, near_target: str, far_target: str) -> Any:
+        """Return this strip's rows of the dense occlusion mask."""
+        return self._obs.ext_bp.where_in_front(near_target, far_target)[self._rows()]
 
 
 def _ramp_ring(
