@@ -577,28 +577,9 @@ class NavOrchestrator(NavBase):
         model_metadata = self._collect_model_metadata(built_models)
         annotations = self._collect_annotations(context, built_models)
         if not all_features:
-            # A body covering the frame is a fact about the geometry, not a
-            # shortfall in what the models found: there is no limb on any edge
-            # and no disc extent to measure, so no model could have found
-            # anything. Reported as itself so a statistics report can set these
-            # frames aside as unnavigable rather than count them among the
-            # images whose failure wants explaining. One such body is enough --
-            # it covers the frame, so nothing else is in view either.
-            fills_fov = [
-                name
-                for name, meta in model_metadata.items()
-                if isinstance(meta, dict) and meta.get('fills_extfov')
-            ]
-            if fills_fov:
-                self._logger.info(
-                    'No features: %s covers the extended frame', ', '.join(sorted(fills_fov))
-                )
+            # _fail substitutes body_fills_fov when a body covers the frame.
             return self._fail(
-                status_reason=(
-                    NavStatusReason.BODY_FILLS_FOV
-                    if fills_fov
-                    else NavStatusReason.NO_FEATURES_EXTRACTED
-                ),
+                status_reason=NavStatusReason.NO_FEATURES_EXTRACTED,
                 image_classifier=image_classifier,
                 provenance=provenance,
                 feature_inventory=feature_inventory,
@@ -853,7 +834,33 @@ class NavOrchestrator(NavBase):
         Wraps ``NavResult.failed`` so every short-circuit and gate emits
         the per-status-reason INFO log lines defined in
         :data:`STATUS_REASON_INFO_TEMPLATE`.
+
+        A body covering the extended frame decides the reason whatever else
+        happened. It occludes the stars and stands in front of the rings, so
+        features from those are not evidence that the frame was navigable:
+        whichever of them survived to be gated, the image is all body and no
+        sky, and reporting the gate would describe a symptom while hiding the
+        cause. The exception is a defect -- an internal error or a contract
+        violation is about this code and must never be filed under a fact about
+        the geometry.
         """
+        if status_reason not in (
+            NavStatusReason.INTERNAL_ERROR,
+            NavStatusReason.CONTRACT_VIOLATION,
+        ):
+            covering = sorted(
+                name
+                for name, meta in (model_metadata or {}).items()
+                if isinstance(meta, dict) and meta.get('fills_extfov')
+            )
+            if covering:
+                if status_reason is not NavStatusReason.BODY_FILLS_FOV:
+                    self._logger.info(
+                        'Reporting body_fills_fov rather than %s: %s covers the extended frame',
+                        status_reason.value,
+                        ', '.join(covering),
+                    )
+                status_reason = NavStatusReason.BODY_FILLS_FOV
         self._log_status_reason(status_reason)
         return NavResult.failed(
             status_reason=status_reason,
