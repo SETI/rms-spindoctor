@@ -90,6 +90,15 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 
+BODY_STRIP_ROWS: int = 128
+"""Rows of a body's oversampled grid evaluated in one backplane call.
+
+A body larger than the frame has its box clipped to the frame, so its grid is
+the whole extended frame; oops sizes its intermediates by the grid, so that is
+what the stage costs. Striping bounds it by the strip. The same figure, for the
+same reason, as the ring and Titan strips.
+"""
+
 __all__ = [
     'BODY_BLOB_MIN_DIAMETER_PX',
     'BODY_DISC_MAX_OVERFLOW_FRACTION',
@@ -246,6 +255,50 @@ def bodies_in_extfov(
             continue
         out.append((body_name, entry))
     return out
+
+
+def _striped_incidence(
+    obs: Observation,
+    body_name: str,
+    *,
+    u_range: tuple[float, float],
+    v_range: tuple[float, float],
+    oversample: tuple[int, int],
+) -> Any:
+    """Incidence angle over a body's oversampled box, a strip of rows at a time.
+
+    Parameters:
+        obs: Observation snapshot.
+        body_name: SPICE name of the body.
+        u_range: ``(min, max)`` of the oversampled grid's horizontal extent.
+        v_range: ``(min, max)`` of its vertical extent.
+        oversample: ``(u, v)`` oversample factors of the grid.
+
+    Returns:
+        The masked array a single whole-box evaluation returns. Strip
+        boundaries fall on whole rows of the oversampled grid, so the caller's
+        downsample sees exactly the array it saw before.
+    """
+    oversample_u, oversample_v = oversample
+    v_min, v_max = v_range
+    # One output row per oversampled sample; the strip covers a whole number of
+    # them so that stacking reproduces the grid rather than a shifted one.
+    rows = round((v_max - v_min) * oversample_v) + 1
+    step = max(1, BODY_STRIP_ROWS)
+    parts = []
+    for start in range(0, rows, step):
+        stop = min(start + step, rows)
+        meshgrid = Meshgrid.for_fov(
+            obs.fov,
+            origin=(u_range[0], v_min + start / oversample_v),
+            limit=(u_range[1], v_min + (stop - 1) / oversample_v),
+            oversample=(oversample_u, oversample_v),
+            swap=True,
+        )
+        parts.append(Backplane(obs, meshgrid=meshgrid).incidence_angle(body_name).mvals)
+    if len(parts) == 1:
+        return parts[0]
+    return np.ma.concatenate(parts, axis=0)
 
 
 def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
@@ -717,7 +770,19 @@ class NavModelBody(NavModelBodyBase):
         )
         restr_bp = Backplane(obs, meshgrid=restr_meshgrid)
 
-        oversampled_incidence_mvals = restr_bp.incidence_angle(body_name).mvals
+        # Evaluated a strip of rows at a time. A body larger than the frame has
+        # a box clipped to the frame, so this grid is the whole extended frame,
+        # and oops materializes its intermediates over the grid it is handed:
+        # Saturn overfilling a Cassini frame measured 7.5 GB here, more than
+        # every other stage of that navigation put together. The strips are
+        # stacked back into the array the whole-box call returns.
+        oversampled_incidence_mvals = _striped_incidence(
+            obs,
+            body_name,
+            u_range=(restr_u_min, restr_u_max),
+            v_range=(restr_v_min, restr_v_max),
+            oversample=(oversample_u, oversample_v),
+        )
         downsampled_incidence_mvals = filter_downsample(
             oversampled_incidence_mvals, oversample_v, oversample_u
         )
