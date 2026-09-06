@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any, cast
 
 import numpy as np
@@ -27,7 +28,12 @@ import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.flags import LimbArcFlags, TerminatorArcFlags
 from spindoctor.feature.geometry import LimbPolyline
-from spindoctor.nav_model.nav_model_body import NavModelBody, occluder_mask_for_body
+from spindoctor.nav_model.nav_model_body import (
+    BODY_STRIP_ROWS,
+    NavModelBody,
+    _strip_bounds,
+    occluder_mask_for_body,
+)
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _TARGET = 'TARGET'
@@ -441,12 +447,64 @@ def test_occluder_helper_fails_on_a_backplane_failure(capsys: pytest.CaptureFixt
 
 
 # ---------------------------------------------------------------------------
+# Strip bounds
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize('oversample_v', [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 16])
+@pytest.mark.parametrize('box_rows', [1, 3, 17, 64, 100])
+def test_every_strip_is_a_whole_number_of_output_rows(oversample_v: int, box_rows: int) -> None:
+    """A strip the caller's downsample cannot divide aborts the body model.
+
+    ``filter_downsample`` refuses a row count that its factor does not divide,
+    and the occlusion path hands it a strip directly.  The whole box always
+    divides -- it is ``box_rows`` output rows by construction -- so a strip
+    that does not is the strip boundary's doing.
+
+    Parameters:
+        oversample_v: Vertical oversample factor of the box.
+        box_rows: Output rows of the box, before oversampling.
+    """
+    rows = box_rows * oversample_v
+    for start, stop in _strip_bounds(rows, oversample_v):
+        assert (stop - start) % oversample_v == 0
+
+
+@pytest.mark.parametrize('oversample_v', [1, 2, 3, 5, 7, 16])
+def test_the_strips_cover_the_box_exactly_once(oversample_v: int) -> None:
+    """Whatever the factor, the strips tile the box: no gap, no overlap.
+
+    Parameters:
+        oversample_v: Vertical oversample factor of the box.
+    """
+    rows = 37 * oversample_v
+    bounds = list(_strip_bounds(rows, oversample_v))
+    assert bounds[0][0] == 0
+    assert bounds[-1][1] == rows
+    assert all(a[1] == b[0] for a, b in pairwise(bounds))
+
+
+def test_a_strip_is_no_taller_than_the_row_bound() -> None:
+    """The bound is what keeps one strip's backplane off the whole box."""
+    assert all(stop - start <= BODY_STRIP_ROWS for start, stop in _strip_bounds(1000, 3))
+
+
+# ---------------------------------------------------------------------------
 # A body that covers the frame
 # ---------------------------------------------------------------------------
 
 
 def _fov_obs(shape: tuple[int, int] = (100, 100), margin: tuple[int, int] = (10, 10)) -> FakeObs:
-    """An observation whose extended frame the tests place a body against."""
+    """An observation whose extended frame the tests place a body against.
+
+    Parameters:
+        shape: ``(rows, cols)`` of the detector.
+        margin: ``(v, u)`` extfov margin, which with the shape sets the four
+            corners the frame-fill test asks about.
+
+    Returns:
+        The observation stand-in.
+    """
     return FakeObs(data=np.zeros(shape), extfov_margin_vu=margin)
 
 
@@ -456,6 +514,10 @@ def _entry(*, centre: tuple[float, float], size: tuple[float, float]) -> dict[st
     Parameters:
         centre: ``(u, v)`` centre of the disc in field-of-view coordinates.
         size: ``(u, v)`` full pixel extent of the disc.
+
+    Returns:
+        The record, carrying the centre, the pixel sizes and the unclipped
+        bounding box the caller reads.
     """
     return {
         'center_uv': np.array([centre[0], centre[1]]),
@@ -467,6 +529,58 @@ def _entry(*, centre: tuple[float, float], size: tuple[float, float]) -> dict[st
         'v_max_unclipped': centre[1] + size[1] / 2.0,
         'range': 1.0e5,
     }
+
+
+def test_the_decline_is_reached_without_a_supplied_inventory() -> None:
+    """A caller who does not hand the record over still gets the decline.
+
+    The record is what the decline is decided from, and the render loads it
+    when the caller did not.  Deciding only when a caller supplied it meant
+    the callers who did not built the whole-frame backplane the decline exists
+    to avoid, and then declined nothing.
+    """
+    obs = _fov_obs()
+    obs.inventory_records[_TARGET] = _entry(centre=(50.0, 50.0), size=(400.0, 400.0))
+    model = NavModelBody(f'body:{_TARGET}', cast(Any, obs), _TARGET)
+    model.create_model()
+    assert model.metadata['fills_extfov'] is True
+
+
+def test_a_body_that_does_not_cover_the_frame_is_rendered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The complement, so the decline is not simply always taken.
+
+    Parameters:
+        monkeypatch: Fixture the render is replaced through, because what is
+            under test is whether it is reached, not what it draws.
+    """
+    obs = _fov_obs()
+    obs.inventory_records[_TARGET] = _entry(centre=(50.0, 50.0), size=(10.0, 10.0))
+    model = NavModelBody(f'body:{_TARGET}', cast(Any, obs), _TARGET)
+    rendered = []
+    monkeypatch.setattr(NavModelBody, '_render', lambda self: rendered.append(True))
+    model.create_model()
+    assert rendered == [True]
+    assert model.metadata.get('fills_extfov') is None
+
+
+def test_a_covering_body_is_declined_without_being_rendered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Not rendering is the whole point: that backplane is the largest one.
+
+    Parameters:
+        monkeypatch: Fixture the render is replaced through, so reaching it
+            is observable.
+    """
+    obs = _fov_obs()
+    obs.inventory_records[_TARGET] = _entry(centre=(50.0, 50.0), size=(400.0, 400.0))
+    model = NavModelBody(f'body:{_TARGET}', cast(Any, obs), _TARGET)
+    rendered = []
+    monkeypatch.setattr(NavModelBody, '_render', lambda self: rendered.append(True))
+    model.create_model()
+    assert rendered == []
 
 
 def test_a_body_covering_every_corner_fills_the_frame() -> None:

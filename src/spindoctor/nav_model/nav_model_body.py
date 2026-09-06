@@ -259,6 +259,30 @@ def bodies_in_extfov(
     return out
 
 
+def _strip_bounds(rows: int, oversample_v: int) -> Iterator[tuple[int, int]]:
+    """Yield ``(start, stop)`` row bounds covering a box, one strip at a time.
+
+    A strip is handed to the caller's downsample, which divides its rows by the
+    oversample factor and refuses a count that does not divide exactly.  The
+    whole box always divides -- it is that many output rows by construction --
+    but a fixed :data:`BODY_STRIP_ROWS` strip only does when the factor divides
+    that constant, so each strip is instead the largest multiple of the factor
+    that fits inside it.  The last strip is whatever remains, which divides for
+    the same reason the box does.
+
+    Parameters:
+        rows: Rows of the oversampled box.
+        oversample_v: Vertical oversample factor; each strip is a whole number
+            of this many rows.
+
+    Yields:
+        ``(start, stop)`` half-open row bounds, in order, covering ``rows``.
+    """
+    step = max(oversample_v, (max(1, BODY_STRIP_ROWS) // oversample_v) * oversample_v)
+    for start in range(0, rows, step):
+        yield start, min(start + step, rows)
+
+
 def _body_strips(
     obs: Observation,
     *,
@@ -289,8 +313,7 @@ def _body_strips(
     oversample_u, oversample_v = oversample
     v_min, v_max = v_range
     rows = round((v_max - v_min) * oversample_v) + 1
-    for start in range(0, rows, max(1, BODY_STRIP_ROWS)):
-        stop = min(start + max(1, BODY_STRIP_ROWS), rows)
+    for start, stop in _strip_bounds(rows, oversample_v):
         yield Backplane(
             obs,
             meshgrid=Meshgrid.for_fov(
@@ -304,7 +327,16 @@ def _body_strips(
 
 
 def _stack(parts: list[Any]) -> Any:
-    """Stack per-strip masked arrays back into the whole-box array."""
+    """Stack per-strip masked arrays back into the whole-box array.
+
+    Parameters:
+        parts: One masked array per strip, in row order, each covering the
+            full width of the box.
+
+    Returns:
+        The array a whole-box evaluation would have produced, or the single
+        part unchanged when there was only one strip.
+    """
     if len(parts) == 1:
         return parts[0]
     return np.ma.concatenate(parts, axis=0)
@@ -561,7 +593,15 @@ class NavModelBody(NavModelBodyBase):
         self._metadata['elapsed_time_sec'] = None
         self._metadata['body_name'] = self._body_name
         with self.log_section(f'CREATE BODY MODEL FOR: {self._body_name}'):
-            if self._inventory is not None and body_fills_extfov(self.obs, self._inventory):
+            # Resolved here rather than in _render, which is what used to load
+            # it: gating the decline on a caller having supplied the record
+            # meant a caller who did not skipped the decline and then built the
+            # very backplane it exists to avoid.
+            if self._inventory is None:
+                self._inventory = self.obs.inventory([self._body_name], return_type='full')[
+                    self._body_name
+                ]
+            if body_fills_extfov(self.obs, self._inventory):
                 # Declined here rather than after rendering: the backplane over
                 # a body that covers the frame is the largest one a navigation
                 # builds, and it would be built to draw a silhouette with no
