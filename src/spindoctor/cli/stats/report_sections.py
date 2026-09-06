@@ -595,7 +595,7 @@ def add_memory_section(ctx: ReportContext) -> None:
     ctx.lines += [
         '## Peak-memory statistics',
         '',
-        '| instrument | images | min (GB) | max (GB) | mean (GB) | median (GB) | stdev (GB) |',
+        '| instrument | images | min (GiB) | max (GiB) | mean (GiB) | median (GiB) | stdev (GiB) |',
         '|---|---|---|---|---|---|---|',
     ]
     series: list[tuple[str, array[float], int]] = [
@@ -628,7 +628,7 @@ def add_memory_section(ctx: ReportContext) -> None:
         by_instrument,
         ctx.instruments,
         title='Per-image peak memory',
-        xlabel='peak resident size (GB)',
+        xlabel='peak resident size (GiB)',
     )
     ctx.lines += ['![peak memory](memory_hist.png)', '']
     hungriest = stats.hungriest.entries
@@ -636,12 +636,12 @@ def add_memory_section(ctx: ReportContext) -> None:
         ctx.lines += [
             f'Hungriest {len(hungriest)} image(s):',
             '',
-            '| image | instrument | peak (GB) |',
+            '| image | instrument | peak (GiB) |',
             '|---|---|---|',
         ]
         for image in hungriest:
             name = image_name_from_filename(image.instrument, image.image_name)
-            ctx.lines.append(f'| {name} | {image.instrument} | {fmt(image.peak_memory_gb)} |')
+            ctx.lines.append(f'| {name} | {image.instrument} | {fmt(image.peak_memory_gib)} |')
         ctx.lines.append('')
 
 

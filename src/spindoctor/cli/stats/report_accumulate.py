@@ -546,7 +546,9 @@ def _add_botsim(stats: ReportStatistics, facts: ImageFacts, instrument: str) -> 
         frames[camera] = frame
 
 
-_BYTES_PER_GB = float(1024**3)
+# 1024**3, so the unit is the gibibyte the value is actually divided into,
+# and every label over these numbers says GiB.
+_BYTES_PER_GIB = float(1024**3)
 
 
 def _add_peak_memory(stats: ReportStatistics, facts: ImageFacts, instrument: str) -> None:
@@ -565,11 +567,11 @@ def _add_peak_memory(stats: ReportStatistics, facts: ImageFacts, instrument: str
     peak = image.get('peak_memory_bytes')
     if peak is None:
         return
-    gb = float(peak) / _BYTES_PER_GB
+    gb = float(peak) / _BYTES_PER_GIB
     stats.peak_memory_by_instrument.setdefault(instrument, array('d')).append(gb)
     stats.hungriest.add(
         MemoryImage(
-            peak_memory_gb=gb,
+            peak_memory_gib=gb,
             image_name=str(image['image_name']),
             instrument=instrument,
             root_url=str(image['root_url']),

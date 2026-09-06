@@ -216,15 +216,15 @@ class MemoryImage:
     """One image's peak memory, ordered as the hungriest-image list orders it.
 
     Parameters:
-        peak_memory_gb: The largest resident size the run reached for this
-            image, in GB.
+        peak_memory_gib: The largest resident size the run reached for this
+            image, in GiB.
         image_name: The recorded image filename.
         instrument: The image's instrument.
         root_url: The results root the image was read under.
         results_path_stub: The image's key under that root.
     """
 
-    peak_memory_gb: float
+    peak_memory_gib: float
     image_name: str
     instrument: str
     root_url: str
@@ -238,7 +238,7 @@ class MemoryImage:
             Hungriest first, then the image name, then the pair that keys the
             image, for the reason :attr:`SuspectOffset.rank` carries the pair.
         """
-        return (-self.peak_memory_gb, self.image_name, self.root_url, self.results_path_stub)
+        return (-self.peak_memory_gib, self.image_name, self.root_url, self.results_path_stub)
 
     def __lt__(self, other: MemoryImage) -> bool:
         """Compare two images the opposite way round from how they are listed.

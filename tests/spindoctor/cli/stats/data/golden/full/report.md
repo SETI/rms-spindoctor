@@ -297,7 +297,7 @@ Slowest 5 image(s):
 
 ## Peak-memory statistics
 
-| instrument | images | min (GB) | max (GB) | mean (GB) | median (GB) | stdev (GB) |
+| instrument | images | min (GiB) | max (GiB) | mean (GiB) | median (GiB) | stdev (GiB) |
 |---|---|---|---|---|---|---|
 | coiss | 5 (100.0%) | 0.250 | 8.000 | 3.350 | 2.000 | 3.130 |
 | sim | 1 (100.0%) | 1.000 | 1.000 | 1.000 | 1.000 | 0.000 |
@@ -308,7 +308,7 @@ Slowest 5 image(s):
 
 Hungriest 5 image(s):
 
-| image | instrument | peak (GB) |
+| image | instrument | peak (GiB) |
 |---|---|---|
 | N1294564000 | coiss | 8.000 |
 | N1294561202 | coiss | 5.000 |
