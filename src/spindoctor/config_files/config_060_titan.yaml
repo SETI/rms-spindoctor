@@ -11,6 +11,27 @@ titan:
     max_occluded_fraction: 0.10
     ring_occlusion_radii_km: [74490.0, 140500.0]
     axis_min_offset_px: 3.0
+    # Largest grid the symmetry axis evaluates its incidence backplane over.
+    # The box is set by the body's apparent size, which nothing bounds: at
+    # 0.75 km/pixel Titan's envelope is 4343 pixels in radius inside a
+    # 1024-pixel frame, an 8688-square box covering seventy times the frame's
+    # area. Evaluating that at one sample per pixel exhausted 256 GB machines
+    # (N1625788872 and 101 others, 2026-09-04). The mask box is clipped to
+    # the extended frame instead, which needs no budget; this box cannot be
+    # clipped, because the sunward pixel the axis wants may lie outside the
+    # frame, so a box above this is strided.
+    #
+    # The stride costs angular resolution, and the cost is set by this number
+    # alone: the stride is the box side over the square root of the cap, the
+    # side is twice the envelope radius, so the axis quantizes by about
+    # 2/sqrt(cap) radians whatever the body's size. A million samples is
+    # 0.11 degrees, an order of magnitude under the 0.5-degree step the
+    # angle refinement below searches on, and leaves a box the size of an
+    # extended frame unstrided, so an ordinary frame samples every pixel as
+    # it always has. Measured on the 8688-square box: this cap strides by 9
+    # and peaks at 4.8 GB, against 13.7 GB at four million and an
+    # out-of-memory kill with no cap at all.
+    backplane_max_samples: 1000000
     recenter_threshold_px: 8.0
     star_mask_vmag_limit: 8.0
     star_mask_radius_px: 4.0

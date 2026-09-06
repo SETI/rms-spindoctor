@@ -687,6 +687,156 @@ def test_every_stage_propagates_its_leaf_failure(
     assert f'{log_line}: {exc_info.value}' in capsys.readouterr().out
 
 
+# ---------------------------------------------------------------------------
+# Backplane box bounds
+# ---------------------------------------------------------------------------
+
+
+def test_bbox_undersample_leaves_a_box_within_the_cap_alone() -> None:
+    """A box no larger than the cap samples every pixel."""
+    assert geometry_module._bbox_undersample((0, 99, 0, 99), 10_000) == 1
+
+
+def test_bbox_undersample_strides_a_box_above_the_cap() -> None:
+    """A box of four times the cap samples every second pixel on each axis."""
+    assert geometry_module._bbox_undersample((0, 199, 0, 199), 10_000) == 2
+
+
+def test_bbox_undersample_bounds_the_sampled_count() -> None:
+    """However large the box, the stride keeps the grid inside the cap."""
+    cap = 1_000_000
+    bbox = (-4343, 4344, -4343, 4344)
+    stride = geometry_module._bbox_undersample(bbox, cap)
+    width, height = geometry_module._bbox_extent(bbox)
+    sampled = math.ceil(width / stride) * math.ceil(height / stride)
+    assert sampled <= cap
+
+
+def test_bbox_undersample_ignores_a_non_positive_cap() -> None:
+    """A cap of zero is the deliberate spelling of no bound at all."""
+    assert geometry_module._bbox_undersample((0, 9999, 0, 9999), 0) == 1
+
+
+def test_clip_bbox_keeps_a_box_already_inside_the_extended_frame() -> None:
+    """A box within the extended frame is returned unchanged."""
+    assert geometry_module._clip_bbox_to_extfov((0, 50, 0, 50), (140, 140), (10, 10)) == (
+        0,
+        50,
+        0,
+        50,
+    )
+
+
+def test_clip_bbox_trims_a_box_that_overhangs_the_extended_frame() -> None:
+    """An overhanging box is trimmed to the extended frame on every side."""
+    clipped = geometry_module._clip_bbox_to_extfov((-500, 500, -500, 500), (140, 140), (10, 10))
+    assert clipped == (-10, 129, -10, 129)
+
+
+def test_clip_bbox_returns_none_for_a_box_beyond_the_extended_frame() -> None:
+    """A box that never reaches the extended frame clips to nothing."""
+    assert geometry_module._clip_bbox_to_extfov((400, 500, 400, 500), (140, 140), (10, 10)) is None
+
+
+def _close_scene_obs(*, resolution_km_px: float, half_size_px: float) -> FakeObs:
+    """Build a scene whose Titan is close enough to overflow the frame."""
+    body = BodyBackplaneData(
+        body_mask=np.ones((120, 120), dtype=bool),
+        incidence_rad=np.zeros((120, 120)),
+        default_resolution_km_px=resolution_km_px,
+        center_phase_rad=math.radians(30.0),
+    )
+    return FakeObs(
+        data=np.zeros((120, 120)),
+        extfov_margin_vu=(10, 10),
+        closest_planet='SATURN',
+        ext_bp=cast(Any, FakeBackplane(per_body={'TITAN': body})),
+        inventory_records={'TITAN': _inventory_entry((60.5, 60.5), half_size_px, 1.2e6)},
+    )
+
+
+def _recorded_boxes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[tuple[int, int, int, int], int]]:
+    """Record the box and stride of every backplane the geometry builds."""
+    calls: list[tuple[tuple[int, int, int, int], int]] = []
+    real = geometry_module._restricted_backplane
+
+    def _record(
+        obs: Any, bbox: tuple[int, int, int, int], *, undersample: int = 1
+    ) -> tuple[Any, Any]:
+        calls.append((bbox, undersample))
+        return real(obs, bbox, undersample=undersample)
+
+    monkeypatch.setattr(geometry_module, '_restricted_backplane', _record)
+    return calls
+
+
+def test_every_titan_backplane_stays_within_the_sample_cap(
+    scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A body far wider than the frame still evaluates a bounded grid."""
+    scene.titan_center_vu = (60.5, 60.5)
+    scene.titan_radius_px = 2000.0
+    scene.sub_solar_offset_vu = (1500.0, 0.0)
+    scene.occluder_center_vu = None
+    scene.ring_radius_at_u = None
+    calls = _recorded_boxes(monkeypatch)
+    config = _titan_only_config(tmp_path)
+    cap = int(config.titan['navigation']['backplane_max_samples'])
+    _geometry(
+        _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0), config
+    )
+    assert calls
+    for bbox, stride in calls:
+        width, height = geometry_module._bbox_extent(bbox)
+        sampled = math.ceil(width / stride) * math.ceil(height / stride)
+        assert sampled <= cap
+
+
+def test_the_mask_backplane_is_clipped_to_the_extended_frame(
+    scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The mask box never reaches outside the frame, whose pixels alone survive.
+
+    The mask backplane is the last one the geometry builds, after the
+    symmetry axis has had its unclipped envelope box.
+    """
+    scene.titan_center_vu = (60.5, 60.5)
+    scene.titan_radius_px = 2000.0
+    scene.sub_solar_offset_vu = (1500.0, 0.0)
+    scene.occluder_center_vu = None
+    scene.ring_radius_at_u = None
+    calls = _recorded_boxes(monkeypatch)
+    geometry = _geometry(
+        _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0),
+        _titan_only_config(tmp_path),
+    )
+    rows, cols = geometry.extfov_shape_vu
+    margin_v, margin_u = geometry.extfov_margin_vu
+    u_min, u_max, v_min, v_max = calls[-1][0]
+    assert (u_min, v_min) == (-margin_u, -margin_v)
+    assert (u_max, v_max) == (cols - margin_u - 1, rows - margin_v - 1)
+
+
+def test_a_strided_envelope_box_still_points_the_axis_sunward(
+    scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Striding the envelope box quantizes the axis without turning it."""
+    scene.titan_center_vu = (60.5, 60.5)
+    scene.titan_radius_px = 2000.0
+    scene.sub_solar_offset_vu = (1500.0, 0.0)
+    scene.occluder_center_vu = None
+    scene.ring_radius_at_u = None
+    calls = _recorded_boxes(monkeypatch)
+    geometry = _geometry(
+        _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0),
+        _titan_only_config(tmp_path),
+    )
+    assert calls[0][1] > 1
+    assert geometry.theta_rad == pytest.approx(math.pi / 2.0, abs=0.02)
+
+
 def test_symmetry_axis_points_at_the_sub_solar_pixel(
     scene: type[_SceneBackplane], tmp_path: Path
 ) -> None:
