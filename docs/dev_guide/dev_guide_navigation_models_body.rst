@@ -303,9 +303,11 @@ The occluder mask feeds three products:
   image carries. Correlating against the missing disc area would be a coherent mismatch the
   robust machinery absorbs into the fit rather than discounting.
 
-A backplane failure on any occluder degrades to leaving that occluder's contribution untrimmed
-rather than aborting the render. The single-body case (no nearer sibling) computes no mask and
-costs nothing.
+A backplane failure on any occluder fails the image rather than leaving that occluder's
+contribution untrimmed. The two cannot be told apart from inside the render -- ``oops`` declines
+with the same exception types a defect raises -- and an untrimmed occluder produces an offset
+that looks like a whole one, fitted against disc area the image does not show. The single-body
+case (no nearer sibling) computes no mask and costs nothing.
 
 Restrictions and assumptions
 ----------------------------
