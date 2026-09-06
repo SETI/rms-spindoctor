@@ -209,11 +209,21 @@ def load_body_shape(body_name: str, config: Any = None) -> BodyShape:
 def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
     """Return the YAML mapping for ``upper_body_name`` if present.
 
-    Resolves ``config.body_shape`` against either an explicit
-    ``Config`` instance or the global ``DEFAULT_CONFIG``.  Returns
-    ``None`` when the body is absent, the YAML block is empty / not a
-    mapping, or the loader has not been run yet (``config.body_shape``
-    raises during early bootstrapping).
+    Resolves ``config.body_shape`` against either an explicit ``Config``
+    instance or the global ``DEFAULT_CONFIG``.  Returns ``None`` when the body
+    is absent from the section, or when the section is not a mapping.
+
+    A configuration that cannot answer for ``body_shape`` at all raises, and
+    the exception reaches the caller: answering ``None`` for it would drop
+    every per-body shape override without a word and navigate against the
+    wrong shape.
+
+    Parameters:
+        upper_body_name: The body name, upper-cased, as the YAML keys it.
+        config: The configuration to read, or None for ``DEFAULT_CONFIG``.
+
+    Returns:
+        The body's mapping of shape overrides, or None where there is none.
     """
     cfg = config
     if cfg is None:

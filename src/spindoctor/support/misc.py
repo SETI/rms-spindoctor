@@ -176,8 +176,9 @@ def get_local_host_name() -> str:
     string without calling ``getfqdn`` again.
 
     Returns:
-        The FQDN string on success, or the literal ``'LOCAL HOST NAME FAILED'`` if
-        ``socket.getfqdn()`` raises any exception.
+        The FQDN string on success, or the literal ``'LOCAL HOST NAME FAILED'`` when
+        ``socket.getfqdn()`` raises ``OSError``, which is how a name service that
+        will not answer reports itself.  Every other exception propagates.
 
     Side effects:
         On the first successful call, sets ``_LOCAL_HOST_NAME_CACHE`` to the FQDN.

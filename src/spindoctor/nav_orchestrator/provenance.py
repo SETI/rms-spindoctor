@@ -192,9 +192,11 @@ def _resolve_git_sha() -> str | None:
 def _resolve_spice_kernels() -> tuple[str, ...]:
     """Return the sorted tuple of currently-loaded SPICE kernel basenames.
 
-    Uses ``cspyce`` (the SPICE binding shared with ``oops``) when it is
-    available; returns an empty tuple when SPICE is not loaded.  The
-    tuple holds *basenames* only so the hash and JSON output stay
+    Reads the loaded kernels from ``cspyce``, the SPICE binding shared with
+    ``oops``.  A navigation that reached this point ran on cspyce, so an import
+    or lookup failure here is a broken installation and reaches the caller
+    rather than being recorded as "no kernels" against a run that used plenty.
+    The tuple holds *basenames* only so the hash and JSON output stay
     deterministic across machines with different kernel install roots.
     """
     # Imported here rather than at module scope to keep the import graph flat;

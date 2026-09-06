@@ -1,13 +1,14 @@
 """Observation-side geometry extraction for the Titan haze model.
 
-Every ``oops`` and star-catalog query the haze feature depends on lives
-here, behind one entry point that never raises: the model's always-emit
-invariant needs a defensible answer for a frame whose geometry cannot be
-evaluated, not an exception the orchestrator would turn into a silent
-absence of features.  The result is a frozen
-:class:`TitanGeometryInputs`, on which every downstream decision --
-reliability, the hard-zero conditions, the emitted feature payload -- is a
-pure function.
+Every ``oops`` and star-catalog query the haze feature depends on lives here,
+behind one entry point.  It answers a frame whose geometry is genuinely
+degenerate -- an inventory entry that is not finite, an envelope box with no
+surface intercept in it -- with a defensible geometry rather than an exception,
+because the model's always-emit invariant needs one.  It answers a frame it
+could not evaluate with the exception, for the reasons below.  The result is a
+frozen :class:`TitanGeometryInputs`, on which every downstream decision --
+reliability, the hard-zero conditions, the emitted feature payload -- is a pure
+function.
 
 Nothing here absorbs an exception
 ---------------------------------
@@ -120,10 +121,10 @@ carries pad far in excess of that residual.
 class TitanGeometryInputs:
     """Everything the haze feature needs, with all observation access done.
 
-    Produced by :func:`geometry_from_obs`, which owns every ``oops`` query
-    and never raises; every downstream decision (reliability, hard-zero
-    conditions, feature payload) is a pure function of this dataclass, so it
-    is testable without an observation or a SPICE kernel.
+    Produced by :func:`geometry_from_obs`, which owns every ``oops`` query;
+    every downstream decision (reliability, hard-zero conditions, feature
+    payload) is a pure function of this dataclass, so it is testable without
+    an observation or a SPICE kernel.
 
     Parameters:
         predicted_center_vu: Geometric disc center in extfov coordinates --
@@ -217,9 +218,15 @@ def _finite(value: Any, name: str) -> float:
 def _frame_bounds(obs: Observation) -> tuple[tuple[int, int], float, tuple[float, float]]:
     """Return the extfov shape, search half-window, and per-axis margins.
 
-    Falls back to a zero-sized frame when the observation cannot report
-    those quantities, which forces the reliability hard-zero path rather
-    than letting the caller raise.
+    An observation that cannot report those quantities is reported and the
+    failure re-raised: a zero-sized frame would put every later measurement on
+    a frame that does not exist.
+
+    Parameters:
+        obs: The observation to read.
+
+    Returns:
+        ``((height, width), window_px, (margin_v, margin_u))``.
     """
     try:
         shape = obs.extdata_shape_vu
@@ -396,8 +403,10 @@ def _symmetry_axis(
         axis_min_offset_px: Offset below which the axis is degenerate.
 
     Returns:
-        ``(theta_rad, axis_degenerate)``.  A failed or empty backplane
-        yields ``(0.0, True)`` rather than raising.
+        ``(theta_rad, axis_degenerate)``.  A box with no surface-intercept
+        pixel in it yields ``(0.0, True)``, which is the honest answer for a
+        frame that shows no lit surface.  A backplane that could not be
+        evaluated is reported and re-raised.
     """
     try:
         bp, meshgrid = _restricted_backplane(obs, bbox_nominal)
@@ -444,8 +453,10 @@ def _ring_occlusion_local(
     stripes.
 
     Returns:
-        The bbox-local boolean mask, or ``None`` when no ring pixel
-        qualifies or the ring backplanes could not be evaluated.
+        The bbox-local boolean mask, or ``None`` when no ring pixel qualifies.
+        Ring backplanes that could not be evaluated are reported and the
+        failure re-raised, because a frame behind the rings and a frame whose
+        rings could not be rendered look identical from an empty mask.
     """
     ring_target = f'{planet.lower()}{_RING_TARGET_SUFFIX}'
     try:
@@ -733,15 +744,16 @@ def geometry_from_obs(
     inventory: dict[str, Any] | None = None,
     siblings: list[tuple[str, dict[str, Any]]] | None = None,
 ) -> TitanGeometryInputs:
-    """Compute the haze geometry from an observation, never raising.
+    """Compute the haze geometry from an observation.
 
-    Every ``oops`` and catalog query the haze feature depends on happens
-    here, each stage degrading to a defensible default instead of
-    propagating.  The always-emit invariant depends on that: the
-    orchestrator drops a model whose ``create_model`` raises and reads a
-    raising ``to_features`` as zero features, so a pathology would end a
-    Titan-only frame with no gate record at all -- on exactly the clipped
-    and off-edge frames the visibility hard-zero exists for.
+    Every ``oops`` and catalog query the haze feature depends on happens here.
+    A frame whose inventory entry is not finite gets the degenerate geometry,
+    which forces the reliability hard-zero path and keeps the always-emit
+    invariant: the orchestrator reads a raising ``to_features`` as zero
+    features, so a frame that is merely off the edge has to reach the gate
+    with a record rather than vanish.  Every other failure is reported and
+    re-raised, because a stage that could not be evaluated is not evidence
+    that the frame is degenerate.
 
     Parameters:
         obs: Observation snapshot.
@@ -753,7 +765,7 @@ def geometry_from_obs(
 
     Returns:
         A fully-populated :class:`TitanGeometryInputs`.  A frame whose
-        geometry could not be evaluated gets zero radii and
+        inventory entry is not finite gets zero radii and
         ``axis_degenerate=True``, which forces the reliability hard-zero
         path.
     """

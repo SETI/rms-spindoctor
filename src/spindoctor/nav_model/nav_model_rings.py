@@ -493,8 +493,9 @@ class NavModelRings(NavModelRingsBase):
         # rings.  The mask is ANDed into every edge mask below, before the
         # per-edge polylines are sampled, so an edge segment behind the disc is
         # never sampled as a polyline vertex and never painted across the
-        # planet.  A backplane failure degrades to no filtering (every edge
-        # kept) rather than aborting model or summary generation.
+        # planet.  A backplane failure fails the image: an edge painted across
+        # the planet is a model that says the rings are somewhere they are not,
+        # which navigates to a wrong offset rather than to none.
         self._ring_occluded_ext = None
         try:
             occluded = obs.ext_bp.where_in_front(planet.lower(), ring_target)

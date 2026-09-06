@@ -265,9 +265,10 @@ def occluder_mask_for_body(
     the nearer body actually hides.  The result is downsampled to the same
     discrete grid the caller's masks live on.
 
-    A backplane failure on any occluder degrades to no occlusion for that
-    occluder (the caller's arc / template / mask stays untrimmed) rather than
-    aborting the render.
+    A backplane failure on any occluder is reported and re-raised.  Leaving
+    that occluder's contribution out would keep the caller's arc, template or
+    mask untrimmed, which is a model claiming the subject body is visible where
+    a nearer one hides it -- a wrong answer rather than no answer.
 
     Shared by the shape-based body model and the haze model so both derive
     body-body occlusion from one implementation; the caller supplies the
