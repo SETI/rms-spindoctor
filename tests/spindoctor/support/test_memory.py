@@ -7,7 +7,11 @@ from typing import Any
 import pytest
 
 from spindoctor.support import memory
-from spindoctor.support.memory import release_transient_memory
+from spindoctor.support.memory import (
+    peak_resident_bytes,
+    release_transient_memory,
+    reset_peak_resident,
+)
 
 
 class _Cyclic:
@@ -64,3 +68,69 @@ def test_the_release_accepts_the_size_glibc_declares() -> None:
     if located is None:
         pytest.skip('this C library exposes no malloc_trim')
     assert located.malloc_trim(0) in (0, 1)
+
+
+def test_the_peak_is_a_positive_count_of_bytes() -> None:
+    """A kernel that publishes a peak publishes a usable one."""
+    peak = peak_resident_bytes()
+    if peak is None:
+        pytest.skip('this kernel publishes no peak resident size')
+    assert peak > 0
+
+
+def test_the_peak_covers_an_allocation_just_made() -> None:
+    """Memory taken since the last reset is inside the reported peak."""
+    if peak_resident_bytes() is None:
+        pytest.skip('this kernel publishes no peak resident size')
+    reset_peak_resident()
+    before = peak_resident_bytes()
+    assert before is not None
+    held = bytearray(256 * 1024 * 1024)
+    held[::4096] = b'\x01' * len(held[::4096])
+    after = peak_resident_bytes()
+    del held
+    assert after is not None
+    assert after - before >= 128 * 1024 * 1024
+
+
+def test_the_reset_forgets_an_earlier_peak() -> None:
+    """What an earlier unit of work reached is not charged to the next one."""
+    if peak_resident_bytes() is None:
+        pytest.skip('this kernel publishes no peak resident size')
+    held = bytearray(256 * 1024 * 1024)
+    held[::4096] = b'\x01' * len(held[::4096])
+    high = peak_resident_bytes()
+    del held
+    assert high is not None
+    if not reset_peak_resident():
+        pytest.skip('this kernel does not allow the peak to be reset')
+    assert peak_resident_bytes() is not None
+    settled = peak_resident_bytes()
+    assert settled is not None
+    assert settled < high
+
+
+def test_the_reset_reports_whether_it_happened() -> None:
+    """The caller is told, rather than left assuming the peak is per-image."""
+    assert isinstance(reset_peak_resident(), bool)
+
+
+def test_the_reset_measures_from_what_is_held_now() -> None:
+    """The mark goes to the resident size at the reset, not to zero.
+
+    This is what makes a peak recorded by a process handling several units of
+    work include the floor the earlier ones left, rather than being that unit's
+    allocation on its own.
+    """
+    if peak_resident_bytes() is None:
+        pytest.skip('this kernel publishes no peak resident size')
+    held = bytearray(256 * 1024 * 1024)
+    held[::4096] = b'\x01' * len(held[::4096])
+    if not reset_peak_resident():
+        pytest.skip('this kernel does not allow the peak to be reset')
+    still_held = peak_resident_bytes()
+    assert still_held is not None
+    # The block is still referenced, so it is still resident, so the mark the
+    # reset just set has to be at least as large as it.
+    assert still_held >= 128 * 1024 * 1024
+    del held

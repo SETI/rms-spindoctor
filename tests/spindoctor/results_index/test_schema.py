@@ -73,6 +73,7 @@ IMAGES_COLUMNS: tuple[tuple[str, ColumnType, bool], ...] = (
     ('run_start', sqlalchemy.Text, True),
     ('run_end', sqlalchemy.Text, True),
     ('elapsed_s', sqlalchemy.Double, True),
+    ('peak_memory_bytes', sqlalchemy.BigInteger, True),
     ('config_hash', sqlalchemy.Text, True),
     ('git_sha', sqlalchemy.Text, True),
     ('pipeline_run', sqlalchemy.Text, True),

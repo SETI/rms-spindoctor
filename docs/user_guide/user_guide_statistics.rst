@@ -245,3 +245,12 @@ The report contains:
   deviation, and total of the per-image wall-clock run times, a run-time
   histogram, and (with ``--top-n``) the slowest images. The section is
   omitted when no selected image carries timing data.
+- **Peak-memory statistics** -- the same shape of table over the largest
+  resident size each navigation reached, in GB, with a histogram and (with
+  ``--top-n``) the hungriest images. The maximum is the column that sizes a
+  worker, since it is the figure an out-of-memory kill is decided against,
+  and the distribution says how much of a pass runs nowhere near it. Each
+  peak is what the navigating process reached while that image ran, so a pass
+  whose images were navigated one per process reads as their individual costs.
+  The image count is of images that recorded a peak rather than of images that
+  ran, and the section is omitted when none did.

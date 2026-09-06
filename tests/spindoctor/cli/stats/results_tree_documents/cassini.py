@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -35,7 +35,7 @@ from spindoctor.nav_technique.diagnostics import (
     StarUniqueMatchDiagnostics,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.navigate_image_files import build_timing_section, navigate_image_files
+from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -46,6 +46,7 @@ from .shared import (
     classifier,
     faint_star,
     navigated,
+    pinned_timing,
     provenance,
     ring_edge,
     rotation,
@@ -174,6 +175,7 @@ def cassini_star_and_limb() -> dict[str, Any]:
         image_shape=(1024, 1024),
         start=datetime(2026, 8, 8, 16, 46, 25, 933806, tzinfo=UTC),
         elapsed_s=12.5,
+        peak_memory_bytes=5368709120,
     )
 
 
@@ -240,6 +242,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
         image_shape=(1024, 1024),
         start=datetime(2026, 8, 8, 16, 46, 38, 532110, tzinfo=UTC),
         elapsed_s=8.25,
+        peak_memory_bytes=1610612736,
     )
 
 
@@ -349,9 +352,11 @@ def cassini_load_error() -> dict[str, Any]:
             write_output_files=False,
         )
     start = datetime(2026, 8, 8, 16, 46, 47, 104881, tzinfo=UTC)
-    # The driver stamps the moments it ran at, which a stored document cannot
-    # hold.  Rebuilt through the writer's own section builder from fixed ones.
-    document['timing'] = build_timing_section(start, start + timedelta(seconds=1.5))
+    # The driver stamps the moments it ran at and reads the peak out of the
+    # process it ran in, none of which a stored document can hold.  Rebuilt
+    # through the writer's own section builder from fixed values.  The peak is
+    # small because this image never loaded.
+    document['timing'] = pinned_timing(start, 1.5, 268435456)
     document['status_traceback'] = _LOAD_ERROR_TRACEBACK
     return document
 
@@ -501,6 +506,7 @@ def cassini_suspect_offset() -> dict[str, Any]:
         image_shape=(1024, 1024),
         start=datetime(2026, 8, 8, 16, 46, 48, 921574, tzinfo=UTC),
         elapsed_s=31.75,
+        peak_memory_bytes=8589934592,
     )
 
 
@@ -587,4 +593,5 @@ def cassini_ring_edges() -> dict[str, Any]:
         image_shape=(512, 512),
         start=datetime(2026, 8, 8, 16, 47, 21, 8443, tzinfo=UTC),
         elapsed_s=12.5,
+        peak_memory_bytes=2147483648,
     )

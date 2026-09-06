@@ -46,6 +46,7 @@ from spindoctor.cli.stats.report_sections import (
     add_botsim_section,
     add_csv_export_section,
     add_failure_taxonomy_section,
+    add_memory_section,
     add_narrowing_section,
     add_offset_by_group_section,
     add_runtime_section,
@@ -667,6 +668,7 @@ def build_report(
     _add_agreement_sections(ctx)
     _add_exclusions_section(ctx)
     add_runtime_section(ctx)
+    add_memory_section(ctx)
     if csv_export:
         add_csv_export_section(ctx)
 

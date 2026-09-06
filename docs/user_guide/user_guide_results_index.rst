@@ -1079,6 +1079,16 @@ pair with ``ON DELETE CASCADE``.
    * - ``elapsed_s``
      - DOUBLE
      - Wall-clock seconds between ``run_start`` and ``run_end``.
+   * - ``peak_memory_bytes``
+     - BIGINT
+     - Largest resident size the navigating process reached while navigating
+       this image, from the metadata document's ``timing`` section. This is
+       the figure an out-of-memory kill is decided against, so it is what
+       sizes a worker: for a process that handled several images it is
+       measured from a floor including what the earlier ones left resident,
+       which is the memory the worker had to hold at that moment. NULL where
+       the run recorded none, which is a run on a system whose kernel
+       publishes no peak.
    * - ``config_hash``
      - TEXT
      - sha256 of the fully-resolved configuration used for the run.

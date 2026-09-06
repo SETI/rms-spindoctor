@@ -295,6 +295,27 @@ Slowest 5 image(s):
 | W1294561202 | coiss | 12.500 |
 | sim_scene_000042 | sim | 12.500 |
 
+## Peak-memory statistics
+
+| instrument | images | min (GB) | max (GB) | mean (GB) | median (GB) | stdev (GB) |
+|---|---|---|---|---|---|---|
+| coiss | 5 (100.0%) | 0.250 | 8.000 | 3.350 | 2.000 | 3.130 |
+| sim | 1 (100.0%) | 1.000 | 1.000 | 1.000 | 1.000 | 0.000 |
+| vgiss | 2 (100.0%) | 2.500 | 3.000 | 2.750 | 2.750 | 0.354 |
+| (all) | 8 (100.0%) | 0.250 | 8.000 | 2.906 | 2.250 | 2.507 |
+
+![peak memory](memory_hist.png)
+
+Hungriest 5 image(s):
+
+| image | instrument | peak (GB) |
+|---|---|---|
+| N1294564000 | coiss | 8.000 |
+| N1294561202 | coiss | 5.000 |
+| C1385455 | vgiss | 3.000 |
+| C1385460 | vgiss | 2.500 |
+| W1294561202 | coiss | 2.000 |
+
 ## CSV export
 
 One row per image: images.csv (8 row(s)).

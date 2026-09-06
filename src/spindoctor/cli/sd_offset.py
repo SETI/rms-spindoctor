@@ -50,6 +50,7 @@ from spindoctor.navigate_image_files import (
 )
 from spindoctor.obs import ObsSnapshotInst, inst_name_to_obs_class, obs_class_to_inst_name
 from spindoctor.support.file import json_as_string
+from spindoctor.support.memory import reset_peak_resident
 from spindoctor.support.misc import log_run_environment
 
 PROGRAM_NAME = SD_OFFSET
@@ -298,6 +299,9 @@ def _run_manual_pass(
             handler=local_handlers,
             level=run_logging.levels.image_section_level(),
         ):
+            # Ahead of any work this image causes, so that the peak the
+            # timing section records is this image's own.
+            reset_peak_resident()
             run_start = datetime.now(UTC)
             obs = cast(ObsSnapshotInst, obs_class.from_file(image_url, **extra_params))
             result = run_manual_nav(obs, config=DEFAULT_CONFIG)

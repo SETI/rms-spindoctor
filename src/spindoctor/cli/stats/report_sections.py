@@ -50,6 +50,7 @@ __all__ = [
     'add_botsim_section',
     'add_csv_export_section',
     'add_failure_taxonomy_section',
+    'add_memory_section',
     'add_narrowing_section',
     'add_offset_by_group_section',
     'add_runtime_section',
@@ -567,6 +568,80 @@ def add_runtime_section(ctx: ReportContext) -> None:
         for image in slowest:
             name = image_name_from_filename(image.instrument, image.image_name)
             ctx.lines.append(f'| {name} | {image.instrument} | {fmt(image.elapsed_s)} |')
+        ctx.lines.append('')
+
+
+def add_memory_section(ctx: ReportContext) -> None:
+    """Write the peak-memory table, its histogram and the hungriest images.
+
+    The peak is the largest resident size a navigation reached, which is the
+    figure an out-of-memory kill is decided against, so the maximum is the
+    column that sizes a worker and the distribution says how much of the pass
+    runs nowhere near it.
+
+    Every statistic in the table is a function of the set of peaks and not of
+    the sequence they arrived in, so the pooled row is a plain concatenation of
+    the per-instrument arrays.  The image count is of images that recorded a
+    peak, which is not every image: a run on a kernel publishing none records
+    none.
+
+    Parameters:
+        ctx: Report context.
+    """
+    stats = ctx.stats
+    by_instrument = stats.peak_memory_by_instrument
+    if len(by_instrument) == 0:
+        return
+    ctx.lines += [
+        '## Peak-memory statistics',
+        '',
+        '| instrument | images | min (GB) | max (GB) | mean (GB) | median (GB) | stdev (GB) |',
+        '|---|---|---|---|---|---|---|',
+    ]
+    series: list[tuple[str, array[float], int]] = [
+        (
+            instrument,
+            by_instrument.get(instrument, array('d')),
+            ctx.images_by_instrument[instrument],
+        )
+        for instrument in ctx.instruments
+    ]
+    # The pooled row only says something new once more than one instrument
+    # contributed to it.
+    if len(ctx.instruments) > 1:
+        pooled = array('d')
+        for instrument in ctx.instruments:
+            pooled.extend(by_instrument.get(instrument, array('d')))
+        series.append(('(all)', pooled, ctx.total_images))
+    for instrument, values, denominator in series:
+        if len(values) == 0:
+            continue
+        stdev = statistics.stdev(values) if len(values) > 1 else 0.0
+        ctx.lines.append(
+            f'| {instrument} | {count_pct(len(values), denominator)} '
+            f'| {fmt(min(values))} | {fmt(max(values))} | {fmt(statistics.fmean(values))} '
+            f'| {fmt(statistics.median(values))} | {fmt(stdev)} |'
+        )
+    ctx.lines.append('')
+    write_stacked_value_hist(
+        ctx.output_dir / 'memory_hist.png',
+        by_instrument,
+        ctx.instruments,
+        title='Per-image peak memory',
+        xlabel='peak resident size (GB)',
+    )
+    ctx.lines += ['![peak memory](memory_hist.png)', '']
+    hungriest = stats.hungriest.entries
+    if ctx.top_n > 0 and len(hungriest) > 0:
+        ctx.lines += [
+            f'Hungriest {len(hungriest)} image(s):',
+            '',
+            '| image | instrument | peak (GB) |',
+            '|---|---|---|',
+        ]
+        for image in hungriest:
+            name = image_name_from_filename(image.instrument, image.image_name)
+            ctx.lines.append(f'| {name} | {image.instrument} | {fmt(image.peak_memory_gb)} |')
         ctx.lines.append('')
 
 

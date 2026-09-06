@@ -57,6 +57,7 @@ from spindoctor.nav_orchestrator import (
 )
 from spindoctor.obs import ObsSnapshotInst, obs_class_to_inst_name
 from spindoctor.support.file import json_as_string
+from spindoctor.support.memory import peak_resident_bytes, reset_peak_resident
 from spindoctor.support.misc import log_run_environment
 from spindoctor.support.summary_png import (
     SummaryMetadata,
@@ -132,7 +133,16 @@ def build_timing_section(start: datetime, end: datetime) -> dict[str, Any]:
 
     Every metadata document carries this section so downstream statistics
     (``sd_results_index`` / ``sd_stats_report``) can aggregate per-image run
-    times.
+    times and the memory each image needed.
+
+    The peak is the largest resident size the navigating process reached while
+    this image was being navigated, which is the figure an out-of-memory kill is
+    decided against.  A process handling one image reports that image's whole
+    cost.  A process handling several reports, for each, what it reached while
+    that image ran, measured from a floor that includes whatever earlier images
+    left resident: the memory a worker has to hold at that moment rather than
+    what the image would cost on its own.  It is absent where the kernel
+    publishes no peak at all.
 
     Parameters:
         start: Timezone-aware run start (captured before the image load).
@@ -141,12 +151,14 @@ def build_timing_section(start: datetime, end: datetime) -> dict[str, Any]:
 
     Returns:
         Dict with ``start_iso8601`` and ``end_iso8601`` (UTC ISO8601
-        strings) and ``elapsed_s`` (float seconds).
+        strings), ``elapsed_s`` (float seconds) and ``peak_memory_bytes``
+        (int, or None where the kernel publishes no peak).
     """
     return {
         'start_iso8601': _iso8601_utc(start),
         'end_iso8601': _iso8601_utc(end),
         'elapsed_s': (end - start).total_seconds(),
+        'peak_memory_bytes': peak_resident_bytes(),
     }
 
 
@@ -198,6 +210,9 @@ def navigate_image_files(
         it raised.
     """
     logger = IMAGE_LOGGER
+    # Ahead of any work this image causes, so that the peak the section
+    # records is this image's own rather than one an earlier image reached.
+    reset_peak_resident()
     run_start = datetime.now(UTC)
 
     if len(image_files.image_files) != 1:

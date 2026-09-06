@@ -246,6 +246,10 @@ IMAGES = sqlalchemy.Table(
     sqlalchemy.Column('run_start', sqlalchemy.Text),
     sqlalchemy.Column('run_end', sqlalchemy.Text),
     sqlalchemy.Column('elapsed_s', sqlalchemy.Double),
+    # The largest resident size the navigating process reached, which is the
+    # figure an out-of-memory kill is decided against.  Null where the kernel
+    # publishes no peak, which is every kernel but Linux's.
+    sqlalchemy.Column('peak_memory_bytes', sqlalchemy.BigInteger),
     sqlalchemy.Column('config_hash', sqlalchemy.Text),
     sqlalchemy.Column('git_sha', sqlalchemy.Text),
     sqlalchemy.Column('pipeline_run', sqlalchemy.Text),

@@ -25,17 +25,18 @@ from array import array
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from io import BytesIO
-from typing import Any
+from typing import Any, Generic, Protocol, TypeVar
 
 from filecache import FCPath
 
 __all__ = [
     'BotsimFrame',
+    'MemoryImage',
     'ReportContext',
     'ReportStatistics',
-    'SlowestImages',
     'SuspectOffset',
     'TimedImage',
+    'TopImages',
     'add_drilldown',
     'add_instrument_count_table',
     'count_pct',
@@ -210,13 +211,73 @@ class TimedImage:
         return self.rank > other.rank
 
 
-class SlowestImages:
-    """The slowest images of a pass, kept without holding the rest.
+@dataclass(frozen=True)
+class MemoryImage:
+    """One image's peak memory, ordered as the hungriest-image list orders it.
 
-    A list of every image's run time is retained anyway, packed, because the
+    Parameters:
+        peak_memory_gb: The largest resident size the run reached for this
+            image, in GB.
+        image_name: The recorded image filename.
+        instrument: The image's instrument.
+        root_url: The results root the image was read under.
+        results_path_stub: The image's key under that root.
+    """
+
+    peak_memory_gb: float
+    image_name: str
+    instrument: str
+    root_url: str
+    results_path_stub: str
+
+    @property
+    def rank(self) -> tuple[float, str, str, str]:
+        """Where this image sorts in the hungriest-image list.
+
+        Returns:
+            Hungriest first, then the image name, then the pair that keys the
+            image, for the reason :attr:`SuspectOffset.rank` carries the pair.
+        """
+        return (-self.peak_memory_gb, self.image_name, self.root_url, self.results_path_stub)
+
+    def __lt__(self, other: MemoryImage) -> bool:
+        """Compare two images the opposite way round from how they are listed.
+
+        Parameters:
+            other: The image to compare against.
+
+        Returns:
+            True when this image sorts *later* in the printed list.
+        """
+        return self.rank > other.rank
+
+
+class _Ranked(Protocol):
+    """What the bounded list needs of whatever it holds.
+
+    The heap orders by comparison and the printed list orders by ``rank``, so
+    an entry has to offer both, and offer them the opposite way round from each
+    other for the reason :meth:`TimedImage.__lt__` gives.
+    """
+
+    @property
+    def rank(self) -> tuple[float, str, str, str]:
+        """Where the entry sorts in the printed list."""
+
+    def __lt__(self, other: Any) -> bool:
+        """Whether this entry sorts later in the printed list than another."""
+
+
+_RankedT = TypeVar('_RankedT', bound=_Ranked)
+
+
+class TopImages(Generic[_RankedT]):
+    """The leading images of a pass by one measure, kept without holding the rest.
+
+    A list of every image's value is retained anyway, packed, because the
     quantiles and the histogram need every value.  The names are not: the
-    slowest list is the only thing that wants them, it is bounded by ``--top-n``,
-    and a name is the expensive half of a per-image retention.
+    leading list is the only thing that wants them, it is bounded by
+    ``--top-n``, and a name is the expensive half of a per-image retention.
 
     Parameters:
         limit: How many to keep.  Zero keeps none, which is what the default
@@ -225,9 +286,9 @@ class SlowestImages:
 
     def __init__(self, limit: int) -> None:
         self._limit = max(0, limit)
-        self._held: list[TimedImage] = []
+        self._held: list[_RankedT] = []
 
-    def add(self, image: TimedImage) -> None:
+    def add(self, image: _RankedT) -> None:
         """Offer one image to the list, keeping it only if it belongs there.
 
         Parameters:
@@ -241,11 +302,11 @@ class SlowestImages:
         heapq.heappushpop(self._held, image)
 
     @property
-    def entries(self) -> list[TimedImage]:
+    def entries(self) -> list[_RankedT]:
         """The images kept, in the order the report lists them.
 
         Returns:
-            Slowest first, ties broken by name and then by the pair that keys
+            Leading first, ties broken by name and then by the pair that keys
             the image.
         """
         return sorted(self._held, key=lambda image: image.rank)
@@ -338,6 +399,10 @@ class ReportStatistics:
             by camera letter.
         elapsed_by_instrument: Per instrument, every recorded run time.
         slowest: The slowest images, bounded by ``top_n``.
+        peak_memory_by_instrument: Per instrument, every recorded peak memory,
+            in GB.
+        hungriest: The images that reached the largest peaks, bounded by
+            ``top_n``.
     """
 
     top_n: int = 0
@@ -391,11 +456,14 @@ class ReportStatistics:
     botsim: dict[str, dict[str, BotsimFrame]] = field(default_factory=dict)
 
     elapsed_by_instrument: dict[str, array[float]] = field(default_factory=dict)
-    slowest: SlowestImages = field(default_factory=lambda: SlowestImages(0))
+    slowest: TopImages[TimedImage] = field(default_factory=lambda: TopImages(0))
+    peak_memory_by_instrument: dict[str, array[float]] = field(default_factory=dict)
+    hungriest: TopImages[MemoryImage] = field(default_factory=lambda: TopImages(0))
 
     def __post_init__(self) -> None:
-        """Size the slowest-image heap, which ``top_n`` bounds rather than the data."""
-        self.slowest = SlowestImages(self.top_n)
+        """Size the bounded heaps, which ``top_n`` bounds rather than the data."""
+        self.slowest = TopImages(self.top_n)
+        self.hungriest = TopImages(self.top_n)
 
 
 @dataclass

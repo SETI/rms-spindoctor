@@ -279,6 +279,26 @@ def _int_or_none(value: Any) -> int | None:
     return None
 
 
+def _byte_count_or_none(value: Any) -> int | None:
+    """Coerce a JSON value to a count of bytes, or None.
+
+    Parameters:
+        value: The value as it was parsed.
+
+    Returns:
+        The count, or None when the value is absent or is not one.  A count of
+        bytes is a whole number that cannot be negative, so a float, a negative
+        and a boolean are each stored as nothing rather than as a number the
+        reader would have to distrust.  A run on a kernel publishing no peak
+        records none, and nothing is the honest answer for it.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 0:
+        return value
+    return None
+
+
 def _str_or_none(value: Any) -> str | None:
     """Coerce a JSON value to a non-empty string, or None.
 
@@ -711,6 +731,7 @@ def facts_from_document(metadata: dict[str, Any], source: DocumentOrigin) -> Ima
         'run_start': _str_or_none(timing.get('start_iso8601')),
         'run_end': _str_or_none(timing.get('end_iso8601')),
         'elapsed_s': finite_float(timing.get('elapsed_s')),
+        'peak_memory_bytes': _byte_count_or_none(timing.get('peak_memory_bytes')),
         'config_hash': _str_or_none(provenance.get('config_hash')),
         'git_sha': _str_or_none(provenance.get('spindoctor_git_sha')),
         'pipeline_run': _str_or_none(provenance.get('pipeline_run_iso8601')),

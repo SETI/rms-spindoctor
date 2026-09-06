@@ -113,6 +113,7 @@ def voyager_ring_edges() -> dict[str, Any]:
         image_shape=(800, 800),
         start=datetime(2026, 8, 8, 16, 47, 33, 799265, tzinfo=UTC),
         elapsed_s=12.5,
+        peak_memory_bytes=3221225472,
     )
 
 
@@ -158,4 +159,5 @@ def voyager_no_features() -> dict[str, Any]:
         image_shape=(1024, 1024),
         start=datetime(2026, 8, 8, 16, 47, 46, 612907, tzinfo=UTC),
         elapsed_s=8.25,
+        peak_memory_bytes=2684354560,
     )

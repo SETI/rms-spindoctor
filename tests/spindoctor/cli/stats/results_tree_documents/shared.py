@@ -557,6 +557,7 @@ def navigated(
     image_shape: tuple[int, int],
     start: datetime,
     elapsed_s: float,
+    peak_memory_bytes: int,
 ) -> dict[str, Any]:
     """Return the document the writer builds for one navigated image.
 
@@ -570,6 +571,7 @@ def navigated(
         image_shape: The loaded image's ``(v, u)`` pixel dimensions.
         start: When this image's run began.
         elapsed_s: How long it took.
+        peak_memory_bytes: The peak resident size to record for it.
 
     Returns:
         The document, as the writer assembles it.
@@ -582,8 +584,30 @@ def navigated(
         camera=camera,
         shutter_mode=shutter_mode,
         image_shape=image_shape,
-        timing=build_timing_section(start, start + timedelta(seconds=elapsed_s)),
+        timing=pinned_timing(start, elapsed_s, peak_memory_bytes),
     )
+
+
+def pinned_timing(start: datetime, elapsed_s: float, peak_memory_bytes: int) -> dict[str, Any]:
+    """Build the timing block with every machine-taken value pinned.
+
+    The writer reads the peak out of the running process, which is the right
+    thing for a run and the wrong thing for a fixture: a document a test holds
+    against a stored one has to be the same document every time it is built.
+    The moments are pinned by being passed in; the peak is pinned by being
+    written over what the process happened to reach.
+
+    Parameters:
+        start: The moment the run began.
+        elapsed_s: How long it took.
+        peak_memory_bytes: The peak resident size to record.
+
+    Returns:
+        The timing block, with nothing in it read from this machine.
+    """
+    timing = build_timing_section(start, start + timedelta(seconds=elapsed_s))
+    timing['peak_memory_bytes'] = peak_memory_bytes
+    return timing
 
 
 def with_pointing(

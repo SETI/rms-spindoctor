@@ -219,6 +219,22 @@ Slowest 3 image(s):
 | W1294561202 | coiss | 12.500 |
 | N1294562000 | coiss | 8.250 |
 
+## Peak-memory statistics
+
+| instrument | images | min (GB) | max (GB) | mean (GB) | median (GB) | stdev (GB) |
+|---|---|---|---|---|---|---|
+| coiss | 4 (100.0%) | 0.250 | 5.000 | 2.188 | 1.750 | 2.014 |
+
+![peak memory](memory_hist.png)
+
+Hungriest 3 image(s):
+
+| image | instrument | peak (GB) |
+|---|---|---|
+| N1294561202 | coiss | 5.000 |
+| W1294561202 | coiss | 2.000 |
+| N1294562000 | coiss | 1.500 |
+
 ## CSV export
 
 One row per image: images.csv (4 row(s)).
