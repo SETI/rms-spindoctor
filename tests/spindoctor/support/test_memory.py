@@ -56,10 +56,18 @@ def test_it_runs_where_the_c_library_cannot_release(monkeypatch: pytest.MonkeyPa
 
 
 def test_repeated_releases_are_safe() -> None:
-    """Releasing twice in a row is as harmless as releasing once."""
+    """Releasing twice in a row is as harmless as releasing once.
+
+    Each call is given a cycle of its own to collect, so the test fails if
+    either one stops happening -- which asserting against a cycle abandoned
+    after both calls would not.
+    """
+    first = _abandoned_cycle()
     release_transient_memory()
+    assert first() is None
+    second = _abandoned_cycle()
     release_transient_memory()
-    assert _abandoned_cycle() is not None
+    assert second() is None
 
 
 def test_the_located_library_exposes_the_release() -> None:

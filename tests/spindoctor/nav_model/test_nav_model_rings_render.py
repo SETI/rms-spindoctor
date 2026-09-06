@@ -110,7 +110,9 @@ class _DelegatingSparseBackplane:
 
     Parameters:
         obs: Observation carrying the fake ``ext_bp``.
-        meshgrid: Accepted for signature parity; unused.
+        meshgrid: The strip's meshgrid.  Its origin and limit are what say
+            which rows of the dense arrays this stand-in answers for; None
+            answers for the whole frame.
     """
 
     def __init__(self, obs: Any, meshgrid: Any = None) -> None:
