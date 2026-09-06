@@ -60,11 +60,13 @@ stand-in that answers each strip from the same dense arrays, on a frame taller
 than one strip. They test the stacking, not the solver: the agreement above is
 measured rather than asserted.
 
-Two places stripe:
-``NavModelRings._striped_backplanes`` for the ring quantities and
+Three places stripe:
+``NavModelRings._striped_backplanes`` for the ring quantities,
+``nav_model_body._body_strips`` for a body's oversampled box, and
 ``titan_geometry._striped_occlusion`` for both occlusion masks over one set of
 strips. Each caps a strip at
-:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS` and
+:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS`,
+:data:`~spindoctor.nav_model.nav_model_body.BODY_STRIP_ROWS` and
 :data:`~spindoctor.nav_model.titan_geometry.OCCLUDER_STRIP_ROWS` rows
 respectively, the same number for the same reason, and each strip's single
 backplane answers every quantity asked of it, so the surface intercept is solved
@@ -249,8 +251,16 @@ tests check the result against a transform-free evaluation of the same sums.
 Declining early
 ===============
 
-The cheapest backplane is the one never built. The ring model tries a sparse
-pre-check first: a 16 x 16 evaluation rules out the two common cases -- no
-ring-plane intersection anywhere in the frame, and a visible radial range
+The cheapest backplane is the one never built. A body whose disc reaches past all
+four corners of the extended frame leaves no sky around it, no limb inside the
+frame, and no measurable extent, so there is nothing a shape-based technique could
+match. :func:`~spindoctor.nav_model.nav_model_body.body_fills_extfov` decides that
+from the inventory alone -- an ellipse against the frame corners, costing no
+backplane -- and the model declines before building anything. The navigation records
+``body_fills_fov`` as its reason, which separates a frame that is unnavigable by
+that body from one that merely failed.
+
+The ring model's pre-check is the same idea: a 16 x 16 evaluation rules out the two
+common cases -- no ring-plane intersection anywhere in the frame, and a visible radial range
 entirely outside the catalogue's outermost feature -- without paying for a dense
 backplane.

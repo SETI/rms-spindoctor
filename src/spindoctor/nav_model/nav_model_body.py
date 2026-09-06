@@ -81,6 +81,7 @@ from spindoctor.nav_model.nav_model_body_base import (
 from spindoctor.nav_model.stars.predicted_snr import psf_sigma_px
 from spindoctor.support.constants import HALFPI
 from spindoctor.support.image import filter_downsample, shift_array
+from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.time import now_dt
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -817,6 +818,8 @@ class NavModelBody(NavModelBodyBase):
             else:
                 occluder_parts.append(strip_occluder)
                 any_occluder = True
+            del strip_bp, strip_incidence, strip_occluder
+            release_transient_memory()
         oversampled_incidence_mvals = _stack(incidence_parts)
         downsampled_incidence_mvals = filter_downsample(
             oversampled_incidence_mvals, oversample_v, oversample_u
