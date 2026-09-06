@@ -78,11 +78,28 @@ def test_the_peak_is_a_positive_count_of_bytes() -> None:
     assert peak > 0
 
 
+def _current_resident_bytes() -> int:
+    """This process's resident size right now, which is what a reset sets.
+
+    Returns:
+        The resident size in bytes, read from the same file the peak is.
+    """
+    with open('/proc/self/status') as handle:
+        for line in handle:
+            if line.startswith('VmRSS:'):
+                return int(line.split()[1]) * 1024
+    raise AssertionError('no VmRSS in /proc/self/status')
+
+
 def test_the_peak_covers_an_allocation_just_made() -> None:
     """Memory taken since the last reset is inside the reported peak."""
     if peak_resident_bytes() is None:
         pytest.skip('this kernel publishes no peak resident size')
-    reset_peak_resident()
+    # A kernel can publish the mark and refuse to reset it, and then ``before``
+    # is a mark this process reached earlier rather than the floor this test
+    # measures growth from.
+    if not reset_peak_resident():
+        pytest.skip('this kernel does not allow the peak to be reset')
     before = peak_resident_bytes()
     assert before is not None
     held = bytearray(256 * 1024 * 1024)
@@ -104,10 +121,17 @@ def test_the_reset_forgets_an_earlier_peak() -> None:
     assert high is not None
     if not reset_peak_resident():
         pytest.skip('this kernel does not allow the peak to be reset')
-    assert peak_resident_bytes() is not None
+    resident = _current_resident_bytes()
     settled = peak_resident_bytes()
     assert settled is not None
-    assert settled < high
+    # The reset sets the mark to what is resident at that moment -- not to zero,
+    # and not to whatever the allocator has agreed to hand back.  Comparing the
+    # mark against the earlier high would be asserting that the allocator trims,
+    # which it does not promise; comparing it against resident size now is the
+    # contract itself.  The tolerance covers what the interpreter allocates
+    # between the two reads.
+    assert abs(settled - resident) < 8 * 1024 * 1024
+    assert settled < high or resident >= high
 
 
 def test_the_reset_reports_whether_it_happened() -> None:

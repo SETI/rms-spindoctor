@@ -82,14 +82,14 @@ and after every change:
 | strip-level release | about 3 GB per frame |
 | correlation spectra reordering | about 0.9 GB per frame |
 
-Both are consequences of one finding. Evaluating a backplane a strip of rows
-at a time bounds the live heap, which is what striping was built to do, and
-does not bound resident size, which is what an out-of-memory kill reads. The
-intermediates sit in reference cycles, so nothing is freed until a collection
-runs; and once freed, the C allocator keeps the arenas. A striped pass
-therefore grew resident size by the *sum* of its strips rather than the
-largest of them, and its striping could not be observed from outside.
-Measured over one striped ring pass:
+The first of them is the consequence of the first finding. Evaluating a
+backplane a strip of rows at a time bounds the live heap, which is what
+striping was built to do, and does not bound resident size, which is what an
+out-of-memory kill reads. The intermediates sit in reference cycles, so
+nothing is freed until a collection runs; and once freed, the C allocator
+keeps the arenas. A striped pass therefore grew resident size by the *sum* of
+its strips rather than the largest of them, and its striping could not be
+observed from outside.  Measured over one striped ring pass:
 
 | released with | resident growth | wall time |
 |---|---|---|
