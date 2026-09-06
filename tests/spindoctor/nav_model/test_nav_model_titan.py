@@ -712,6 +712,35 @@ def test_bbox_undersample_bounds_the_sampled_count() -> None:
     assert sampled <= cap
 
 
+def test_bbox_undersample_bounds_the_count_when_each_axis_rounds_up() -> None:
+    """The stride has to bound what it samples, not what an exact division says.
+
+    A 101 x 101 box under a cap of 2600 divides to a stride of 2, which then
+    samples 51 x 51 = 2601 -- one over, because each axis rounds up
+    independently and the division knows about neither rounding.
+    """
+    bbox = (0, 100, 0, 100)
+    cap = 2600
+    stride = geometry_module._bbox_undersample(bbox, cap)
+    width, height = geometry_module._bbox_extent(bbox)
+    assert math.ceil(width / stride) * math.ceil(height / stride) <= cap
+
+
+@pytest.mark.parametrize('side', [17, 64, 101, 255, 1000])
+@pytest.mark.parametrize('cap', [16, 200, 2600, 9999])
+def test_bbox_undersample_bounds_every_box_and_cap(side: int, cap: int) -> None:
+    """The bound holds across sizes, not only at the one that exposed it.
+
+    Parameters:
+        side: Length of each axis of a square box, in pixels.
+        cap: Largest number of samples the grid may hold.
+    """
+    bbox = (0, side - 1, 0, side - 1)
+    stride = geometry_module._bbox_undersample(bbox, cap)
+    width, height = geometry_module._bbox_extent(bbox)
+    assert math.ceil(width / stride) * math.ceil(height / stride) <= cap
+
+
 def test_bbox_undersample_ignores_a_non_positive_cap() -> None:
     """A cap of zero is the deliberate spelling of no bound at all."""
     assert geometry_module._bbox_undersample((0, 9999, 0, 9999), 0) == 1

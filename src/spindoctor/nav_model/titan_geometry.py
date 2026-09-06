@@ -414,7 +414,28 @@ def _bbox_undersample(bbox_nominal: tuple[int, int, int, int], max_samples: int)
     samples = width * height
     if max_samples <= 0 or samples <= max_samples:
         return 1
-    return max(1, math.ceil(math.sqrt(samples / max_samples)))
+    # Each axis rounds up, so the count a stride actually produces can exceed
+    # the count the exact division promised -- a 101x101 box under a cap of
+    # 2600 divides to a stride of 2 and then samples 51x51 = 2601.  Step until
+    # what it produces is inside the bound.
+    stride = max(1, math.ceil(math.sqrt(samples / max_samples)))
+    while _sampled_count(width, height, stride) > max_samples:
+        stride += 1
+    return stride
+
+
+def _sampled_count(width: int, height: int, stride: int) -> int:
+    """How many samples a stride actually takes over a box.
+
+    Parameters:
+        width: The box width in pixels.
+        height: The box height in pixels.
+        stride: The sampling stride along each axis.
+
+    Returns:
+        The number of grid points, both axes rounding up.
+    """
+    return math.ceil(width / stride) * math.ceil(height / stride)
 
 
 def _clip_bbox_to_extfov(
