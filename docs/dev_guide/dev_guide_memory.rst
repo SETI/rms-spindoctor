@@ -26,10 +26,9 @@ strip boundaries fall on whole rows, and no per-pixel quantity depends on a
 neighbouring row. Tests assert the identity rather than a tolerance.
 
 Two places stripe:
-:func:`~spindoctor.nav_model.nav_model_rings.NavModelRings._striped_backplane` for
-the ring quantities and
-:func:`~spindoctor.nav_model.titan_geometry._striped_occlusion` for both occlusion
-masks over one set of strips. Each caps a strip at 128 rows.
+``NavModelRings._striped_backplane`` for the ring quantities and
+``titan_geometry._striped_occlusion`` for both occlusion masks over one set of
+strips. Each caps a strip at 128 rows.
 
 A caller must take everything it needs from a strip while that strip is the one in
 hand. Asking again afterwards rebuilds the whole box and gives back nothing.
@@ -134,7 +133,7 @@ correlation. On a Voyager frame that peak stands several gigabytes above the flo
 and is returned in full when the technique exits, which is why releasing between
 techniques does nothing for it: it is one allocation spike, not an accumulation.
 
-:func:`~spindoctor.support.correlate._masked_ncc_bidir` needs six spectra, but their
+``_masked_ncc_bidir`` needs six spectra, but their
 lifetimes barely overlap: the mask spectrum is finished after the second shift-wise
 sum, the image spectrum after the third, the model-mask spectrum after the fourth.
 Each is therefore built where it is first needed and dropped at its last use, so
