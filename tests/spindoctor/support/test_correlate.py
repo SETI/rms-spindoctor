@@ -801,30 +801,14 @@ class TestMaskedNccBidirectional:
         """
         # Reached by name rather than through the module attribute, which
         # strict typing reads as a re-export of numpy's.
-        real_fft2 = np.fft.fft2
-        real_ifft2 = np.fft.ifft2
-        seen: list[weakref.ref[Any]] = []
+        real_rfft2 = np.fft.rfft2
+        real_irfft2 = np.fft.irfft2
+        spectra: list[weakref.ref[Any]] = []
         made = {'forward': 0, 'inverse': 0}
         high = 0
 
-        def _record(kind: str, out: Any) -> Any:
-            """Weakly note one transform output and how many are alive with it.
-
-            Parameters:
-                kind: ``'forward'`` or ``'inverse'``, which counter to advance.
-                out: The transform's output array.
-
-            Returns:
-                That same array, so this stands in the call's place.
-            """
-            nonlocal high
-            made[kind] += 1
-            seen.append(weakref.ref(out))
-            high = max(high, sum(1 for ref in seen if ref() is not None))
-            return out
-
-        def counting_fft2(a: Any, *args: Any, **kwargs: Any) -> Any:
-            """Stand in for ``fft2``, recording its output.
+        def counting_rfft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            """Stand in for ``rfft2``, recording the spectrum it returns.
 
             Parameters:
                 a: Array to transform.
@@ -834,10 +818,19 @@ class TestMaskedNccBidirectional:
             Returns:
                 The transform numpy would have returned.
             """
-            return _record('forward', real_fft2(a, *args, **kwargs))
+            nonlocal high
+            made['forward'] += 1
+            out = real_rfft2(a, *args, **kwargs)
+            spectra.append(weakref.ref(out))
+            high = max(high, sum(1 for ref in spectra if ref() is not None))
+            return out
 
-        def counting_ifft2(a: Any, *args: Any, **kwargs: Any) -> Any:
-            """Stand in for ``ifft2``, recording its output.
+        def counting_irfft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            """Stand in for ``irfft2``, counting the surfaces it produces.
+
+            Its output is the surface itself rather than something a real part
+            is copied out of, so it is counted but not weighed against the
+            spectra: a surface is meant to outlive the transform that made it.
 
             Parameters:
                 a: Spectrum to inverse-transform.
@@ -847,10 +840,11 @@ class TestMaskedNccBidirectional:
             Returns:
                 The transform numpy would have returned.
             """
-            return _record('inverse', real_ifft2(a, *args, **kwargs))
+            made['inverse'] += 1
+            return real_irfft2(a, *args, **kwargs)
 
-        monkeypatch.setattr('spindoctor.support.correlate.fft2', counting_fft2)
-        monkeypatch.setattr('spindoctor.support.image.ifft2', counting_ifft2)
+        monkeypatch.setattr('spindoctor.support.correlate.rfft2', counting_rfft2)
+        monkeypatch.setattr('spindoctor.support.correlate.irfft2', counting_irfft2)
         rng = np.random.default_rng(11)
         rows, cols = 24, 20
         data_mask = rng.random((rows, cols)) > 0.25
@@ -860,12 +854,14 @@ class TestMaskedNccBidirectional:
         _masked_ncc_bidir(image, model, mask, data_mask)
         assert made['forward'] == 6
         assert made['inverse'] == 6
-        # Three spectra, plus the one inverse transform in flight.  This counts
-        # transform outputs; the conjugate and product temporaries of the
-        # statement being evaluated are one more frame-sized complex array
-        # again, which no reordering of the transforms can remove.
-        assert high <= 4
-        assert all(ref() is None for ref in seen)
+        # Three spectra at once: the pair one correlation is taken from, plus
+        # the one being built to replace whichever of them it retires.  This
+        # counts transform outputs; the conjugate the product is accumulated
+        # into is one more half-spectrum again, which no reordering removes.
+        assert high <= 3
+        # A surface outlives the call -- the numerator is returned -- but no
+        # spectrum does.
+        assert all(ref() is None for ref in spectra)
 
     def test_the_scores_match_a_direct_evaluation(self) -> None:
         """Every shift's score is the one a transform-free evaluation gives."""

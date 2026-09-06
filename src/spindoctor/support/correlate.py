@@ -2,7 +2,7 @@ import math
 from typing import Any, Literal, cast
 
 import numpy as np
-from numpy.fft import fft2, fftfreq, ifftshift
+from numpy.fft import fft2, fftfreq, ifftshift, irfft2, rfft2
 from pdslogger import PdsLogger
 from scipy.ndimage import gaussian_filter, sobel
 
@@ -107,6 +107,38 @@ _NCC_BIDIR_W_FRAC_MIN: float = 0.3
 _NCC_BIDIR_VAR_FRAC_MIN: float = 0.1
 
 
+def _correlate_from_spectra(
+    spectrum_a: NDArrayComplexType,
+    spectrum_b: NDArrayComplexType,
+    shape: tuple[int, int],
+) -> NDArrayFloatType:
+    """Shift-wise correlation of two real fields, from their half spectra.
+
+    ``irfft2(A * conj(B))`` is the cross-correlation of the fields ``A`` and
+    ``B`` came from.  Two things about computing it this way matter as much as
+    the arithmetic on a wide-margin frame, where one of these surfaces is the
+    largest array in the process.
+
+    The fields are real, so half of a full spectrum is the conjugate of the
+    other half and carrying it costs a copy of every transform.  And the result
+    is real by construction, so taking ``np.real`` of a full inverse transform
+    yields a strided view that keeps a complex array of twice its size alive for
+    as long as the surface is needed; a half-spectrum inverse returns the
+    contiguous real array directly.
+
+    Parameters:
+        spectrum_a: Half spectrum of the left field.
+        spectrum_b: Half spectrum of the right field, conjugated here.
+        shape: Shape of the fields.  A half spectrum does not record whether
+            the transformed axis had an even or odd length, so the inverse
+            has to be told.
+
+    Returns:
+        The correlation surface, of ``shape``.
+    """
+    return cast(NDArrayFloatType, irfft2(spectrum_a * np.conj(spectrum_b), shape))
+
+
 def masked_ncc(
     image: NDArrayFloatType,
     model: NDArrayFloatType,
@@ -168,22 +200,31 @@ def masked_ncc(
     if data_mask is not None:
         return _masked_ncc_bidir(image, model, mask, data_mask)
 
-    image_fft = fft2(image)
-    mask_fft = fft2(mask)
-    model_mask_fft = fft2(model * mask)
+    image = np.asarray(image, np.float64)
+    model = np.asarray(model, np.float64)
+    mask_f = np.asarray(mask, np.float64)
+    shape = cast(tuple[int, int], image.shape)
 
     sum_w: float = float(np.sum(mask))
     safe_w = sum_w + _NCC_EPS
 
-    # Shift-wise sums via FFT (take real to discard floating-point imaginary noise)
-    sum_iw = real_ifft2(image_fft * np.conj(mask_fft))
-    sum_i2w = real_ifft2(fft2(image**2) * np.conj(mask_fft))
-    sum_imw = real_ifft2(image_fft * np.conj(model_mask_fft))
+    # Shift-wise sums via FFT.  Each spectrum is built where it is first needed
+    # and dropped at its last use, so the transforms do not all overlap.
+    mask_fft = rfft2(mask_f)
+    image2_fft = rfft2(image**2)
+    sum_i2w = _correlate_from_spectra(image2_fft, mask_fft, shape)
+    del image2_fft
+    image_fft = rfft2(image)
+    sum_iw = _correlate_from_spectra(image_fft, mask_fft, shape)
+    del mask_fft
+    model_mask_fft = rfft2(model * mask_f)
+    sum_imw = _correlate_from_spectra(image_fft, model_mask_fft, shape)
+    del image_fft, model_mask_fft
 
     # Model stats (constant over shifts)
-    sum_mw: float = float(np.sum(model * mask))
+    sum_mw: float = float(np.sum(model * mask_f))
     mean_m: float = sum_mw / safe_w
-    ssd_mw: float = float(np.sum(((model - mean_m) * mask) ** 2)) + _NCC_EPS
+    ssd_mw: float = float(np.sum(((model - mean_m) * mask_f) ** 2)) + _NCC_EPS
 
     # Shift-wise image mean
     mean_i = sum_iw / safe_w
@@ -223,24 +264,19 @@ def _masked_ncc_bidir(
     model = np.asarray(model, np.float64)
     mask_f = mask.astype(np.float64)
     dmask_f = data_mask.astype(np.float64)
+    shape = cast(tuple[int, int], image.shape)
 
-    # Each spectrum is built where it is first needed and dropped at its last
-    # use, rather than all six being built up front, and each inverse
-    # transform's real part is copied out of it (real_ifft2), so no complex
-    # output outlives the sum it was taken for.  The arithmetic is unchanged
-    # -- every product below is the one it always was -- but at most three
-    # spectra exist at once instead of six, and on a wide-margin frame a
-    # spectrum is the largest array in the process.  The live count is three
-    # spectra plus the one inverse transform in flight plus the conjugate and
-    # product temporaries of the statement being evaluated, which is five
-    # frame-sized complex arrays at the peak; multiplying in place to drop one
-    # of them was measured and moved peak resident size by nothing, because
-    # the allocator hands the freed block straight back.
-    dmask_fft = fft2(dmask_f)
-    mask_fft = fft2(mask_f)
+    # Six shift-sum surfaces have to exist together for the normalization
+    # below, and on a wide-margin frame each is the largest array in the
+    # process.  Everything on the way to them is therefore built where it is
+    # first needed and dropped at its last use, so no spectrum outlives the
+    # surface it produces.
+    dmask_fft = rfft2(dmask_f)
+    del dmask_f
+    mask_fft = rfft2(mask_f)
 
     # Effective overlap weight at each shift.
-    w_d = real_ifft2(dmask_fft * np.conj(mask_fft))
+    w_d = _correlate_from_spectra(dmask_fft, mask_fft, shape)
     w_d_max = float(w_d.max())
     w_floor = max(_NCC_BIDIR_W_FRAC_MIN * w_d_max, _NCC_EPS)
     overlap_ok = w_d >= w_floor
@@ -252,47 +288,72 @@ def _masked_ncc_bidir(
     # own is built.  Built the other way round the two overlap, and with the
     # data-mask and mask spectra still live that is four at once rather than
     # the three this ordering exists to hold.
-    image2_fft = fft2(image * image)
-    sum_i2w = real_ifft2(image2_fft * np.conj(mask_fft))
+    image2_fft = rfft2(image * image)
+    sum_i2w = _correlate_from_spectra(image2_fft, mask_fft, shape)
     del image2_fft
-    image_fft = fft2(image)
-    sum_iw = real_ifft2(image_fft * np.conj(mask_fft))
+    image_fft = rfft2(image)
+    sum_iw = _correlate_from_spectra(image_fft, mask_fft, shape)
     del mask_fft
 
-    model_mask_fft = fft2(model * mask_f)
-    sum_imw = real_ifft2(image_fft * np.conj(model_mask_fft))
+    model_mask_fft = rfft2(model * mask_f)
+    sum_imw = _correlate_from_spectra(image_fft, model_mask_fft, shape)
     del image_fft
     # Model stats are shift-dependent because dmask selects which model
     # pixels participate at each shift.
-    sum_mw = real_ifft2(dmask_fft * np.conj(model_mask_fft))
+    sum_mw = _correlate_from_spectra(dmask_fft, model_mask_fft, shape)
     del model_mask_fft
 
-    model2_mask_fft = fft2((model * model) * mask_f)
-    sum_m2w = real_ifft2(dmask_fft * np.conj(model2_mask_fft))
-    del model2_mask_fft, dmask_fft
+    sum_m2w = _correlate_from_spectra(dmask_fft, rfft2((model * model) * mask_f), shape)
+    del dmask_fft, mask_f
 
-    safe_w = np.where(overlap_ok, w_d, w_floor)
+    # The normalization from here down writes into surfaces that have just
+    # stopped being needed rather than allocating a new one per step, because
+    # a step allocates as much as a whole surface and there are a dozen of
+    # them.  ``np.maximum`` against the floor is what ``np.where(overlap_ok,
+    # w_d, w_floor)`` computed, on values already known to be non-negative.
+    safe_w = w_d
+    np.maximum(safe_w, w_floor, out=safe_w)
+
     mean_i = sum_iw / safe_w
+    num = sum_imw
+    num -= mean_i * sum_mw
+    del mean_i
 
-    num = sum_imw - mean_i * sum_mw
-    ssd_iw = np.maximum(sum_i2w - sum_iw**2 / safe_w, 0.0)
-    ssd_mw = np.maximum(sum_m2w - sum_mw**2 / safe_w, 0.0)
+    ssd_iw = sum_i2w
+    scratch = sum_iw * sum_iw
+    scratch /= safe_w
+    ssd_iw -= scratch
+    np.maximum(ssd_iw, 0.0, out=ssd_iw)
+    del sum_iw
+
+    ssd_mw = sum_m2w
+    scratch = sum_mw * sum_mw
+    scratch /= safe_w
+    ssd_mw -= scratch
+    np.maximum(ssd_mw, 0.0, out=ssd_mw)
+    del scratch, sum_mw, safe_w
 
     # Reject shifts where the image or model has near-constant content
     # under the effective mask; their NCC is dominated by floating-point
     # noise in the denominator.
     ssd_i_max = float(ssd_iw.max())
     ssd_m_max = float(ssd_mw.max())
-    var_ok = (ssd_iw > _NCC_BIDIR_VAR_FRAC_MIN * ssd_i_max) & (
+    valid = (ssd_iw > _NCC_BIDIR_VAR_FRAC_MIN * ssd_i_max) & (
         ssd_mw > _NCC_BIDIR_VAR_FRAC_MIN * ssd_m_max
     )
-    valid = overlap_ok & var_ok
+    valid &= overlap_ok
 
-    denom = np.sqrt(ssd_iw * ssd_mw)
-    ncc = np.where(valid, num / np.maximum(denom, _NCC_EPS), 0.0)
+    denom = ssd_iw
+    denom *= ssd_mw
+    np.sqrt(denom, out=denom)
+    np.maximum(denom, _NCC_EPS, out=denom)
+    del ssd_mw
+
+    ncc = num / denom
+    del denom
     # Mathematically |NCC| <= 1; floating-point error can push it slightly
     # above, so clamp before invalidating.
-    ncc = np.clip(ncc, -1.0, 1.0)
+    np.clip(ncc, -1.0, 1.0, out=ncc)
     ncc[~valid] = -np.inf
     return ncc, num
 
@@ -611,7 +672,14 @@ def evaluate_candidate(
     if refine_lowpass_sigma_px > 0.0:
         refine_image = gaussian_filter(refine_image, refine_lowpass_sigma_px)
         refine_model_masked = gaussian_filter(refine_model_masked, refine_lowpass_sigma_px)
-    spec = fft2(refine_image) * np.conj(fft2(refine_model_masked))
+    # Conjugate and multiply into the model's own transform rather than
+    # building a conjugate and a product beside it: at the full-resolution
+    # scale each of those is one of the largest arrays in the process, and
+    # ``upsampled_dft`` needs only the product.
+    spec = fft2(refine_model_masked)
+    del refine_model_masked
+    np.conjugate(spec, out=spec)
+    spec *= fft2(refine_image)
     # Center of the local upsampled DFT window should be the middle of the
     # evaluation region (e.g., 3x3 -> center index 1), not half the upsample factor.
     # Using upsample_factor here caused increasing bias for large factors.
@@ -770,7 +838,11 @@ def navigate_single_scale_kpeaks(
     if data_mask is not None:
         data_mask_pad = pad_top_left(data_mask.astype(bool), padded_h, padded_w)
 
-    corr, _corr_num = masked_ncc(image_pad, model_pad, mask_pad, data_mask=data_mask_pad)
+    corr, corr_num = masked_ncc(image_pad, model_pad, mask_pad, data_mask=data_mask_pad)
+    # The numerator is a diagnostic that peak selection deliberately does not
+    # use (see masked_ncc); holding the name would keep a full-size surface
+    # alive through the candidate evaluations below.
+    del corr_num
     # Use the NCC (Pearson r) itself for peak localization, not the unnormalized
     # numerator.  The numerator scales with sqrt(image-variance-under-mask), and
     # for dense templates -- body discs, Lambert-shaded limbs, rings, etc. -- that
