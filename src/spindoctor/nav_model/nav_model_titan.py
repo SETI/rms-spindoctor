@@ -449,6 +449,15 @@ class NavModelTitan(NavModel):
     reliability, not as a refusal to emit, so every outcome carries an
     attributable record.
 
+    Marginal is not the same as unevaluable.  The always-emit invariant covers
+    the frames this model can read and finds wanting -- a haze too small to
+    fit, a disc mostly occluded, an inventory box that is not finite.  A frame
+    whose geometry raises is not one of them: nothing is absorbed, the
+    exception reaches the orchestrator, and the image fails with
+    ``status_reason=internal_error`` naming what raised.  See "Nothing here
+    absorbs an exception" in :mod:`spindoctor.nav_model.titan_geometry` for
+    why a zero-reliability feature is the worse record of the two.
+
     Parameters:
         name: Model instance name (``'titan:TITAN'``).
         obs: Observation snapshot.

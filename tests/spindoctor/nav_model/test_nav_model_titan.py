@@ -382,9 +382,12 @@ class _BoxMeshgrid:
     nominal-frame box, indexed ``(v, u)``.
     """
 
-    def __init__(self, origin: tuple[float, float], limit: tuple[float, float]) -> None:
-        us = np.arange(origin[0], limit[0] + 0.5, 1.0, dtype=np.float64)
-        vs = np.arange(origin[1], limit[1] + 0.5, 1.0, dtype=np.float64)
+    def __init__(
+        self, origin: tuple[float, float], limit: tuple[float, float], undersample: int = 1
+    ) -> None:
+        step = float(max(1, undersample))
+        us = np.arange(origin[0], limit[0] + 0.5, step, dtype=np.float64)
+        vs = np.arange(origin[1], limit[1] + 0.5, step, dtype=np.float64)
         uu, vv = np.meshgrid(us, vs, indexing='xy')
         self.us = us
         self.vs = vs
@@ -400,11 +403,12 @@ class _BoxMeshgrid:
         origin: tuple[float, float],
         limit: tuple[float, float],
         oversample: tuple[int, int] = (1, 1),
+        undersample: int = 1,
         swap: bool = False,
     ) -> _BoxMeshgrid:
         """Mirror the ``oops.Meshgrid.for_fov`` factory signature."""
         del fov, oversample, swap
-        return cls(origin, limit)
+        return cls(origin, limit, undersample)
 
 
 class _MaskedArray:
@@ -542,6 +546,62 @@ def _geometry(obs: FakeObs, config: Config) -> TitanGeometryInputs:
     model = NavModelTitan.instances_for_obs(cast(Any, obs), config=config)[0]
     model.create_model()
     return cast(NavModelTitan, model).geometry_inputs
+
+
+# ---------------------------------------------------------------------------
+# Nothing here absorbs an exception
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    'raised',
+    [
+        MemoryError,
+        KeyError,
+        ZeroDivisionError,
+        NameError,
+        AttributeError,
+        TypeError,
+        ValueError,
+        LookupError,
+        OSError,
+        NotImplementedError,
+    ],
+)
+@pytest.mark.parametrize('patched', ['_restricted_backplane', '_body_scale', 'stars_in_extfov'])
+def test_no_stage_absorbs_an_exception(
+    scene: type[_SceneBackplane],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    patched: str,
+    raised: type[Exception],
+) -> None:
+    """Whatever a stage raises, and wherever it raises it, the navigation fails.
+
+    No type is evidence of anything: oops declines with ValueError and
+    LookupError, and so does a defect inside oops, inside numpy, or here. A
+    stage that carried on would still produce an offset, and the document
+    written for it would say a navigation ran and concluded something -- which
+    no error filter selects and no later pass corrects.
+
+    Parameters:
+        scene: The analytic backplane scene.
+        tmp_path: Where the Titan-only configuration is written.
+        monkeypatch: Fixture the failing stage is installed through.
+        patched: Name of the module-level function made to raise.
+        raised: The exception it raises.
+    """
+    scene.sub_solar_offset_vu = (10.0, 0.0)
+    scene.occluder_center_vu = None
+    scene.ring_radius_at_u = None
+
+    def _raises(*args: Any, **kwargs: Any) -> Any:
+        raise raised('the stage could not be evaluated')
+
+    monkeypatch.setattr(geometry_module, patched, _raises)
+    obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
+    with pytest.raises(raised):
+        _geometry(obs, _titan_only_config(tmp_path))
 
 
 def test_symmetry_axis_points_at_the_sub_solar_pixel(
@@ -805,35 +865,25 @@ class _BrokenObs(FakeObs):
         raise ValueError('body not resolvable in this scene')
 
 
-def test_pathological_geometry_still_emits_a_feature(tmp_path: Path) -> None:
-    """A frame whose geometry cannot be evaluated emits rather than raising.
+def test_an_unresolvable_body_fails_the_image(tmp_path: Path) -> None:
+    """A frame whose geometry cannot be evaluated fails rather than emitting.
 
-    The orchestrator drops a model whose ``create_model`` raises and reads a
-    raising ``to_features`` as zero features, which would leave the frame
-    with no gate record at all.
+    It used to emit a zero-reliability feature, on the reasoning that the
+    orchestrator dropped a model whose ``create_model`` raised and would leave
+    the frame with no gate record at all. That is no longer what happens: the
+    orchestrator fails the image with ``status_reason=internal_error``, naming
+    the component that raised and the type it raised, which is a better record
+    than a feature the gate silently removes -- and, unlike that feature, one
+    that does not read downstream as a navigation that ran and concluded.
+
+    Parameters:
+        tmp_path: Where the Titan-only configuration is written.
     """
     obs = _BrokenObs(data=np.zeros((120, 120)), extfov_margin_vu=(10, 10))
     model = NavModelTitan('titan:TITAN', cast(Any, obs), config=_titan_only_config(tmp_path))
-    model.create_model()
-    assert len(model.to_features(cast(Any, None))) == 1
-
-
-def test_pathological_geometry_marks_the_axis_degenerate(tmp_path: Path) -> None:
-    """The emitted feature reports that no axis could be derived."""
-    obs = _BrokenObs(data=np.zeros((120, 120)), extfov_margin_vu=(10, 10))
-    model = NavModelTitan('titan:TITAN', cast(Any, obs), config=_titan_only_config(tmp_path))
-    model.create_model()
-    feature = model.to_features(cast(Any, None))[0]
-    assert isinstance(feature.geometry, TitanHazeGeometry)
-    assert feature.geometry.axis_degenerate is True
-
-
-def test_pathological_geometry_scores_zero_reliability(tmp_path: Path) -> None:
-    """The emitted feature is hard-zeroed so the type gate removes it."""
-    obs = _BrokenObs(data=np.zeros((120, 120)), extfov_margin_vu=(10, 10))
-    model = NavModelTitan('titan:TITAN', cast(Any, obs), config=_titan_only_config(tmp_path))
-    model.create_model()
-    assert model.to_features(cast(Any, None))[0].reliability == 0.0
+    with pytest.raises(ValueError) as exc_info:
+        model.create_model()
+    assert 'body not resolvable' in str(exc_info.value)
 
 
 def _non_finite_geometry_feature(
@@ -977,15 +1027,17 @@ def test_create_model_logs_the_titan_section(
     assert 'TITAN MODEL' in capsys.readouterr().out
 
 
-def test_to_annotations_is_empty_for_unevaluated_geometry(tmp_path: Path) -> None:
+def test_to_annotations_is_empty_for_unevaluated_geometry() -> None:
     """A frame whose geometry never evaluated draws no overlay at all.
 
     Its defaults are a zero-radius envelope at the frame origin; painting a
-    center mark there would claim a position the frame does not support.
+    center mark there would claim a position the frame does not support. Read
+    off the geometry directly, since an observation that cannot answer now
+    fails the image rather than leaving a model standing with its defaults.
+
     """
-    obs = _BrokenObs(data=np.zeros((120, 120)), extfov_margin_vu=(10, 10))
-    model = NavModelTitan('titan:TITAN', cast(Any, obs), config=_titan_only_config(tmp_path))
-    assert len(model.to_annotations(cast(Any, None)).annotations) == 0
+    unevaluated = _inputs(r_env_px=0.0, theta_rad=0.0, axis_degenerate=True)
+    assert len(haze_overlay(unevaluated, sector_half_angle_deg=45.0).nonzero()[0]) == 0
 
 
 # ---------------------------------------------------------------------------

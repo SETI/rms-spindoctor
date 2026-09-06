@@ -297,13 +297,10 @@ def occluder_mask_for_body(
             hidden = restr_bp.where_in_front(sibling_name, body_name)
             hidden_over = hidden.mvals.filled(False).astype(bool)
         except Exception:
-            IMAGE_LOGGER.warning(
-                'Body %s: failed to compute occlusion by %s; arc / template left untrimmed',
-                body_name,
-                sibling_name,
-                exc_info=True,
+            IMAGE_LOGGER.exception(
+                'Body %s: failed to compute occlusion by %s', body_name, sibling_name
             )
-            continue
+            raise
         hidden_local = (
             filter_downsample(hidden_over.astype(np.float64), oversample_v, oversample_u) >= 0.5
         )

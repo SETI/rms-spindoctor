@@ -416,8 +416,13 @@ def test_occluder_helper_returns_none_without_siblings() -> None:
     assert mask is None
 
 
-def test_occluder_helper_degrades_on_a_backplane_failure() -> None:
-    """A backplane that cannot answer leaves the caller's mask untrimmed."""
+def test_occluder_helper_fails_on_a_backplane_failure() -> None:
+    """A backplane that cannot answer fails the image rather than untrimming the mask.
+
+    An untrimmed mask is not a missing answer, it is a wrong one: the fit runs
+    on against an occluder it was never told about and reports an offset, and
+    the document written for it says a navigation ran and concluded something.
+    """
 
     class _RaisingBackplane:
         """Backplane stand-in whose depth test fails the way a bad scene does."""
@@ -427,12 +432,13 @@ def test_occluder_helper_degrades_on_a_backplane_failure() -> None:
             del sibling_name, body_name
             raise ValueError('cannot resolve occlusion for this scene')
 
-    mask = occluder_mask_for_body(
-        cast(Any, _RaisingBackplane()),
-        _TARGET,
-        [(_OCCLUDER, 5.0e5)],
-        1.0e6,
-        oversample_v=1,
-        oversample_u=1,
-    )
-    assert mask is None
+    with pytest.raises(ValueError) as exc_info:
+        occluder_mask_for_body(
+            cast(Any, _RaisingBackplane()),
+            _TARGET,
+            [(_OCCLUDER, 5.0e5)],
+            1.0e6,
+            oversample_v=1,
+            oversample_u=1,
+        )
+    assert 'cannot resolve occlusion' in str(exc_info.value)
