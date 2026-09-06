@@ -77,9 +77,11 @@ class _FakeSnapshot:
         """Describe the image the way a real snapshot does.
 
         The driver captions the summary PNG from this, so a stand-in that
-        cannot answer is incomplete. It used to be production's job to survive
-        that, which meant a real snapshot with a broken accessor shipped an
-        unlabelled PNG and said nothing.
+        cannot answer is an incomplete stand-in rather than a case production
+        has to survive: surviving it ships an unlabelled PNG and says nothing.
+
+        Returns:
+            The image name, its filter names, and its exposure time in seconds.
         """
         return {
             'image_name': 'N0000000000_1_CALIB.IMG',
@@ -502,8 +504,11 @@ class _FakeObsForRender:
         """Describe the image the way a real snapshot does.
 
         The renderer captions the summary PNG from this. A stand-in without it
-        is an incomplete stand-in, and production carrying that incompleteness
-        on its behalf is what let an unlabelled PNG ship as a finished product.
+        is an incomplete stand-in; production carrying that incompleteness on
+        its behalf lets an unlabelled PNG ship as a finished product.
+
+        Returns:
+            The image name, its filter names, and its exposure time in seconds.
         """
         return {
             'image_name': 'N0000000000_1_CALIB.IMG',
@@ -794,5 +799,7 @@ def test_summary_metadata_fails_when_public_metadata_raises() -> None:
         confidence_rank='failed',
     )
     with pytest.raises(RuntimeError) as exc_info:
+        # _RaisingObs implements only the one accessor under test, which is
+        # the point of it; it is not an ObsSnapshotInst and cannot be.
         _summary_metadata_from_obs_result(_RaisingObs(), result)  # type: ignore[arg-type]
     assert 'no label' in str(exc_info.value)

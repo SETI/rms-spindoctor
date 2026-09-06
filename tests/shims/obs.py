@@ -380,7 +380,16 @@ class FakeObs:
     # ------------------------------------------------------------------
 
     def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
-        """Return the configured frame-centre RA and DEC in radians."""
+        """Return the configured frame-centre RA and DEC.
+
+        Parameters:
+            apparent: Whether to correct for aberration, as the real
+                observation does.  A planted direction is whatever it was
+                planted as, so this stand-in answers the same either way.
+
+        Returns:
+            ``(ra, dec)`` in radians.
+        """
         del apparent
         return self.boresight_ra_rad, self.boresight_dec_rad
 

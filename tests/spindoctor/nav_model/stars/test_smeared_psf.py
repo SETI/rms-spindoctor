@@ -146,7 +146,17 @@ class _FakeObsForBracket:
         self._dv = dv
 
     def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
-        """Return a constant sky direction (the actual value is unused)."""
+        """Return a constant sky direction.
+
+        The projection below is planted, so which direction this is does not
+        reach the answer; that it can be asked for does.
+
+        Parameters:
+            apparent: Whether to correct for aberration; ignored here.
+
+        Returns:
+            ``(ra, dec)`` in radians, always the origin of the sky frame.
+        """
         del apparent
         return 0.0, 0.0
 

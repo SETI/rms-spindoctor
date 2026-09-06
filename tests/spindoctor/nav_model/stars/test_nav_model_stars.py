@@ -475,7 +475,7 @@ def test_smear_from_an_obs_that_cannot_report_its_centre_is_not_silently_zero() 
     class _NoCentreObs:
         """Minimal obs stand-in lacking ``center_ra_dec``."""
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(AttributeError, match='center_ra_dec'):
         compute_smear_vector_px(cast(Any, _NoCentreObs()))
 
 

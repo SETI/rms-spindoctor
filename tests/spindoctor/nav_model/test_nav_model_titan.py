@@ -585,9 +585,6 @@ def test_no_stage_absorbs_an_exception(
     no error filter selects and no later pass corrects.
 
     Parameters:
-        scene: The analytic backplane scene.
-        tmp_path: Where the Titan-only configuration is written.
-        monkeypatch: Fixture the failing stage is installed through.
         patched: Name of the module-level function made to raise.
         raised: The exception it raises.
     """
@@ -600,7 +597,7 @@ def test_no_stage_absorbs_an_exception(
 
     monkeypatch.setattr(geometry_module, patched, _raises)
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    with pytest.raises(raised):
+    with pytest.raises(raised, match='the stage could not be evaluated'):
         _geometry(obs, _titan_only_config(tmp_path))
 
 
@@ -868,16 +865,10 @@ class _BrokenObs(FakeObs):
 def test_an_unresolvable_body_fails_the_image(tmp_path: Path) -> None:
     """A frame whose geometry cannot be evaluated fails rather than emitting.
 
-    It used to emit a zero-reliability feature, on the reasoning that the
-    orchestrator dropped a model whose ``create_model`` raised and would leave
-    the frame with no gate record at all. That is no longer what happens: the
-    orchestrator fails the image with ``status_reason=internal_error``, naming
-    the component that raised and the type it raised, which is a better record
-    than a feature the gate silently removes -- and, unlike that feature, one
-    that does not read downstream as a navigation that ran and concluded.
-
-    Parameters:
-        tmp_path: Where the Titan-only configuration is written.
+    The orchestrator fails the image with ``status_reason=internal_error``,
+    naming the component that raised and the type it raised.  A zero-reliability
+    feature in its place would be removed by the gate without a record, and
+    would read downstream as a navigation that ran and concluded.
     """
     obs = _BrokenObs(data=np.zeros((120, 120)), extfov_margin_vu=(10, 10))
     model = NavModelTitan('titan:TITAN', cast(Any, obs), config=_titan_only_config(tmp_path))
