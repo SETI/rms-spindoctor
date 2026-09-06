@@ -150,7 +150,7 @@ class NavModelStars(NavModel):
         self._metadata['elapsed_time_sec'] = None
         with self.log_section('CREATE STARS MODEL'):
             self._stars = reduce_catalogs(self.obs, self._config)
-            self._smear_vu = _compute_smear_for_obs(self.obs)
+            self._smear_vu = compute_smear_vector_px(self.obs)
             mark_body_and_ring_conflicts(self.obs, self._config, self._stars)
             self._metadata['star_count'] = len(self._stars)
             self._metadata['stars'] = [_star_summary(star) for star in self._stars]
@@ -449,28 +449,6 @@ def _resolve_mag_offset(obs: Observation) -> float:
         default = entry.get('default', 0.0)
         return float(default) if isinstance(default, (int, float)) else 0.0
     return 0.0
-
-
-def _compute_smear_for_obs(obs: Observation) -> tuple[float, float]:
-    """Best-effort smear vector lookup that tolerates obs API quirks.
-
-    Pulls smear from the SPICE bracket via
-    ``compute_smear_vector_px`` when the obs supports it.  Snapshots
-    that don't have a bracket-capable boresight (simulated obs, partial
-    test fixtures) report a zero smear vector — the SNR formula still
-    applies and the star covariance falls back to the isotropic case.
-
-    Parameters:
-        obs: Observation snapshot.
-
-    Returns:
-        ``(my, mx)`` smear vector in pixels.  Returns ``(0.0, 0.0)`` for
-        obs stand-ins that don't expose a SPICE-bracketable boresight.
-    """
-    try:
-        return compute_smear_vector_px(obs)
-    except (AttributeError, NotImplementedError):
-        return (0.0, 0.0)
 
 
 def _safe_mask_lookup(

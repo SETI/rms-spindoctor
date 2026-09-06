@@ -150,12 +150,17 @@ def current_git_version() -> str:
     global _GIT_VERSION_CACHE
     if _GIT_VERSION_CACHE is not None:
         return _GIT_VERSION_CACHE
+    # The ways git can decline are enumerated rather than caught wholesale: not
+    # installed, not a repository, no tag to describe from. Each records itself
+    # in the returned string, so the failure is visible in the run log instead
+    # of being absorbed. Anything else -- a decode fault, a defect here -- is a
+    # bug and propagates.
     try:
         ret = subprocess.check_output(
             ['git', 'describe', '--all', '--long', '--dirty', '--abbrev=40', '--tags']
         ).strip()
         _GIT_VERSION_CACHE = ret.decode('ascii')
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         _GIT_VERSION_CACHE = 'GIT DESCRIBE FAILED'
     return _GIT_VERSION_CACHE
 
@@ -183,10 +188,12 @@ def get_local_host_name() -> str:
     global _LOCAL_HOST_NAME_CACHE
     if _LOCAL_HOST_NAME_CACHE is not None:
         return _LOCAL_HOST_NAME_CACHE
+    # As above: a name service that will not answer is the expected way this
+    # fails, and it records itself in the value. Anything else propagates.
     try:
         ret = socket.getfqdn()
         _LOCAL_HOST_NAME_CACHE = ret
-    except Exception:
+    except OSError:
         _LOCAL_HOST_NAME_CACHE = 'LOCAL HOST NAME FAILED'
     return _LOCAL_HOST_NAME_CACHE
 

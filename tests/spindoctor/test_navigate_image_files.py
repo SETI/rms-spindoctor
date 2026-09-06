@@ -73,6 +73,20 @@ class _FakeSnapshot:
         # observation.shutter_mode when the host exposes one.
         self.shutter_mode = shutter_mode
 
+    def get_public_metadata(self) -> dict[str, Any]:
+        """Describe the image the way a real snapshot does.
+
+        The driver captions the summary PNG from this, so a stand-in that
+        cannot answer is incomplete. It used to be production's job to survive
+        that, which meant a real snapshot with a broken accessor shipped an
+        unlabelled PNG and said nothing.
+        """
+        return {
+            'image_name': 'N0000000000_1_CALIB.IMG',
+            'filters': ('CL1',),
+            'exposure_time': 0.05,
+        }
+
     def extfov_data_sensor_mask(self) -> np.ndarray:
         """Report every pixel of the extended FOV as live sensor.
 
@@ -484,6 +498,19 @@ class _FakeObsForRender:
         # Zero extfov margin: the offset slice is the array itself.
         return array
 
+    def get_public_metadata(self) -> dict[str, Any]:
+        """Describe the image the way a real snapshot does.
+
+        The renderer captions the summary PNG from this. A stand-in without it
+        is an incomplete stand-in, and production carrying that incompleteness
+        on its behalf is what let an unlabelled PNG ship as a finished product.
+        """
+        return {
+            'image_name': 'N0000000000_1_CALIB.IMG',
+            'filters': ('CL1', 'CL2'),
+            'exposure_time': 0.12,
+        }
+
 
 def _make_render_result(
     *, annotations: Annotations, offset_px: tuple[float, float] | None = None
@@ -745,8 +772,13 @@ def test_summary_metadata_failed_reports_no_techniques() -> None:
     assert meta.techniques == ()
 
 
-def test_summary_metadata_degrades_when_public_metadata_raises() -> None:
-    """A public-metadata failure yields empty filter and unknown exposure."""
+def test_summary_metadata_fails_when_public_metadata_raises() -> None:
+    """A public-metadata failure fails the image rather than captioning it blank.
+
+    These are the labels the summary PNG carries, so absorbing the failure does
+    not produce a PNG that says it is missing them: it produces an unlabelled
+    one, which reads as a finished product rather than as a fault.
+    """
 
     class _RaisingObs:
         abspath = Path('/holdings/N9.IMG')
@@ -761,7 +793,6 @@ def test_summary_metadata_degrades_when_public_metadata_raises() -> None:
         confidence=0.0,
         confidence_rank='failed',
     )
-    meta = _summary_metadata_from_obs_result(_RaisingObs(), result)  # type: ignore[arg-type]
-    assert meta.image_name == 'N9.IMG'
-    assert meta.filter_name == ''
-    assert meta.exposure_s is None
+    with pytest.raises(RuntimeError) as exc_info:
+        _summary_metadata_from_obs_result(_RaisingObs(), result)  # type: ignore[arg-type]
+    assert 'no label' in str(exc_info.value)

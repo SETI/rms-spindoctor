@@ -223,13 +223,12 @@ def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
         from spindoctor.config import DEFAULT_CONFIG
 
         cfg = DEFAULT_CONFIG
-    try:
-        body_shape_section = cfg.body_shape
-    except AttributeError:
-        # ``cfg`` is not a Config-like object exposing ``body_shape`` (e.g. a
-        # duck-typed test stub, or pre-bootstrap).  A genuine config-load /
-        # validation error is a real failure and is left to propagate.
-        return None
+    # Read straight through. A configuration with no body_shape section is a
+    # configuration this code cannot work from, and answering None for one
+    # would drop every per-body override without a word -- silently navigating
+    # against the wrong shape. A test stub that does not expose the section is
+    # an incomplete stub, not a case for production to carry.
+    body_shape_section = cfg.body_shape
     if not isinstance(body_shape_section, dict):
         return None
     entry = body_shape_section.get(upper_body_name)

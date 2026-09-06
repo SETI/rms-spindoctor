@@ -413,11 +413,12 @@ def _summary_metadata_from_obs_result(obs: ObsSnapshotInst, result: NavResult) -
         A populated :class:`~spindoctor.support.summary_png.SummaryMetadata`.
     """
     exposure_s: float | None = None
-    try:
-        public = obs.get_public_metadata()
-    except Exception as exc:
-        IMAGE_LOGGER.warning('Could not read public metadata for summary PNG: %s', exc)
-        public = {}
+    # Read straight through. These are the labels the summary PNG is captioned
+    # with, and an empty dict does not produce a PNG that says it is missing
+    # them -- it produces an unlabelled one, which reads as a product rather
+    # than as a fault. The accessor is the observation describing itself; if it
+    # raises, this image is not one whose product should be shipped.
+    public = obs.get_public_metadata()
     abspath = getattr(obs, 'abspath', None)
     image_name = str(public.get('image_name') or (abspath.name if abspath is not None else ''))
     filters = [str(f) for f in (public.get('filters') or []) if f]

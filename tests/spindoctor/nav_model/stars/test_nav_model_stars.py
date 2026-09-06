@@ -24,13 +24,13 @@ from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.nav_model_stars import (
     SNR_REF,
     NavModelStars,
-    _compute_smear_for_obs,
     _crlb_covariance,
     _reliability_from_snr,
     _safe_mask_lookup,
     _snr_reason_score,
     _star_feature_id,
 )
+from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.support.types import MutableStar
 
@@ -411,7 +411,7 @@ def test_create_model_populates_metadata_and_star_count(monkeypatch: pytest.Monk
         lambda _obs, _config, _stars: None,
     )
     monkeypatch.setattr(
-        'spindoctor.nav_model.stars.nav_model_stars._compute_smear_for_obs',
+        'spindoctor.nav_model.stars.nav_model_stars.compute_smear_vector_px',
         lambda _obs: (0.0, 0.0),
     )
     model.create_model()
@@ -465,14 +465,18 @@ def test_to_annotations_keeps_stars_with_star_only_conflict() -> None:
     assert len(annotations.annotations[0].text_info_list) == 1
 
 
-def test_compute_smear_returns_zero_when_obs_lacks_boresight() -> None:
-    """``_compute_smear_for_obs`` returns ``(0, 0)`` when ``obs`` has no boresight API."""
+def test_smear_from_an_obs_that_cannot_report_its_centre_is_not_silently_zero() -> None:
+    """A zero smear vector is a measurement, not a missing one.
 
-    class _NoBoresightObs:
-        """Minimal obs stand-in lacking ``boresight_ra`` / ``boresight_dec``."""
+    It feeds the star covariance, so an obs whose centre lookup is broken must
+    fail rather than report that the camera never moved.
+    """
 
-    out = _compute_smear_for_obs(cast(Any, _NoBoresightObs()))
-    assert out == (0.0, 0.0)
+    class _NoCentreObs:
+        """Minimal obs stand-in lacking ``center_ra_dec``."""
+
+    with pytest.raises(AttributeError):
+        compute_smear_vector_px(cast(Any, _NoCentreObs()))
 
 
 def test_safe_mask_lookup_returns_false_for_none_mask() -> None:

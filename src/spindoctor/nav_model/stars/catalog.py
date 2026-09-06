@@ -284,11 +284,16 @@ def _find_stars_in_one_catalog(
             continue
         star.catalog_name = catalog_name
         star.pretty_name = str(star.unique_number)
-        try:
-            if star.name.strip():
-                star.pretty_name = ' '.join(star.name.split())
-        except AttributeError:
+        # The two catalogs disagree about this field and both are right: a YBSC
+        # star carries a name that may be None, and a UCAC4 star has no name
+        # attribute at all. getattr says that in one line. The AttributeError
+        # this replaces said it too, but would have said the same thing about a
+        # fault raised from inside a name property, which is not this.
+        name = getattr(star, 'name', None)
+        if name is None:
             star.name = ''
+        elif name.strip():
+            star.pretty_name = ' '.join(name.split())
         star.conflicts = ''
         star.temperature_faked = False
         star.johnson_mag_faked = False

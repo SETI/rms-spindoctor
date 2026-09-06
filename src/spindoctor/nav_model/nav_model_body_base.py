@@ -122,6 +122,15 @@ class NavModelBodyBase(NavModel):
     and ``_metadata['phase_angle_deg']``.
     """
 
+    _body_name: str
+    """Upper-case name of the body this model is for.
+
+    Declared here and set by every subclass. Reaching it through a getattr
+    default would give a subclass that forgot a feature id reading
+    ``body_blob:BODY``, which is a label no consumer can trace back to a body
+    and nothing would report as wrong.
+    """
+
     _abstract = True
 
     _model_img: NDArrayFloatType | None
@@ -302,7 +311,7 @@ class NavModelBodyBase(NavModel):
         cov = (sigma_total_px * sigma_total_px) * np.eye(2, dtype=np.float64)
         predicted_center_vu = self._lit_weighted_centroid_vu()
         sub_solar_dir_vu = self._sub_solar_dir_vu(predicted_center_vu)
-        body_name = getattr(self, '_body_name', 'BODY')
+        body_name = self._body_name
         return NavFeature(
             feature_id=f'body_blob:{body_name}',
             feature_type=NavFeatureType.BODY_BLOB,
@@ -432,7 +441,7 @@ class NavModelBodyBase(NavModel):
         normal body model, so annotation behavior is consistent across models.
         """
         obs = self._obs
-        body_name = getattr(self, '_body_name', 'BODY')
+        body_name = self._body_name
         body_config = self._config.bodies
 
         text_loc: list[TextLocInfo] = []

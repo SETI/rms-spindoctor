@@ -197,20 +197,21 @@ def _resolve_spice_kernels() -> tuple[str, ...]:
     tuple holds *basenames* only so the hash and JSON output stay
     deterministic across machines with different kernel install roots.
     """
-    try:
-        import cspyce
-    except ImportError:
-        return ()
-    try:
-        ktotal = int(cspyce.ktotal('ALL'))
-    except Exception:  # pragma: no cover - cspyce diagnostic edge case
-        return ()
+    # Imported here rather than at module scope to keep the import graph flat;
+    # not guarded, because a navigation that reached this point ran on cspyce,
+    # so an ImportError is a broken installation rather than a machine without
+    # SPICE -- and answering "no kernels" for one would put that claim in the
+    # record of a run that used plenty.
+    import cspyce
+
+    # Read straight through. This tuple is the record of which kernels produced
+    # the result, so an empty one is not a missing diagnostic but a false
+    # statement about the navigation -- and the run that made it is exactly the
+    # run somebody would later try to reproduce from it.
+    ktotal = int(cspyce.ktotal('ALL'))
     kernels: list[str] = []
     for index in range(ktotal):
-        try:
-            file_name, _, _, _ = cspyce.kdata(index, 'ALL')
-        except Exception:  # pragma: no cover - cspyce diagnostic edge case
-            continue
+        file_name, _, _, _ = cspyce.kdata(index, 'ALL')
         if file_name:
             kernels.append(Path(str(file_name)).name)
     return tuple(sorted(kernels))
@@ -287,11 +288,11 @@ def _resolve_star_catalogs(config: Config) -> Mapping[str, str]:
     Returns:
         Read-only mapping sorted by catalog name.
     """
-    try:
-        catalog_names = [str(name).lower() for name in config.stars.catalogs]
-    except (AttributeError, TypeError, OSError) as exc:
-        IMAGE_LOGGER.warning('star-catalog provenance unavailable: %s', exc)
-        return MappingProxyType({})
+    # Read straight through. A configuration with no star catalogs is one this
+    # navigation could not have used, so an empty mapping here is not an
+    # unavailable diagnostic but a false one -- and AttributeError in
+    # particular would say the same thing about a defect reading the section.
+    catalog_names = [str(name).lower() for name in config.stars.catalogs]
     resolved: dict[str, str] = {}
     for name in catalog_names:
         if name == 'ucac4':
