@@ -279,6 +279,13 @@ def _int_or_none(value: Any) -> int | None:
     return None
 
 
+_MAX_SIGNED_64_BIT = 2**63 - 1
+"""Largest value the index's byte-count columns can hold.
+
+They are ``BIGINT`` on both supported backends, which is signed.
+"""
+
+
 def _byte_count_or_none(value: Any) -> int | None:
     """Coerce a JSON value to a count of bytes, or None.
 
@@ -291,10 +298,16 @@ def _byte_count_or_none(value: Any) -> int | None:
         and a boolean are each stored as nothing rather than as a number the
         reader would have to distrust.  A run on a kernel publishing no peak
         records none, and nothing is the honest answer for it.
+
+        A value the index's column cannot hold is treated the same way.  The
+        column is a signed 64-bit integer, and a document carrying more than
+        that -- which no kernel produces, so it says the document was edited or
+        damaged -- would fail the insert and end the ingest of every image
+        behind it, rather than being the one absent measurement it is.
     """
     if value is None or isinstance(value, bool):
         return None
-    if isinstance(value, int) and value >= 0:
+    if isinstance(value, int) and 0 <= value <= _MAX_SIGNED_64_BIT:
         return value
     return None
 
