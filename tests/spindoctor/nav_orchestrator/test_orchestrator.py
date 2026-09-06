@@ -76,6 +76,16 @@ class _FakeObs:
     def extfov_data_sensor_mask(self) -> np.ndarray:
         return self._sensor_mask
 
+    def reset_all(self) -> None:
+        """Drop cached geometry, as a real snapshot does.
+
+        The orchestrator calls this once every model is built, to give back
+        what the backplanes were holding.  This stand-in caches nothing, so
+        it has nothing to drop -- but it still has to answer, because a
+        stand-in that cannot is an incomplete stand-in rather than evidence
+        that production should not have asked.
+        """
+
 
 class _FakeStarModel(NavModel):
     """Fake NavModel that emits one STAR feature per ``feature_count``."""
