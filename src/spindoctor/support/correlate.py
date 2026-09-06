@@ -244,11 +244,16 @@ def _masked_ncc_bidir(
     # Shift-wise sums.  ``image`` is already zero outside data_mask, so the
     # I*mask and I^2*mask sums are equivalent to dmask*I*mask and
     # dmask*I^2*mask respectively.
-    image_fft = fft2(image)
-    sum_iw = np.real(ifft2(image_fft * np.conj(mask_fft)))
+    # The squared-image spectrum goes first and is dropped before the image's
+    # own is built.  Built the other way round the two overlap, and with the
+    # data-mask and mask spectra still live that is four at once rather than
+    # the three this ordering exists to hold.
     image2_fft = fft2(image * image)
     sum_i2w = np.real(ifft2(image2_fft * np.conj(mask_fft)))
-    del image2_fft, mask_fft
+    del image2_fft
+    image_fft = fft2(image)
+    sum_iw = np.real(ifft2(image_fft * np.conj(mask_fft)))
+    del mask_fft
 
     model_mask_fft = fft2(model * mask_f)
     sum_imw = np.real(ifft2(image_fft * np.conj(model_mask_fft)))

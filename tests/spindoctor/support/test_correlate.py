@@ -1,6 +1,8 @@
 """Tests for spindoctor.support.correlate, focused on masked NCC and pyramid navigation."""
 
+import weakref
 from itertools import pairwise
+from typing import Any
 
 import numpy as np
 import pytest
@@ -784,6 +786,41 @@ class TestMaskedNccBidirectional:
         ncc = np.clip(ncc, -1.0, 1.0)
         ncc[~valid] = -np.inf
         return ncc, num
+
+    def test_no_more_than_three_spectra_are_live_at_once(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The ordering is the whole point of it, so it is worth asserting.
+
+        Each spectrum is a complex array of the padded frame, which on a
+        wide-margin frame is the largest thing in the process.  Building one
+        before the one it replaces has been dropped costs a whole extra copy,
+        and nothing about the result changes -- so only a count of what is
+        alive can catch it.
+        """
+        # Reached by name rather than through the module attribute, which
+        # strict typing reads as a re-export of numpy's.
+        real_fft2 = np.fft.fft2
+        seen: list[weakref.ref[Any]] = []
+        high = 0
+
+        def counting_fft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            nonlocal high
+            out = real_fft2(a, *args, **kwargs)
+            seen.append(weakref.ref(out))
+            high = max(high, sum(1 for ref in seen if ref() is not None))
+            return out
+
+        monkeypatch.setattr('spindoctor.support.correlate.fft2', counting_fft2)
+        rng = np.random.default_rng(11)
+        rows, cols = 24, 20
+        data_mask = rng.random((rows, cols)) > 0.25
+        image = rng.normal(size=(rows, cols)) * data_mask
+        model = rng.normal(size=(rows, cols))
+        mask = rng.random((rows, cols)) > 0.35
+        _masked_ncc_bidir(image, model, mask, data_mask)
+        assert len(seen) == 6
+        assert high <= 3
 
     def test_the_scores_match_a_direct_evaluation(self) -> None:
         """Every shift's score is the one a transform-free evaluation gives."""
