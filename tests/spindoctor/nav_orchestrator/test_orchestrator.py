@@ -170,6 +170,28 @@ class _FakeTitanModel(NavModel):
         return Annotations()
 
 
+class _FakeCoveringBodyModel(NavModel):
+    """A body model that declined because its body covers the extended frame.
+
+    It emits nothing, which is what a declined body model does, and records
+    the decline in its metadata, which is where the orchestrator reads it.
+    """
+
+    _abstract = True
+
+    def __init__(self, obs: Any) -> None:
+        super().__init__('body:SATURN', obs)
+
+    def create_model(self) -> None:
+        self._metadata['fills_extfov'] = True
+
+    def to_features(self, context: NavContext) -> list[NavFeature]:
+        return []
+
+    def to_annotations(self, context: NavContext) -> Annotations:
+        return Annotations()
+
+
 class _FakeStarTechnique(NavTechnique):
     """Stand-in technique that always reports a fixed offset.
 
@@ -370,6 +392,46 @@ def test_orchestrator_titan_usable_but_unfittable_yields_all_techniques_spurious
     result = orch.navigate(obs)  # type: ignore[arg-type]
     assert result.status == 'failed'
     assert result.status_reason == NavStatusReason.ALL_TECHNIQUES_SPURIOUS
+
+
+def test_a_covering_body_decides_the_reason_a_failed_ensemble_reports() -> None:
+    """The ensemble reports a symptom; the covering body is the cause.
+
+    A frame where a body covers the extended field of view has no sky in it,
+    so features from anything else are not evidence that it was navigable.
+    Whatever the techniques then failed to agree on, the reason a reader wants
+    is the geometry -- and this is the path where the reason comes from the
+    ensemble rather than from a gate, which is the path that used to keep the
+    ensemble's own answer.
+    """
+    obs = _FakeObs(extfov_margin=(8, 8))
+    models = [_FakeTitanModel(obs, reliability=0.9), _FakeCoveringBodyModel(obs)]
+    orch = NavOrchestrator(models, only_techniques=['TitanHazeNav'])
+    result = orch.navigate(obs)  # type: ignore[arg-type]
+    assert result.status == 'failed'
+    assert result.status_reason == NavStatusReason.BODY_FILLS_FOV
+
+
+def test_a_covering_body_does_not_cost_the_ensemble_its_diagnostics() -> None:
+    """Substituting the reason keeps everything the ensemble worked out.
+
+    The per-technique records are why a covering frame can still be read for
+    what the techniques did, and replacing the whole result would lose them.
+    """
+    obs = _FakeObs(extfov_margin=(8, 8))
+    plain = NavOrchestrator(
+        [_FakeTitanModel(obs, reliability=0.9)], only_techniques=['TitanHazeNav']
+    )
+    covered = NavOrchestrator(
+        [_FakeTitanModel(obs, reliability=0.9), _FakeCoveringBodyModel(obs)],
+        only_techniques=['TitanHazeNav'],
+    )
+    without = plain.navigate(obs)  # type: ignore[arg-type]
+    with_body = covered.navigate(obs)  # type: ignore[arg-type]
+    assert without.status_reason == NavStatusReason.ALL_TECHNIQUES_SPURIOUS
+    assert with_body.status_reason == NavStatusReason.BODY_FILLS_FOV
+    assert len(with_body.per_technique) == len(without.per_technique)
+    assert len(with_body.per_technique) > 0
 
 
 def test_orchestrator_titan_spurious_result_names_a_gate() -> None:
