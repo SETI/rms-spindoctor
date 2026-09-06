@@ -64,8 +64,8 @@ class NavStatusReason(StrEnum):
     - ``CONTRACT_VIOLATION``: an internal navigation invariant was violated
       (``NavContractError``); a programming error upstream, not bad image
       data.  The full traceback is in the error log.
-    - ``BODY_FILLS_FOV``: a body's bounding box reaches past every corner of
-      the extended field of view, so the image is all body and no sky: no limb
+    - ``BODY_FILLS_FOV``: a body's disc reaches past every corner of the
+      extended field of view, so the image is all body and no sky: no limb
       on any edge, no measurable disc extent, nothing for a shape-based
       technique to match. Separated from ``NO_FEATURES_EXTRACTED`` because it
       is a fact about the geometry rather than about what the models managed
