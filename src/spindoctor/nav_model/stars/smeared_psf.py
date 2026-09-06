@@ -117,7 +117,7 @@ def compute_smear_vector_px(obs: ObsSnapshot) -> tuple[float, float]:
 
     Implements the design's "smear from SPICE bracket" approach: project
     the camera attitude at ``obs.time[0]`` and ``obs.time[1]`` into pixel
-    coordinates by re-evaluating the boresight RA/DEC through the obs
+    coordinates by re-evaluating the frame centre's RA/DEC through the obs
     FOV at both bracket times, and take the difference.  The result is
     the total per-exposure displacement of a star at the centre of the
     FOV.
@@ -130,17 +130,20 @@ def compute_smear_vector_px(obs: ObsSnapshot) -> tuple[float, float]:
     """
     # ``obs.uv_from_ra_and_dec`` accepts ``tfrac`` in [0, 1] mapping the
     # exposure window onto a unit interval; tfrac=0 is the start ET and
-    # tfrac=1 is the end ET.  Differencing the two boresight projections
-    # gives the per-exposure pointing displacement at the FOV centre.
+    # tfrac=1 is the end ET.  Differencing the two projections of one fixed
+    # sky direction gives the per-exposure pointing displacement at the FOV
+    # centre.  The direction is the centre's own, read off the one-pixel
+    # backplane the snapshot already builds.
+    center_ra, center_dec = obs.center_ra_dec(apparent=True)
     boresight_uv0 = obs.uv_from_ra_and_dec(
-        obs.boresight_ra(),
-        obs.boresight_dec(),
+        center_ra,
+        center_dec,
         tfrac=0.0,
         apparent=True,
     )
     boresight_uv1 = obs.uv_from_ra_and_dec(
-        obs.boresight_ra(),
-        obs.boresight_dec(),
+        center_ra,
+        center_dec,
         tfrac=1.0,
         apparent=True,
     )

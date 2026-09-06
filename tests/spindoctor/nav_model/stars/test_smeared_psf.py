@@ -145,13 +145,10 @@ class _FakeObsForBracket:
         self._du = du
         self._dv = dv
 
-    def boresight_ra(self) -> float:
-        """Return a constant boresight RA (the actual value is unused)."""
-        return 0.0
-
-    def boresight_dec(self) -> float:
-        """Return a constant boresight DEC (the actual value is unused)."""
-        return 0.0
+    def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
+        """Return a constant sky direction (the actual value is unused)."""
+        del apparent
+        return 0.0, 0.0
 
     def uv_from_ra_and_dec(
         self,
