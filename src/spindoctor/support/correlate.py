@@ -136,7 +136,13 @@ def _correlate_from_spectra(
     Returns:
         The correlation surface, of ``shape``.
     """
-    return cast(NDArrayFloatType, irfft2(spectrum_a * np.conj(spectrum_b), shape))
+    # The conjugate is taken into a copy and multiplied in place, so one
+    # transform-sized temporary reaches the inverse rather than two.  A copy
+    # is needed at all only because callers reuse the right-hand spectrum:
+    # the mask's is correlated against twice and the data mask's three times.
+    product = np.conj(spectrum_b)
+    product *= spectrum_a
+    return cast(NDArrayFloatType, irfft2(product, shape))
 
 
 def masked_ncc(
@@ -303,8 +309,16 @@ def _masked_ncc_bidir(
     sum_mw = _correlate_from_spectra(dmask_fft, model_mask_fft, shape)
     del model_mask_fft
 
-    sum_m2w = _correlate_from_spectra(dmask_fft, rfft2((model * model) * mask_f), shape)
-    del dmask_fft, mask_f
+    # Squared and masked in place, one field-sized temporary rather than two,
+    # and dropped before the correlation rather than held across it: a name
+    # bound to it here would outlive the expression that built it and stand
+    # beside the six surfaces at their own peak.
+    model2_mask = model * model
+    model2_mask *= mask_f
+    model2_fft = rfft2(model2_mask)
+    del model2_mask, mask_f
+    sum_m2w = _correlate_from_spectra(dmask_fft, model2_fft, shape)
+    del dmask_fft, model2_fft
 
     # The normalization from here down writes into surfaces that have just
     # stopped being needed rather than allocating a new one per step, because
