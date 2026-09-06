@@ -56,6 +56,7 @@ from spindoctor.nav_model.rings import (
     RingsRenderContext,
     validate_no_date_overlaps,
 )
+from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.time import now_dt, utc_to_et
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -617,6 +618,8 @@ class NavModelRings(NavModelRingsBase):
             )
             strip = evaluate(Backplane(obs, meshgrid=meshgrid))
             out[start:stop, :] = np.asarray(strip.mvals.filled(fill), dtype=dtype)
+            del strip, meshgrid
+            release_transient_memory()
         return out
 
     def _sparse_visibility_skip(self, ring_target: str, max_feature_extent: float) -> bool:

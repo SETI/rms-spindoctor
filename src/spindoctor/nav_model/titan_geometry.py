@@ -85,6 +85,7 @@ from spindoctor.nav_model.nav_model_body import (
     occluder_mask_for_body,
 )
 from spindoctor.nav_model.stars.catalog import stars_in_extfov
+from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.types import NDArrayBoolType
 
 __all__ = [
@@ -833,6 +834,8 @@ def _striped_occlusion(
         )
         ring_parts.append(empty if ring is None else ring)
         any_ring = any_ring or ring is not None
+        del strip_bp, body, ring
+        release_transient_memory()
     return (
         np.vstack(body_parts) if any_body else None,
         np.vstack(ring_parts) if any_ring else None,

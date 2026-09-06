@@ -227,12 +227,13 @@ def _masked_ncc_bidir(
     mask_f = mask.astype(np.float64)
     dmask_f = data_mask.astype(np.float64)
 
-    image_fft = fft2(image)
-    image2_fft = fft2(image * image)
+    # Each spectrum is built where it is first needed and dropped at its last
+    # use, rather than all six being built up front.  The arithmetic is
+    # unchanged -- every product below is the one it always was -- but at most
+    # three spectra exist at once instead of six, and on a wide-margin frame a
+    # spectrum is the largest array in the process.
     dmask_fft = fft2(dmask_f)
     mask_fft = fft2(mask_f)
-    model_mask_fft = fft2(model * mask_f)
-    model2_mask_fft = fft2((model * model) * mask_f)
 
     # Effective overlap weight at each shift.
     w_d = np.real(ifft2(dmask_fft * np.conj(mask_fft)))
@@ -243,13 +244,23 @@ def _masked_ncc_bidir(
     # Shift-wise sums.  ``image`` is already zero outside data_mask, so the
     # I*mask and I^2*mask sums are equivalent to dmask*I*mask and
     # dmask*I^2*mask respectively.
+    image_fft = fft2(image)
     sum_iw = np.real(ifft2(image_fft * np.conj(mask_fft)))
+    image2_fft = fft2(image * image)
     sum_i2w = np.real(ifft2(image2_fft * np.conj(mask_fft)))
+    del image2_fft, mask_fft
+
+    model_mask_fft = fft2(model * mask_f)
     sum_imw = np.real(ifft2(image_fft * np.conj(model_mask_fft)))
+    del image_fft
     # Model stats are shift-dependent because dmask selects which model
     # pixels participate at each shift.
     sum_mw = np.real(ifft2(dmask_fft * np.conj(model_mask_fft)))
+    del model_mask_fft
+
+    model2_mask_fft = fft2((model * model) * mask_f)
     sum_m2w = np.real(ifft2(dmask_fft * np.conj(model2_mask_fft)))
+    del model2_mask_fft, dmask_fft
 
     safe_w = np.where(overlap_ok, w_d, w_floor)
     mean_i = sum_iw / safe_w
