@@ -300,8 +300,10 @@ def _run_manual_pass(
             level=run_logging.levels.image_section_level(),
         ):
             # Ahead of any work this image causes, so that the peak the
-            # timing section records is this image's own.
-            reset_peak_resident()
+            # timing section records is this image's own.  A mark that could
+            # not be reset is one about the whole process, and the section is
+            # told so rather than recording it as this image's.
+            peak_measured = reset_peak_resident()
             run_start = datetime.now(UTC)
             obs = cast(ObsSnapshotInst, obs_class.from_file(image_url, **extra_params))
             result = run_manual_nav(obs, config=DEFAULT_CONFIG)
@@ -325,7 +327,9 @@ def _run_manual_pass(
                     camera=obs.camera,
                     shutter_mode=obs.shutter_mode,
                     image_shape=(int(obs.data.shape[0]), int(obs.data.shape[1])),
-                    timing=build_timing_section(run_start, datetime.now(UTC)),
+                    timing=build_timing_section(
+                        run_start, datetime.now(UTC), peak_measured=peak_measured
+                    ),
                 )
                 IMAGE_LOGGER.info('Writing metadata to %s', public_metadata_file)
                 public_metadata_file.write_text(json_as_string(metadata))

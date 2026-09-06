@@ -128,7 +128,7 @@ def log_final_result_to_run(image_name: str, nav_result: NavResult) -> None:
     )
 
 
-def build_timing_section(start: datetime, end: datetime) -> dict[str, Any]:
+def build_timing_section(start: datetime, end: datetime, *, peak_measured: bool) -> dict[str, Any]:
     """Build the ``timing`` metadata section from run start and end moments.
 
     Every metadata document carries this section so downstream statistics
@@ -148,17 +148,23 @@ def build_timing_section(start: datetime, end: datetime) -> dict[str, Any]:
         start: Timezone-aware run start (captured before the image load).
         end: Timezone-aware run end (captured after navigation, or at
             error time).
+        peak_measured: What :func:`~spindoctor.support.memory.reset_peak_resident`
+            returned for this image.  A kernel that publishes the mark but will
+            not let it be reset would otherwise have the whole process's
+            lifetime high-water mark recorded as this image's peak, which is a
+            number about a different thing rather than a missing one.
 
     Returns:
         Dict with ``start_iso8601`` and ``end_iso8601`` (UTC ISO8601
         strings), ``elapsed_s`` (float seconds) and ``peak_memory_bytes``
-        (int, or None where the kernel publishes no peak).
+        (int, or None where the kernel publishes no peak or the mark could
+        not be reset ahead of this image).
     """
     return {
         'start_iso8601': _iso8601_utc(start),
         'end_iso8601': _iso8601_utc(end),
         'elapsed_s': (end - start).total_seconds(),
-        'peak_memory_bytes': peak_resident_bytes(),
+        'peak_memory_bytes': peak_resident_bytes() if peak_measured else None,
     }
 
 
@@ -212,7 +218,9 @@ def navigate_image_files(
     logger = IMAGE_LOGGER
     # Ahead of any work this image causes, so that the peak the section
     # records is this image's own rather than one an earlier image reached.
-    reset_peak_resident()
+    # What it answers is carried to the section: a mark that could not be reset
+    # is a mark about the whole process.
+    peak_measured = reset_peak_resident()
     run_start = datetime.now(UTC)
 
     if len(image_files.image_files) != 1:
@@ -229,7 +237,9 @@ def navigate_image_files(
                 f'Expected exactly one image per batch; got {len(image_files.image_files)}'
             ),
             'observation': {'instrument': obs_class_to_inst_name(obs_class)},
-            'timing': build_timing_section(run_start, datetime.now(UTC)),
+            'timing': build_timing_section(
+                run_start, datetime.now(UTC), peak_measured=peak_measured
+            ),
         }
 
     image_file = image_files.image_files[0]
@@ -268,7 +278,9 @@ def navigate_image_files(
                 'status_error': 'invalid_results_path_stub',
                 'status_exception': str(exc),
                 'observation': {'instrument': instrument},
-                'timing': build_timing_section(run_start, datetime.now(UTC)),
+                'timing': build_timing_section(
+                    run_start, datetime.now(UTC), peak_measured=peak_measured
+                ),
             }
 
         try:
@@ -288,7 +300,9 @@ def navigate_image_files(
                         logger=logger,
                         instrument=instrument,
                         camera=image_file.camera,
-                        timing=build_timing_section(run_start, datetime.now(UTC)),
+                        timing=build_timing_section(
+                            run_start, datetime.now(UTC), peak_measured=peak_measured
+                        ),
                     )
                     if write_output_files:
                         public_metadata_file.write_text(json_as_string(metadata))
@@ -312,7 +326,9 @@ def navigate_image_files(
                         camera=snapshot_inst.camera,
                         shutter_mode=snapshot_inst.shutter_mode,
                         image_shape=(int(data_shape[0]), int(data_shape[1])),
-                        timing=build_timing_section(run_start, datetime.now(UTC)),
+                        timing=build_timing_section(
+                            run_start, datetime.now(UTC), peak_measured=peak_measured
+                        ),
                     )
                     if write_output_files:
                         # The PNG is written before the document so a fault in it
@@ -344,7 +360,9 @@ def navigate_image_files(
                         exc,
                         instrument=instrument,
                         camera=image_file.camera,
-                        timing=build_timing_section(run_start, datetime.now(UTC)),
+                        timing=build_timing_section(
+                            run_start, datetime.now(UTC), peak_measured=peak_measured
+                        ),
                     )
                     if write_output_files:
                         public_metadata_file.write_text(json_as_string(metadata))
@@ -375,7 +393,7 @@ def navigate_image_files(
             exc,
             instrument=instrument,
             camera=image_file.camera,
-            timing=build_timing_section(run_start, datetime.now(UTC)),
+            timing=build_timing_section(run_start, datetime.now(UTC), peak_measured=peak_measured),
         )
         if write_output_files:
             try:

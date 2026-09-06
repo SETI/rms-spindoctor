@@ -605,7 +605,9 @@ def pinned_timing(start: datetime, elapsed_s: float, peak_memory_bytes: int) -> 
     Returns:
         The timing block, with nothing in it read from this machine.
     """
-    timing = build_timing_section(start, start + timedelta(seconds=elapsed_s))
+    # peak_measured=False so nothing about this machine reaches the block; the
+    # fixture's own figure is written over it below.
+    timing = build_timing_section(start, start + timedelta(seconds=elapsed_s), peak_measured=False)
     timing['peak_memory_bytes'] = peak_memory_bytes
     return timing
 

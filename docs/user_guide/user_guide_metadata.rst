@@ -153,7 +153,8 @@ Top-level keys
      - all
      - Run timing and cost: ``start_iso8601`` and ``end_iso8601`` (UTC ISO
        8601 strings with a ``Z`` suffix, microsecond precision),
-       ``elapsed_s`` (float seconds) and ``peak_memory_bytes`` (integer).
+       ``elapsed_s`` (float seconds) and ``peak_memory_bytes`` (integer or
+       null).
        For a load-error document the window ends at error time. The peak is
        the largest resident size the navigating process reached while this
        image was being navigated, which is the figure an out-of-memory kill is

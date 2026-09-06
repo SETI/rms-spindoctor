@@ -243,7 +243,7 @@ def _with_pointing(result: NavResult, *, corrected: bool) -> NavResult:
 def _timing() -> dict[str, Any]:
     """A real timing section."""
     start = datetime.now(UTC)
-    return build_timing_section(start, datetime.now(UTC))
+    return build_timing_section(start, datetime.now(UTC), peak_measured=True)
 
 
 def _document(result: NavResult, *, shutter_mode: str | None = 'NACONLY') -> dict[str, Any]:
