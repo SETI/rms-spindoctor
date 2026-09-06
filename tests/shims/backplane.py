@@ -391,13 +391,24 @@ class FakeBackplane:
         real backplane answers is a hole in the double rather than a fact about
         the scene.
 
+        The hidden surface is a ring for the rings model and a sibling body for
+        ``occluder_mask_for_body``, so which registry names it decides the shape
+        of the answer.  Looking only in one of them would make this stand-in
+        raise for half its real callers.
+
         Parameters:
             near_target: The surface that might be in front.
             far_target: The surface that might be hidden.
+
+        Returns:
+            An all-False Scalar shaped like the hidden surface's own mask.
         """
         del near_target
-        data = self._ring(far_target)
-        return _scalar(np.zeros(data.ring_mask.shape, dtype=bool))
+        if far_target.upper() in self.per_body:
+            shape = self._body(far_target).body_mask.shape
+        else:
+            shape = self._ring(far_target).ring_mask.shape
+        return _scalar(np.zeros(shape, dtype=bool))
 
 
 def plant_circular_body(

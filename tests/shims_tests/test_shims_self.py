@@ -114,6 +114,39 @@ def test_fake_backplane_unknown_ring_raises_lookup_error() -> None:
         bp.ring_radius('jupiter:ring')
 
 
+def test_fake_backplane_where_in_front_answers_for_a_hidden_body() -> None:
+    """``occluder_mask_for_body`` hides a body behind a body, not behind a ring.
+
+    It calls ``where_in_front(sibling_name, body_name)``, so the hidden target
+    is a body name.  A stand-in that looks every hidden target up among the
+    rings raises ``LookupError`` for that whole caller.
+    """
+    body = plant_circular_body(shape=(12, 9), centre_vu=(6.0, 4.0), radius_px=3.0)
+    bp = FakeBackplane(per_body={'MIMAS': body})
+    hidden = bp.where_in_front('ENCELADUS', 'MIMAS')
+    assert hidden.vals.shape == (12, 9)
+    assert not bool(np.asarray(hidden.vals).any())
+
+
+def test_fake_backplane_where_in_front_answers_for_a_hidden_ring() -> None:
+    """The rings model hides a ring behind the planet, so ring targets still work."""
+    ring = RingBackplaneData(
+        ring_radius_km=np.linspace(70_000.0, 140_000.0, 42).reshape(6, 7),
+        ring_mask=np.ones((6, 7), dtype=bool),
+    )
+    bp = FakeBackplane(per_ring={'saturn:ring': ring})
+    hidden = bp.where_in_front('saturn', 'saturn:ring')
+    assert hidden.vals.shape == (6, 7)
+    assert not bool(np.asarray(hidden.vals).any())
+
+
+def test_fake_backplane_where_in_front_refuses_an_unregistered_target() -> None:
+    """A target in neither registry is an incomplete scene, and says so."""
+    bp = FakeBackplane()
+    with pytest.raises(LookupError, match="no entry for ring target 'jupiter:ring'"):
+        bp.where_in_front('jupiter', 'jupiter:ring')
+
+
 def test_fake_backplane_ring_methods_round_trip() -> None:
     """Ring backplane methods return the configured per-pixel arrays."""
     radius = np.linspace(70_000.0, 140_000.0, 100).reshape(10, 10)
