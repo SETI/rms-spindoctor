@@ -137,7 +137,7 @@ index stores.
       }
 
       class TreeRecordSource {
-          +\_\_init\_\_(roots, *, logger=None)
+          +\_\_init\_\_(roots, *, logger=None, tuning=None)
           +roots: tuple[str, ...]
       }
 
@@ -212,7 +212,7 @@ anything, and the context-manager pair, which is on the protocol rather than
 left to each implementation because a stream may hold a connection that a caller
 walking away mid-loop must still release.
 :class:`~spindoctor.nav_records.TreeRecordSource` answers it out of the
-documents and is built from nothing but the roots and a logger.
+documents and is built from nothing but the roots, a logger and a tuning.
 :class:`~spindoctor.results_index.IndexRecordSource` answers it out of the rows
 and is built from an open engine, the index URL its messages name, and the
 columns a consumer's records are rebuilt from --- the one asymmetry between the
