@@ -551,9 +551,8 @@ def test_a_body_that_does_not_cover_the_frame_is_rendered(
 ) -> None:
     """The complement, so the decline is not simply always taken.
 
-    Parameters:
-        monkeypatch: Fixture the render is replaced through, because what is
-            under test is whether it is reached, not what it draws.
+    The render is replaced rather than run: what is under test is whether it is
+    reached, not what it draws.
     """
     obs = _fov_obs()
     obs.inventory_records[_TARGET] = _entry(centre=(50.0, 50.0), size=(10.0, 10.0))
@@ -570,9 +569,7 @@ def test_a_covering_body_is_declined_without_being_rendered(
 ) -> None:
     """Not rendering is the whole point: that backplane is the largest one.
 
-    Parameters:
-        monkeypatch: Fixture the render is replaced through, so reaching it
-            is observable.
+    The render is replaced so that reaching it is observable.
     """
     obs = _fov_obs()
     obs.inventory_records[_TARGET] = _entry(centre=(50.0, 50.0), size=(400.0, 400.0))

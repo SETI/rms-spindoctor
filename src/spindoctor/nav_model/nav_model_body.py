@@ -585,7 +585,14 @@ class NavModelBody(NavModelBodyBase):
         return out
 
     def create_model(self) -> None:
-        """Render the silhouette, masks, and polylines used by ``to_features``."""
+        """Render the silhouette, masks, and polylines used by ``to_features``.
+
+        A body whose disc reaches past all four corners of the extended frame
+        is declined instead: the metadata records ``fills_extfov`` and nothing
+        is rendered, because the backplane over such a body is the largest one
+        a navigation builds and it would be built to draw a silhouette with no
+        edge in it.  ``to_features`` then emits nothing.
+        """
         start_time = now_dt()
         self._metadata.clear()
         self._metadata['start_time'] = start_time.isoformat()

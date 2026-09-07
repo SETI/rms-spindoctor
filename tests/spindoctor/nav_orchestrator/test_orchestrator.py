@@ -180,15 +180,39 @@ class _FakeCoveringBodyModel(NavModel):
     _abstract = True
 
     def __init__(self, obs: Any) -> None:
+        """Build the stand-in over an observation.
+
+        Parameters:
+            obs: The observation the model is built against.
+        """
         super().__init__('body:SATURN', obs)
 
     def create_model(self) -> None:
+        """Record the decline, which is all a covering body's model does."""
         self._metadata['fills_extfov'] = True
 
     def to_features(self, context: NavContext) -> list[NavFeature]:
+        """Emit nothing, as a declined body model does.
+
+        Parameters:
+            context: The per-image navigation context, unread here.
+
+        Returns:
+            The empty list.
+        """
+        del context
         return []
 
     def to_annotations(self, context: NavContext) -> Annotations:
+        """Draw nothing, there being no silhouette to draw.
+
+        Parameters:
+            context: The per-image navigation context, unread here.
+
+        Returns:
+            Empty annotations.
+        """
+        del context
         return Annotations()
 
 
