@@ -11,11 +11,12 @@ from tests.spindoctor.conftest import metadata_document
 from tests.spindoctor.dataset.conftest import coiss_filespecs, install_fake_index
 
 from spindoctor.cli.results_index import ingest_metadata_files
+from spindoctor.dataset import dataset_pds3 as dataset_pds3_module
 from spindoctor.dataset.dataset_pds3 import DataSetPDS3
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISS
 from spindoctor.dataset.dataset_pds3_galileo_ssi import DataSetPDS3GalileoSSI
 from spindoctor.dataset.results_filter import ResultsFilter, SelectionError
-from spindoctor.nav_records import UnlistableDirectoryError
+from spindoctor.nav_records import TreeTuning, UnlistableDirectoryError
 from spindoctor.results_index import open_index
 
 
@@ -191,7 +192,9 @@ def _ingest_results_tree(results_root: Path, index_path: Path) -> str:
     url = f'sqlite:///{index_path.as_posix()}'
     engine = open_index(url, create=True)
     try:
-        ingest_metadata_files(engine, [results_root.as_posix()], logger=pdslogger.NullLogger())
+        ingest_metadata_files(
+            engine, [results_root.as_posix()], logger=pdslogger.NullLogger(), tuning=TreeTuning()
+        )
     finally:
         engine.dispose()
     return url
@@ -1154,3 +1157,38 @@ def test_the_shared_enumeration_abandoned_part_way_closes_its_results_filter(
     groups.close()
 
     assert closes[0] == 1
+
+
+def test_the_enumeration_hands_the_filter_the_tuning_the_configuration_names(
+    ds: DataSetPDS3CassiniISS, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The dataset is a program's front end onto the tree, so it resolves the tuning.
+
+    Parameters:
+        ds: The dataset under test.
+        monkeypatch: Fixture the configuration door and the filter are replaced through.
+        tmp_path: Directory the tree and the index are written under.
+    """
+    _install_two_camera_index(ds, monkeypatch)
+    results_root, url = _indexed_tree_and_late_document(tmp_path)
+    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    handed: list[Any] = []
+
+    class Recording(ResultsFilter):
+        """A filter that notes the tuning it was handed."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            handed.append(kwargs.get('tuning'))
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(dataset_pds3_module, 'get_results_tree_tuning', lambda config: configured)
+    monkeypatch.setattr(dataset_pds3_module, 'ResultsFilter', Recording)
+    list(
+        ds.yield_image_files_index(
+            volumes=['COISS_2001'],
+            has_offset_file=True,
+            nav_results_root=str(results_root),
+            results_index_db_url=url,
+        )
+    )
+    assert handed == [configured]

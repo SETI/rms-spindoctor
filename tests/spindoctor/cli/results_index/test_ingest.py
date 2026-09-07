@@ -31,9 +31,10 @@ from tests.spindoctor.conftest import (
     write_summary_png,
 )
 
-from spindoctor.cli.results_index import INGEST_COMMIT_CHUNK_SIZE, ingest_metadata_files
+from spindoctor.cli.results_index import chunks as chunks_module
 from spindoctor.cli.results_index import driver as driver_module
-from spindoctor.nav_records import METADATA_SUFFIX, RETRIEVE_BATCH_SIZE, TreeTuning
+from spindoctor.cli.results_index import ingest_metadata_files
+from spindoctor.nav_records import METADATA_SUFFIX, TreeTuning
 from spindoctor.results_index import (
     IMAGES,
     INGEST_RUNS,
@@ -349,7 +350,9 @@ def test_a_file_that_is_not_a_document_is_no_part_of_what_the_walk_found(
     again on every pass afterwards.
     """
     root = _tree_with_a_file_that_is_not_a_document(tmp_path)
-    listing = driver_module._listing_of_root(root.as_posix(), logger=quiet_logger)
+    listing = driver_module._listing_of_root(
+        root.as_posix(), logger=quiet_logger, tuning=TreeTuning()
+    )
     assert listing is not None
     assert [found.stub for found in listing.documents] == ['VOL/N1454725799_1_CALIB']
 
@@ -691,7 +694,7 @@ def test_an_ingest_run_is_recorded_at_the_start(
         return real_listing(listed_root, **kwargs)
 
     monkeypatch.setattr(driver_module, '_listing_of_root', watching)
-    ingest_metadata_files(engine, [root.as_posix()], logger=quiet_logger)
+    ingest_metadata_files(engine, [root.as_posix()], logger=quiet_logger, tuning=TreeTuning())
     engine.dispose()
     assert [row.finished_utc for row in seen] == [None]
 
@@ -748,18 +751,14 @@ def test_each_root_gets_its_own_run(tmp_path: Path, quiet_logger: pdslogger.PdsL
     assert sorted(row.root_url for row in found) == sorted([first.as_posix(), second.as_posix()])
 
 
+_CHUNKS_OF_THREE = TreeTuning(retrieve_threads=1, retrieve_batch_size=1, ingest_commit_batches=3)
+"""A tuning whose transactions cover three documents, passed the way a program passes one."""
+
+
 def test_a_chunk_boundary_is_crossed_mid_run(
-    tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, quiet_logger: pdslogger.PdsLogger
 ) -> None:
     """More images than one transaction holds must all still arrive."""
-    monkeypatch.setattr(driver_module, 'INGEST_COMMIT_CHUNK_SIZE', 3)
-    # The batch is configuration now, so a small one is asked for the way an
-    # operator would ask for it rather than by rebinding a module global.
-    monkeypatch.setattr(
-        driver_module,
-        '_tuning_from_config',
-        lambda: TreeTuning(retrieve_batch_size=2, retrieve_threads=2),
-    )
     root = tmp_path / 'results'
     for index in range(7):
         write_metadata(
@@ -768,22 +767,14 @@ def test_a_chunk_boundary_is_crossed_mid_run(
             metadata_document(image_name=f'N145472579{index}_1_CALIB.IMG'),
         )
     url = index_url(tmp_path / 'index.sqlite3')
-    counts = ingest_tree(url, [root], logger=quiet_logger)
+    counts = ingest_tree(url, [root], logger=quiet_logger, tuning=_CHUNKS_OF_THREE)
     assert counts.files_ingested == 7
 
 
 def test_a_chunk_boundary_leaves_every_row_readable(
-    tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, quiet_logger: pdslogger.PdsLogger
 ) -> None:
     """Counting is not the same as having committed."""
-    monkeypatch.setattr(driver_module, 'INGEST_COMMIT_CHUNK_SIZE', 3)
-    # The batch is configuration now, so a small one is asked for the way an
-    # operator would ask for it rather than by rebinding a module global.
-    monkeypatch.setattr(
-        driver_module,
-        '_tuning_from_config',
-        lambda: TreeTuning(retrieve_batch_size=2, retrieve_threads=2),
-    )
     root = tmp_path / 'results'
     for index in range(7):
         write_metadata(
@@ -792,7 +783,7 @@ def test_a_chunk_boundary_leaves_every_row_readable(
             metadata_document(image_name=f'N145472579{index}_1_CALIB.IMG'),
         )
     url = index_url(tmp_path / 'index.sqlite3')
-    ingest_tree(url, [root], logger=quiet_logger)
+    ingest_tree(url, [root], logger=quiet_logger, tuning=_CHUNKS_OF_THREE)
     engine = open_index(url)
     with engine.connect() as connection:
         found = _rows(connection, sqlalchemy.select(sqlalchemy.func.count()).select_from(IMAGES))
@@ -800,19 +791,28 @@ def test_a_chunk_boundary_leaves_every_row_readable(
     assert found[0][0] == 7
 
 
-def test_the_batch_and_chunk_sizes_are_independent() -> None:
-    """One bounds a download and the other a transaction; neither implies the other."""
-    assert (RETRIEVE_BATCH_SIZE, INGEST_COMMIT_CHUNK_SIZE) == (1024, 2048)
+def test_the_transactions_are_the_size_the_tuning_says(
+    tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The chunk an ingest commits is the tuning's, not a number of the driver's own."""
+    chunks: list[int] = []
+    real_ingest_chunk = chunks_module._ingest_chunk
 
+    def counting(engine: Any, root: Any, chunk: Any, **kwargs: Any) -> None:
+        chunks.append(len(chunk))
+        real_ingest_chunk(engine, root, chunk, **kwargs)
 
-def test_a_retrieval_batch_fits_inside_a_commit_chunk() -> None:
-    """Or the chunk would cap the batch, and the download concurrency with it.
-
-    An ingest batches its retrievals within one commit chunk, so a batch larger
-    than the chunk is not the batch it says it is: every download would be cut
-    down to the chunk, and the sizing measured for the batch would never happen.
-    """
-    assert RETRIEVE_BATCH_SIZE <= INGEST_COMMIT_CHUNK_SIZE
+    monkeypatch.setattr(driver_module, '_ingest_chunk', counting)
+    root = tmp_path / 'results'
+    for index in range(7):
+        write_metadata(
+            root,
+            f'VOL/N145472579{index}_1_CALIB',
+            metadata_document(image_name=f'N145472579{index}_1_CALIB.IMG'),
+        )
+    url = index_url(tmp_path / 'index.sqlite3')
+    ingest_tree(url, [root], logger=quiet_logger, tuning=_CHUNKS_OF_THREE)
+    assert chunks == [3, 3, 1]
 
 
 def _cloud_style_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stubs: list[str]) -> Path:
@@ -974,7 +974,7 @@ def test_a_root_is_normalized_before_it_is_stored(
     write_metadata(root, 'VOL/N1454725799_1_CALIB', metadata_document())
     url = index_url(tmp_path / 'index.sqlite3')
     engine = open_index(url, create=True)
-    ingest_metadata_files(engine, [f'{root.as_posix()}/'], logger=quiet_logger)
+    ingest_metadata_files(engine, [f'{root.as_posix()}/'], logger=quiet_logger, tuning=TreeTuning())
     with engine.connect() as connection:
         found = _rows(connection, sqlalchemy.select(IMAGES.c.root_url))
     engine.dispose()
@@ -996,7 +996,9 @@ def _ingest_two_spellings_of_one_root(tmp_path: Path, logger: pdslogger.PdsLogge
     url = index_url(tmp_path / 'index.sqlite3')
     engine = open_index(url, create=True)
     try:
-        ingest_metadata_files(engine, [root.as_posix(), f'{root.as_posix()}/'], logger=logger)
+        ingest_metadata_files(
+            engine, [root.as_posix(), f'{root.as_posix()}/'], logger=logger, tuning=TreeTuning()
+        )
     finally:
         engine.dispose()
     return url
@@ -1024,7 +1026,10 @@ def test_two_spellings_of_one_root_read_their_documents_once(
     engine = open_index(index_url(tmp_path / 'index.sqlite3'), create=True)
     try:
         counts = ingest_metadata_files(
-            engine, [root.as_posix(), f'{root.as_posix()}/'], logger=quiet_logger
+            engine,
+            [root.as_posix(), f'{root.as_posix()}/'],
+            logger=quiet_logger,
+            tuning=TreeTuning(),
         )
     finally:
         engine.dispose()
@@ -1052,7 +1057,7 @@ def _ingest_a_relative_root(tmp_path: Path, logger: pdslogger.PdsLogger) -> str:
     previous = Path.cwd()
     try:
         os.chdir(tmp_path)
-        ingest_metadata_files(engine, ['results'], logger=logger)
+        ingest_metadata_files(engine, ['results'], logger=logger, tuning=TreeTuning())
     finally:
         os.chdir(previous)
         engine.dispose()

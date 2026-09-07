@@ -34,13 +34,13 @@ from tests.spindoctor.results_index.conftest import (
 )
 
 from spindoctor.nav_records import (
-    RETRIEVE_BATCH_SIZE,
     Selection,
     UnreadableFile,
     normalize_root_url,
 )
 from spindoctor.results_index import (
     IMAGES,
+    STUBS_PER_STATEMENT,
     IndexRecordSource,
     open_index,
     open_record_source,
@@ -176,7 +176,7 @@ def test_a_selection_naming_stubs_carries_the_child_rows(two_roots: TwoRoots) ->
     assert [technique_key(row) for row in rows] == ['BodyLimbNav', 'StarFieldFromCatalogNav']
 
 
-_NAMES_CROSSING_A_BATCH = tuple([ERROR_STUB, SUCCESS_STUB] * (RETRIEVE_BATCH_SIZE // 2 + 1))
+_NAMES_CROSSING_A_BATCH = tuple([ERROR_STUB, SUCCESS_STUB] * (STUBS_PER_STATEMENT // 2 + 1))
 """More stub names than one retrieval batch binds, at whatever that batch is sized.
 
 Derived from the constant rather than written out, so that raising the batch
@@ -202,7 +202,7 @@ def test_a_selection_naming_more_stubs_than_one_batch_answers_every_one(
 
 def test_the_named_stubs_really_do_cross_a_batch_boundary() -> None:
     """Without which the test above would hold whatever the batching did."""
-    assert len(_NAMES_CROSSING_A_BATCH) > RETRIEVE_BATCH_SIZE
+    assert len(_NAMES_CROSSING_A_BATCH) > STUBS_PER_STATEMENT
 
 
 def test_named_stubs_still_honour_the_mission(two_roots: TwoRoots) -> None:

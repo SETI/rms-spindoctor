@@ -36,7 +36,13 @@ import sqlalchemy
 from pdslogger import PdsLogger
 
 from spindoctor.nav_records.facts import ImageFacts
-from spindoctor.results_index import FAILED_FILES, FEATURE_SOURCES, IMAGES, TECHNIQUES
+from spindoctor.results_index import (
+    FAILED_FILES,
+    FEATURE_SOURCES,
+    IMAGES,
+    STUBS_PER_STATEMENT,
+    TECHNIQUES,
+)
 
 __all__ = ['UnwritableRowError']
 
@@ -54,16 +60,6 @@ class UnwritableRowError(RuntimeError):
     turns absence of an ``images`` row -- which every consumer reads as "this
     image was never navigated" -- into an answer nobody can tell from the truth.
     """
-
-
-_RECORDED_LOOKUP_BATCH_SIZE = 500
-"""How many stubs one restricted lookup names at a time.
-
-Each stub is a bind parameter, and every backend limits how many one statement
-may carry.  A pass over a whole root names none of them and is unaffected; a
-pass over a share of one names its own, and the share is whatever the caller
-divided the root into.
-"""
 
 
 @dataclass(frozen=True)
@@ -101,8 +97,8 @@ def _stub_restrictions(
     if len(stubs) == 0:
         return [sqlalchemy.false()]
     return [
-        column.in_(stubs[start : start + _RECORDED_LOOKUP_BATCH_SIZE])
-        for start in range(0, len(stubs), _RECORDED_LOOKUP_BATCH_SIZE)
+        column.in_(stubs[start : start + STUBS_PER_STATEMENT])
+        for start in range(0, len(stubs), STUBS_PER_STATEMENT)
     ]
 
 

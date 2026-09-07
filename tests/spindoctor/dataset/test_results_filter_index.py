@@ -91,7 +91,7 @@ what the first two pin.
 
 @pytest.mark.parametrize(('flags', 'expected'), _MATRIX)
 def test_the_tree_answers_each_filter(
-    tree: Path, flags: dict[str, bool], expected: list[str]
+    tree: Path, flags: dict[str, Any], expected: list[str]
 ) -> None:
     """What reading the results tree selects, stated rather than compared."""
     assert selection_of(tree, flags, results_index_db_url=None) == expected
@@ -99,7 +99,7 @@ def test_the_tree_answers_each_filter(
 
 @pytest.mark.parametrize(('flags', 'expected'), _MATRIX)
 def test_the_index_answers_each_filter_the_same_way(
-    tree: Path, indexed: str, flags: dict[str, bool], expected: list[str]
+    tree: Path, indexed: str, flags: dict[str, Any], expected: list[str]
 ) -> None:
     """One query reaches the answer the walk and the per-image reads reach."""
     assert selection_of(tree, flags, results_index_db_url=indexed) == expected
@@ -109,7 +109,7 @@ def test_the_index_answers_each_filter_the_same_way(
 def test_the_index_path_reads_no_file_at_all(
     tree: Path,
     indexed: str,
-    flags: dict[str, bool],
+    flags: dict[str, Any],
     expected: list[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -173,8 +173,9 @@ def test_an_error_filter_passes_over_an_image_with_no_document(tree: Path, flag:
         tree: The results root under test.
         flag: The error filter, one per flag that reads a document.
     """
+    flags: dict[str, Any] = {flag: True}
     results_filter = ResultsFilter(
-        VOLUMES, str(tree), logger=null_logger(), results_index_db_url=None, **{flag: True}
+        VOLUMES, str(tree), logger=null_logger(), results_index_db_url=None, **flags
     )
     assert results_filter.passes(NO_RESULT) is False
 
@@ -266,7 +267,7 @@ def _naming_no_outcome(root: Path, status: Any) -> list[ImageFile]:
 @pytest.mark.parametrize('status', _NO_OUTCOME_STATUSES)
 @pytest.mark.parametrize(('flags', 'expected'), _NO_OUTCOME_MATRIX)
 def test_the_tree_reads_a_document_naming_no_outcome(
-    tmp_path: Path, status: Any, flags: dict[str, bool], expected: list[str]
+    tmp_path: Path, status: Any, flags: dict[str, Any], expected: list[str]
 ) -> None:
     """The walk reads the top-level field and no other, so it finds no outcome.
 
@@ -287,7 +288,7 @@ def test_the_tree_reads_a_document_naming_no_outcome(
 @pytest.mark.parametrize('status', _NO_OUTCOME_STATUSES)
 @pytest.mark.parametrize(('flags', 'expected'), _NO_OUTCOME_MATRIX)
 def test_the_index_reads_a_document_naming_no_outcome_the_same_way(
-    tmp_path: Path, status: Any, flags: dict[str, bool], expected: list[str]
+    tmp_path: Path, status: Any, flags: dict[str, Any], expected: list[str]
 ) -> None:
     """The stored status is the document's own field, so the query answers alike.
 
@@ -340,7 +341,7 @@ other's: two storages that are wrong in the same way agree.
 
 
 def _selecting_one_object(
-    tmp_path: Path, document: dict[str, Any], *, from_an_index: bool, **flags: bool
+    tmp_path: Path, document: dict[str, Any], *, from_an_index: bool, **flags: Any
 ) -> list[str]:
     """Write one JSON object as an image's metadata file and answer one filter.
 

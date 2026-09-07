@@ -29,6 +29,7 @@ from spindoctor.nav_records import (
     ListedRecord,
     Selection,
     TreeRecordSource,
+    TreeTuning,
     UnlistableDirectoryError,
     UnlistableRootError,
 )
@@ -337,9 +338,8 @@ def test_a_tree_wider_than_one_round_is_still_listed_whole(
     at_once: int,
     tmp_path: Path,
     quiet_logger: pdslogger.PdsLogger,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The frontier is bounded, so a wide tree takes several rounds to drain.
+    """A round is bounded, so a wide tree takes several rounds to drain.
 
     A round that dropped the directories it could not fit, or one that stopped
     when the first round emptied, would report a short tree as a whole one,
@@ -349,11 +349,11 @@ def test_a_tree_wider_than_one_round_is_still_listed_whole(
         at_once: How many directories one round takes off the frontier.
         tmp_path: Directory the tree lives under.
         quiet_logger: Logger the walk reports through.
-        monkeypatch: Fixture the bound is set through.
     """
-    monkeypatch.setattr(walk_module, 'WALK_DIRECTORIES_AT_ONCE', at_once)
     root, stubs = _wide_tree(tmp_path, 7)
-    source = tree_source(root, quiet_logger)
+    source = tree_source(
+        root, quiet_logger, TreeTuning(walk_threads=1, walk_directories_at_once=at_once)
+    )
     assert sorted(stubs_of(source.listing(Selection()))) == sorted(stubs)
 
 
@@ -361,7 +361,6 @@ def test_no_directory_is_listed_twice_across_rounds(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A directory carried between rounds could otherwise be listed by each."""
-    monkeypatch.setattr(walk_module, 'WALK_DIRECTORIES_AT_ONCE', 2)
     root, _ = _wide_tree(tmp_path, 7)
     listed: list[str] = []
     real_iterdir = FCPath.iterdir_metadata
@@ -371,7 +370,8 @@ def test_no_directory_is_listed_twice_across_rounds(
         yield from real_iterdir(self)
 
     monkeypatch.setattr(FCPath, 'iterdir_metadata', recording)
-    list(tree_source(root, quiet_logger).listing(Selection()))
+    source = tree_source(root, quiet_logger, TreeTuning(walk_threads=1, walk_directories_at_once=2))
+    list(source.listing(Selection()))
     assert sorted(listed) == sorted(set(listed))
 
 

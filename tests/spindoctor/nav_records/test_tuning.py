@@ -1,90 +1,89 @@
-"""Tests for how much of a pass over a results tree runs at once."""
+"""Tests for how much of a pass over a results tree runs at once.
 
-import re
+These are the library's own rules about a tuning, whoever built it.  How a
+configuration section becomes one, and what the shipped section says, is tested
+beside the configuration helper that does it.
+"""
+
+from dataclasses import fields
 from typing import Any
 
 import pytest
 
-from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.nav_records import RETRIEVE_BATCH_SIZE, TreeTuning
-from spindoctor.nav_records.tree import RETRIEVE_THREADS
-from spindoctor.nav_records.walk import WALK_DIRECTORIES_AT_ONCE, WALK_THREADS
+from spindoctor.nav_records import TreeTuning
+
+_SETTINGS = [field.name for field in fields(TreeTuning)]
 
 
-class _Section:
-    """A configuration section that answers only what it was given.
-
-    Parameters:
-        values: The settings this section names.
-    """
-
-    def __init__(self, **values: Any) -> None:
-        self.__dict__.update(values)
-
-
-def test_the_module_defaults_are_the_tuning_defaults() -> None:
-    """One source, so a default cannot be raised in one place and not the other."""
-    tuning = TreeTuning()
-    assert tuning.walk_threads == WALK_THREADS
-    assert tuning.walk_directories_at_once == WALK_DIRECTORIES_AT_ONCE
-    assert tuning.retrieve_threads == RETRIEVE_THREADS
-    assert tuning.retrieve_batch_size == RETRIEVE_BATCH_SIZE
-
-
-def test_the_shipped_configuration_names_every_setting() -> None:
-    """A setting the shipped file omits is one nobody knows they can change."""
-    section = DEFAULT_CONFIG.results_index
-    for name in (
-        'walk_threads',
-        'walk_directories_at_once',
-        'retrieve_threads',
-        'retrieve_batch_size',
-    ):
-        assert getattr(section, name, None) is not None, name
-
-
-def test_the_shipped_configuration_is_what_the_defaults_say() -> None:
-    """The file and the dataclass agree, so neither is quietly the real one."""
-    assert TreeTuning.from_config_section(DEFAULT_CONFIG.results_index) == TreeTuning()
-
-
-def test_a_section_that_omits_a_setting_leaves_it_at_the_default() -> None:
-    """An operator changing one number does not have to restate the rest."""
-    tuning = TreeTuning.from_config_section(_Section(walk_threads=4))
-    assert tuning.walk_threads == 4
-    assert tuning.retrieve_threads == TreeTuning().retrieve_threads
-
-
-def test_no_section_at_all_is_the_defaults() -> None:
-    """A caller with no configuration to consult still gets a working pass."""
-    assert TreeTuning.from_config_section(None) == TreeTuning()
-
-
-@pytest.mark.parametrize('field', ['walk_threads', 'walk_directories_at_once', 'retrieve_threads'])
+@pytest.mark.parametrize('setting', _SETTINGS)
 @pytest.mark.parametrize('value', [0, -1, 1.5, True, '8', None])
-def test_a_setting_that_is_not_a_positive_integer_is_refused(field: str, value: Any) -> None:
+def test_a_setting_that_is_not_a_positive_integer_is_refused(setting: str, value: Any) -> None:
     """A pass tuned to zero threads does not run slowly; it does not run.
 
     Parameters:
-        field: The setting to give the bad value to.
+        setting: The setting to give the bad value to.
         value: A value that is not a count of things.
     """
-    with pytest.raises(ValueError, match=field):
-        TreeTuning(**{field: value})
+    with pytest.raises(ValueError, match=setting):
+        TreeTuning(**{setting: value})
 
 
-def test_a_batch_smaller_than_the_pool_it_feeds_is_refused() -> None:
-    """Not a slow configuration but a pool that cannot fill, so it is said early."""
-    with pytest.raises(ValueError, match='retrieve_batch_size'):
+def test_a_retrieval_batch_smaller_than_its_pool_is_refused() -> None:
+    """Threads with nothing to fetch are idle at every setting, so it is said early."""
+    with pytest.raises(ValueError, match='retrieve_batch_size must be at least retrieve_threads'):
         TreeTuning(retrieve_threads=64, retrieve_batch_size=8)
 
 
-def test_a_batch_equal_to_the_pool_is_allowed() -> None:
-    """The bound is what cannot fill the pool, not what fills it exactly once."""
-    assert TreeTuning(retrieve_threads=8, retrieve_batch_size=8).retrieve_batch_size == 8
+def test_a_walk_round_smaller_than_its_pool_is_refused() -> None:
+    """The same relation holds for the listing pool, and is refused the same way."""
+    with pytest.raises(ValueError, match='walk_directories_at_once must be at least walk_threads'):
+        TreeTuning(walk_threads=32, walk_directories_at_once=4)
 
 
-def test_a_configured_value_that_cannot_work_is_refused_by_name() -> None:
-    """An operator reading the failure has to be told which setting to change."""
-    with pytest.raises(ValueError, match=re.escape('results_index.walk_threads')):
-        TreeTuning.from_config_section(_Section(walk_threads=0))
+@pytest.mark.parametrize(
+    ('pool', 'work'),
+    [
+        ('retrieve_threads', 'retrieve_batch_size'),
+        ('walk_threads', 'walk_directories_at_once'),
+    ],
+)
+def test_a_round_equal_to_its_pool_is_allowed(pool: str, work: str) -> None:
+    """The bound is what cannot fill the pool, not what fills it exactly once.
+
+    What is under test is that construction succeeds; the assertion is the
+    witness that the value arrived, since a refusal would have raised first.
+
+    Parameters:
+        pool: The thread-count setting.
+        work: The setting that says how much work one round hands that pool.
+    """
+    tuning = TreeTuning(**{pool: 8, work: 8})
+    assert getattr(tuning, work) == 8
+
+
+def test_the_commit_chunk_is_a_multiple_of_the_retrieval_batch() -> None:
+    """Or a transaction could be smaller than the batch it is retrieved in."""
+    tuning = TreeTuning(retrieve_threads=4, retrieve_batch_size=16, ingest_commit_batches=3)
+    assert tuning.ingest_commit_chunk_size == 48
+
+
+@pytest.mark.parametrize('batch', [64, 1024, 16384])
+def test_a_larger_batch_carries_the_chunk_with_it(batch: int) -> None:
+    """The reason the chunk is a multiple rather than a number of its own.
+
+    A fixed chunk beside a configurable batch would let an operator raise the
+    batch past it, and every download would be quietly cut back down to the
+    chunk with nothing to say why.
+
+    Parameters:
+        batch: A configured retrieval batch size.
+    """
+    tuning = TreeTuning(retrieve_batch_size=batch)
+    assert tuning.ingest_commit_chunk_size >= batch
+
+
+def test_a_tuning_cannot_be_changed_once_built() -> None:
+    """It is passed down through every layer of a pass, and none of them may edit it."""
+    tuning = TreeTuning()
+    with pytest.raises(AttributeError, match='walk_threads'):
+        tuning.walk_threads = 1  # type: ignore[misc]

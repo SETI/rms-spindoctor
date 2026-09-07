@@ -51,11 +51,18 @@ from spindoctor.cli.stats.report_sections import (
     add_runtime_section,
     add_suspect_offset_section,
 )
-from spindoctor.config import DEFAULT_CONFIG, get_nav_results_root, get_results_index_db_url
+from spindoctor.config import (
+    DEFAULT_CONFIG,
+    get_nav_results_root,
+    get_results_index_db_url,
+    get_results_tree_tuning,
+    load_default_and_user_config,
+)
 from spindoctor.nav_records import (
     RecordSource,
     Selection,
     TreeRecordSource,
+    TreeTuning,
     UnlistableDirectoryError,
     datetime_from_image_et,
     distinct_roots,
@@ -688,6 +695,14 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
         parser: The parser to declare them on.
     """
     parser.add_argument(
+        '--config-file',
+        action='append',
+        default=None,
+        help='The configuration file(s) to use to override default settings; may be '
+        'specified multiple times. If not provided, attempts to load '
+        './nav_default_config.yaml if present.',
+    )
+    parser.add_argument(
         '--results-index-db',
         default=None,
         metavar='URL',
@@ -819,6 +834,15 @@ def main_report(cmdline: list[str] | None = None) -> int:
     )
     _add_arguments(parser)
     arguments = parser.parse_args(cmdline)
+    # The configuration is loaded the way every other program loads it, so a
+    # machine's nav_default_config.yaml and a --config-file apply here as they
+    # do everywhere else.  A refusal is printed where this program's other
+    # refusals print, rather than raised.
+    try:
+        load_default_and_user_config(arguments, DEFAULT_CONFIG)
+    except (TypeError, ValueError) as exc:
+        _to_stderr(f'Invalid configuration: {exc}')
+        return 1
     # Checked here, before any storage is opened, so that the one thing a
     # ValueError out of the pass can still mean is a storage that stopped
     # answering.  Left to the pass, an unparseable bound and an index that
@@ -840,7 +864,9 @@ def main_report(cmdline: list[str] | None = None) -> int:
         _to_stderr(str(exc))
         return 1
     if url is None:
-        return _report_over_a_tree(arguments, parser)
+        # Resolved here, at the top, and passed down the way every program
+        # passes it; the configuration was validated when it was loaded.
+        return _report_over_a_tree(arguments, parser, get_results_tree_tuning(DEFAULT_CONFIG))
     return _report_from_an_index(url, arguments, parser)
 
 
@@ -953,7 +979,9 @@ def _report_from_an_index(
     return 0
 
 
-def _report_over_a_tree(arguments: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+def _report_over_a_tree(
+    arguments: argparse.Namespace, parser: argparse.ArgumentParser, tuning: TreeTuning
+) -> int:
     """Report over a results tree, reading one document per image.
 
     What it costs is one full read of every document under the roots, which is
@@ -964,6 +992,8 @@ def _report_over_a_tree(arguments: argparse.Namespace, parser: argparse.Argument
     Parameters:
         arguments: The parsed command line.
         parser: The parser, for the refusals it reports as usage errors.
+        tuning: How much of the pass over the tree runs at once, resolved by
+            the entry point from the configuration.
 
     Returns:
         Process exit code: 0 on success, and 1 when no root can be resolved, or
@@ -1000,7 +1030,7 @@ def _report_over_a_tree(arguments: argparse.Namespace, parser: argparse.Argument
         parser.error(f'a navigation results root is not a location that can be read: {exc}')
     print(f'Reading {", ".join(roots)}')
     try:
-        with TreeRecordSource(roots) as source:
+        with TreeRecordSource(roots, tuning=tuning) as source:
             report_path = _report_written_from(source, arguments, ())
     except (UnlistableDirectoryError, ValueError) as exc:
         # A root the walk could not read whole is a report that would cover less

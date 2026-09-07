@@ -47,6 +47,7 @@ from spindoctor.cli.results_index import (
 )
 from spindoctor.cli.results_index.tasks import _LARGEST_RUN_ROW_COUNT
 from spindoctor.cli.stats.report import main_report
+from spindoctor.nav_records import TreeTuning
 from spindoctor.results_index import (
     IMAGES,
     INGEST_RUNS,
@@ -411,12 +412,14 @@ def test_the_shares_write_the_rows_and_the_run_a_single_pass_writes_on_postgresq
     engine = open_index(postgres_url, create=True)
     try:
         tasks = fan_out_ingest_tasks(
-            engine, [root.as_posix()], share_size=2, logger=quiet_logger
+            engine, [root.as_posix()], share_size=2, logger=quiet_logger, tuning=TreeTuning()
         ).tasks
         results = [
             TaskResult(
                 task_id=str(task['task_id']),
-                result=ingest_task_share(engine, task['data'], logger=quiet_logger),
+                result=ingest_task_share(
+                    engine, task['data'], logger=quiet_logger, tuning=TreeTuning()
+                ),
             )
             for task in tasks
         ]
@@ -485,7 +488,9 @@ def test_a_root_is_unreadable_until_its_shares_are_added_up_on_postgresql(
     write_metadata(root, 'VOL/N1454725799_1_CALIB', metadata_document())
     engine = open_index(postgres_url, create=True)
     try:
-        fan_out_ingest_tasks(engine, [root.as_posix()], share_size=2, logger=quiet_logger)
+        fan_out_ingest_tasks(
+            engine, [root.as_posix()], share_size=2, logger=quiet_logger, tuning=TreeTuning()
+        )
         with engine.connect() as connection, pytest.raises(ValueError, match='no completed ingest'):
             require_ingested_roots(connection, [normalize_root_url(root)], url=postgres_url)
     finally:

@@ -29,7 +29,9 @@ from tests.spindoctor.conftest import (
 )
 
 from spindoctor.cli import sd_results_index
+from spindoctor.cli.results_index import FanOut, IngestCounts
 from spindoctor.config import MAIN_LOGGER
+from spindoctor.nav_records import TreeTuning
 
 PASSWORD = 'sup3rs3cr3t'
 """A password distinctive enough that finding it anywhere is proof of a leak."""
@@ -470,3 +472,61 @@ def test_a_second_pass_tallies_none_of_the_refusals_the_first_one_recorded(
     _root, passes = _two_passes(tmp_path, monkeypatch)
     _status, written = passes[1]
     assert [line for line in written if line.startswith('Not ingestible')] == ['Not ingestible: 0']
+
+
+def test_the_ingest_is_handed_the_tuning_the_configuration_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The driver resolves the tuning once, at its top, and the pass reads what it was handed."""
+    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    handed: list[Any] = []
+
+    def recording(*args: Any, **kwargs: Any) -> IngestCounts:
+        handed.append(kwargs.get('tuning'))
+        return IngestCounts()
+
+    monkeypatch.setattr(sd_results_index, 'get_results_tree_tuning', lambda config: configured)
+    monkeypatch.setattr(sd_results_index, 'ingest_metadata_files', recording)
+    root = tmp_path / 'results'
+    root.mkdir()
+    url = index_url(tmp_path / 'index.sqlite3')
+    status, _ = _run(
+        ['ingest', '--nav-results-root', str(root), '--results-index-db', url],
+        monkeypatch,
+        tmp_path,
+    )
+    assert status == 0
+    assert handed == [configured]
+
+
+def test_a_divide_is_handed_the_same_tuning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both subcommands that list a tree read the one resolution the driver made."""
+    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    handed: list[Any] = []
+
+    def recording(*args: Any, **kwargs: Any) -> FanOut:
+        handed.append(kwargs.get('tuning'))
+        return FanOut()
+
+    monkeypatch.setattr(sd_results_index, 'get_results_tree_tuning', lambda config: configured)
+    monkeypatch.setattr(sd_results_index, 'fan_out_ingest_tasks', recording)
+    root = tmp_path / 'results'
+    root.mkdir()
+    url = index_url(tmp_path / 'index.sqlite3')
+    status, _ = _run(
+        [
+            'divide',
+            '--nav-results-root',
+            str(root),
+            '--results-index-db',
+            url,
+            '--tasks-file',
+            str(tmp_path / 'tasks.json'),
+        ],
+        monkeypatch,
+        tmp_path,
+    )
+    assert status == 0
+    assert handed == [configured]

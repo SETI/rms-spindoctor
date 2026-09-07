@@ -63,7 +63,7 @@ from spindoctor.cli.ck.segment import (
     build_segment,
     resolve_sclk_id,
 )
-from spindoctor.cli.logging_args import add_logging_arguments, reporting_logging_errors
+from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
 from spindoctor.config import (
     DEFAULT_CONFIG,
     IMAGE_LOGGER,
@@ -73,6 +73,7 @@ from spindoctor.config import (
     build_run_logging,
     get_nav_results_root,
     get_results_index_db_url,
+    get_results_tree_tuning,
     load_default_and_user_config,
 )
 from spindoctor.config.program_names import SD_CREATE_CK
@@ -726,11 +727,12 @@ def main() -> None:
     command_list = sys.argv[1:]
     arguments = parse_args(command_list)
 
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
 
     nav_results_root = FileCache(None).new_path(get_nav_results_root(arguments, DEFAULT_CONFIG))
     results_index_db_url = get_results_index_db_url(arguments, DEFAULT_CONFIG)
+    tuning = get_results_tree_tuning(DEFAULT_CONFIG)
     # Resolved to absolute, both of them, because the meta-kernel names the
     # kernels it furnishes by these paths and SPICE resolves a relative name
     # against the *consumer's* working directory.  A meta-kernel written with
@@ -740,7 +742,7 @@ def main() -> None:
     output_dir = FileCache(None).new_path(absolute_directory(arguments.output_dir))
     kernel_dirs = [absolute_directory(directory) for directory in arguments.kernel_dir]
 
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         run_logging = build_run_logging(PROGRAM_NAME, arguments, DEFAULT_CONFIG)
 
     start_time = time.time()
@@ -759,6 +761,7 @@ def main() -> None:
         results_index_db_url=results_index_db_url,
         columns=RECORD_COLUMNS,
         logger=MAIN_LOGGER,
+        tuning=tuning,
     ) as source:
         try:
             stream = source.records(Selection(instrument=arguments.mission))

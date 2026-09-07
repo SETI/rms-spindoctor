@@ -44,7 +44,7 @@ from filecache import FCPath, FileCache
 package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, package_source_path)
 
-from spindoctor.cli.logging_args import reporting_logging_errors
+from spindoctor.cli.logging_args import reporting_configuration_errors
 from spindoctor.cli.reproj.args import (
     add_body_args,
     add_common_env_args,
@@ -665,7 +665,7 @@ def main() -> None:
         pr = cProfile.Profile()
         pr.enable()
 
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         load_default_and_user_config(args, DEFAULT_CONFIG)
 
     nav_results_root_str: str | None = None
@@ -678,7 +678,7 @@ def main() -> None:
     if nav_results_root_str is not None:
         nav_results_root_path = FileCache(None).new_path(nav_results_root_str)
 
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         run_logging = build_run_logging(PROGRAM_NAME, args, DEFAULT_CONFIG)
 
     start = time.time()

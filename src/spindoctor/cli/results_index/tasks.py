@@ -83,11 +83,9 @@ from pdslogger import PdsLogger
 from spindoctor.cli.results_index.chunks import _batched, _ingest_chunk
 from spindoctor.cli.results_index.counts import IngestCounts
 from spindoctor.cli.results_index.driver import (
-    INGEST_COMMIT_CHUNK_SIZE,
     _files_to_read,
     _listing_of_root,
     _prune_missing,
-    _tuning_from_config,
 )
 from spindoctor.cli.results_index.runs import (
     _finish_run,
@@ -97,7 +95,13 @@ from spindoctor.cli.results_index.runs import (
     _unfinished_run,
 )
 from spindoctor.cli.results_index.store import _recorded_files
-from spindoctor.nav_records import ListedRecord, distinct_roots, document_path, normalize_root_url
+from spindoctor.nav_records import (
+    ListedRecord,
+    TreeTuning,
+    distinct_roots,
+    document_path,
+    normalize_root_url,
+)
 
 __all__ = [
     'INGEST_TASK_SHARE_SIZE',
@@ -345,6 +349,7 @@ def fan_out_ingest_tasks(
     prune: bool = True,
     share_size: int = INGEST_TASK_SHARE_SIZE,
     logger: PdsLogger,
+    tuning: TreeTuning,
 ) -> FanOut:
     """List each root once and divide the documents under it into tasks.
 
@@ -375,6 +380,8 @@ def fan_out_ingest_tasks(
             find.  False keeps them and reads nothing about the root.
         share_size: How many files one task is handed.
         logger: Logger for the per-root scan summary.
+        tuning: How much of each root's listing runs at once, which the
+            program resolved from its configuration.
 
     Returns:
         The tasks, and what the fan-out itself did.
@@ -393,7 +400,7 @@ def fan_out_ingest_tasks(
         counts = IngestCounts()
         run_id = _start_run(engine, root_url)
         logger.info('Dividing %s into ingest tasks', root_url)
-        listing = _listing_of_root(root_url, logger=logger)
+        listing = _listing_of_root(root_url, logger=logger, tuning=tuning)
         if listing is None:
             counts.roots_unreadable = 1
             fan_out.counts.add(counts)
@@ -533,7 +540,11 @@ def _share_from_task(task_data: dict[str, Any]) -> _Share:
 
 
 def ingest_task_share(
-    engine: sqlalchemy.Engine, task_data: dict[str, Any], *, logger: PdsLogger
+    engine: sqlalchemy.Engine,
+    task_data: dict[str, Any],
+    *,
+    logger: PdsLogger,
+    tuning: TreeTuning,
 ) -> dict[str, Any]:
     """Ingest one share of a root and report what it did.
 
@@ -551,6 +562,9 @@ def ingest_task_share(
         task_data: The task data, as :func:`fan_out_ingest_tasks` wrote it.
         logger: Logger for the per-file failures.  A cloud task has no run log,
             so this discards what it is given and the tally is returned instead.
+        tuning: How much of the retrieval runs at once and how many documents
+            one transaction covers, which the worker resolved from its
+            configuration.
 
     Returns:
         The task result: the run and root it belongs to, how many files it
@@ -576,8 +590,7 @@ def ingest_task_share(
         has_file_metrics=share.has_file_metrics,
     )
     counts.files_skipped = len(share.files) - len(to_read)
-    tuning = _tuning_from_config()
-    for chunk in _batched(to_read, INGEST_COMMIT_CHUNK_SIZE):
+    for chunk in _batched(to_read, tuning.ingest_commit_chunk_size):
         _ingest_chunk(
             engine,
             root,

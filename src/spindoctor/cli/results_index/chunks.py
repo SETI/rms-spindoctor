@@ -1,8 +1,9 @@
 """Retrieving a chunk of metadata files, reading each one, and writing them.
 
-Retrieval is batched because a cloud backend downloads a batch in parallel, so
-the batch size trades peak memory and per-request concurrency against the
-number of round trips.  It is ``retrieve()`` that is called rather than
+Retrieval is batched because a cloud backend downloads a batch in parallel: the
+tuning says how many downloads run at once and how large a batch is handed to
+them, and a batch has to be at least the thread count or the pool never fills.
+It is ``retrieve()`` that is called rather than
 ``get_local_path()``, which on a cloud root names a file the cache would hold
 and downloads nothing.
 
@@ -120,7 +121,7 @@ def _ingest_chunk(
     root_url: str,
     counts: IngestCounts,
     logger: PdsLogger,
-    tuning: TreeTuning | None = None,
+    tuning: TreeTuning,
 ) -> None:
     """Retrieve, read and write one chunk of metadata files.
 
@@ -134,10 +135,8 @@ def _ingest_chunk(
         root_url: Normalized URL of the root, as the rows record it.
         counts: Accumulator this chunk's outcomes are added to.
         logger: Logger for per-file failures.
-        tuning: How much of the retrieval runs at once, or None for the
-            defaults.
+        tuning: How many documents are retrieved at once, and in what batches.
     """
-    tuning = TreeTuning() if tuning is None else tuning
     pending: list[ImageFacts] = []
     refused: list[dict[str, Any]] = []
     for batch in _batched(chunk, tuning.retrieve_batch_size):

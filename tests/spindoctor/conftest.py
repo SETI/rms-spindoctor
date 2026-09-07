@@ -22,6 +22,7 @@ import pdslogger
 import pytest
 
 from spindoctor.cli.results_index import IngestCounts, ingest_metadata_files
+from spindoctor.nav_records import TreeTuning
 from spindoctor.results_index import open_index
 from spindoctor.support.cmatrix import AttitudeBaseline, PointingSolution
 
@@ -290,7 +291,12 @@ def index_url(path: Path) -> str:
 
 
 def ingest_tree(
-    url: str, roots: list[Path], *, logger: pdslogger.PdsLogger, force: bool = False
+    url: str,
+    roots: list[Path],
+    *,
+    logger: pdslogger.PdsLogger,
+    force: bool = False,
+    tuning: TreeTuning | None = None,
 ) -> IngestCounts:
     """Create an index and ingest one or more results trees into it.
 
@@ -299,6 +305,9 @@ def ingest_tree(
         roots: The results roots to walk.
         logger: Logger the ingest reports through.
         force: Whether to re-read every document.
+        tuning: How much of the pass runs at once, or None for the library's
+            defaults.  A test wanting a small chunk or batch passes one, which
+            is what a program does.
 
     Returns:
         What the pass did.
@@ -306,7 +315,11 @@ def ingest_tree(
     engine = open_index(url, create=True)
     try:
         return ingest_metadata_files(
-            engine, [root.as_posix() for root in roots], force=force, logger=logger
+            engine,
+            [root.as_posix() for root in roots],
+            force=force,
+            logger=logger,
+            tuning=TreeTuning() if tuning is None else tuning,
         )
     finally:
         engine.dispose()

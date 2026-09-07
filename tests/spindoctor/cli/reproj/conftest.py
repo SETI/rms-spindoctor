@@ -40,6 +40,7 @@ from spindoctor.cli.reproj.pointing_source import (
 )
 from spindoctor.cli.results_index import ingest_metadata_files
 from spindoctor.dataset.dataset import ImageFile
+from spindoctor.nav_records import TreeTuning
 from spindoctor.results_index import normalize_root_url, open_index
 
 # The pointing postgres tier runs against a schema of its own, exactly as the
@@ -282,7 +283,9 @@ def index_for(roots: list[Path], database: Path, *, logger: pdslogger.PdsLogger)
         The open index, which the caller disposes of.
     """
     engine = open_index(f'sqlite:///{database.as_posix()}', create=True)
-    ingest_metadata_files(engine, [root.as_posix() for root in roots], logger=logger)
+    ingest_metadata_files(
+        engine, [root.as_posix() for root in roots], logger=logger, tuning=TreeTuning()
+    )
     return engine
 
 

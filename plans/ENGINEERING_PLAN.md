@@ -485,10 +485,13 @@ The ingest is fast enough over a cloud root to be routine: a bucket of 52,101
 documents ingests cold in 240 seconds and re-ingests, with nothing changed, in
 13. Both halves of a pass are latency rather than bandwidth on such a root -- a
 listing is one round trip and a document is another, and neither moves enough
-bytes to matter -- so the walk lists directories in parallel from a bounded
-frontier and retrieval passes a thread count with a batch large enough to keep
-that pool full. What is left is the service's own round trip: streaming the
-documents without storing them measures no faster than retrieving them.
+bytes to matter -- so the walk lists directories in parallel, a bounded round at
+a time, and retrieval passes a thread count with a batch large enough to keep
+that pool full. How much of either runs at once is the `results_tree`
+configuration section, resolved once per program and passed down; every
+program that reads a tree honors it. What is left is the service's own round
+trip: streaming the documents without storing them measures no faster than
+retrieving them.
 
 Its follow-ups, none blocking:
 

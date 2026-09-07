@@ -50,9 +50,7 @@ Public API:
     TreeRecordSource       -- that protocol over the documents
     UnlistableDirectoryError -- a directory under a root that ends a walk
     UnlistableRootError      -- a root that could not be listed at all
-    RETRIEVE_BATCH_SIZE      -- how many documents are retrieved at once
-    TreeTuning               -- how much of a pass runs at once, and where it is set
-    RETRIEVE_THREADS         -- how many of a batch are fetched in parallel
+    TreeTuning               -- how much of a pass runs at once
     ImageFacts               -- what one document says about its image
     DocumentOrigin           -- where one document came from, and its metrics
     MetadataDocumentError    -- a document that is not a navigation result
@@ -112,8 +110,6 @@ from spindoctor.nav_records.source import (
 from spindoctor.nav_records.tree import (
     NAMES_NO_INSTRUMENT,
     RECORDS_NO_MIDTIME,
-    RETRIEVE_BATCH_SIZE,
-    RETRIEVE_THREADS,
     TreeRecordSource,
 )
 from spindoctor.nav_records.tuning import TreeTuning
@@ -131,8 +127,6 @@ __all__ = [
     'NULL_BYTE_IN_PATH',
     'PARENT_SEGMENT_IN_PATH',
     'RECORDS_NO_MIDTIME',
-    'RETRIEVE_BATCH_SIZE',
-    'RETRIEVE_THREADS',
     'UNREADABLE',
     'DocumentOrigin',
     'ImageFacts',

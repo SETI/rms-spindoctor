@@ -110,42 +110,8 @@ from spindoctor.support.nav_record import record_midtime_et
 __all__ = [
     'NAMES_NO_INSTRUMENT',
     'RECORDS_NO_MIDTIME',
-    'RETRIEVE_BATCH_SIZE',
-    'RETRIEVE_THREADS',
     'TreeRecordSource',
 ]
-
-RETRIEVE_BATCH_SIZE = TreeTuning().retrieve_batch_size
-"""How many documents are retrieved in one batched download, by default.
-
-A cloud backend downloads a batch in parallel, so the batch size trades peak
-memory and per-request concurrency against the number of round trips.  A
-navigation document is a few kilobytes, so peak memory is not what decides it:
-the batch has to be at least as large as :data:`RETRIEVE_THREADS` or the pool
-runs a fraction of the requests it could, and a batch several times that keeps
-the pool full across the whole of it rather than draining at each boundary.
-
-An ingest batches within its commit chunk, so this above
-:data:`~spindoctor.cli.results_index.INGEST_COMMIT_CHUNK_SIZE` would be
-silently cut down to it.  ``results_index.retrieve_batch_size`` is where a
-configuration sets it.
-"""
-
-RETRIEVE_THREADS = TreeTuning().retrieve_threads
-"""How many documents are fetched at once within one batch, by default.
-
-The eight threads a :class:`~filecache.FileCache` defaults to leave a cloud
-pass waiting on round trips and moving almost no bandwidth, so this raises it
-and the batch is sized to feed it.  Where the useful value stops rising is a
-property of the link and of what the service will do concurrently: on the
-machine and bucket this was tuned against, past this the rate fell again, and
-what was left matched what streaming the same documents without storing them
-managed -- the service's own latency rather than anything the cache was doing.
-Another machine, another provider, another day will find a different number.
-
-A local root retrieves without copying, so this costs nothing there.
-``results_index.retrieve_threads`` is where a configuration sets it.
-"""
 
 NAMES_NO_INSTRUMENT = 'names no instrument to attribute it to a mission'
 """Why a document that read perfectly well is still not one mission's record.
@@ -183,6 +149,10 @@ class TreeRecordSource:
             is what a caller holding no logger of its own needs -- a layer that
             must not acquire a voice its own caller did not configure has none
             to lend.
+        tuning: How much of a pass over the documents runs at once.  None is
+            the library's own defaults, for a caller with no configuration to
+            consult; a program resolves its configuration once and passes what
+            it says, the way it passes its logger.
 
     Raises:
         ValueError: If no root is given, or if one of them is not a location.
@@ -200,9 +170,6 @@ class TreeRecordSource:
             raise ValueError('a record source over the documents needs at least one results root')
         self._roots = tuple(held)
         self._logger = NullLogger() if logger is None else logger
-        # How much of a pass runs at once belongs to the machine and its
-        # network rather than to this class, so it arrives as an argument; a
-        # caller with no configuration to consult gets the shipped defaults.
         self._tuning = TreeTuning() if tuning is None else tuning
         # What a walk answering a listing of named documents found, keyed by the
         # root and the top-level directory walked.  A scan asks in batches, so a
@@ -278,8 +245,9 @@ class TreeRecordSource:
         """Return every document the selection covers, without opening one.
 
         A selection that names no stubs walks: the roots in the order this
-        source holds them, and each root's documents in the order its directory
-        listings return them.  One that names stubs asks about those files and
+        source holds them, and each root's documents in an order the walk does
+        not define, since it lists several directories at once and no consumer
+        reads an order from it.  One that names stubs asks about those files and
         no others, and is answered by whichever call is cheap on the root they
         are under -- a check per file on a local root, where a check is a
         syscall, and a walk of the directories they lie in on a remote one,
@@ -335,9 +303,9 @@ class TreeRecordSource:
     def records(self, selection: Selection) -> Iterator[NavRecord | UnreadableFile]:
         """Return the records the selection covers, yielded one at a time.
 
-        Documents are retrieved in batches and
-        yielded singly, so a caller holds one record where the source holds one
-        batch.  What the selection asks for is checked before anything is read.
+        Documents are retrieved in batches and yielded singly, so a caller
+        holds one record where the source holds one batch.  What the selection
+        asks for is checked before anything is read.
 
         Parameters:
             selection: Which records to yield.  A selection naming stubs reads
@@ -575,7 +543,7 @@ class TreeRecordSource:
         """
         for batch in in_batches(iter(stubs), self._tuning.retrieve_batch_size):
             sub_paths: list[str | Path] = [f'{stub}{METADATA_SUFFIX}' for stub in batch]
-            there = cast(list[bool], root.exists(sub_paths))
+            there = cast(list[bool], root.exists(sub_paths, nthreads=self._tuning.retrieve_threads))
             for stub, found in zip(batch, there, strict=True):
                 if found:
                     yield ListedRecord(

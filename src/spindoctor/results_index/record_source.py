@@ -167,7 +167,6 @@ from filecache import FCPath
 from sqlalchemy.engine import Connection, Engine
 
 from spindoctor.nav_records import (
-    RETRIEVE_BATCH_SIZE,
     ImageFacts,
     ListedRecord,
     NavRecord,
@@ -181,7 +180,7 @@ from spindoctor.nav_records import (
     root_for_stubs,
     selected_roots,
 )
-from spindoctor.results_index.engine import reporting_a_failed_read
+from spindoctor.results_index.engine import STUBS_PER_STATEMENT, reporting_a_failed_read
 from spindoctor.results_index.facts_stream import facts_stream, reading_one_snapshot
 from spindoctor.results_index.masking import masked_url
 from spindoctor.results_index.rebuild import record_from_row
@@ -493,7 +492,7 @@ class IndexRecordSource:
             One entry per named stub the index records a file for, in the order
             named.  A stub it records none for yields nothing.
         """
-        for batch in in_batches(iter(stubs), RETRIEVE_BATCH_SIZE):
+        for batch in in_batches(iter(stubs), STUBS_PER_STATEMENT):
             found = {
                 entry.stub: entry
                 for entry in self._listed(
@@ -624,7 +623,7 @@ class IndexRecordSource:
         """
         conditions = self._what_a_document_says(selection)
         with reporting_a_failed_read(self._raw_url), self._streaming() as connection:
-            for batch in in_batches(iter(selection.stubs), RETRIEVE_BATCH_SIZE):
+            for batch in in_batches(iter(selection.stubs), STUBS_PER_STATEMENT):
                 images = sqlalchemy.select(*self._bulk_columns()).where(
                     IMAGES.c.root_url == root_url,
                     IMAGES.c.results_path_stub.in_(batch),
@@ -708,7 +707,7 @@ class IndexRecordSource:
         """
         bounds = self._what_a_document_says(selection)
         with reporting_a_failed_read(self._raw_url), self._reading_one_snapshot() as connection:
-            for batch in in_batches(iter(selection.stubs), RETRIEVE_BATCH_SIZE):
+            for batch in in_batches(iter(selection.stubs), STUBS_PER_STATEMENT):
                 refusals = sqlalchemy.select(
                     FAILED_FILES.c.root_url,
                     FAILED_FILES.c.results_path_stub,

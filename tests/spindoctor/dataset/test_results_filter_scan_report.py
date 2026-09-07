@@ -10,6 +10,7 @@ missing over one of them goes missing for the operator reading that run's log.
 """
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from tests.spindoctor.dataset.conftest import (
@@ -41,7 +42,7 @@ def _tree(tmp_path: Path) -> Path:
     return root
 
 
-def _scanned(root: Path, *, results_index_db_url: str | None, **flags: bool) -> None:
+def _scanned(root: Path, *, results_index_db_url: str | None, **flags: Any) -> None:
     """Run every candidate of the fixture tree through one filter and close it.
 
     Parameters:

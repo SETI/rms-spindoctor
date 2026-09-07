@@ -286,7 +286,7 @@ def select_from(results_filter: ResultsFilter, images: list[ImageFile]) -> list[
 
 
 def selection_of(
-    root: Path, flags: dict[str, bool], *, results_index_db_url: str | None
+    root: Path, flags: dict[str, Any], *, results_index_db_url: str | None
 ) -> list[str]:
     """Answer one filter combination over the fixture tree.
 

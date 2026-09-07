@@ -1,7 +1,10 @@
 import argparse
 import os
+from dataclasses import fields
 
 from filecache import FCPath
+
+from spindoctor.nav_records.tuning import TreeTuning
 
 from .config import Config
 from .logging_keys import validate_logging_config
@@ -91,9 +94,7 @@ def get_nav_results_root(arguments: argparse.Namespace, config: Config) -> str:
     return nav_results_root_str
 
 
-def get_log_root(
-    arguments: argparse.Namespace, config: Config, *, under_results_root: bool = True
-) -> str:
+def get_log_root(arguments: argparse.Namespace, config: Config) -> str:
     """Get the log root from the arguments, configuration, or environment.
 
     First look in ``arguments.log_root``, then in ``config.environment.log_root``,
@@ -105,21 +106,13 @@ def get_log_root(
     Parameters:
         arguments: The parsed arguments.
         config: The configuration possibly containing the environment section.
-        under_results_root: Whether the navigation results root is an acceptable
-            place for this program's logs when nothing else names one.  False
-            for a program that reads the results tree rather than writing to
-            it: its log would land in the tree it is reading, which on a cloud
-            root means every run adds files to what the next run enumerates,
-            and pays a network write per line to do it.
 
     Returns:
         The log root.
 
     Raises:
         ValueError: If neither a log root nor a navigation results root can be
-            determined, or if none was named and ``under_results_root`` is
-            False.  A caller of the second kind supplies its own local
-            fallback, so the refusal is how it is asked for.
+            determined.
     """
     log_root_str = None
     try:
@@ -134,11 +127,6 @@ def get_log_root(
     if log_root_str is None:
         log_root_str = os.getenv('NAV_LOG_ROOT')
     if log_root_str is None:
-        if not under_results_root:
-            raise ValueError(
-                'no log root was named, and this program does not write its logs under the '
-                'navigation results root'
-            )
         # FCPath rather than os.path.join: a results root is routinely a cloud
         # URL, and joining those must not depend on the local path separator.
         log_root_str = (FCPath(get_nav_results_root(arguments, config)) / 'logs').as_posix()
@@ -248,12 +236,50 @@ def get_results_index_db_url(arguments: argparse.Namespace, config: Config) -> s
     return url
 
 
+def get_results_tree_tuning(config: Config) -> TreeTuning:
+    """Get how much of a pass over a results tree runs at once from the configuration.
+
+    Read from ``config.results_tree`` alone: no command-line option or
+    environment variable names these, because they describe a machine rather
+    than a run.  A program resolves them once, here, and passes the result to
+    whatever reads the tree, the way it passes its logger.
+
+    Parameters:
+        config: The configuration, whose ``results_tree`` section is read.
+
+    Returns:
+        The tuning, with every setting the section omits at its default.
+
+    Raises:
+        ValueError: If the section names a setting that does not exist, or a
+            value no pass can run at -- one that is not a positive integer,
+            ``null`` included, or a round of work smaller than the pool it
+            feeds.  The message names the section and the setting.
+    """
+    section = config.results_tree
+    known = [field.name for field in fields(TreeTuning)]
+    # Sorted as text: a YAML key can be a number, and a number does not sort
+    # against a string.
+    unknown = sorted(str(name) for name in section if name not in known)
+    if unknown:
+        raise ValueError(
+            f'configuration section results_tree names no setting called {unknown[0]!r}; '
+            f'the settings are {", ".join(known)}'
+        )
+    try:
+        return TreeTuning(**section)
+    except ValueError as exc:
+        raise ValueError(f'configuration section results_tree: {exc}') from exc
+
+
 def load_default_and_user_config(arguments: argparse.Namespace, config: Config) -> None:
     """Load the default and user configuration (if any).
 
-    The merged result's ``logging`` section is validated before returning, so a
-    misspelled module key, program name, or level name fails here rather than
-    having no effect at the point it was meant to apply.
+    The merged result's ``logging`` and ``results_tree`` sections are validated
+    before returning, so a misspelled module key, program name, level name or
+    tuning setting fails here rather than having no effect at the point it was
+    meant to apply, and a value no pass can run at fails before a run has
+    written anything.
 
     A named file that cannot be read is not skipped in favor of the defaults;
     ``Config``'s own diagnostic propagates, so a missing file still raises
@@ -267,7 +293,8 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
         config: The configuration to update.
 
     Raises:
-        ValueError: If the merged ``logging`` section is not valid.
+        ValueError: If the merged ``logging`` or ``results_tree`` section is
+            not valid.
     """
     config.read_config()
     # If the user specified one or more config files, load them; if they didn't,
@@ -285,3 +312,7 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
         except FileNotFoundError:
             pass
     validate_logging_config(config)
+    # Built and discarded: every program that reads a results tree resolves
+    # the tuning again where it needs it, and this is the one place all of
+    # them pass through before any of them has written anything.
+    get_results_tree_tuning(config)

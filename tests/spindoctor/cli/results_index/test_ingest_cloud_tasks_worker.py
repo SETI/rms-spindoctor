@@ -14,6 +14,7 @@ The command lines that divide a root up and put it back together are in
 """
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from tests.spindoctor.cli.results_index.ingest_driver_helpers import (
@@ -31,6 +32,7 @@ from tests.spindoctor.conftest import (
 )
 
 from spindoctor.cli import sd_results_index, sd_results_index_cloud_tasks
+from spindoctor.nav_records import TreeTuning
 
 # ---------------------------------------------------------------------------
 # Who creates the schema
@@ -200,6 +202,42 @@ def test_a_worker_never_asks_for_a_retry(tmp_path: Path, monkeypatch: pytest.Mon
     tasks = tasks_of(tmp_path / 'tasks.json')
     retry, _result = process(tasks[0]['data'], url)
     assert retry is False
+
+
+def test_a_worker_hands_its_share_the_tuning_the_configuration_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The worker resolves the tuning per share, as the interactive driver does per run."""
+    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    handed: list[Any] = []
+
+    def recording(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        handed.append(kwargs.get('tuning'))
+        return {'status': 'ok'}
+
+    monkeypatch.setattr(
+        sd_results_index_cloud_tasks, 'get_results_tree_tuning', lambda config: configured
+    )
+    monkeypatch.setattr(sd_results_index_cloud_tasks, 'ingest_task_share', recording)
+    url = fanned_out(tmp_path, monkeypatch)
+    tasks = tasks_of(tmp_path / 'tasks.json')
+    process(tasks[0]['data'], url)
+    assert handed == [configured]
+
+
+def test_a_worker_under_a_configuration_no_pass_can_run_at_reports_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reported like every other refusal, so the completing run can tally it."""
+
+    def refusing(config: Any) -> TreeTuning:
+        raise ValueError('configuration section results_tree: walk_threads must be a positive')
+
+    monkeypatch.setattr(sd_results_index_cloud_tasks, 'get_results_tree_tuning', refusing)
+    url = fanned_out(tmp_path, monkeypatch)
+    tasks = tasks_of(tmp_path / 'tasks.json')
+    _retry, result = process(tasks[0]['data'], url)
+    assert result['status_error'] == 'unusable_configuration'
 
 
 def test_a_worker_handed_a_task_it_cannot_read_reports_it(

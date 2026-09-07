@@ -1,0 +1,32 @@
+# How much of a pass over a navigation results tree runs at once.
+#
+# Every program that reads a results tree reads it this way: sd_results_index
+# when it ingests, sd_stats_report and sd_create_ck when they read a tree rather
+# than an index, and any program answering a --has-offset-file style selection
+# from one.  Against remote storage a pass is latency rather than bandwidth -- a
+# listing is one request and a document is another -- so both halves run several
+# requests at a time, and these say how many.
+#
+# The useful values belong to a machine, its network and its storage service,
+# not to the program.  The ones below were tuned on one machine against one
+# cloud bucket; a different link, a different provider, or a local disk wants
+# different ones.  A local tree is barely affected by any of them.  Change them
+# here, or override them in a configuration file named with --config-file.  The
+# results-index chapter of the user guide says what each one costs and when to
+# change it.
+results_tree:
+  # How many directories are listed at the same time.
+  walk_threads: 32
+  # How many directories one round of the walk lists before moving on.  A round
+  # holds every entry of every directory it lists, so this is a memory bound
+  # rather than a speed control.  Must be at least walk_threads.
+  walk_directories_at_once: 256
+  # How many documents are downloaded at the same time.
+  retrieve_threads: 64
+  # How many documents are handed to the downloader at a time.  Must be at
+  # least retrieve_threads, or the download pool never fills.
+  retrieve_batch_size: 1024
+  # How many retrieval batches one database transaction covers during an
+  # ingest.  Read by sd_results_index alone.  Raise it for fewer, larger
+  # transactions; lower it so that a crash costs less work.
+  ingest_commit_batches: 2

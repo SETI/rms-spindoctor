@@ -60,6 +60,19 @@ __all__ = [
     'reporting_a_failed_read',
 ]
 
+STUBS_PER_STATEMENT = 500
+"""How many stubs one statement names when it asks about a listed set of images.
+
+Each stub is a bind parameter, and every backend limits how many one statement
+may carry; the smallest cap among the supported backends is SQLite's own default
+of 999 before its 3.32 release.  Every statement that names stubs -- a lookup, a
+stream of named records, a prune -- names at most this many at a time, so the
+bound is one number in one place rather than a different guess beside each
+statement.  It is a property of the SQL dialects underneath, and so a constant
+here and not a setting: nothing about how a tree is walked or retrieved has any
+bearing on it.
+"""
+
 SQLITE_BUSY_TIMEOUT_MS = 30000
 """How long a SQLite connection waits for a competing writer before failing.
 

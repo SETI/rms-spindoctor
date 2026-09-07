@@ -185,7 +185,7 @@ another, and a navigation document is only a few kilobytes, so a pass done one
 request at a time spends almost all of its time waiting and almost none of it
 moving data or using the processor.
 
-Both halves therefore run several requests at a time, and the ``results_index``
+Both halves therefore run several requests at a time, and the ``results_tree``
 configuration section is where you say how many. You do not need to set any of
 it: the defaults are chosen to be sensible, and a results tree on a local disk
 is barely affected by any of them, since a local read does not wait on a
@@ -193,20 +193,33 @@ network.
 
 .. code-block:: yaml
 
-   results_index:
+   results_tree:
      walk_threads: 32
      walk_directories_at_once: 256
      retrieve_threads: 64
      retrieve_batch_size: 1024
+     ingest_commit_batches: 2
+
+The section applies to every program that reads a results tree, not only to
+``sd_results_index``: a statistics report or a C-kernel run over a tree, and a
+navigation, backplane or bundle run whose selection names one of the
+``--has-offset-file`` family of filters, all read the tree the same way and all
+honor it. Only the last setting is particular to the ingest.
 
 **A note on processor cores.** These are not settings that divide work between
 cores. The threads they create spend their time waiting for storage to answer,
 not computing, so it is normal and correct for them to outnumber your cores
-several times over --- the defaults above will happily run on a four-core
+several times over -- the defaults above will happily run on a four-core
 machine. Adding cores is not by itself a reason to raise them. What decides
 the useful value is your network and what your storage service will do at
 once, and past that point extra requests queue, or the service refuses them,
 and the pass gets slower rather than faster.
+
+**A value no pass can run at is refused when the configuration is loaded**,
+naming the setting, before the program has written anything: a count that is
+not a positive whole number, a setting name the section does not have, or a
+round of work smaller than the pool it feeds, which would leave threads idle at
+every setting rather than merely running slowly.
 
 The settings
 ~~~~~~~~~~~~
@@ -214,8 +227,8 @@ The settings
 ``walk_threads`` (default 32)
    How many directories are listed at the same time. Raise it if your tree has
    many directories and the finding stage is slow; lower it if your storage
-   service complains about the request rate. It costs almost no memory --- a
-   thread waiting on a request holds very little --- so memory is not the
+   service complains about the request rate. It costs almost no memory -- a
+   thread waiting on a request holds very little -- so memory is not the
    reason to keep it small.
 
 ``walk_directories_at_once`` (default 256)
@@ -229,9 +242,10 @@ The settings
    ``walk_threads`` busy; it only increases the peak memory of the pass. Lower
    it on a machine short of memory, or if you have an unusually deep or wide
    tree with very large directories. Raise it only if you have plenty of
-   memory and are certain the finding stage is starved for work. Keep it
-   comfortably above ``walk_threads`` so there is always something for every
-   thread to do.
+   memory and are certain the finding stage is starved for work. It must be at
+   least ``walk_threads``, so that every thread has a directory to list, and
+   is best kept comfortably above it; lower the two together on a machine that
+   needs a small round.
 
 ``retrieve_threads`` (default 64)
    How many documents are downloaded at the same time. This is the setting
@@ -250,16 +264,25 @@ The settings
    with it and keep it several times larger.
 
    A batch smaller than ``retrieve_threads`` cannot fill the download pool, so
-   a run configured that way stops at startup and says so, rather than running
-   slowly for a reason you would have to go looking for.
+   a run configured that way is refused when the configuration is loaded,
+   rather than running slowly for a reason you would have to go looking for.
+
+``ingest_commit_batches`` (default 2)
+   How many retrieval batches ``sd_results_index`` writes into the index in
+   one database transaction. No other program reads it. A transaction is what
+   a crash costs, so lower it to lose less work if an ingest dies part way;
+   raise it for fewer, larger transactions. It is a multiple of
+   ``retrieve_batch_size`` rather than a count of its own, so raising the batch
+   can never leave a transaction smaller than the batch it is retrieved in.
 
 Choosing values for your machine
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-*Short of memory.* Lower ``walk_directories_at_once`` first --- it is the only
-one of the four that meaningfully affects how much memory a pass uses. Halving
-it roughly halves the peak of the finding stage. The other three cost little
-memory at any setting.
+*Short of memory.* Lower ``walk_directories_at_once`` first, with
+``walk_threads`` lowered to match -- it is the setting that bounds how much the
+walk holds while it lists, and halving it roughly halves that. An ingest also
+keeps one small entry per document for the whole root while it works, which no
+setting changes. The others cost little memory at any setting.
 
 *Plenty of memory, slow remote storage.* Leave
 ``walk_directories_at_once`` alone and raise ``retrieve_threads``, with
@@ -272,7 +295,7 @@ to make things worse.
 ``walk_threads``. The pass takes longer and leaves more of the connection for
 everything else.
 
-*A results tree on a local disk.* Leave all four alone. A local read does not
+*A results tree on a local disk.* Leave them all alone. A local read does not
 wait on a network, so there is little for these settings to overlap, and the
 defaults cost a local pass nothing.
 

@@ -41,6 +41,7 @@ from spindoctor.cli.results_index import store as store_module
 from spindoctor.nav_records import (
     METADATA_SUFFIX,
     NOT_VALID_JSON,
+    TreeTuning,
     UnlistableDirectoryError,
 )
 from spindoctor.nav_records import facts as facts_module
@@ -1518,7 +1519,7 @@ def test_a_crash_mid_run_costs_one_chunk_and_no_more(
     transaction for the whole run would leave none, and a commit per image would
     leave four.
     """
-    monkeypatch.setattr(driver_module, 'INGEST_COMMIT_CHUNK_SIZE', 3)
+    chunks_of_three = TreeTuning(retrieve_threads=1, retrieve_batch_size=1, ingest_commit_batches=3)
     root = _seven_images(tmp_path)
     url = index_url(tmp_path / 'index.sqlite3')
     written: list[Any] = []
@@ -1532,7 +1533,7 @@ def test_a_crash_mid_run_costs_one_chunk_and_no_more(
 
     monkeypatch.setattr(store_module, '_write_image', failing)
     with pytest.raises(_TheWriterDiedError, match='the writer died'):
-        ingest_tree(url, [root], logger=quiet_logger)
+        ingest_tree(url, [root], logger=quiet_logger, tuning=chunks_of_three)
     engine = open_index(url)
     with engine.connect() as connection:
         found = _rows(connection, sqlalchemy.select(sqlalchemy.func.count()).select_from(IMAGES))
