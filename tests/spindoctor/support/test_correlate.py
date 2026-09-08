@@ -787,31 +787,41 @@ class TestMaskedNccBidirectional:
         ncc[~valid] = -np.inf
         return ncc, num
 
-    def test_no_more_than_three_spectra_are_live_at_once(
+    def test_transforms_are_few_at_once_and_none_outlive_the_call(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The ordering is the whole point of it, so it is worth asserting.
+        """The build order and the copied-out real parts are the whole point.
 
-        Each spectrum is a complex array of the padded frame, which on a
-        wide-margin frame is the largest thing in the process.  Building one
-        before the one it replaces has been dropped costs a whole extra copy,
-        and nothing about the result changes -- so only a count of what is
-        alive can catch it.
+        Each transform output is a complex array of the padded frame, which on
+        a wide-margin frame is the largest thing in the process.  Building a
+        spectrum before the one it replaces has been dropped costs a whole
+        extra copy, and so does keeping an inverse transform alive through a
+        view of its real part; nothing about the result changes either way,
+        so only a count of what is alive can catch it.
         """
         # Reached by name rather than through the module attribute, which
         # strict typing reads as a re-export of numpy's.
         real_fft2 = np.fft.fft2
+        real_ifft2 = np.fft.ifft2
         seen: list[weakref.ref[Any]] = []
+        made = {'forward': 0, 'inverse': 0}
         high = 0
 
-        def counting_fft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+        def _record(kind: str, out: Any) -> Any:
             nonlocal high
-            out = real_fft2(a, *args, **kwargs)
+            made[kind] += 1
             seen.append(weakref.ref(out))
             high = max(high, sum(1 for ref in seen if ref() is not None))
             return out
 
+        def counting_fft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            return _record('forward', real_fft2(a, *args, **kwargs))
+
+        def counting_ifft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            return _record('inverse', real_ifft2(a, *args, **kwargs))
+
         monkeypatch.setattr('spindoctor.support.correlate.fft2', counting_fft2)
+        monkeypatch.setattr('spindoctor.support.image.ifft2', counting_ifft2)
         rng = np.random.default_rng(11)
         rows, cols = 24, 20
         data_mask = rng.random((rows, cols)) > 0.25
@@ -819,8 +829,11 @@ class TestMaskedNccBidirectional:
         model = rng.normal(size=(rows, cols))
         mask = rng.random((rows, cols)) > 0.35
         _masked_ncc_bidir(image, model, mask, data_mask)
-        assert len(seen) == 6
-        assert high <= 3
+        assert made['forward'] == 6
+        assert made['inverse'] == 6
+        # Three spectra, plus the one inverse transform in flight.
+        assert high <= 4
+        assert all(ref() is None for ref in seen)
 
     def test_the_scores_match_a_direct_evaluation(self) -> None:
         """Every shift's score is the one a transform-free evaluation gives."""

@@ -5,7 +5,7 @@ import numpy as np
 import scipy.ndimage as ndimage
 from numpy.fft import fft2, fftfreq, ifft2
 
-from spindoctor.support.types import NDArrayFloatType, NDArrayType, NPType
+from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType, NDArrayType, NPType
 
 # ==============================================================================
 #
@@ -509,6 +509,24 @@ def filter_downsample(arr: NDArrayFloatType, amt_y: int, amt_x: int) -> NDArrayF
     return ret
 
 
+def real_ifft2(spectrum: NDArrayComplexType) -> NDArrayFloatType:
+    """Inverse-transform a spectrum and keep its real part, as its own array.
+
+    ``np.real`` of a complex array is a view whose base is that array, so a
+    real part taken that way keeps the whole complex inverse transform alive
+    for as long as the view lives.  Copying the real part out lets the complex
+    output die with the statement that made it, which on a wide-margin frame
+    is one frame-sized buffer fewer for every result kept.
+
+    Parameters:
+        spectrum: The spectrum to inverse-transform.
+
+    Returns:
+        The real part of the inverse transform, contiguous and owning its data.
+    """
+    return np.ascontiguousarray(ifft2(spectrum).real)
+
+
 def gaussian_blur_cov(img: NDArrayFloatType, sigma: NDArrayFloatType) -> NDArrayFloatType:
     """Blur by anisotropic Gaussian with covariance matrix in frequency domain.
 
@@ -533,7 +551,7 @@ def gaussian_blur_cov(img: NDArrayFloatType, sigma: NDArrayFloatType) -> NDArray
     Sxy, Sxx = sigma[1, 0], sigma[1, 1]
     q = Syy * (fy * fy) + (Syx + Sxy) * (fy * fx) + Sxx * (fx * fx)
     H = np.exp(-2.0 * (np.pi**2) * q)
-    return np.real(ifft2(fft2(img) * H))
+    return real_ifft2(fft2(img) * H)
 
 
 def normalize_array(a: NDArrayFloatType, eps: float = 1e-12) -> NDArrayFloatType:

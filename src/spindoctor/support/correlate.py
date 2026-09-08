@@ -2,17 +2,14 @@ import math
 from typing import Any, Literal, cast
 
 import numpy as np
-import numpy.typing as npt
-from numpy.fft import fft2, fftfreq, ifft2, ifftshift
+from numpy.fft import fft2, fftfreq, ifftshift
 from pdslogger import PdsLogger
 from scipy.ndimage import gaussian_filter, sobel
 
 from spindoctor.config import IMAGE_LOGGER, logged_section
-from spindoctor.support.image import crop_center, normalize_array, pad_top_left
+from spindoctor.support.image import crop_center, normalize_array, pad_top_left, real_ifft2
 from spindoctor.support.misc import mad_std
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
-
-_NDArrayComplexType = npt.NDArray[np.complexfloating[Any, Any]]
+from spindoctor.support.types import NDArrayBoolType, NDArrayComplexType, NDArrayFloatType
 
 # Floor for masked NCC denominators and weight sums (avoid divide-by-zero).
 _NCC_EPS = 1e-12
@@ -66,15 +63,15 @@ def fourier_shift(img: NDArrayFloatType, dy: float, dx: float) -> NDArrayFloatTy
     fy = fftfreq(img.shape[0])[:, None]
     fx = fftfreq(img.shape[1])[None, :]
     phase = np.exp(-2j * np.pi * (dy * fy + dx * fx))
-    return np.real(ifft2(fft2(img) * phase))
+    return real_ifft2(fft2(img) * phase)
 
 
 def upsampled_dft(
-    X: _NDArrayComplexType,
+    X: NDArrayComplexType,
     up_factor: int,
     region_sz: tuple[int, int],
     offsets: tuple[int, int],
-) -> _NDArrayComplexType:
+) -> NDArrayComplexType:
     """Localized upsampled DFT.
 
     From Guizar-Sicairos, 2008. "Efficient subpixel image registration via cross-correlation."
@@ -91,7 +88,7 @@ def upsampled_dft(
     # Use +j sign to evaluate localized inverse DFT samples (consistent with ifft).
     Er = np.exp((j2pi / (X_v_size * up_factor)) * (a[:, None] @ ky[None, :]))
     Ec = np.exp((j2pi / (X_u_size * up_factor)) * (kx[:, None] @ b[None, :]))
-    return cast(_NDArrayComplexType, Er @ X @ Ec)
+    return cast(NDArrayComplexType, Er @ X @ Ec)
 
 
 # ==============================================================
@@ -179,9 +176,9 @@ def masked_ncc(
     safe_w = sum_w + _NCC_EPS
 
     # Shift-wise sums via FFT (take real to discard floating-point imaginary noise)
-    sum_iw = np.real(ifft2(image_fft * np.conj(mask_fft)))
-    sum_i2w = np.real(ifft2(fft2(image**2) * np.conj(mask_fft)))
-    sum_imw = np.real(ifft2(image_fft * np.conj(model_mask_fft)))
+    sum_iw = real_ifft2(image_fft * np.conj(mask_fft))
+    sum_i2w = real_ifft2(fft2(image**2) * np.conj(mask_fft))
+    sum_imw = real_ifft2(image_fft * np.conj(model_mask_fft))
 
     # Model stats (constant over shifts)
     sum_mw: float = float(np.sum(model * mask))
@@ -228,15 +225,18 @@ def _masked_ncc_bidir(
     dmask_f = data_mask.astype(np.float64)
 
     # Each spectrum is built where it is first needed and dropped at its last
-    # use, rather than all six being built up front.  The arithmetic is
-    # unchanged -- every product below is the one it always was -- but at most
-    # three spectra exist at once instead of six, and on a wide-margin frame a
-    # spectrum is the largest array in the process.
+    # use, rather than all six being built up front, and each inverse
+    # transform's real part is copied out of it (real_ifft2), so no complex
+    # output outlives the sum it was taken for.  The arithmetic is unchanged
+    # -- every product below is the one it always was -- but at most three
+    # spectra exist at once instead of six, plus the one inverse transform in
+    # flight, and on a wide-margin frame a spectrum is the largest array in
+    # the process.
     dmask_fft = fft2(dmask_f)
     mask_fft = fft2(mask_f)
 
     # Effective overlap weight at each shift.
-    w_d = np.real(ifft2(dmask_fft * np.conj(mask_fft)))
+    w_d = real_ifft2(dmask_fft * np.conj(mask_fft))
     w_d_max = float(w_d.max())
     w_floor = max(_NCC_BIDIR_W_FRAC_MIN * w_d_max, _NCC_EPS)
     overlap_ok = w_d >= w_floor
@@ -249,22 +249,22 @@ def _masked_ncc_bidir(
     # data-mask and mask spectra still live that is four at once rather than
     # the three this ordering exists to hold.
     image2_fft = fft2(image * image)
-    sum_i2w = np.real(ifft2(image2_fft * np.conj(mask_fft)))
+    sum_i2w = real_ifft2(image2_fft * np.conj(mask_fft))
     del image2_fft
     image_fft = fft2(image)
-    sum_iw = np.real(ifft2(image_fft * np.conj(mask_fft)))
+    sum_iw = real_ifft2(image_fft * np.conj(mask_fft))
     del mask_fft
 
     model_mask_fft = fft2(model * mask_f)
-    sum_imw = np.real(ifft2(image_fft * np.conj(model_mask_fft)))
+    sum_imw = real_ifft2(image_fft * np.conj(model_mask_fft))
     del image_fft
     # Model stats are shift-dependent because dmask selects which model
     # pixels participate at each shift.
-    sum_mw = np.real(ifft2(dmask_fft * np.conj(model_mask_fft)))
+    sum_mw = real_ifft2(dmask_fft * np.conj(model_mask_fft))
     del model_mask_fft
 
     model2_mask_fft = fft2((model * model) * mask_f)
-    sum_m2w = np.real(ifft2(dmask_fft * np.conj(model2_mask_fft)))
+    sum_m2w = real_ifft2(dmask_fft * np.conj(model2_mask_fft))
     del model2_mask_fft, dmask_fft
 
     safe_w = np.where(overlap_ok, w_d, w_floor)
