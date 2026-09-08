@@ -559,7 +559,7 @@ asserts the generated half matches the registries.
   in is #573: about four gigabytes of a ring render's resident size is held
   by nothing the program can drop. Releasing more often does not help, and
   the two placements measured to be worth nothing are recorded in
-  `docs/dev_guide/dev_guide_memory.rst` so they are not tried again.
+  `docs/dev_guide/dev_guide_memory.rst` so they are not tried again. Striping belongs in `oops` rather than in each consumer, which is SETI/rms-oops#222.
 
 - **#108** — audit every `sd_*` CLI for logging, cloud operation, and
   working `cloud_tasks` variants; fix what the audit finds. The logging
