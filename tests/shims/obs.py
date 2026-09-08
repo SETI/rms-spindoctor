@@ -372,7 +372,6 @@ class FakeObs:
 
     def ra_dec_limits_ext(self, apparent: bool = True) -> tuple[float, float, float, float]:
         """Return the configured RA / DEC limits in radians."""
-        del apparent
         return self.ra_dec_limits_ext_rad
 
     # ------------------------------------------------------------------
@@ -390,7 +389,6 @@ class FakeObs:
         Returns:
             ``(ra, dec)`` in radians.
         """
-        del apparent
         return self.boresight_ra_rad, self.boresight_dec_rad
 
     def uv_from_ra_and_dec(
@@ -416,7 +414,6 @@ class FakeObs:
             tfrac: Fraction along the exposure window.
             apparent: Accepted for API parity; ignored by the shim.
         """
-        del apparent
         ra_arr = np.atleast_1d(np.asarray(_extract_vals(ra), dtype=np.float64))
         dec_arr = np.atleast_1d(np.asarray(_extract_vals(dec), dtype=np.float64))
         n = max(ra_arr.size, dec_arr.size)

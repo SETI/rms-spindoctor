@@ -382,33 +382,55 @@ class FakeBackplane:
         data = self._ring(ring_target)
         return _scalar(data.shadow_array().astype(bool))
 
+    def _surface_mask(self, target: str) -> np.ndarray | None:
+        """Return a planted surface's silhouette, or None when none was planted by that name.
+
+        Parameters:
+            target: A body name or a ring target; the two registries are keyed
+                differently, so both are consulted.
+        """
+        if target.upper() in self.per_body:
+            return np.asarray(self._body(target).body_mask, dtype=bool)
+        if target in self.per_ring:
+            return np.asarray(self._ring(target).ring_mask, dtype=bool)
+        return None
+
     def where_in_front(self, near_target: str, far_target: str) -> polymath.Scalar:
-        """Return a boolean Scalar marking pixels where one surface hides another.
+        """Return a boolean Scalar marking pixels where the first surface is in front.
 
-        Nothing occludes anything here: a scene that wants an occluder plants
-        one and answers this itself. The method exists because the renderer
-        calls it unconditionally, and a stand-in that does not answer a call the
-        real backplane answers is a hole in the double rather than a fact about
-        the scene.
-
-        The hidden surface is a ring for the rings model and a sibling body for
-        ``occluder_mask_for_body``, so which registry names it decides the shape
-        of the answer.  Looking only in one of them would make this stand-in
-        raise for half its real callers.
+        The real backplane answers True where ``near_target`` is intercepted
+        and ``far_target`` is either not intercepted there or lies farther
+        away.  A planted body carries no distance, so this stand-in answers
+        only the first half: the near surface is in front wherever it is
+        planted off the far one.  Where the two silhouettes overlap it cannot
+        say which is nearer and refuses, so a scene with an occluder answers
+        this method itself.  A near surface the scene never planted is in
+        front of nothing.
 
         Parameters:
             near_target: The surface that might be in front.
             far_target: The surface that might be hidden.
 
         Returns:
-            An all-False Scalar shaped like the hidden surface's own mask.
+            A boolean Scalar shaped like the far surface's own mask.
+
+        Raises:
+            LookupError: If nothing was planted under ``far_target``.
+            ValueError: If the two planted silhouettes overlap.
         """
-        del near_target
-        if far_target.upper() in self.per_body:
-            shape = self._body(far_target).body_mask.shape
-        else:
-            shape = self._ring(far_target).ring_mask.shape
-        return _scalar(np.zeros(shape, dtype=bool))
+        far = self._surface_mask(far_target)
+        if far is None:
+            raise LookupError(f'FakeBackplane has no entry for surface {far_target!r}')
+        near = self._surface_mask(near_target)
+        if near is None:
+            return _scalar(np.zeros(far.shape, dtype=bool))
+        if (near & far).any():
+            raise ValueError(
+                f'FakeBackplane cannot say whether {near_target!r} or {far_target!r} is '
+                f'nearer where they overlap; a scene with an occluder answers '
+                f'where_in_front itself'
+            )
+        return _scalar(near & ~far)
 
 
 def plant_circular_body(

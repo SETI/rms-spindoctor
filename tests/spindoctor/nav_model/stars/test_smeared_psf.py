@@ -157,7 +157,6 @@ class _FakeObsForBracket:
         Returns:
             ``(ra, dec)`` in radians, always the origin of the sky frame.
         """
-        del apparent
         return 0.0, 0.0
 
     def uv_from_ra_and_dec(
