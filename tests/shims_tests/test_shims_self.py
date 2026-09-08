@@ -115,7 +115,7 @@ def test_fake_backplane_unknown_ring_raises_lookup_error() -> None:
 
 
 def test_fake_backplane_where_in_front_answers_for_a_hidden_body() -> None:
-    """A far body is found among the bodies, and an unplanted occluder hides none of it."""
+    """An unplanted occluder hides none of a far body found among the bodies."""
     body = plant_circular_body(shape=(12, 9), centre_vu=(6.0, 4.0), radius_px=3.0)
     bp = FakeBackplane(per_body={'MIMAS': body})
     hidden = bp.where_in_front('ENCELADUS', 'MIMAS')
@@ -136,7 +136,7 @@ def test_fake_backplane_where_in_front_answers_for_a_hidden_ring() -> None:
 
 
 def test_fake_backplane_where_in_front_is_the_near_silhouette_off_the_far_one() -> None:
-    """Two disjoint silhouettes: the near one is in front wherever it is, and nowhere else."""
+    """Two disjoint silhouettes: the near one is in front exactly where it is planted."""
     near = plant_circular_body(shape=(12, 20), centre_vu=(6.0, 4.0), radius_px=2.0)
     far = plant_circular_body(shape=(12, 20), centre_vu=(6.0, 15.0), radius_px=2.0)
     bp = FakeBackplane(per_body={'ENCELADUS': near, 'MIMAS': far})
@@ -145,7 +145,7 @@ def test_fake_backplane_where_in_front_is_the_near_silhouette_off_the_far_one() 
 
 
 def test_fake_backplane_where_in_front_refuses_overlapping_silhouettes() -> None:
-    """Without a distance the stand-in cannot rank two overlapping surfaces, and says so."""
+    """Without distances the stand-in cannot rank overlapping surfaces, and says so."""
     near = plant_circular_body(shape=(12, 9), centre_vu=(6.0, 4.0), radius_px=3.0)
     far = plant_circular_body(shape=(12, 9), centre_vu=(7.0, 5.0), radius_px=3.0)
     bp = FakeBackplane(per_body={'ENCELADUS': near, 'MIMAS': far})

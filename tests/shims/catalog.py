@@ -140,7 +140,6 @@ class FakeStar:
         Returns:
             ``(ra_pm, dec_pm)`` in radians.
         """
-        del tdb
         return self.ra_pm, self.dec_pm
 
 

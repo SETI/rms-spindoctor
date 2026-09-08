@@ -88,7 +88,6 @@ class FakeMeshgrid:
         swap: bool = False,
     ) -> FakeMeshgrid:
         """Mirror the ``oops.Meshgrid.for_fov`` factory signature."""
-        del fov
         return cls(origin, limit, oversample=oversample, swap=swap)
 
 
@@ -136,8 +135,8 @@ class FakeObs:
         radec_to_uv: Optional callable mapping ``(ra, dec, tfrac)`` to
             ``(u, v)`` for ``uv_from_ra_and_dec``.  When unset every
             star projects onto the FOV centre.
-        boresight_ra_rad: RA returned by ``center_ra_dec()``.
-        boresight_dec_rad: DEC returned by ``center_ra_dec()``.
+        center_ra_rad: Right ascension of the frame center, in radians.
+        center_dec_rad: Declination of the frame center, in radians.
     """
 
     data: np.ndarray
@@ -152,8 +151,8 @@ class FakeObs:
     star_max_vmag: float = 17.0
     ra_dec_limits_ext_rad: tuple[float, float, float, float] = (0.0, 0.1, 0.0, 0.1)
     radec_to_uv: Callable[[float, float, float], tuple[float, float]] | None = None
-    boresight_ra_rad: float = 0.0
-    boresight_dec_rad: float = 0.0
+    center_ra_rad: float = 0.0
+    center_dec_rad: float = 0.0
     fov: FakeFOV = field(default_factory=FakeFOV)
 
     def __post_init__(self) -> None:
@@ -324,7 +323,6 @@ class FakeObs:
             return_type: Accepted for API parity; the shim always
                 returns the ``'full'`` shape.
         """
-        del return_type
         out: dict[str, dict[str, Any]] = {}
         for body in body_list:
             key = body.upper()
@@ -389,7 +387,7 @@ class FakeObs:
         Returns:
             ``(ra, dec)`` in radians.
         """
-        return self.boresight_ra_rad, self.boresight_dec_rad
+        return self.center_ra_rad, self.center_dec_rad
 
     def uv_from_ra_and_dec(
         self,

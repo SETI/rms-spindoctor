@@ -348,7 +348,6 @@ class NavModelStars(NavModel):
 
     def to_annotations(self, context: NavContext) -> Annotations:
         """Emit star-box overlays plus name/magnitude labels."""
-        del context
         if not self._stars:
             return Annotations()
         return self._build_annotations()

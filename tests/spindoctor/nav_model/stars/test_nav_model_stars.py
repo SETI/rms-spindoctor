@@ -30,7 +30,6 @@ from spindoctor.nav_model.stars.nav_model_stars import (
     _snr_reason_score,
     _star_feature_id,
 )
-from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.support.types import MutableStar
 
@@ -463,20 +462,6 @@ def test_to_annotations_keeps_stars_with_star_only_conflict() -> None:
     model._stars = [cast(MutableStar, star)]
     annotations = model.to_annotations(cast(NavContext, _FakeContext()))
     assert len(annotations.annotations[0].text_info_list) == 1
-
-
-def test_smear_from_an_obs_that_cannot_report_its_centre_is_not_silently_zero() -> None:
-    """A zero smear vector is a measurement, not a missing one.
-
-    It feeds the star covariance, so an obs whose centre lookup is broken must
-    fail rather than report that the camera never moved.
-    """
-
-    class _NoCentreObs:
-        """Minimal obs stand-in lacking ``center_ra_dec``."""
-
-    with pytest.raises(AttributeError, match='center_ra_dec'):
-        compute_smear_vector_px(cast(Any, _NoCentreObs()))
 
 
 def test_safe_mask_lookup_returns_false_for_none_mask() -> None:

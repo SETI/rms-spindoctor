@@ -318,7 +318,6 @@ class FakeBackplane:
         The shim reports the same scale on both axes; ``axis`` is accepted
         for API parity with ``oops.Backplane.center_resolution``.
         """
-        del axis
         return _scalar(self._body(body_name).default_resolution_km_px)
 
     def where_intercepted(self, body_name: str) -> polymath.Scalar:
@@ -372,25 +371,28 @@ class FakeBackplane:
 
     def distance(self, ring_target: str, *, direction: str = 'dep') -> polymath.Scalar:
         """Return per-pixel ring-plane distance in km."""
-        del direction
         data = self._ring(ring_target)
         return _scalar(data.distance_array(), ~data.ring_mask)
 
     def where_inside_shadow(self, ring_target: str, planet: str) -> polymath.Scalar:
         """Return a boolean Scalar marking ring pixels inside the planet's shadow."""
-        del planet
         data = self._ring(ring_target)
         return _scalar(data.shadow_array().astype(bool))
 
     def _surface_mask(self, target: str) -> np.ndarray | None:
-        """Return a planted surface's silhouette, or None when none was planted by that name.
+        """Return the silhouette planted under a name, or None when there is none.
 
         Parameters:
             target: A body name or a ring target; the two registries are keyed
                 differently, so both are consulted.
+
+        Returns:
+            For a body, its ``intercept_mask()``, which is what
+            :meth:`where_intercepted` answers; for a ring, its ``ring_mask``;
+            None when neither registry has the name.
         """
         if target.upper() in self.per_body:
-            return np.asarray(self._body(target).body_mask, dtype=bool)
+            return np.asarray(self._body(target).intercept_mask(), dtype=bool)
         if target in self.per_ring:
             return np.asarray(self._ring(target).ring_mask, dtype=bool)
         return None
