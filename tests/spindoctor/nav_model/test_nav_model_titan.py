@@ -12,7 +12,9 @@ analytic backplane stand-in patched over the module's ``oops`` names.
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import math
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -407,7 +409,6 @@ class _BoxMeshgrid:
         swap: bool = False,
     ) -> _BoxMeshgrid:
         """Mirror the ``oops.Meshgrid.for_fov`` factory signature."""
-        del fov, oversample, swap
         return cls(origin, limit, undersample)
 
 
@@ -457,7 +458,6 @@ class _SceneBackplane:
     ring_distance_km: float = 1.0e9
 
     def __init__(self, obs: Any, *, meshgrid: _BoxMeshgrid) -> None:
-        del obs
         self._mg = meshgrid
 
     def incidence_angle(self, body_name: str) -> _Scalar:
@@ -469,7 +469,6 @@ class _SceneBackplane:
         one in would hide a frame mismatch between the two ends of the
         angle the model computes.
         """
-        del body_name
         centre_v, centre_u = self.titan_center_vu
         off_body = np.hypot(self._mg.vv - centre_v, self._mg.uu - centre_u) > self.titan_radius_px
         sun_v = centre_v + self.sub_solar_offset_vu[0]
@@ -479,7 +478,6 @@ class _SceneBackplane:
 
     def where_in_front(self, sibling_name: str, body_name: str) -> _Scalar:
         """Return the planted occluder silhouette, or nothing when unplanted."""
-        del sibling_name, body_name
         if self.occluder_center_vu is None:
             hidden = np.zeros(self._mg.vv.shape, dtype=bool)
         else:
@@ -494,7 +492,6 @@ class _SceneBackplane:
 
     def ring_radius(self, ring_target: str) -> _Scalar:
         """Return a ring-plane radius ramp, all-masked when rings are unplanted."""
-        del ring_target
         shape = self._mg.vv.shape
         if self.ring_radius_at_u is None:
             return _Scalar(np.zeros(shape), np.ones(shape, dtype=bool))
@@ -503,13 +500,24 @@ class _SceneBackplane:
 
     def distance(self, ring_target: str, direction: str = 'dep') -> _Scalar:
         """Return the constant ring-intercept distance."""
-        del ring_target, direction
         shape = self._mg.vv.shape
         return _Scalar(np.full(shape, self.ring_distance_km), np.zeros(shape, dtype=bool))
 
 
-def _scene_obs(*, titan_entry: dict[str, Any], extra: dict[str, dict[str, Any]]) -> FakeObs:
-    """Build the FakeObs the contaminant-mask tests share."""
+def _scene_obs(
+    *,
+    titan_entry: dict[str, Any],
+    extra: dict[str, dict[str, Any]],
+    obs_class: type[FakeObs] = FakeObs,
+) -> FakeObs:
+    """Build the FakeObs the contaminant-mask tests share.
+
+    Parameters:
+        titan_entry: Titan's inventory record.
+        extra: Inventory records of the other bodies in the scene, by name.
+        obs_class: The observation class to build; a subclass of ``FakeObs``
+            when a test needs one of its attributes to misbehave.
+    """
     records = {'TITAN': titan_entry}
     records.update(extra)
     body = BodyBackplaneData(
@@ -518,7 +526,7 @@ def _scene_obs(*, titan_entry: dict[str, Any], extra: dict[str, dict[str, Any]])
         default_resolution_km_px=_TITAN_RADIUS_KM / 26.0,
         center_phase_rad=math.radians(30.0),
     )
-    return FakeObs(
+    return obs_class(
         data=np.zeros((120, 120)),
         extfov_margin_vu=(10, 10),
         closest_planet='SATURN',
@@ -549,8 +557,101 @@ def _geometry(obs: FakeObs, config: Config) -> TitanGeometryInputs:
 
 
 # ---------------------------------------------------------------------------
-# Nothing here absorbs an exception
+# Every stage propagates its leaf failure
 # ---------------------------------------------------------------------------
+
+
+class _PlantedExtfovObs(FakeObs):
+    """FakeObs whose extended-FOV shape raises the planted fault, if any."""
+
+    extfov_fault: Exception | None = None
+
+    @property
+    def extdata_shape_vu(self) -> tuple[int, int]:
+        """Raise the planted fault, or report the shape when none is planted."""
+        if self.extfov_fault is not None:
+            raise self.extfov_fault
+        return super().extdata_shape_vu
+
+
+_FaultPlanter = Callable[[FakeObs, type[_SceneBackplane], pytest.MonkeyPatch, Exception], None]
+"""Installs one fault at the leaf call of one geometry stage."""
+
+
+def _raiser(fault: Exception) -> Callable[..., Any]:
+    """Return a callable of any signature that raises ``fault``."""
+
+    def _raise(*args: Any, **kwargs: Any) -> Any:
+        raise fault
+
+    return _raise
+
+
+def _plant_extfov_fault(
+    obs: FakeObs, scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, fault: Exception
+) -> None:
+    """Fail the observation's extended-FOV shape."""
+    monkeypatch.setattr(obs, 'extfov_fault', fault)
+
+
+def _plant_center_resolution_fault(
+    obs: FakeObs, scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, fault: Exception
+) -> None:
+    """Fail the extended backplane's center resolution."""
+    monkeypatch.setattr(obs.ext_bp, 'center_resolution', _raiser(fault))
+
+
+def _plant_incidence_fault(
+    obs: FakeObs, scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, fault: Exception
+) -> None:
+    """Fail the incidence backplane."""
+    monkeypatch.setattr(scene, 'incidence_angle', _raiser(fault))
+
+
+def _plant_ring_radius_fault(
+    obs: FakeObs, scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, fault: Exception
+) -> None:
+    """Fail the ring-radius backplane."""
+    monkeypatch.setattr(scene, 'ring_radius', _raiser(fault))
+
+
+def _plant_second_backplane_fault(
+    obs: FakeObs, scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, fault: Exception
+) -> None:
+    """Fail the mask-box backplane, the second one the geometry builds."""
+    builds = itertools.count(1)
+    original_init = scene.__init__
+
+    def _init(self: _SceneBackplane, obs_: Any, *, meshgrid: _BoxMeshgrid) -> None:
+        if next(builds) == 2:
+            raise fault
+        original_init(self, obs_, meshgrid=meshgrid)
+
+    monkeypatch.setattr(scene, '__init__', _init)
+
+
+def _plant_star_query_fault(
+    obs: FakeObs, scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, fault: Exception
+) -> None:
+    """Fail the star-catalog query."""
+    monkeypatch.setattr(geometry_module, 'stars_in_extfov', _raiser(fault))
+
+
+_STAGE_FAULTS: dict[str, tuple[_FaultPlanter, str]] = {
+    'frame_bounds': (_plant_extfov_fault, 'Titan: extended-FOV geometry could not be evaluated'),
+    'body_scale': (
+        _plant_center_resolution_fault,
+        'Titan: image scale, phase or body radius could not be evaluated',
+    ),
+    'symmetry_axis': (_plant_incidence_fault, 'Titan: incidence backplane could not be evaluated'),
+    'ring_occlusion': (_plant_ring_radius_fault, 'Titan: ring backplanes could not be evaluated'),
+    'contaminant_mask': (
+        _plant_second_backplane_fault,
+        'Titan: mask-box backplane could not be evaluated',
+    ),
+    'bright_stars': (_plant_star_query_fault, 'Titan: ybsc star query could not be evaluated'),
+}
+"""Per stage: how to fail its leaf call, and the one log line its handler writes."""
 
 
 @pytest.mark.parametrize(
@@ -568,37 +669,41 @@ def _geometry(obs: FakeObs, config: Config) -> TitanGeometryInputs:
         NotImplementedError,
     ],
 )
-@pytest.mark.parametrize('patched', ['_restricted_backplane', '_body_scale', 'stars_in_extfov'])
-def test_no_stage_absorbs_an_exception(
+@pytest.mark.parametrize('stage', list(_STAGE_FAULTS), ids=list(_STAGE_FAULTS))
+def test_every_stage_propagates_its_leaf_failure(
     scene: type[_SceneBackplane],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    patched: str,
+    capsys: pytest.CaptureFixture[str],
+    stage: str,
     raised: type[Exception],
 ) -> None:
-    """Whatever a stage raises, and wherever it raises it, the navigation fails.
+    """A failing leaf call leaves ``geometry_from_obs`` through its stage's handler.
 
-    No type is evidence of anything: oops declines with ValueError and
-    LookupError, and so does a defect inside oops, inside numpy, or here. A
-    stage that carried on would still produce an offset, and the document
-    written for it would say a navigation ran and concluded something -- which
-    no error filter selects and no later pass corrects.
+    Each stage wraps one leaf call -- the observation's extended-FOV shape,
+    the backplane's center resolution, the incidence angle, the ring radius,
+    the mask-box backplane's construction, the star-catalog query -- in a
+    handler that logs one line and re-raises.  The exception type is varied
+    because no type is evidence of a frame condition: oops raises ValueError
+    and LookupError when it cannot answer, and so does a defect.
 
     Parameters:
-        patched: Name of the module-level function made to raise.
-        raised: The exception it raises.
+        stage: The geometry stage whose leaf call raises.
+        raised: The exception type it raises.
     """
+    planter, log_line = _STAGE_FAULTS[stage]
+    fault = raised('the stage could not be evaluated')
     scene.sub_solar_offset_vu = (10.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None
-
-    def _raises(*args: Any, **kwargs: Any) -> Any:
-        raise raised('the stage could not be evaluated')
-
-    monkeypatch.setattr(geometry_module, patched, _raises)
-    obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    with pytest.raises(raised, match='the stage could not be evaluated'):
-        _geometry(obs, _titan_only_config(tmp_path))
+    entry = _inventory_entry((60.5, 60.5), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={}, obs_class=_PlantedExtfovObs)
+    planter(obs, scene, monkeypatch, fault)
+    with pytest.raises(raised, match='the stage could not be evaluated') as exc_info:
+        geometry_module.geometry_from_obs(
+            cast(Any, obs), _titan_only_config(tmp_path), inventory=entry, siblings=[]
+        )
+    assert f'{log_line}: {exc_info.value}' in capsys.readouterr().out
 
 
 def test_symmetry_axis_points_at_the_sub_solar_pixel(
@@ -766,7 +871,6 @@ def _install_star_catalog(monkeypatch: pytest.MonkeyPatch, stars: list[_FakeStar
         mag_max: float,
         radec_movement: Any = None,
     ) -> list[_FakeStar]:
-        del obs, config, catalog_name, radec_movement
         return [s for s in stars if mag_min <= s.vmag < mag_max]
 
     monkeypatch.setattr(geometry_module, 'stars_in_extfov', _fake_query)
@@ -814,7 +918,6 @@ def _record_star_queries(
         mag_max: float,
         radec_movement: Any = None,
     ) -> list[_FakeStar]:
-        del obs, config, radec_movement
         queried.append((catalog_name, mag_min, mag_max))
         return []
 
@@ -849,7 +952,7 @@ def test_star_mask_never_queries_ucac4(
 
 
 # ---------------------------------------------------------------------------
-# Never-raise behavior and emission
+# Answered conditions, defects, and emission
 # ---------------------------------------------------------------------------
 
 
@@ -858,45 +961,45 @@ class _BrokenObs(FakeObs):
 
     def inventory(self, body_list: list[str], *, return_type: str = 'full') -> Any:
         """Raise the way an unresolvable body does inside oops."""
-        del body_list, return_type
         raise ValueError('body not resolvable in this scene')
 
 
 def test_an_unresolvable_body_fails_the_image(tmp_path: Path) -> None:
-    """A frame whose geometry cannot be evaluated fails rather than emitting.
+    """``create_model`` propagates an inventory lookup that raises.
 
-    The orchestrator fails the image with ``status_reason=internal_error``,
-    naming the component that raised and the type it raised.  A zero-reliability
-    feature in its place would be removed by the gate without a record, and
-    would read downstream as a navigation that ran and concluded.
+    Nothing between the lookup and the caller absorbs the exception, so the
+    orchestrator can fail the image with ``status_reason=internal_error``
+    naming what raised.  A zero-reliability feature in its place would record
+    the frame as marginal when its geometry was never evaluated.
     """
     obs = _BrokenObs(data=np.zeros((120, 120)), extfov_margin_vu=(10, 10))
     model = NavModelTitan('titan:TITAN', cast(Any, obs), config=_titan_only_config(tmp_path))
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match='body not resolvable'):
         model.create_model()
-    assert 'body not resolvable' in str(exc_info.value)
 
 
-def _non_finite_geometry_feature(
+def _degenerate_geometry_feature(
     scene: type[_SceneBackplane],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     *,
     bbox_fill: float | None = None,
     radius_km: float | None = None,
+    range_km: float | None = None,
 ) -> Any:
-    """Emit the haze feature for a frame carrying a non-finite quantity.
+    """Emit the haze feature for a frame whose inventory or scale is degenerate.
 
-    ``bbox_fill`` poisons every inventory bounding-box coordinate;
-    ``radius_km`` poisons the registered body radius.  Either is a real
-    outcome of an unresolvable SPICE geometry.
+    ``bbox_fill`` poisons every inventory bounding-box coordinate,
+    ``radius_km`` replaces the registered body radius, and ``range_km``
+    replaces the inventory range.  Each is a real outcome of an unresolvable
+    SPICE geometry.
     """
     scene.sub_solar_offset_vu = (10.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None
     if radius_km is not None:
         monkeypatch.setattr(geometry_module, '_body_radius_km', lambda name: radius_km)
-    entry = _inventory_entry((60.5, 60.5), 26.0, 1.2e6)
+    entry = _inventory_entry((60.5, 60.5), 26.0, 1.2e6 if range_km is None else range_km)
     if bbox_fill is not None:
         for key in (
             'u_min_unclipped',
@@ -920,78 +1023,173 @@ def _non_finite_geometry_feature(
     return features[0]
 
 
-@pytest.mark.parametrize(
-    ('bbox_fill', 'radius_km'),
+_DEGENERATE_CASES = pytest.mark.parametrize(
+    ('bbox_fill', 'radius_km', 'range_km'),
     [
-        (float('nan'), None),
-        (float('inf'), None),
-        (None, float('nan')),
+        (float('nan'), None, None),
+        (float('inf'), None, None),
+        (None, float('nan'), None),
+        (None, 0.0, None),
+        (None, -1.0, None),
+        (None, None, float('nan')),
+        (None, None, float('inf')),
     ],
-    ids=['nan_bbox', 'inf_bbox', 'nan_radius'],
+    ids=[
+        'nan_bbox',
+        'inf_bbox',
+        'nan_radius',
+        'zero_radius',
+        'negative_radius',
+        'nan_range',
+        'inf_range',
+    ],
 )
-def test_non_finite_geometry_emits_rather_than_raising(
+"""The inventory and scale conditions the geometry answers with degenerate defaults."""
+
+
+@_DEGENERATE_CASES
+def test_degenerate_geometry_emits_rather_than_raising(
     scene: type[_SceneBackplane],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     bbox_fill: float | None,
     radius_km: float | None,
+    range_km: float | None,
 ) -> None:
-    """A non-finite inventory or body radius still produces a feature.
+    """A degenerate inventory, body radius or range still produces a feature.
 
-    A NaN that reaches ``NavFeature`` is rejected at construction, which
-    would surface as a raising ``to_features`` -- read by the orchestrator
-    as zero features, and so as an unattributable failure.
+    A NaN that reached ``NavFeature`` would be rejected at construction, and
+    the image would then fail with ``status_reason=internal_error`` for a
+    frame condition rather than a defect.
+
+    Parameters:
+        bbox_fill: Value planted in every bounding-box coordinate, if any.
+        radius_km: Registered body radius to plant, if any.
+        range_km: Inventory range to plant, if any.
     """
-    feature = _non_finite_geometry_feature(
-        scene, monkeypatch, tmp_path, bbox_fill=bbox_fill, radius_km=radius_km
+    feature = _degenerate_geometry_feature(
+        scene, monkeypatch, tmp_path, bbox_fill=bbox_fill, radius_km=radius_km, range_km=range_km
     )
     assert feature.feature_type is NavFeatureType.TITAN_LIMB
 
 
-@pytest.mark.parametrize(
-    ('bbox_fill', 'radius_km'),
-    [
-        (float('nan'), None),
-        (float('inf'), None),
-        (None, float('nan')),
-    ],
-    ids=['nan_bbox', 'inf_bbox', 'nan_radius'],
-)
-def test_non_finite_geometry_scores_zero_reliability(
+@_DEGENERATE_CASES
+def test_degenerate_geometry_scores_zero_reliability(
     scene: type[_SceneBackplane],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     bbox_fill: float | None,
     radius_km: float | None,
+    range_km: float | None,
 ) -> None:
-    """The feature emitted for a non-finite frame is hard-zeroed."""
-    feature = _non_finite_geometry_feature(
-        scene, monkeypatch, tmp_path, bbox_fill=bbox_fill, radius_km=radius_km
+    """The feature emitted for a degenerate frame is hard-zeroed.
+
+    Parameters:
+        bbox_fill: Value planted in every bounding-box coordinate, if any.
+        radius_km: Registered body radius to plant, if any.
+        range_km: Inventory range to plant, if any.
+    """
+    feature = _degenerate_geometry_feature(
+        scene, monkeypatch, tmp_path, bbox_fill=bbox_fill, radius_km=radius_km, range_km=range_km
     )
     assert feature.reliability == 0.0
 
 
-@pytest.mark.parametrize(
-    ('bbox_fill', 'radius_km'),
-    [
-        (float('nan'), None),
-        (float('inf'), None),
-        (None, float('nan')),
-    ],
-    ids=['nan_bbox', 'inf_bbox', 'nan_radius'],
-)
-def test_non_finite_geometry_marks_the_axis_degenerate(
+@_DEGENERATE_CASES
+def test_degenerate_geometry_marks_the_axis_degenerate(
     scene: type[_SceneBackplane],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     bbox_fill: float | None,
     radius_km: float | None,
+    range_km: float | None,
 ) -> None:
-    """The feature emitted for a non-finite frame declares no usable axis."""
-    feature = _non_finite_geometry_feature(
-        scene, monkeypatch, tmp_path, bbox_fill=bbox_fill, radius_km=radius_km
+    """The feature emitted for a degenerate frame declares no usable axis.
+
+    Parameters:
+        bbox_fill: Value planted in every bounding-box coordinate, if any.
+        radius_km: Registered body radius to plant, if any.
+        range_km: Inventory range to plant, if any.
+    """
+    feature = _degenerate_geometry_feature(
+        scene, monkeypatch, tmp_path, bbox_fill=bbox_fill, radius_km=radius_km, range_km=range_km
     )
     assert feature.geometry.axis_degenerate is True
+
+
+def test_negative_range_is_a_defect(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+    """A negative inventory range propagates rather than reading as unknown.
+
+    It would make every sibling and every ring intercept count as nearer than
+    the body, so it is a defect and not a frame condition.
+    """
+    scene.sub_solar_offset_vu = (10.0, 0.0)
+    scene.occluder_center_vu = None
+    scene.ring_radius_at_u = None
+    obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, -1.0), extra={})
+    with pytest.raises(ValueError, match='range is negative'):
+        _geometry(obs, _titan_only_config(tmp_path))
+
+
+_SUB_STRIDE_RADIUS_KM = 50.0
+"""A body radius that spans half a pixel at the scene's image scale."""
+
+
+def _all_masked_scene(scene: type[_SceneBackplane]) -> None:
+    """Configure the scene so that no sample intercepts the body's surface.
+
+    A negative body radius puts every sample off the body, so the incidence
+    backplane comes back fully masked.
+    """
+    scene.sub_solar_offset_vu = (10.0, 0.0)
+    scene.occluder_center_vu = None
+    scene.ring_radius_at_u = None
+    scene.titan_radius_px = -1.0
+
+
+def test_sub_stride_body_with_no_surface_intercept_keeps_its_radii(
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A body narrower than the sampling stride may miss every sample.
+
+    The box then holds no surface-intercept pixel, which is a frame condition
+    for such a body: the axis is degenerate and the radii stay as measured.
+    """
+    _all_masked_scene(scene)
+    monkeypatch.setattr(geometry_module, '_body_radius_km', lambda name: _SUB_STRIDE_RADIUS_KM)
+    obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
+    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    assert geometry.axis_degenerate is True
+    assert geometry.r_solid_px == pytest.approx(_SUB_STRIDE_RADIUS_KM * 26.0 / _TITAN_RADIUS_KM)
+
+
+def test_body_wider_than_the_stride_with_no_surface_intercept_is_a_defect(
+    scene: type[_SceneBackplane], tmp_path: Path
+) -> None:
+    """An envelope box that must contain the body cannot be empty."""
+    _all_masked_scene(scene)
+    obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
+    with pytest.raises(RuntimeError, match='must contain the body'):
+        _geometry(obs, _titan_only_config(tmp_path))
+
+
+def test_incidence_backplane_shape_mismatch_is_a_defect(
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A backplane evaluated over a different shape than its meshgrid raises."""
+    scene.sub_solar_offset_vu = (10.0, 0.0)
+    scene.occluder_center_vu = None
+    scene.ring_radius_at_u = None
+    original = scene.incidence_angle
+
+    def _truncated(self: _SceneBackplane, body_name: str) -> _Scalar:
+        scalar = original(self, body_name)
+        return _Scalar(scalar.vals[:-1], scalar.mask[:-1])
+
+    monkeypatch.setattr(scene, 'incidence_angle', _truncated)
+    obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
+    with pytest.raises(RuntimeError, match='does not match its meshgrid'):
+        _geometry(obs, _titan_only_config(tmp_path))
 
 
 def test_create_model_records_the_geometry(scene: type[_SceneBackplane], tmp_path: Path) -> None:
@@ -1016,19 +1214,6 @@ def test_create_model_logs_the_titan_section(
     model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
     model.create_model()
     assert 'TITAN MODEL' in capsys.readouterr().out
-
-
-def test_to_annotations_is_empty_for_unevaluated_geometry() -> None:
-    """A frame whose geometry never evaluated draws no overlay at all.
-
-    Its defaults are a zero-radius envelope at the frame origin; painting a
-    center mark there would claim a position the frame does not support. Read
-    off the geometry directly, since an observation that cannot answer now
-    fails the image rather than leaving a model standing with its defaults.
-
-    """
-    unevaluated = _inputs(r_env_px=0.0, theta_rad=0.0, axis_degenerate=True)
-    assert len(haze_overlay(unevaluated, sector_half_angle_deg=45.0).nonzero()[0]) == 0
 
 
 # ---------------------------------------------------------------------------

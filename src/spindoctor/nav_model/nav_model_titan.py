@@ -444,20 +444,19 @@ class NavModelTitan(NavModel):
 
     Renders the geometry a haze navigator needs -- disc center, sub-solar
     symmetry axis, solid and envelope radii, contaminant mask -- and emits
-    exactly one ``TITAN_LIMB`` feature whenever Titan is inside the extended
-    field of view.  Marginal frames are expressed as low or zero
-    reliability, not as a refusal to emit, so every outcome carries an
-    attributable record.
+    exactly one ``TITAN_LIMB`` feature for every frame with Titan inside the
+    extended field of view whose geometry evaluates.  Marginal frames are
+    expressed as low or zero reliability, not as a refusal to emit, so every
+    such outcome carries an attributable record.
 
-    Marginal is not the same as unevaluable.  The always-emit invariant covers
-    the frames this model can read and finds wanting -- a haze too small to
-    fit, a disc mostly occluded, an inventory box that is not finite.  A frame
-    whose geometry raises is not one of them: nothing is absorbed, the
+    Marginal frames are scored: a haze too small to fit, a disc mostly
+    occluded, and an inventory box that is not finite all emit a feature whose
+    reliability says so.  A frame whose geometry raises is not scored: the
     exception reaches the orchestrator, and the image fails with
     ``status_reason=internal_error`` naming what raised.  See "Which failures
     are answered and which propagate" in
-    :mod:`spindoctor.nav_model.titan_geometry` for why a zero-reliability
-    feature would be the worse record of the two.
+    :mod:`spindoctor.nav_model.titan_geometry` for the conditions that are
+    answered.
 
     Parameters:
         name: Model instance name (``'titan:TITAN'``).
@@ -565,12 +564,11 @@ class NavModelTitan(NavModel):
                 measured from pixels.
 
         Returns:
-            A one-element list, always.  Frame quality is carried by the
+            A one-element list; never empty.  Frame quality is carried by the
             feature's reliability -- exactly zero when the envelope cannot
             be fully framed, is too heavily occluded, or is too small --
             rather than by an empty list.
         """
-        del context
         feature = build_titan_feature(
             self.geometry_inputs, source_model=self.name, config=self._config
         )
@@ -605,7 +603,6 @@ class NavModelTitan(NavModel):
             empty collection when no part of the overlay lands inside the
             extended frame.
         """
-        del context
         geometry = self.geometry_inputs
         feature = build_titan_feature(geometry, source_model=self.name, config=self._config)
         gate = FeatureReliabilityGate.from_mapping(
