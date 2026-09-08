@@ -305,7 +305,9 @@ rather than something to plan around. The walk lists several directories at
 once, taking a bounded slice off a frontier each round so it still streams and
 still holds only part of the tree; retrieval fetches several documents at once,
 with a batch large enough to keep that pool full. A local root pays neither
-latency, and neither costs it anything.
+latency, so on a local directory the thread and batch settings have nothing to
+overlap and no useful effect; only the transaction size, which is about the
+index an ingest writes rather than the tree it reads, applies there too.
 
 **How much of it runs at once is not a property of this program.** It belongs
 to a machine, its link to the root, and what the service will do concurrently:

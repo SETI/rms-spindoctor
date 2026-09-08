@@ -3,7 +3,10 @@
 A pass over a cloud root is latency rather than bandwidth: a listing is one
 round trip, a document is another, and a navigation document is a few
 kilobytes.  So the walk lists several directories at once and retrieval fetches
-several documents at once, and this is how many of each.
+several documents at once, and this is how many of each.  A tree on a local
+directory pays no round trip for either, so there the thread and batch settings
+have no useful effect; only the transaction size, which is about the index an
+ingest writes rather than the tree it reads, applies to every storage.
 
 The useful values belong to a machine, its link to the root and what the
 service will do concurrently, not to this program, so they are configuration:

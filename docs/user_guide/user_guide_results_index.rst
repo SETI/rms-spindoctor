@@ -187,9 +187,15 @@ moving data or using the processor.
 
 Both halves therefore run several requests at a time, and the ``results_tree``
 configuration section is where you say how many. You do not need to set any of
-it: the defaults are chosen to be sensible, and a results tree on a local disk
-is barely affected by any of them, since a local read does not wait on a
-network.
+it: the defaults are chosen to be sensible.
+
+**If your results tree is a local directory, these settings do not apply to
+it.** A listing of a local directory and a read of a local file cost no round
+trip, so the thread and batch settings have nothing to overlap and no useful
+effect there; leave them at their defaults. The one exception is
+``ingest_commit_batches``, which is about the database transactions an ingest
+writes rather than about the tree, and so applies whichever storage the tree
+is on.
 
 .. code-block:: yaml
 
@@ -295,9 +301,10 @@ to make things worse.
 ``walk_threads``. The pass takes longer and leaves more of the connection for
 everything else.
 
-*A results tree on a local disk.* Leave them all alone. A local read does not
-wait on a network, so there is little for these settings to overlap, and the
-defaults cost a local pass nothing.
+*A results tree on a local directory.* Leave the thread and batch settings
+alone: they exist for remote storage and have nothing to do here. Only
+``ingest_commit_batches`` is worth a thought, and only for what an ingest that
+dies part way through should cost.
 
 How a results index is asked for
 ================================

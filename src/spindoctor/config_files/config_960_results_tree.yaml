@@ -7,13 +7,18 @@
 # listing is one request and a document is another -- so both halves run several
 # requests at a time, and these say how many.
 #
+# These settings are for a tree on remote storage.  A tree on a local directory
+# pays no round trip for a listing or a read, so the thread and batch settings
+# have no useful effect there and are best left alone; only
+# ingest_commit_batches, which is about the database transactions an ingest
+# writes rather than about the tree, applies to a local tree as well.
+#
 # The useful values belong to a machine, its network and its storage service,
 # not to the program.  The ones below were tuned on one machine against one
-# cloud bucket; a different link, a different provider, or a local disk wants
-# different ones.  A local tree is barely affected by any of them.  Change them
-# here, or override them in a configuration file named with --config-file.  The
-# results-index chapter of the user guide says what each one costs and when to
-# change it.
+# cloud bucket; a different link or a different provider wants different ones.
+# Change them here, or override them in a configuration file named with
+# --config-file.  The results-index chapter of the user guide says what each one
+# costs and when to change it.
 results_tree:
   # How many directories are listed at the same time.
   walk_threads: 32
