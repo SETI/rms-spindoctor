@@ -21,7 +21,8 @@ from its best-fit straight line.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -82,7 +83,7 @@ mostly made of: measured on a 1.47 Mpx Cassini frame (2026-09-05), one
 ``where_in_front`` 0.91 GB, against final arrays of 12 MB apiece -- roughly a
 kilobyte of transient per pixel per call. The cost therefore scales with the
 extended frame, which the per-instrument search margin sets: Voyager's 400-pixel
-margin on a 1000-pixel detector gives a 1800x1800 frame, 2.2 times Cassini's,
+margin on a 1000-pixel image gives a 1800x1800 frame, 2.2 times Cassini's,
 and Voyager frames measured up to 26 GB against Cassini's 9.9.
 
 A backplane is a per-pixel function of the ray through that pixel, so evaluating
@@ -94,8 +95,16 @@ because the arithmetic is grouped differently, not because the answer changed.
 Striping bounds the transient by the strip rather than by the frame, at the cost
 of one meshgrid and one Backplane per strip.
 
-128 rows keeps the transient near a tenth of a gigabyte on every supported
-instrument while leaving the per-strip fixed cost small against the work.
+128 rows keeps the transient to about a quarter of a gigabyte on the widest
+frame while leaving the per-strip fixed cost small against the work.
+
+Not everything is striped. The ring radius, the ring radial resolution and the
+``border_atop`` and ``radial_mode`` backplanes are still evaluated over the
+whole extended frame through ``obs.ext_bp``: the ring model renders from the
+whole-frame radius array, and the edge backplanes are derived inside ``oops``
+from that cached array. The ring model's transient floor is therefore still set
+by those calls, and striping bounds only the three quantities named here -- the
+ring-plane distance, the planet shadow and the planet's occlusion of the rings.
 """
 
 SPARSE_VISIBILITY_GRID_SIZE: int = 16
@@ -207,6 +216,25 @@ def _require_positive_finite_planet_scalar(
     if v <= 0.0:
         raise ValueError(f'Invalid {key} {v} for planet {planet}')
     return v
+
+
+@dataclass(frozen=True)
+class _StripQuantity:
+    """One whole-frame backplane quantity, as ``_striped_backplanes`` evaluates it.
+
+    Parameters:
+        evaluate: Called with a strip's :class:`~oops.backplane.Backplane` and
+            returning the quantity over that strip.
+        fill: Value substituted where the strip's result is masked.
+        dtype: Element type of the assembled array.
+        failure: What the quantity is called in the one-line error logged when
+            its evaluation raises, e.g. ``'Planet shadow for SATURN'``.
+    """
+
+    evaluate: Callable[[Backplane], Any]
+    fill: Any
+    dtype: Any
+    failure: str
 
 
 class NavModelRings(NavModelRingsBase):
@@ -496,27 +524,28 @@ class NavModelRings(NavModelRingsBase):
         for feat in surviving:
             all_edge_radii.extend(feat.all_base_radii())
         all_edge_radii.sort(key=lambda x: x[0])
-        distance_arr = self._striped_backplane(
-            lambda bp: bp.distance(ring_target, direction='dep'), math.inf, np.float64
-        )
-        # Subject range — closest visible ring radius
-        if np.any(np.isfinite(distance_arr)):
-            self._subject_range_km = float(distance_arr[np.isfinite(distance_arr)].min())
-        else:
-            self._subject_range_km = float('inf')
-
-        shadow_mask: NDArrayBoolType | None = None
-        if rings_config.get('remove_planet_shadow', False):
-            try:
-                shadow_mask = self._striped_backplane(
-                    lambda bp: bp.where_inside_shadow(ring_target, planet.lower()), False, bool
+        # The whole-frame backplanes are evaluated together, a strip of rows at
+        # a time, so each strip's ring-plane intercept is solved once for all
+        # of them.  A failure in any one fails the image: the helper logs one
+        # line naming the quantity, and the orchestrator logs the traceback.
+        quantities = [
+            _StripQuantity(
+                evaluate=lambda bp: bp.distance(ring_target, direction='dep'),
+                fill=math.inf,
+                dtype=np.float64,
+                failure=f'Ring-plane distance for {planet}',
+            )
+        ]
+        remove_planet_shadow = bool(rings_config.get('remove_planet_shadow', False))
+        if remove_planet_shadow:
+            quantities.append(
+                _StripQuantity(
+                    evaluate=lambda bp: bp.where_inside_shadow(ring_target, planet.lower()),
+                    fill=False,
+                    dtype=bool,
+                    failure=f'Planet shadow for {planet}',
                 )
-            except Exception as exc:
-                # One line here; the orchestrator logs the traceback when it
-                # fails the image.
-                self._logger.error('Planet shadow for %s could not be evaluated: %s', planet, exc)
-                raise
-
+            )
         # Ring points hidden behind the planet globe enter neither the emitted
         # ring-edge features nor the summary overlay.  ``where_in_front(planet,
         # ring)`` is True at every ext-FOV pixel where the planet body is
@@ -528,16 +557,27 @@ class NavModelRings(NavModelRingsBase):
         # planet.  A backplane failure fails the image: an edge painted across
         # the planet is a model that says the rings are somewhere they are not,
         # which navigates to a wrong offset rather than to none.
-        self._ring_occluded_ext = None
-        try:
-            self._ring_occluded_ext = self._striped_backplane(
-                lambda bp: bp.where_in_front(planet.lower(), ring_target), False, bool
+        quantities.append(
+            _StripQuantity(
+                evaluate=lambda bp: bp.where_in_front(planet.lower(), ring_target),
+                fill=False,
+                dtype=bool,
+                failure=f'Planet occlusion of rings for {planet}',
             )
-        except Exception as exc:
-            self._logger.error(
-                'Planet occlusion of rings for %s could not be evaluated: %s', planet, exc
-            )
-            raise
+        )
+        assembled = self._striped_backplanes(quantities)
+        # Each array already has the dtype it was asked for; ``asarray`` with
+        # that dtype returns it unchanged and only names the type here.
+        distance_arr: NDArrayFloatType = np.asarray(assembled[0], dtype=np.float64)
+        shadow_mask: NDArrayBoolType | None = None
+        if remove_planet_shadow:
+            shadow_mask = np.asarray(assembled[1], dtype=bool)
+        self._ring_occluded_ext = np.asarray(assembled[-1], dtype=bool)
+        # Subject range -- closest visible ring radius
+        if np.any(np.isfinite(distance_arr)):
+            self._subject_range_km = float(distance_arr[np.isfinite(distance_arr)].min())
+        else:
+            self._subject_range_km = float('inf')
 
         render_context = RingsRenderContext(
             obs=obs,
@@ -581,32 +621,40 @@ class NavModelRings(NavModelRingsBase):
             {'name': f.name, 'type': f.feature_type.value} for f in surviving
         ]
 
-    def _striped_backplane(
-        self,
-        evaluate: Callable[[Backplane], Any],
-        fill: Any,
-        dtype: Any,
-    ) -> np.ndarray:
-        """Evaluate one whole-frame backplane a strip of rows at a time.
+    def _striped_backplanes(
+        self, quantities: Sequence[_StripQuantity]
+    ) -> list[np.ndarray[Any, np.dtype[Any]]]:
+        """Evaluate whole-frame backplane quantities a strip of rows at a time.
 
-        The array returned is the one a single whole-frame evaluation returns.
-        What differs is the peak memory: ``oops`` materializes its intermediates
-        over the meshgrid it is given, so a frame-sized meshgrid costs
-        frame-sized intermediates, and a strip-sized one costs strip-sized
-        intermediates. See :data:`BACKPLANE_STRIP_ROWS`.
+        The array returned per quantity is the one a single whole-frame
+        evaluation of it returns. What differs is the peak memory: ``oops``
+        materializes its intermediates over the meshgrid it is given, so a
+        frame-sized meshgrid costs frame-sized intermediates, and a strip-sized
+        one costs strip-sized intermediates. See :data:`BACKPLANE_STRIP_ROWS`.
+
+        One backplane per strip answers every quantity, so the surface
+        intercept the backplane caches is solved once per strip rather than
+        once per strip per quantity, and the strip's fixed cost -- the
+        meshgrid, the backplane, the release afterwards -- is paid once.
 
         Parameters:
-            evaluate: Called with the strip's :class:`~oops.backplane.Backplane`
-                and returning the quantity for that strip.
-            fill: Value substituted where the strip's result is masked.
-            dtype: Element type of the assembled array.
+            quantities: What to evaluate on each strip's backplane, in the
+                order the arrays are wanted back.
 
         Returns:
-            The extended-frame array, row-major, of ``dtype``.
+            One extended-frame array per quantity, row-major and of that
+            quantity's ``dtype``, in the order given.
+
+        Raises:
+            Exception: Whatever a quantity's evaluation raised, after one line
+                naming the quantity by its ``failure`` text has been logged;
+                the orchestrator logs the traceback when it fails the image.
         """
         obs = self.obs
         rows, cols = obs.extdata_shape_vu
-        out = np.empty((rows, cols), dtype=dtype)
+        assembled: list[np.ndarray[Any, np.dtype[Any]]] = [
+            np.empty((rows, cols), dtype=quantity.dtype) for quantity in quantities
+        ]
         v_min = obs.extfov_v_min
         for start in range(0, rows, BACKPLANE_STRIP_ROWS):
             stop = min(start + BACKPLANE_STRIP_ROWS, rows)
@@ -616,11 +664,22 @@ class NavModelRings(NavModelRingsBase):
                 limit=(obs.extfov_u_max + 0.5, v_min + stop - 1 + 0.5),
                 swap=True,
             )
-            strip = evaluate(Backplane(obs, meshgrid=meshgrid))
-            out[start:stop, :] = np.asarray(strip.mvals.filled(fill), dtype=dtype)
-            del strip, meshgrid
+            backplane = Backplane(obs, meshgrid=meshgrid)
+            for quantity, out in zip(quantities, assembled, strict=True):
+                try:
+                    strip = quantity.evaluate(backplane)
+                except Exception as exc:
+                    self._logger.error('%s could not be evaluated: %s', quantity.failure, exc)
+                    raise
+                out[start:stop, :] = np.asarray(
+                    strip.mvals.filled(quantity.fill), dtype=quantity.dtype
+                )
+                del strip
+            # The meshgrid is the other half of the strip and has to go with
+            # it: bound to a name, it would outlive the release.
+            del backplane, meshgrid
             release_transient_memory()
-        return out
+        return assembled
 
     def _sparse_visibility_skip(self, ring_target: str, max_feature_extent: float) -> bool:
         """Decide whether a sparse 16x16 ring-radius backplane rules out the dense path.
