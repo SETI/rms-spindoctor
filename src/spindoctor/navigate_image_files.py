@@ -374,7 +374,7 @@ def navigate_image_files(
 
 
 def _metadata_for_load_error(
-    image_path: Path | FCPath,
+    image_path: FCPath,
     image_name: str,
     exc: BaseException,
     *,
@@ -410,7 +410,7 @@ def _metadata_for_load_error(
 
 
 def _metadata_for_internal_error(
-    image_path: Path | FCPath,
+    image_path: FCPath,
     image_name: str,
     exc: Exception,
     *,
@@ -456,7 +456,7 @@ def _metadata_for_internal_error(
 
 
 def _error_metadata(
-    image_path: Path | FCPath,
+    image_path: FCPath,
     image_name: str,
     *,
     status_error: str,
@@ -500,7 +500,7 @@ def _error_metadata(
 
 def build_metadata_from_result(
     result: NavResult,
-    image_path: Path | FCPath,
+    image_path: str | Path | FCPath,
     image_name: str,
     *,
     instrument: str,
@@ -517,8 +517,9 @@ def build_metadata_from_result(
     Parameters:
         result: NavResult to curate.
         image_path: Where the run read the source image from, its URL for
-            remote holdings or its absolute path for local ones; written to
-            the ``observation.image_path`` field.
+            remote holdings or its absolute path for local ones, as a string,
+            a ``Path`` or an ``FCPath``; written to the ``observation.image_path``
+            field.
         image_name: Basename of the source image; written to the
             ``observation.image_name`` field.
         instrument: Registered instrument name for the observation class
@@ -537,8 +538,9 @@ def build_metadata_from_result(
             written to the top-level ``timing`` field.  None omits the
             field.
     """
+    location = FCPath(image_path)
     observation: dict[str, Any] = {
-        'image_path': image_path.as_posix(),
+        'image_path': location.as_posix(),
         'image_name': image_name,
         'instrument': instrument,
     }

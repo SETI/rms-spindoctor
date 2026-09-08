@@ -484,7 +484,9 @@ def test_load_error_example_matches_writer_structure(tmp_path: Path) -> None:
 def test_internal_error_example_matches_writer_structure(tmp_path: Path) -> None:
     """The internal-error example's key structure equals real driver output."""
     example = _example_json_blocks()[3]
-    assert _key_structure(example) == _key_structure(_driver_internal_error_document(tmp_path))
+    document = _driver_internal_error_document(tmp_path)
+    assert document['status_error'] == 'internal_error'
+    assert _key_structure(example) == _key_structure(document)
 
 
 def test_early_return_example_matches_writer_structure(tmp_path: Path) -> None:
