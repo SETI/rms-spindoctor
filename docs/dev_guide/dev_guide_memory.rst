@@ -144,9 +144,8 @@ transform-free evaluation of the same sums.
 Declining early
 ===============
 
-The cheapest backplane is the one never built.
-:func:`~spindoctor.nav_model.nav_model_rings.NavModelRings._sparse_visibility_skip`
-is the idea for the rings: a 16 x 16 evaluation rules out the two common cases
--- no ring-plane intersection anywhere in the frame, and a visible radial range
+The cheapest backplane is the one never built. The ring model tries a sparse
+pre-check first: a 16 x 16 evaluation rules out the two common cases -- no
+ring-plane intersection anywhere in the frame, and a visible radial range
 entirely outside the catalogue's outermost feature -- without paying for a dense
 backplane.

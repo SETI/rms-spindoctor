@@ -549,8 +549,9 @@ asserts the generated half matches the registries.
   handed. The wide-margin instruments are therefore the expensive ones: a
   Voyager frame extends to 3.24 Mpx against a 1000x1000 detector. Bounding
   Titan's two backplane boxes, striping the ring and Titan backplanes,
-  releasing each strip's memory back to the operating system, and holding
-  fewer correlation spectra at once are the mechanisms; the body model's
+  collecting each strip's transient memory and returning the freed arenas to
+  the operating system where the C library can, and holding fewer correlation
+  spectra at once are the mechanisms; the body model's
   share follows separately. Striping alone bought nothing measurable until
   the release was added, because oops intermediates live in reference cycles
   and glibc retains freed arenas, so a striped pass grew by the sum of its
