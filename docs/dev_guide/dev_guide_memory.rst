@@ -67,8 +67,12 @@ strips rather than by the largest of them -- which is the quantity striping exis
 to reduce. A striped pass that does not release is a pass whose striping cannot be
 observed from outside.
 
-:func:`~spindoctor.support.memory.release_transient_memory` does both halves.
-Measured over one striped ring pass on a Voyager Saturn frame:
+:func:`~spindoctor.support.memory.release_transient_memory` collects the cycles
+and, where the C library exposes ``malloc_trim``, returns the freed arenas too.
+Where it does not, the collection still runs, which is the larger of the two
+effects, and the resident size falls when the allocator next reuses the space
+rather than at once. Measured over one striped ring pass on a Voyager Saturn
+frame, with both halves available:
 
 .. list-table::
    :header-rows: 1

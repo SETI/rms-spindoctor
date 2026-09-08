@@ -936,7 +936,11 @@ def test_degenerate_axis_guard_scales_with_the_stride(
     config = _titan_only_config(tmp_path)
     obs = _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0)
     _geometry(obs, config)
-    scene.sub_solar_offset_vu = (2.0 * calls[0].stride, 0.0)
+    stride = calls[0].stride
+    # Without a stride above one the planted arm would clear the unstrided
+    # guard on its own and the test would pass without testing anything.
+    assert stride > 1
+    scene.sub_solar_offset_vu = (2.0 * stride, 0.0)
     geometry = _geometry(obs, config)
     assert geometry.axis_degenerate is True
 
