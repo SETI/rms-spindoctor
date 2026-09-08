@@ -15,8 +15,9 @@ provenance or context construction in the orchestrator, the corrected-pointing
 computation, the summary PNG, or a defect anywhere in between.  A failure the
 orchestrator classifies is a ``failed`` document with the reason in
 ``status_reason``; one that raises past it is an ``error`` document with
-``status_error`` ``internal_error`` and the exception in ``status_exception``,
-which the error selection filters pick up on a rerun.  A fault before the
+``status_error`` ``internal_error``, the exception in ``status_exception`` and
+its traceback in ``status_traceback``, which the error selection filters pick
+up on a rerun.  A fault before the
 image's own log section opens is recorded from the run's log and names the
 image by its URL.  Only an interrupt stops the run.
 
@@ -30,6 +31,7 @@ earlier products in place.
 from __future__ import annotations
 
 import sys
+import traceback
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -191,8 +193,9 @@ def navigate_image_files(
         Tuple ``(success, metadata)`` where ``success`` is True for a
         ``success`` ``NavResult.status`` and False otherwise.  ``metadata``
         is the curated JSON-friendly dict, or an error document (``status``
-        ``'error'`` with ``status_error`` and ``status_exception``) when the
-        image could not be loaded or navigating it raised.
+        ``'error'`` with ``status_error``, ``status_exception`` and
+        ``status_traceback``) when the image could not be loaded or navigating
+        it raised.
     """
     logger = IMAGE_LOGGER
     run_start = datetime.now(UTC)
@@ -403,6 +406,7 @@ def _metadata_for_load_error(
         image_name,
         status_error=status_error,
         status_exception=message,
+        status_traceback=_traceback_text(exc),
         instrument=instrument,
         camera=camera,
         timing=timing,
@@ -441,18 +445,36 @@ def _metadata_for_internal_error(
     Returns:
         A dict with ``status`` ``'error'``, ``status_error`` ``'internal_error'``,
         ``status_exception`` naming the exception's type and text as
-        ``'RuntimeError: message'``, an ``observation`` block with the image path,
-        image name, instrument and (when given) camera, and the ``timing`` section.
+        ``'RuntimeError: message'``, ``status_traceback`` carrying its traceback,
+        an ``observation`` block with the image path, image name, instrument and
+        (when given) camera, and the ``timing`` section.
     """
     return _error_metadata(
         image_path,
         image_name,
         status_error='internal_error',
         status_exception=f'{type(exc).__name__}: {exc}',
+        status_traceback=_traceback_text(exc),
         instrument=instrument,
         camera=camera,
         timing=timing,
     )
+
+
+def _traceback_text(exc: BaseException) -> str:
+    """Format an exception's traceback the way the document records it.
+
+    The text is the interpreter's own rendering, so a chained exception
+    brings the chain with it and the reader of the document sees exactly
+    what the log shows.
+
+    Parameters:
+        exc: The exception that failed the image.
+
+    Returns:
+        The traceback as a single string, without a trailing newline.
+    """
+    return ''.join(traceback.format_exception(exc)).rstrip('\n')
 
 
 def _error_metadata(
@@ -461,6 +483,7 @@ def _error_metadata(
     *,
     status_error: str,
     status_exception: str,
+    status_traceback: str,
     instrument: str,
     camera: str | None,
     timing: dict[str, Any],
@@ -473,14 +496,16 @@ def _error_metadata(
         image_name: Basename of the source image.
         status_error: Machine-readable classification of what went wrong.
         status_exception: The failure's text, for an operator reading the document.
+        status_traceback: The failure's traceback, from :func:`_traceback_text`.
         instrument: Registered instrument name for the observation class.
         camera: The camera that took the image, or ``None`` to omit the field.
         timing: Run-timing section from :func:`build_timing_section`.
 
     Returns:
-        A dict with ``status`` ``'error'``, the ``status_error`` and
-        ``status_exception`` given, an ``observation`` block with the image path,
-        image name, instrument and (when given) camera, and the ``timing`` section.
+        A dict with ``status`` ``'error'``, the ``status_error``,
+        ``status_exception`` and ``status_traceback`` given, an ``observation``
+        block with the image path, image name, instrument and (when given)
+        camera, and the ``timing`` section.
     """
     observation: dict[str, Any] = {
         'image_path': image_path.as_posix(),
@@ -493,6 +518,7 @@ def _error_metadata(
         'status': 'error',
         'status_error': status_error,
         'status_exception': status_exception,
+        'status_traceback': status_traceback,
         'observation': observation,
         'timing': timing,
     }

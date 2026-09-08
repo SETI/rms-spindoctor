@@ -47,7 +47,7 @@ Pre-navigation errors (top-level ``status_error``)
 
 These documents have ``status`` ``error`` and no ``navigation_result``; the
 classification is the top-level ``status_error`` and the evidence is
-``status_exception``.
+``status_exception`` with the traceback in ``status_traceback``.
 
 ``missing_spice_data``
     The load raised a SPICE coverage error (``CKINSUFFDATA``,
@@ -68,8 +68,8 @@ classification is the top-level ``status_error`` and the evidence is
     into a result: in provenance or context construction, the
     corrected-pointing computation, the summary PNG, or a defect anywhere
     between. ``status_exception`` carries the exception type and message and
-    the per-image log carries the traceback; the run goes on to the next
-    image. A model or technique that raised is recorded instead as
+    ``status_traceback`` carries the traceback, which the per-image log
+    repeats; the run goes on to the next image. A model or technique that raised is recorded instead as
     ``status_reason`` ``internal_error`` on a ``failed`` document, with the
     component named in its ``internal_error`` block.
 

@@ -373,6 +373,7 @@ def test_navigate_image_files_image_load_failure_records_status(tmp_path: Path) 
     assert metadata['status'] == 'error'
     assert metadata['status_error'] == 'image_read_error'
     assert 'cannot read fixture image' in metadata['status_exception']
+    assert metadata['status_traceback'].startswith('Traceback (most recent call last):')
     assert metadata['observation']['instrument'] == 'unknown'
     # The image never loaded, so no shape is recorded; timing still is.
     assert 'image_shape' not in metadata['observation']
@@ -436,6 +437,10 @@ def test_navigate_image_files_public_metadata_fault_is_the_image_error_document(
     assert metadata['status'] == 'error'
     assert metadata['status_error'] == 'internal_error'
     assert metadata['status_exception'] == 'RuntimeError: no label'
+    # The document carries the traceback too, so the failure can be diagnosed
+    # from the results tree without the per-image log beside it.
+    assert 'get_public_metadata' in metadata['status_traceback']
+    assert metadata['status_traceback'].endswith('RuntimeError: no label')
     document = results_root / 'fake_image_metadata.json'
     assert json.loads(document.read_text()) == metadata
     assert not (results_root / 'fake_image_summary.png').exists()

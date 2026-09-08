@@ -261,6 +261,23 @@ whose ``status_error`` reads ``missing_spice_data`` has to carry a message that
 says so.
 """
 
+_LOAD_ERROR_TRACEBACK = (
+    'Traceback (most recent call last):\n'
+    '  File "spindoctor/navigate_image_files.py", line 267, in navigate_image_files\n'
+    '    snapshot = obs_class.from_file(image_url, **extra_params)\n'
+    '  File "spindoctor/obs/obs_cassini_iss.py", line 141, in from_file\n'
+    '    return cls(iss.from_file(local_path, fast_distortion=True))\n'
+    f'RuntimeError: {_LOAD_ERROR_MESSAGE}'
+)
+"""The traceback the stored document carries, in place of the built one.
+
+A real traceback names the absolute source paths of the machine that raised it
+and the line numbers of the moment it did, neither of which a stored document
+can hold: the tree would differ on every checkout and after every edit above
+the raising line.  This one is shaped exactly as the writer's, so what the tree
+holds is still what a reader of a failed image's document sees.
+"""
+
 
 @contextlib.contextmanager
 def _load_always_failing(message: str) -> Iterator[None]:
@@ -310,7 +327,8 @@ def cassini_load_error() -> dict[str, Any]:
     survives, since the dataset index named it without opening the image.
 
     Returns:
-        The document, with its wall-clock timing replaced by a fixed one.
+        The document, with its wall-clock timing and its traceback replaced by
+        fixed ones.
     """
     image_path = Path('/holdings') / _LOAD_ERROR_IMAGE_NAME
     with TemporaryDirectory() as scratch, _load_always_failing(_LOAD_ERROR_MESSAGE):
@@ -334,6 +352,7 @@ def cassini_load_error() -> dict[str, Any]:
     # The driver stamps the moments it ran at, which a stored document cannot
     # hold.  Rebuilt through the writer's own section builder from fixed ones.
     document['timing'] = build_timing_section(start, start + timedelta(seconds=1.5))
+    document['status_traceback'] = _LOAD_ERROR_TRACEBACK
     return document
 
 

@@ -84,17 +84,19 @@ pipeline carried it:
 **Load error**
     The image file could not be read, or SPICE coverage was missing for its
     epoch, so no observation ever existed. ``status`` is ``error``,
-    ``status_error`` says which kind, and there is no ``navigation_result``.
-    The ``observation`` block is limited to what the dataset index supplied
-    without opening the image.
+    ``status_error`` says which kind, ``status_exception`` and
+    ``status_traceback`` carry the failure, and there is no
+    ``navigation_result``. The ``observation`` block is limited to what the
+    dataset index supplied without opening the image.
 
 **Internal error**
     Navigating the image raised an exception the orchestrator does not turn
     into a result, or the run faulted before the image's own log section
     opened. Same keys as the load-error shape, with ``status_error``
-    ``internal_error`` and the exception's type and message in
-    ``status_exception``; the ``observation`` block is what the dataset index
-    supplied, since the observation is not consulted once it has raised.
+    ``internal_error``, the exception's type and message in
+    ``status_exception`` and its traceback in ``status_traceback``; the
+    ``observation`` block is what the dataset index supplied, since the
+    observation is not consulted once it has raised.
 
 **Early return**
     The driver refused the request before reaching the image: the batch did
@@ -130,6 +132,14 @@ Top-level keys
      - string
      - error shapes
      - The stringified exception or refusal message. Free text, for humans.
+   * - ``status_traceback``
+     - string
+     - load error, internal error
+     - The traceback of the exception named in ``status_exception``, as the
+       interpreter renders it, newlines and all. A chained exception brings
+       its chain with it. Present on the two error shapes written to disk, so
+       a failure can be diagnosed from the document alone; absent from the
+       early-return shapes, which refuse a request rather than fail on one.
    * - ``observation``
      - object
      - all
@@ -181,8 +191,9 @@ The ``status_error`` vocabulary
        turn into a result: in provenance or context construction, the
        corrected-pointing computation, the summary PNG, or a defect anywhere
        between, or before the image's own log section opened.
-       ``status_exception`` carries the exception type and message, the log
-       carries the traceback, and the run goes on to the next image. The
+       ``status_exception`` carries the exception type and message,
+       ``status_traceback`` carries the traceback, and the run goes on to the
+       next image. The
        summary PNG is not written, except when the fault arose in the document
        write itself, after the PNG. A model or technique that
        raised is recorded differently, as ``status_reason`` ``internal_error``
@@ -1202,7 +1213,8 @@ A Cassini frame whose epoch falls in a C-kernel coverage gap. The image was
 never opened, so there is no ``navigation_result``, no ``image_shape`` and no
 epoch anywhere -- an epoch is the observation's midtime, and no observation was
 built. ``camera`` comes from the dataset index, which needs no SPICE. The
-exception text is shortened here; the real file carries the full SPICE message.
+exception text and its traceback are shortened here; the real file carries the
+full SPICE message and every frame of the traceback.
 
 .. code-block:: json
 
@@ -1210,6 +1222,7 @@ exception text is shortened here; the real file carries the full SPICE message.
       "status": "error",
       "status_error": "missing_spice_data",
       "status_exception": "SPICE(NOFRAMECONNECT) -- sxform -- At epoch 2.2130942680406E+08 TDB (2007 JAN 05 22:50:26.804 TDB), there is insufficient information available to transform from reference frame 1 (J2000) to reference frame -82360 (CASSINI_ISS_NAC).",
+      "status_traceback": "Traceback (most recent call last):\n  File \"spindoctor/navigate_image_files.py\", line 268, in navigate_image_files\n    snapshot_inst = obs_class.from_file(image_url, extra_params=extra_params)\n  File \"spindoctor/obs/obs_cassini_iss.py\", line 141, in from_file\n    return cls(oops.hosts.cassini.iss.from_file(local_path))\nspiceypy.utils.exceptions.NotFoundError: SPICE(NOFRAMECONNECT) -- sxform -- ...",
       "observation": {
         "image_path": "/holdings/calibrated/COISS_2xxx/COISS_2028/data/1546716727_1546797712/N1546730528_4_CALIB.IMG",
         "image_name": "N1546730528_4_CALIB.IMG",
@@ -1229,9 +1242,9 @@ Internal error
 A Cassini frame that loaded and then raised outside the orchestrator's own
 handling, here while the summary PNG was being captioned. Same keys as the
 load-error shape; ``camera`` comes from the dataset index, since the
-observation is not consulted once it has raised, and ``status_exception``
-names the exception type and message. The per-image log carries the
-traceback.
+observation is not consulted once it has raised, ``status_exception``
+names the exception type and message, and ``status_traceback`` carries the
+traceback, shortened here.
 
 .. code-block:: json
 
@@ -1239,6 +1252,7 @@ traceback.
       "status": "error",
       "status_error": "internal_error",
       "status_exception": "ValueError: summary PNG: exposure_time is not a number: None",
+      "status_traceback": "Traceback (most recent call last):\n  File \"spindoctor/navigate_image_files.py\", line 303, in navigate_image_files\n    write_summary_png(snapshot_inst, nav_result, summary_png_file, logger)\n  File \"spindoctor/navigate_image_files.py\", line 612, in write_summary_png\n    caption = _caption_lines(obs.get_public_metadata())\nValueError: summary PNG: exposure_time is not a number: None",
       "observation": {
         "image_path": "/holdings/calibrated/COISS_2xxx/COISS_2028/data/1546716727_1546797712/N1546730528_4_CALIB.IMG",
         "image_name": "N1546730528_4_CALIB.IMG",

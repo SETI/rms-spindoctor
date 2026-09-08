@@ -2,6 +2,7 @@
   "status": "error",
   "status_error": "missing_spice_data",
   "status_exception": "SPICE(SPKINSUFFDATA) -- Insufficient ephemeris data has been loaded to compute the state of body -82 relative to body 699 at the ephemeris epoch 2005 MAY 22 02:26:36.000.",
+  "status_traceback": "Traceback (most recent call last):\n  File \"spindoctor/navigate_image_files.py\", line 267, in navigate_image_files\n    snapshot = obs_class.from_file(image_url, **extra_params)\n  File \"spindoctor/obs/obs_cassini_iss.py\", line 141, in from_file\n    return cls(iss.from_file(local_path, fast_distortion=True))\nRuntimeError: SPICE(SPKINSUFFDATA) -- Insufficient ephemeris data has been loaded to compute the state of body -82 relative to body 699 at the ephemeris epoch 2005 MAY 22 02:26:36.000.",
   "observation": {
     "image_path": "/holdings/N1294563000_1_CALIB.IMG",
     "image_name": "N1294563000_1_CALIB.IMG",
