@@ -33,6 +33,12 @@ def _recording_tree_source(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
         """A tree source that notes what it was built with."""
 
         def __init__(self, roots: Any, **kwargs: Any) -> None:
+            """Note the tuning, then build the real source.
+
+            Parameters:
+                roots: The results roots the opener names.
+                kwargs: Everything else the opener passes, the tuning among it.
+            """
             handed.append(kwargs.get('tuning'))
             super().__init__(roots, **kwargs)
 

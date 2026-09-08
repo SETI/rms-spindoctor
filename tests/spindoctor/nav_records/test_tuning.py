@@ -5,7 +5,7 @@ configuration section becomes one, and what the shipped section says, is tested
 beside the configuration helper that does it.
 """
 
-from dataclasses import fields
+from dataclasses import FrozenInstanceError, fields
 from typing import Any
 
 import pytest
@@ -85,5 +85,7 @@ def test_a_larger_batch_carries_the_chunk_with_it(batch: int) -> None:
 def test_a_tuning_cannot_be_changed_once_built() -> None:
     """It is passed down through every layer of a pass, and none of them may edit it."""
     tuning = TreeTuning()
-    with pytest.raises(AttributeError, match='walk_threads'):
+    with pytest.raises(FrozenInstanceError, match="cannot assign to field 'walk_threads'"):
+        # The assignment is the thing under test, so the type checker's
+        # objection to it is the expected one.
         tuning.walk_threads = 1  # type: ignore[misc]

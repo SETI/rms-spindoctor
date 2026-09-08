@@ -1111,6 +1111,12 @@ def test_the_report_reads_the_tree_at_the_tuning_the_configuration_names(
         """A source that notes the tuning it was built with."""
 
         def __init__(self, roots: Any, **kwargs: Any) -> None:
+            """Note the tuning, then build the real source.
+
+            Parameters:
+                roots: The results roots the report names.
+                kwargs: Everything else the report passes, the tuning among it.
+            """
             handed.append(kwargs.get('tuning'))
             super().__init__(roots, **kwargs)
 

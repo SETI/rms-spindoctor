@@ -1178,6 +1178,12 @@ def test_the_enumeration_hands_the_filter_the_tuning_the_configuration_names(
         """A filter that notes the tuning it was handed."""
 
         def __init__(self, *args: Any, **kwargs: Any) -> None:
+            """Note the tuning, then build the real filter.
+
+            Parameters:
+                args: The positional arguments the enumeration passes.
+                kwargs: The keyword arguments it passes, the tuning among them.
+            """
             handed.append(kwargs.get('tuning'))
             super().__init__(*args, **kwargs)
 

@@ -230,7 +230,7 @@ def two_volume_tree(tmp_path: Path) -> Path:
 
 
 def tree_source(
-    root: Path, logger: pdslogger.PdsLogger, tuning: TreeTuning | None = None
+    root: Path, logger: pdslogger.PdsLogger, *, tuning: TreeTuning | None = None
 ) -> TreeRecordSource:
     """Build a source over one results root.
 

@@ -72,5 +72,9 @@ class TreeTuning:
         A multiple of the retrieval batch rather than a count of its own, so a
         transaction is never smaller than the batch it is retrieved in: that
         would cap the batch at the transaction and quietly undo the setting.
+
+        Returns:
+            The retrieval batch size times the number of batches a transaction
+            covers.
         """
         return self.retrieve_batch_size * self.ingest_commit_batches

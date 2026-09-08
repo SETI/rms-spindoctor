@@ -352,7 +352,7 @@ def test_a_tree_wider_than_one_round_is_still_listed_whole(
     """
     root, stubs = _wide_tree(tmp_path, 7)
     source = tree_source(
-        root, quiet_logger, TreeTuning(walk_threads=1, walk_directories_at_once=at_once)
+        root, quiet_logger, tuning=TreeTuning(walk_threads=1, walk_directories_at_once=at_once)
     )
     assert sorted(stubs_of(source.listing(Selection()))) == sorted(stubs)
 
@@ -370,7 +370,9 @@ def test_no_directory_is_listed_twice_across_rounds(
         yield from real_iterdir(self)
 
     monkeypatch.setattr(FCPath, 'iterdir_metadata', recording)
-    source = tree_source(root, quiet_logger, TreeTuning(walk_threads=1, walk_directories_at_once=2))
+    source = tree_source(
+        root, quiet_logger, tuning=TreeTuning(walk_threads=1, walk_directories_at_once=2)
+    )
     list(source.listing(Selection()))
     assert sorted(listed) == sorted(set(listed))
 

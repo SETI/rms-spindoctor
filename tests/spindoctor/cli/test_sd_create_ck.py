@@ -427,6 +427,15 @@ def test_the_records_are_read_at_the_tuning_the_configuration_names(
     handed: list[Any] = []
 
     def recording(roots: Any, **kwargs: Any) -> Any:
+        """Note the tuning the driver passes, then open the real source.
+
+        Parameters:
+            roots: The results roots the driver names.
+            kwargs: Everything else the driver passes, the tuning among it.
+
+        Returns:
+            The source the real opener returns.
+        """
         handed.append(kwargs.get('tuning'))
         return open_record_source(roots, **kwargs)
 
