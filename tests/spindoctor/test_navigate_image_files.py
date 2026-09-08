@@ -452,6 +452,11 @@ def test_navigate_image_files_records_a_fault_raised_inside_the_orchestrator(
     """
 
     def _planted(self: NavOrchestrator, obs: Any) -> NavResult:
+        """Raise in place of navigating, as a defect inside the orchestrator would.
+
+        Raises:
+            RuntimeError: Always.
+        """
         raise RuntimeError('planted')
 
     monkeypatch.setattr(NavOrchestrator, 'navigate', _planted)
@@ -515,6 +520,11 @@ def test_navigate_image_files_records_a_fault_before_the_image_log_opens(
     """
 
     def _planted(self: ImageFile) -> FCPath:
+        """Raise in place of resolving the URL, as an unreadable label would.
+
+        Raises:
+            RuntimeError: Always.
+        """
         raise RuntimeError('bad label')
 
     monkeypatch.setattr(ImageFile, 'resolve_image_url', _planted)

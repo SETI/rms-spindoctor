@@ -279,7 +279,7 @@ def _run_manual_pass(
     image_file = image_files.image_files[0]
     # resolve_image_url may correct the URL from the label contents, so it must
     # run before the URL is read
-    image_url = image_file.resolve_image_url()
+    image_url = image_file.resolve_image_url().absolute()
     image_name = image_url.name
     extra_params = image_file.extra_params
     public_metadata_file = nav_results_root / (image_file.results_path_stub + '_metadata.json')

@@ -221,7 +221,7 @@ def navigate_image_files(
     try:
         # resolve_image_url may correct the URL from the label contents, so it must
         # run before the URL is read
-        image_url = image_file.resolve_image_url()
+        image_url = image_file.resolve_image_url().absolute()
         image_name = image_url.name
         extra_params = image_file.extra_params
 
@@ -360,7 +360,16 @@ def navigate_image_files(
             timing=build_timing_section(run_start, datetime.now(UTC)),
         )
         if write_output_files:
-            public_metadata_file.write_text(json_as_string(metadata))
+            try:
+                public_metadata_file.write_text(json_as_string(metadata))
+            except Exception:
+                # The document write itself may be what is failing, and a
+                # results root that refuses one image's document must not
+                # stop the run either; the document still reaches the caller.
+                MAIN_LOGGER.exception(
+                    'INTERNAL ERROR: writing %s raised; the error document is returned unwritten',
+                    public_metadata_file,
+                )
         return False, metadata
 
 
@@ -474,7 +483,7 @@ def _error_metadata(
         image name, instrument and (when given) camera, and the ``timing`` section.
     """
     observation: dict[str, Any] = {
-        'image_path': str(image_path),
+        'image_path': image_path.as_posix(),
         'image_name': image_name,
         'instrument': instrument,
     }
@@ -529,7 +538,7 @@ def build_metadata_from_result(
             field.
     """
     observation: dict[str, Any] = {
-        'image_path': str(image_path),
+        'image_path': image_path.as_posix(),
         'image_name': image_name,
         'instrument': instrument,
     }
