@@ -42,38 +42,17 @@ _NAVIGATION_PACKAGES = [
 
 The CLI, UI and reporting packages are deliberately outside this.  A program's
 top level is where a catch-all belongs, and a viewer that declines to draw one
-panel is not a navigation that concluded something on half its evidence.
+panel is not a navigation that concluded something on half its evidence.  So
+is ``navigate_image_files``, the module beside these packages at the top of
+``src/spindoctor``: it is the top level of one image's run, and its catch-all
+records the failure in the image's document instead of raising, which is what
+a top level is for.  Library code below it must not absorb, and the packages
+named here are what that library code is.
 """
-
-_TOP_LEVEL_MODULES = '.'
-"""The modules directly under ``src/spindoctor``, ``navigate_image_files`` among them.
-
-A group of its own because a package name stands for everything beneath it,
-and everything beneath ``src/spindoctor`` includes the packages kept out above.
-"""
-
-_NAVIGATION_SOURCES = [*_NAVIGATION_PACKAGES, _TOP_LEVEL_MODULES]
-"""Every group of modules the rule covers."""
 
 
 _BROAD_BUILTINS = frozenset({'Exception', 'BaseException'})
 """The two names that catch everything a stage could fail with."""
-
-
-def _sources_in(group: str) -> list[Path]:
-    """Every module in one covered group, in path order.
-
-    Parameters:
-        group: A package name under ``src/spindoctor``, or ``_TOP_LEVEL_MODULES``
-            for the modules directly under it.
-
-    Returns:
-        The paths of the ``.py`` files: all of a package's, however deep, and
-        only the top level's own for ``_TOP_LEVEL_MODULES``.
-    """
-    if group == _TOP_LEVEL_MODULES:
-        return sorted(_SRC.glob('*.py'))
-    return sorted((_SRC / group).rglob('*.py'))
 
 
 def _broad_names_in(tree: ast.Module) -> frozenset[str]:
@@ -329,22 +308,22 @@ def _parse(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
 
 
-@pytest.mark.parametrize('group', _NAVIGATION_SOURCES)
-def test_no_navigation_source_swallows_a_broad_exception(group: str) -> None:
+@pytest.mark.parametrize('package', _NAVIGATION_PACKAGES)
+def test_no_navigation_package_swallows_a_broad_exception(package: str) -> None:
     """A broad clause control can leave without raising turns a fault into an answer.
 
     Parameters:
-        group: A package under ``src/spindoctor``, or its top-level modules.
+        package: The package under ``src/spindoctor`` to read.
     """
     found = [
         f'{path.relative_to(_SRC)}:{line}'
-        for path in _sources_in(group)
+        for path in sorted((_SRC / package).rglob('*.py'))
         for line in _swallowing_handlers(path)
     ]
     assert found == []
 
 
-def test_the_navigation_sources_do_still_catch_broadly() -> None:
+def test_the_navigation_packages_do_still_catch_broadly() -> None:
     """Or the test above would hold by there being nothing to judge.
 
     The rule is about what a handler does, not that broad clauses are gone:
@@ -353,8 +332,8 @@ def test_the_navigation_sources_do_still_catch_broadly() -> None:
     """
     reraising = [
         path
-        for group in _NAVIGATION_SOURCES
-        for path in _sources_in(group)
+        for package in _NAVIGATION_PACKAGES
+        for path in sorted((_SRC / package).rglob('*.py'))
         for node in ast.walk(_parse(path))
         if isinstance(node, ast.ExceptHandler)
         and _is_broad(node, _BROAD_BUILTINS)

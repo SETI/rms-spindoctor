@@ -2,8 +2,8 @@
 
 The driver wires the per-image batch loader together with the
 orchestrator and the metadata curator.  These tests exercise the
-happy / image-load-failure / status=failed paths against a fake
-observation class so no holdings are required.
+happy / image-load-failure / status=failed / internal-error paths against
+a fake observation class so no holdings are required.
 
 Also covers the annotation-compositing summary-PNG renderer
 (``write_summary_png`` and the rendering helper now exposed via
@@ -13,6 +13,7 @@ end-to-end against a synthetic ``Annotations`` collection.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -25,6 +26,7 @@ from PIL import Image
 
 from spindoctor.annotation import Annotation, Annotations
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
+from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
 from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_orchestrator.provenance import Provenance
@@ -178,18 +180,31 @@ def _make_fake_obs_class(
     return _FakeObsClass
 
 
-def _make_image_files(tmp_path: Path, *, camera: str | None = None) -> ImageFiles:
-    """Build an ImageFiles batch with a single placeholder image."""
-    img_path = tmp_path / 'fake_image.IMG'
+def _make_image_files(
+    tmp_path: Path, *, camera: str | None = None, stub: str = 'fake_image'
+) -> ImageFiles:
+    """Build an ImageFiles batch with a single placeholder image.
+
+    Parameters:
+        tmp_path: Directory the placeholder image and label are written under.
+        camera: The camera the index attributed the image to, or ``None`` for an
+            image with no index row.
+        stub: The results path stub, and the basename of the placeholder files;
+            two batches under one results root need two different stubs.
+
+    Returns:
+        A batch holding the one image.
+    """
+    img_path = tmp_path / f'{stub}.IMG'
     img_path.write_bytes(b'\x00')
-    label_path = tmp_path / 'fake_image.LBL'
+    label_path = tmp_path / f'{stub}.LBL'
     label_path.write_bytes(b'\x00')
     return ImageFiles(
         image_files=[
             ImageFile(
                 image_file_url=FCPath(str(img_path)),
                 label_file_url=FCPath(str(label_path)),
-                results_path_stub='fake_image',
+                results_path_stub=stub,
                 camera=camera,
             )
         ]
@@ -400,48 +415,116 @@ def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:
         assert img.size == (32, 32)
 
 
-def test_navigate_image_files_public_metadata_fault_leaves_no_product(tmp_path: Path) -> None:
-    """A fault captioning the summary PNG propagates and leaves neither product.
+def test_navigate_image_files_public_metadata_fault_is_the_image_error_document(
+    tmp_path: Path,
+) -> None:
+    """A fault captioning the summary PNG is recorded as that image's failure.
 
-    The PNG is written before the metadata document, so the image reads as
-    never navigated rather than as a success with no PNG.
+    The PNG is written before the metadata document, so the image carries an
+    error document and no PNG rather than a success document beside no PNG.
     """
     obs_class = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
     image_files = _make_image_files(tmp_path)
     results_root = tmp_path / 'results'
-    with pytest.raises(RuntimeError, match='no label'):
-        navigate_image_files(
-            obs_class,
-            image_files,
-            FCPath(str(results_root)),
-            write_output_files=True,
-        )
-    assert not (results_root / 'fake_image_metadata.json').exists()
+    success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(results_root)),
+        write_output_files=True,
+    )
+    assert success is False
+    assert metadata['status'] == 'error'
+    assert metadata['status_error'] == 'internal_error'
+    assert metadata['status_exception'].startswith('RuntimeError: no label')
+    document = results_root / 'fake_image_metadata.json'
+    assert json.loads(document.read_text()) == metadata
     assert not (results_root / 'fake_image_summary.png').exists()
 
 
-def test_navigate_image_files_removes_an_earlier_document_before_it_navigates(
-    tmp_path: Path,
+def test_navigate_image_files_records_a_fault_raised_inside_the_orchestrator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A document an earlier run left does not outlive a run that stops at this image.
+    """A fault escaping the orchestrator's own handling is the image's error document.
 
-    Otherwise the image would read as navigated, and a rerun selecting images
-    with no document would pass it over.
+    The orchestrator turns every model and technique failure into a failed
+    result; what escapes it is a fault of its own or a defect, and the driver
+    records that the same way and returns rather than stopping the run.
     """
-    obs_class = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
+
+    def _planted(self: NavOrchestrator, obs: Any) -> NavResult:
+        raise RuntimeError('planted')
+
+    monkeypatch.setattr(NavOrchestrator, 'navigate', _planted)
+    obs_class = _make_fake_obs_class()
+    image_files = _make_image_files(tmp_path, camera='WAC')
+    results_root = tmp_path / 'results'
+    success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(results_root)),
+        write_output_files=True,
+    )
+    assert success is False
+    assert metadata['status'] == 'error'
+    assert metadata['status_error'] == 'internal_error'
+    assert metadata['status_exception'] == 'RuntimeError: planted'
+    assert metadata['observation']['image_name'] == 'fake_image.IMG'
+    # The camera is the index's: the observation is not read once it has raised.
+    assert metadata['observation']['camera'] == 'WAC'
+    assert metadata['timing']['elapsed_s'] >= 0.0
+    assert (results_root / 'fake_image_metadata.json').exists()
+
+
+def test_navigate_image_files_goes_on_to_the_next_image_after_a_fault(tmp_path: Path) -> None:
+    """A fault in one image is that image's alone; the next image navigates.
+
+    Nothing stops a run because a single image failed: the first image's fault
+    is recorded in its own document, and the second image's document carries
+    the status its navigation reached.
+    """
+    results_root = tmp_path / 'results'
+    faulty = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
+    _first_success, first = navigate_image_files(
+        faulty,
+        _make_image_files(tmp_path, stub='first'),
+        FCPath(str(results_root)),
+        write_output_files=True,
+    )
+    _second_success, second = navigate_image_files(
+        _make_fake_obs_class(),
+        _make_image_files(tmp_path, stub='second'),
+        FCPath(str(results_root)),
+        nav_models=['!*'],
+        write_output_files=True,
+    )
+    assert first['status_error'] == 'internal_error'
+    assert (results_root / 'first_metadata.json').exists()
+    assert second['status'] == 'failed'
+    assert second['navigation_result']['status_reason'] == 'no_features_extracted'
+    assert (results_root / 'second_metadata.json').exists()
+
+
+def test_navigate_image_files_leaves_an_earlier_document_when_interrupted(tmp_path: Path) -> None:
+    """An interrupt stops the run and leaves an earlier run's document in place.
+
+    Nothing of an earlier run is removed before an image is navigated, and an
+    interrupt is not a failure of the image to record, so the document the
+    earlier run wrote is what the image still carries.
+    """
+    obs_class = _make_fake_obs_class(raise_on_public_metadata=KeyboardInterrupt('stop'))
     image_files = _make_image_files(tmp_path)
     results_root = tmp_path / 'results'
     results_root.mkdir()
     earlier = results_root / 'fake_image_metadata.json'
     earlier.write_text('{"status": "success"}')
-    with pytest.raises(RuntimeError, match='no label'):
+    with pytest.raises(KeyboardInterrupt, match='stop'):
         navigate_image_files(
             obs_class,
             image_files,
             FCPath(str(results_root)),
             write_output_files=True,
         )
-    assert not earlier.exists()
+    assert earlier.read_text() == '{"status": "success"}'
 
 
 # ---------------------------------------------------------------------------
