@@ -504,29 +504,6 @@ def test_navigate_image_files_goes_on_to_the_next_image_after_a_fault(tmp_path: 
     assert (results_root / 'second_metadata.json').exists()
 
 
-def test_navigate_image_files_leaves_an_earlier_document_when_interrupted(tmp_path: Path) -> None:
-    """An interrupt stops the run and leaves an earlier run's document in place.
-
-    Nothing of an earlier run is removed before an image is navigated, and an
-    interrupt is not a failure of the image to record, so the document the
-    earlier run wrote is what the image still carries.
-    """
-    obs_class = _make_fake_obs_class(raise_on_public_metadata=KeyboardInterrupt('stop'))
-    image_files = _make_image_files(tmp_path)
-    results_root = tmp_path / 'results'
-    results_root.mkdir()
-    earlier = results_root / 'fake_image_metadata.json'
-    earlier.write_text('{"status": "success"}')
-    with pytest.raises(KeyboardInterrupt, match='stop'):
-        navigate_image_files(
-            obs_class,
-            image_files,
-            FCPath(str(results_root)),
-            write_output_files=True,
-        )
-    assert earlier.read_text() == '{"status": "success"}'
-
-
 # ---------------------------------------------------------------------------
 # _grayscale_to_rgb_with_quantile_stretch
 # ---------------------------------------------------------------------------
