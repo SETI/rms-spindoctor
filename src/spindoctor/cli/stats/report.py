@@ -834,10 +834,9 @@ def main_report(cmdline: list[str] | None = None) -> int:
     )
     _add_arguments(parser)
     arguments = parser.parse_args(cmdline)
-    # The configuration is loaded the way every other program loads it, so a
-    # machine's nav_default_config.yaml and a --config-file apply here as they
-    # do everywhere else.  A refusal is printed where this program's other
-    # refusals print, rather than raised.
+    # Loads the files named with --config-file, or else nav_default_config.yaml
+    # from the working directory.  A refusal is printed and returned as a
+    # status, since this program reports through print rather than a logger.
     try:
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
     except (FileNotFoundError, TypeError, ValueError) as exc:
@@ -864,8 +863,8 @@ def main_report(cmdline: list[str] | None = None) -> int:
         _to_stderr(str(exc))
         return 1
     if url is None:
-        # Resolved here, at the top, and passed down the way every program
-        # passes it; the configuration was validated when it was loaded.
+        # Resolved once here; the configuration was validated when it was
+        # loaded, so this cannot refuse.
         return _report_over_a_tree(arguments, parser, get_results_tree_tuning(DEFAULT_CONFIG))
     return _report_from_an_index(url, arguments, parser)
 

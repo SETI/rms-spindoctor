@@ -688,9 +688,8 @@ def main() -> None:
         MAIN_LOGGER.info('Force: %s', arguments.force)
     MAIN_LOGGER.info('Arguments: %s', masked_command_line(command_list))
 
-    # Resolved once, here, and passed down to whatever reads the tree, the way
-    # the logger is.  The configuration was validated when it was loaded, so
-    # this cannot refuse.
+    # Resolved once here and passed to whatever reads the tree.  The
+    # configuration was validated when it was loaded, so this cannot refuse.
     tuning = get_results_tree_tuning(DEFAULT_CONFIG)
 
     try:

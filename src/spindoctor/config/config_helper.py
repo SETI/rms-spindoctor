@@ -242,7 +242,7 @@ def get_results_tree_tuning(config: Config) -> TreeTuning:
     Read from ``config.results_tree`` alone: no command-line option or
     environment variable names these, because they describe a machine rather
     than a run.  A program resolves them once, here, and passes the result to
-    whatever reads the tree, the way it passes its logger.
+    whatever reads the tree.
 
     Parameters:
         config: The configuration, whose ``results_tree`` section is read.
@@ -312,7 +312,6 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
         except FileNotFoundError:
             pass
     validate_logging_config(config)
-    # Built and discarded: every program that reads a results tree resolves
-    # the tuning again where it needs it, and this is the one place all of
-    # them pass through before any of them has written anything.
+    # Built for the check alone and discarded.  The loader runs before a
+    # program has written anything, so an unusable value is refused here.
     get_results_tree_tuning(config)

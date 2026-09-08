@@ -58,10 +58,10 @@ def open_record_source(
             constructs one or reaches for a program's own, because a layer with
             a voice its caller did not configure would report a run's work
             somewhere the run does not control.
-        tuning: How much of a pass over the documents runs at once, which the
-            program resolves from its configuration and passes down the way it
-            passes its logger; None is the library's own defaults.  A run that
-            reads rows never walks a tree, so it is ignored there.
+        tuning: How much of a pass over the documents runs at once, as the
+            program resolved it from its configuration; None is the library's
+            own defaults.  A run that reads rows never walks a tree, so it is
+            ignored there.
 
     Returns:
         The source, which the caller closes when it is done with it and which is

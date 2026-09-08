@@ -151,8 +151,7 @@ class TreeRecordSource:
             to lend.
         tuning: How much of a pass over the documents runs at once.  None is
             the library's own defaults, for a caller with no configuration to
-            consult; a program resolves its configuration once and passes what
-            it says, the way it passes its logger.
+            consult.
 
     Raises:
         ValueError: If no root is given, or if one of them is not a location.

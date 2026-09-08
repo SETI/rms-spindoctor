@@ -12,8 +12,8 @@ The useful values belong to a machine, its link to the root and what the
 service will do concurrently, not to this program, so they are configuration:
 the ``results_tree`` section carries them, and the defaults here are what that
 section ships with.  A program resolves the section once, through
-:func:`spindoctor.config.get_results_tree_tuning`, and passes the result down
-the way it passes its logger.  This package reads no configuration itself.
+:func:`spindoctor.config.get_results_tree_tuning`, and passes the result down.
+This package reads no configuration itself.
 """
 
 from dataclasses import dataclass, fields
