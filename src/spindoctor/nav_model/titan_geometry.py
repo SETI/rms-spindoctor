@@ -1,44 +1,39 @@
 """Observation-side geometry extraction for the Titan haze model.
 
 Every ``oops`` and star-catalog query the haze feature depends on lives here,
-behind one entry point.  It answers a frame whose geometry is genuinely
-degenerate -- an inventory entry that is not finite, an envelope box with no
-surface intercept in it -- with a defensible geometry rather than an exception,
-because the model's always-emit invariant needs one.  It answers a frame it
-could not evaluate with the exception, for the reasons below.  The result is a
-frozen :class:`TitanGeometryInputs`, on which every downstream decision --
+behind one entry point, :func:`geometry_from_obs`.  The result is a frozen
+:class:`TitanGeometryInputs`, on which every downstream decision --
 reliability, the hard-zero conditions, the emitted feature payload -- is a pure
 function.
 
-Nothing here absorbs an exception
----------------------------------
+Which failures are answered and which propagate
+-----------------------------------------------
 
-Each stage asks ``oops`` about the frame, and a stage that raises says what it
-could not compute and re-raises.  Nothing degrades, and no stage decides on its
-own that the navigation can go on without it.
+Three conditions are answered with a degenerate geometry rather than an
+exception, because the model's always-emit invariant needs a feature for them:
+an inventory field that is not finite, an image scale or body radius that is
+not positive, and an envelope box with no surface-intercept pixel in it.  Each
+yields zero radii or a degenerate axis, so the reliability hard-zero path fires
+and the emitted feature is gated out with its cause recorded.  The first is the
+only exception this module catches, and it has a type of its own,
+:class:`NonFiniteInventoryError`, so the ``except`` can match nothing else.
 
-The temptation is real, because some frames genuinely have no answer -- no
-SPICE for this body at this epoch, a frame the kernels do not define -- and
-carrying on with less would navigate them.  It was resisted because no
-``except`` can tell that frame from a defect.  An exception type is not
-evidence: ``oops`` declines with ``ValueError`` and ``LookupError``, and so does
-a bug inside ``oops``, inside ``numpy``, or here.  Any rule narrow enough to
-name the honest declines admits the dishonest ones wearing the same type.
+Every other exception propagates.  A stage that fails logs what it could not
+compute and re-raises, and the orchestrator fails the image with
+``status_reason=internal_error``, recording which component raised and what it
+raised.
 
-And the cost of admitting one is not a lost image.  A degraded stage still
-produces an offset: swallow a fault in the mask and the fit runs on against a
-mask that was never built.  The document written for it then says a navigation
-ran and concluded something, ``failed`` being the status for a run that finished
-and concluded -- which no error filter selects, which ``--has-no-offset-file``
-passes over because the document exists, and which no later pass corrects.  One
-image that fails loudly costs a rerun.  One image that succeeds quietly on half
-its evidence is a wrong answer kept forever, and nothing downstream can tell.
-
-So every exception reaches the orchestrator, which fails that image with
-``status_reason=internal_error`` and records the component that raised and the
-type it raised.  A frame that no kernel set can answer for fails that way too,
-and is meant to: it is a fact worth seeing rather than one worth working
-around.
+No stage catches an exception and carries on with a default, for two reasons.
+An exception's type says nothing about its cause: ``oops`` raises ``ValueError``
+and ``LookupError`` when it cannot answer a query, and so does a defect in
+``oops``, in ``numpy`` or in this module.  And a stage that carried on would
+still produce an offset.  If the mask stage swallowed a fault, the fit would run
+against a mask that was never built, and the image's document would record a
+navigation that finished, which no selection flag can tell from an honest one
+and which ``--has-no-offset-file`` passes over because the document exists.  An
+image that fails loudly costs one rerun.  An image that navigated quietly on
+half its evidence is a wrong answer that nothing downstream can detect and no
+later pass corrects.
 
 Coordinate conventions.  Positions -- the predicted center and the sunward
 pixel that sets the symmetry axis -- are field-of-view coordinates plus the
@@ -805,9 +800,9 @@ def geometry_from_obs(
             raw_range_km if not math.isnan(raw_range_km) and raw_range_km >= 0.0 else float('inf')
         )
     except NonFiniteInventoryError:
-        # The one expected condition, answered rather than propagated; see
-        # "Nothing here absorbs an exception" in the module docstring for why
-        # it is the only one, and why it has a type of its own.
+        # The one exception answered rather than propagated; see "Which
+        # failures are answered and which propagate" in the module docstring
+        # for why it is the only one, and why it has a type of its own.
         IMAGE_LOGGER.exception('Titan: inventory entry is not finite')
         return _degenerate_geometry(
             extfov_shape_vu=extfov_shape_vu,

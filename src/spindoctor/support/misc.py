@@ -150,11 +150,11 @@ def current_git_version() -> str:
     global _GIT_VERSION_CACHE
     if _GIT_VERSION_CACHE is not None:
         return _GIT_VERSION_CACHE
-    # The ways git can decline are enumerated rather than caught wholesale: not
-    # installed, not a repository, no tag to describe from. Each records itself
-    # in the returned string, so the failure is visible in the run log instead
-    # of being absorbed. Anything else -- a decode fault, a defect here -- is a
-    # bug and propagates.
+    # Two failures give the placeholder: OSError, which is git not being
+    # installed, and SubprocessError, which is git exiting non-zero because
+    # this is not a repository or there is nothing to describe.  Both leave
+    # the run log saying the version could not be read.  Anything else -- a
+    # decode fault, a defect here -- is a bug and propagates.
     try:
         ret = subprocess.check_output(
             ['git', 'describe', '--all', '--long', '--dirty', '--abbrev=40', '--tags']
