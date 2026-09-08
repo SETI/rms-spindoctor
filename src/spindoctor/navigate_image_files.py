@@ -577,10 +577,11 @@ def _summary_metadata_from_obs_result(obs: ObsSnapshotInst, result: NavResult) -
         A populated :class:`~spindoctor.support.summary_png.SummaryMetadata`.
     """
     exposure_s: float | None = None
-    # An empty dict would caption the PNG blank and ship it as finished.  The
-    # accessor is the observation describing itself; a raise propagates to the
-    # driver, which records it in the image's document, and because the
-    # document is written after the PNG no blank caption is shipped.
+    # get_public_metadata is called without a guard.  Substituting an empty
+    # dict when it raised would produce a PNG with a blank caption that looks
+    # finished; letting the exception reach the driver records the failure in
+    # the image's document instead.  The PNG is written before that document,
+    # so no document ever describes a PNG with a blank caption.
     public = obs.get_public_metadata()
     abspath = getattr(obs, 'abspath', None)
     image_name = str(public.get('image_name') or (abspath.name if abspath is not None else ''))
