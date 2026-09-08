@@ -125,10 +125,9 @@ class NavModelBodyBase(NavModel):
     _body_name: str
     """Upper-case name of the body this model is for.
 
-    Declared here and set by every subclass. Reaching it through a getattr
-    default would give a subclass that forgot a feature id reading
-    ``body_blob:BODY``, which is a label no consumer can trace back to a body
-    and nothing would report as wrong.
+    Declared without a default so a subclass that does not set it raises
+    AttributeError at its first feature id instead of emitting a label no
+    consumer can trace to a body.
     """
 
     _abstract = True

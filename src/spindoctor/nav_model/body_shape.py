@@ -210,20 +210,19 @@ def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
     """Return the YAML mapping for ``upper_body_name`` if present.
 
     Resolves ``config.body_shape`` against either an explicit ``Config``
-    instance or the global ``DEFAULT_CONFIG``.  Returns ``None`` when the body
-    is absent from the section, or when the section is not a mapping.
-
-    A configuration that cannot answer for ``body_shape`` at all raises, and
-    the exception reaches the caller: answering ``None`` for it would drop
-    every per-body shape override without a word and navigate against the
-    wrong shape.
+    instance or the global ``DEFAULT_CONFIG``.
 
     Parameters:
-        upper_body_name: The body name, upper-cased, as the YAML keys it.
+        upper_body_name: The body name in upper case, matching the YAML keys.
         config: The configuration to read, or None for ``DEFAULT_CONFIG``.
 
     Returns:
-        The body's mapping of shape overrides, or None where there is none.
+        A copy of the body's mapping of shape overrides, or None when the
+        ``body_shape`` section is not a mapping, when it has no entry for the
+        body, when the entry is null, or when the entry is not a mapping.
+
+    Raises:
+        AttributeError: If ``config`` has no ``body_shape`` attribute.
     """
     cfg = config
     if cfg is None:
@@ -233,11 +232,6 @@ def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
         from spindoctor.config import DEFAULT_CONFIG
 
         cfg = DEFAULT_CONFIG
-    # Read straight through. A configuration with no body_shape section is a
-    # configuration this code cannot work from, and answering None for one
-    # would drop every per-body override without a word -- silently navigating
-    # against the wrong shape. A test stub that does not expose the section is
-    # an incomplete stub, not a case for production to carry.
     body_shape_section = cfg.body_shape
     if not isinstance(body_shape_section, dict):
         return None

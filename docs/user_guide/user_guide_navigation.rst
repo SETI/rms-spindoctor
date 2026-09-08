@@ -1156,10 +1156,13 @@ When active, the ring model logs the number of masked pixels at ``INFO`` level:
 
    Planet shadow removal: 1284 pixel(s) inside SATURN shadow will be masked
 
-If the shadow geometry cannot be computed for a particular observation (for
-example, because the illumination geometry is degenerate), a warning is logged
-and the full unmasked ring model is used instead. Navigation proceeds
-normally; no output files are suppressed.
+If the shadow geometry cannot be computed for an observation, the ring model
+logs one line naming the planet and re-raises: the image fails with
+``status_reason`` ``internal_error`` and no offset, and the block described
+in :ref:`internal-error-block` records the component and the exception
+class. The same holds when the planet's occlusion of the rings cannot be
+computed. No unmasked model is substituted, because a model that is bright
+where the image is dark navigates to a wrong offset rather than to none.
 
 To disable shadow removal entirely -- for example, to compare navigation
 quality with and without the mask -- set the option to ``false`` in a

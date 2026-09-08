@@ -452,8 +452,8 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
     def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
         """Return the sky direction the frame center points at.
 
-        Read off the one-pixel :attr:`center_bp`, so it costs one backplane
-        that most callers have already built.
+        Read off :attr:`center_bp`, the cached one-pixel backplane, so repeated
+        calls build nothing.
 
         Parameters:
             apparent: True for the direction a photon appears to arrive from,

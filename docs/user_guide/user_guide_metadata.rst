@@ -424,6 +424,8 @@ accompanies ``failed``.
        survived. The ``internal_error`` block below names the component and
        the exception class; the full traceback is in the error log.
 
+.. _internal-error-block:
+
 The internal-error block
 ------------------------
 
