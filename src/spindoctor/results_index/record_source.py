@@ -492,7 +492,9 @@ class IndexRecordSource:
             One entry per named stub the index records a file for, in the order
             named.  A stub it records none for yields nothing.
         """
-        for batch in in_batches(iter(stubs), STUBS_PER_STATEMENT):
+        # Half the bound, because the statement below names every stub of the
+        # batch twice: once in each arm of the union it is answered by.
+        for batch in in_batches(iter(stubs), STUBS_PER_STATEMENT // 2):
             found = {
                 entry.stub: entry
                 for entry in self._listed(
