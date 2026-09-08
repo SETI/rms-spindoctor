@@ -481,8 +481,10 @@ class NavModelRings(NavModelRingsBase):
             try:
                 raw_shadow = obs.ext_bp.where_inside_shadow(ring_target, planet.lower())
                 shadow_mask = raw_shadow.mvals.filled(False).astype(bool)
-            except Exception:
-                self._logger.exception('Failed to compute planet shadow for %s', planet)
+            except Exception as exc:
+                # One line here; the orchestrator logs the traceback when it
+                # fails the image.
+                self._logger.error('Planet shadow for %s could not be evaluated: %s', planet, exc)
                 raise
 
         # Ring points hidden behind the planet globe enter neither the emitted
@@ -500,8 +502,10 @@ class NavModelRings(NavModelRingsBase):
         try:
             occluded = obs.ext_bp.where_in_front(planet.lower(), ring_target)
             self._ring_occluded_ext = occluded.mvals.filled(False).astype(bool)
-        except Exception:
-            self._logger.exception('Failed to compute planet occlusion of rings for %s', planet)
+        except Exception as exc:
+            self._logger.error(
+                'Planet occlusion of rings for %s could not be evaluated: %s', planet, exc
+            )
             raise
 
         render_context = RingsRenderContext(
@@ -614,7 +618,6 @@ class NavModelRings(NavModelRingsBase):
 
     def to_features(self, context: NavContext) -> list[NavFeature]:
         """Emit RING_EDGE / RING_ANNULUS features per surviving render result."""
-        del context
         with self.log_section('EMIT RINGS FEATURES'):
             features: list[NavFeature] = []
             edge_count = 0
@@ -700,8 +703,9 @@ class NavModelRings(NavModelRingsBase):
                 # renders, so it must be cleared of ring brightness hidden behind
                 # the planet globe just as the per-edge masks already are (see
                 # _visible_edge_info).  Trim the render against the same occlusion
-                # mask before it can enter annulus_renderings; a backplane failure
-                # left the mask None and degrades to no trimming.
+                # mask before it can enter annulus_renderings.  The mask was
+                # assigned earlier in this method; the guard satisfies the
+                # attribute's optional type.
                 if self._ring_occluded_ext is not None:
                     model_img = np.where(self._ring_occluded_ext, 0.0, model_img)
                     model_mask = model_mask & ~self._ring_occluded_ext
@@ -845,7 +849,6 @@ class NavModelRings(NavModelRingsBase):
         captures the far side of the rings behind the disc neither emits nor
         draws ring edges across the planet.  See ``_render`` for the mask.
         """
-        del context
         out = Annotations()
         for _ring_feat, _model_img, model_mask, _u, edge_info_list in self._render_results:
             if not edge_info_list:
@@ -871,8 +874,9 @@ class NavModelRings(NavModelRingsBase):
         Returns:
             The same tuples with every edge mask ANDed against the visible
             (non-occluded) region; edges left with no visible pixel are
-            dropped entirely.  When no occlusion mask is available (a backplane
-            failure degraded it to ``None``) the input is returned unchanged.
+            dropped entirely.  The occlusion mask is assigned in ``_render``
+            before this is called; the ``None`` branch satisfies the
+            attribute's optional type and returns the input unchanged.
         """
         occluded = self._ring_occluded_ext
         if occluded is None:

@@ -114,14 +114,12 @@ def _two_body_backplane_class(target: _Sphere, occluder: _Sphere) -> type:
 
         def incidence_angle(self, body_name: str) -> polymath.Scalar:
             """Return per-sample incidence angle masked off the target."""
-            del body_name
             vv, uu = _grid(self._mg)
             on_body, incidence, _ = _sphere_geometry(target, vv, uu)
             return polymath.Scalar(np.ma.array(incidence, mask=~on_body))
 
         def lambert_law(self, body_name: str) -> polymath.Scalar:
             """Return per-sample Lambert reflectance masked off the target."""
-            del body_name
             vv, uu = _grid(self._mg)
             on_body, _, cos_inc = _sphere_geometry(target, vv, uu)
             lam = np.clip(cos_inc, 0.0, None)
@@ -129,7 +127,6 @@ def _two_body_backplane_class(target: _Sphere, occluder: _Sphere) -> type:
 
         def resolution(self, body_name: str) -> polymath.Scalar:
             """Return the constant km/px scale masked off the target."""
-            del body_name
             vv, uu = _grid(self._mg)
             on_body, _, _ = _sphere_geometry(target, vv, uu)
             res = np.full(on_body.shape, target.km_per_px, dtype=np.float64)
@@ -137,7 +134,6 @@ def _two_body_backplane_class(target: _Sphere, occluder: _Sphere) -> type:
 
         def where_in_front(self, event_key: str, surface_key: str) -> polymath.Scalar:
             """Return the occluder silhouette where it sits in front of the target."""
-            del surface_key
             vv, uu = _grid(self._mg)
             if event_key.upper() == _OCCLUDER:
                 on_occ, _, _ = _sphere_geometry(occluder, vv, uu)
@@ -416,12 +412,11 @@ def test_occluder_helper_returns_none_without_siblings() -> None:
     assert mask is None
 
 
-def test_occluder_helper_fails_on_a_backplane_failure() -> None:
+def test_occluder_helper_fails_on_a_backplane_failure(capsys: pytest.CaptureFixture[str]) -> None:
     """A backplane that cannot answer fails the image rather than untrimming the mask.
 
-    An untrimmed mask is not a missing answer, it is a wrong one: the fit runs
-    on against an occluder it was never told about and reports an offset, and
-    the document written for it says a navigation ran and concluded something.
+    An untrimmed mask is a wrong answer, not a missing one: the fit reports an
+    offset against disc area the image does not show.
     """
 
     class _RaisingBackplane:
@@ -429,7 +424,6 @@ def test_occluder_helper_fails_on_a_backplane_failure() -> None:
 
         def where_in_front(self, sibling_name: str, body_name: str) -> Any:
             """Raise the way an unresolvable occlusion query does inside oops."""
-            del sibling_name, body_name
             raise ValueError('cannot resolve occlusion for this scene')
 
     with pytest.raises(ValueError) as exc_info:
@@ -442,3 +436,5 @@ def test_occluder_helper_fails_on_a_backplane_failure() -> None:
             oversample_u=1,
         )
     assert 'cannot resolve occlusion' in str(exc_info.value)
+    logged = capsys.readouterr().out
+    assert 'Body TARGET: occlusion by OCCLUDER could not be evaluated' in logged

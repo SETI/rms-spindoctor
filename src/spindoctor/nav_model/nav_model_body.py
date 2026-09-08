@@ -265,11 +265,6 @@ def occluder_mask_for_body(
     the nearer body actually hides.  The result is downsampled to the same
     discrete grid the caller's masks live on.
 
-    A backplane failure on any occluder is reported and re-raised.  Leaving
-    that occluder's contribution out would keep the caller's arc, template or
-    mask untrimmed, which is a model claiming the subject body is visible where
-    a nearer one hides it -- a wrong answer rather than no answer.
-
     Shared by the shape-based body model and the haze model so both derive
     body-body occlusion from one implementation; the caller supplies the
     backplane it already built, which is what keeps the two callers' results
@@ -288,6 +283,13 @@ def occluder_mask_for_body(
     Returns:
         The bbox-local boolean occluder mask, or ``None`` when no sibling is
         nearer or none hides any pixel (the common case costs nothing).
+
+    Raises:
+        Exception: Whatever the backplane raised for an occluder, after it is
+            logged.  Leaving that occluder's contribution out would keep the
+            caller's arc, template or mask untrimmed, which is a model claiming
+            the subject body is visible where a nearer one hides it -- a wrong
+            answer rather than no answer.
     """
     nearer = [name for name, rng in siblings if rng < subject_range_km]
     if not nearer:
@@ -297,9 +299,14 @@ def occluder_mask_for_body(
         try:
             hidden = restr_bp.where_in_front(sibling_name, body_name)
             hidden_over = hidden.mvals.filled(False).astype(bool)
-        except Exception:
-            IMAGE_LOGGER.exception(
-                'Body %s: failed to compute occlusion by %s', body_name, sibling_name
+        except Exception as exc:
+            # One line here; the orchestrator logs the traceback when it fails
+            # the image.
+            IMAGE_LOGGER.error(
+                'Body %s: occlusion by %s could not be evaluated: %s',
+                body_name,
+                sibling_name,
+                exc,
             )
             raise
         hidden_local = (
@@ -914,7 +921,6 @@ class NavModelBody(NavModelBodyBase):
 
     def to_annotations(self, context: NavContext) -> Annotations:
         """Reuse the shared body annotation helper."""
-        del context
         if self._model_img is None or self._body_mask is None or self._limb_mask is None:
             return Annotations()
         v_center, u_center = self._predicted_center_vu
