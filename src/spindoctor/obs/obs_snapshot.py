@@ -464,8 +464,10 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
             ``(ra, dec)`` in radians.
         """
         backplane = self.center_bp
-        ra = float(np.ravel(backplane.right_ascension(apparent=apparent).vals)[0])
-        dec = float(np.ravel(backplane.declination(apparent=apparent).vals)[0])
+        # The center meshgrid is one pixel, so each backplane is a (1, 1)
+        # array, which float() refuses; item() is the one value it holds.
+        ra = float(backplane.right_ascension(apparent=apparent).vals.item())
+        dec = float(backplane.declination(apparent=apparent).vals.item())
         return ra, dec
 
     def extract_offset_array(
