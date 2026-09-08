@@ -115,7 +115,7 @@ __all__ = [
     'UNKNOWN_STATUS',
 ]
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 1
 """Column-set version of the index.
 
 Stamped into every index at creation and compared on every later open: a

@@ -195,7 +195,7 @@ DIALECT_CASES = [
 ]
 """The two backends a declaration is pinned against."""
 
-COLUMN_SET_VERSION = 2
+COLUMN_SET_VERSION = 1
 """The schema version the column sets above are stamped with.
 
 Written down here beside the columns and compared against
