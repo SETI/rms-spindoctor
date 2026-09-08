@@ -390,6 +390,35 @@ def _early_return_document(tmp_path: Path) -> dict[str, Any]:
     return _round_trip(metadata)
 
 
+class _UnnavigableObsClass:
+    """Observation class whose snapshot the orchestrator cannot even start on."""
+
+    @classmethod
+    def from_file(cls, path: Any, **kwargs: Any) -> Any:
+        """Return an object with none of the attributes a snapshot has.
+
+        Parameters:
+            path: The image path the driver resolved; unread.
+            kwargs: Further loader options; unread.
+
+        Returns:
+            A bare object, so building the models raises inside the driver's
+            per-image boundary and the internal-error document is written.
+        """
+        return object()
+
+
+def _driver_internal_error_document(tmp_path: Path) -> dict[str, Any]:
+    """The document the driver returns for an image whose navigation raised."""
+    _success, metadata = navigate_image_files(
+        _UnnavigableObsClass,  # type: ignore[arg-type]
+        _image_files(tmp_path, 1),
+        FCPath(tmp_path / 'results'),
+        write_output_files=False,
+    )
+    return _round_trip(metadata)
+
+
 # --- writer-to-chapter: every emitted key is documented ---
 
 
@@ -424,9 +453,9 @@ def test_documented_status_reasons_cover_the_enum() -> None:
 
 
 def test_chapter_carries_one_example_per_document_shape() -> None:
-    """The chapter has exactly four JSON examples, in the documented order."""
+    """The chapter has exactly five JSON examples, in the documented order."""
     blocks = _example_json_blocks()
-    assert len(blocks) == 4
+    assert len(blocks) == 5
 
 
 def test_success_example_matches_writer_structure() -> None:
@@ -452,9 +481,15 @@ def test_load_error_example_matches_writer_structure(tmp_path: Path) -> None:
     assert _key_structure(example) == _key_structure(_load_error_document(tmp_path))
 
 
+def test_internal_error_example_matches_writer_structure(tmp_path: Path) -> None:
+    """The internal-error example's key structure equals real driver output."""
+    example = _example_json_blocks()[3]
+    assert _key_structure(example) == _key_structure(_driver_internal_error_document(tmp_path))
+
+
 def test_early_return_example_matches_writer_structure(tmp_path: Path) -> None:
     """The early-return example's key structure equals real driver output."""
-    example = _example_json_blocks()[3]
+    example = _example_json_blocks()[4]
     assert _key_structure(example) == _key_structure(_early_return_document(tmp_path))
 
 

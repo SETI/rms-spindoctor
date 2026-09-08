@@ -1223,6 +1223,35 @@ exception text is shortened here; the real file carries the full SPICE message.
       }
     }
 
+Internal error
+--------------
+
+A Cassini frame that loaded and then raised outside the orchestrator's own
+handling, here while the summary PNG was being captioned. Same keys as the
+load-error shape; ``camera`` comes from the dataset index, since the
+observation is not consulted once it has raised, and ``status_exception``
+names the exception type and message. The per-image log carries the
+traceback.
+
+.. code-block:: json
+
+    {
+      "status": "error",
+      "status_error": "internal_error",
+      "status_exception": "ValueError: summary PNG: exposure_time is not a number: None",
+      "observation": {
+        "image_path": "/holdings/calibrated/COISS_2xxx/COISS_2028/data/1546716727_1546797712/N1546730528_4_CALIB.IMG",
+        "image_name": "N1546730528_4_CALIB.IMG",
+        "instrument": "coiss",
+        "camera": "NAC"
+      },
+      "timing": {
+        "start_iso8601": "2026-09-08T15:02:41.118204Z",
+        "end_iso8601": "2026-09-08T15:02:47.402317Z",
+        "elapsed_s": 6.284113
+      }
+    }
+
 Early return
 ------------
 
