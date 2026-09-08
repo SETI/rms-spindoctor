@@ -10,11 +10,15 @@ This is the function ``sd_offset`` and ``sd_offset_cloud_tasks`` invoke
 once per image.  Errors from image loading, missing SPICE coverage, and
 navigation contract violations are captured into the output metadata so
 the driver returns a structured result for them rather than crashing the
-worker process.  One class of exception deliberately propagates: a defect
-inside the corrected-pointing computation (anything it raises other than
-``NavPointingError``) fails the run on its first image, because absorbing
-it would silently drop pointing from a whole batch while every image
-still reported success.
+worker process.  Faults outside the navigation pipeline propagate and stop
+the run at that image: provenance and context construction in the
+orchestrator, the corrected-pointing computation, and the summary PNG.
+Provenance and the pointing computation read the environment and the
+configuration, so a fault there would recur on every image; context
+construction reads the image and its masks, so a fault there is that image's
+own, and it stops the run all the same.  The image the run stopped at is left
+with no document, so it reads as never navigated and a rerun with
+``--has-no-offset-file`` picks it up.
 """
 
 from __future__ import annotations
@@ -281,9 +285,12 @@ def navigate_image_files(
                 timing=build_timing_section(run_start, datetime.now(UTC)),
             )
             if write_output_files:
+                # The PNG is written before the document so a fault in it
+                # leaves the image with no document, not a success document
+                # beside no PNG.
+                write_summary_png(snapshot_inst, nav_result, summary_png_file, logger)
                 logger.info('Writing metadata to %s', public_metadata_file)
                 public_metadata_file.write_text(json_as_string(metadata))
-                write_summary_png(snapshot_inst, nav_result, summary_png_file, logger)
             log_final_result_to_run(image_name, nav_result)
             if image_log_path is not None:
                 MAIN_LOGGER.info('Wrote log to %s', image_log_path)
@@ -413,11 +420,10 @@ def _summary_metadata_from_obs_result(obs: ObsSnapshotInst, result: NavResult) -
         A populated :class:`~spindoctor.support.summary_png.SummaryMetadata`.
     """
     exposure_s: float | None = None
-    # Read straight through. These are the labels the summary PNG is captioned
-    # with, and an empty dict does not produce a PNG that says it is missing
-    # them -- it produces an unlabelled one, which reads as a product rather
-    # than as a fault. The accessor is the observation describing itself; if it
-    # raises, this image is not one whose product should be shipped.
+    # An empty dict would caption the PNG blank and ship it as finished.  The
+    # accessor is the observation describing itself; a raise propagates, and
+    # because the document is written after the PNG, the image is left with no
+    # product.
     public = obs.get_public_metadata()
     abspath = getattr(obs, 'abspath', None)
     image_name = str(public.get('image_name') or (abspath.name if abspath is not None else ''))

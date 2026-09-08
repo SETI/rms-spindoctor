@@ -44,7 +44,12 @@ class _FakeSnapshot:
     """Minimal stand-in for ObsSnapshotInst used by the driver tests."""
 
     def __init__(
-        self, *, blank: bool = False, midtime: float = 100.0, shutter_mode: str | None = None
+        self,
+        *,
+        blank: bool = False,
+        midtime: float = 100.0,
+        shutter_mode: str | None = None,
+        public_metadata_error: BaseException | None = None,
     ) -> None:
         """Build a fake snapshot carrying one deterministic 32x32 image.
 
@@ -55,6 +60,8 @@ class _FakeSnapshot:
             midtime: The observation midtime in TDB seconds past J2000.
             shutter_mode: The shutter mode the image was taken in, or ``None``
                 for a host whose labels carry no such field.
+            public_metadata_error: An exception ``get_public_metadata`` raises
+                instead of answering, or ``None`` to answer.
         """
         rng = np.random.default_rng(seed=99)
         if blank:
@@ -72,17 +79,20 @@ class _FakeSnapshot:
         # Stands in for ObsInst.shutter_mode, written to
         # observation.shutter_mode when the host exposes one.
         self.shutter_mode = shutter_mode
+        self._public_metadata_error = public_metadata_error
 
     def get_public_metadata(self) -> dict[str, Any]:
-        """Describe the image the way a real snapshot does.
-
-        The driver captions the summary PNG from this, so a stand-in that
-        cannot answer is an incomplete stand-in rather than a case production
-        has to survive: surviving it ships an unlabelled PNG and says nothing.
+        """Return the caption fields the summary PNG reads.
 
         Returns:
             The image name, its filter names, and its exposure time in seconds.
+
+        Raises:
+            BaseException: Whatever ``public_metadata_error`` supplied, when the
+                snapshot was built to fail here.
         """
+        if self._public_metadata_error is not None:
+            raise self._public_metadata_error
         return {
             'image_name': 'N0000000000_1_CALIB.IMG',
             'filters': ('CL1',),
@@ -109,6 +119,7 @@ def _make_fake_obs_class(
     blank: bool = False,
     raise_on_load: BaseException | None = None,
     shutter_mode: str | None = None,
+    raise_on_public_metadata: BaseException | None = None,
 ) -> type:
     """Build a fresh per-test ``obs_class`` shim with controllable behavior.
 
@@ -124,6 +135,9 @@ def _make_fake_obs_class(
             to load successfully.
         shutter_mode: The shutter mode every loaded snapshot reports, or
             ``None`` for a host whose labels carry no such field.
+        raise_on_public_metadata: An exception every loaded snapshot raises
+            from ``get_public_metadata``, so the summary PNG cannot be
+            captioned; ``None`` to answer.
 
     Returns:
         A class exposing the one classmethod the driver calls, ``from_file``,
@@ -132,6 +146,7 @@ def _make_fake_obs_class(
     captured_blank = blank
     captured_raise = raise_on_load
     captured_shutter_mode = shutter_mode
+    captured_public_metadata_error = raise_on_public_metadata
 
     class _FakeObsClass:
         """The observation class the driver loads each image through."""
@@ -154,7 +169,11 @@ def _make_fake_obs_class(
             """
             if captured_raise is not None:
                 raise captured_raise
-            return _FakeSnapshot(blank=captured_blank, shutter_mode=captured_shutter_mode)
+            return _FakeSnapshot(
+                blank=captured_blank,
+                shutter_mode=captured_shutter_mode,
+                public_metadata_error=captured_public_metadata_error,
+            )
 
     return _FakeObsClass
 
@@ -381,6 +400,26 @@ def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:
         assert img.size == (32, 32)
 
 
+def test_navigate_image_files_public_metadata_fault_leaves_no_product(tmp_path: Path) -> None:
+    """A fault captioning the summary PNG propagates and leaves neither product.
+
+    The PNG is written before the metadata document, so the image reads as
+    never navigated rather than as a success with no PNG.
+    """
+    obs_class = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
+    image_files = _make_image_files(tmp_path)
+    results_root = tmp_path / 'results'
+    with pytest.raises(RuntimeError, match='no label'):
+        navigate_image_files(
+            obs_class,
+            image_files,
+            FCPath(str(results_root)),
+            write_output_files=True,
+        )
+    assert not (results_root / 'fake_image_metadata.json').exists()
+    assert not (results_root / 'fake_image_summary.png').exists()
+
+
 # ---------------------------------------------------------------------------
 # _grayscale_to_rgb_with_quantile_stretch
 # ---------------------------------------------------------------------------
@@ -501,11 +540,7 @@ class _FakeObsForRender:
         return array
 
     def get_public_metadata(self) -> dict[str, Any]:
-        """Describe the image the way a real snapshot does.
-
-        The renderer captions the summary PNG from this. A stand-in without it
-        is an incomplete stand-in; production carrying that incompleteness on
-        its behalf lets an unlabelled PNG ship as a finished product.
+        """Return the caption fields the summary PNG reads.
 
         Returns:
             The image name, its filter names, and its exposure time in seconds.
@@ -778,17 +813,19 @@ def test_summary_metadata_failed_reports_no_techniques() -> None:
 
 
 def test_summary_metadata_fails_when_public_metadata_raises() -> None:
-    """A public-metadata failure fails the image rather than captioning it blank.
-
-    These are the labels the summary PNG carries, so absorbing the failure does
-    not produce a PNG that says it is missing them: it produces an unlabelled
-    one, which reads as a finished product rather than as a fault.
-    """
+    """The helper propagates a public-metadata failure rather than captioning blank."""
 
     class _RaisingObs:
+        """Observation stand-in whose public metadata cannot be read."""
+
         abspath = Path('/holdings/N9.IMG')
 
         def get_public_metadata(self) -> dict[str, Any]:
+            """Raise the way a snapshot whose label cannot be read does.
+
+            Raises:
+                RuntimeError: Always.
+            """
             raise RuntimeError('no label')
 
     result = _FakeNavResult(
@@ -799,7 +836,7 @@ def test_summary_metadata_fails_when_public_metadata_raises() -> None:
         confidence_rank='failed',
     )
     with pytest.raises(RuntimeError) as exc_info:
-        # _RaisingObs implements only the one accessor under test, which is
-        # the point of it; it is not an ObsSnapshotInst and cannot be.
+        # _RaisingObs is a stand-in with only the accessor under test; the
+        # ignore covers the type mismatch.
         _summary_metadata_from_obs_result(_RaisingObs(), result)  # type: ignore[arg-type]
     assert 'no label' in str(exc_info.value)

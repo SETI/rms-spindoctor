@@ -397,7 +397,14 @@ class NavOrchestrator(NavBase):
         Raises:
             Exception: Propagated from :meth:`with_pointing` when the
                 corrected-attitude computation hits anything other than the
-                ``NavPointingError`` it expects and absorbs.
+                ``NavPointingError`` it expects and absorbs.  Also whatever
+                ``_make_provenance`` and ``_make_context`` raise, since both
+                run before the pipeline whose failures become a result:
+                provenance reads the environment and the configuration, so a
+                fault there would fail every image alike; context construction
+                reads the image and its masks, so a fault there is that
+                image's own, and it stops the run rather than failing the
+                image.
         """
         provenance = self._make_provenance(obs)
         context, image_classifier = self._make_context(obs, provenance)

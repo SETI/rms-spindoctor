@@ -198,18 +198,12 @@ def _resolve_spice_kernels() -> tuple[str, ...]:
     rather than being recorded as "no kernels" against a run that used plenty.
     The tuple holds *basenames* only so the hash and JSON output stay
     deterministic across machines with different kernel install roots.
+
+    Returns:
+        The basenames of every loaded kernel, sorted.
     """
-    # Imported here rather than at module scope to keep the import graph flat;
-    # not guarded, because a navigation that reached this point ran on cspyce,
-    # so an ImportError is a broken installation rather than a machine without
-    # SPICE -- and answering "no kernels" for one would put that claim in the
-    # record of a run that used plenty.
     import cspyce
 
-    # Read straight through. This tuple is the record of which kernels produced
-    # the result, so an empty one is not a missing diagnostic but a false
-    # statement about the navigation -- and the run that made it is exactly the
-    # run somebody would later try to reproduce from it.
     ktotal = int(cspyce.ktotal('ALL'))
     kernels: list[str] = []
     for index in range(ktotal):
@@ -290,10 +284,9 @@ def _resolve_star_catalogs(config: Config) -> Mapping[str, str]:
     Returns:
         Read-only mapping sorted by catalog name.
     """
-    # Read straight through. A configuration with no star catalogs is one this
-    # navigation could not have used, so an empty mapping here is not an
-    # unavailable diagnostic but a false one -- and AttributeError in
-    # particular would say the same thing about a defect reading the section.
+    # config.stars.catalogs is always present in the merged configuration
+    # (config_030_stars.yaml), so a read that raises is a broken configuration;
+    # recording no catalogs for it would put a false claim in the provenance.
     catalog_names = [str(name).lower() for name in config.stars.catalogs]
     resolved: dict[str, str] = {}
     for name in catalog_names:
