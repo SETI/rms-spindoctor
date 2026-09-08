@@ -420,6 +420,30 @@ def test_navigate_image_files_public_metadata_fault_leaves_no_product(tmp_path: 
     assert not (results_root / 'fake_image_summary.png').exists()
 
 
+def test_navigate_image_files_removes_an_earlier_document_before_it_navigates(
+    tmp_path: Path,
+) -> None:
+    """A document an earlier run left does not outlive a run that stops at this image.
+
+    Otherwise the image would read as navigated, and a rerun selecting images
+    with no document would pass it over.
+    """
+    obs_class = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
+    image_files = _make_image_files(tmp_path)
+    results_root = tmp_path / 'results'
+    results_root.mkdir()
+    earlier = results_root / 'fake_image_metadata.json'
+    earlier.write_text('{"status": "success"}')
+    with pytest.raises(RuntimeError, match='no label'):
+        navigate_image_files(
+            obs_class,
+            image_files,
+            FCPath(str(results_root)),
+            write_output_files=True,
+        )
+    assert not earlier.exists()
+
+
 # ---------------------------------------------------------------------------
 # _grayscale_to_rgb_with_quantile_stretch
 # ---------------------------------------------------------------------------

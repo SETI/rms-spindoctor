@@ -242,6 +242,14 @@ def navigate_image_files(
             'timing': build_timing_section(run_start, datetime.now(UTC)),
         }
 
+    if write_output_files:
+        # A document left by an earlier run would outlive a run that stops at
+        # this image, and the image would then read as navigated.  Both
+        # products go before anything is computed, so an image with no
+        # document is one no run has finished.
+        public_metadata_file.unlink(missing_ok=True)
+        summary_png_file.unlink(missing_ok=True)
+
     try:
         with logger.open(
             str(image_url),
