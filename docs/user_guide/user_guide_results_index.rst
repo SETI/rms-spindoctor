@@ -981,7 +981,8 @@ pair with ``ON DELETE CASCADE``.
        and this is what tells the kernel writer an exposure was one of a pair.
    * - ``image_path``
      - TEXT
-     - Absolute path of the source image at navigate time.
+     - Where the run read the source image from at navigate time: its URL for
+       remote holdings, its absolute path for local ones.
    * - ``image_et``
      - DOUBLE
      - Observation midtime as the navigation recorded it, TDB seconds past

@@ -532,6 +532,40 @@ def test_navigate_image_files_records_a_fault_before_the_image_log_opens(
     assert (results_root / 'fake_image_metadata.json').exists()
 
 
+def test_navigate_image_files_records_the_image_url_not_its_cache_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A remote image's documents name it by its URL, on every shape.
+
+    The local cache copy a remote image is read through is transient and
+    private to the machine that made it.
+    """
+    remote = FCPath('gs://holdings-bucket/volumes/dir/fake_image.IMG')
+    monkeypatch.setattr(ImageFile, 'resolve_image_url', lambda self: remote)
+    results_root = tmp_path / 'results'
+    _navigated_ok, navigated = navigate_image_files(
+        _make_fake_obs_class(),
+        _make_image_files(tmp_path),
+        FCPath(results_root),
+        nav_models=['!*'],
+        write_output_files=False,
+    )
+    _unreadable_ok, unreadable = navigate_image_files(
+        _make_fake_obs_class(raise_on_load=RuntimeError('unreadable')),
+        _make_image_files(tmp_path),
+        FCPath(results_root),
+        write_output_files=False,
+    )
+    assert (
+        navigated['observation']['image_path'] == 'gs://holdings-bucket/volumes/dir/fake_image.IMG'
+    )
+    assert navigated['observation']['image_name'] == 'fake_image.IMG'
+    assert (
+        unreadable['observation']['image_path'] == 'gs://holdings-bucket/volumes/dir/fake_image.IMG'
+    )
+    assert unreadable['status_error'] == 'image_read_error'
+
+
 # ---------------------------------------------------------------------------
 # _grayscale_to_rgb_with_quantile_stretch
 # ---------------------------------------------------------------------------

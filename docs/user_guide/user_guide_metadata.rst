@@ -206,9 +206,12 @@ The observation block
      - Meaning and presence
    * - ``image_path``
      - string
-     - Absolute path of the source image file. Present on navigated and
-       load-error documents; absent on early returns (which never resolved
-       an image).
+     - Where the run read the source image from: its URL when the holdings
+       are remote (``gs://...``, ``https://...``), its absolute path when they
+       are local. Never the local cache copy of a remote image, which is
+       transient and private to the machine that made it. Present on
+       navigated, load-error and internal-error documents; absent on early
+       returns (which never resolved an image).
    * - ``image_name``
      - string
      - Basename of the source image file. Same presence as ``image_path``.

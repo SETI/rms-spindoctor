@@ -222,8 +222,7 @@ def navigate_image_files(
         # resolve_image_url may correct the URL from the label contents, so it must
         # run before the URL is read
         image_url = image_file.resolve_image_url()
-        image_path = image_file.image_file_path.absolute()
-        image_name = image_path.name
+        image_name = image_url.name
         extra_params = image_file.extra_params
 
         if run_logging is None:
@@ -265,7 +264,7 @@ def navigate_image_files(
                     snapshot = obs_class.from_file(image_url, **extra_params)
                 except (OSError, RuntimeError) as exc:
                     metadata = _metadata_for_load_error(
-                        image_path,
+                        image_url,
                         image_name,
                         exc,
                         logger=logger,
@@ -289,7 +288,7 @@ def navigate_image_files(
                     data_shape = snapshot_inst.data.shape
                     metadata = build_metadata_from_result(
                         nav_result,
-                        image_path,
+                        image_url,
                         image_name,
                         instrument=instrument,
                         camera=snapshot_inst.camera,
@@ -322,7 +321,7 @@ def navigate_image_files(
                         image_name,
                     )
                     metadata = _metadata_for_internal_error(
-                        image_path,
+                        image_url,
                         image_name,
                         exc,
                         instrument=instrument,
@@ -366,7 +365,7 @@ def navigate_image_files(
 
 
 def _metadata_for_load_error(
-    image_path: Path,
+    image_path: Path | FCPath,
     image_name: str,
     exc: BaseException,
     *,
@@ -421,8 +420,8 @@ def _metadata_for_internal_error(
     recorded.
 
     Parameters:
-        image_path: Absolute path to the source image, or its URL for a fault
-            before it was retrieved.
+        image_path: Where the run read the source image from: its URL for
+            remote holdings, its absolute path for local ones.
         image_name: Basename of the source image.
         exc: What navigating the image raised.
         instrument: Registered instrument name for the observation class.
@@ -460,8 +459,8 @@ def _error_metadata(
     """Build the document of an image this run could not navigate.
 
     Parameters:
-        image_path: Absolute path to the source image, or its URL for a fault
-            before it was retrieved.
+        image_path: Where the run read the source image from: its URL for
+            remote holdings, its absolute path for local ones.
         image_name: Basename of the source image.
         status_error: Machine-readable classification of what went wrong.
         status_exception: The failure's text, for an operator reading the document.
@@ -492,7 +491,7 @@ def _error_metadata(
 
 def build_metadata_from_result(
     result: NavResult,
-    image_path: Path,
+    image_path: Path | FCPath,
     image_name: str,
     *,
     instrument: str,
@@ -508,8 +507,9 @@ def build_metadata_from_result(
 
     Parameters:
         result: NavResult to curate.
-        image_path: Absolute path to the source image; written to the
-            ``observation.image_path`` field.
+        image_path: Where the run read the source image from, its URL for
+            remote holdings or its absolute path for local ones; written to
+            the ``observation.image_path`` field.
         image_name: Basename of the source image; written to the
             ``observation.image_name`` field.
         instrument: Registered instrument name for the observation class

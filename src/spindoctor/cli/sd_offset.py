@@ -280,8 +280,7 @@ def _run_manual_pass(
     # resolve_image_url may correct the URL from the label contents, so it must
     # run before the URL is read
     image_url = image_file.resolve_image_url()
-    image_path = image_file.image_file_path.absolute()
-    image_name = image_path.name
+    image_name = image_url.name
     extra_params = image_file.extra_params
     public_metadata_file = nav_results_root / (image_file.results_path_stub + '_metadata.json')
     summary_png_file = nav_results_root / (image_file.results_path_stub + '_summary.png')
@@ -318,7 +317,7 @@ def _run_manual_pass(
                 # time: image load + dialog interaction until accept.
                 metadata = build_metadata_from_result(
                     result,
-                    image_path,
+                    image_url,
                     image_name,
                     instrument=obs_class_to_inst_name(obs_class),
                     camera=obs.camera,
