@@ -145,13 +145,19 @@ class _FakeObsForBracket:
         self._du = du
         self._dv = dv
 
-    def boresight_ra(self) -> float:
-        """Return a constant boresight RA (the actual value is unused)."""
-        return 0.0
+    def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
+        """Return a constant sky direction.
 
-    def boresight_dec(self) -> float:
-        """Return a constant boresight DEC (the actual value is unused)."""
-        return 0.0
+        ``uv_from_ra_and_dec`` below ignores its inputs and returns the planted
+        projection, so only the presence of this method matters.
+
+        Parameters:
+            apparent: Whether to correct for aberration; ignored here.
+
+        Returns:
+            ``(ra, dec)`` in radians, always the origin of the sky frame.
+        """
+        return 0.0, 0.0
 
     def uv_from_ra_and_dec(
         self,
@@ -162,7 +168,6 @@ class _FakeObsForBracket:
         apparent: bool,
     ) -> _FakeUVResult:
         """Return a UV that depends linearly on ``tfrac``."""
-        del ra, dec, apparent
         return _FakeUVResult(u=10.0 + self._du * tfrac, v=20.0 + self._dv * tfrac)
 
 
@@ -180,3 +185,17 @@ def test_compute_smear_vector_px_zero_when_no_pointing_drift() -> None:
     my, mx = compute_smear_vector_px(obs)
     assert my == 0.0
     assert mx == 0.0
+
+
+def test_smear_from_an_obs_that_cannot_report_its_center_is_not_silently_zero() -> None:
+    """An obs whose center lookup is broken fails rather than reporting no motion.
+
+    The vector is logged as the frame's smear, so an observation whose center
+    lookup is broken must fail rather than report that the camera never moved.
+    """
+
+    class _NoCenterObs:
+        """Minimal obs stand-in lacking ``center_ra_dec``."""
+
+    with pytest.raises(AttributeError, match='center_ra_dec'):
+        compute_smear_vector_px(cast(Any, _NoCenterObs()))

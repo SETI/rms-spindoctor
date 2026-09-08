@@ -36,6 +36,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
+from spindoctor.config import DEFAULT_CONFIG
+
 __all__ = [
     'BODY_SHAPE_TABLE',
     'DEFAULT_BODY_SHAPE',
@@ -209,27 +211,23 @@ def load_body_shape(body_name: str, config: Any = None) -> BodyShape:
 def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
     """Return the YAML mapping for ``upper_body_name`` if present.
 
-    Resolves ``config.body_shape`` against either an explicit
-    ``Config`` instance or the global ``DEFAULT_CONFIG``.  Returns
-    ``None`` when the body is absent, the YAML block is empty / not a
-    mapping, or the loader has not been run yet (``config.body_shape``
-    raises during early bootstrapping).
-    """
-    cfg = config
-    if cfg is None:
-        # Local import keeps this module import-cycle-free; the global
-        # default is the one nav_model_body.py uses when no per-instance
-        # override is supplied.
-        from spindoctor.config import DEFAULT_CONFIG
+    Resolves ``config.body_shape`` against either an explicit ``Config``
+    instance or the global ``DEFAULT_CONFIG``.
 
-        cfg = DEFAULT_CONFIG
-    try:
-        body_shape_section = cfg.body_shape
-    except AttributeError:
-        # ``cfg`` is not a Config-like object exposing ``body_shape`` (e.g. a
-        # duck-typed test stub, or pre-bootstrap).  A genuine config-load /
-        # validation error is a real failure and is left to propagate.
-        return None
+    Parameters:
+        upper_body_name: The body name in upper case, matching the YAML keys.
+        config: The configuration to read, or None for ``DEFAULT_CONFIG``.
+
+    Returns:
+        A copy of the body's mapping of shape overrides, or None when the
+        ``body_shape`` section is not a mapping, when it has no entry for the
+        body, when the entry is null, or when the entry is not a mapping.
+
+    Raises:
+        AttributeError: If ``config`` has no ``body_shape`` attribute.
+    """
+    cfg = DEFAULT_CONFIG if config is None else config
+    body_shape_section = cfg.body_shape
     if not isinstance(body_shape_section, dict):
         return None
     entry = body_shape_section.get(upper_body_name)

@@ -52,6 +52,7 @@ IMAGES_COLUMNS: tuple[tuple[str, ColumnType, bool], ...] = (
     ('image_date', sqlalchemy.Text, True),
     ('status', sqlalchemy.Text, False),
     ('status_error', sqlalchemy.Text, True),
+    ('status_traceback', sqlalchemy.Text, True),
     ('status_reason', sqlalchemy.Text, True),
     ('offset_dv', sqlalchemy.Double, True),
     ('offset_du', sqlalchemy.Double, True),

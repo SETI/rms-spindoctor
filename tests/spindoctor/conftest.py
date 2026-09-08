@@ -112,6 +112,7 @@ def metadata_document(
     status: str = 'success',
     status_reason: str | None = 'ok',
     status_error: str | None = None,
+    status_traceback: str | None = None,
     offset: list[float] | None = None,
     confidence: float = 0.8,
     confidence_rank: str = 'high',
@@ -134,6 +135,7 @@ def metadata_document(
         status: Top-level status.
         status_reason: The navigator's explanation; None omits the field.
         status_error: The fatal error; None omits the field.
+        status_traceback: The traceback of that error; None omits the field.
         offset: The authoritative top-level offset; None omits it, and a
             successful document defaults to one.
         confidence: Top-level confidence.
@@ -212,6 +214,8 @@ def metadata_document(
         document['offset'] = list(offset)
     if status_error is not None:
         document['status_error'] = status_error
+    if status_traceback is not None:
+        document['status_traceback'] = status_traceback
     if elapsed_s is not None:
         document['timing'] = {
             'start_iso8601': '2026-07-11T00:00:00Z',

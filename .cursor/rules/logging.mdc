@@ -91,4 +91,5 @@ local-or-remote handling is provided by `filecache`.
 | Named section + level | `with logger.open('HEADER', level='DEBUG'):` |
 | Per-unit handlers | `with logger.open(item_id, handler=handlers):` |
 | Exception in except block | `logger.exception('msg: %s', detail)` |
+| Stage handler that re-raises to the orchestrator | `logger.error('msg: %s', exc)` then `raise`; the orchestrator's `exception()` records the traceback once |
 | Standard-library logging | Only for type annotations in low-level plumbing |

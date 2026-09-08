@@ -129,6 +129,7 @@ RECORD_FIELDS: tuple[RecordField, ...] = (
     RecordField(('image_shape_v', 'image_shape_u'), _OBSERVATION, 'image_shape'),
     RecordField(('status',), (), 'status', sentinel=UNKNOWN_STATUS),
     RecordField(('status_error',), (), 'status_error'),
+    RecordField(('status_traceback',), (), 'status_traceback'),
     RecordField(('offset_dv', 'offset_du'), (), 'offset', always_written=True),
     RecordField(('confidence',), (), 'confidence'),
     RecordField(('status_reason',), _RESULT, 'status_reason'),

@@ -318,7 +318,6 @@ class FakeBackplane:
         The shim reports the same scale on both axes; ``axis`` is accepted
         for API parity with ``oops.Backplane.center_resolution``.
         """
-        del axis
         return _scalar(self._body(body_name).default_resolution_km_px)
 
     def where_intercepted(self, body_name: str) -> polymath.Scalar:
@@ -372,15 +371,68 @@ class FakeBackplane:
 
     def distance(self, ring_target: str, *, direction: str = 'dep') -> polymath.Scalar:
         """Return per-pixel ring-plane distance in km."""
-        del direction
         data = self._ring(ring_target)
         return _scalar(data.distance_array(), ~data.ring_mask)
 
     def where_inside_shadow(self, ring_target: str, planet: str) -> polymath.Scalar:
         """Return a boolean Scalar marking ring pixels inside the planet's shadow."""
-        del planet
         data = self._ring(ring_target)
         return _scalar(data.shadow_array().astype(bool))
+
+    def _surface_mask(self, target: str) -> np.ndarray | None:
+        """Return the silhouette planted under a name, or None when there is none.
+
+        Parameters:
+            target: A body name or a ring target; the two registries are keyed
+                differently, so both are consulted.
+
+        Returns:
+            For a body, its ``intercept_mask()``, which is what
+            :meth:`where_intercepted` answers; for a ring, its ``ring_mask``;
+            None when neither registry has the name.
+        """
+        if target.upper() in self.per_body:
+            return np.asarray(self._body(target).intercept_mask(), dtype=bool)
+        if target in self.per_ring:
+            return np.asarray(self._ring(target).ring_mask, dtype=bool)
+        return None
+
+    def where_in_front(self, near_target: str, far_target: str) -> polymath.Scalar:
+        """Return a boolean Scalar marking pixels where the first surface is in front.
+
+        The real backplane answers True where ``near_target`` is intercepted
+        and ``far_target`` is either not intercepted there or lies farther
+        away.  A planted body carries no distance, so this stand-in answers
+        only the first half: the near surface is in front wherever it is
+        planted off the far one.  Where the two silhouettes overlap it cannot
+        say which is nearer and refuses, so a scene with an occluder answers
+        this method itself.  A near surface the scene never planted is in
+        front of nothing.
+
+        Parameters:
+            near_target: The surface that might be in front.
+            far_target: The surface that might be hidden.
+
+        Returns:
+            A boolean Scalar shaped like the far surface's own mask.
+
+        Raises:
+            LookupError: If nothing was planted under ``far_target``.
+            ValueError: If the two planted silhouettes overlap.
+        """
+        far = self._surface_mask(far_target)
+        if far is None:
+            raise LookupError(f'FakeBackplane has no entry for surface {far_target!r}')
+        near = self._surface_mask(near_target)
+        if near is None:
+            return _scalar(np.zeros(far.shape, dtype=bool))
+        if (near & far).any():
+            raise ValueError(
+                f'FakeBackplane cannot say whether {near_target!r} or {far_target!r} is '
+                f'nearer where they overlap; a scene with an occluder answers '
+                f'where_in_front itself'
+            )
+        return _scalar(near & ~far)
 
 
 def plant_circular_body(

@@ -1,13 +1,43 @@
 """Observation-side geometry extraction for the Titan haze model.
 
-Every ``oops`` and star-catalog query the haze feature depends on lives
-here, behind one entry point that never raises: the model's always-emit
-invariant needs a defensible answer for a frame whose geometry cannot be
-evaluated, not an exception the orchestrator would turn into a silent
-absence of features.  The result is a frozen
+Every ``oops`` and star-catalog query the haze feature depends on lives here,
+behind one entry point, :func:`geometry_from_obs`.  The result is a frozen
 :class:`TitanGeometryInputs`, on which every downstream decision --
-reliability, the hard-zero conditions, the emitted feature payload -- is a
-pure function.
+reliability, the hard-zero conditions, the emitted feature payload -- is a pure
+function.
+
+Which failures are answered and which propagate
+-----------------------------------------------
+
+Three conditions are answered with a degenerate geometry rather than an
+exception, because the model's always-emit invariant needs a feature for them:
+an inventory field that is not finite, an image scale or body radius that is
+not finite and positive, and an envelope box with no surface-intercept pixel
+in it around a body narrower than the sampling stride.  Each yields zero radii
+or a degenerate axis, so the reliability hard-zero path fires and the emitted
+feature is gated out with its cause recorded.  The first is the only exception
+this module absorbs, and it has a type of its own,
+:class:`NonFiniteInventoryError`, so the ``except`` can match nothing else.
+The inventory's ``range`` follows the same rule when present; an absent one is
+an unknown distance and reads as infinite, and a negative one is a defect.
+
+Every other exception propagates.  A stage that fails logs one line naming
+what it could not evaluate and re-raises; the orchestrator logs the traceback
+once and fails the image with ``status_reason=internal_error``, recording
+which component raised and what it raised.  Two conditions this module detects
+itself are raised the same way, because they are defects and never frame
+conditions: an envelope box that must contain the body yet holds no
+surface-intercept pixel, and a backplane whose shape differs from its
+meshgrid's.
+
+No stage catches an exception and carries on with a default, for two reasons.
+An exception's type says nothing about its cause: ``oops`` raises ``ValueError``
+and ``LookupError`` when it cannot answer a query, and so does a defect in
+``oops``, in ``numpy`` or in this module.  And a stage that carried on would
+still produce an offset.  If the mask stage swallowed a fault, the fit would run
+against a mask that was never built, and the image's document would record a
+navigation that finished, which no selection flag can tell from one that ran on
+all its evidence.
 
 Coordinate conventions.  Positions -- the predicted center and the sunward
 pixel that sets the symmetry axis -- are field-of-view coordinates plus the
@@ -45,6 +75,7 @@ from spindoctor.support.types import NDArrayBoolType
 __all__ = [
     'STAR_MASK_PHOTOMETRY_SPLIT_VMAG',
     'STAR_MASK_YBSC_MIN_VMAG',
+    'NonFiniteInventoryError',
     'TitanGeometryInputs',
     'geometry_from_obs',
     'occluded_disc_fraction',
@@ -86,30 +117,44 @@ carries pad far in excess of that residual.
 """
 
 
+_BOX_SAMPLE_STRIDE_PX: float = 1.0
+"""Sampling stride, in pixels, of the box meshgrids this module builds.
+
+:func:`_restricted_backplane` samples once per pixel.  A square lattice with
+this stride has covering radius ``stride / sqrt(2)``, so a disc whose radius
+is at least the stride always contains a sample: an envelope box that must
+contain such a body yet shows no surface intercept is a defect, while a body
+narrower than the stride can fall between samples and show none.
+"""
+
+
 @dataclass(frozen=True)
 class TitanGeometryInputs:
     """Everything the haze feature needs, with all observation access done.
 
-    Produced by :func:`geometry_from_obs`, which owns every ``oops`` query
-    and never raises; every downstream decision (reliability, hard-zero
-    conditions, feature payload) is a pure function of this dataclass, so it
-    is testable without an observation or a SPICE kernel.
+    Produced by :func:`geometry_from_obs`, which owns every ``oops`` query;
+    every downstream decision (reliability, hard-zero conditions, feature
+    payload) is a pure function of this dataclass, so it is testable without
+    an observation or a SPICE kernel.
 
     Parameters:
         predicted_center_vu: Geometric disc center in extfov coordinates --
             the body's field-of-view center plus the extfov margin.
         r_solid_px: Apparent solid-body radius in pixels; ``0.0`` when the
-            image scale could not be evaluated.
+            image scale or body radius is not finite and positive.
         r_env_px: Apparent haze-envelope radius in pixels; ``0.0`` under the
             same condition.
         km_per_px: Image scale at the body center in kilometers per pixel;
-            ``0.0`` when it could not be evaluated.
+            ``0.0`` when the image scale or body radius is not finite and
+            positive.
         phase_deg: Phase angle at the body center in degrees.
         theta_rad: Symmetry-axis angle; ``atan2`` of the offset from the
             disc center to the minimum-incidence surface pixel.
         axis_degenerate: True when that offset was too short to define a
-            direction (a near-zero-phase, rotationally symmetric disc) or
-            when the geometry could not be evaluated at all.
+            direction (a near-zero-phase, rotationally symmetric disc), when
+            the envelope box holds no surface-intercept pixel around a body
+            narrower than the sampling stride, or when the inventory or
+            image scale is degenerate.
         occluded_fraction: Fraction of the envelope disc, clipped to the
             extended frame, that a nearer body or the rings hide.
         contaminant_mask: Undilated boolean array of the extfov image shape
@@ -146,14 +191,27 @@ class TitanGeometryInputs:
     filters: tuple[str, ...]
 
 
+class NonFiniteInventoryError(ValueError):
+    """A Titan inventory field that is not a finite number.
+
+    Its own type because it is the one condition this module expects and
+    answers: the inventory reports a bounding box, and a NaN or an infinity in
+    it is a frame whose geometry cannot be built, which the always-emit
+    invariant answers with a degenerate geometry and a zero-reliability
+    feature.  Every other exception propagates and fails the image, and a bare
+    ``ValueError`` could not be told from one, since ``oops`` raises
+    ``ValueError`` when it cannot answer a query.
+    """
+
+
 def _finite(value: Any, name: str) -> float:
     """Return ``value`` as a finite float, raising when it is not one.
 
     Inventory coordinates come from a SPICE-driven projection that can
     return NaN or infinity for an unresolvable geometry.  Converting through
-    this turns such a value into an exception inside the caller's guarded
-    block, where it lands on the degenerate-geometry path, instead of into a
-    NaN that silently poisons every quantity derived from it.
+    this turns such a value into an exception, which :func:`geometry_from_obs`
+    answers with the degenerate geometry, instead of into a NaN that silently
+    poisons every quantity derived from it.
 
     Parameters:
         value: The raw inventory quantity.
@@ -163,20 +221,26 @@ def _finite(value: Any, name: str) -> float:
         The value as a float.
 
     Raises:
-        ValueError: If the value is not finite.
+        NonFiniteInventoryError: If the value is not finite.
     """
     out = float(value)
     if not math.isfinite(out):
-        raise ValueError(f'Titan inventory field {name} is not finite; got {out!r}')
+        raise NonFiniteInventoryError(f'Titan inventory field {name} is not finite; got {out!r}')
     return out
 
 
 def _frame_bounds(obs: Observation) -> tuple[tuple[int, int], float, tuple[float, float]]:
     """Return the extfov shape, search half-window, and per-axis margins.
 
-    Falls back to a zero-sized frame when the observation cannot report
-    those quantities, which forces the reliability hard-zero path rather
-    than letting the caller raise.
+    Parameters:
+        obs: The observation to read.
+
+    Returns:
+        ``((height, width), window_px, (margin_v, margin_u))``.
+
+    Raises:
+        Exception: Whatever ``obs`` raises when it cannot report its
+            extended-FOV geometry, after one log line naming the stage.
     """
     try:
         shape = obs.extdata_shape_vu
@@ -184,20 +248,20 @@ def _frame_bounds(obs: Observation) -> tuple[tuple[int, int], float, tuple[float
         bounds = (int(shape[0]), int(shape[1]))
         margin_vu = (float(margin[0]), float(margin[1]))
         window_px = max(margin_vu)
-    except Exception:
-        IMAGE_LOGGER.exception('Titan: observation exposes no extended-FOV geometry')
-        return (0, 0), 0.0, (0.0, 0.0)
+    except Exception as exc:
+        IMAGE_LOGGER.error('Titan: extended-FOV geometry could not be evaluated: %s', exc)
+        raise
     return bounds, window_px, margin_vu
 
 
 def _filter_names(obs: Observation) -> tuple[str, ...]:
     """Return the image's filter names, or an empty tuple when it has none.
 
-    Single-filter instruments and observation stand-ins carry no filter
-    attributes at all, so the lookup is by presence rather than by
-    assumption.
+    Each instrument's observation names its filters differently -- Cassini
+    ISS carries ``filter1`` and ``filter2``, Voyager ISS and Galileo SSI carry
+    ``filter`` -- so the lookup is by presence.
     """
-    names = [getattr(obs, attr, None) for attr in ('filter1', 'filter2')]
+    names = [getattr(obs, attr, None) for attr in ('filter1', 'filter2', 'filter')]
     return tuple(str(name) for name in names if name)
 
 
@@ -210,7 +274,7 @@ def _degenerate_geometry(
     predicted_center_vu: tuple[float, float] = (0.0, 0.0),
     subject_range_km: float = float('inf'),
 ) -> TitanGeometryInputs:
-    """Return defensible defaults for a frame whose geometry did not evaluate.
+    """Return defensible defaults for a frame whose inventory or scale is degenerate.
 
     Zero radii put the envelope diameter below any positive floor, so the
     reliability hard-zero path fires and the emitted feature is gated out
@@ -258,11 +322,20 @@ def _body_radius_km(body_name: str) -> float:
 
 
 def _body_scale(obs: Observation, config: Config) -> _BodyScale | None:
-    """Return the image scale, apparent radii, and phase, or None on failure.
+    """Return the image scale, apparent radii, and phase.
 
     ``km_per_px`` averages the per-axis center resolutions; the radii come
     from the body's registered equatorial radius plus the configured
     atmosphere height.
+
+    Returns:
+        The scale, or ``None`` when the scale or radius is not finite and
+        positive.
+
+    Raises:
+        Exception: Whatever the backplane or the body registry raises when the
+            center resolution, phase or radius cannot be evaluated, after one
+            log line naming the stage.
     """
     try:
         ext_bp = obs.ext_bp
@@ -270,9 +343,11 @@ def _body_scale(obs: Observation, config: Config) -> _BodyScale | None:
         res_v = float(ext_bp.center_resolution(TITAN_BODY_NAME, axis='v').vals)
         phase_deg = float(np.degrees(ext_bp.center_phase_angle(TITAN_BODY_NAME).vals))
         radius_km = _body_radius_km(TITAN_BODY_NAME)
-    except Exception:
-        IMAGE_LOGGER.exception('Titan: image scale / phase unavailable')
-        return None
+    except Exception as exc:
+        IMAGE_LOGGER.error(
+            'Titan: image scale, phase or body radius could not be evaluated: %s', exc
+        )
+        raise
     km_per_px = 0.5 * (res_u + res_v)
     # NaN fails every comparison, so it must be rejected by an explicit
     # finiteness test rather than by the positivity bounds: a NaN radius
@@ -326,6 +401,7 @@ def _symmetry_axis(
     margin_vu: tuple[int, int],
     *,
     axis_min_offset_px: float,
+    r_solid_px: float,
 ) -> tuple[float, bool]:
     """Return ``(theta_rad, axis_degenerate)`` from the incidence backplane.
 
@@ -351,10 +427,25 @@ def _symmetry_axis(
         center_vu: Predicted disc center in extfov coordinates.
         margin_vu: ``(margin_v, margin_u)`` extfov margins.
         axis_min_offset_px: Offset below which the axis is degenerate.
+        r_solid_px: Apparent solid-body radius in pixels, which decides
+            whether a box with no surface-intercept pixel is a frame
+            condition or a defect.
 
     Returns:
-        ``(theta_rad, axis_degenerate)``.  A failed or empty backplane
-        yields ``(0.0, True)`` rather than raising.
+        ``(theta_rad, axis_degenerate)``.  The axis is degenerate when the
+        minimum-incidence pixel lies within ``axis_min_offset_px`` of the disc
+        center, and when the box holds no surface-intercept pixel around a
+        body narrower than the sampling stride.  The backplane mask marks
+        pixels with no surface intercept at all; an unlit surface is still
+        intercepted, so lighting never empties the box.
+
+    Raises:
+        RuntimeError: If the incidence backplane's shape differs from its
+            meshgrid's, or if the box holds no surface-intercept pixel around
+            a body at least as wide as the sampling stride, which the box
+            must then contain.  Both are defects, never frame conditions.
+        Exception: Whatever the backplane raises when the incidence angle
+            cannot be evaluated, after one log line naming the stage.
     """
     try:
         bp, meshgrid = _restricted_backplane(obs, bbox_nominal)
@@ -362,18 +453,28 @@ def _symmetry_axis(
         invalid = np.asarray(incidence.expand_mask().mask, dtype=bool)
         values = np.asarray(incidence.vals, dtype=np.float64)
         uv = np.asarray(meshgrid.uv.vals, dtype=np.float64)
-    except Exception:
-        IMAGE_LOGGER.exception('Titan: incidence backplane unavailable; axis is degenerate')
-        return 0.0, True
+    except Exception as exc:
+        IMAGE_LOGGER.error('Titan: incidence backplane could not be evaluated: %s', exc)
+        raise
+    # oops evaluates every backplane over the meshgrid it was given, so a
+    # shape mismatch is a defect, never a frame condition.
+    if uv.shape[:-1] != values.shape:
+        raise RuntimeError(
+            f'Titan: incidence backplane {values.shape} does not match its meshgrid {uv.shape[:-1]}'
+        )
     valid = ~invalid
     if not valid.any():
-        IMAGE_LOGGER.info('Titan: no surface-intercept pixels in the envelope box')
-        return 0.0, True
-    if uv.shape[:-1] != values.shape:
+        if r_solid_px >= _BOX_SAMPLE_STRIDE_PX:
+            raise RuntimeError(
+                'Titan: no surface-intercept pixel in an envelope box that must contain '
+                f'the body (solid radius {r_solid_px:.3f} px, sampling stride '
+                f'{_BOX_SAMPLE_STRIDE_PX:.3f} px)'
+            )
         IMAGE_LOGGER.warning(
-            'Titan: meshgrid shape %r does not match the incidence backplane %r',
-            uv.shape[:-1],
-            values.shape,
+            'Titan: body narrower than the sampling stride (solid radius %.3f px, stride '
+            '%.3f px) shows no surface-intercept pixel; axis is degenerate',
+            r_solid_px,
+            _BOX_SAMPLE_STRIDE_PX,
         )
         return 0.0, True
     index = np.unravel_index(int(np.argmin(np.where(valid, values, np.inf))), values.shape)
@@ -401,16 +502,20 @@ def _ring_occlusion_local(
     stripes.
 
     Returns:
-        The bbox-local boolean mask, or ``None`` when no ring pixel
-        qualifies or the ring backplanes could not be evaluated.
+        The bbox-local boolean mask, or ``None`` when no ring-plane intercept
+        inside the annulus lies nearer than the body center.
+
+    Raises:
+        Exception: Whatever the backplane raises when the ring radius or
+            distance cannot be evaluated, after one log line naming the stage.
     """
     ring_target = f'{planet.lower()}{_RING_TARGET_SUFFIX}'
     try:
         radius = np.asarray(bp.ring_radius(ring_target).mvals.filled(np.nan), dtype=np.float64)
         distance = np.asarray(bp.distance(ring_target).mvals.filled(np.inf), dtype=np.float64)
-    except Exception:
-        IMAGE_LOGGER.exception('Titan: ring backplanes unavailable; ring occlusion not masked')
-        return None
+    except Exception as exc:
+        IMAGE_LOGGER.error('Titan: ring backplanes could not be evaluated: %s', exc)
+        raise
     with np.errstate(invalid='ignore'):
         in_annulus = (radius >= radii_km[0]) & (radius <= radii_km[1])
         nearer = distance < subject_range_km
@@ -501,11 +606,9 @@ def _paint_bright_stars(
             stars = stars_in_extfov(
                 obs, config, catalog_name=catalog_name, mag_min=mag_min, mag_max=mag_max
             )
-        except Exception:
-            IMAGE_LOGGER.exception(
-                'Titan: %s star query failed; bright stars left unmasked', catalog_name
-            )
-            continue
+        except Exception as exc:
+            IMAGE_LOGGER.error('Titan: %s star query could not be evaluated: %s', catalog_name, exc)
+            raise
         for star in stars:
             paint_disc(mask, (star.v + margin_vu[0], star.u + margin_vu[1]), radius_px)
 
@@ -603,33 +706,32 @@ def _contaminant_mask(
     contaminant_ext: NDArrayBoolType = np.zeros(extfov_shape_vu, dtype=bool)
     try:
         bp, _ = _restricted_backplane(obs, mask_bbox)
-    except Exception:
-        IMAGE_LOGGER.exception('Titan: mask-box backplane unavailable; occlusion not masked')
-        bp = None
-    if bp is not None:
-        sibling_ranges = [
-            (name.upper(), float(entry.get('range', float('inf')))) for name, entry in siblings
-        ]
-        body_local = occluder_mask_for_body(
-            bp,
-            TITAN_BODY_NAME,
-            sibling_ranges,
-            subject_range_km,
-            oversample_v=1,
-            oversample_u=1,
+    except Exception as exc:
+        IMAGE_LOGGER.error('Titan: mask-box backplane could not be evaluated: %s', exc)
+        raise
+    sibling_ranges = [
+        (name.upper(), float(entry.get('range', float('inf')))) for name, entry in siblings
+    ]
+    body_local = occluder_mask_for_body(
+        bp,
+        TITAN_BODY_NAME,
+        sibling_ranges,
+        subject_range_km,
+        oversample_v=1,
+        oversample_u=1,
+    )
+    planet = obs.closest_planet
+    radii = nav_config['ring_occlusion_radii_km']
+    ring_local = (
+        None
+        if planet is None
+        else _ring_occlusion_local(
+            bp, str(planet), subject_range_km, (float(radii[0]), float(radii[1]))
         )
-        planet = getattr(obs, 'closest_planet', None)
-        radii = nav_config['ring_occlusion_radii_km']
-        ring_local = (
-            None
-            if planet is None
-            else _ring_occlusion_local(
-                bp, str(planet), subject_range_km, (float(radii[0]), float(radii[1]))
-            )
-        )
-        for local in (body_local, ring_local):
-            if local is not None:
-                _embed_local(occluder_ext, local, mask_bbox, margin_vu)
+    )
+    for local in (body_local, ring_local):
+        if local is not None:
+            _embed_local(occluder_ext, local, mask_bbox, margin_vu)
     contaminant_ext |= occluder_ext
     _paint_sibling_bboxes(contaminant_ext, siblings, margin_vu)
     _paint_bright_stars(
@@ -693,15 +795,14 @@ def geometry_from_obs(
     inventory: dict[str, Any] | None = None,
     siblings: list[tuple[str, dict[str, Any]]] | None = None,
 ) -> TitanGeometryInputs:
-    """Compute the haze geometry from an observation, never raising.
+    """Compute the haze geometry from an observation.
 
-    Every ``oops`` and catalog query the haze feature depends on happens
-    here, each stage degrading to a defensible default instead of
-    propagating.  The always-emit invariant depends on that: the
-    orchestrator drops a model whose ``create_model`` raises and reads a
-    raising ``to_features`` as zero features, so a pathology would end a
-    Titan-only frame with no gate record at all -- on exactly the clipped
-    and off-edge frames the visibility hard-zero exists for.
+    Every ``oops`` and catalog query the haze feature depends on happens here.
+    A non-finite inventory entry is a frame condition, so it is answered with
+    the degenerate geometry and reaches the reliability gate as a zero-scored
+    feature, which keeps the always-emit invariant.  Every other exception
+    propagates and fails the image, because a stage that could not be
+    evaluated is not evidence that the frame is degenerate.
 
     Parameters:
         obs: Observation snapshot.
@@ -713,22 +814,31 @@ def geometry_from_obs(
 
     Returns:
         A fully-populated :class:`TitanGeometryInputs`.  A frame whose
-        geometry could not be evaluated gets zero radii and
-        ``axis_degenerate=True``, which forces the reliability hard-zero
-        path.
+        inventory entry is not finite, or whose image scale or body radius is
+        not finite and positive, gets zero radii and ``axis_degenerate=True``,
+        which forces the reliability hard-zero path.
+
+    Raises:
+        ValueError: If the inventory's ``range`` is negative.
+        RuntimeError: If the envelope box holds no surface-intercept pixel
+            although it must contain the body, or if a backplane's shape
+            differs from its meshgrid's.
+        Exception: Whatever an ``oops`` or catalog query raises when it
+            cannot be evaluated; the stage logs one line naming what it could
+            not evaluate before the exception propagates.
     """
     extfov_shape_vu, window_px, extfov_margin_vu = _frame_bounds(obs)
     filters = _filter_names(obs)
+    margin_vu = (int(obs.extfov_margin_vu[0]), int(obs.extfov_margin_vu[1]))
+    if inventory is None:
+        inventory = obs.inventory([TITAN_BODY_NAME], return_type='full')[TITAN_BODY_NAME]
+    if siblings is None:
+        siblings = [
+            (name, entry)
+            for name, entry in bodies_in_extfov(obs, config=config)
+            if name.upper() != TITAN_BODY_NAME
+        ]
     try:
-        margin_vu = (int(obs.extfov_margin_vu[0]), int(obs.extfov_margin_vu[1]))
-        if inventory is None:
-            inventory = obs.inventory([TITAN_BODY_NAME], return_type='full')[TITAN_BODY_NAME]
-        if siblings is None:
-            siblings = [
-                (name, entry)
-                for name, entry in bodies_in_extfov(obs, config=config)
-                if name.upper() != TITAN_BODY_NAME
-            ]
         u_min_unc = _finite(inventory['u_min_unclipped'], 'u_min_unclipped')
         u_max_unc = _finite(inventory['u_max_unclipped'], 'u_max_unclipped')
         v_min_unc = _finite(inventory['v_min_unclipped'], 'v_min_unclipped')
@@ -746,20 +856,29 @@ def geometry_from_obs(
             _finite(center_uv[1], 'center_uv[v]') + margin_vu[0],
             _finite(center_uv[0], 'center_uv[u]') + margin_vu[1],
         )
-        raw_range_km = float(inventory.get('range', float('inf')))
-        # A NaN range would reach NavFeature, which rejects it outright; an
-        # unknown distance is honestly infinite, not zero.
+        # An absent range is an unknown distance, which is infinite.  A
+        # present one is converted like every other inventory field, so NaN
+        # and infinity answer with the degenerate geometry rather than
+        # reaching NavFeature, which rejects a NaN outright.
         subject_range_km = (
-            raw_range_km if not math.isnan(raw_range_km) and raw_range_km >= 0.0 else float('inf')
+            _finite(inventory['range'], 'range') if 'range' in inventory else float('inf')
         )
-    except Exception:
-        IMAGE_LOGGER.exception('Titan: inventory entry unavailable or not finite')
+    except NonFiniteInventoryError as exc:
+        # The one exception answered rather than propagated; see "Which
+        # failures are answered and which propagate" in the module docstring
+        # for why it is the only one, and why it has a type of its own.
+        # The message already starts with the body name.
+        IMAGE_LOGGER.warning('%s; geometry is degenerate', exc)
         return _degenerate_geometry(
             extfov_shape_vu=extfov_shape_vu,
             window_px=window_px,
             extfov_margin_vu=extfov_margin_vu,
             filters=filters,
         )
+    # A negative range is a defect: it would make every sibling and every
+    # ring intercept count as nearer than the body.
+    if subject_range_km < 0.0:
+        raise ValueError(f'Titan inventory field range is negative; got {subject_range_km!r}')
     scale = _body_scale(obs, config)
     if scale is None:
         return _degenerate_geometry(
@@ -789,6 +908,7 @@ def geometry_from_obs(
         center_vu,
         margin_vu,
         axis_min_offset_px=float(config.titan['navigation']['axis_min_offset_px']),
+        r_solid_px=scale.r_solid_px,
     )
     contaminant = _contaminant_mask(
         obs,

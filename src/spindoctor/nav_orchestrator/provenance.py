@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
+import cspyce
 from ruamel.yaml.error import YAMLError
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
@@ -192,25 +193,20 @@ def _resolve_git_sha() -> str | None:
 def _resolve_spice_kernels() -> tuple[str, ...]:
     """Return the sorted tuple of currently-loaded SPICE kernel basenames.
 
-    Uses ``cspyce`` (the SPICE binding shared with ``oops``) when it is
-    available; returns an empty tuple when SPICE is not loaded.  The
-    tuple holds *basenames* only so the hash and JSON output stay
-    deterministic across machines with different kernel install roots.
+    Reads the loaded kernels from ``cspyce``, the SPICE binding shared with
+    ``oops``.  A navigation that reached this point ran on cspyce, so a lookup
+    failure here is a broken installation and reaches the caller rather than
+    being recorded as "no kernels" against a run that used plenty.  The tuple
+    holds *basenames* only so the hash and JSON output stay deterministic
+    across machines with different kernel install roots.
+
+    Returns:
+        The basenames of every loaded kernel, sorted.
     """
-    try:
-        import cspyce
-    except ImportError:
-        return ()
-    try:
-        ktotal = int(cspyce.ktotal('ALL'))
-    except Exception:  # pragma: no cover - cspyce diagnostic edge case
-        return ()
+    ktotal = int(cspyce.ktotal('ALL'))
     kernels: list[str] = []
     for index in range(ktotal):
-        try:
-            file_name, _, _, _ = cspyce.kdata(index, 'ALL')
-        except Exception:  # pragma: no cover - cspyce diagnostic edge case
-            continue
+        file_name, _, _, _ = cspyce.kdata(index, 'ALL')
         if file_name:
             kernels.append(Path(str(file_name)).name)
     return tuple(sorted(kernels))
@@ -287,11 +283,10 @@ def _resolve_star_catalogs(config: Config) -> Mapping[str, str]:
     Returns:
         Read-only mapping sorted by catalog name.
     """
-    try:
-        catalog_names = [str(name).lower() for name in config.stars.catalogs]
-    except (AttributeError, TypeError, OSError) as exc:
-        IMAGE_LOGGER.warning('star-catalog provenance unavailable: %s', exc)
-        return MappingProxyType({})
+    # config.stars.catalogs is always present in the merged configuration
+    # (config_030_stars.yaml), so a read that raises is a broken configuration;
+    # recording no catalogs for it would put a false claim in the provenance.
+    catalog_names = [str(name).lower() for name in config.stars.catalogs]
     resolved: dict[str, str] = {}
     for name in catalog_names:
         if name == 'ucac4':

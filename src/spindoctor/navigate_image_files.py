@@ -7,19 +7,31 @@ and writes the curated metadata (and a summary PNG when requested) to
 ``nav_results_root``.
 
 This is the function ``sd_offset`` and ``sd_offset_cloud_tasks`` invoke
-once per image.  Errors from image loading, missing SPICE coverage, and
-navigation contract violations are captured into the output metadata so
-the driver returns a structured result for them rather than crashing the
-worker process.  One class of exception deliberately propagates: a defect
-inside the corrected-pointing computation (anything it raises other than
-``NavPointingError``) fails the run on its first image, because absorbing
-it would silently drop pointing from a whole batch while every image
-still reported success.
+once per image.  Every failure of one image is recorded in that image's
+document and the run goes on to the next image, wherever the failure arises:
+the label read that resolves the image's URL, its retrieval into the cache,
+the image load, missing SPICE coverage, a navigation contract violation,
+provenance or context construction in the orchestrator, the corrected-pointing
+computation, the summary PNG, or a defect anywhere in between.  A failure the
+orchestrator classifies is a ``failed`` document with the reason in
+``status_reason``; one that raises past it is an ``error`` document with
+``status_error`` ``internal_error``, the exception in ``status_exception`` and
+its traceback in ``status_traceback``, which the error selection filters pick
+up on a rerun.  A fault before the
+image's own log section opens is recorded from the run's log and names the
+image by its URL.  Only an interrupt stops the run.
+
+The PNG is written before the document, so a document never says success for
+an image whose products are incomplete.  Nothing an earlier run left for an
+image is removed before this run navigates it: each product is replaced only
+when this run writes its own, so a run interrupted at an image leaves the
+earlier products in place.
 """
 
 from __future__ import annotations
 
 import sys
+import traceback
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -154,7 +166,10 @@ def navigate_image_files(
     ``NavModel`` subclass to construct whatever instances apply to the
     observation, runs the orchestrator with the caller's model and
     technique filters, and writes ``_metadata.json`` plus
-    ``_summary.png`` if requested.
+    ``_summary.png`` if requested.  Whatever fails for the image is
+    recorded in its metadata and returned rather than raised, so a caller
+    working through a batch goes on to its next image; only an interrupt
+    stops the run.
 
     Parameters:
         obs_class: Concrete ``ObsSnapshotInst`` subclass for the mission.
@@ -175,9 +190,12 @@ def navigate_image_files(
             configuration's defaults, for a caller outside a configured run.
 
     Returns:
-        Tuple ``(success, metadata)`` where ``success`` is True for an
-        ``ok`` ``NavResult.status`` and False otherwise.  ``metadata`` is
-        the curated JSON-friendly dict.
+        Tuple ``(success, metadata)`` where ``success`` is True for a
+        ``success`` ``NavResult.status`` and False otherwise.  ``metadata``
+        is the curated JSON-friendly dict, or an error document (``status``
+        ``'error'`` with ``status_error``, ``status_exception`` and
+        ``status_traceback``) when the image could not be loaded or navigating
+        it raised.
     """
     logger = IMAGE_LOGGER
     run_start = datetime.now(UTC)
@@ -200,102 +218,166 @@ def navigate_image_files(
         }
 
     image_file = image_files.image_files[0]
-    # resolve_image_url may correct the URL from the label contents, so it must
-    # run before the URL is read
-    image_url = image_file.resolve_image_url()
-    image_path = image_file.image_file_path.absolute()
-    image_name = image_path.name
     instrument = obs_class_to_inst_name(obs_class)
-    extra_params = image_file.extra_params
     public_metadata_file = nav_results_root / (image_file.results_path_stub + '_metadata.json')
     summary_png_file = nav_results_root / (image_file.results_path_stub + '_summary.png')
-
-    if run_logging is None:
-        # Derive the log root from the results root this call was given rather
-        # than re-resolving one: a caller that named its results root has
-        # already said where its output belongs, and resolving afresh both
-        # ignores that and fails outright when nothing else names a root.
-        run_logging = run_logging_for_root(nav_results_root / 'logs')
     try:
-        local_handlers, image_log_path = build_image_log_handlers(
-            'nav',
-            image_file.results_path_stub,
-            run_logging.sinks,
-            run_logging.levels,
-            timestamp=run_logging.timestamp,
-        )
-    except ValueError as exc:
-        # A stub that would put the log outside the log root is a bad image
-        # entry.  It fails its own image and returns like any other per-image
-        # error, rather than raising through the driver and taking the rest of
-        # the batch with it.
-        MAIN_LOGGER.error('Refusing to navigate %s: %s', image_url, exc)
-        return False, {
-            'status': 'error',
-            'status_error': 'invalid_results_path_stub',
-            'status_exception': str(exc),
-            'observation': {'instrument': instrument},
-            'timing': build_timing_section(run_start, datetime.now(UTC)),
-        }
+        # resolve_image_url may correct the URL from the label contents, so it must
+        # run before the URL is read
+        image_url = image_file.resolve_image_url().absolute()
+        image_name = image_url.name
+        extra_params = image_file.extra_params
 
-    try:
-        with logger.open(
-            str(image_url),
-            handler=local_handlers,
-            level=run_logging.levels.image_section_level(),
-        ):
-            log_run_environment(logger, sys.argv[1:])
-            try:
-                snapshot = obs_class.from_file(image_url, **extra_params)
-            except (OSError, RuntimeError) as exc:
-                metadata = _metadata_for_load_error(
-                    image_path,
-                    image_name,
-                    exc,
-                    logger=logger,
-                    instrument=instrument,
-                    camera=image_file.camera,
-                    timing=build_timing_section(run_start, datetime.now(UTC)),
-                )
-                if write_output_files:
-                    public_metadata_file.write_text(json_as_string(metadata))
+        if run_logging is None:
+            # Derive the log root from the results root this call was given rather
+            # than re-resolving one: a caller that named its results root has
+            # already said where its output belongs, and resolving afresh both
+            # ignores that and fails outright when nothing else names a root.
+            run_logging = run_logging_for_root(nav_results_root / 'logs')
+        try:
+            local_handlers, image_log_path = build_image_log_handlers(
+                'nav',
+                image_file.results_path_stub,
+                run_logging.sinks,
+                run_logging.levels,
+                timestamp=run_logging.timestamp,
+            )
+        except ValueError as exc:
+            # A stub that would put the log outside the log root is a bad image
+            # entry.  It fails its own image and returns like any other per-image
+            # error, rather than raising through the driver and taking the rest of
+            # the batch with it.
+            MAIN_LOGGER.error('Refusing to navigate %s: %s', image_url, exc)
+            return False, {
+                'status': 'error',
+                'status_error': 'invalid_results_path_stub',
+                'status_exception': str(exc),
+                'observation': {'instrument': instrument},
+                'timing': build_timing_section(run_start, datetime.now(UTC)),
+            }
+
+        try:
+            with logger.open(
+                str(image_url),
+                handler=local_handlers,
+                level=run_logging.levels.image_section_level(),
+            ):
+                log_run_environment(logger, sys.argv[1:])
+                try:
+                    snapshot = obs_class.from_file(image_url, **extra_params)
+                except (OSError, RuntimeError) as exc:
+                    metadata = _metadata_for_load_error(
+                        image_url,
+                        image_name,
+                        exc,
+                        logger=logger,
+                        instrument=instrument,
+                        camera=image_file.camera,
+                        timing=build_timing_section(run_start, datetime.now(UTC)),
+                    )
+                    if write_output_files:
+                        public_metadata_file.write_text(json_as_string(metadata))
+                    if image_log_path is not None:
+                        MAIN_LOGGER.info('Wrote log to %s', image_log_path)
+                    return False, metadata
+                snapshot_inst = cast(ObsSnapshotInst, snapshot)
+                try:
+                    orchestrator = NavOrchestrator(
+                        build_models_for_obs(snapshot_inst),
+                        only_models=nav_models or '*',
+                        only_techniques=nav_techniques or '*',
+                    )
+                    nav_result = orchestrator.navigate(snapshot_inst)
+                    data_shape = snapshot_inst.data.shape
+                    metadata = build_metadata_from_result(
+                        nav_result,
+                        image_url,
+                        image_name,
+                        instrument=instrument,
+                        camera=snapshot_inst.camera,
+                        shutter_mode=snapshot_inst.shutter_mode,
+                        image_shape=(int(data_shape[0]), int(data_shape[1])),
+                        timing=build_timing_section(run_start, datetime.now(UTC)),
+                    )
+                    if write_output_files:
+                        # The PNG is written before the document so a fault in it
+                        # is recorded as this image's failure, not as a success
+                        # document beside no PNG.
+                        write_summary_png(snapshot_inst, nav_result, summary_png_file, logger)
+                        logger.info('Writing metadata to %s', public_metadata_file)
+                        public_metadata_file.write_text(json_as_string(metadata))
+                    log_final_result_to_run(image_name, nav_result)
+                    success = nav_result.status == 'success'
+                except Exception as exc:
+                    # This is the top level of one image's run, and the one place
+                    # a catch-all belongs: whatever raised, the image is failed and
+                    # recorded, and the run goes on to the next image.  The
+                    # orchestrator has already turned every model and technique
+                    # failure into a failed result, so what arrives here is a
+                    # fault outside them or a defect.  The camera is the index's,
+                    # read without touching the observation, since reading the
+                    # observation may be what raised.  An interrupt is not an
+                    # Exception and still stops the run.
+                    logger.exception(
+                        'INTERNAL ERROR: navigating %s raised; failing this image with '
+                        'status error internal_error',
+                        image_name,
+                    )
+                    metadata = _metadata_for_internal_error(
+                        image_url,
+                        image_name,
+                        exc,
+                        instrument=instrument,
+                        camera=image_file.camera,
+                        timing=build_timing_section(run_start, datetime.now(UTC)),
+                    )
+                    if write_output_files:
+                        public_metadata_file.write_text(json_as_string(metadata))
+                    success = False
                 if image_log_path is not None:
                     MAIN_LOGGER.info('Wrote log to %s', image_log_path)
-                return False, metadata
-            snapshot_inst = cast(ObsSnapshotInst, snapshot)
-            orchestrator = NavOrchestrator(
-                build_models_for_obs(snapshot_inst),
-                only_models=nav_models or '*',
-                only_techniques=nav_techniques or '*',
-            )
-            nav_result = orchestrator.navigate(snapshot_inst)
-            data_shape = snapshot_inst.data.shape
-            metadata = build_metadata_from_result(
-                nav_result,
-                image_path,
-                image_name,
-                instrument=instrument,
-                camera=snapshot_inst.camera,
-                shutter_mode=snapshot_inst.shutter_mode,
-                image_shape=(int(data_shape[0]), int(data_shape[1])),
-                timing=build_timing_section(run_start, datetime.now(UTC)),
-            )
-            if write_output_files:
-                logger.info('Writing metadata to %s', public_metadata_file)
+                return success, metadata
+        finally:
+            for handler in local_handlers:
+                if handler is not pdslogger.NULL_HANDLER:
+                    handler.close()
+    except Exception as exc:
+        # A fault before or around the image's own log section -- the label
+        # read that resolves the URL, the retrieval into the cache, the log
+        # handlers, the section itself, or a document write inside it -- is
+        # this image's failure too.  It is recorded from the run's log, since
+        # the image's log may not exist, and named by the URL, since the local
+        # path may not.  An interrupt is not an Exception and still stops the
+        # run.
+        MAIN_LOGGER.exception(
+            'INTERNAL ERROR: preparing %s raised; failing this image with '
+            'status error internal_error',
+            image_file.image_file_url,
+        )
+        metadata = _metadata_for_internal_error(
+            image_file.image_file_url,
+            image_file.image_file_url.name,
+            exc,
+            instrument=instrument,
+            camera=image_file.camera,
+            timing=build_timing_section(run_start, datetime.now(UTC)),
+        )
+        if write_output_files:
+            try:
                 public_metadata_file.write_text(json_as_string(metadata))
-                write_summary_png(snapshot_inst, nav_result, summary_png_file, logger)
-            log_final_result_to_run(image_name, nav_result)
-            if image_log_path is not None:
-                MAIN_LOGGER.info('Wrote log to %s', image_log_path)
-            return nav_result.status == 'success', metadata
-    finally:
-        for handler in local_handlers:
-            if handler is not pdslogger.NULL_HANDLER:
-                handler.close()
+            except Exception:
+                # The document write itself may be what is failing, and a
+                # results root that refuses one image's document must not
+                # stop the run either; the document still reaches the caller.
+                MAIN_LOGGER.exception(
+                    'INTERNAL ERROR: writing %s raised; the error document is returned unwritten',
+                    public_metadata_file,
+                )
+        return False, metadata
 
 
 def _metadata_for_load_error(
-    image_path: Path,
+    image_path: FCPath,
     image_name: str,
     exc: BaseException,
     *,
@@ -319,8 +401,114 @@ def _metadata_for_load_error(
     else:
         logger.exception('Error reading image "%s": %s', image_path, message)
         status_error = 'image_read_error'
+    return _error_metadata(
+        image_path,
+        image_name,
+        status_error=status_error,
+        status_exception=message,
+        status_traceback=_traceback_text(exc),
+        instrument=instrument,
+        camera=camera,
+        timing=timing,
+    )
+
+
+def _metadata_for_internal_error(
+    image_path: FCPath,
+    image_name: str,
+    exc: Exception,
+    *,
+    instrument: str,
+    camera: str | None,
+    timing: dict[str, Any],
+) -> dict[str, Any]:
+    """Build a metadata dict for an image whose navigation raised.
+
+    This is the document of a failure the driver's catch-all recorded rather than
+    one the orchestrator classified: a fault in provenance or context
+    construction, in the corrected-pointing computation, in the summary PNG, or a
+    defect anywhere between loading the image and writing its document.  The
+    image loaded, but nothing it would report is read here, since reading it may
+    be what raised; so, as for a load error, no image shape and no epoch are
+    recorded.
+
+    Parameters:
+        image_path: Where the run read the source image from: its URL for
+            remote holdings, its absolute path for local ones.
+        image_name: Basename of the source image.
+        exc: What navigating the image raised.
+        instrument: Registered instrument name for the observation class.
+        camera: The camera the index attributed the image to, or ``None`` for an
+            image with no index row.
+        timing: Run-timing section from :func:`build_timing_section`.
+
+    Returns:
+        A dict with ``status`` ``'error'``, ``status_error`` ``'internal_error'``,
+        ``status_exception`` naming the exception's type and text as
+        ``'RuntimeError: message'``, ``status_traceback`` carrying its traceback,
+        an ``observation`` block with the image path, image name, instrument and
+        (when given) camera, and the ``timing`` section.
+    """
+    return _error_metadata(
+        image_path,
+        image_name,
+        status_error='internal_error',
+        status_exception=f'{type(exc).__name__}: {exc}',
+        status_traceback=_traceback_text(exc),
+        instrument=instrument,
+        camera=camera,
+        timing=timing,
+    )
+
+
+def _traceback_text(exc: BaseException) -> str:
+    """Format an exception's traceback the way the document records it.
+
+    The text is the interpreter's own rendering, so a chained exception
+    brings the chain with it and the reader of the document sees exactly
+    what the log shows.
+
+    Parameters:
+        exc: The exception that failed the image.
+
+    Returns:
+        The traceback as a single string, without a trailing newline.
+    """
+    return ''.join(traceback.format_exception(exc)).rstrip('\n')
+
+
+def _error_metadata(
+    image_path: FCPath,
+    image_name: str,
+    *,
+    status_error: str,
+    status_exception: str,
+    status_traceback: str,
+    instrument: str,
+    camera: str | None,
+    timing: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the document of an image this run could not navigate.
+
+    Parameters:
+        image_path: Where the run read the source image from: its URL for
+            remote holdings, its absolute path for local ones.
+        image_name: Basename of the source image.
+        status_error: Machine-readable classification of what went wrong.
+        status_exception: The failure's text, for an operator reading the document.
+        status_traceback: The failure's traceback, from :func:`_traceback_text`.
+        instrument: Registered instrument name for the observation class.
+        camera: The camera that took the image, or ``None`` to omit the field.
+        timing: Run-timing section from :func:`build_timing_section`.
+
+    Returns:
+        A dict with ``status`` ``'error'``, the ``status_error``,
+        ``status_exception`` and ``status_traceback`` given, an ``observation``
+        block with the image path, image name, instrument and (when given)
+        camera, and the ``timing`` section.
+    """
     observation: dict[str, Any] = {
-        'image_path': str(image_path),
+        'image_path': image_path.as_posix(),
         'image_name': image_name,
         'instrument': instrument,
     }
@@ -329,7 +517,8 @@ def _metadata_for_load_error(
     return {
         'status': 'error',
         'status_error': status_error,
-        'status_exception': message,
+        'status_exception': status_exception,
+        'status_traceback': status_traceback,
         'observation': observation,
         'timing': timing,
     }
@@ -337,7 +526,7 @@ def _metadata_for_load_error(
 
 def build_metadata_from_result(
     result: NavResult,
-    image_path: Path,
+    image_path: str | Path | FCPath,
     image_name: str,
     *,
     instrument: str,
@@ -353,8 +542,10 @@ def build_metadata_from_result(
 
     Parameters:
         result: NavResult to curate.
-        image_path: Absolute path to the source image; written to the
-            ``observation.image_path`` field.
+        image_path: Where the run read the source image from, its URL for
+            remote holdings or its absolute path for local ones, as a string,
+            a ``Path`` or an ``FCPath``; written to the ``observation.image_path``
+            field.
         image_name: Basename of the source image; written to the
             ``observation.image_name`` field.
         instrument: Registered instrument name for the observation class
@@ -373,8 +564,9 @@ def build_metadata_from_result(
             written to the top-level ``timing`` field.  None omits the
             field.
     """
+    location = FCPath(image_path)
     observation: dict[str, Any] = {
-        'image_path': str(image_path),
+        'image_path': location.as_posix(),
         'image_name': image_name,
         'instrument': instrument,
     }
@@ -413,11 +605,12 @@ def _summary_metadata_from_obs_result(obs: ObsSnapshotInst, result: NavResult) -
         A populated :class:`~spindoctor.support.summary_png.SummaryMetadata`.
     """
     exposure_s: float | None = None
-    try:
-        public = obs.get_public_metadata()
-    except Exception as exc:
-        IMAGE_LOGGER.warning('Could not read public metadata for summary PNG: %s', exc)
-        public = {}
+    # get_public_metadata is called without a guard.  Substituting an empty
+    # dict when it raised would produce a PNG with a blank caption that looks
+    # finished; letting the exception reach the driver records the failure in
+    # the image's document instead.  The PNG is written before that document,
+    # so no document ever describes a PNG with a blank caption.
+    public = obs.get_public_metadata()
     abspath = getattr(obs, 'abspath', None)
     image_name = str(public.get('image_name') or (abspath.name if abspath is not None else ''))
     filters = [str(f) for f in (public.get('filters') or []) if f]

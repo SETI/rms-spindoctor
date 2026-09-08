@@ -114,6 +114,52 @@ def test_fake_backplane_unknown_ring_raises_lookup_error() -> None:
         bp.ring_radius('jupiter:ring')
 
 
+def test_fake_backplane_where_in_front_answers_for_a_hidden_body() -> None:
+    """An unplanted occluder hides none of a far body found among the bodies."""
+    body = plant_circular_body(shape=(12, 9), centre_vu=(6.0, 4.0), radius_px=3.0)
+    bp = FakeBackplane(per_body={'MIMAS': body})
+    hidden = bp.where_in_front('ENCELADUS', 'MIMAS')
+    assert hidden.vals.shape == (12, 9)
+    assert not bool(np.asarray(hidden.vals).any())
+
+
+def test_fake_backplane_where_in_front_answers_for_a_hidden_ring() -> None:
+    """A far ring is found among the rings, and an unplanted planet hides none of it."""
+    ring = RingBackplaneData(
+        ring_radius_km=np.linspace(70_000.0, 140_000.0, 42).reshape(6, 7),
+        ring_mask=np.ones((6, 7), dtype=bool),
+    )
+    bp = FakeBackplane(per_ring={'saturn:ring': ring})
+    hidden = bp.where_in_front('saturn', 'saturn:ring')
+    assert hidden.vals.shape == (6, 7)
+    assert not bool(np.asarray(hidden.vals).any())
+
+
+def test_fake_backplane_where_in_front_is_the_near_silhouette_off_the_far_one() -> None:
+    """Two disjoint silhouettes: the near one is in front exactly where it is planted."""
+    near = plant_circular_body(shape=(12, 20), centre_vu=(6.0, 4.0), radius_px=2.0)
+    far = plant_circular_body(shape=(12, 20), centre_vu=(6.0, 15.0), radius_px=2.0)
+    bp = FakeBackplane(per_body={'ENCELADUS': near, 'MIMAS': far})
+    in_front = np.asarray(bp.where_in_front('ENCELADUS', 'MIMAS').vals, dtype=bool)
+    assert np.array_equal(in_front, near.body_mask)
+
+
+def test_fake_backplane_where_in_front_refuses_overlapping_silhouettes() -> None:
+    """Without distances the stand-in cannot rank overlapping surfaces, and says so."""
+    near = plant_circular_body(shape=(12, 9), centre_vu=(6.0, 4.0), radius_px=3.0)
+    far = plant_circular_body(shape=(12, 9), centre_vu=(7.0, 5.0), radius_px=3.0)
+    bp = FakeBackplane(per_body={'ENCELADUS': near, 'MIMAS': far})
+    with pytest.raises(ValueError, match="cannot say whether 'ENCELADUS' or 'MIMAS' is nearer"):
+        bp.where_in_front('ENCELADUS', 'MIMAS')
+
+
+def test_fake_backplane_where_in_front_refuses_an_unregistered_target() -> None:
+    """A far surface in neither registry is an incomplete scene, and says so."""
+    bp = FakeBackplane()
+    with pytest.raises(LookupError, match="no entry for surface 'jupiter:ring'"):
+        bp.where_in_front('jupiter', 'jupiter:ring')
+
+
 def test_fake_backplane_ring_methods_round_trip() -> None:
     """Ring backplane methods return the configured per-pixel arrays."""
     radius = np.linspace(70_000.0, 140_000.0, 100).reshape(10, 10)

@@ -209,6 +209,11 @@ IMAGES = sqlalchemy.Table(
     # status_reason is the navigator's explanation of a non-success outcome.
     sqlalchemy.Column('status', sqlalchemy.Text, nullable=False),
     sqlalchemy.Column('status_error', sqlalchemy.Text),
+    # The traceback the document recorded for that error, copied whole.  A
+    # sweep asking the index which images failed and why has no cheap way to
+    # reach the per-image log beside each document, and the failures worth
+    # chasing are the ones a message alone does not place.
+    sqlalchemy.Column('status_traceback', sqlalchemy.Text),
     sqlalchemy.Column('status_reason', sqlalchemy.Text),
     # The authoritative offset every consumer applies, stored unrounded.
     sqlalchemy.Column('offset_dv', sqlalchemy.Double),

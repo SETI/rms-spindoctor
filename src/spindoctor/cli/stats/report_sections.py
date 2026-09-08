@@ -45,6 +45,7 @@ __all__ = [
     'CSV_LINE_TERMINATOR',
     'EXPORT_COLUMNS',
     'IMAGE_COLUMNS',
+    'MULTILINE_COLUMNS',
     'CsvExport',
     'add_botsim_section',
     'add_csv_export_section',
@@ -622,9 +623,24 @@ been held out of the sort -- and the root each row came from stays a column of
 its own further right.
 """
 
+MULTILINE_COLUMNS = frozenset({'status_traceback'})
+"""Columns held out of the export because their value spans lines.
+
+A traceback is the one recorded value carrying newlines of its own.  Quoting it
+into a field is valid CSV and unreadable by the tools this file is for: a row
+would span as many lines as the traceback has frames, and every count, ``sort``
+and ``cut`` an operator reaches for reads those lines as rows.  The value is in
+the index, which is where a query for it belongs; this file stays one line per
+image.
+"""
+
 _EXPORT_IMAGE_COLUMNS: tuple[str, ...] = (
     _SORT_COLUMN,
-    *(column for column in IMAGE_COLUMNS if column != _SORT_COLUMN),
+    *(
+        column
+        for column in IMAGE_COLUMNS
+        if column != _SORT_COLUMN and column not in MULTILINE_COLUMNS
+    ),
 )
 """The image's own columns, in the order the export writes them."""
 

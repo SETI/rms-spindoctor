@@ -1,6 +1,9 @@
+import subprocess
+
 import oops
 import pytest
 
+from spindoctor.support import misc
 from spindoctor.support.misc import dec_rad_to_dms, ra_rad_to_hms, safe_lstrip_zero
 
 
@@ -46,3 +49,10 @@ def test_safe_lstrip_zero() -> None:
     assert safe_lstrip_zero('00000000ff') == 'ff'
     assert safe_lstrip_zero('00000000FF') == 'FF'
     assert safe_lstrip_zero('00000000100') == '100'
+
+
+def test_current_git_version_keeps_a_non_ascii_ref_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A ref name outside ASCII is an input, decoded rather than raised on."""
+    monkeypatch.setattr(misc, '_GIT_VERSION_CACHE', None)
+    monkeypatch.setattr(subprocess, 'check_output', lambda _cmd: 'heads/r\u00e9f-0-gabc\n'.encode())
+    assert misc.current_git_version() == 'heads/r\u00e9f-0-gabc'

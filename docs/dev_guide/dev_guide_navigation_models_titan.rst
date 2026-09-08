@@ -27,7 +27,8 @@ even transparent at some wavelengths -- Titan is a single hardcoded special case
 :mod:`spindoctor.nav_model.nav_model_body`. There is no config list, and the handling does not
 generalize to other thick-atmosphere bodies such as Venus.
 
-**Always emit.** Whenever Titan is inside the extended FOV the model emits its feature. Frame
+**Always emit.** For every frame with Titan inside the extended FOV whose geometry evaluates,
+the model emits its feature. Frame
 quality lives in that feature's reliability, never in a refusal: an envelope that cannot clear
 the detector wherever the true pointing puts it, one too heavily occluded, or one too small to
 measure scores exactly zero, and the standard per-type reliability gate then removes it. A
@@ -151,12 +152,14 @@ haze envelope should be, and the uncertainty of the measurement against it belon
 What the model does report is the reliability breakdown -- the envelope diameter and the
 occluded fraction -- which is what decides whether the fit is attempted at all.
 
-**Never raise.** The orchestrator's plugin sandbox drops a model whose ``create_model`` throws
-and treats a raising ``to_features`` as zero features, which would end a Titan-only frame with
-no gate record at all -- an unattributable failure, on exactly the clipped and off-edge frames
-the hard-zero visibility condition exists for. So on any geometry pathology (an empty
-surface-intercept set, a backplane failure, degenerate radii) the model still emits the feature,
-with a degenerate axis, defensible default geometry, and reliability forced to zero.
+**Answered conditions and propagated faults.** The model emits its one feature for every frame
+it can read, so a clipped or off-edge frame reaches the gate with an attributable record. Three
+conditions are answered with a degenerate geometry and reliability forced to zero: an inventory
+field that is not finite, an image scale or body radius that is not finite and positive, and an
+envelope box with no surface intercept around a body narrower than the sampling stride. Any other
+failure in the geometry -- a backplane that cannot be evaluated, a star query that fails, a box
+with no intercept around a body the stride cannot miss -- propagates, and the orchestrator fails
+the image with ``status_reason=internal_error`` naming the component.
 
 Configuration
 =============

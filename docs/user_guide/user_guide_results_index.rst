@@ -981,7 +981,8 @@ pair with ``ON DELETE CASCADE``.
        and this is what tells the kernel writer an exposure was one of a pair.
    * - ``image_path``
      - TEXT
-     - Absolute path of the source image at navigate time.
+     - Where the run read the source image from at navigate time: its URL for
+       remote holdings, its absolute path for local ones.
    * - ``image_et``
      - DOUBLE
      - Observation midtime as the navigation recorded it, TDB seconds past
@@ -1008,6 +1009,12 @@ pair with ``ON DELETE CASCADE``.
      - The fatal error that ended the run, e.g. ``missing_spice_data``.
        Stored verbatim: the SPICE-error image selection matches this token
        exactly.
+   * - ``status_traceback``
+     - TEXT
+     - The traceback of that error, copied from the document whole, newlines
+       and all. NULL for an image whose document recorded none, which is every
+       image that navigated. It is what lets a query over a whole mission's
+       failures say where each one arose without opening a per-image log.
    * - ``status_reason``
      - TEXT
      - The navigator's own explanation of the outcome: successes hold ``ok``

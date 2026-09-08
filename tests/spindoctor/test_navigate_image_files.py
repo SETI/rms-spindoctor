@@ -2,8 +2,8 @@
 
 The driver wires the per-image batch loader together with the
 orchestrator and the metadata curator.  These tests exercise the
-happy / image-load-failure / status=failed paths against a fake
-observation class so no holdings are required.
+happy / image-load-failure / status=failed / internal-error paths against
+a fake observation class so no holdings are required.
 
 Also covers the annotation-compositing summary-PNG renderer
 (``write_summary_png`` and the rendering helper now exposed via
@@ -13,6 +13,7 @@ end-to-end against a synthetic ``Annotations`` collection.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -25,6 +26,7 @@ from PIL import Image
 
 from spindoctor.annotation import Annotation, Annotations
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
+from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
 from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_orchestrator.provenance import Provenance
@@ -44,7 +46,12 @@ class _FakeSnapshot:
     """Minimal stand-in for ObsSnapshotInst used by the driver tests."""
 
     def __init__(
-        self, *, blank: bool = False, midtime: float = 100.0, shutter_mode: str | None = None
+        self,
+        *,
+        blank: bool = False,
+        midtime: float = 100.0,
+        shutter_mode: str | None = None,
+        public_metadata_error: BaseException | None = None,
     ) -> None:
         """Build a fake snapshot carrying one deterministic 32x32 image.
 
@@ -55,6 +62,8 @@ class _FakeSnapshot:
             midtime: The observation midtime in TDB seconds past J2000.
             shutter_mode: The shutter mode the image was taken in, or ``None``
                 for a host whose labels carry no such field.
+            public_metadata_error: An exception ``get_public_metadata`` raises
+                instead of answering, or ``None`` to answer.
         """
         rng = np.random.default_rng(seed=99)
         if blank:
@@ -72,6 +81,25 @@ class _FakeSnapshot:
         # Stands in for ObsInst.shutter_mode, written to
         # observation.shutter_mode when the host exposes one.
         self.shutter_mode = shutter_mode
+        self._public_metadata_error = public_metadata_error
+
+    def get_public_metadata(self) -> dict[str, Any]:
+        """Return the caption fields the summary PNG reads.
+
+        Returns:
+            The image name, its filter names, and its exposure time in seconds.
+
+        Raises:
+            BaseException: Whatever ``public_metadata_error`` supplied, when the
+                snapshot was built to fail here.
+        """
+        if self._public_metadata_error is not None:
+            raise self._public_metadata_error
+        return {
+            'image_name': 'N0000000000_1_CALIB.IMG',
+            'filters': ('CL1',),
+            'exposure_time': 0.05,
+        }
 
     def extfov_data_sensor_mask(self) -> np.ndarray:
         """Report every pixel of the extended FOV as live sensor.
@@ -93,6 +121,7 @@ def _make_fake_obs_class(
     blank: bool = False,
     raise_on_load: BaseException | None = None,
     shutter_mode: str | None = None,
+    raise_on_public_metadata: BaseException | None = None,
 ) -> type:
     """Build a fresh per-test ``obs_class`` shim with controllable behavior.
 
@@ -108,6 +137,9 @@ def _make_fake_obs_class(
             to load successfully.
         shutter_mode: The shutter mode every loaded snapshot reports, or
             ``None`` for a host whose labels carry no such field.
+        raise_on_public_metadata: An exception every loaded snapshot raises
+            from ``get_public_metadata``, so the summary PNG cannot be
+            captioned; ``None`` to answer.
 
     Returns:
         A class exposing the one classmethod the driver calls, ``from_file``,
@@ -116,6 +148,7 @@ def _make_fake_obs_class(
     captured_blank = blank
     captured_raise = raise_on_load
     captured_shutter_mode = shutter_mode
+    captured_public_metadata_error = raise_on_public_metadata
 
     class _FakeObsClass:
         """The observation class the driver loads each image through."""
@@ -138,23 +171,40 @@ def _make_fake_obs_class(
             """
             if captured_raise is not None:
                 raise captured_raise
-            return _FakeSnapshot(blank=captured_blank, shutter_mode=captured_shutter_mode)
+            return _FakeSnapshot(
+                blank=captured_blank,
+                shutter_mode=captured_shutter_mode,
+                public_metadata_error=captured_public_metadata_error,
+            )
 
     return _FakeObsClass
 
 
-def _make_image_files(tmp_path: Path, *, camera: str | None = None) -> ImageFiles:
-    """Build an ImageFiles batch with a single placeholder image."""
-    img_path = tmp_path / 'fake_image.IMG'
+def _make_image_files(
+    tmp_path: Path, *, camera: str | None = None, stub: str = 'fake_image'
+) -> ImageFiles:
+    """Build an ImageFiles batch with a single placeholder image.
+
+    Parameters:
+        tmp_path: Directory the placeholder image and label are written under.
+        camera: The camera the index attributed the image to, or ``None`` for an
+            image with no index row.
+        stub: The results path stub, and the basename of the placeholder files;
+            two batches under one results root need two different stubs.
+
+    Returns:
+        A batch holding the one image.
+    """
+    img_path = tmp_path / f'{stub}.IMG'
     img_path.write_bytes(b'\x00')
-    label_path = tmp_path / 'fake_image.LBL'
+    label_path = tmp_path / f'{stub}.LBL'
     label_path.write_bytes(b'\x00')
     return ImageFiles(
         image_files=[
             ImageFile(
                 image_file_url=FCPath(str(img_path)),
                 label_file_url=FCPath(str(label_path)),
-                results_path_stub='fake_image',
+                results_path_stub=stub,
                 camera=camera,
             )
         ]
@@ -205,7 +255,7 @@ def test_navigate_image_files_writes_metadata(tmp_path: Path) -> None:
     success, _metadata = navigate_image_files(
         obs_class,
         image_files,
-        FCPath(str(results_root)),
+        FCPath(results_root),
         write_output_files=True,
     )
     metadata_path = results_root / 'fake_image_metadata.json'
@@ -323,6 +373,7 @@ def test_navigate_image_files_image_load_failure_records_status(tmp_path: Path) 
     assert metadata['status'] == 'error'
     assert metadata['status_error'] == 'image_read_error'
     assert 'cannot read fixture image' in metadata['status_exception']
+    assert metadata['status_traceback'].startswith('Traceback (most recent call last):')
     assert metadata['observation']['instrument'] == 'unknown'
     # The image never loaded, so no shape is recorded; timing still is.
     assert 'image_shape' not in metadata['observation']
@@ -355,7 +406,7 @@ def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:
     navigate_image_files(
         obs_class,
         image_files,
-        FCPath(str(results_root)),
+        FCPath(results_root),
         write_output_files=True,
     )
     png_path = results_root / 'fake_image_summary.png'
@@ -363,6 +414,171 @@ def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:
     with Image.open(png_path) as img:
         assert img.mode == 'RGB'
         assert img.size == (32, 32)
+
+
+def test_navigate_image_files_public_metadata_fault_is_the_image_error_document(
+    tmp_path: Path,
+) -> None:
+    """A fault captioning the summary PNG is recorded as that image's failure.
+
+    The PNG is written before the metadata document, so the image carries an
+    error document and no PNG rather than a success document beside no PNG.
+    """
+    obs_class = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
+    image_files = _make_image_files(tmp_path)
+    results_root = tmp_path / 'results'
+    success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(results_root),
+        write_output_files=True,
+    )
+    assert success is False
+    assert metadata['status'] == 'error'
+    assert metadata['status_error'] == 'internal_error'
+    assert metadata['status_exception'] == 'RuntimeError: no label'
+    # The document carries the traceback too, so the failure can be diagnosed
+    # from the results tree without the per-image log beside it.
+    assert 'get_public_metadata' in metadata['status_traceback']
+    assert metadata['status_traceback'].endswith('RuntimeError: no label')
+    document = results_root / 'fake_image_metadata.json'
+    assert json.loads(document.read_text()) == metadata
+    assert not (results_root / 'fake_image_summary.png').exists()
+
+
+def test_navigate_image_files_records_a_fault_raised_inside_the_orchestrator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fault escaping the orchestrator's own handling is the image's error document.
+
+    The orchestrator turns every model and technique failure into a failed
+    result; what escapes it is a fault of its own or a defect, and the driver
+    records that the same way and returns rather than stopping the run.
+    """
+
+    def _planted(self: NavOrchestrator, obs: Any) -> NavResult:
+        """Raise in place of navigating, as a defect inside the orchestrator would.
+
+        Raises:
+            RuntimeError: Always.
+        """
+        raise RuntimeError('planted')
+
+    monkeypatch.setattr(NavOrchestrator, 'navigate', _planted)
+    obs_class = _make_fake_obs_class()
+    image_files = _make_image_files(tmp_path, camera='WAC')
+    results_root = tmp_path / 'results'
+    success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(results_root),
+        write_output_files=True,
+    )
+    assert success is False
+    assert metadata['status'] == 'error'
+    assert metadata['status_error'] == 'internal_error'
+    assert metadata['status_exception'] == 'RuntimeError: planted'
+    assert metadata['observation']['image_name'] == 'fake_image.IMG'
+    # The camera is the index's: the observation is not read once it has raised.
+    assert metadata['observation']['camera'] == 'WAC'
+    assert metadata['timing']['elapsed_s'] >= 0.0
+    assert (results_root / 'fake_image_metadata.json').exists()
+
+
+def test_navigate_image_files_goes_on_to_the_next_image_after_a_fault(tmp_path: Path) -> None:
+    """A fault in one image is that image's alone; the next image navigates.
+
+    Nothing stops a run because a single image failed: the first image's fault
+    is recorded in its own document, and the second image's document carries
+    the status its navigation reached.
+    """
+    results_root = tmp_path / 'results'
+    faulty = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
+    _first_success, first = navigate_image_files(
+        faulty,
+        _make_image_files(tmp_path, stub='first'),
+        FCPath(results_root),
+        write_output_files=True,
+    )
+    _second_success, second = navigate_image_files(
+        _make_fake_obs_class(),
+        _make_image_files(tmp_path, stub='second'),
+        FCPath(results_root),
+        nav_models=['!*'],
+        write_output_files=True,
+    )
+    assert first['status_error'] == 'internal_error'
+    assert (results_root / 'first_metadata.json').exists()
+    assert second['status'] == 'failed'
+    assert second['navigation_result']['status_reason'] == 'no_features_extracted'
+    assert (results_root / 'second_metadata.json').exists()
+
+
+def test_navigate_image_files_records_a_fault_before_the_image_log_opens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fault resolving the image's URL is recorded like any other and returned.
+
+    The label read behind ``resolve_image_url`` runs before the image's own
+    log section exists, so the document names the image by its URL and the
+    traceback goes to the run's log.
+    """
+
+    def _planted(self: ImageFile) -> FCPath:
+        """Raise in place of resolving the URL, as an unreadable label would.
+
+        Raises:
+            RuntimeError: Always.
+        """
+        raise RuntimeError('bad label')
+
+    monkeypatch.setattr(ImageFile, 'resolve_image_url', _planted)
+    results_root = tmp_path / 'results'
+    success, metadata = navigate_image_files(
+        _make_fake_obs_class(),
+        _make_image_files(tmp_path),
+        FCPath(results_root),
+        write_output_files=True,
+    )
+    assert success is False
+    assert metadata['status_error'] == 'internal_error'
+    assert metadata['status_exception'] == 'RuntimeError: bad label'
+    assert metadata['observation']['image_name'] == 'fake_image.IMG'
+    assert (results_root / 'fake_image_metadata.json').exists()
+
+
+def test_navigate_image_files_records_the_image_url_not_its_cache_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A remote image's documents name it by its URL, on every shape.
+
+    The local cache copy a remote image is read through is transient and
+    private to the machine that made it.
+    """
+    remote = FCPath('gs://holdings-bucket/volumes/dir/fake_image.IMG')
+    monkeypatch.setattr(ImageFile, 'resolve_image_url', lambda self: remote)
+    results_root = tmp_path / 'results'
+    _navigated_ok, navigated = navigate_image_files(
+        _make_fake_obs_class(),
+        _make_image_files(tmp_path),
+        FCPath(results_root),
+        nav_models=['!*'],
+        write_output_files=False,
+    )
+    _unreadable_ok, unreadable = navigate_image_files(
+        _make_fake_obs_class(raise_on_load=RuntimeError('unreadable')),
+        _make_image_files(tmp_path),
+        FCPath(results_root),
+        write_output_files=False,
+    )
+    assert (
+        navigated['observation']['image_path'] == 'gs://holdings-bucket/volumes/dir/fake_image.IMG'
+    )
+    assert navigated['observation']['image_name'] == 'fake_image.IMG'
+    assert (
+        unreadable['observation']['image_path'] == 'gs://holdings-bucket/volumes/dir/fake_image.IMG'
+    )
+    assert unreadable['status_error'] == 'image_read_error'
 
 
 # ---------------------------------------------------------------------------
@@ -483,6 +699,18 @@ class _FakeObsForRender:
     ) -> np.ndarray:
         # Zero extfov margin: the offset slice is the array itself.
         return array
+
+    def get_public_metadata(self) -> dict[str, Any]:
+        """Return the caption fields the summary PNG reads.
+
+        Returns:
+            The image name, its filter names, and its exposure time in seconds.
+        """
+        return {
+            'image_name': 'N0000000000_1_CALIB.IMG',
+            'filters': ('CL1', 'CL2'),
+            'exposure_time': 0.12,
+        }
 
 
 def _make_render_result(
@@ -745,13 +973,20 @@ def test_summary_metadata_failed_reports_no_techniques() -> None:
     assert meta.techniques == ()
 
 
-def test_summary_metadata_degrades_when_public_metadata_raises() -> None:
-    """A public-metadata failure yields empty filter and unknown exposure."""
+def test_summary_metadata_fails_when_public_metadata_raises() -> None:
+    """The helper propagates a public-metadata failure rather than captioning blank."""
 
     class _RaisingObs:
+        """Observation stand-in whose public metadata cannot be read."""
+
         abspath = Path('/holdings/N9.IMG')
 
         def get_public_metadata(self) -> dict[str, Any]:
+            """Raise the way a snapshot whose label cannot be read does.
+
+            Raises:
+                RuntimeError: Always.
+            """
             raise RuntimeError('no label')
 
     result = _FakeNavResult(
@@ -761,7 +996,8 @@ def test_summary_metadata_degrades_when_public_metadata_raises() -> None:
         confidence=0.0,
         confidence_rank='failed',
     )
-    meta = _summary_metadata_from_obs_result(_RaisingObs(), result)  # type: ignore[arg-type]
-    assert meta.image_name == 'N9.IMG'
-    assert meta.filter_name == ''
-    assert meta.exposure_s is None
+    with pytest.raises(RuntimeError) as exc_info:
+        # _RaisingObs is a stand-in with only the accessor under test; the
+        # ignore covers the type mismatch.
+        _summary_metadata_from_obs_result(_RaisingObs(), result)  # type: ignore[arg-type]
+    assert 'no label' in str(exc_info.value)

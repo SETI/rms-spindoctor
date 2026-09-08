@@ -24,7 +24,6 @@ from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.nav_model_stars import (
     SNR_REF,
     NavModelStars,
-    _compute_smear_for_obs,
     _crlb_covariance,
     _reliability_from_snr,
     _safe_mask_lookup,
@@ -411,7 +410,7 @@ def test_create_model_populates_metadata_and_star_count(monkeypatch: pytest.Monk
         lambda _obs, _config, _stars: None,
     )
     monkeypatch.setattr(
-        'spindoctor.nav_model.stars.nav_model_stars._compute_smear_for_obs',
+        'spindoctor.nav_model.stars.nav_model_stars.compute_smear_vector_px',
         lambda _obs: (0.0, 0.0),
     )
     model.create_model()
@@ -463,16 +462,6 @@ def test_to_annotations_keeps_stars_with_star_only_conflict() -> None:
     model._stars = [cast(MutableStar, star)]
     annotations = model.to_annotations(cast(NavContext, _FakeContext()))
     assert len(annotations.annotations[0].text_info_list) == 1
-
-
-def test_compute_smear_returns_zero_when_obs_lacks_boresight() -> None:
-    """``_compute_smear_for_obs`` returns ``(0, 0)`` when ``obs`` has no boresight API."""
-
-    class _NoBoresightObs:
-        """Minimal obs stand-in lacking ``boresight_ra`` / ``boresight_dec``."""
-
-    out = _compute_smear_for_obs(cast(Any, _NoBoresightObs()))
-    assert out == (0.0, 0.0)
 
 
 def test_safe_mask_lookup_returns_false_for_none_mask() -> None:

@@ -145,17 +145,21 @@ def current_git_version() -> str:
     program run.
 
     Returns:
-        The git describe string, or 'GIT DESCRIBE FAILED' if the command fails.
+        The git describe string, decoded as UTF-8 with any undecodable byte
+        replaced, or 'GIT DESCRIBE FAILED' if the command fails.
     """
     global _GIT_VERSION_CACHE
     if _GIT_VERSION_CACHE is not None:
         return _GIT_VERSION_CACHE
+    # OSError is git not being installed; SubprocessError is git exiting
+    # non-zero, because this is not a repository or there is nothing to
+    # describe.  Both give the placeholder.  Anything else propagates.
     try:
         ret = subprocess.check_output(
             ['git', 'describe', '--all', '--long', '--dirty', '--abbrev=40', '--tags']
         ).strip()
-        _GIT_VERSION_CACHE = ret.decode('ascii')
-    except Exception:
+        _GIT_VERSION_CACHE = ret.decode('utf-8', errors='replace')
+    except (OSError, subprocess.SubprocessError):
         _GIT_VERSION_CACHE = 'GIT DESCRIBE FAILED'
     return _GIT_VERSION_CACHE
 
@@ -171,8 +175,11 @@ def get_local_host_name() -> str:
     string without calling ``getfqdn`` again.
 
     Returns:
-        The FQDN string on success, or the literal ``'LOCAL HOST NAME FAILED'`` if
-        ``socket.getfqdn()`` raises any exception.
+        The FQDN string on success, or the literal ``'LOCAL HOST NAME FAILED'`` when
+        ``socket.getfqdn()`` raises ``OSError``.  ``getfqdn`` answers a name service
+        that will not resolve the host with the bare host name, so the placeholder
+        appears only when the host name itself cannot be read.  Every other
+        exception propagates.
 
     Side effects:
         On the first successful call, sets ``_LOCAL_HOST_NAME_CACHE`` to the FQDN.
@@ -183,10 +190,13 @@ def get_local_host_name() -> str:
     global _LOCAL_HOST_NAME_CACHE
     if _LOCAL_HOST_NAME_CACHE is not None:
         return _LOCAL_HOST_NAME_CACHE
+    # getfqdn absorbs a resolver failure itself and returns the bare host name;
+    # the OSError caught here is gethostname() inside it failing, which is the
+    # host not knowing its own name.  Anything else propagates.
     try:
         ret = socket.getfqdn()
         _LOCAL_HOST_NAME_CACHE = ret
-    except Exception:
+    except OSError:
         _LOCAL_HOST_NAME_CACHE = 'LOCAL HOST NAME FAILED'
     return _LOCAL_HOST_NAME_CACHE
 

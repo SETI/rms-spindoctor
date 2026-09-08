@@ -106,6 +106,8 @@ The main entry point for SpinDoctor is the ``sd_offset`` script installed via ``
 
 Where ``DATASET_NAME`` is one of the supported names listed in the "Supported Missions" section. Names are case-insensitive (for example, ``COISS`` and ``coiss`` are equivalent).
 
+An image's metadata document is written when the run completes that image, whatever status it records, and its summary PNG when the navigation produced one; each overwrites the file an earlier run left there. Nothing is deleted ahead of time, so a run that is interrupted partway through an image, or one that records an error and writes no PNG, leaves the earlier file in place. Start from an empty results directory when the absence of a document must mean the image was never navigated.
+
 Command-Line Arguments
 ----------------------
 
@@ -1155,11 +1157,6 @@ When active, the ring model logs the number of masked pixels at ``INFO`` level:
 .. code-block::
 
    Planet shadow removal: 1284 pixel(s) inside SATURN shadow will be masked
-
-If the shadow geometry cannot be computed for a particular observation (for
-example, because the illumination geometry is degenerate), a warning is logged
-and the full unmasked ring model is used instead. Navigation proceeds
-normally; no output files are suppressed.
 
 To disable shadow removal entirely -- for example, to compare navigation
 quality with and without the mask -- set the option to ``false`` in a

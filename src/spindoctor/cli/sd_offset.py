@@ -14,6 +14,8 @@ import os
 import sys
 import time
 from collections.abc import Iterator
+from datetime import UTC, datetime
+from itertools import islice
 from typing import cast
 
 import pdslogger
@@ -39,7 +41,13 @@ from spindoctor.config.program_names import SD_OFFSET
 from spindoctor.dataset import dataset_name_to_class, dataset_name_to_inst_name, dataset_names
 from spindoctor.dataset.dataset import DataSet, ImageFiles
 from spindoctor.dataset.results_filter import SelectionError
-from spindoctor.navigate_image_files import navigate_image_files
+from spindoctor.nav_technique import run_manual_nav
+from spindoctor.navigate_image_files import (
+    build_metadata_from_result,
+    build_timing_section,
+    navigate_image_files,
+    write_summary_png,
+)
 from spindoctor.obs import ObsSnapshotInst, inst_name_to_obs_class, obs_class_to_inst_name
 from spindoctor.support.file import json_as_string
 from spindoctor.support.misc import log_run_environment
@@ -241,16 +249,6 @@ def _run_manual_pass(
     that ``navigate_image_files`` uses, so this run's per-image handlers are
     attached during prepare + dialog.
     """
-    from datetime import UTC, datetime
-    from itertools import islice
-
-    from spindoctor.nav_technique import run_manual_nav
-    from spindoctor.navigate_image_files import (
-        build_metadata_from_result,
-        build_timing_section,
-        write_summary_png,
-    )
-
     # Bound the dataset traversal to at most six items: we only need to
     # distinguish the {0, 1, >1} cases and to surface up to five filespecs
     # in the multi-match diagnostic.  Larger datasets used to scan the
@@ -279,9 +277,8 @@ def _run_manual_pass(
     image_file = image_files.image_files[0]
     # resolve_image_url may correct the URL from the label contents, so it must
     # run before the URL is read
-    image_url = image_file.resolve_image_url()
-    image_path = image_file.image_file_path.absolute()
-    image_name = image_path.name
+    image_url = image_file.resolve_image_url().absolute()
+    image_name = image_url.name
     extra_params = image_file.extra_params
     public_metadata_file = nav_results_root / (image_file.results_path_stub + '_metadata.json')
     summary_png_file = nav_results_root / (image_file.results_path_stub + '_summary.png')
@@ -318,7 +315,7 @@ def _run_manual_pass(
                 # time: image load + dialog interaction until accept.
                 metadata = build_metadata_from_result(
                     result,
-                    image_path,
+                    image_url,
                     image_name,
                     instrument=obs_class_to_inst_name(obs_class),
                     camera=obs.camera,

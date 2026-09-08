@@ -449,6 +449,27 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
             self._center_bp = Backplane(self, meshgrid=center_meshgrid)
         return self._center_bp
 
+    def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
+        """Return the sky direction the frame center points at.
+
+        Read off :attr:`center_bp`, the cached one-pixel backplane, so repeated
+        calls build nothing.
+
+        Parameters:
+            apparent: True for the direction a photon appears to arrive from,
+                which is what a catalog position must be compared against;
+                False for the geometric direction.
+
+        Returns:
+            ``(ra, dec)`` in radians.
+        """
+        backplane = self.center_bp
+        # The center meshgrid is one pixel, so each backplane is a (1, 1)
+        # array, which float() refuses; item() is the one value it holds.
+        ra = float(backplane.right_ascension(apparent=apparent).vals.item())
+        dec = float(backplane.declination(apparent=apparent).vals.item())
+        return ra, dec
+
     def extract_offset_array(
         self,
         array: NDArrayType[NPType],
