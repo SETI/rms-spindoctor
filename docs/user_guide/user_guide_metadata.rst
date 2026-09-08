@@ -69,7 +69,7 @@ The same measured offset appears twice, at two precisions:
 Document shapes
 ===============
 
-Three document shapes exist. Which one an image gets depends on how far the
+Four document shapes exist. Which one an image gets depends on how far the
 pipeline carried it:
 
 **Navigated**
@@ -87,6 +87,14 @@ pipeline carried it:
     ``status_error`` says which kind, and there is no ``navigation_result``.
     The ``observation`` block is limited to what the dataset index supplied
     without opening the image.
+
+**Internal error**
+    Navigating the image raised an exception the orchestrator does not turn
+    into a result, or the run faulted before the image's own log section
+    opened. Same keys as the load-error shape, with ``status_error``
+    ``internal_error`` and the exception's type and message in
+    ``status_exception``; the ``observation`` block is what the dataset index
+    supplied, since the observation is not consulted once it has raised.
 
 **Early return**
     The driver refused the request before reaching the image: the batch did
@@ -111,7 +119,7 @@ Top-level keys
      - all
      - ``success``, ``failed``, or ``conflicted`` for a navigated document
        (mirrored in ``navigation_result.status``); ``error`` for the
-       load-error and early-return shapes.
+       load-error, internal-error and early-return shapes.
    * - ``status_error``
      - string
      - error shapes
@@ -172,9 +180,11 @@ The ``status_error`` vocabulary
      - Navigating the image raised an exception the orchestrator does not
        turn into a result: in provenance or context construction, the
        corrected-pointing computation, the summary PNG, or a defect anywhere
-       between. ``status_exception`` carries the exception type and message,
-       the per-image log carries the traceback, no summary PNG is written,
-       and the run goes on to the next image. A model or technique that
+       between, or before the image's own log section opened.
+       ``status_exception`` carries the exception type and message, the log
+       carries the traceback, and the run goes on to the next image. The
+       summary PNG is not written, except when the fault arose in the document
+       write itself, after the PNG. A model or technique that
        raised is recorded differently, as ``status_reason`` ``internal_error``
        on a ``failed`` document. Written to disk.
    * - ``expected_one_image_per_batch``
