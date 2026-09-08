@@ -255,7 +255,7 @@ def test_navigate_image_files_writes_metadata(tmp_path: Path) -> None:
     success, _metadata = navigate_image_files(
         obs_class,
         image_files,
-        FCPath(str(results_root)),
+        FCPath(results_root),
         write_output_files=True,
     )
     metadata_path = results_root / 'fake_image_metadata.json'
@@ -405,7 +405,7 @@ def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:
     navigate_image_files(
         obs_class,
         image_files,
-        FCPath(str(results_root)),
+        FCPath(results_root),
         write_output_files=True,
     )
     png_path = results_root / 'fake_image_summary.png'
@@ -429,13 +429,13 @@ def test_navigate_image_files_public_metadata_fault_is_the_image_error_document(
     success, metadata = navigate_image_files(
         obs_class,
         image_files,
-        FCPath(str(results_root)),
+        FCPath(results_root),
         write_output_files=True,
     )
     assert success is False
     assert metadata['status'] == 'error'
     assert metadata['status_error'] == 'internal_error'
-    assert metadata['status_exception'].startswith('RuntimeError: no label')
+    assert metadata['status_exception'] == 'RuntimeError: no label'
     document = results_root / 'fake_image_metadata.json'
     assert json.loads(document.read_text()) == metadata
     assert not (results_root / 'fake_image_summary.png').exists()
@@ -461,7 +461,7 @@ def test_navigate_image_files_records_a_fault_raised_inside_the_orchestrator(
     success, metadata = navigate_image_files(
         obs_class,
         image_files,
-        FCPath(str(results_root)),
+        FCPath(results_root),
         write_output_files=True,
     )
     assert success is False
@@ -487,13 +487,13 @@ def test_navigate_image_files_goes_on_to_the_next_image_after_a_fault(tmp_path: 
     _first_success, first = navigate_image_files(
         faulty,
         _make_image_files(tmp_path, stub='first'),
-        FCPath(str(results_root)),
+        FCPath(results_root),
         write_output_files=True,
     )
     _second_success, second = navigate_image_files(
         _make_fake_obs_class(),
         _make_image_files(tmp_path, stub='second'),
-        FCPath(str(results_root)),
+        FCPath(results_root),
         nav_models=['!*'],
         write_output_files=True,
     )
@@ -502,6 +502,34 @@ def test_navigate_image_files_goes_on_to_the_next_image_after_a_fault(tmp_path: 
     assert second['status'] == 'failed'
     assert second['navigation_result']['status_reason'] == 'no_features_extracted'
     assert (results_root / 'second_metadata.json').exists()
+
+
+def test_navigate_image_files_records_a_fault_before_the_image_log_opens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fault resolving the image's URL is recorded like any other and returned.
+
+    The label read behind ``resolve_image_url`` runs before the image's own
+    log section exists, so the document names the image by its URL and the
+    traceback goes to the run's log.
+    """
+
+    def _planted(self: ImageFile) -> FCPath:
+        raise RuntimeError('bad label')
+
+    monkeypatch.setattr(ImageFile, 'resolve_image_url', _planted)
+    results_root = tmp_path / 'results'
+    success, metadata = navigate_image_files(
+        _make_fake_obs_class(),
+        _make_image_files(tmp_path),
+        FCPath(results_root),
+        write_output_files=True,
+    )
+    assert success is False
+    assert metadata['status_error'] == 'internal_error'
+    assert metadata['status_exception'] == 'RuntimeError: bad label'
+    assert metadata['observation']['image_name'] == 'fake_image.IMG'
+    assert (results_root / 'fake_image_metadata.json').exists()
 
 
 # ---------------------------------------------------------------------------
