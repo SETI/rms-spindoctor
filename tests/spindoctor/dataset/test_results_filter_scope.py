@@ -39,7 +39,13 @@ from tests.spindoctor.dataset.conftest import (
 from spindoctor.dataset import results_filter
 from spindoctor.dataset.dataset import ImageFile
 from spindoctor.dataset.results_filter import SPICE_STATUS_ERROR, ResultsFilter
-from spindoctor.nav_records import ImageFacts, ListedRecord, Selection, UnreadableFile
+from spindoctor.nav_records import (
+    ImageFacts,
+    ListedRecord,
+    Selection,
+    TreeTuning,
+    UnreadableFile,
+)
 
 VOLUMES = ['COISS_2001', 'COISS_2002']
 """The volumes the enumeration selected.
@@ -238,7 +244,7 @@ def _answering(
     *,
     from_an_index: bool,
     volumes: Iterable[str] = tuple(VOLUMES),
-    **flags: bool,
+    **flags: Any,
 ) -> list[str]:
     """Build both roots and answer one filter combination over the first of them.
 
@@ -680,7 +686,7 @@ class _RecordingSource:
 
 
 def _subtrees_asked_about(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **flags: bool
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **flags: Any
 ) -> list[tuple[str, ...]]:
     """Build a filter over a stand-in storage and return what it asked that storage.
 
@@ -859,7 +865,7 @@ def test_an_absence_filter_asks_about_its_candidates_and_not_about_a_volume(
     assert named == [(SELECTED, ERRORED_HERE)]
 
 
-def _source_of(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **flags: bool) -> _RecordingSource:
+def _source_of(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **flags: Any) -> _RecordingSource:
     """Build a filter over a stand-in storage and hand that storage back.
 
     Parameters:
@@ -940,7 +946,7 @@ def test_a_filter_with_nothing_left_to_ask_closes_the_storage_at_once(
     ],
 )
 def test_only_a_filter_that_reads_documents_asks_the_enumeration_to_batch(
-    tmp_path: Path, flags: dict[str, bool], batches: bool
+    tmp_path: Path, flags: dict[str, Any], batches: bool
 ) -> None:
     """The enumeration buffers candidates only where buffering buys something.
 
@@ -973,3 +979,27 @@ def test_a_batch_of_no_candidates_asks_nothing(
         monkeypatch: Fixture the stand-in storage is installed through.
     """
     assert _stubs_named_by_a_batch(tmp_path, monkeypatch, []) == []
+
+
+def test_the_tuning_the_filter_is_given_reaches_the_storage_it_opens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The enumeration resolves the tuning once, and the filter hands it on unchanged.
+
+    Parameters:
+        tmp_path: Directory standing in for the results root.
+        monkeypatch: Fixture the stand-in storage is installed through.
+    """
+    handed: list[Any] = []
+
+    def recording(roots: Sequence[Any], **kwargs: Any) -> _RecordingSource:
+        handed.append(kwargs.get('tuning'))
+        return _RecordingSource([], [])
+
+    monkeypatch.setattr(results_filter, 'open_record_source', recording)
+    tuning = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    with ResultsFilter(
+        VOLUMES, str(tmp_path), logger=null_logger(), has_offset_file=True, tuning=tuning
+    ):
+        pass
+    assert handed == [tuning]

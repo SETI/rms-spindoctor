@@ -84,16 +84,34 @@ def test_the_digest_is_stable_across_repeated_resolution(tmp_path: Path) -> None
     assert _hash(tmp_path) == _hash(tmp_path)
 
 
-def test_only_the_two_argued_sections_are_excluded() -> None:
+@pytest.mark.parametrize(
+    'body',
+    [
+        'results_tree:\n  walk_threads: 8\n',
+        'results_tree:\n  retrieve_threads: 8\n  retrieve_batch_size: 16\n',
+        'results_tree:\n  ingest_commit_batches: 1\n',
+    ],
+)
+def test_a_results_tree_setting_does_not_change_the_digest(tmp_path: Path, body: str) -> None:
+    """How many requests a pass makes at once decides how long it takes and nothing else.
+
+    A machine tuning the walk to its own link would otherwise re-stamp every
+    result it navigates as differently configured from the archive it belongs
+    to, over a setting no document read by the pass can see.
+    """
+    assert _hash(tmp_path, body) == _hash(tmp_path)
+
+
+def test_only_the_argued_sections_are_excluded() -> None:
     """The excluded set is exactly what was argued for, not a growing list.
 
     Every section added to it stops being able to distinguish two results, so
     growth wants the same argument made again rather than a quiet append.
     """
-    assert sorted(HASH_EXCLUDED_SECTIONS) == ['environment', 'logging']
+    assert sorted(HASH_EXCLUDED_SECTIONS) == ['environment', 'logging', 'results_tree']
 
 
-@pytest.mark.parametrize('section', ['environment', 'logging'])
+@pytest.mark.parametrize('section', ['environment', 'logging', 'results_tree'])
 def test_an_excluded_section_is_still_present_in_the_configuration(section: str) -> None:
     """Excluding a section from the digest does not remove it from the config."""
     config = Config()

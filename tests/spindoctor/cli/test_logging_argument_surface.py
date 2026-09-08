@@ -227,7 +227,7 @@ def test_a_driver_reports_a_bad_logging_config(program: str) -> None:
     they typed.
     """
     source = _source(program)
-    assert 'reporting_logging_errors' in source
+    assert 'reporting_configuration_errors' in source
 
 
 @pytest.mark.parametrize('program', [program for program, _ in _WITH_ANY_LOGGER])
@@ -240,6 +240,6 @@ def test_a_driver_guards_the_config_load_itself(program: str) -> None:
     """
     source = _source(program)
     guarded = re.search(
-        r'with reporting_logging_errors\(\):\n\s+load_default_and_user_config', source
+        r'with reporting_configuration_errors\(\):\n\s+load_default_and_user_config', source
     )
     assert guarded is not None

@@ -88,7 +88,7 @@ methods above, which are matched on every object.
 """
 
 _MAY_WRITE_THROUGH_A_LENT_LOGGER = {
-    'nav_records/walk.py': (('walk_from', 'info'),),
+    'nav_records/walk.py': (('_claim', 'info'),),
 }
 """Every place either data-access layer writes through a logger it was lent.
 

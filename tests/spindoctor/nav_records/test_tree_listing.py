@@ -14,6 +14,9 @@ answer rather than a missing feature.
 """
 
 import os
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +29,7 @@ from spindoctor.nav_records import (
     ListedRecord,
     Selection,
     TreeRecordSource,
+    TreeTuning,
     UnlistableDirectoryError,
     UnlistableRootError,
 )
@@ -305,6 +309,183 @@ def test_a_cloud_directory_is_not_stat_ed_at_all(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(FCPath, 'stat', forbidden)
     assert walk_module._directory_identity(FCPath('gs://rms-nav/nav-offset-results')) is None
+
+
+# ---------------------------------------------------------------------------
+# Listing several directories at once
+# ---------------------------------------------------------------------------
+
+
+def _wide_tree(tmp_path: Path, volumes: int) -> tuple[Path, list[str]]:
+    """Write a results tree of one document in each of several volumes.
+
+    Parameters:
+        tmp_path: Directory the tree lives under.
+        volumes: How many volumes to write, each holding one document.
+
+    Returns:
+        The results root, and the stubs written under it in name order.
+    """
+    root = tmp_path / 'results'
+    stubs = [f'VOL{index:02d}/N145472{index:04d}_1_CALIB' for index in range(volumes)]
+    for stub in stubs:
+        write_document(root, stub, document())
+    return root, stubs
+
+
+@pytest.mark.parametrize('at_once', [1, 2, 3, 32])
+def test_a_tree_wider_than_one_round_is_still_listed_whole(
+    at_once: int,
+    tmp_path: Path,
+    quiet_logger: pdslogger.PdsLogger,
+) -> None:
+    """A round is bounded, so a wide tree takes several rounds to drain.
+
+    A round that dropped the directories it could not fit, or one that stopped
+    when the first round emptied, would report a short tree as a whole one,
+    which is the one answer a listing must never give.
+
+    Parameters:
+        at_once: How many directories one round takes off the frontier.
+        tmp_path: Directory the tree lives under.
+        quiet_logger: Logger the walk reports through.
+    """
+    root, stubs = _wide_tree(tmp_path, 7)
+    source = tree_source(
+        root, quiet_logger, tuning=TreeTuning(walk_threads=1, walk_directories_at_once=at_once)
+    )
+    assert sorted(stubs_of(source.listing(Selection()))) == sorted(stubs)
+
+
+def test_no_directory_is_listed_twice_across_rounds(
+    tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A directory carried between rounds could otherwise be listed by each."""
+    root, _ = _wide_tree(tmp_path, 7)
+    listed: list[str] = []
+    real_iterdir = FCPath.iterdir_metadata
+
+    def recording(self: FCPath) -> Any:
+        listed.append(self.as_posix())
+        yield from real_iterdir(self)
+
+    monkeypatch.setattr(FCPath, 'iterdir_metadata', recording)
+    source = tree_source(
+        root, quiet_logger, tuning=TreeTuning(walk_threads=1, walk_directories_at_once=2)
+    )
+    list(source.listing(Selection()))
+    assert sorted(listed) == sorted(set(listed))
+
+
+def test_a_refusal_names_the_same_directory_however_the_threads_finish(
+    tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Or an operator would be sent to a different directory on each run.
+
+    Two directories of one round both refuse, and the one earlier in the
+    frontier is made the slower of the two.  A walk reporting whichever thread
+    raised first would name the other, and would name a different one whenever
+    the timing came out differently.
+    """
+    root, _ = _wide_tree(tmp_path, 4)
+    real_iterdir = FCPath.iterdir_metadata
+
+    def refusing(self: FCPath) -> Any:
+        if self.name == 'VOL00':
+            time.sleep(0.2)
+            raise PermissionError(self.as_posix())
+        if self.name == 'VOL03':
+            raise PermissionError(self.as_posix())
+        # The root is listed in name order, so VOL00 is the earlier of the two
+        # on the frontier whatever order the filesystem hands its entries back
+        # in.
+        yield from sorted(real_iterdir(self), key=lambda entry: entry[0].name)
+
+    monkeypatch.setattr(FCPath, 'iterdir_metadata', refusing)
+    with pytest.raises(UnlistableDirectoryError) as excinfo:
+        list(tree_source(root, quiet_logger).listing(Selection()))
+    assert (root / 'VOL00').as_posix() in str(excinfo.value)
+
+
+def test_the_walk_lists_a_round_of_directories_at_the_same_time(
+    tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Which is the whole of what the parallel walk buys on a cloud root.
+
+    A listing there is one round trip and no bandwidth, so a tree of them run
+    one after another is latency and nothing else.  Overlap is what is under
+    test, not a rate: the volumes are made slow to list and the assertion is
+    that more than one was inside its listing at once.
+    """
+    root, _ = _wide_tree(tmp_path, 4)
+    inside = 0
+    most_at_once = 0
+    guard = threading.Lock()
+    real_iterdir = FCPath.iterdir_metadata
+
+    def slow(self: FCPath) -> Any:
+        nonlocal inside, most_at_once
+        if self.name.startswith('VOL'):
+            with guard:
+                inside += 1
+                most_at_once = max(most_at_once, inside)
+            time.sleep(0.1)
+            with guard:
+                inside -= 1
+        yield from real_iterdir(self)
+
+    monkeypatch.setattr(FCPath, 'iterdir_metadata', slow)
+    list(tree_source(root, quiet_logger).listing(Selection()))
+    assert most_at_once > 1
+
+
+def test_a_round_of_one_directory_is_listed_without_a_pool(
+    tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tree one directory wide should not pay for a thread pool per round."""
+
+    class Forbidden:
+        """A pool the walk must not build for a round holding one directory."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError('the walk built a thread pool for one directory')
+
+    monkeypatch.setattr('spindoctor.nav_records.walk.ThreadPoolExecutor', Forbidden)
+    root, stubs = _wide_tree(tmp_path, 1)
+    assert stubs_of(tree_source(root, quiet_logger).listing(Selection())) == stubs
+
+
+def test_the_root_is_listed_before_any_pool_is_built(
+    tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Which is what warms the backend source cache before threads reach it.
+
+    A walk begins with one directory, so its first listing takes the unpooled
+    path however wide the tree is.  filecache builds and caches its backend
+    source there, in a module-level dict filled by an unlocked check-then-set,
+    so a pool that ran first would have every thread build a client and all but
+    one throw it away.
+    """
+    order: list[str] = []
+    real_iterdir = FCPath.iterdir_metadata
+
+    def recording(self: FCPath) -> Any:
+        order.append(f'list {self.name}')
+        yield from real_iterdir(self)
+
+    class Recording(ThreadPoolExecutor):
+        """A pool that says when it was built."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            order.append('pool')
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(FCPath, 'iterdir_metadata', recording)
+    monkeypatch.setattr('spindoctor.nav_records.walk.ThreadPoolExecutor', Recording)
+    root, _ = _wide_tree(tmp_path, 4)
+    list(tree_source(root, quiet_logger).listing(Selection()))
+    assert order[0] == f'list {root.name}'
+    assert order[1] == 'pool'
 
 
 # ---------------------------------------------------------------------------

@@ -75,12 +75,13 @@ Logging Configuration
 
 Logging is configured by the top-level ``logging`` section, described under
 `Logging Options`_ below, together with command-line options that override it.
-It is one of the two sections excluded from the provenance configuration digest
-recorded with each navigation result: what a run wrote down about itself
+It is one of the three sections excluded from the provenance configuration
+digest recorded with each navigation result: what a run wrote down about itself
 cannot change what it concluded, so two results differing only in logging were
-produced by the same configuration and compare as such. The other is
+produced by the same configuration and compare as such. The others are
 ``environment``, which says where a deployment keeps its files rather than how
-it navigates.
+it navigates, and ``results_tree``, which says how many requests a pass over a
+navigation results tree makes at once.
 
 Two loggers write during a run: the main logger, covering one program run, and
 the image logger, covering one image inside one processing stage. A component

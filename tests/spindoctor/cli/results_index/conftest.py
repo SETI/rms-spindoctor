@@ -43,6 +43,7 @@ from spindoctor.cli.results_index import (
     fan_out_ingest_tasks,
     ingest_task_share,
 )
+from spindoctor.nav_records import TreeTuning
 from spindoctor.results_index import INGEST_RUNS, open_index
 
 # The results-index postgres tier runs against a schema of its own, exactly as
@@ -234,6 +235,7 @@ def fan_out(
             root_strings(roots),
             share_size=share_size,
             logger=logger,
+            tuning=TreeTuning(),
             **options,
         ).tasks
     finally:
@@ -260,7 +262,7 @@ def run_shares(
         return [
             TaskResult(
                 task_id=str(task['task_id']),
-                result=ingest_task_share(engine, task['data'], logger=logger),
+                result=ingest_task_share(engine, task['data'], logger=logger, tuning=TreeTuning()),
             )
             for task in tasks
         ]

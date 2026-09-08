@@ -178,6 +178,7 @@ from filecache import FCPath
 from spindoctor.cli import sd_results_index_cloud_tasks
 from spindoctor.cli.results_index import fan_out_ingest_tasks
 from spindoctor.results_index import open_index
+from spindoctor.nav_records import TreeTuning
 import argparse
 
 directory = FCPath(sys.argv[1])
@@ -205,7 +206,7 @@ class _Quiet:
     warning = error = debug = exception = info
 
 
-tasks = fan_out_ingest_tasks(engine, [root.as_posix()], logger=_Quiet()).tasks
+tasks = fan_out_ingest_tasks(engine, [root.as_posix()], logger=_Quiet(), tuning=TreeTuning()).tasks
 engine.dispose()
 
 

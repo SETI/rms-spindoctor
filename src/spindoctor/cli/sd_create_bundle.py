@@ -19,7 +19,7 @@ from filecache import FileCache
 package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, package_source_path)
 
-from spindoctor.cli.logging_args import add_logging_arguments, reporting_logging_errors
+from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.collections import (
     generate_collection_files,
@@ -170,10 +170,10 @@ def main_labels() -> None:
     arguments = parse_args_labels(command_list)
 
     # Read configuration files
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
 
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         build_run_logging(PROGRAM_NAME, arguments, DEFAULT_CONFIG)
 
     # Derive roots
@@ -221,10 +221,10 @@ def main_summary() -> None:
 
     # Read configuration files via the shared loader (single source of truth
     # for config / CLI / env precedence), matching main_labels.
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
 
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         build_run_logging(PROGRAM_NAME, arguments, DEFAULT_CONFIG)
 
     bundle_results_root_str = get_pds4_bundle_results_root(arguments, DEFAULT_CONFIG)

@@ -70,7 +70,7 @@ def _deep_merge(base: dict[Any, Any], overlay: dict[Any, Any]) -> dict[Any, Any]
     return merged
 
 
-HASH_EXCLUDED_SECTIONS = frozenset({'environment', 'logging'})
+HASH_EXCLUDED_SECTIONS = frozenset({'environment', 'logging', 'results_tree'})
 """Sections left out of :meth:`Config.resolved_config_hash`.
 
 A configuration section belongs here when it cannot change what the pipeline
@@ -80,7 +80,9 @@ same configuration and should compare as such.  ``environment`` holds
 deployment locations -- where the holdings are read from, where results are
 written, which database indexes them -- and moving a directory does not change
 a single number the pipeline produces, so a digest that shifted when it moved
-would answer its own question wrongly.
+would answer its own question wrongly.  ``results_tree`` says how many requests
+a pass over a results tree makes at once, which decides how long the pass takes
+and nothing about what any document in it says.
 
 Named explicitly rather than inferred, so that a section added later has to be
 a deliberate choice rather than inheriting one.  Adding a section here changes
@@ -163,6 +165,7 @@ class Config:
         self._config_backplanes: dict[str, Any] = AttrDict({})
         self._config_pds4: dict[str, Any] = AttrDict({})
         self._config_orchestrator: dict[str, Any] = AttrDict({})
+        self._config_results_tree: dict[str, Any] = AttrDict({})
 
     @property
     def is_loaded(self) -> bool:
@@ -202,6 +205,7 @@ class Config:
         self._config_backplanes = AttrDict(self._config_dict.get('backplanes', {}))
         self._config_pds4 = AttrDict(self._config_dict.get('pds4', {}))
         self._config_orchestrator = AttrDict(self._config_dict.get('orchestrator', {}))
+        self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
 
     def _load_yaml(self, config_path: str | Path) -> dict[str, Any]:
         """Loads a YAML file and returns a dictionary mapping.
@@ -576,6 +580,17 @@ class Config:
 
         self.read_config()
         return self._config_orchestrator
+
+    @property
+    def results_tree(self) -> Any:
+        """Returns how much of a pass over a results tree runs at once.
+
+        :func:`~spindoctor.config.get_results_tree_tuning` is what reads this
+        section into a :class:`~spindoctor.nav_records.TreeTuning`.
+        """
+
+        self.read_config()
+        return self._config_results_tree
 
     @property
     def backplanes(self) -> Any:

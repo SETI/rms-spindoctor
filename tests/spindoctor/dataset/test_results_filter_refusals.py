@@ -143,7 +143,7 @@ def _refusal_of(tree: Path, names: Sequence[str]) -> str | None:
     Returns:
         The refusal's message, or None when the combination was accepted.
     """
-    flags = dict.fromkeys(names, True)
+    flags: dict[str, Any] = dict.fromkeys(names, True)
     try:
         ResultsFilter(VOLUMES, str(tree), logger=null_logger(), results_index_db_url=None, **flags)
     except SelectionError as exc:
@@ -220,7 +220,7 @@ def test_no_refusal_calls_a_satisfiable_pair_mutually_exclusive(tree: Path) -> N
 
 @pytest.mark.parametrize('flags', CONTRADICTORY_PAIRS)
 def test_a_contradictory_pair_is_refused_before_the_index_is_opened(
-    tree: Path, tmp_path: Path, flags: dict[str, bool]
+    tree: Path, tmp_path: Path, flags: dict[str, Any]
 ) -> None:
     """The flags are validated first, so the refusal is the same with or without one.
 
@@ -237,7 +237,7 @@ def test_a_contradictory_pair_is_refused_before_the_index_is_opened(
 
 @pytest.mark.parametrize('flags', CONTRADICTORY_PAIRS)
 def test_a_refusal_names_every_flag_that_made_the_selection_impossible(
-    tree: Path, flags: dict[str, bool]
+    tree: Path, flags: dict[str, Any]
 ) -> None:
     """The message is the whole diagnosis, so it names what the user typed.
 

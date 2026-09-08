@@ -75,7 +75,7 @@ from filecache import FCPath
 package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, package_source_path)
 
-from spindoctor.cli.logging_args import add_logging_arguments, reporting_logging_errors
+from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
 from spindoctor.cli.results_index import (
     IngestCounts,
     TaskCompletion,
@@ -92,10 +92,11 @@ from spindoctor.config import (
     build_run_logging,
     get_nav_results_root,
     get_results_index_db_url,
+    get_results_tree_tuning,
     load_default_and_user_config,
 )
 from spindoctor.config.program_names import SD_RESULTS_INDEX
-from spindoctor.nav_records import UnlistableDirectoryError, distinct_roots
+from spindoctor.nav_records import TreeTuning, UnlistableDirectoryError, distinct_roots
 from spindoctor.results_index import open_index
 from spindoctor.support.command_line import masked_command_line
 from spindoctor.support.file import json_as_string
@@ -454,7 +455,14 @@ def _log_completion(completion: TaskCompletion) -> None:
         )
 
 
-def _run_ingest(engine: sqlalchemy.Engine, roots: list[str], *, force: bool, prune: bool) -> int:
+def _run_ingest(
+    engine: sqlalchemy.Engine,
+    roots: list[str],
+    *,
+    force: bool,
+    prune: bool,
+    tuning: TreeTuning,
+) -> int:
     """Read every document under each root and write its rows.
 
     Parameters:
@@ -462,12 +470,15 @@ def _run_ingest(engine: sqlalchemy.Engine, roots: list[str], *, force: bool, pru
         roots: The navigation results roots to walk.
         force: Whether to re-read every document.
         prune: Whether to remove the rows of documents that have left the tree.
+        tuning: How much of the pass runs at once.
 
     Returns:
         The exit status: 0 when every named root was walked, 1 when one could
         not be listed.
     """
-    counts = ingest_metadata_files(engine, roots, force=force, prune=prune, logger=MAIN_LOGGER)
+    counts = ingest_metadata_files(
+        engine, roots, force=force, prune=prune, logger=MAIN_LOGGER, tuning=tuning
+    )
     _log_outcome(counts, pruned=prune)
     # Whether the run completed, not what it found.  A count of documents flips
     # between two passes over one unchanged tree -- what one pass ingests the
@@ -480,7 +491,13 @@ def _run_ingest(engine: sqlalchemy.Engine, roots: list[str], *, force: bool, pru
 
 
 def _write_cloud_tasks(
-    engine: sqlalchemy.Engine, roots: list[str], *, force: bool, prune: bool, path: str
+    engine: sqlalchemy.Engine,
+    roots: list[str],
+    *,
+    force: bool,
+    prune: bool,
+    path: str,
+    tuning: TreeTuning,
 ) -> int:
     """List each root once and write out the shares its documents divide into.
 
@@ -490,13 +507,16 @@ def _write_cloud_tasks(
         force: Whether the workers should re-read every document.
         prune: Whether to remove the rows of documents that have left the tree.
         path: Where to write the task descriptions.
+        tuning: How much of each listing runs at once.
 
     Returns:
         The exit status: 0 when every named root was listed, 1 when one could
         not be.
     """
     MAIN_LOGGER.info('Writing cloud_tasks file to %s', path)
-    fan_out = fan_out_ingest_tasks(engine, roots, force=force, prune=prune, logger=MAIN_LOGGER)
+    fan_out = fan_out_ingest_tasks(
+        engine, roots, force=force, prune=prune, logger=MAIN_LOGGER, tuning=tuning
+    )
     with FCPath(path).open('w') as file:
         file.write(json_as_string(fan_out.tasks))
     MAIN_LOGGER.info('Wrote %d task(s) to %s', len(fan_out.tasks), path)
@@ -608,9 +628,9 @@ def main() -> None:
         arguments.nav_results_root = (arguments.nav_results_roots or [None])[0]
 
     # Read configuration files
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
-    with reporting_logging_errors():
+    with reporting_configuration_errors():
         build_run_logging(PROGRAM_NAME, arguments, DEFAULT_CONFIG)
 
     # A level that names the index with an empty value is a different failure from
@@ -668,6 +688,10 @@ def main() -> None:
         MAIN_LOGGER.info('Force: %s', arguments.force)
     MAIN_LOGGER.info('Arguments: %s', masked_command_line(command_list))
 
+    # Resolved once here and passed to whatever reads the tree.  The
+    # configuration was validated when it was loaded, so this cannot refuse.
+    tuning = get_results_tree_tuning(DEFAULT_CONFIG)
+
     try:
         engine = open_index(url, create=not completing)
     except ValueError as exc:
@@ -681,11 +705,14 @@ def main() -> None:
                 force=arguments.force,
                 prune=arguments.prune,
                 path=arguments.tasks_file,
+                tuning=tuning,
             )
         elif completing:
             status = _complete_cloud_tasks(engine, roots, path=arguments.events_log)
         else:
-            status = _run_ingest(engine, roots, force=arguments.force, prune=arguments.prune)
+            status = _run_ingest(
+                engine, roots, force=arguments.force, prune=arguments.prune, tuning=tuning
+            )
     except UnwritableRowError as exc:
         # The other failure a pass stops for.  The document read exactly as the
         # schema says and the writer or the column set would not take it, so

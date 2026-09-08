@@ -46,6 +46,11 @@ spindoctor.nav_records
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_records.tuning
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_records.walk
    :members:
    :undoc-members:

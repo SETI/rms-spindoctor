@@ -16,6 +16,7 @@ was furnished on the way in and unloads whatever the run added on the way out.
 
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import cspyce
 import numpy as np
@@ -35,6 +36,8 @@ from tests.spindoctor.cli.sd_create_ck_helpers import (
 from spindoctor.cli import sd_create_ck
 from spindoctor.cli.ck.comments import read_comment_area
 from spindoctor.cli.ck.segment import CkSegment
+from spindoctor.nav_records import TreeTuning
+from spindoctor.results_index import open_record_source
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -414,3 +417,29 @@ def test_a_meta_kernel_written_from_a_relative_run_still_furnishes(
 def test_a_remote_directory_is_left_as_it_was_given() -> None:
     """It is already absolute, and there is no local directory to resolve it against."""
     assert sd_create_ck.absolute_directory('gs://bucket/kernels') == 'gs://bucket/kernels'
+
+
+def test_the_records_are_read_at_the_tuning_the_configuration_names(
+    run_tree: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The driver resolves the tuning once, at its top, and opens its source with it."""
+    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    handed: list[Any] = []
+
+    def recording(roots: Any, **kwargs: Any) -> Any:
+        """Note the tuning the driver passes, then open the real source.
+
+        Parameters:
+            roots: The results roots the driver names.
+            kwargs: Everything else the driver passes, the tuning among it.
+
+        Returns:
+            The source the real opener returns.
+        """
+        handed.append(kwargs.get('tuning'))
+        return open_record_source(roots, **kwargs)
+
+    monkeypatch.setattr(sd_create_ck, 'get_results_tree_tuning', lambda config: configured)
+    monkeypatch.setattr(sd_create_ck, 'open_record_source', recording)
+    run_driver(run_tree, monkeypatch)
+    assert handed == [configured]

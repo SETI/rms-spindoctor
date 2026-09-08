@@ -20,6 +20,7 @@ from spindoctor.nav_records import (
     METADATA_SUFFIX,
     NavRecord,
     TreeRecordSource,
+    TreeTuning,
     UnreadableFile,
     read_document,
 )
@@ -228,17 +229,22 @@ def two_volume_tree(tmp_path: Path) -> Path:
     return root
 
 
-def tree_source(root: Path, logger: pdslogger.PdsLogger) -> TreeRecordSource:
+def tree_source(
+    root: Path, logger: pdslogger.PdsLogger, *, tuning: TreeTuning | None = None
+) -> TreeRecordSource:
     """Build a source over one results root.
 
     Parameters:
         root: The results root.
         logger: Logger the walk reports a declined directory through.
+        tuning: How much of a pass runs at once, or None for the defaults.
+            A test wanting a small bound passes one rather than rebinding a
+            module global, which is what a caller does.
 
     Returns:
         The source.
     """
-    return TreeRecordSource([str(root)], logger=logger)
+    return TreeRecordSource([str(root)], logger=logger, tuning=tuning)
 
 
 def _unlistable_directory(monkeypatch: pytest.MonkeyPatch, error: type[OSError], name: str) -> None:

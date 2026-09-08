@@ -39,6 +39,7 @@ from spindoctor.config import (
     MAIN_LOGGER,
     build_cloud_task_logging,
     get_results_index_db_url,
+    get_results_tree_tuning,
     load_default_and_user_config,
 )
 from spindoctor.config.program_names import SD_RESULTS_INDEX
@@ -69,7 +70,18 @@ def process_task(
     """
 
     arguments = cast(argparse.Namespace, worker_data.args)
-    load_default_and_user_config(arguments, DEFAULT_CONFIG)
+    try:
+        load_default_and_user_config(arguments, DEFAULT_CONFIG)
+        tuning = get_results_tree_tuning(DEFAULT_CONFIG)
+    except (FileNotFoundError, TypeError, ValueError) as exc:
+        # Returned as a status rather than raised, so the program that adds the
+        # shares up can tally it rather than reading a worker that raised as
+        # one that never ran.
+        return False, {
+            'status': 'error',
+            'status_error': 'unusable_configuration',
+            'status_exception': str(exc),
+        }
 
     # Resolved the same way the interactive driver resolves it, which is also
     # what withholds the worker's terminal from everything logged below.  There
@@ -103,7 +115,7 @@ def process_task(
             'status_exception': str(exc),
         }
     try:
-        result = ingest_task_share(engine, task_data, logger=MAIN_LOGGER)
+        result = ingest_task_share(engine, task_data, logger=MAIN_LOGGER, tuning=tuning)
     except ValueError as exc:
         return False, {
             'status': 'error',

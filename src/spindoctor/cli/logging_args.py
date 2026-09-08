@@ -19,30 +19,35 @@ from contextlib import contextmanager
 
 from spindoctor.config.logging_keys import LOG_LEVEL_NAMES
 
-__all__ = ['add_logging_arguments', 'reporting_logging_errors']
+__all__ = ['add_logging_arguments', 'reporting_configuration_errors']
 
 
 @contextmanager
-def reporting_logging_errors() -> Iterator[None]:
-    """Report a bad logging setting as a message rather than a traceback.
+def reporting_configuration_errors() -> Iterator[None]:
+    """Report a bad configuration setting as a message rather than a traceback.
 
-    Both halves of the surface raise the same way -- an unknown component in a
-    configuration file and an unknown level on the command line each name the
-    offending key -- so both should be presented the same way.  Without this
-    the configuration-file half reaches the terminal as a stack trace, which
-    reads as a crash rather than as the thing the operator typed.
+    Every refusal the configuration surface raises names what is wrong -- an
+    unknown component or an unusable tuning value in a configuration file, an
+    unknown level on the command line, a named configuration file that is not
+    there -- so all of them should be presented the same way.  Without this the
+    configuration-file half reaches the terminal as a stack trace, which reads
+    as a crash rather than as the thing the operator typed.
 
-    Wrap only the calls that read logging settings.  Deriving a results root
-    also raises ValueError, and reporting that as a logging problem would send
-    the reader to the wrong place.
+    Wrap only the calls that load the configuration and read logging settings.
+    Deriving a results root also raises ValueError, and reporting that as a
+    configuration problem would send the reader to the wrong place.
 
     Yields:
         None.
+
+    Raises:
+        SystemExit: With status 1, once the message is printed, so the program
+            ends the way it does for a refused command line.
     """
     try:
         yield
-    except (TypeError, ValueError) as exc:
-        print(f'Invalid logging configuration: {exc}', file=sys.stderr)
+    except (FileNotFoundError, TypeError, ValueError) as exc:
+        print(f'Invalid configuration: {exc}', file=sys.stderr)
         sys.exit(1)
 
 

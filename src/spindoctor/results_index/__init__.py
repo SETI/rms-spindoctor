@@ -14,6 +14,7 @@ with no staleness detection and no automatic refresh.
 Public API:
 
     SCHEMA_VERSION   -- column-set version a database is stamped with
+    STUBS_PER_STATEMENT -- how many stubs one statement names at a time
     METADATA         -- SQLAlchemy MetaData holding every table
     IMAGES           -- one row per image, keyed by (root_url, results_path_stub)
     TECHNIQUES       -- per-technique results for an image
@@ -59,6 +60,7 @@ from spindoctor.results_index.drop import (
     index_table_names,
 )
 from spindoctor.results_index.engine import (
+    STUBS_PER_STATEMENT,
     open_database,
     open_index,
     reporting_a_failed_read,
@@ -98,6 +100,7 @@ __all__ = [
     'RECORD_FIELDS',
     'SCHEMA_META',
     'SCHEMA_VERSION',
+    'STUBS_PER_STATEMENT',
     'TECHNIQUES',
     'UNKNOWN_STATUS',
     'IndexContents',

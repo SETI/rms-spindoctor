@@ -37,6 +37,12 @@ the tree does not. Running ``sd_results_index ingest`` again without the flag
 removes them. :doc:`user_guide_results_index` says what the flag gives up and what it
 saves.
 
+The configuration is read the way every other program reads it: the files named
+with ``--config-file``, or else ``nav_default_config.yaml`` in the working
+directory. Over a tree, the ``results_tree`` section decides how many requests
+the report makes at once; :doc:`user_guide_results_index` says what each
+setting costs.
+
 An index is optional here exactly as it is everywhere else, and
 ``--results-index-db`` is resolved the same way: from the command line, then the
 ``environment.results_index_db`` configuration variable, then the
@@ -76,7 +82,7 @@ A root, or a directory under one, that cannot be listed fails the run, and no
 report is written. A report that quietly covered less than the tree could not
 be told apart from one that covered all of it, so the pass stops instead.
 
-``sd_stats_report [--results-index-db URL] [--nav-results-root ROOT] [--root ROOT] [--output-dir DIR] [--instrument NAME] [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--min-image NAME] [--max-image NAME] [--top-n N] [--filelists] [--suspect-fraction F] [--csv]``
+``sd_stats_report [--config-file PATH] [--results-index-db URL] [--nav-results-root ROOT] [--root ROOT] [--output-dir DIR] [--instrument NAME] [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--min-image NAME] [--max-image NAME] [--top-n N] [--filelists] [--suspect-fraction F] [--csv]``
 writes ``report.md`` and its charts into the output directory. All filters
 combine and apply to every section; dates are inclusive UTC image dates, so a
 single day's run is ``--start-date D --end-date D``. An image records its epoch
@@ -125,8 +131,8 @@ Three options control drill-down output:
   aggregates, for pandas or spreadsheet analysis. Rows end with a single
   newline on every platform, and a JSON column that holds nothing is an empty
   cell. Each row is written as it is read, so the rows are **not sorted**:
-  their order is whatever the storage yields them in -- the directory order of
-  a tree, the server's own order for an index -- and the two do not agree.
+  their order is whatever the storage yields them in -- the walk's own order
+  for a tree, the server's own order for an index -- and the two do not agree.
   ``results_path_stub`` is the first column so that putting them in order is
   one shell pipeline, with the header line held out of the sort:
 

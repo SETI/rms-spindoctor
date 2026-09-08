@@ -684,7 +684,7 @@ is caught by what it gains as well as by what it loses.
 """
 
 
-def _selecting(url: str, **flags: bool) -> list[str]:
+def _selecting(url: str, **flags: Any) -> list[str]:
     """Answer one filter combination over the seeded root, against the server.
 
     Parameters:

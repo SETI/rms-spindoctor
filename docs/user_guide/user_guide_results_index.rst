@@ -164,7 +164,8 @@ directions:
 
 Both are answered by running ``sd_results_index ingest`` again, which is cheap
 over a tree that has barely changed: a document whose size and modification time still
-match is not read at all. Every run that answers from a results index reports
+match is not read at all. Re-ingesting before a run that depends on the answer
+is an ordinary thing to do. Every run that answers from a results index reports
 when the pass that filled it finished and how long ago that was, so the age of
 the answer is in the run log beside the answer.
 
@@ -173,6 +174,137 @@ results index has no row at all for, a document rewritten in place --- the cases
 are enumerated in :doc:`user_guide_navigation` under the selection filters, and
 the reason vocabulary the backplane and reprojection stages report is in
 :doc:`user_guide_backplanes` and :doc:`user_guide_reprojection`.
+
+Tuning a pass for your machine and storage
+------------------------------------------
+
+A pass over a results tree does two things: it lists directories to find out
+what is there, and it reads the documents it found. Against remote storage
+both are dominated by waiting. A listing is one request and a document is
+another, and a navigation document is only a few kilobytes, so a pass done one
+request at a time spends almost all of its time waiting and almost none of it
+moving data or using the processor.
+
+Both halves therefore run several requests at a time, and the ``results_tree``
+configuration section is where you say how many. You do not need to set any of
+it: the defaults are chosen to be sensible.
+
+**If your results tree is a local directory, these settings do not apply to
+it.** A listing of a local directory and a read of a local file cost no round
+trip, so the thread and batch settings have nothing to overlap and no useful
+effect there; leave them at their defaults. The one exception is
+``ingest_commit_batches``, which is about the database transactions an ingest
+writes rather than about the tree, and so applies whichever storage the tree
+is on.
+
+.. code-block:: yaml
+
+   results_tree:
+     walk_threads: 32
+     walk_directories_at_once: 256
+     retrieve_threads: 64
+     retrieve_batch_size: 1024
+     ingest_commit_batches: 2
+
+The section applies to every program that reads a results tree, not only to
+``sd_results_index``: a statistics report or a C-kernel run over a tree, and a
+navigation, backplane or bundle run whose selection names one of the
+``--has-offset-file`` family of filters, all read the tree the same way and all
+honor it. Only the last setting is particular to the ingest.
+
+**A note on processor cores.** These are not settings that divide work between
+cores. The threads they create spend their time waiting for storage to answer,
+not computing, so it is normal and correct for them to outnumber your cores
+several times over -- the defaults above will happily run on a four-core
+machine. Adding cores is not by itself a reason to raise them. What decides
+the useful value is your network and what your storage service will do at
+once, and past that point extra requests queue, or the service refuses them,
+and the pass gets slower rather than faster.
+
+**A value no pass can run at is refused when the configuration is loaded**,
+naming the setting, before the program has written anything: a count that is
+not a positive whole number, a setting name the section does not have, or a
+round of work smaller than the pool it feeds, which would leave threads idle at
+every setting rather than merely running slowly.
+
+The settings
+~~~~~~~~~~~~
+
+``walk_threads`` (default 32)
+   How many directories are listed at the same time. Raise it if your tree has
+   many directories and the finding stage is slow; lower it if your storage
+   service complains about the request rate. It costs almost no memory -- a
+   thread waiting on a request holds very little -- so memory is not the
+   reason to keep it small.
+
+``walk_directories_at_once`` (default 256)
+   **This one is a memory limit, not a speed control.** Listing happens in
+   rounds, and a round holds the full contents of every directory it is
+   listing before moving on. Without a limit, a round over a wide tree would
+   try to hold that entire level of the tree at once. This caps how many
+   directories a round covers, and therefore how much a round holds.
+
+   Raising it does not make a pass faster once there is enough work to keep
+   ``walk_threads`` busy; it only increases the peak memory of the pass. Lower
+   it on a machine short of memory, or if you have an unusually deep or wide
+   tree with very large directories. Raise it only if you have plenty of
+   memory and are certain the finding stage is starved for work. It must be at
+   least ``walk_threads``, so that every thread has a directory to list, and
+   is best kept comfortably above it; lower the two together on a machine that
+   needs a small round.
+
+``retrieve_threads`` (default 64)
+   How many documents are downloaded at the same time. This is the setting
+   that most affects how long a pass takes against remote storage, and the
+   first one to change if reading is slow. Raise it on a fast, high-latency
+   link; lower it if your provider throttles you, returns errors under load,
+   or if you are sharing the connection and want the pass to be less greedy.
+   Downloaded documents are written to the local file cache rather than held
+   in memory, so this costs disk space in the cache rather than RAM.
+
+``retrieve_batch_size`` (default 1024)
+   How many documents are handed to the downloader at a time. Its job is to
+   keep the download threads busy: a batch has to be comfortably larger than
+   ``retrieve_threads``, or threads sit idle at the end of every batch waiting
+   for the next one to start. If you change ``retrieve_threads``, change this
+   with it and keep it several times larger.
+
+   A batch smaller than ``retrieve_threads`` cannot fill the download pool, so
+   a run configured that way is refused when the configuration is loaded,
+   rather than running slowly for a reason you would have to go looking for.
+
+``ingest_commit_batches`` (default 2)
+   How many retrieval batches ``sd_results_index`` writes into the index in
+   one database transaction. No other program reads it. A transaction is what
+   a crash costs, so lower it to lose less work if an ingest dies part way;
+   raise it for fewer, larger transactions. It is a multiple of
+   ``retrieve_batch_size`` rather than a count of its own, so raising the batch
+   can never leave a transaction smaller than the batch it is retrieved in.
+
+Choosing values for your machine
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*Short of memory.* Lower ``walk_directories_at_once`` first, with
+``walk_threads`` lowered to match -- it is the setting that bounds how much the
+walk holds while it lists, and halving it roughly halves that. An ingest also
+keeps one small entry per document for the whole root while it works, which no
+setting changes. The others cost little memory at any setting.
+
+*Plenty of memory, slow remote storage.* Leave
+``walk_directories_at_once`` alone and raise ``retrieve_threads``, with
+``retrieve_batch_size`` raised alongside it. Raise them together in steps and
+watch whether the pass actually gets faster; when it stops improving, you have
+reached what your link or your provider will give you, and going further tends
+to make things worse.
+
+*A shared or metered connection.* Lower ``retrieve_threads`` and
+``walk_threads``. The pass takes longer and leaves more of the connection for
+everything else.
+
+*A results tree on a local directory.* Leave the thread and batch settings
+alone: they exist for remote storage and have nothing to do here. Only
+``ingest_commit_batches`` is worth a thought, and only for what an ingest that
+dies part way through should cost.
 
 How a results index is asked for
 ================================

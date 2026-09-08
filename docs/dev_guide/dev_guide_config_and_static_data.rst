@@ -88,6 +88,10 @@ removal. The shipping sections:
 - ``environment`` — deployment locations (``pds3_holdings_root``,
   ``nav_results_root``, ``backplane_results_root``, ``bundle_results_root``,
   ``results_index_db``).
+- ``results_tree`` — how much of a pass over a navigation results tree runs at
+  once, read into a :class:`~spindoctor.nav_records.TreeTuning` by
+  :func:`~spindoctor.config.get_results_tree_tuning`; see
+  :doc:`dev_guide_results_index`.
 - ``body_shape`` — static per-body shape catalogue (see
   :ref:`static-data-citations` below).
 - ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks
@@ -148,7 +152,8 @@ ranges are conventional, not enforced by the loader:
      - ``config_510_techniques``
    * - ``9xx``
      - Downstream-product settings
-     - ``config_900_backplanes``, ``config_950_pds4``
+     - ``config_900_backplanes``, ``config_950_pds4``,
+       ``config_960_results_tree``
 
 Per-file contents
 -----------------
@@ -183,6 +188,8 @@ Each shipping file and what it holds:
 - ``config_900_backplanes`` — backplane-generation settings.
 - ``config_950_pds4`` — PDS4 metadata and export settings for generated products,
   PDS4 label-template overrides, and the mapping of internal fields to PDS4 keys.
+- ``config_960_results_tree`` — how much of a pass over a navigation results
+  tree runs at once; see :doc:`dev_guide_results_index`.
 
 Loader rules
 ------------

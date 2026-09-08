@@ -40,7 +40,9 @@ class _StubWorkerData:
         Parameters:
             **kwargs: Argument names and values for the parsed namespace.
         """
-        self.args = argparse.Namespace(config_file=None, log_root=None, **kwargs)
+        given: dict[str, object] = {'config_file': None, 'log_root': None}
+        given.update(kwargs)
+        self.args = argparse.Namespace(**given)
 
 
 def worker_data(**kwargs: object) -> WorkerData:

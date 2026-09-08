@@ -137,7 +137,7 @@ index stores.
       }
 
       class TreeRecordSource {
-          +\_\_init\_\_(roots, *, logger=None)
+          +\_\_init\_\_(roots, *, logger=None, tuning=None)
           +roots: tuple[str, ...]
       }
 
@@ -212,7 +212,7 @@ anything, and the context-manager pair, which is on the protocol rather than
 left to each implementation because a stream may hold a connection that a caller
 walking away mid-loop must still release.
 :class:`~spindoctor.nav_records.TreeRecordSource` answers it out of the
-documents and is built from nothing but the roots and a logger.
+documents and is built from nothing but the roots, a logger and a tuning.
 :class:`~spindoctor.results_index.IndexRecordSource` answers it out of the rows
 and is built from an open engine, the index URL its messages name, and the
 columns a consumer's records are rebuilt from --- the one asymmetry between the
@@ -297,6 +297,44 @@ batches. The choice lives inside the seam, so a caller has one way to ask what a
 root holds; two shapes in the callers would be two answers to keep true of each
 other.
 
+**On a cloud root, both halves of a pass are latency rather than bandwidth.** A
+listing is one round trip and a document is another, and neither moves enough
+bytes to matter: a navigation document is a few kilobytes. Both halves
+therefore run in parallel, which is what makes a pass over a cloud root routine
+rather than something to plan around. The walk lists several directories at
+once, taking a bounded slice off a frontier each round so it still streams and
+still holds only part of the tree; retrieval fetches several documents at once,
+with a batch large enough to keep that pool full. A local root pays neither
+latency, so on a local directory the thread and batch settings have nothing to
+overlap and no useful effect; only the transaction size, which is about the
+index an ingest writes rather than the tree it reads, applies there too.
+
+**How much of it runs at once is not a property of this program.** It belongs
+to a machine, its link to the root, and what the service will do concurrently:
+where the useful value stops rising is where that particular round trip becomes
+what is left, and another provider or another link puts it somewhere else. So
+the numbers are configuration rather than constants, and they travel through
+the code one way. :class:`~spindoctor.nav_records.TreeTuning` carries them and
+owns their defaults; the ``results_tree`` section of the configuration is where
+a machine overrides them, shipped with the same values so that an operator can
+see what they are; and :func:`~spindoctor.config.get_results_tree_tuning` is
+the one door a program reads the section through. A program resolves the
+tuning once, in its entry point, and passes it down to whatever reads the tree
+--- :class:`~spindoctor.nav_records.TreeRecordSource`,
+:func:`~spindoctor.results_index.open_record_source`, the ingest --- the way it
+passes its logger. The library reads no configuration itself, and a call that
+names no tuning gets the library's defaults.
+
+The section is validated where every program loads its configuration, in
+:func:`~spindoctor.config.load_default_and_user_config`, so a value no pass can
+run at --- a count that is not a positive integer, a setting the section does
+not have, a round of work smaller than the pool it feeds --- is refused before
+the program has written anything, naming the section and the setting. The
+section is also one of the three
+:data:`~spindoctor.config.config.HASH_EXCLUDED_SECTIONS`: how many requests a
+pass makes at once cannot change what any document says, so tuning it must not
+re-stamp a run's results as differently configured.
+
 **What a check cannot report is the size and the modification time.** Those come
 from a directory entry, and an entry a check produced carries neither and says
 so through :attr:`~spindoctor.nav_records.ListedRecord.has_metrics`. A consumer
@@ -334,10 +372,11 @@ Two backends, and why the package is split
 ------------------------------------------
 
 :class:`~spindoctor.nav_records.TreeRecordSource` answers from the documents:
-it walks directory by directory, carrying each entry's metrics out of the
-listing, and retrieves documents in batches underneath a stream that yields them
-one at a time. :class:`~spindoctor.results_index.IndexRecordSource` answers from
-the rows, streamed in server-side chunks. The per-image lookup and the listing
+it walks the tree a bounded slice of directories at a time, carrying each
+entry's metrics out of the listing, and retrieves documents in batches
+underneath a stream that yields them one at a time.
+:class:`~spindoctor.results_index.IndexRecordSource` answers from the rows,
+streamed in server-side chunks. The per-image lookup and the listing
 are one query each; a stream of records is two, the images and the files the
 ingest refused; and :meth:`~spindoctor.nav_records.RecordSource.facts` is four,
 because the per-technique and per-feature rows are merged onto the images stream
@@ -638,12 +677,30 @@ half an image and re-ingesting one replaces its children rather than doubling
 them.
 
 **Writes are chunked, not batched into one transaction.** ``sd_results_index``
-commits every ``INGEST_COMMIT_CHUNK_SIZE`` images, which bounds both what a
-crash costs and how long a writer holds its lock. Retrieval is batched
-separately (``RETRIEVE_BATCH_SIZE``), because one bounds a download and
-the other bounds a transaction. A chunk whose write fails is rewritten one
+commits a chunk of images at a time, which bounds both what a crash costs and
+how long a writer holds its lock. A chunk whose write fails is rewritten one
 image at a time, so a single unstorable document costs itself rather than its
 chunk.
+
+A chunk is retrieved in batches, so a chunk smaller than a retrieval batch
+would cap the batch at itself and throw away the download concurrency the batch
+is sized for. The chunk is therefore stated as a multiple of the batch ---
+``results_tree.ingest_commit_batches``, read off the same
+:class:`~spindoctor.nav_records.TreeTuning` as the batch --- rather than as a
+count of its own. A fixed chunk beside a configurable batch would let an
+operator raise the batch past it and get a quieter, slower pass with nothing to
+say why; expressed as a multiple, the two move together and the pool stays full
+across a whole chunk while a transaction stays something a crash can afford to
+repeat.
+
+**Every statement that names stubs names at most**
+:data:`~spindoctor.results_index.engine.STUBS_PER_STATEMENT` **of them.** Each stub is
+a bind parameter and every backend caps how many one statement may carry, so
+the lookup of what a share already recorded, the streams that answer about a
+named set of images, and the prune's deletes all batch on that one constant. It
+is a property of the SQL dialects underneath and not a tuning: nothing about
+how a tree is walked or retrieved bears on it, which is why it lives beside the
+engine rather than in the ``results_tree`` section.
 
 **On SQLite, several local writers are an ordinary case.** The opener turns on
 write-ahead logging and sets ``busy_timeout`` to ``SQLITE_BUSY_TIMEOUT_MS``, so

@@ -138,6 +138,7 @@ from spindoctor.nav_records import (
     NavRecord,
     RecordSource,
     Selection,
+    TreeTuning,
     UnlistableDirectoryError,
     UnreadableFile,
 )
@@ -366,6 +367,7 @@ class ResultsFilter:
         has_offset_nonspice_error: bool = False,
         results_index_db_url: str | None = None,
         logger: PdsLogger,
+        tuning: TreeTuning | None = None,
     ) -> None:
         """Validates the flag combination and asks what the results root holds.
 
@@ -402,6 +404,9 @@ class ResultsFilter:
             logger: Logger for scan statistics, for the candidates no record
                 could be read for, and for the one line the seam has to say
                 about a directory it declined to descend twice.
+            tuning: How much of a pass over the results tree runs at once,
+                which the enumeration resolves from its configuration; None is
+                the library's own defaults.  Ignored when an index answers.
 
         Raises:
             SelectionError: If the flag combination is contradictory, or if the
@@ -487,6 +492,7 @@ class ResultsFilter:
         )
         self._logger = logger
         self._results_index_db_url = results_index_db_url
+        self._tuning = tuning
         # Held open only while there is a second question to ask, since a source
         # over an index holds a connection pool and a run that has nothing left
         # to ask should not.
@@ -715,6 +721,7 @@ class ResultsFilter:
                 [self._nav_results_root],
                 results_index_db_url=self._results_index_db_url,
                 logger=self._logger,
+                tuning=self._tuning,
             )
         except ValueError as exc:
             # Every way the index refuses to answer arrives as a ValueError

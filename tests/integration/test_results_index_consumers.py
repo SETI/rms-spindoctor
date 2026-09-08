@@ -62,6 +62,7 @@ from spindoctor.cli.reproj.pointing_source import (  # noqa: E402  (guarded impo
 )
 from spindoctor.cli.results_index import ingest_metadata_files  # noqa: E402  (guarded import)
 from spindoctor.dataset.dataset import ImageFile, ImageFiles  # noqa: E402  (guarded import)
+from spindoctor.nav_records import TreeTuning  # noqa: E402  (guarded import)
 from spindoctor.navigate_image_files import (  # noqa: E402  (guarded import)
     navigate_image_files,
 )
@@ -187,7 +188,9 @@ def _index_source(root: Path, database: Path) -> IndexPointingSource:
     url = f'sqlite:///{database.as_posix()}'
     engine = open_index(url, create=True)
     try:
-        ingest_metadata_files(engine, [root.as_posix()], logger=_quiet_logger())
+        ingest_metadata_files(
+            engine, [root.as_posix()], logger=_quiet_logger(), tuning=TreeTuning()
+        )
     finally:
         engine.dispose()
     return IndexPointingSource(open_index(url), normalize_root_url(root))

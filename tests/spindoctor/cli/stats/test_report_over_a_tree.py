@@ -40,11 +40,13 @@ from tests.spindoctor.conftest import (
     write_refusal,
 )
 
+from spindoctor.cli.stats import report as report_module
 from spindoctor.cli.stats.report import build_report, main_report
 from spindoctor.nav_records import (
     ImageFacts,
     Selection,
     TreeRecordSource,
+    TreeTuning,
     UnreadableFile,
 )
 from spindoctor.results_index import IMAGES, INGEST_RUNS, SCHEMA_VERSION, open_index
@@ -1096,3 +1098,29 @@ def test_the_half_ingested_root_holds_rows_to_leave_out(
     finally:
         engine.dispose()
     assert held == ['N1294562000_1_CALIB.IMG']
+
+
+def test_the_report_reads_the_tree_at_the_tuning_the_configuration_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A report over a tree is a front end onto it like any other, and honors the section."""
+    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    handed: list[Any] = []
+
+    class Recording(TreeRecordSource):
+        """A source that notes the tuning it was built with."""
+
+        def __init__(self, roots: Any, **kwargs: Any) -> None:
+            """Note the tuning, then build the real source.
+
+            Parameters:
+                roots: The results roots the report names.
+                kwargs: Everything else the report passes, the tuning among it.
+            """
+            handed.append(kwargs.get('tuning'))
+            super().__init__(roots, **kwargs)
+
+    monkeypatch.setattr(report_module, 'get_results_tree_tuning', lambda config: configured)
+    monkeypatch.setattr(report_module, 'TreeRecordSource', Recording)
+    assert _from_the_tree_at(RESULTS_TREE, tmp_path / 'report') == 0
+    assert handed == [configured]

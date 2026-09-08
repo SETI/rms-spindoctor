@@ -13,7 +13,12 @@ from typing import Any, ClassVar, cast
 from filecache import FCPath, FileCache
 from pdstable import PdsTable
 
-from spindoctor.config import Config, get_nav_results_root, get_results_index_db_url
+from spindoctor.config import (
+    Config,
+    get_nav_results_root,
+    get_results_index_db_url,
+    get_results_tree_tuning,
+)
 from spindoctor.support.misc import flatten_list
 
 from .dataset import DataSet, ImageFile, ImageFiles
@@ -788,6 +793,7 @@ class DataSetPDS3(DataSet):
                 nav_results_root,
                 logger=logger,
                 results_index_db_url=results_index_db_url,
+                tuning=get_results_tree_tuning(self.config),
                 **results_filter_flags,
             )
 

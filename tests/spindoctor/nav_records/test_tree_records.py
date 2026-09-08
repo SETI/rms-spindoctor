@@ -28,9 +28,9 @@ from spindoctor.nav_records import (
     METADATA_SUFFIX,
     NAMES_NO_INSTRUMENT,
     RECORDS_NO_MIDTIME,
-    RETRIEVE_BATCH_SIZE,
     Selection,
     TreeRecordSource,
+    TreeTuning,
     UnreadableFile,
     read_document,
 )
@@ -55,6 +55,13 @@ from .conftest import (
     write_document,
     write_text,
 )
+
+_BATCH = TreeTuning().retrieve_batch_size
+"""The default retrieval batch, which these fixtures are sized against.
+
+Derived rather than written out, so raising the default moves the tests
+with it instead of leaving them quietly inside one batch.
+"""
 
 # ---------------------------------------------------------------------------
 # One image by its stub
@@ -194,7 +201,7 @@ def test_every_record_of_a_tree_larger_than_one_batch_comes_back(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger
 ) -> None:
     """Batching must not lose the tail of a batch or the last part-batch."""
-    count = RETRIEVE_BATCH_SIZE * 3 + 1
+    count = _BATCH * 3 + 1
     source = tree_source(_many_documents(tmp_path, count), quiet_logger)
     assert len(list(source.records(Selection()))) == count
 
@@ -203,7 +210,7 @@ def test_every_record_of_a_tree_larger_than_one_batch_is_distinct(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger
 ) -> None:
     """A count alone would pass on a batch handed back twice."""
-    count = RETRIEVE_BATCH_SIZE * 3 + 1
+    count = _BATCH * 3 + 1
     source = tree_source(_many_documents(tmp_path, count), quiet_logger)
     assert len(set(stubs_of(source.records(Selection())))) == count
 
@@ -212,18 +219,18 @@ def test_a_tree_larger_than_one_batch_is_retrieved_in_batches(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """One retrieval per batch, not one per file: that is what a cloud root pays."""
-    count = RETRIEVE_BATCH_SIZE * 3 + 1
+    count = _BATCH * 3 + 1
     source = tree_source(_many_documents(tmp_path, count), quiet_logger)
     calls = count_retrievals(monkeypatch)
     list(source.records(Selection()))
-    assert calls == [RETRIEVE_BATCH_SIZE, RETRIEVE_BATCH_SIZE, RETRIEVE_BATCH_SIZE, 1]
+    assert calls == [_BATCH, _BATCH, _BATCH, 1]
 
 
 def test_the_first_record_of_a_stream_costs_one_document_read(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The stream is lazy on top, so a caller does not have to hold a mission."""
-    source = tree_source(_many_documents(tmp_path, RETRIEVE_BATCH_SIZE * 3), quiet_logger)
+    source = tree_source(_many_documents(tmp_path, _BATCH * 3), quiet_logger)
     read = count_reads(monkeypatch)
     stream = source.records(Selection())
     next(stream)
@@ -234,11 +241,11 @@ def test_the_first_record_of_a_stream_costs_one_retrieval(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Batched underneath: one batch is fetched, not the whole tree and not one file."""
-    source = tree_source(_many_documents(tmp_path, RETRIEVE_BATCH_SIZE * 3), quiet_logger)
+    source = tree_source(_many_documents(tmp_path, _BATCH * 3), quiet_logger)
     calls = count_retrievals(monkeypatch)
     stream = source.records(Selection())
     next(stream)
-    assert calls == [RETRIEVE_BATCH_SIZE]
+    assert calls == [_BATCH]
 
 
 def test_a_stream_of_named_stubs_reads_exactly_those(

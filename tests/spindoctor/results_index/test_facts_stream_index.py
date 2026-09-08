@@ -34,13 +34,13 @@ from tests.spindoctor.results_index.conftest import (
 )
 
 from spindoctor.nav_records import (
-    RETRIEVE_BATCH_SIZE,
     Selection,
     UnreadableFile,
     normalize_root_url,
 )
 from spindoctor.results_index import (
     IMAGES,
+    STUBS_PER_STATEMENT,
     IndexRecordSource,
     open_index,
     open_record_source,
@@ -176,6 +176,15 @@ def test_a_selection_naming_stubs_carries_the_child_rows(two_roots: TwoRoots) ->
     assert [technique_key(row) for row in rows] == ['BodyLimbNav', 'StarFieldFromCatalogNav']
 
 
+_NAMES_CROSSING_A_BATCH = tuple([ERROR_STUB, SUCCESS_STUB] * (STUBS_PER_STATEMENT // 2 + 1))
+"""More stub names than one retrieval batch binds, at whatever that batch is sized.
+
+Derived from the constant rather than written out, so that raising the batch
+moves this with it instead of quietly leaving the test below inside one batch,
+testing nothing.
+"""
+
+
 def test_a_selection_naming_more_stubs_than_one_batch_answers_every_one(
     two_roots: TwoRoots,
 ) -> None:
@@ -187,14 +196,13 @@ def test_a_selection_naming_more_stubs_than_one_batch_answers_every_one(
     Parameters:
         two_roots: The two ingested roots and their index.
     """
-    named = tuple([ERROR_STUB, SUCCESS_STUB] * 40)
-    found = named_facts_from_index(two_roots, 'first', Selection(stubs=named))
-    assert [stub_of(one) for one in found] == list(named)
+    found = named_facts_from_index(two_roots, 'first', Selection(stubs=_NAMES_CROSSING_A_BATCH))
+    assert [stub_of(one) for one in found] == list(_NAMES_CROSSING_A_BATCH)
 
 
 def test_the_named_stubs_really_do_cross_a_batch_boundary() -> None:
     """Without which the test above would hold whatever the batching did."""
-    assert len([ERROR_STUB, SUCCESS_STUB] * 40) > RETRIEVE_BATCH_SIZE
+    assert len(_NAMES_CROSSING_A_BATCH) > STUBS_PER_STATEMENT
 
 
 def test_named_stubs_still_honour_the_mission(two_roots: TwoRoots) -> None:

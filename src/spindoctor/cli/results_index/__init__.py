@@ -12,7 +12,6 @@ it the complete listing that alone licenses one.
 
 Public API:
 
-    INGEST_COMMIT_CHUNK_SIZE   -- images written per database transaction
     INGEST_TASK_SHARE_SIZE     -- metadata files handed to one cloud task
     IngestCounts               -- what one pass did
     ingest_metadata_files      -- the pass itself, over one or more roots
@@ -51,7 +50,7 @@ dispatch module reaches it directly.
 """
 
 from spindoctor.cli.results_index.counts import IngestCounts
-from spindoctor.cli.results_index.driver import INGEST_COMMIT_CHUNK_SIZE, ingest_metadata_files
+from spindoctor.cli.results_index.driver import ingest_metadata_files
 from spindoctor.cli.results_index.store import UnwritableRowError
 from spindoctor.cli.results_index.tasks import (
     INGEST_TASK_SHARE_SIZE,
@@ -66,7 +65,6 @@ from spindoctor.cli.results_index.tasks import (
 )
 
 __all__ = [
-    'INGEST_COMMIT_CHUNK_SIZE',
     'INGEST_TASK_SHARE_SIZE',
     'FanOut',
     'IngestCounts',

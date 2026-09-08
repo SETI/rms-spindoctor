@@ -20,7 +20,7 @@ import sqlalchemy
 from filecache import FCPath
 from pdslogger import PdsLogger
 
-from spindoctor.nav_records import RecordSource, TreeRecordSource, distinct_roots
+from spindoctor.nav_records import RecordSource, TreeRecordSource, TreeTuning, distinct_roots
 from spindoctor.results_index.record_source import IndexRecordSource
 from spindoctor.results_index.roots import open_index_for_roots
 
@@ -33,6 +33,7 @@ def open_record_source(
     results_index_db_url: str | None = None,
     columns: Sequence[sqlalchemy.Column[Any]] = (),
     logger: PdsLogger | None = None,
+    tuning: TreeTuning | None = None,
 ) -> RecordSource:
     """Open the source a run reads its navigation records through.
 
@@ -57,6 +58,10 @@ def open_record_source(
             constructs one or reaches for a program's own, because a layer with
             a voice its caller did not configure would report a run's work
             somewhere the run does not control.
+        tuning: How much of a pass over the documents runs at once, as the
+            program resolved it from its configuration; None is the library's
+            own defaults.  A run that reads rows never walks a tree, so it is
+            ignored there.
 
     Returns:
         The source, which the caller closes when it is done with it and which is
@@ -72,6 +77,6 @@ def open_record_source(
     if not root_urls:
         raise ValueError('a record source needs at least one results root to read')
     if results_index_db_url is None:
-        return TreeRecordSource(root_urls, logger=logger)
+        return TreeRecordSource(root_urls, logger=logger, tuning=tuning)
     engine = open_index_for_roots(results_index_db_url, root_urls)
     return IndexRecordSource(engine, root_urls, results_index_db_url, columns)

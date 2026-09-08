@@ -38,6 +38,7 @@ from spindoctor.cli.results_index import IngestCounts, fan_out_ingest_tasks, ing
 from spindoctor.cli.results_index import driver as driver_module
 from spindoctor.cli.results_index import tasks as tasks_module
 from spindoctor.cli.results_index.store import _RecordedFile
+from spindoctor.nav_records import TreeTuning
 from spindoctor.results_index import FAILED_FILES, IMAGES, open_index
 
 KEPT = 'VOL/N1454725799_1_CALIB'
@@ -85,7 +86,12 @@ def _ingest(
     engine = open_index(url, create=True)
     try:
         return ingest_metadata_files(
-            engine, [root.as_posix()], force=force, prune=prune, logger=logger
+            engine,
+            [root.as_posix()],
+            force=force,
+            prune=prune,
+            logger=logger,
+            tuning=TreeTuning(),
         )
     finally:
         engine.dispose()
@@ -107,7 +113,9 @@ def _fan_out(
     """
     engine = open_index(url, create=True)
     try:
-        return fan_out_ingest_tasks(engine, [root.as_posix()], prune=prune, logger=logger).tasks
+        return fan_out_ingest_tasks(
+            engine, [root.as_posix()], prune=prune, logger=logger, tuning=TreeTuning()
+        ).tasks
     finally:
         engine.dispose()
 

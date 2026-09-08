@@ -81,21 +81,13 @@ from spindoctor.nav_records import (
     ListedRecord,
     Selection,
     TreeRecordSource,
+    TreeTuning,
     UnlistableRootError,
     distinct_roots,
 )
-from spindoctor.results_index import FAILED_FILES, IMAGES
+from spindoctor.results_index import FAILED_FILES, IMAGES, STUBS_PER_STATEMENT
 
-__all__ = ['INGEST_COMMIT_CHUNK_SIZE', 'ingest_metadata_files']
-
-INGEST_COMMIT_CHUNK_SIZE = 512
-"""How many images are written per database transaction.
-
-Independent of the retrieval batch size: one bounds a download, the other
-bounds how much work a crash costs and how long a writer holds its lock.  An
-image's own rows are always written inside one transaction, so a concurrent
-worker never sees half of an image.
-"""
+__all__ = ['ingest_metadata_files']
 
 
 @dataclass(frozen=True)
@@ -123,7 +115,9 @@ class _RootListing:
     has_file_metrics: bool
 
 
-def _listing_of_root(root_url: str, *, logger: PdsLogger) -> _RootListing | None:
+def _listing_of_root(
+    root_url: str, *, logger: PdsLogger, tuning: TreeTuning
+) -> _RootListing | None:
     """List one results root whole, or report that nothing under it was listed.
 
     The listing itself is
@@ -143,6 +137,7 @@ def _listing_of_root(root_url: str, *, logger: PdsLogger) -> _RootListing | None
         root_url: Normalized URL of the results root to list.
         logger: Logger for the scan summary, the degraded-listing warning and
             the root that could not be listed at all.
+        tuning: How much of the listing runs at once.
 
     Returns:
         What the listing found, or None when the root itself could not be
@@ -162,7 +157,7 @@ def _listing_of_root(root_url: str, *, logger: PdsLogger) -> _RootListing | None
             image was never navigated", so a pass that finished around the gap
             would stamp that reading as an answer.
     """
-    source = TreeRecordSource([root_url], logger=logger)
+    source = TreeRecordSource([root_url], logger=logger, tuning=tuning)
     try:
         documents = sorted(source.listing(Selection()), key=lambda listed: listed.stub)
     except UnlistableRootError:
@@ -312,7 +307,9 @@ def _prune_missing(
         return 0
     removed = sum(1 for stub in gone if recorded[stub].from_images)
     logger.info('Removing %d row(s) under %s whose document has left the tree', removed, root_url)
-    for batch in _batched(gone, INGEST_COMMIT_CHUNK_SIZE):
+    # One transaction per statement's worth of stubs: the batch here is the
+    # number of bind parameters a statement may carry, not a tuning choice.
+    for batch in _batched(gone, STUBS_PER_STATEMENT):
         with engine.begin() as connection:
             connection.execute(
                 IMAGES.delete().where(
@@ -336,6 +333,7 @@ def ingest_metadata_files(
     force: bool = False,
     prune: bool = True,
     logger: PdsLogger,
+    tuning: TreeTuning,
 ) -> IngestCounts:
     """Ingest every metadata document under the given results roots.
 
@@ -376,6 +374,9 @@ def ingest_metadata_files(
             find.  False keeps them, which relaxes what presence of a row means
             and leaves what absence of one means alone.
         logger: Logger for the per-root scan summary and per-file failures.
+        tuning: How much of the pass runs at once and how many documents one
+            transaction covers, which the program resolved from its
+            configuration.
 
     Returns:
         What the pass did, summed over every root.
@@ -399,7 +400,7 @@ def ingest_metadata_files(
         counts = IngestCounts()
         run_id = _start_run(engine, root_url)
         logger.info('Ingesting %s', root_url)
-        listing = _listing_of_root(root_url, logger=logger)
+        listing = _listing_of_root(root_url, logger=logger, tuning=tuning)
         if listing is None:
             # The run row keeps its NULL finish time, so every consumer treats
             # this root as one nobody has ingested rather than as one that
@@ -421,7 +422,7 @@ def ingest_metadata_files(
             has_file_metrics=listing.has_file_metrics,
         )
         counts.files_skipped = counts.files_seen - len(to_read)
-        for chunk in _batched(to_read, INGEST_COMMIT_CHUNK_SIZE):
+        for chunk in _batched(to_read, tuning.ingest_commit_chunk_size):
             _ingest_chunk(
                 engine,
                 root,
@@ -429,6 +430,7 @@ def ingest_metadata_files(
                 root_url=root_url,
                 counts=counts,
                 logger=logger,
+                tuning=tuning,
             )
         if prune:
             counts.files_removed = _prune_missing(engine, listing, recorded, logger=logger)

@@ -99,6 +99,7 @@ from spindoctor.nav_records.source import (
     root_for_stubs,
     selected_roots,
 )
+from spindoctor.nav_records.tuning import TreeTuning
 from spindoctor.nav_records.walk import (
     UnlistableDirectoryError,
     UnlistableRootError,
@@ -109,16 +110,8 @@ from spindoctor.support.nav_record import record_midtime_et
 __all__ = [
     'NAMES_NO_INSTRUMENT',
     'RECORDS_NO_MIDTIME',
-    'RETRIEVE_BATCH_SIZE',
     'TreeRecordSource',
 ]
-
-RETRIEVE_BATCH_SIZE = 64
-"""How many documents are retrieved in one batched download.
-
-A cloud backend downloads a batch in parallel, so the batch size trades peak
-memory and per-request concurrency against the number of round trips.
-"""
 
 NAMES_NO_INSTRUMENT = 'names no instrument to attribute it to a mission'
 """Why a document that read perfectly well is still not one mission's record.
@@ -156,19 +149,27 @@ class TreeRecordSource:
             is what a caller holding no logger of its own needs -- a layer that
             must not acquire a voice its own caller did not configure has none
             to lend.
+        tuning: How much of a pass over the documents runs at once.  None is
+            the library's own defaults, for a caller with no configuration to
+            consult.
 
     Raises:
         ValueError: If no root is given, or if one of them is not a location.
     """
 
     def __init__(
-        self, roots: Sequence[str | Path | FCPath], *, logger: PdsLogger | None = None
+        self,
+        roots: Sequence[str | Path | FCPath],
+        *,
+        logger: PdsLogger | None = None,
+        tuning: TreeTuning | None = None,
     ) -> None:
         held = distinct_roots(roots)
         if not held:
             raise ValueError('a record source over the documents needs at least one results root')
         self._roots = tuple(held)
         self._logger = NullLogger() if logger is None else logger
+        self._tuning = TreeTuning() if tuning is None else tuning
         # What a walk answering a listing of named documents found, keyed by the
         # root and the top-level directory walked.  A scan asks in batches, so a
         # walk made for one batch answers every later batch of the same scan.
@@ -243,8 +244,9 @@ class TreeRecordSource:
         """Return every document the selection covers, without opening one.
 
         A selection that names no stubs walks: the roots in the order this
-        source holds them, and each root's documents in the order its directory
-        listings return them.  One that names stubs asks about those files and
+        source holds them, and each root's documents in an order the walk does
+        not define, since it lists several directories at once and no consumer
+        reads an order from it.  One that names stubs asks about those files and
         no others, and is answered by whichever call is cheap on the root they
         are under -- a check per file on a local root, where a check is a
         syscall, and a walk of the directories they lie in on a remote one,
@@ -300,9 +302,9 @@ class TreeRecordSource:
     def records(self, selection: Selection) -> Iterator[NavRecord | UnreadableFile]:
         """Return the records the selection covers, yielded one at a time.
 
-        Documents are retrieved :data:`RETRIEVE_BATCH_SIZE` at a time and
-        yielded singly, so a caller holds one record where the source holds one
-        batch.  What the selection asks for is checked before anything is read.
+        Documents are retrieved in batches and yielded singly, so a caller
+        holds one record where the source holds one batch.  What the selection
+        asks for is checked before anything is read.
 
         Parameters:
             selection: Which records to yield.  A selection naming stubs reads
@@ -515,8 +517,7 @@ class TreeRecordSource:
             return self._checked(root, stubs)
         return self._found_in_a_walk(root, root_url, stubs)
 
-    @staticmethod
-    def _checked(root: FCPath, stubs: Sequence[str]) -> Iterator[ListedRecord]:
+    def _checked(self, root: FCPath, stubs: Sequence[str]) -> Iterator[ListedRecord]:
         """Ask the filesystem about each named document, a batch of paths at a time.
 
         The call that costs a syscall per file, which is what makes it the cheap
@@ -539,9 +540,9 @@ class TreeRecordSource:
             :attr:`~spindoctor.nav_records.ListedRecord.has_metrics` and finds
             them absent, rather than being handed a stand-in for them.
         """
-        for batch in in_batches(iter(stubs), RETRIEVE_BATCH_SIZE):
+        for batch in in_batches(iter(stubs), self._tuning.retrieve_batch_size):
             sub_paths: list[str | Path] = [f'{stub}{METADATA_SUFFIX}' for stub in batch]
-            there = cast(list[bool], root.exists(sub_paths))
+            there = cast(list[bool], root.exists(sub_paths, nthreads=self._tuning.retrieve_threads))
             for stub, found in zip(batch, there, strict=True):
                 if found:
                     yield ListedRecord(
@@ -631,6 +632,7 @@ class TreeRecordSource:
                     {},
                     unlistable=unlistable,
                     logger=self._logger,
+                    tuning=self._tuning,
                 )
             }
         except UnlistableDirectoryError as exc:
@@ -735,7 +737,12 @@ class TreeRecordSource:
         visited: dict[tuple[int, int], str] = {}
         if not subtrees:
             yield from walk_from(
-                root, '', visited, unlistable=UnlistableRootError, logger=self._logger
+                root,
+                '',
+                visited,
+                unlistable=UnlistableRootError,
+                logger=self._logger,
+                tuning=self._tuning,
             )
             return
         for subtree in subtrees:
@@ -745,6 +752,7 @@ class TreeRecordSource:
                 visited,
                 unlistable=UnlistableDirectoryError,
                 logger=self._logger,
+                tuning=self._tuning,
             )
 
     def _found_of_root(
@@ -766,13 +774,16 @@ class TreeRecordSource:
         Yields:
             One pair per listed document, read and unfiltered.
         """
-        for batch in in_batches(listed, RETRIEVE_BATCH_SIZE):
+        for batch in in_batches(listed, self._tuning.retrieve_batch_size):
             sub_paths: list[str | Path] = [f'{entry.stub}{METADATA_SUFFIX}' for entry in batch]
             # retrieve() rather than get_local_path(): on a cloud root the
             # latter names a file it never downloads.  exception_on_fail=False
             # keeps one file that never arrived from ending the pass.
             local_paths = cast(
-                list[Path | Exception], root.retrieve(sub_paths, exception_on_fail=False)
+                list[Path | Exception],
+                root.retrieve(
+                    sub_paths, exception_on_fail=False, nthreads=self._tuning.retrieve_threads
+                ),
             )
             for entry, local_path in zip(batch, local_paths, strict=True):
                 found = self._read_of(root, entry.stub, local_path)
