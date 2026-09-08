@@ -13,7 +13,7 @@ titan:
     axis_min_offset_px: 3.0
     # Largest grid the symmetry axis evaluates its incidence backplane over.
     # The box is set by the body's apparent size, which nothing bounds: at
-    # 0.75 km/pixel Titan's envelope is 4343 pixels in radius inside a
+    # 0.754 km/pixel Titan's envelope is 4343 pixels in radius inside a
     # 1024-pixel frame, an 8688-square box covering seventy times the frame's
     # area. Evaluating that at one sample per pixel exhausted 256 GB machines
     # (N1625788872 and 101 others, 2026-09-04). The mask box is clipped to
@@ -21,16 +21,25 @@ titan:
     # clipped, because the sunward pixel the axis wants may lie outside the
     # frame, so a box above this is strided.
     #
-    # The stride costs angular resolution, and the cost is set by this number
-    # alone: the stride is the box side over the square root of the cap, the
-    # side is twice the envelope radius, so the axis quantizes by about
-    # 2/sqrt(cap) radians whatever the body's size. A million samples is
-    # 0.11 degrees, an order of magnitude under the 0.5-degree step the
-    # angle refinement below searches on, and leaves a box the size of an
-    # extended frame unstrided, so an ordinary frame samples every pixel as
-    # it always has. Measured on the 8688-square box: this cap strides by 9
-    # and peaks at 4.8 GB, against 13.7 GB at four million and an
-    # out-of-memory kill with no cap at all.
+    # The stride costs angular resolution. The stride is the box side over
+    # the square root of the cap, and the side is twice the envelope radius,
+    # so k = 2 * r_env / sqrt(cap). The pixel it locates is the sub-solar
+    # point on the solid body, r_solid * sin(phase) from the centre (the
+    # limb, r_solid, above 90 degrees of phase), so the axis quantizes by
+    # about 2 * (r_env / r_solid) / (sqrt(cap) * sin(phase)) radians. The
+    # ratio is 1.27 under the 700 km atmosphere above, so a million samples
+    # is 0.15 degrees at 90 degrees of phase, 0.29 at 30 and 0.84 at 10,
+    # crossing the 0.5-degree angle_refine_step_deg below about 17 degrees
+    # of phase. The refinement searches angle_refine_deg (5 degrees) either
+    # side of the initial axis, so the initial axis only has to land inside
+    # that window, which it does above about 2 degrees of phase; a disc at
+    # lower phase is nearly rotationally symmetric and the axis matters
+    # least there. A box up to 1000 pixels on a side samples every pixel,
+    # and Titan's envelope box exceeds that only when the envelope exceeds
+    # about 500 pixels in radius, which at 3275 km is closer than about
+    # 6.5 km per pixel; an ordinary frame is far from that. Measured on the
+    # 8688-square box: this cap strides by 9 and peaks at 4.8 GB, against
+    # 13.7 GB at four million and an out-of-memory kill with no cap at all.
     backplane_max_samples: 1000000
     recenter_threshold_px: 8.0
     star_mask_vmag_limit: 8.0

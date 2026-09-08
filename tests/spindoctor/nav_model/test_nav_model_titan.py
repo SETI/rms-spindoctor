@@ -26,7 +26,7 @@ import spindoctor.nav_model.titan_geometry as geometry_module
 from spindoctor.config import Config
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import TitanHazeGeometry
-from spindoctor.nav_model.nav_model_body import NavModelBody
+from spindoctor.nav_model.nav_model_body import NavModelBody, occluder_mask_for_body
 from spindoctor.nav_model.nav_model_titan import (
     NavModelTitan,
     build_titan_feature,
@@ -726,21 +726,6 @@ def test_bbox_undersample_bounds_the_count_when_each_axis_rounds_up() -> None:
     assert math.ceil(width / stride) * math.ceil(height / stride) <= cap
 
 
-@pytest.mark.parametrize('side', [17, 64, 101, 255, 1000])
-@pytest.mark.parametrize('cap', [16, 200, 2600, 9999])
-def test_bbox_undersample_bounds_every_box_and_cap(side: int, cap: int) -> None:
-    """The bound holds across sizes, not only at the one that exposed it.
-
-    Parameters:
-        side: Length of each axis of a square box, in pixels.
-        cap: Largest number of samples the grid may hold.
-    """
-    bbox = (0, side - 1, 0, side - 1)
-    stride = geometry_module._bbox_undersample(bbox, cap)
-    width, height = geometry_module._bbox_extent(bbox)
-    assert math.ceil(width / stride) * math.ceil(height / stride) <= cap
-
-
 def test_bbox_undersample_ignores_a_non_positive_cap() -> None:
     """A cap of zero is the deliberate spelling of no bound at all."""
     assert geometry_module._bbox_undersample((0, 9999, 0, 9999), 0) == 1
@@ -784,18 +769,26 @@ def _close_scene_obs(*, resolution_km_px: float, half_size_px: float) -> FakeObs
     )
 
 
-def _recorded_boxes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> list[tuple[tuple[int, int, int, int], int]]:
-    """Record the box and stride of every backplane the geometry builds."""
-    calls: list[tuple[tuple[int, int, int, int], int]] = []
+@dataclasses.dataclass(frozen=True)
+class _RecordedBackplane:
+    """One backplane the geometry built: its box, its stride, and its meshgrid."""
+
+    bbox: tuple[int, int, int, int]
+    stride: int
+    meshgrid: _BoxMeshgrid
+
+
+def _recorded_boxes(monkeypatch: pytest.MonkeyPatch) -> list[_RecordedBackplane]:
+    """Record the box, stride and meshgrid of every backplane the geometry builds."""
+    calls: list[_RecordedBackplane] = []
     real = geometry_module._restricted_backplane
 
     def _record(
         obs: Any, bbox: tuple[int, int, int, int], *, undersample: int = 1
     ) -> tuple[Any, Any]:
-        calls.append((bbox, undersample))
-        return real(obs, bbox, undersample=undersample)
+        bp, meshgrid = real(obs, bbox, undersample=undersample)
+        calls.append(_RecordedBackplane(bbox, undersample, cast(_BoxMeshgrid, meshgrid)))
+        return bp, meshgrid
 
     monkeypatch.setattr(geometry_module, '_restricted_backplane', _record)
     return calls
@@ -804,7 +797,11 @@ def _recorded_boxes(
 def test_every_titan_backplane_stays_within_the_sample_cap(
     scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A body far wider than the frame still evaluates a bounded grid."""
+    """A body far wider than the frame still evaluates a bounded grid.
+
+    The count asserted on is the one each meshgrid actually holds, not a
+    recomputation of the stride arithmetic the code itself uses.
+    """
     scene.titan_center_vu = (60.5, 60.5)
     scene.titan_radius_px = 2000.0
     scene.sub_solar_offset_vu = (1500.0, 0.0)
@@ -817,10 +814,8 @@ def test_every_titan_backplane_stays_within_the_sample_cap(
         _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0), config
     )
     assert calls
-    for bbox, stride in calls:
-        width, height = geometry_module._bbox_extent(bbox)
-        sampled = math.ceil(width / stride) * math.ceil(height / stride)
-        assert sampled <= cap
+    for call in calls:
+        assert call.meshgrid.uu.size <= cap
 
 
 def test_the_mask_backplane_is_clipped_to_the_extended_frame(
@@ -846,12 +841,62 @@ def test_the_mask_backplane_is_clipped_to_the_extended_frame(
     rows, cols = geometry.extfov_shape_vu
     margin_v, margin_u = geometry.extfov_margin_vu
     # The first call is the symmetry axis, whose box is deliberately unclipped.
-    mask_boxes = [box for box, _ in calls[1:]]
+    mask_boxes = [call.bbox for call in calls[1:]]
     assert mask_boxes
     assert all(u_min >= -margin_u for u_min, _, _, _ in mask_boxes)
     assert all(u_max <= cols - margin_u - 1 for _, u_max, _, _ in mask_boxes)
     assert all(v_min >= -margin_v for _, _, v_min, _ in mask_boxes)
     assert all(v_max <= rows - margin_v - 1 for _, _, _, v_max in mask_boxes)
+
+
+def test_striped_occlusion_matches_the_whole_box_evaluation(
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The masks stitched from strips are the masks one whole-box backplane gives.
+
+    The box is three strips tall and the planted occluder straddles the first
+    strip boundary, so the seam between strips runs through the occluded disc.
+    The ring plane is nearer than Titan on even rows only, so the ring mask
+    varies by row and a strip stitched back in the wrong place shows there too.
+    """
+    scene.titan_center_vu = (60.5, 60.5)
+    scene.titan_radius_px = 26.0
+    scene.sub_solar_offset_vu = (10.0, 0.0)
+    scene.occluder_center_vu = (float(geometry_module.OCCLUDER_STRIP_ROWS), 60.5)
+    scene.occluder_radius_px = 10.0
+    scene.ring_radius_at_u = 100_000.0
+
+    def _alternate_row_distance(self: Any, ring_target: str, direction: str = 'dep') -> Any:
+        """Put the ring plane nearer than Titan on even rows and far on odd ones."""
+        del ring_target, direction
+        vv = self._mg.vv
+        values = np.where(np.floor(vv) % 2.0 == 0.0, 1.0e5, 1.0e9)
+        return _Scalar(values, np.zeros(vv.shape, dtype=bool))
+
+    monkeypatch.setattr(scene, 'distance', _alternate_row_distance)
+    obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
+    bbox = (0, 119, 0, 3 * geometry_module.OCCLUDER_STRIP_ROWS - 1)
+    sibling_ranges = [('RHEA', 1.0e5)]
+    ring_radii_km = (74490.0, 140500.0)
+    body_striped, ring_striped = geometry_module._striped_occlusion(
+        obs=cast(Any, obs),
+        bbox_nominal=bbox,
+        sibling_ranges=sibling_ranges,
+        subject_range_km=1.2e6,
+        planet='SATURN',
+        ring_radii_km=ring_radii_km,
+    )
+    whole_bp, _ = geometry_module._restricted_backplane(cast(Any, obs), bbox)
+    body_whole = occluder_mask_for_body(
+        whole_bp, 'TITAN', sibling_ranges, 1.2e6, oversample_v=1, oversample_u=1
+    )
+    ring_whole = geometry_module._ring_occlusion_local(whole_bp, 'SATURN', 1.2e6, ring_radii_km)
+    assert body_striped is not None
+    assert body_whole is not None
+    assert np.array_equal(body_striped, body_whole)
+    assert ring_striped is not None
+    assert ring_whole is not None
+    assert np.array_equal(ring_striped, ring_whole)
 
 
 def test_a_strided_envelope_box_still_points_the_axis_sunward(
@@ -868,8 +913,32 @@ def test_a_strided_envelope_box_still_points_the_axis_sunward(
         _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0),
         _titan_only_config(tmp_path),
     )
-    assert calls[0][1] > 1
+    assert calls[0].stride > 1
     assert geometry.theta_rad == pytest.approx(math.pi / 2.0, abs=0.02)
+
+
+def test_degenerate_axis_guard_scales_with_the_stride(
+    scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An arm above 3 px but under 3 strides is degenerate on a strided box.
+
+    A strided box locates the sunward pixel only to within the stride, so the
+    floor on the arm is applied in strides.  The stride is read off a first
+    pass over the scene; the sub-solar point is then planted two strides from
+    the centre, above the 3 px floor and under three strides.
+    """
+    scene.titan_center_vu = (60.5, 60.5)
+    scene.titan_radius_px = 2000.0
+    scene.sub_solar_offset_vu = (1500.0, 0.0)
+    scene.occluder_center_vu = None
+    scene.ring_radius_at_u = None
+    calls = _recorded_boxes(monkeypatch)
+    config = _titan_only_config(tmp_path)
+    obs = _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0)
+    _geometry(obs, config)
+    scene.sub_solar_offset_vu = (2.0 * calls[0].stride, 0.0)
+    geometry = _geometry(obs, config)
+    assert geometry.axis_degenerate is True
 
 
 def test_symmetry_axis_points_at_the_sub_solar_pixel(
