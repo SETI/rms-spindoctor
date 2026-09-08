@@ -234,8 +234,8 @@ class FakeObs:
             coords: (longitude, latitude) polymath Scalars in radians.
         """
         lon, lat = coords
-        lon_scalar = polymath.Scalar(lon)
-        lat_scalar = polymath.Scalar(lat)
+        lon_scalar = polymath.Scalar.as_scalar(lon)
+        lat_scalar = polymath.Scalar.as_scalar(lat)
         lon_v = np.asarray(lon_scalar.vals, dtype=np.float64)
         lat_v = np.asarray(lat_scalar.vals, dtype=np.float64)
         lon_bins = np.round(lon_v / _LON_RES)

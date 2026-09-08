@@ -21,7 +21,7 @@ dependencies = [
   "rms-pdslogger>=3.2.1",
   "rms-pdstable>=1.0.1",
   "rms-pdstemplate>=2.3.0",
-  "rms-polymath>=2.0",
+  "rms-polymath>=2.1.0",
   "rms-psfmodel",
   "rms-oops>=0.1.5",
   "rms-starcat>=1.0.1",
