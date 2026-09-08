@@ -499,6 +499,23 @@ def test_the_ingest_is_handed_the_tuning_the_configuration_names(
     assert handed == [configured]
 
 
+def test_a_named_configuration_file_that_is_not_there_is_reported_and_not_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A mistyped --config-file is the operator's mistake, and is told as one.
+
+    Parameters:
+        tmp_path: Directory the logs live under.
+        monkeypatch: Fixture the argument vector and logger are replaced through.
+        capsys: Fixture the refusal is read back through.
+    """
+    status, _written = _run(
+        ['ingest', '--config-file', str(tmp_path / 'absent.yaml')], monkeypatch, tmp_path
+    )
+    assert status == 1
+    assert 'Invalid configuration' in capsys.readouterr().err
+
+
 def test_a_divide_is_handed_the_same_tuning(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

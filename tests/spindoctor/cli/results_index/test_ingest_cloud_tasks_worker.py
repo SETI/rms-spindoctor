@@ -225,6 +225,16 @@ def test_a_worker_hands_its_share_the_tuning_the_configuration_names(
     assert handed == [configured]
 
 
+def test_a_worker_named_a_configuration_file_that_is_not_there_reports_it(tmp_path: Path) -> None:
+    """A mistyped --config-file on the worker's command line is tallied, not raised."""
+    _retry, result = sd_results_index_cloud_tasks.process_task(
+        'ingest-1-000000',
+        {},
+        worker_data(config_file=[str(tmp_path / 'absent.yaml')], results_index_db='sqlite://'),
+    )
+    assert result['status_error'] == 'unusable_configuration'
+
+
 def test_a_worker_under_a_configuration_no_pass_can_run_at_reports_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

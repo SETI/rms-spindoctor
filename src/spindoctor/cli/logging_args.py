@@ -26,12 +26,12 @@ __all__ = ['add_logging_arguments', 'reporting_configuration_errors']
 def reporting_configuration_errors() -> Iterator[None]:
     """Report a bad configuration setting as a message rather than a traceback.
 
-    Every refusal the configuration surface raises names the offending key --
-    an unknown component or an unusable tuning value in a configuration file,
-    an unknown level on the command line -- so all of them should be presented
-    the same way.  Without this the configuration-file half reaches the
-    terminal as a stack trace, which reads as a crash rather than as the thing
-    the operator typed.
+    Every refusal the configuration surface raises names what is wrong -- an
+    unknown component or an unusable tuning value in a configuration file, an
+    unknown level on the command line, a named configuration file that is not
+    there -- so all of them should be presented the same way.  Without this the
+    configuration-file half reaches the terminal as a stack trace, which reads
+    as a crash rather than as the thing the operator typed.
 
     Wrap only the calls that load the configuration and read logging settings.
     Deriving a results root also raises ValueError, and reporting that as a
@@ -42,7 +42,7 @@ def reporting_configuration_errors() -> Iterator[None]:
     """
     try:
         yield
-    except (TypeError, ValueError) as exc:
+    except (FileNotFoundError, TypeError, ValueError) as exc:
         print(f'Invalid configuration: {exc}', file=sys.stderr)
         sys.exit(1)
 

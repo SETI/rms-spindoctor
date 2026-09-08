@@ -74,7 +74,7 @@ def process_task(
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
         # Resolved once per share and passed down, as the interactive driver does.
         tuning = get_results_tree_tuning(DEFAULT_CONFIG)
-    except (TypeError, ValueError) as exc:
+    except (FileNotFoundError, TypeError, ValueError) as exc:
         # A configuration no pass can run under is reported the way every other
         # refusal here is, so the program that adds the shares up can tally it
         # rather than reading a worker that raised as one that never ran.

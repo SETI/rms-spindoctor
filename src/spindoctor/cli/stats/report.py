@@ -840,7 +840,7 @@ def main_report(cmdline: list[str] | None = None) -> int:
     # refusals print, rather than raised.
     try:
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
-    except (TypeError, ValueError) as exc:
+    except (FileNotFoundError, TypeError, ValueError) as exc:
         _to_stderr(f'Invalid configuration: {exc}')
         return 1
     # Checked here, before any storage is opened, so that the one thing a
