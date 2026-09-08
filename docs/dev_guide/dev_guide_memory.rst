@@ -9,7 +9,7 @@ so a stage that hands it the extended frame pays for the extended frame whatever
 the question was. The extended frame is the detector plus twice the instrument's
 search margin, which is what makes the wide-margin instruments the expensive ones:
 a Voyager frame extends to 1800 x 1800, or 3.24 megapixels, against a 1000 x 1000
-detector.
+image.
 
 Two mechanisms keep that bounded. They are independent, and a stage needs both.
 
@@ -21,17 +21,32 @@ rows can be evaluated on its own and the bands stacked into the array a whole-fr
 evaluation would have returned. Only one band's intermediates exist at a time, so
 the live heap is set by the strip height rather than by the frame.
 
-The stacked array is the whole-frame array exactly, not an approximation of it:
-strip boundaries fall on whole rows, and no per-pixel quantity depends on a
-neighbouring row. Tests assert the identity rather than a tolerance.
+The stacked array is the whole-frame array: strip boundaries fall on whole rows,
+and no per-pixel quantity depends on a neighbouring row. Verified by hand on a
+Cassini frame, the boolean backplanes come back bit-identical, and a floating-point
+one -- the ring-plane distance -- agrees to about one part in 1e13, the last bits
+moving because the arithmetic is grouped differently rather than because the
+answer changed. The tests check the assembly against the whole-frame array through
+a backplane stand-in that answers each strip from the same dense arrays, on a
+frame taller than one strip.
 
 Two places stripe:
-``NavModelRings._striped_backplane`` for the ring quantities and
+``NavModelRings._striped_backplanes`` for the ring quantities and
 ``titan_geometry._striped_occlusion`` for both occlusion masks over one set of
-strips. Each caps a strip at 128 rows.
+strips. Each caps a strip at 128 rows, and each strip's single backplane answers
+every quantity asked of it, so the surface intercept is solved once per strip.
 
 A caller must take everything it needs from a strip while that strip is the one in
 hand. Asking again afterwards rebuilds the whole box and gives back nothing.
+
+The ring model does not stripe everything. The ring radius, the ring radial
+resolution, ``border_atop`` and ``radial_mode`` backplanes run over the whole
+extended frame through the observation's extended backplane, because the model
+renders from the whole-frame radius array and the edge backplanes are derived
+inside ``oops`` from that cached array. Striping bounds the three quantities it
+covers -- the ring-plane distance, the planet shadow and the planet occlusion --
+and those whole-frame calls set the ring model's remaining floor. The resolution
+is striping inside ``oops`` itself, where every consumer inherits it.
 
 Releasing
 =========
@@ -82,7 +97,7 @@ between strips does not register against it.
 Where it is called
 ------------------
 
-After each strip, in each of the three striped loops, and nowhere else.
+After each strip, in each of the two striped loops, and nowhere else.
 
 Coarser placements were measured and rejected. Releasing at the boundary between
 whole models, and again between techniques, changed a Voyager Saturn frame's peak
@@ -133,13 +148,17 @@ correlation. On a Voyager frame that peak stands several gigabytes above the flo
 and is returned in full when the technique exits, which is why releasing between
 techniques does nothing for it: it is one allocation spike, not an accumulation.
 
-``_masked_ncc_bidir`` needs six spectra, but their
-lifetimes barely overlap: the mask spectrum is finished after the second shift-wise
-sum, the image spectrum after the third, the model-mask spectrum after the fourth.
-Each is therefore built where it is first needed and dropped at its last use, so
-three exist at once rather than six. Every product is the one it always was -- only
-the order of allocation changed -- and tests check the result against a
-transform-free evaluation of the same sums.
+``_masked_ncc_bidir`` needs six spectra, but their lifetimes barely overlap: the
+mask spectrum is finished after the second shift-wise sum, the image spectrum after
+the third, the model-mask spectrum after the fourth. Each is therefore built where
+it is first needed and dropped at its last use, so three exist at once rather than
+six. The real part of each inverse transform is copied out into its own array,
+because numpy's real part is a view, and a view would keep the complex output alive
+behind each of the six shift-wise sums for the rest of the function. The live set
+is therefore at most three spectra plus the one inverse transform in flight, plus
+the product and conjugate temporaries of the statement being evaluated. Every
+product is the one it always was -- only the order of allocation changed -- and
+tests check the result against a transform-free evaluation of the same sums.
 
 Declining early
 ===============

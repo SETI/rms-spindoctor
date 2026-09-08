@@ -1321,6 +1321,14 @@ gate is drawn dotted and labelled ``TITAN (low reliability)``.
    * - ``titan.navigation.axis_min_offset_px``
      - Below this predicted-centre-to-sub-solar distance the disc is
        treated as rotationally symmetric and the axis search is skipped.
+       Scales with the sampling stride of the incidence backplane.
+   * - ``titan.navigation.backplane_max_samples``
+     - Largest grid the symmetry axis's incidence backplane is evaluated
+       over.  A closer Titan whose box exceeds it is sampled every few
+       pixels instead, which quantizes the initial axis by a fraction of
+       a degree at ordinary phases, within what the angle refinement
+       searches.  The default of one million leaves any box up to 1000
+       pixels on a side sampled every pixel.
    * - ``titan.navigation.recenter_threshold_px``
      - Along-track shift above which the fit runs a second, recentred
        pass.
