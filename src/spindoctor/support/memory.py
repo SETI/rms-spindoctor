@@ -27,32 +27,37 @@ nowhere else.
 """
 
 import ctypes
-import ctypes.util
 import gc
 
 
-def _malloc_trim() -> ctypes.CDLL | None:
-    """Find the C library's arena-releasing entry point, if it has one.
+def _library_with_malloc_trim() -> ctypes.CDLL | None:
+    """Open the running program's C library, if it exposes ``malloc_trim``.
+
+    The running program is opened rather than a library found by name: its
+    symbol table already carries the C library's, so this costs one ``dlopen``
+    and spawns nothing, where a lookup by name runs the dynamic linker's cache
+    tool as a subprocess and finds nothing wherever that tool is absent.
 
     Returns:
-        The loaded library exposing ``malloc_trim``, or None where no such
-        function exists, which is every C library other than glibc.
+        The loaded library exposing ``malloc_trim``, or None where the running
+        program cannot be opened this way, as on Windows, or where its C
+        library exposes no such function.
     """
-    name = ctypes.util.find_library('c')
-    if name is None:
-        return None
     try:
-        libc = ctypes.CDLL(name)
-    except OSError:
+        lib = ctypes.CDLL(None)
+    except (OSError, TypeError):
+        # Windows cannot open the running program by a missing name and
+        # rejects it before opening anything; its C runtime has no
+        # malloc_trim to find in any case.
         return None
-    if not hasattr(libc, 'malloc_trim'):
+    if not hasattr(lib, 'malloc_trim'):
         return None
-    libc.malloc_trim.argtypes = [ctypes.c_size_t]
-    libc.malloc_trim.restype = ctypes.c_int
-    return libc
+    lib.malloc_trim.argtypes = [ctypes.c_size_t]
+    lib.malloc_trim.restype = ctypes.c_int
+    return lib
 
 
-_LIBC: ctypes.CDLL | None = _malloc_trim()
+_LIBC: ctypes.CDLL | None = _library_with_malloc_trim()
 
 
 def release_transient_memory() -> None:
