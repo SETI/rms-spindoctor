@@ -285,8 +285,8 @@ def _find_stars_in_one_catalog(
         star.catalog_name = catalog_name
         star.pretty_name = str(star.unique_number)
         # A YBSC star has a name that may be None; a UCAC4 star has no name
-        # attribute.  getattr covers both without an except AttributeError that
-        # would also hide a fault inside a name property.
+        # attribute.  Both hold it as a plain field, never as a property, so a
+        # getattr with a default answers both and has no fault to hide.
         name = getattr(star, 'name', None)
         if name is None:
             star.name = ''
