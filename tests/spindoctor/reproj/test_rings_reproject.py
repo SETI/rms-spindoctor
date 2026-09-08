@@ -241,7 +241,7 @@ def _make_lr2p(
         ring_body_name: str = 'saturn:ring',
     ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
         """Convert (longitude, radius) to fractional (u, v) via the synthetic geometry."""
-        lon = np.atleast_1d(np.asarray(Scalar(longitude).vals, dtype=np.float64))
+        lon: NDArrayFloatType = np.atleast_1d(np.asarray(Scalar(longitude).vals, dtype=np.float64))
         rad = np.atleast_1d(np.asarray(Scalar(radius).vals, dtype=np.float64))
         if orbit_model is not None:
             lon = orbit_model.corotating_to_inertial(lon, obs.midtime)

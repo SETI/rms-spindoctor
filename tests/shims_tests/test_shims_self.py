@@ -118,9 +118,9 @@ def test_fake_backplane_where_in_front_answers_for_a_hidden_body() -> None:
     """An unplanted occluder hides none of a far body found among the bodies."""
     body = plant_circular_body(shape=(12, 9), centre_vu=(6.0, 4.0), radius_px=3.0)
     bp = FakeBackplane(per_body={'MIMAS': body})
-    hidden = bp.where_in_front('ENCELADUS', 'MIMAS')
-    assert hidden.vals.shape == (12, 9)
-    assert not bool(np.asarray(hidden.vals).any())
+    hidden = np.asarray(bp.where_in_front('ENCELADUS', 'MIMAS').vals)
+    assert hidden.shape == (12, 9)
+    assert not bool(hidden.any())
 
 
 def test_fake_backplane_where_in_front_answers_for_a_hidden_ring() -> None:
@@ -130,9 +130,9 @@ def test_fake_backplane_where_in_front_answers_for_a_hidden_ring() -> None:
         ring_mask=np.ones((6, 7), dtype=bool),
     )
     bp = FakeBackplane(per_ring={'saturn:ring': ring})
-    hidden = bp.where_in_front('saturn', 'saturn:ring')
-    assert hidden.vals.shape == (6, 7)
-    assert not bool(np.asarray(hidden.vals).any())
+    hidden = np.asarray(bp.where_in_front('saturn', 'saturn:ring').vals)
+    assert hidden.shape == (6, 7)
+    assert not bool(hidden.any())
 
 
 def test_fake_backplane_where_in_front_is_the_near_silhouette_off_the_far_one() -> None:

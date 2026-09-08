@@ -663,7 +663,12 @@ class NavModelBody(NavModelBodyBase):
         )
         incidence_scalar = polymath.Scalar(downsampled_incidence_mvals)
 
-        body_mask_invalid = incidence_scalar.expand_mask().mask
+        # The Scalar was built from a downsampled array, so its values are an array of
+        # that shape, and expand_mask makes the mask one too even where the array
+        # carried none; asarray states so for the type checker at no cost.
+        body_mask_invalid: NDArrayBoolType = np.asarray(
+            incidence_scalar.expand_mask().mask, dtype=bool
+        )
         body_mask_valid = ~body_mask_invalid
         limb_mask_neighbor = (
             shift_array(body_mask_invalid, (-1, 0))
@@ -672,7 +677,7 @@ class NavModelBody(NavModelBodyBase):
             | shift_array(body_mask_invalid, (0, 1))
         )
         # Terminator mask: pixels whose incidence crosses 90 deg
-        incidence_vals = incidence_scalar.vals
+        incidence_vals: NDArrayFloatType = np.asarray(incidence_scalar.vals, dtype=np.float64)
         is_lit = (incidence_vals < HALFPI) & body_mask_valid
         is_dark = (incidence_vals >= HALFPI) & body_mask_valid
         # The geometric limb is the silhouette boundary (lit + unlit).
