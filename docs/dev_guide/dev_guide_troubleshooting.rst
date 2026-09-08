@@ -63,6 +63,16 @@ classification is the top-level ``status_error`` and the evidence is
     exception text is the reader's own message; verify the holdings path in
     ``observation.image_path`` exists and is readable.
 
+``internal_error``
+    Navigating the image raised an exception the orchestrator does not turn
+    into a result: in provenance or context construction, the
+    corrected-pointing computation, the summary PNG, or a defect anywhere
+    between. ``status_exception`` carries the exception type and message and
+    the per-image log carries the traceback; the run goes on to the next
+    image. A model or technique that raised is recorded instead as
+    ``status_reason`` ``internal_error`` on a ``failed`` document, with the
+    component named in its ``internal_error`` block.
+
 ``expected_one_image_per_batch`` / ``invalid_results_path_stub``
     Caller errors caught before the image was touched; returned to the
     caller but never written to disk. The first means the driver was handed

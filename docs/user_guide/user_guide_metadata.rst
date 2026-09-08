@@ -168,6 +168,15 @@ The ``status_error`` vocabulary
    * - ``image_read_error``
      - The image load raised any other ``OSError`` or ``RuntimeError`` (a
        corrupt or unreadable file). Written to disk.
+   * - ``internal_error``
+     - Navigating the image raised an exception the orchestrator does not
+       turn into a result: in provenance or context construction, the
+       corrected-pointing computation, the summary PNG, or a defect anywhere
+       between. ``status_exception`` carries the exception type and message,
+       the per-image log carries the traceback, no summary PNG is written,
+       and the run goes on to the next image. A model or technique that
+       raised is recorded differently, as ``status_reason`` ``internal_error``
+       on a ``failed`` document. Written to disk.
    * - ``expected_one_image_per_batch``
      - The driver was handed a batch whose size was not exactly one. Early
        return; not written to disk.

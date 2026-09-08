@@ -106,6 +106,8 @@ The main entry point for SpinDoctor is the ``sd_offset`` script installed via ``
 
 Where ``DATASET_NAME`` is one of the supported names listed in the "Supported Missions" section. Names are case-insensitive (for example, ``COISS`` and ``coiss`` are equivalent).
 
+An image's metadata document is written when the run completes that image, whatever status it records, and its summary PNG when the navigation produced one; each overwrites the file an earlier run left there. Nothing is deleted ahead of time, so a run that is interrupted partway through an image, or one that records an error and writes no PNG, leaves the earlier file in place. Start from an empty results directory when the absence of a document must mean the image was never navigated.
+
 Command-Line Arguments
 ----------------------
 
