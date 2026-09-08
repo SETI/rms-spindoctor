@@ -681,6 +681,11 @@ def facts_from_document(metadata: dict[str, Any], source: DocumentOrigin) -> Ima
         # for itself which fields name an error would be a second reader of
         # this one, agreeing until one of the two changed.
         'status_error': status_error,
+        # A copy of the document's own field, stored whether or not the error
+        # beside it was one this code names: the traceback belongs to the
+        # failure the document recorded, not to the vocabulary it was
+        # classified under.
+        'status_traceback': _str_or_none(metadata.get('status_traceback')),
         'status_reason': _str_or_none(nav.get('status_reason')),
         'offset_dv': offset_dv,
         'offset_du': offset_du,

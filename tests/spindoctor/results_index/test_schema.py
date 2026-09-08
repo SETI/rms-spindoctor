@@ -52,6 +52,7 @@ IMAGES_COLUMNS: tuple[tuple[str, ColumnType, bool], ...] = (
     ('image_date', sqlalchemy.Text, True),
     ('status', sqlalchemy.Text, False),
     ('status_error', sqlalchemy.Text, True),
+    ('status_traceback', sqlalchemy.Text, True),
     ('status_reason', sqlalchemy.Text, True),
     ('offset_dv', sqlalchemy.Double, True),
     ('offset_du', sqlalchemy.Double, True),
@@ -194,7 +195,7 @@ DIALECT_CASES = [
 ]
 """The two backends a declaration is pinned against."""
 
-COLUMN_SET_VERSION = 1
+COLUMN_SET_VERSION = 2
 """The schema version the column sets above are stamped with.
 
 Written down here beside the columns and compared against

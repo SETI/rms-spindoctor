@@ -130,7 +130,10 @@ Three options control drill-down output:
   ``n_technique_rows``, ``n_feature_sources``, ``n_features`` and ``n_gated``
   aggregates, for pandas or spreadsheet analysis. Rows end with a single
   newline on every platform, and a JSON column that holds nothing is an empty
-  cell. Each row is written as it is read, so the rows are **not sorted**:
+  cell. One index column stays out: ``status_traceback``, whose value carries
+  newlines of its own, so a row holding it would span as many lines as the
+  traceback has frames and every line-oriented reader of the file would
+  miscount it. Query the index for that column. Each row is written as it is read, so the rows are **not sorted**:
   their order is whatever the storage yields them in -- the walk's own order
   for a tree, the server's own order for an index -- and the two do not agree.
   ``results_path_stub`` is the first column so that putting them in order is

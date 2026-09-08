@@ -36,6 +36,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
+from spindoctor.config import DEFAULT_CONFIG
+
 __all__ = [
     'BODY_SHAPE_TABLE',
     'DEFAULT_BODY_SHAPE',
@@ -224,14 +226,7 @@ def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
     Raises:
         AttributeError: If ``config`` has no ``body_shape`` attribute.
     """
-    cfg = config
-    if cfg is None:
-        # Local import keeps this module import-cycle-free; the global
-        # default is the one nav_model_body.py uses when no per-instance
-        # override is supplied.
-        from spindoctor.config import DEFAULT_CONFIG
-
-        cfg = DEFAULT_CONFIG
+    cfg = DEFAULT_CONFIG if config is None else config
     body_shape_section = cfg.body_shape
     if not isinstance(body_shape_section, dict):
         return None

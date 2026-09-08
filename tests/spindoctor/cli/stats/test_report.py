@@ -27,7 +27,7 @@ from tests.spindoctor.conftest import (
 )
 
 from spindoctor.cli.stats.report import build_report
-from spindoctor.cli.stats.report_sections import IMAGE_COLUMNS, CsvExport
+from spindoctor.cli.stats.report_sections import IMAGE_COLUMNS, MULTILINE_COLUMNS, CsvExport
 from spindoctor.dataset import DataSetPDS3CassiniISS, DataSetPDS3VoyagerISS
 from spindoctor.nav_records import DocumentOrigin, RecordSource, facts_from_document
 
@@ -835,16 +835,19 @@ def test_the_csv_export_writes_each_row_where_it_reads_it(
 
 
 def test_csv_export_carries_every_column_of_the_row(standard: RecordSource, tmp_path: Path) -> None:
-    """The export is the whole row, so a question the report skips is answerable.
+    """The export is the whole row bar the values that span lines.
 
     Compared as a set of names: which column stands where is pinned by the
     ratified header list in ``test_report_regression`` and by the leading column
     below, and a column the export silently dropped would pass both of those.
+    The one exception is a column whose value carries newlines, which would make
+    one image's row span lines and every line-oriented reader miscount the file.
     """
     out = tmp_path / 'report'
     build_report(standard, out, csv_export=True)
     header = (out / 'images.csv').read_text(encoding='utf-8').splitlines()[0].split(',')
-    assert sorted(header[: len(IMAGE_COLUMNS)]) == sorted(IMAGE_COLUMNS)
+    exported = [column for column in IMAGE_COLUMNS if column not in MULTILINE_COLUMNS]
+    assert sorted(header[: len(exported)]) == sorted(exported)
 
 
 def test_csv_export_leads_with_the_column_an_operator_sorts_on(

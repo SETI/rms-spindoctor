@@ -1158,11 +1158,6 @@ When active, the ring model logs the number of masked pixels at ``INFO`` level:
 
    Planet shadow removal: 1284 pixel(s) inside SATURN shadow will be masked
 
-If the shadow cannot be determined for an image, that image is reported as a
-failure with no offset. The unmasked ring model is not used in its place: a
-model that is bright where the image is dark navigates to a wrong answer
-rather than to none.
-
 To disable shadow removal entirely -- for example, to compare navigation
 quality with and without the mask -- set the option to ``false`` in a
 ``--config-file`` override:

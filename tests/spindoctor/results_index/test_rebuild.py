@@ -269,6 +269,16 @@ def test_a_rebuilt_record_names_the_error_the_document_named() -> None:
     assert record_status_error(rebuilt) == record_status_error(document)
 
 
+def test_a_rebuilt_record_carries_the_traceback_the_document_carried() -> None:
+    """A reader of the record diagnoses the failure without the document."""
+    traceback = 'Traceback (most recent call last):\n  File "obs.py", line 1\nOSError: gone'
+    document = metadata_document(
+        status='error', status_error='image_read_error', status_traceback=traceback
+    )
+    rebuilt = record_from_row(_row_of(document, (IMAGES.c.status_traceback,)))
+    assert rebuilt['status_traceback'] == traceback
+
+
 def test_a_document_naming_no_outcome_is_rebuilt_as_one_naming_none() -> None:
     """The status column is NOT NULL, so a sentinel stands in and must be undone.
 

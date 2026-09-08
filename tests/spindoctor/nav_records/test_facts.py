@@ -141,6 +141,26 @@ def test_status_error_is_stored_verbatim() -> None:
     assert rows.image['status_error'] == 'missing_spice_data'
 
 
+def test_the_traceback_is_stored_whole() -> None:
+    """Its newlines and every frame, so the row answers what the log would."""
+    traceback = 'Traceback (most recent call last):\n  File "obs.py", line 1\nOSError: gone'
+    document = metadata_document(
+        status='error',
+        status_reason=None,
+        status_error='image_read_error',
+        status_traceback=traceback,
+        offset=None,
+    )
+    rows = facts_from_document(document, SOURCE)
+    assert rows.image['status_traceback'] == traceback
+
+
+def test_a_document_with_no_traceback_stores_none() -> None:
+    """Every navigated image is one, and NULL is what a query for them asks on."""
+    rows = facts_from_document(metadata_document(), SOURCE)
+    assert rows.image['status_traceback'] is None
+
+
 def test_status_error_does_not_reach_the_reason_column() -> None:
     """The two vocabularies stay in their own columns rather than merging."""
     document = metadata_document(
