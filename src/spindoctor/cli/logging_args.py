@@ -39,6 +39,10 @@ def reporting_configuration_errors() -> Iterator[None]:
 
     Yields:
         None.
+
+    Raises:
+        SystemExit: With status 1, once the message is printed, so the program
+            ends the way it does for a refused command line.
     """
     try:
         yield

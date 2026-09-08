@@ -41,7 +41,21 @@ def parameter_counts() -> Iterator[list[int]]:
         context: Any,
         executemany: bool,
     ) -> None:
-        counts.append(len(parameters))
+        """Record how many parameters the statement about to run binds.
+
+        Parameters:
+            connection: The connection the statement runs on; unused.
+            cursor: The cursor it runs through; unused.
+            statement: The SQL text; unused.
+            parameters: The bound parameters: one set, or one set per
+                execution when ``executemany`` is set, each counted on its own.
+            context: The execution context; unused.
+            executemany: Whether ``parameters`` holds one set per execution.
+        """
+        if executemany:
+            counts.extend(len(one) for one in parameters)
+        else:
+            counts.append(len(parameters))
 
     sqlalchemy.event.listen(sqlalchemy.engine.Engine, 'before_cursor_execute', counting)
     try:
@@ -90,8 +104,15 @@ def test_a_question_about_many_named_stubs_fits_the_smallest_cap(
 
 
 def test_the_named_listing_really_is_batched(tmp_path: Path, parameter_counts: list[int]) -> None:
-    """Without which the bound above could hold by the listing binding nothing at all."""
+    """Without which the bound above could hold by the listing binding nothing at all.
+
+    Parameters:
+        tmp_path: Directory the tree and the index are written under.
+        parameter_counts: What every statement issued bound.
+    """
     root, url = _index_over_one_document(tmp_path)
+    # Only the listing's own statements count; the ingest above issued its own.
+    parameter_counts.clear()
     with open_record_source([root], results_index_db_url=url) as source:
         list(source.listing(Selection(stubs=_MANY_STUBS)))
     assert max(parameter_counts) > STUBS_PER_STATEMENT // 2
