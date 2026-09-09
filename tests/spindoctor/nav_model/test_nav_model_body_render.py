@@ -897,6 +897,9 @@ def _covering_spec(sun_vuz: tuple[float, float, float] = (0.0, 0.0, 1.0)) -> _Sp
     Parameters:
         sun_vuz: Sun direction; along the observer axis the whole frame is lit,
             across it the terminator runs down the middle of the frame.
+
+    Returns:
+        The sphere, of a radius that puts every frame corner deep inside its disc.
     """
     return _SphereSpec((50.0, 50.0), 4000.0, sun_vuz=sun_vuz)
 
