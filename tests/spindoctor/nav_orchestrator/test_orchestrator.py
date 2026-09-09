@@ -171,7 +171,7 @@ class _FakeTitanModel(NavModel):
 
 
 class _FakeCoveringBodyModel(NavModel):
-    """A body model that declined because its body covers the extended frame.
+    """A body model that declined a body covering the frame with no edge inside it.
 
     It emits nothing, which is what a declined body model does, and records
     the decline in its metadata, which is where the orchestrator reads it.
@@ -190,6 +190,7 @@ class _FakeCoveringBodyModel(NavModel):
     def create_model(self) -> None:
         """Record the decline, which is all a covering body's model does."""
         self._metadata['fills_extfov'] = True
+        self._metadata['edge_in_frame'] = False
 
     def to_features(self, context: NavContext) -> list[NavFeature]:
         """Emit nothing, as a declined body model does.
@@ -418,44 +419,39 @@ def test_orchestrator_titan_usable_but_unfittable_yields_all_techniques_spurious
     assert result.status_reason == NavStatusReason.ALL_TECHNIQUES_SPURIOUS
 
 
-def test_a_covering_body_decides_the_reason_a_failed_ensemble_reports() -> None:
-    """The ensemble reports a symptom; the covering body is the cause.
+def test_a_covering_body_alone_files_the_image_as_one_nothing_could_navigate() -> None:
+    """With nothing else in view, the gate's reason gives way to the covering body's."""
+    obs = _FakeObs(extfov_margin=(8, 8))
+    orch = NavOrchestrator([_FakeCoveringBodyModel(obs)], only_techniques=['TitanHazeNav'])
+    result = orch.navigate(obs)  # type: ignore[arg-type]
+    assert result.status_reason == NavStatusReason.BODY_FILLS_FOV
 
-    A frame where a body covers the extended field of view has no sky in it,
-    so features from anything else are not evidence that it was navigable.
-    Whatever the techniques then failed to agree on, the reason a reader wants
-    is the geometry -- and this is the path where the reason comes from the
-    ensemble rather than from a gate, which is the path that used to keep the
-    ensemble's own answer.
+
+def test_a_gated_feature_in_front_of_a_covering_body_keeps_the_gate_reason() -> None:
+    """A feature that was in view and fell to the gate is a failure to explain.
+
+    The covering body's reason is for the image with nothing navigable in it,
+    and a Titan limb the gate dropped was something in front of the body.
+    """
+    obs = _FakeObs(extfov_margin=(8, 8))
+    models = [_FakeTitanModel(obs, reliability=0.0), _FakeCoveringBodyModel(obs)]
+    orch = NavOrchestrator(models, only_techniques=['TitanHazeNav'])
+    result = orch.navigate(obs)  # type: ignore[arg-type]
+    assert result.status_reason == NavStatusReason.ALL_FEATURES_GATED
+
+
+def test_a_covering_body_does_not_override_a_reason_a_technique_reached() -> None:
+    """Something a technique ran on was in view, so the image could have been navigated.
+
+    A Titan limb the haze technique fitted and rejected is not the image with
+    nothing navigable in it, and the ensemble's own reason stands.
     """
     obs = _FakeObs(extfov_margin=(8, 8))
     models = [_FakeTitanModel(obs, reliability=0.9), _FakeCoveringBodyModel(obs)]
     orch = NavOrchestrator(models, only_techniques=['TitanHazeNav'])
     result = orch.navigate(obs)  # type: ignore[arg-type]
     assert result.status == 'failed'
-    assert result.status_reason == NavStatusReason.BODY_FILLS_FOV
-
-
-def test_a_covering_body_does_not_cost_the_ensemble_its_diagnostics() -> None:
-    """Substituting the reason keeps everything the ensemble worked out.
-
-    The per-technique records are why a covering frame can still be read for
-    what the techniques did, and replacing the whole result would lose them.
-    """
-    obs = _FakeObs(extfov_margin=(8, 8))
-    plain = NavOrchestrator(
-        [_FakeTitanModel(obs, reliability=0.9)], only_techniques=['TitanHazeNav']
-    )
-    covered = NavOrchestrator(
-        [_FakeTitanModel(obs, reliability=0.9), _FakeCoveringBodyModel(obs)],
-        only_techniques=['TitanHazeNav'],
-    )
-    without = plain.navigate(obs)  # type: ignore[arg-type]
-    with_body = covered.navigate(obs)  # type: ignore[arg-type]
-    assert without.status_reason == NavStatusReason.ALL_TECHNIQUES_SPURIOUS
-    assert with_body.status_reason == NavStatusReason.BODY_FILLS_FOV
-    assert len(with_body.per_technique) == len(without.per_technique)
-    assert len(with_body.per_technique) > 0
+    assert result.status_reason == NavStatusReason.ALL_TECHNIQUES_SPURIOUS
 
 
 def test_orchestrator_titan_spurious_result_names_a_gate() -> None:

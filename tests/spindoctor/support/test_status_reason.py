@@ -34,7 +34,7 @@ def test_navstatusreason_has_value(name: str) -> None:
 
 
 def test_navstatusreason_count_matches_plan() -> None:
-    """Exactly 20 values are defined; adding a value must update tests."""
+    """Exactly 21 values are defined; adding a value must update tests."""
     assert len(list(NavStatusReason)) == 21
 
 

@@ -1,12 +1,17 @@
 """Tests for ``STATUS_REASON_INFO_TEMPLATE`` covering every NavStatusReason."""
 
+import numpy as np
 import pytest
 
+from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
+from spindoctor.feature.feature_type import NavFeatureType
+from spindoctor.feature.flags import BodyBlobFlags, StarFlags
+from spindoctor.feature.geometry import BodyBlobGeometry, StarGeometry
 from spindoctor.nav_orchestrator import NavImageClassifierResult
-from spindoctor.nav_orchestrator.nav_result import NavInternalErrorRecord
 from spindoctor.nav_orchestrator.orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.nav_orchestrator.status_reason_info import STATUS_REASON_INFO_TEMPLATE
+from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.status_reason import NavStatusReason
 
 
@@ -28,21 +33,77 @@ def test_template_covers_full_taxonomy() -> None:
 
 
 # ---------------------------------------------------------------------------
-# A covering body decides the reason
+# A covering body with nothing in view decides the reason
 # ---------------------------------------------------------------------------
+
+
+def _star(*, hidden: bool) -> NavFeature:
+    """A star feature, flagged as behind a body when ``hidden``.
+
+    Parameters:
+        hidden: Whether the star model flagged the star as inside a body
+            silhouette, which it emits at zero reliability.
+
+    Returns:
+        The feature.
+    """
+    return NavFeature(
+        feature_id='star:hidden' if hidden else 'star:clear',
+        feature_type=NavFeatureType.STAR,
+        source_model='stars',
+        geometry=StarGeometry(
+            predicted_vu=(10.0, 20.0),
+            catalog_vu=(10.0, 20.0),
+            bbox_extfov_vu=(0, 0, 16, 16),
+        ),
+        subject_range_km=1.0e10,
+        position_cov_px=np.eye(2, dtype=np.float64) * 0.25,
+        intensity_sigma_rel=0.05,
+        preferred_filter=NavFilterSpec(kind=NavFilterKind.NONE),
+        reliability=0.0 if hidden else 0.8,
+        reliability_reasons=NavReliabilityBreakdown(predicted_snr=10.0, in_body_silhouette=hidden),
+        usable_types=frozenset({NavFeatureType.STAR}),
+        flags=StarFlags(in_body_silhouette=hidden),
+    )
+
+
+def _blob() -> NavFeature:
+    """A moon's blob feature, the kind something in front of a covering body emits.
+
+    Returns:
+        The feature, at a reliability the gate drops.
+    """
+    return NavFeature(
+        feature_id='body_blob:MIMAS',
+        feature_type=NavFeatureType.BODY_BLOB,
+        source_model='body:MIMAS',
+        geometry=BodyBlobGeometry(
+            bbox_extfov_vu=(0, 0, 16, 16),
+            predicted_center_vu=(8.0, 8.0),
+            predicted_diameter_px=8.0,
+        ),
+        usable_types=frozenset({NavFeatureType.BODY_BLOB}),
+        flags=BodyBlobFlags(body_name='MIMAS', predicted_diameter_px=8.0),
+        subject_range_km=1.0e8,
+        position_cov_px=np.eye(2, dtype=np.float64) * 0.25,
+        intensity_sigma_rel=0.05,
+        preferred_filter=NavFilterSpec(kind=NavFilterKind.NONE),
+        reliability=0.1,
+        reliability_reasons=NavReliabilityBreakdown(visible_lit_fraction=0.1),
+    )
 
 
 def _failed_with(
     reported: NavStatusReason,
     model_metadata: dict[str, dict[str, object]],
-    internal_error: NavInternalErrorRecord | None = None,
+    features: list[NavFeature],
 ) -> NavStatusReason:
-    """Reason a bare orchestrator reports for one failure and one set of metadata.
+    """File one failure through a bare orchestrator and return the reason it records.
 
     Parameters:
         reported: The reason the pipeline reached.
         model_metadata: What the models recorded about themselves.
-        internal_error: The record an internal-error result must carry.
+        features: What the models emitted, gated or not.
 
     Returns:
         The reason actually filed.
@@ -66,57 +127,73 @@ def _failed_with(
             extractor_names=(),
         ),
         model_metadata=model_metadata,
-        internal_error=internal_error,
+        features=features,
     )
     return result.status_reason
 
 
-_COVERING: dict[str, dict[str, object]] = {'body:SATURN': {'fills_extfov': True}}
+_COVERING: dict[str, dict[str, object]] = {
+    'body:SATURN': {'fills_extfov': True, 'edge_in_frame': False}
+}
 
 
 @pytest.mark.parametrize(
-    'reported',
+    ('reported', 'features'),
     [
-        NavStatusReason.NO_FEATURES_EXTRACTED,
-        NavStatusReason.ALL_FEATURES_GATED,
-        NavStatusReason.ALL_TECHNIQUES_SPURIOUS,
-        NavStatusReason.NO_FEASIBLE_TECHNIQUES,
-        NavStatusReason.FINAL_CONFIDENCE_BELOW_THRESHOLD,
+        (NavStatusReason.NO_FEATURES_EXTRACTED, []),
+        (NavStatusReason.ALL_FEATURES_GATED, [_star(hidden=True)]),
     ],
+    ids=['nothing emitted', 'only hidden stars'],
 )
-def test_a_covering_body_controls_the_failure_reason(reported: NavStatusReason) -> None:
-    """Whatever the pipeline reached, the covering body is what to report.
+def test_a_covering_body_with_nothing_in_view_decides_the_reason(
+    reported: NavStatusReason, features: list[NavFeature]
+) -> None:
+    """Nothing navigable was in view, so the image could not have been navigated.
 
-    It occludes the stars and stands in front of the rings, so features from
-    those are not evidence the frame was navigable. Reporting the gate they
-    fell through would describe a symptom and hide the cause.
+    The stars behind the body are emitted and gated rather than absent, which
+    is what would otherwise file the image under the gate it fell through.
 
     Parameters:
-        reported: The reason the pipeline would otherwise have given.
+        reported: The reason the gate would otherwise have given.
+        features: What the models emitted.
     """
-    assert _failed_with(reported, _COVERING) is NavStatusReason.BODY_FILLS_FOV
+    assert _failed_with(reported, _COVERING, features) is NavStatusReason.BODY_FILLS_FOV
+
+
+def test_a_feature_in_front_of_a_covering_body_keeps_the_reason() -> None:
+    """A moon in front of the body was in view, so the image could have been navigated."""
+    features = [_star(hidden=True), _blob()]
+    assert (
+        _failed_with(NavStatusReason.ALL_FEATURES_GATED, _COVERING, features)
+        is NavStatusReason.ALL_FEATURES_GATED
+    )
+
+
+def test_a_reason_reached_after_a_technique_ran_keeps_it() -> None:
+    """A technique ran on something, so the image was not one nothing could navigate."""
+    assert (
+        _failed_with(NavStatusReason.ALL_TECHNIQUES_SPURIOUS, _COVERING, [_star(hidden=True)])
+        is NavStatusReason.ALL_TECHNIQUES_SPURIOUS
+    )
 
 
 @pytest.mark.parametrize(
-    'defect', [NavStatusReason.INTERNAL_ERROR, NavStatusReason.CONTRACT_VIOLATION]
+    'model_metadata',
+    [
+        {'body:MIMAS': {'fills_extfov': False}},
+        {'body:SATURN': {'fills_extfov': True, 'edge_in_frame': True}},
+    ],
+    ids=['no covering body', 'covering body showing its terminator'],
 )
-def test_a_covering_body_never_masks_a_defect(defect: NavStatusReason) -> None:
-    """A fact about the geometry must not be filed over a fault in the code.
+def test_no_declined_body_leaves_the_reason_alone(
+    model_metadata: dict[str, dict[str, object]],
+) -> None:
+    """Only a body model that declined its body as covering the frame substitutes.
 
     Parameters:
-        defect: The reason naming a defect rather than the image.
+        model_metadata: What the models recorded about themselves.
     """
-    record = (
-        NavInternalErrorRecord(component='body:SATURN.create_model', exception_type='ValueError')
-        if defect is NavStatusReason.INTERNAL_ERROR
-        else None
-    )
-    assert _failed_with(defect, _COVERING, record) is defect
-
-
-def test_no_covering_body_leaves_the_reason_alone() -> None:
-    """A frame with no covering body reports what the pipeline reached."""
     assert (
-        _failed_with(NavStatusReason.ALL_FEATURES_GATED, {'body:MIMAS': {'fills_extfov': False}})
+        _failed_with(NavStatusReason.ALL_FEATURES_GATED, model_metadata, [_star(hidden=True)])
         is NavStatusReason.ALL_FEATURES_GATED
     )

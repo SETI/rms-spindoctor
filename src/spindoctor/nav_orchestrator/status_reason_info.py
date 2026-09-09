@@ -56,9 +56,9 @@ STATUS_REASON_INFO_TEMPLATE: dict[NavStatusReason, list[str]] = {
     ],
     NavStatusReason.BODY_FILLS_FOV: [
         'Final: status=failed',
-        'A body covers the extended frame: no limb on any edge and no disc '
-        'extent to measure, so the image is unnavigable rather than merely '
-        'unnavigated',
+        'A body covers the extended frame with neither limb nor terminator inside '
+        'it, and nothing in front of it was in view: the image could not have '
+        'been navigated',
     ],
     NavStatusReason.NO_FEATURES_EXTRACTED: [
         'Final: status=failed',
