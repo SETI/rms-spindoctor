@@ -106,12 +106,15 @@ __all__ = [
     'BODY_DISC_MAX_OVERFLOW_FRACTION',
     'BODY_DISC_MIN_VISIBLE_LIT_FRACTION',
     'BODY_POSITION_SLOP_FRAC',
+    'BODY_STRIP_ROWS',
     'LIMB_ARC_MAX_UNCERTAINTY_PX',
     'TERMINATOR_MIN_PHASE_FACTOR',
     'TERMINATOR_MIN_VERTICES',
     'TITAN_BODY_NAME',
     'NavModelBody',
     'bodies_in_extfov',
+    'body_edge_in_frame',
+    'body_fills_extfov',
     'limb_reliability',
     'occluder_mask_for_body',
     'shape_features_suppressed',
@@ -345,22 +348,19 @@ def _stack(parts: list[Any]) -> Any:
 def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
     """Whether a body's disc covers every corner of the extended frame.
 
-    A body whose disc reaches past all four corners leaves no sky around it:
-    the limb is off the edge on every side, the disc has no measurable extent,
-    and there is nothing in the image a shape-based technique can match. The
-    frame is unnavigable by that body.
+    The first half of the covering-body test, asked of the inventory alone so
+    that it costs no backplane. A body whose disc reaches past all four corners
+    leaves no sky around it; whether it also keeps its terminator out of the
+    frame is :func:`body_edge_in_frame`'s question, and only both together
+    decline the model.
 
-    Saying so from the inventory alone is the point. The backplane over such a
-    body's box is the largest one a navigation ever asks for -- on a Voyager
-    frame it is the whole extended frame -- and it is built to render a
-    silhouette that fills the image and carries no edge.
-
-    The disc is the ellipse the inventory's pixel sizes describe, centred where
-    the inventory puts it, and the question is where the frame's corners fall
-    against it. The bounding box will not do: a corner inside the box can still
-    be outside the limb, which is precisely the case where the image does show
-    sky and is navigable. An ellipse is convex, so covering the four corners is
-    covering the frame.
+    The disc is the one the inventory describes: oops treats every body as a
+    sphere of its outer radius, so for an oblate body the disc overstates the
+    polar extent, and a corner inside it can still see sky past the true limb.
+    That is why a True here is a reason to look along the frame's boundary
+    rather than a reason to decline. The bounding box would be worse still: a
+    corner inside the box can be outside even the sphere. The disc is convex, so
+    covering the four corners is covering the frame.
 
     Parameters:
         obs: Observation snapshot, for the extended frame's bounds.
@@ -388,6 +388,54 @@ def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
         for u in (obs.extfov_u_min, obs.extfov_u_max)
         for v in (obs.extfov_v_min, obs.extfov_v_max)
     )
+
+
+def body_edge_in_frame(obs: Observation, body_name: str) -> bool:
+    """Whether a body's limb or terminator crosses the extended frame.
+
+    Asked of the frame's boundary, sampled at pixel spacing, which settles both
+    questions exactly for a body whose outline is convex. A boundary pixel the
+    body does not intercept is sky, so the limb is inside the frame. A
+    terminator that crosses the frame has to cross its boundary, so the boundary
+    then carries both lit and unlit pixels. Neither means the whole frame is
+    body, all of it on one side of the terminator, with nothing in it for a
+    shape-based technique to fit.
+
+    The four one-pixel-wide backplanes this costs are small enough not to
+    register against the render they can avoid, which on a Voyager frame is the
+    largest one a navigation builds.
+
+    Parameters:
+        obs: Observation snapshot.
+        body_name: SPICE name of the body.
+
+    Returns:
+        True when the boundary shows sky or both sides of the terminator.
+    """
+    u_min, u_max = obs.extfov_u_min + 0.5, obs.extfov_u_max + 0.5
+    v_min, v_max = obs.extfov_v_min + 0.5, obs.extfov_v_max + 0.5
+    edges = (
+        ((u_min, v_min), (u_max, v_min)),
+        ((u_min, v_max), (u_max, v_max)),
+        ((u_min, v_min), (u_min, v_max)),
+        ((u_max, v_min), (u_max, v_max)),
+    )
+    any_lit = False
+    any_dark = False
+    for origin, limit in edges:
+        edge_bp = Backplane(
+            obs,
+            meshgrid=Meshgrid.for_fov(
+                obs.fov, origin=origin, limit=limit, oversample=(1, 1), swap=True
+            ),
+        )
+        incidence = edge_bp.incidence_angle(body_name).mvals
+        if np.ma.getmaskarray(incidence).any():
+            return True
+        lit = np.asarray(np.ma.getdata(incidence), dtype=np.float64) < HALFPI
+        any_lit = any_lit or bool(lit.any())
+        any_dark = any_dark or bool((~lit).any())
+    return any_lit and any_dark
 
 
 def occluder_mask_for_body(
@@ -588,10 +636,13 @@ class NavModelBody(NavModelBodyBase):
         """Render the silhouette, masks, and polylines used by ``to_features``.
 
         A body whose disc reaches past all four corners of the extended frame
-        is declined instead: the metadata records ``fills_extfov`` and nothing
+        and whose limb and terminator both lie outside it is declined instead:
+        the metadata records ``fills_extfov`` and ``edge_in_frame`` and nothing
         is rendered, because the backplane over such a body is the largest one
         a navigation builds and it would be built to draw a silhouette with no
-        edge in it.  ``to_features`` then emits nothing.
+        edge in it.  ``to_features`` then emits nothing.  A covering body that
+        does show its terminator is rendered like any other, since a terminator
+        is a feature a technique can fit.
         """
         start_time = now_dt()
         self._metadata.clear()
@@ -608,20 +659,24 @@ class NavModelBody(NavModelBodyBase):
                 self._inventory = self.obs.inventory([self._body_name], return_type='full')[
                     self._body_name
                 ]
-            if body_fills_extfov(self.obs, self._inventory):
+            fills = body_fills_extfov(self.obs, self._inventory)
+            if fills:
+                self._metadata['fills_extfov'] = True
+                self._metadata['edge_in_frame'] = body_edge_in_frame(self.obs, self._body_name)
+            if fills and not self._metadata['edge_in_frame']:
                 # Declined here rather than after rendering: the backplane over
                 # a body that covers the frame is the largest one a navigation
                 # builds, and it would be built to draw a silhouette with no
-                # edge in it.
-                self._metadata['fills_extfov'] = True
+                # edge in it.  The geometry summary goes with the render, since
+                # every number in it comes from the render.
                 self._logger.info(
-                    'Body %s covers the extended frame; no limb or disc extent to '
-                    'measure, so no model is built',
+                    'Body %s covers the extended frame and shows neither limb nor '
+                    'terminator inside it, so no model is built',
                     self._body_name,
                 )
             else:
                 self._render()
-            self._log_geometry_summary()
+                self._log_geometry_summary()
             end_time = now_dt()
             self._metadata['end_time'] = end_time.isoformat()
             self._metadata['elapsed_time_sec'] = (end_time - start_time).total_seconds()

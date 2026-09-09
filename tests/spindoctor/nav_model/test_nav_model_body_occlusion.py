@@ -531,55 +531,6 @@ def _entry(*, centre: tuple[float, float], size: tuple[float, float]) -> dict[st
     }
 
 
-def test_the_decline_is_reached_without_a_supplied_inventory() -> None:
-    """A caller who does not hand the record over still gets the decline.
-
-    The record is what the decline is decided from, and the render loads it
-    when the caller did not.  Deciding only when a caller supplied it meant
-    the callers who did not built the whole-frame backplane the decline exists
-    to avoid, and then declined nothing.
-    """
-    obs = _fov_obs()
-    obs.inventory_records[_TARGET] = _entry(centre=(50.0, 50.0), size=(400.0, 400.0))
-    model = NavModelBody(f'body:{_TARGET}', cast(Any, obs), _TARGET)
-    model.create_model()
-    assert model.metadata['fills_extfov'] is True
-
-
-def test_a_body_that_does_not_cover_the_frame_is_rendered(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The complement, so the decline is not simply always taken.
-
-    The render is replaced rather than run: what is under test is whether it is
-    reached, not what it draws.
-    """
-    obs = _fov_obs()
-    obs.inventory_records[_TARGET] = _entry(centre=(50.0, 50.0), size=(10.0, 10.0))
-    model = NavModelBody(f'body:{_TARGET}', cast(Any, obs), _TARGET)
-    rendered = []
-    monkeypatch.setattr(NavModelBody, '_render', lambda self: rendered.append(True))
-    model.create_model()
-    assert rendered == [True]
-    assert model.metadata.get('fills_extfov') is None
-
-
-def test_a_covering_body_is_declined_without_being_rendered(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Not rendering is the whole point: that backplane is the largest one.
-
-    The render is replaced so that reaching it is observable.
-    """
-    obs = _fov_obs()
-    obs.inventory_records[_TARGET] = _entry(centre=(50.0, 50.0), size=(400.0, 400.0))
-    model = NavModelBody(f'body:{_TARGET}', cast(Any, obs), _TARGET)
-    rendered = []
-    monkeypatch.setattr(NavModelBody, '_render', lambda self: rendered.append(True))
-    model.create_model()
-    assert rendered == []
-
-
 def test_a_body_covering_every_corner_fills_the_frame() -> None:
     """A disc large enough to swallow the extended frame reports that it does."""
     obs = _fov_obs()

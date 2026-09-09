@@ -184,6 +184,7 @@ def _make_obs(
         'v_max_unclipped': int(np.ceil(center_v + r)),
         'u_pixel_size': 2.0 * r,
         'v_pixel_size': 2.0 * r,
+        'center_uv': np.array([center_u, center_v], dtype=np.float64),
         'range': 1.0e6,
     }
     geometry_body = BodyBackplaneData(
@@ -883,3 +884,79 @@ def test_to_annotations_emits_body_overlay(monkeypatch: pytest.MonkeyPatch) -> N
     model.create_model()
     annotations = model.to_annotations(bare_nav_context(cast(Any, obs)))
     assert len(annotations.annotations) == 1
+
+
+# ---------------------------------------------------------------------------
+# A body that covers the frame
+# ---------------------------------------------------------------------------
+
+
+def _covering_spec(sun_vuz: tuple[float, float, float] = (0.0, 0.0, 1.0)) -> _SphereSpec:
+    """A sphere far larger than the frame and centred on it.
+
+    Parameters:
+        sun_vuz: Sun direction; along the observer axis the whole frame is lit,
+            across it the terminator runs down the middle of the frame.
+    """
+    return _SphereSpec((50.0, 50.0), 4000.0, sun_vuz=sun_vuz)
+
+
+def test_a_covering_body_with_no_edge_in_the_frame_is_declined(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No sky at any corner and the whole frame lit: nothing to measure, nothing built."""
+    model, obs = _make_model(monkeypatch, _covering_spec())
+    model.create_model()
+    assert model.metadata['fills_extfov'] is True
+    assert model.metadata['edge_in_frame'] is False
+    assert model.to_features(bare_nav_context(cast(Any, obs))) == []
+
+
+def test_a_covering_body_showing_its_terminator_is_rendered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A terminator is a feature a technique fits, so covering the frame is not enough."""
+    model, obs = _make_model(monkeypatch, _covering_spec(sun_vuz=(0.0, 1.0, 0.0)))
+    model.create_model()
+    assert model.metadata['fills_extfov'] is True
+    assert model.metadata['edge_in_frame'] is True
+    assert 'TERMINATOR_ARC' in _feature_types(model.to_features(bare_nav_context(cast(Any, obs))))
+
+
+def test_a_covering_body_whose_limb_the_inventory_overstates_is_rendered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The inventory disc is a sphere of the outer radius; the boundary sees the sky it hides.
+
+    The record says the disc reaches every corner while the rendered body stops
+    short of them, which is an oblate body seen across its poles. Sky at a
+    corner is a limb in the frame, and the model renders.
+    """
+    spec = _SphereSpec((50.0, 50.0), 80.0)
+    obs, inventory = _make_obs(spec)
+    inventory = dict(inventory, u_pixel_size=400.0, v_pixel_size=400.0)
+    monkeypatch.setattr(nav_model_body_module, 'Meshgrid', FakeMeshgrid)
+    monkeypatch.setattr(nav_model_body_module, 'Backplane', _sphere_backplane_class(spec))
+    model = NavModelBody(f'body:{_BODY}', cast(Any, obs), _BODY, inventory=inventory)
+    model.create_model()
+    assert model.metadata['fills_extfov'] is True
+    assert model.metadata['edge_in_frame'] is True
+    assert 'LIMB_ARC' in _feature_types(model.to_features(bare_nav_context(cast(Any, obs))))
+
+
+def test_the_decline_is_reached_without_a_supplied_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller who does not hand the record over still gets the decline.
+
+    The record is what the decline is decided from, and the render loads it
+    when the caller did not; deciding only when a caller supplied it would
+    build the whole-frame backplane the decline exists to avoid.
+    """
+    spec = _covering_spec()
+    obs, _inventory = _make_obs(spec)
+    monkeypatch.setattr(nav_model_body_module, 'Meshgrid', FakeMeshgrid)
+    monkeypatch.setattr(nav_model_body_module, 'Backplane', _sphere_backplane_class(spec))
+    model = NavModelBody(f'body:{_BODY}', cast(Any, obs), _BODY)
+    model.create_model()
+    assert model.metadata['edge_in_frame'] is False
