@@ -157,7 +157,7 @@ between strips does not register against it.
 Where it is called
 ------------------
 
-After each strip, in each of the two striped loops, and nowhere else.
+After each strip, in each of the three striped loops, and nowhere else.
 
 Coarser placements were measured and rejected. Releasing at the boundary between
 whole models, and again between techniques, changed a Voyager Saturn frame's peak
