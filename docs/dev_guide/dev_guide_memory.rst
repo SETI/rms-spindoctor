@@ -150,10 +150,10 @@ After each strip, in each of the two striped loops, and nowhere else.
 Coarser placements were measured and rejected. Releasing at the boundary between
 whole models, and again between techniques, changed a Voyager Saturn frame's peak
 from 8.70 GB to 8.74 GB and another from 8.60 GB to 8.78 GB: no gain, inside the
-run-to-run spread. The reason is that a navigation's peak is set by the largest
-single stage rather than by an accumulation across stages, so there is nothing at
-a stage boundary for a release to reclaim -- the strips inside that stage have
-already given it back.
+run-to-run spread. A release reclaims only what nothing refers to any more, and at
+a stage boundary the strips inside that stage have already given back what they
+can while the observation's backplane caches still hold what they hold. Neither
+part is something a release can move; see `What a release cannot reach`_.
 
 This is also deliberately not wired into a general allocation path. A collection is
 cheap against a backplane evaluation and expensive against a small one, so it
@@ -163,27 +163,64 @@ What a release cannot reach
 ===========================
 
 A ring render leaves roughly four gigabytes of resident size behind on a Voyager
-Saturn frame, and no part of it is held by the program. Dropping the observation's
-cache of computed backplanes returns a third of a gigabyte; dropping the models
-returns nothing; dropping the observation itself returns nothing. What remains is
-resident but free: small live objects are scattered across the allocator's arenas,
-so whole pages cannot be handed back however often the release runs.
+Saturn frame. A release cannot move it, and the reason is not fragmentation: asked
+directly on such a frame, after a collection and an arena release have both run,
+the C library reports 0.23 GB free and retained against 3.16 GB handed out on the
+heap and 3.46 GB handed out in mappings, with a further 0.10 GB in the
+interpreter's own arenas. Almost all of it is live.
 
-This is worth knowing before optimizing. Two placements of
-:func:`~spindoctor.support.memory.release_transient_memory` were tried against this
-floor -- one after the whole-frame ring evaluations, one at each model and technique
-boundary -- and both measured no change, because both were trying to free memory
-that was already free and merely unreturnable.
+What holds it is the observation's backplanes. An ``oops`` ``Backplane`` caches
+every event, intercept and computed surface it has been asked for, and each entry
+is sized by the meshgrid rather than by the answer, so on an extended frame the
+entries are megabytes and there are hundreds. Emptied one kind at a time on a
+Voyager Saturn frame:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 15 40
+
+   * - Cache
+     - Entries
+     - Returns
+   * - computed backplanes
+     - 237
+     - 1.89 GB
+   * - unmasked intercept events
+     - 2
+     - 1.26 GB
+   * - observation events, with and without line-of-sight derivatives
+     - 2
+     - 1.88 GB
+
+Settled resident size falls from 6.80 GB to 1.77 GB. The observation events alone
+are 1.88 GB, and ``oops`` builds them when a ``Backplane`` is constructed whether
+or not a derivative is ever asked for.
+
+So the two placements of
+:func:`~spindoctor.support.memory.release_transient_memory` that measured nothing
+-- one after the whole-frame ring evaluations, one at each model and technique
+boundary -- were not freeing memory that was already free. They were asking a
+release to reclaim memory the observation still refers to, which no release does.
 
 Pinning the C library's mmap threshold, so that large arrays are served by mappings
 that are returned on free rather than from the heap, recovers about a third of a
-gigabyte of it for about six percent more runtime. That is a poor trade and is not
+gigabyte for about six percent more runtime. That is a poor trade and is not
 configured anywhere; it is recorded here so the next reader does not have to
 rediscover the result.
 
-The practical consequence is a lower bound. Striping and releasing bound what a
-stage adds on top of this floor, and nothing available inside the models lowers the
-floor itself.
+The direction that does reach it is dropping the caches once nothing will read them
+again. The models are the only stage that reads a backplane, so the caches are dead
+weight from the end of the model stage onward, and every backplane is a property
+that rebuilds itself if anything below ever does read one. Nothing in this pipeline
+drops them, which is where the four gigabytes come from.
+
+.. warning::
+
+   A walk of ``gc.get_objects()`` cannot answer any of this. Numeric NumPy arrays
+   are not tracked by the collector, so such a walk reports approximately zero live
+   array bytes under gigabytes of live data. Measure by clearing a suspected holder
+   and reading resident size back, or by asking the allocator what it has handed
+   out.
 
 Correlation
 ===========
@@ -192,9 +229,10 @@ The remaining peak on a wide-margin frame is not in a model at all. It is the
 masked normalized cross-correlation in
 :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav`, which
 transforms the extended frame, zero-padded for linear rather than circular
-correlation. On a Voyager frame that peak stands several gigabytes above the floor
-and is returned in full when the technique exits, which is why releasing between
-techniques does nothing for it: it is one allocation spike, not an accumulation.
+correlation. On a Voyager frame that peak stands several gigabytes above what the
+backplane caches are already holding, and is returned in full when the technique
+exits, which is why releasing between techniques does nothing for it: it is one
+allocation spike, not an accumulation.
 
 ``_masked_ncc_bidir`` needs six spectra, but their lifetimes barely overlap: the
 mask spectrum is finished after the second shift-wise sum, the image spectrum after

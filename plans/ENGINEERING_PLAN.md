@@ -556,10 +556,15 @@ asserts the generated half matches the registries.
   added, because oops intermediates live in reference cycles and glibc
   retains freed arenas, so a striped pass grew by the sum of its strips
   rather than the largest. What will remain once the whole chain is in is
-  #573: about four gigabytes of a ring render's resident size is held by
-  nothing the program can drop. Releasing more often does not help, and the
-  two placements measured to be worth nothing are recorded in
-  `docs/dev_guide/dev_guide_memory.rst` so they are not tried again. The ring
+  about four gigabytes of a ring render's resident size, and #573's premise
+  that this is fragmentation does not hold: the C library reports 0.23 GB free
+  and retained against six-plus gigabytes handed out, and the holder is the
+  observation's own backplane caches, which return 5.03 GB when emptied.
+  Releasing more often cannot reach it, because a release reclaims only what
+  nothing refers to; dropping the caches at the end of the model stage does,
+  and no program here does that yet. The two placements measured to be worth
+  nothing are recorded in `docs/dev_guide/dev_guide_memory.rst` so they are not
+  tried again. The ring
   radius, radial resolution, `border_atop` and `radial_mode` backplanes
   remain whole-frame through the extended backplane and set the ring model's
   remaining floor until striping lands in oops: striping belongs in `oops`
