@@ -82,14 +82,15 @@ angular resolution. See :doc:`dev_guide_navigation_models_titan`.
 
 The ring model does not stripe everything, and the ring radius in the table above
 is measured because the haze model's strips read it, not because this model does.
-The ring radius, the ring radial
-resolution, ``border_atop`` and ``radial_mode`` backplanes run over the whole
-extended frame through the observation's extended backplane, because the model
-renders from the whole-frame radius array and the edge backplanes are derived
-inside ``oops`` from that cached array. Striping bounds the three quantities it
-covers -- the ring-plane distance, the planet shadow and the planet occlusion --
-and those whole-frame calls set the ring model's remaining floor. The resolution
-is striping inside ``oops`` itself, where every consumer inherits it.
+The ring radius, the ring radial resolution, ``border_atop`` and ``radial_mode``
+backplanes run over the whole extended frame through the observation's extended
+backplane, because the model renders from the whole-frame radius array and the
+edge backplanes are derived inside ``oops`` from that cached array. Striping
+bounds the three quantities it covers -- the ring-plane distance, the planet
+shadow and the planet occlusion -- and those whole-frame calls set the ring
+model's remaining floor. Lifting that floor means striping inside ``oops``
+itself rather than inside each of its consumers, where every consumer would
+inherit it; that is asked for upstream rather than worked around here.
 
 Releasing
 =========
