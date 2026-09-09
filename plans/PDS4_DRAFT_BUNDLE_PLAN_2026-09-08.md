@@ -713,11 +713,16 @@ problem.
 **A declared sentinel for absent data.** The reference fills invalid pixels
 with `-999`, passes it to the label as a variable, and carries a
 `SENTINEL_DESCRIPTION` explaining what an absent pixel means. Our arrays
-fill with `0.0`, which is a legal value for every angular plane, and nothing
-in the label says so. Filed as #601; the fix is a backplane-content decision
-(#55, #57), and the bundle side is only that the label declares whatever is
-chosen. `collections.py`'s "TODO Need an appropriate sentinel value for
-missing data" is the table-cell half of the same question.
+fill with `0.0` instead, and that is deliberate rather than careless:
+`BODY_ID_MAP` is the validity mask for the body planes, nonzero exactly
+where a body claimed the pixel, and a check over a real product finds no
+pixel that is `0.0` while the map is nonzero. What is missing is narrower --
+the ring planes have no such map, since the ring merge never writes
+`body_id_map`, so their validity has to be inferred from `RING_RADIUS != 0`;
+and neither rule is stated in a guide or declarable in the label as things
+stand. Filed as #601. `collections.py`'s "TODO Need an appropriate sentinel
+value for missing data" is the table-cell half of the same question and is
+genuinely open.
 
 **DOIs are products of their own.** The reference carries `BUNDLE_DOI` and a
 separate `USERGUIDE_DOI`, and its user-guide label fills a real `<doi>`
@@ -1097,9 +1102,10 @@ branch.
   LaTeX sources and the built PDFs live relative to the template directory.
 - #600 — what the bundle says about images that did not navigate. Replaces
   section 3.11 when it is decided; nothing before Phase 10 depends on it.
-- #601 — backplane arrays fill invalid pixels with `0.0`, a legal value, and
-  the label says nothing about it. A backplane-content decision (#55, #57);
-  the bundle side is only that the label declares whatever is chosen.
+- #601 — backplane validity is inferred rather than declared: `BODY_ID_MAP`
+  serves for the body planes, nothing serves for the ring planes, and no
+  guide or label states either rule. The label side belongs to this plan;
+  an explicit mask would be a product change (#55, #57).
 - #79 — scrape the PDS4 context products so `target_lids` is maintained
   rather than hand-written.
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow
