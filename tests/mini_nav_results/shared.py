@@ -547,6 +547,124 @@ def _exposure_span(midtime_et: float, exposure_s: float) -> tuple[float, float, 
     return midtime_et - exposure_s / 2.0, midtime_et, midtime_et + exposure_s / 2.0
 
 
+# ---------------------------------------------------------------------------
+# Epochs first, everything else derived
+# ---------------------------------------------------------------------------
+#
+# An image's epoch, the clock readings recorded beside it and the number it is
+# named for are three spellings of one moment, and a document that spells them
+# from three sources is free to disagree with itself: the reading says the
+# shutter opened years from where the epoch says it did, and every reader that
+# converts one into the other reads a document no run could have written.  So a
+# document is built from its epoch alone, through the constructors below, and
+# there is nowhere in that path for a second answer to enter.
+
+
+_CASSINI_SCLK_ANCHOR_ET = 129305290.24137056
+"""The epoch of the Cassini clock reading anchoring this fixture's conversion.
+
+The mission clock kernel converts ``1/1454725799.000`` to this, so the pair is
+one correlation point taken from the kernel rather than a number chosen here.
+"""
+
+_CASSINI_SCLK_ANCHOR_TICKS = 1454725799 * _CASSINI_SCLK_TICKS_PER_SECOND
+"""The reading at that epoch, as a tick count.
+
+The conversion below counts ticks from here, which makes it one linear clock.
+A mission clock kernel is linear in pieces, each with its own rate, so readings
+far from an anchor drift from what the kernel returns for them; what a document
+needs is that its own epoch, reading and image number agree with each other,
+and one piece gives that exactly.
+"""
+
+
+def cassini_sclk_at(epoch_et: float) -> int:
+    """Return the Cassini clock's reading at an epoch, as a tick count.
+
+    Parameters:
+        epoch_et: The epoch to read the clock at.
+
+    Returns:
+        The reading, as a count of ticks of one 256th of a second.
+    """
+    return _CASSINI_SCLK_ANCHOR_TICKS + _elapsed_ticks(
+        epoch_et - _CASSINI_SCLK_ANCHOR_ET, _CASSINI_SCLK_TICK_S
+    )
+
+
+def cassini_image_number(midtime_et: float) -> int:
+    """Return the number a Cassini image taken at this epoch is named for.
+
+    The name is the whole-second field of the reading the shutter opened at, so
+    an image built from its epoch cannot be named for a moment its own clock
+    readings do not cover.
+
+    Parameters:
+        midtime_et: The exposure midtime, which is the image's epoch.
+
+    Returns:
+        The image number.
+    """
+    start_et, _midtime_et, _stop_et = _exposure_span(midtime_et, _CASSINI_EXPOSURE_S)
+    return cassini_sclk_at(start_et) // _CASSINI_SCLK_TICKS_PER_SECOND
+
+
+def cassini_sclk_triple(midtime_et: float) -> tuple[str, str, str]:
+    """Return the Cassini clock readings at the three epochs of one exposure.
+
+    Parameters:
+        midtime_et: The exposure midtime, which is the image's epoch.
+
+    Returns:
+        The readings at start, midtime and stop, spelled as the conversion
+        spells them, partition and all.
+    """
+    start_et, _midtime_et, stop_et = _exposure_span(midtime_et, _CASSINI_EXPOSURE_S)
+    return _sclk_triple(
+        cassini_sclk_at(start_et),
+        start_et=start_et,
+        midtime_et=midtime_et,
+        stop_et=stop_et,
+        tick_s=_CASSINI_SCLK_TICK_S,
+        spell=_cassini_sclk_reading,
+    )
+
+
+def with_pointing_from_epoch(
+    result: NavResult,
+    *,
+    camera: str,
+    midtime_et: float,
+    original: NDArrayFloatType,
+    corrected: NDArrayFloatType | None,
+) -> NavResult:
+    """Stamp a Cassini attitude solution derived from the image's epoch alone.
+
+    The clock triple comes from :func:`cassini_sclk_triple`, so the solution a
+    document carries is the one that epoch converts to.  Cassini's frames, its
+    exposure and its clock; a second host's images bring their own anchor.
+
+    Parameters:
+        result: The result to stamp.
+        camera: The camera that took the image, which names its frame.
+        midtime_et: Exposure midtime, which is also the image's epoch.
+        original: The uncorrected attitude at midtime.
+        corrected: The corrected attitude, or None for a result with no offset.
+
+    Returns:
+        The same result, carrying the solution.
+    """
+    start_et, _midtime_et, _stop_et = _exposure_span(midtime_et, _CASSINI_EXPOSURE_S)
+    return with_pointing(
+        result,
+        camera=camera,
+        midtime_et=midtime_et,
+        sclk_open=cassini_sclk_at(start_et),
+        original=original,
+        corrected=corrected,
+    )
+
+
 def navigated(
     result: NavResult,
     *,

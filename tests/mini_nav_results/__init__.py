@@ -1,4 +1,12 @@
-"""The eight navigation documents the statistics fixture tree holds.
+"""What a navigation run leaves on disk, built by the writers that leave it.
+
+Two sets of documents, both built through the production writer, selected
+against different criteria and kept apart because of it.  The eight documents
+of ``results_tree_documents`` are the statistics fixture tree, chosen for what
+they make the statistics report exercise.  The three of ``cohort_documents``
+are the bundle cohort, chosen for what PDS4 bundle generation reads; they are
+built in ``cohort_cassini`` and described there, and they are never stored.  A
+fixture chosen against two unrelated criteria stops being legible for either.
 
 The statistics ingest and the report regression both run over
 ``data/results_tree``, and the frozen report output under ``data/golden`` is
@@ -29,12 +37,16 @@ report's minimum, maximum, mean, median and standard deviation over them are
 five different numbers and a wrong one shows.
 
 The builders are one module per host -- ``cassini``, ``voyager`` and
-``simulated`` -- over the constants and writer wrappers in ``shared``.  This
-module is the whole public surface.
+``simulated`` -- over the constants and writer wrappers in ``shared``, with the
+cohort's in ``cohort_cassini`` and its backplane products in ``backplanes``.
+This module is the whole public surface.
 
-One root is written: a navigation results root, holding the
-``*_metadata.json`` documents a navigation run leaves under
-``nav_results_root``.
+Two roots are written.  A navigation results root holds the
+``*_metadata.json`` documents and the ``*_summary.png`` browse images a
+navigation run leaves under ``nav_results_root``; a backplane results root
+holds the ``*_backplanes.fits`` files and the ``*_backplane_metadata.json``
+documents the backplane stage leaves under ``backplane_results_root``.  The
+statistics tree is documents alone; the cohort is both.
 
 Run the package as a script, from the repository root, to write the tree
 again::
@@ -104,12 +116,14 @@ from .cassini import (
     cassini_star_and_limb,
     cassini_suspect_offset,
 )
+from .cohort_cassini import cohort_images
 from .shared import COISS_SUBTREE, VGISS_SUBTREE
 from .simulated import simulated_scene
 from .voyager import voyager_no_features, voyager_ring_edges
 
 __all__ = [
     'RESULTS_TREE',
+    'cohort_documents',
     'results_tree_documents',
     'stored_documents',
     'write_results_tree',
@@ -142,6 +156,15 @@ def results_tree_documents() -> dict[str, dict[str, Any]]:
         f'{VGISS_SUBTREE}/C1385460_GEOMED': voyager_no_features(),
         'sim_scene_000042': simulated_scene(),
     }
+
+
+def cohort_documents() -> dict[str, dict[str, Any]]:
+    """Return every document of the bundle cohort, keyed by its results path stub.
+
+    Returns:
+        Stub to document, in the order a run would have written them.
+    """
+    return {image.stub: image.document for image in cohort_images()}
 
 
 def write_results_tree(root: Path) -> list[Path]:
