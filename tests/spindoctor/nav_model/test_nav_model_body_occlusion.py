@@ -465,9 +465,14 @@ def test_a_strip_is_the_largest_multiple_of_the_factor_within_the_bound() -> Non
 
 
 def test_the_strips_tile_the_box_exactly_once() -> None:
-    """No gap and no overlap, and the last strip is whatever remains."""
-    rows = 37 * 3
+    """No gap and no overlap, and the last strip is whatever remains.
+
+    Three hundred rows at a factor of three cut into two full strips of 126
+    and a shorter last one, so there are strip pairs to check the seams of.
+    """
+    rows = 300
     bounds = list(_strip_bounds(rows, 3))
+    assert len(bounds) == 3
     assert bounds[0][0] == 0
     assert bounds[-1][1] == rows
     assert all(a[1] == b[0] for a, b in pairwise(bounds))
