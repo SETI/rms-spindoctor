@@ -505,7 +505,7 @@ tools read the canonical values via these symbols.
   ``min_arc_vertices`` feasibility floor. The uncertainty cap cannot stand in for this check:
   the per-vertex sigma scales the shape residual into pixels, so a distant small body passes
   it precisely because it is tiny. Shorter arcs fall through to the BODY_BLOB branch.
-- :data:`~spindoctor.nav_model.nav_model_body.BODY_BLOB_MIN_DIAMETER_PX` — float, ``5.0`` px.
+- :data:`~spindoctor.nav_model.nav_model_body_base.BODY_BLOB_MIN_DIAMETER_PX` — float, ``5.0`` px.
   Minimum predicted disc diameter at which
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` is emitted. Below this
   diameter the silhouette covers so few pixels that the brightness-weighted centroid is
@@ -701,7 +701,7 @@ Call path traced through
      downstream disc gate then has a chance to fire alongside the limb arc when
      ``visible_lit_fraction`` and ``overflow_fraction`` allow.
    - The blob gate is met when the predicted disc diameter is at least
-     ``max(`` :data:`~spindoctor.nav_model.nav_model_body.BODY_BLOB_MIN_DIAMETER_PX` ``,``
+     ``max(`` :data:`~spindoctor.nav_model.nav_model_body_base.BODY_BLOB_MIN_DIAMETER_PX` ``,``
      :attr:`~spindoctor.nav_model.body_shape.BodyShape.min_blob_diameter_px` ``)`` and the
      rendered silhouette contains at least one lit pixel. When the limb arc was rejected but
      the blob gate is met, a
@@ -756,7 +756,7 @@ tests.
 ``below_resolution_body`` (Cassini ISS NAC, image ``N1777325846_1``)
     Mimas is approximately 20 px in diameter in the lower left, at phase angle 72 degrees.
     The predicted disc diameter is well above
-    :data:`~spindoctor.nav_model.nav_model_body.BODY_BLOB_MIN_DIAMETER_PX` but the per-pixel
+    :data:`~spindoctor.nav_model.nav_model_body_base.BODY_BLOB_MIN_DIAMETER_PX` but the per-pixel
     ellipsoid uncertainty exceeds
     :data:`~spindoctor.nav_model.nav_model_body.LIMB_ARC_MAX_UNCERTAINTY_PX`, so the model emits a
     :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` feature instead of a LIMB_ARC.

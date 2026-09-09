@@ -111,6 +111,7 @@ __all__ = [
     'BODY_POSITION_SLOP_FRAC',
     'BODY_STRIP_ROWS',
     'LIMB_ARC_MAX_UNCERTAINTY_PX',
+    'LIMB_ARC_MIN_VERTICES',
     'TERMINATOR_MIN_PHASE_FACTOR',
     'TERMINATOR_MIN_VERTICES',
     'TITAN_BODY_NAME',
@@ -1586,7 +1587,7 @@ def limb_reliability(*, visible_arc_fraction: float, visible_arc_px: float) -> f
     The score answers a feature-existence question: is this limb arc a
     target a downstream technique should bother running on?  Per-vertex
     geometric softness (high incidence at the terminator-adjacent end
-    of the limb) lives in :func:`_sigma_normal_per_vertex`, where the
+    of the limb) lives in ``_sigma_normal_per_vertex``, where the
     LM fit weights individual vertices by their normal sigma; folding
     it into the reliability scalar as well would double-count the same
     physics and, because ``incidence_factor`` saturates near the cap
