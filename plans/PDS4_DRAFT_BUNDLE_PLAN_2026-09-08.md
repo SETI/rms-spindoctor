@@ -1212,10 +1212,29 @@ merge. Update `docs/` and the four plan files in the same PR as the change
 they describe, not afterwards. Update section 0.1 as each phase lands.
 
 **How each phase is built.** A subagent implements it against the phase
-text. A second subagent that did not write the code reviews it
-adversarially, against the phase's acceptance wording and against the
-product rather than the diff -- generate a bundle and look at what came out.
-The orchestrator reconciles the two, re-runs the gates on the final
+text. Then **two** adversarial reviewers, neither of which wrote the code,
+because they are looking for different things and one does not find the
+other's defects:
+
+- **A code reviewer**, reading the diff and the code it touches. Correctness
+  and edge cases first: what happens on an empty selection, a single image,
+  a plane with no valid pixels, a name that does not parse, a value that is
+  `None` or `NaN` where a number was assumed. Probe the input domain
+  deliberately rather than trusting coverage -- malformed-input defects are
+  invisible to line and branch coverage and to mutation testing. Then the
+  conventions: mypy strict with no new suppressions, no issue numbers in
+  docstrings or `.rst`, positional-versus-keyword grouping, modules under
+  1000 lines. And the tests themselves: a test that cannot fail is worse
+  than no test, so check that each new one fails when the behaviour it
+  claims to pin is broken.
+- **A product reviewer**, reading what came out. Generate a bundle from the
+  cohort, open the files, and hold them against the phase's acceptance
+  wording and against the reference bundle at `/data/fring-bundles/pds4/`.
+  Does the label name a file that exists, do the byte offsets land on the
+  values they claim, does the inventory list what the collection contains.
+  A green suite says nothing about whether the product is right.
+
+The orchestrator reconciles all three, re-runs the gates on the final
 revision, and does not accept "the tests pass" as the review. Where a review
 finds something net-negative or unfixable, capture it on an issue and ask
 rather than working around it.
