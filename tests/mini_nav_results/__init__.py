@@ -32,10 +32,14 @@ The builders are one module per host -- ``cassini``, ``voyager`` and
 ``simulated`` -- over the constants and writer wrappers in ``shared``.  This
 module is the whole public surface.
 
+One root is written: a navigation results root, holding the
+``*_metadata.json`` documents a navigation run leaves under
+``nav_results_root``.
+
 Run the package as a script, from the repository root, to write the tree
 again::
 
-    PYTHONPATH=src python -m tests.spindoctor.cli.stats.results_tree_documents
+    PYTHONPATH=src python -m tests.mini_nav_results
 
 The stored tree is then what the writer emits, and the frozen report output has
 to be re-ratified against it.  ``test_results_tree_documents.py`` holds the two
@@ -111,8 +115,15 @@ __all__ = [
     'write_results_tree',
 ]
 
-RESULTS_TREE = Path(__file__).resolve().parent.parent / 'data' / 'results_tree'
-"""Where the stored tree lives."""
+RESULTS_TREE = (
+    Path(__file__).resolve().parent.parent
+    / 'spindoctor'
+    / 'cli'
+    / 'stats'
+    / 'data'
+    / 'results_tree'
+)
+"""Where the stored tree lives, beside the statistics suite that reads it."""
 
 
 def results_tree_documents() -> dict[str, dict[str, Any]]:

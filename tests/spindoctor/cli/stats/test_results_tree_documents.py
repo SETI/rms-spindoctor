@@ -7,7 +7,7 @@ vocabularies and value shapes the ingest and the report then read from nothing
 the pipeline writes.  Nothing held these documents against the writer before,
 which is how they came to diverge without anyone noticing.
 
-This is what holds them.  The ``results_tree_documents`` package builds each
+This is what holds them.  The ``tests.mini_nav_results`` package builds each
 document through the writer itself, and the first test here compares the bytes
 it produces against the bytes on disk, so the stored tree is writer output by
 construction.  A writer change is then reported here, and the fix is to run
@@ -25,14 +25,13 @@ clock triple that spans a fraction of the exposure it was read over.
 from typing import Any
 
 import pytest
-
-from spindoctor.support.file import json_as_string
-
-from .results_tree_documents import (
+from tests.mini_nav_results import (
     RESULTS_TREE,
     results_tree_documents,
     stored_documents,
 )
+
+from spindoctor.support.file import json_as_string
 
 _BOTSIM_PAIR = (
     'COISS_2001/data/1294561143_1295221348/N1294561202_1_CALIB',
