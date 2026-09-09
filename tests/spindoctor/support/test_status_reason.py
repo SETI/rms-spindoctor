@@ -4,19 +4,20 @@ import pytest
 
 from spindoctor.support.status_reason import NavStatusReason
 
-
-@pytest.mark.parametrize(
-    'name',
-    [
+_TAXONOMY = frozenset(
+    {
         'OK',
         'RANK_1_ONLY',
         'CONFLICTED_TECHNIQUES',
+        'BODY_SHAPE_LOCK_SUSPECT',
+        'LONE_BLOB_IN_COLLAPSED_REGIME',
         'NO_SIGNAL_IN_IMAGE',
         'IMAGE_OVEREXPOSED',
         'MISSING_DATA_DOMINANT',
         'IMAGE_CORRUPT',
         'KERNELS_UNAVAILABLE',
         'INSTRUMENT_NOT_CONFIGURED',
+        'BODY_FILLS_FOV',
         'NO_FEATURES_EXTRACTED',
         'ALL_FEATURES_GATED',
         'NO_FEASIBLE_TECHNIQUES',
@@ -26,16 +27,14 @@ from spindoctor.support.status_reason import NavStatusReason
         'UNOBSERVABLE_OFFSET',
         'CONTRACT_VIOLATION',
         'INTERNAL_ERROR',
-    ],
+    }
 )
-def test_navstatusreason_has_value(name: str) -> None:
-    """The full NavStatusReason enumeration is present."""
-    assert hasattr(NavStatusReason, name)
+"""Every status reason by name; a reason added or renamed is added or renamed here."""
 
 
-def test_navstatusreason_count_matches_plan() -> None:
-    """Exactly 21 values are defined; adding a value must update tests."""
-    assert len(list(NavStatusReason)) == 21
+def test_navstatusreason_members_are_exactly_the_taxonomy() -> None:
+    """The enumeration carries every reason in the taxonomy and nothing else."""
+    assert {member.name for member in NavStatusReason} == _TAXONOMY
 
 
 @pytest.mark.parametrize(
