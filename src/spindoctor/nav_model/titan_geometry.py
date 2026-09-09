@@ -877,7 +877,12 @@ def _striped_occlusion(
 
     The bodies and the rings are asked about together because they are asked
     about over the same box: one set of strips, and each strip's backplane
-    answers both questions before it is discarded.
+    answers both questions before it is discarded.  The ring question reads
+    the ring radius as well as the ring-plane distance, so this is the one
+    striped site whose answer depends on a strided ring-radius array; that
+    array is the quantity whose strip-to-frame agreement is loosest, at
+    5.6e-12 of its value on the frame measured, which matters only for a
+    pixel sitting that near an annulus edge.
 
     Parameters:
         obs: Observation snapshot.
@@ -892,15 +897,19 @@ def _striped_occlusion(
 
     Returns:
         ``(body mask, ring mask)`` box-local, each None when nothing is hidden
-        -- the same answers the whole-box calls give.
+        -- the answers the whole-box calls give, to within the photon solver's
+        convergence tolerance.
     """
     u_min, u_max, v_min, v_max = bbox_nominal
     height = v_max - v_min + 1
     width = u_max - u_min + 1
     if height <= 0 or width <= 0:
         return None, None
-    body_parts: list[NDArrayBoolType] = []
-    ring_parts: list[NDArrayBoolType] = []
+    # Preallocated and written into a strip at a time, as the ring model's
+    # striping is: keeping every strip and stacking at the end would hold the
+    # assembled mask twice over while it stacked.
+    body_mask: NDArrayBoolType = np.zeros((height, width), dtype=bool)
+    ring_mask: NDArrayBoolType = np.zeros((height, width), dtype=bool)
     any_body = False
     any_ring = False
     for start in range(0, height, OCCLUDER_STRIP_ROWS):
@@ -912,7 +921,6 @@ def _striped_occlusion(
         except Exception as exc:
             IMAGE_LOGGER.error('Titan: mask-box backplane could not be evaluated: %s', exc)
             raise
-        empty = np.zeros((stop - start, width), dtype=bool)
         body = occluder_mask_for_body(
             strip_bp,
             TITAN_BODY_NAME,
@@ -921,24 +929,23 @@ def _striped_occlusion(
             oversample_v=1,
             oversample_u=1,
         )
-        body_parts.append(empty if body is None else body)
-        any_body = any_body or body is not None
+        if body is not None:
+            body_mask[start:stop, :] = body
+            any_body = True
         ring = (
             None
             if planet is None
             else _ring_occlusion_local(strip_bp, planet, subject_range_km, ring_radii_km)
         )
-        ring_parts.append(empty if ring is None else ring)
-        any_ring = any_ring or ring is not None
+        if ring is not None:
+            ring_mask[start:stop, :] = ring
+            any_ring = True
         # The meshgrid is the other half of the strip and has to go with it:
         # bound to a throwaway name it outlives the release and is only
         # replaced once the next strip has been built beside it.
         del strip_bp, strip_meshgrid, body, ring
         release_transient_memory()
-    return (
-        np.vstack(body_parts) if any_body else None,
-        np.vstack(ring_parts) if any_ring else None,
-    )
+    return body_mask if any_body else None, ring_mask if any_ring else None
 
 
 def _contaminant_mask(
@@ -1023,6 +1030,11 @@ def _contaminant_mask(
         vmag_limit=float(nav_config['star_mask_vmag_limit']),
         radius_px=float(nav_config['star_mask_radius_px']),
     )
+    # Deliberately the unclipped box, not the clipped one the backplanes were
+    # evaluated over.  The region indicator is built inside the extended frame
+    # either way, so the two give the same array; and the unclipped box is
+    # always there, where the clip is None for a box that never reaches the
+    # frame.
     contaminant_ext &= _mask_box_region(extfov_shape_vu, mask_bbox, margin_vu)
     fraction = occluded_disc_fraction(occluder_ext, center_vu, r_env_px)
     return _ContaminantMask(
