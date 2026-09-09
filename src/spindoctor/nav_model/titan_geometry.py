@@ -61,25 +61,35 @@ The envelope box the symmetry axis reads stays UNCLIPPED, because ``oops``
 evaluates fine at off-detector pixel coordinates while a clipped box would
 leave zero surface-intercept pixels on exactly the off-edge frames the
 visibility condition exists for.  It is bounded by UNDERSAMPLING instead.
+Striping would bound its memory too, and would cost no accuracy, but it
+would not bound its TIME: the work is one evaluation per sample however the
+samples are grouped, and seventy times the frame's area is seventy frames'
+work.  Undersampling is the bound that reaches the cost itself, and what it
+spends is angular resolution.
+
 The axis is one angle, ``atan2`` of the offset from the disc centre to the
 minimum-incidence pixel, which is the sub-solar point on the SOLID body and
 projects ``r_solid * sin(phase)`` from the centre (``r_solid`` itself, at
 the limb, above 90 degrees of phase).  Sampling every k-th pixel locates
 that pixel to within the stride, so the angle moves by about
-``k / (r_solid * sin(phase))`` radians.  A strided box has
-``k = 2 * r_env / sqrt(cap)``, the box side over the square root of the
-sample cap, so the quantization is about
-``2 * (r_env / r_solid) / (sqrt(cap) * sin(phase))`` radians.  That depends
-on the phase and on the envelope-to-solid ratio, which is 1.27 for Titan's
+``k / (r_solid * sin(phase))`` radians.  The stride is the smallest INTEGER
+that fits the box inside the sample cap, so it is the ceiling of
+``2 * r_env / sqrt(cap)``, the box side over the square root of the cap;
+just above a threshold that ceiling is up to twice the continuous estimate,
+and the cap is then only a quarter used.  Taking the estimate, the
+quantization is about ``2 * (r_env / r_solid) / (sqrt(cap) * sin(phase))``
+radians, and up to twice that in the band above a threshold.  It depends on
+the phase and on the envelope-to-solid ratio, which is 1.27 for Titan's
 2575 km radius under the 700 km atmosphere, and not on the body's apparent
 size, because the stride and the arm scale together; it is bounded, not
-vanishing.  At a million samples it is 0.15 degrees at 90 degrees of phase,
-0.29 at 30 and 0.84 at 10, crossing the 0.5-degree step of the angle
-refinement below about 17 degrees of phase.  That refinement searches plus
-or minus 5 degrees around the initial axis, so the initial axis need only
-land inside that window, which it does above about 2 degrees of phase; a
-disc at lower phase is nearly rotationally symmetric, where the axis
-matters least.
+vanishing.  At a million samples the estimate is 0.15 degrees at 90 degrees
+of phase, 0.29 at 30 and 0.84 at 10, and the worst case in the band above a
+threshold is 0.30, 0.58 and 1.68.  The worst case crosses the 0.5-degree
+step of the angle refinement below about 35 degrees of phase.  That
+refinement searches plus or minus 5 degrees around the initial axis, so the
+initial axis need only land inside that window, which it does above about
+3.5 degrees of phase; a disc at lower phase is nearly rotationally
+symmetric, where the axis matters least.
 """
 
 from __future__ import annotations
@@ -104,6 +114,7 @@ from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.types import NDArrayBoolType
 
 __all__ = [
+    'OCCLUDER_STRIP_ROWS',
     'STAR_MASK_PHOTOMETRY_SPLIT_VMAG',
     'STAR_MASK_YBSC_MIN_VMAG',
     'NonFiniteInventoryError',
@@ -140,7 +151,9 @@ OCCLUDER_STRIP_ROWS: int = 128
 """How many rows one sibling-occlusion evaluation covers at a time.
 
 See ``_striped_occlusion``. The same bound, for the same reason, as
-:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS`.
+:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS`, whose
+docstring carries the reasoning and the measured agreement between a striped
+pass and a whole-frame one.
 """
 
 _MASK_BOX_SLOP_PX: float = 0.5
@@ -415,7 +428,16 @@ def _bbox_undersample(bbox_nominal: tuple[int, int, int, int], max_samples: int)
     over that box costs tens of times what the frame itself costs -- seventy,
     for the 8688-square box of the module docstring over a 1024-square
     frame.  Striding the grid bounds that cost by the sample count rather
-    than by the geometry.
+    than by the geometry, which striping the box would not: striping moves
+    the same work into smaller pieces, and it is the work that is unbounded
+    here.
+
+    The stride is an integer, so it steps rather than slides.  A box just
+    over a threshold takes the next stride up and lands at a quarter of the
+    cap: a 1001-square box under a cap of a million strides by 2 and samples
+    251001, where the continuous estimate ``side / sqrt(cap)`` says 1.001.
+    The stride is therefore up to twice that estimate, and whatever the
+    stride costs is up to twice what the estimate predicts.
 
     Parameters:
         bbox_nominal: ``(u_min, u_max, v_min, v_max)`` in pixel indices.
@@ -568,17 +590,22 @@ def _symmetry_axis(
         max_samples: Largest grid the incidence backplane may be evaluated
             over.  A box wider than this is strided rather than clipped,
             because the pixel wanted is the sunward one and it can lie
-            outside the frame.  The stride is the box side over the square
-            root of this, and the side is twice the envelope radius, so
-            ``k = 2 * r_env / sqrt(max_samples)``.  The pixel it locates is
-            the sub-solar point on the solid body, ``r_solid * sin(phase)``
-            from the centre (``r_solid``, at the limb, above 90 degrees of
-            phase), so the angle quantizes by about ``2 * (r_env / r_solid)
-            / (sqrt(max_samples) * sin(phase))`` radians: for a million
-            samples under the shipped 700 km atmosphere, 0.15 degrees at 90
-            degrees of phase, 0.29 at 30 and 0.84 at 10, crossing the
-            0.5-degree step of the angle refinement below about 17 degrees
-            of phase and its 5-degree search window only below about 2.
+            outside the frame.  Striping it would bound the memory but not
+            the work, which is what is unbounded.  The stride is the
+            smallest integer fitting the box inside this, so it is the
+            ceiling of the box side over the square root of this, and the
+            side is twice the envelope radius: ``k`` is the ceiling of
+            ``2 * r_env / sqrt(max_samples)``, up to twice that estimate
+            just above a threshold.  The pixel it locates is the sub-solar
+            point on the solid body, ``r_solid * sin(phase)`` from the
+            centre (``r_solid``, at the limb, above 90 degrees of phase), so
+            the angle quantizes by about ``2 * (r_env / r_solid) /
+            (sqrt(max_samples) * sin(phase))`` radians and up to twice that:
+            for a million samples under the shipped 700 km atmosphere, 0.15
+            degrees at 90 degrees of phase, 0.29 at 30 and 0.84 at 10, or
+            0.30, 0.58 and 1.68 at worst.  The worst case crosses the
+            0.5-degree step of the angle refinement below about 35 degrees
+            of phase and its 5-degree search window only below about 3.5.
 
     Returns:
         ``(theta_rad, axis_degenerate)``.  The axis is degenerate when the
@@ -598,6 +625,10 @@ def _symmetry_axis(
         Exception: Whatever the backplane raises when the incidence angle
             cannot be evaluated, after one log line naming the stage.
     """
+    # The pixel this search locates is fixed by the geometry, so the search,
+    # its cap and the stride-scaled degeneracy floor could all give way to
+    # projecting the sub-solar direction and clamping to the limb above 90
+    # degrees of phase (#594).
     undersample = _bbox_undersample(bbox_nominal, max_samples)
     if undersample > 1:
         width, height = _bbox_extent(bbox_nominal)

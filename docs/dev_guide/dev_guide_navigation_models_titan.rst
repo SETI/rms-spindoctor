@@ -62,12 +62,18 @@ is a pure function of a dataclass and is testable with no observation and no SPI
   the sunward image direction; the maximum-incidence pixel is the anti-solar surface point,
   which becomes visible above 90 degrees of phase and points the wrong way. The box is never
   clipped, because the sunward pixel may lie outside the frame, so above
-  ``titan.navigation.backplane_max_samples`` samples it is strided instead; the stride is the
-  box side over the square root of the cap. The axis angle is the direction from the predicted
-  center to the minimum-incidence pixel, whose arm is the solid radius times the sine of the
-  phase, so the quantization at a million samples is about 0.15 degrees at 90 degrees of
-  phase, 0.29 at 30 and 0.84 at 10 (the envelope-to-solid ratio is 1.27 with the 700 km
-  atmosphere), inside the plus or minus 5 degree window the angle refinement searches. When
+  ``titan.navigation.backplane_max_samples`` samples it is strided instead. Striping it, as
+  the mask box is striped, would bound the memory just as well and would cost no accuracy,
+  but the work is one evaluation per sample however the samples are grouped, and it is the
+  work that is unbounded here; striding is the only bound that reaches it. The stride is the
+  smallest integer fitting the box inside the cap, so it is the ceiling of the box side over
+  the square root of the cap, and just above a threshold that ceiling is up to twice the
+  continuous value, using only a quarter of the cap. The axis angle is the direction from the
+  predicted center to the minimum-incidence pixel, whose arm is the solid radius times the
+  sine of the phase, so the quantization at a million samples is about 0.15 degrees at 90
+  degrees of phase, 0.29 at 30 and 0.84 at 10 (the envelope-to-solid ratio is 1.27 with the
+  700 km atmosphere), or 0.30, 0.58 and 1.68 at worst -- either way inside the plus or minus
+  5 degree window the angle refinement searches, down to about 3.5 degrees of phase. When
   the center and that pixel are closer together than ``axis_min_offset_px``, applied at the
   sampling quantum in use -- that is, multiplied by the stride -- the phase is near zero, the
   disc is nearly rotationally symmetric, any axis is equally valid, and the model reports a
@@ -77,8 +83,10 @@ is a pure function of a dataclass and is testable with no observation and no SPI
   the predicted geometry over a box large enough to cover everything the fits can reach. The
   box is clipped to the extended field of view before evaluation, which changes no result:
   pixels outside the extended frame are discarded when the mask is embedded, and again when
-  it is intersected with the box region. The box is evaluated 128 rows at a time, with one
-  backplane per strip answering both the body and the ring occlusion questions.
+  it is intersected with the box region. The box is evaluated
+  :data:`~spindoctor.nav_model.titan_geometry.OCCLUDER_STRIP_ROWS` rows at a time, with one
+  backplane per strip answering both the body and the ring occlusion questions. Both answers then hold to within the photon solver's convergence tolerance
+  rather than to the last bit; see :doc:`dev_guide_memory`.
 
 Contaminant mask components
 ---------------------------
@@ -208,8 +216,8 @@ with the technique that reads them, at :doc:`dev_guide_techniques_titan_haze`.
    * - ``titan.navigation.backplane_max_samples``
      - ``1000000``
      - Largest sample count the symmetry-axis incidence backplane is evaluated over. A larger
-       envelope box is strided to fit, costing the angular resolution described above; zero or
-       negative imposes no bound.
+       envelope box is strided to fit, by a whole number of pixels, costing the angular
+       resolution described above; zero or negative imposes no bound.
    * - ``titan.navigation.recenter_threshold_px``
      - ``8.0``
      - Along-track shift above which the technique runs its second pass; also the mask's

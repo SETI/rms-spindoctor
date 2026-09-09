@@ -16,30 +16,73 @@ Two mechanisms keep that bounded. They are independent, and a stage needs both.
 Striping
 ========
 
-A backplane is a per-pixel function of the ray through each pixel, so a band of
-rows can be evaluated on its own and the bands stacked into the array a whole-frame
-evaluation would have returned. Only one band's intermediates exist at a time, so
-the live heap is set by the strip height rather than by the frame.
+A backplane is very nearly a per-pixel function of the ray through each pixel, so a
+band of rows can be evaluated on its own and the bands stacked into the array a
+whole-frame evaluation would have returned. Only one band's intermediates exist at a
+time, so the live heap is set by the strip height rather than by the frame. What
+the "very nearly" costs is the subject of the paragraphs below, and it is small
+enough to be worth this.
 
-The stacked array is the whole-frame array: strip boundaries fall on whole rows,
-and no per-pixel quantity depends on a neighbouring row. Verified by hand on a
-Cassini frame, the boolean backplanes come back bit-identical, and a floating-point
-one -- the ring-plane distance -- agrees to about one part in 1e13, the last bits
-moving because the arithmetic is grouped differently rather than because the
-answer changed. The tests check the assembly against the whole-frame array through
-a backplane stand-in that answers each strip from the same dense arrays, on a
-frame taller than one strip.
+Strip boundaries fall on whole rows, so the stacked array is the whole-frame
+array up to one coupling between pixels. ``oops`` solves the photon path by
+iteration and stops when the largest light-time change *anywhere on the meshgrid*
+falls under its precision goal, so how far every pixel's solution is refined
+depends on which other pixels shared the call. That goal bounds the light time to
+3e-07 s, about 90 m of travel, and that is the bound on a striped answer: not the
+last bit, but far tighter than anything a navigation can see.
+
+Measured against whole-frame calls on a Cassini frame:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Backplane
+     - Striped against whole-frame
+   * - ``where_in_front``
+     - bit-identical
+   * - ``where_inside_shadow``
+     - bit-identical
+   * - ``distance``
+     - agrees to 2.5e-13 of its value
+   * - ``ring_radius``
+     - agrees to 5.6e-12 of its value
+
+The boolean backplanes are comparisons, so they are bit-identical only while no
+pixel sits nearer its threshold than the difference above; a frame that has one
+flips that pixel. Anything that lowers the precision goal -- a reprojection does,
+for the whole process -- widens all of this in proportion. The ring radius is the
+loosest of the four and is the one the haze model's strips read, where it is
+thresholded against the ring annulus.
+
+The tests check the assembly against the whole-frame array through a backplane
+stand-in that answers each strip from the same dense arrays, on a frame taller
+than one strip. They test the stacking, not the solver: the agreement above is
+measured rather than asserted.
 
 Two places stripe:
 ``NavModelRings._striped_backplanes`` for the ring quantities and
 ``titan_geometry._striped_occlusion`` for both occlusion masks over one set of
-strips. Each caps a strip at 128 rows, and each strip's single backplane answers
-every quantity asked of it, so the surface intercept is solved once per strip.
+strips. Each caps a strip at
+:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS` and
+:data:`~spindoctor.nav_model.titan_geometry.OCCLUDER_STRIP_ROWS` rows
+respectively, the same number for the same reason, and each strip's single
+backplane answers every quantity asked of it, so the surface intercept is solved
+once per strip.
 
 A caller must take everything it needs from a strip while that strip is the one in
 hand. Asking again afterwards rebuilds the whole box and gives back nothing.
 
-The ring model does not stripe everything. The ring radius, the ring radial
+Striping is not the right bound everywhere. It moves the same work into smaller
+pieces, so it bounds memory and nothing else, and the haze model's envelope box is
+a case where the work itself is unbounded: it grows with the body's apparent size
+and reaches seventy times the frame's area. That box is undersampled rather than
+striped, which is the only bound that reaches the cost, and it pays for it in
+angular resolution. See :doc:`dev_guide_navigation_models_titan`.
+
+The ring model does not stripe everything, and the ring radius in the table above
+is measured because the haze model's strips read it, not because this model does.
+The ring radius, the ring radial
 resolution, ``border_atop`` and ``radial_mode`` backplanes run over the whole
 extended frame through the observation's extended backplane, because the model
 renders from the whole-frame radius array and the edge backplanes are derived

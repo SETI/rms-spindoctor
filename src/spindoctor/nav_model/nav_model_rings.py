@@ -66,6 +66,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 
 
 __all__ = [
+    'BACKPLANE_STRIP_ROWS',
     'FLAT_CURVATURE_THRESHOLD_PX',
     'RING_EDGE_DEFAULT_RELIABILITY',
     'RING_EDGE_SIGMA_ALONG_PX',
@@ -86,12 +87,20 @@ extended frame, which the per-instrument search margin sets: Voyager's 400-pixel
 margin on a 1000-pixel image gives a 1800x1800 frame, 2.2 times Cassini's,
 and Voyager frames measured up to 26 GB against Cassini's 9.9.
 
-A backplane is a per-pixel function of the ray through that pixel, so evaluating
-one over a horizontal strip and concatenating gives the array the whole-frame
-call gives. Verified on a Cassini frame: ``where_in_front`` and
-``where_inside_shadow`` come back bit-identical, and ``distance`` agrees to
-8e-07 km on values of 8.8e06 km -- one part in 1e13, the last bits moving
-because the arithmetic is grouped differently, not because the answer changed.
+A backplane is a per-pixel function of the ray through that pixel apart from one
+coupling, so evaluating one over a horizontal strip and concatenating gives the
+whole-frame array to within that coupling. ``oops`` solves the photon path by
+iteration and stops when the largest light-time change anywhere on the meshgrid
+falls under its precision goal, so how far every pixel's solution is refined
+depends on which other pixels shared the call. The goal bounds the light time to
+3e-07 s, about 90 m of travel, and that is the bound on a strip's answer; the
+differences measured are far inside it. On a Cassini frame ``where_in_front``
+and ``where_inside_shadow`` come back bit-identical, ``distance`` agrees to
+2.5e-13 of its value, and ``ring_radius`` -- which the haze model's strips ask
+for, though this one does not -- to 5.6e-12 of its own. A boolean backplane is a
+comparison, so it is bit-identical only while no pixel sits nearer the threshold
+than that; a frame with one flips that pixel. Lowering the precision goal, as a
+reprojection does for the whole process, widens the bound in proportion.
 Striping bounds the transient by the strip rather than by the frame, at the cost
 of one meshgrid and one Backplane per strip.
 
@@ -626,11 +635,12 @@ class NavModelRings(NavModelRingsBase):
     ) -> list[np.ndarray[Any, np.dtype[Any]]]:
         """Evaluate whole-frame backplane quantities a strip of rows at a time.
 
-        The array returned per quantity is the one a single whole-frame
-        evaluation of it returns. What differs is the peak memory: ``oops``
-        materializes its intermediates over the meshgrid it is given, so a
-        frame-sized meshgrid costs frame-sized intermediates, and a strip-sized
-        one costs strip-sized intermediates. See :data:`BACKPLANE_STRIP_ROWS`.
+        The array returned per quantity is what a single whole-frame evaluation
+        of it returns, to within the photon solver's convergence tolerance.
+        What differs is the peak memory: ``oops`` materializes its
+        intermediates over the meshgrid it is given, so a frame-sized meshgrid
+        costs frame-sized intermediates, and a strip-sized one costs
+        strip-sized intermediates. See :data:`BACKPLANE_STRIP_ROWS`.
 
         One backplane per strip answers every quantity, so the surface
         intercept the backplane caches is solved once per strip rather than
