@@ -216,7 +216,7 @@ drops them, which is where the four gigabytes come from.
 
 .. warning::
 
-   A walk of ``gc.get_objects()`` cannot answer any of this. Numeric NumPy arrays
+   A walk of :func:`gc.get_objects` cannot answer any of this. Numeric NumPy arrays
    are not tracked by the collector, so such a walk reports approximately zero live
    array bytes under gigabytes of live data. Measure by clearing a suspected holder
    and reading resident size back, or by asking the allocator what it has handed
