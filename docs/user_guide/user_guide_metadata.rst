@@ -161,7 +161,8 @@ Top-level keys
        decided against. A process handling one image reports that image's whole
        cost; a process handling several reports what it reached while each ran,
        measured from a floor that includes what earlier images left resident.
-       It is null on a system whose kernel publishes no peak. Built by
+       It is null where the kernel publishes no peak, and where the mark
+       could not be reset ahead of this image. Built by
        :func:`~spindoctor.navigate_image_files.build_timing_section`.
    * - ``offset``
      - array
@@ -1279,7 +1280,8 @@ traceback, shortened here.
       "timing": {
         "start_iso8601": "2026-09-08T15:02:41.118204Z",
         "end_iso8601": "2026-09-08T15:02:47.402317Z",
-        "elapsed_s": 6.284113
+        "elapsed_s": 6.284113,
+        "peak_memory_bytes": 2216689664
       }
     }
 

@@ -1087,8 +1087,8 @@ pair with ``ON DELETE CASCADE``.
        sizes a worker: for a process that handled several images it is
        measured from a floor including what the earlier ones left resident,
        which is the memory the worker had to hold at that moment. NULL where
-       the run recorded none, which is a run on a system whose kernel
-       publishes no peak.
+       the run recorded none: a system whose kernel publishes no peak, or one
+       that would not let the mark be reset ahead of the image.
    * - ``config_hash``
      - TEXT
      - sha256 of the fully-resolved configuration used for the run.
