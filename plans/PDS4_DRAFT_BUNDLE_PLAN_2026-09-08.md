@@ -36,6 +36,35 @@ prerequisite for the generalization half. It does not generalize to the
 other three instruments; that work begins when this plan's acceptance
 criteria hold.
 
+### 0.1 Status board
+
+The authoritative record of what has run. A session resuming this work reads
+this table first and trusts it over any recollection.
+
+| Phase | State | Notes |
+|---|---|---|
+| Landed ahead: rings dictionary to `1F00` | **done** | `ed0b9e15`, section 3.9 |
+| Landed ahead: backplane masked value `-999` | **done** | `04b84a62`, section 3.13 |
+| 1 — Surface label-write failures | not started | |
+| 2 — The synthetic cohort | not started | |
+| 3 — Epochs | not started | |
+| 4 — The FITS in the bundle, with its data objects | not started | |
+| 5 — Inventories that conform | not started | |
+| 6 — Bundle-level and static products | not started | |
+| 7 — The miscellaneous collection and its global index labels | not started | |
+| 8 — Targets, mission area, ring geometry | not started | |
+| 9 — Parameterize the bundle name and version | not started | |
+| 10 — Validation, the integrity pass, and the draft run | not started | |
+
+Issues opened by this work, all open: #595 (LaTeX template for the user
+guides), #596-#599 (the four instrument guides), #600 (what a bundle says
+about images that did not navigate), #601 (the `Special_Constants`
+declaration, which is what remains of the masked-value work).
+
+Open questions, none blocking Phases 1-9: #600; whether this information
+model build's dictionaries are registered, with the Engineering Node
+(section 3.9); the cohort choice and the user-guide PDF for Phase 10.
+
 ---
 
 ## 1. Purpose and scope
@@ -1173,12 +1202,30 @@ branch.
 
 ## 8. Execution protocol
 
-Cut `rf_pds4_draft_bundle` from `main`. One PR per phase onto it. For each:
-implement, run `./scripts/run-all-checks.sh`, run the unit suite at `-n 4`
-with the BLAS and OpenMP thread counts pinned to 1, open the PR, wait for
-CodeRabbit to settle and reply on every comment with a disposition, then
+`rf_pds4_draft_bundle` is cut and pushed. One PR per phase onto it. For
+each: implement, run `./scripts/run-all-checks.sh`, run the unit suite at
+`-n 4` with the BLAS and OpenMP thread counts pinned to 1 (`export
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+NUMEXPR_NUM_THREADS=1`, set nowhere in the repository), open the PR, wait
+for CodeRabbit to settle and reply on every comment with a disposition, then
 merge. Update `docs/` and the four plan files in the same PR as the change
-they describe, not afterwards.
+they describe, not afterwards. Update section 0.1 as each phase lands.
+
+**How each phase is built.** A subagent implements it against the phase
+text. A second subagent that did not write the code reviews it
+adversarially, against the phase's acceptance wording and against the
+product rather than the diff -- generate a bundle and look at what came out.
+The orchestrator reconciles the two, re-runs the gates on the final
+revision, and does not accept "the tests pass" as the review. Where a review
+finds something net-negative or unfixable, capture it on an issue and ask
+rather than working around it.
+
+Two lessons from this plan's own drafting, which cost time and should not be
+repeated by an implementing session. Check the claim against the product
+before writing it down: the masked-value finding was wrong for the body
+planes and one line of numpy over an existing FITS would have shown it.
+And read the whole path before concluding: that same finding missed
+`merge.py`, where the ID map is written.
 
 Phase 10's draft run needs the operator's cohort choice, and the user-guide
 PDF if the draft is to be delivered rather than reviewed internally
