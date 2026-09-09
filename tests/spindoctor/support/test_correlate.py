@@ -831,7 +831,10 @@ class TestMaskedNccBidirectional:
         _masked_ncc_bidir(image, model, mask, data_mask)
         assert made['forward'] == 6
         assert made['inverse'] == 6
-        # Three spectra, plus the one inverse transform in flight.
+        # Three spectra, plus the one inverse transform in flight.  This counts
+        # transform outputs; the conjugate and product temporaries of the
+        # statement being evaluated are one more frame-sized complex array
+        # again, which no reordering of the transforms can remove.
         assert high <= 4
         assert all(ref() is None for ref in seen)
 

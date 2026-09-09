@@ -229,9 +229,13 @@ def _masked_ncc_bidir(
     # transform's real part is copied out of it (real_ifft2), so no complex
     # output outlives the sum it was taken for.  The arithmetic is unchanged
     # -- every product below is the one it always was -- but at most three
-    # spectra exist at once instead of six, plus the one inverse transform in
-    # flight, and on a wide-margin frame a spectrum is the largest array in
-    # the process.
+    # spectra exist at once instead of six, and on a wide-margin frame a
+    # spectrum is the largest array in the process.  The live count is three
+    # spectra plus the one inverse transform in flight plus the conjugate and
+    # product temporaries of the statement being evaluated, which is five
+    # frame-sized complex arrays at the peak; multiplying in place to drop one
+    # of them was measured and moved peak resident size by nothing, because
+    # the allocator hands the freed block straight back.
     dmask_fft = fft2(dmask_f)
     mask_fft = fft2(mask_f)
 
