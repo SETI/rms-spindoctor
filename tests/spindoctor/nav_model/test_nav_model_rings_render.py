@@ -27,6 +27,7 @@ holdings).
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import types
 from collections.abc import Sequence
@@ -645,18 +646,21 @@ def _strip_quantities() -> list[_StripQuantity]:
     """Return the three quantities ``_render`` asks for, as it asks for them."""
     return [
         _StripQuantity(
+            key='ring_plane_distance',
             evaluate=lambda bp: bp.distance(_TARGET, direction='dep'),
             fill=math.inf,
             dtype=np.float64,
             failure='Ring-plane distance for SATURN',
         ),
         _StripQuantity(
+            key='planet_shadow',
             evaluate=lambda bp: bp.where_inside_shadow(_TARGET, 'saturn'),
             fill=False,
             dtype=bool,
             failure='Planet shadow for SATURN',
         ),
         _StripQuantity(
+            key='ring_occlusion',
             evaluate=lambda bp: bp.where_in_front('saturn', _TARGET),
             fill=False,
             dtype=bool,
@@ -698,7 +702,10 @@ def test_striped_backplanes_assemble_the_whole_frame_arrays(
     monkeypatch.setattr(nav_model_rings_module, 'Meshgrid', _FakeMeshgrid)
     monkeypatch.setattr(nav_model_rings_module, 'Backplane', _CountingBackplane)
     model = NavModelRings('rings:SATURN', cast(Any, obs))
-    distance, in_shadow, occluded = model._striped_backplanes(_strip_quantities())
+    assembled = model._striped_backplanes(_strip_quantities())
+    distance = assembled['ring_plane_distance']
+    in_shadow = assembled['planet_shadow']
+    occluded = assembled['ring_occlusion']
     ext_bp = obs.ext_bp
     assert ext_bp is not None
     assert np.array_equal(
@@ -723,12 +730,25 @@ def test_a_failing_strip_quantity_logs_one_line_and_reraises(
         raise RuntimeError('no kernel covers the epoch')
 
     quantity = _StripQuantity(
-        evaluate=_unanswerable, fill=False, dtype=bool, failure='Planet shadow for SATURN'
+        key='planet_shadow',
+        evaluate=_unanswerable,
+        fill=False,
+        dtype=bool,
+        failure='Planet shadow for SATURN',
     )
     with pytest.raises(RuntimeError, match='no kernel covers the epoch'):
         model._striped_backplanes([quantity])
     logged = capsys.readouterr().out
     assert 'Planet shadow for SATURN could not be evaluated: no kernel covers the epoch' in logged
+
+
+def test_two_quantities_sharing_a_key_are_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A repeated key would drop one quantity's array without saying so."""
+    model, _obs = _make_model(monkeypatch, _ramp_ring(), _ring_config({}))
+    quantities = _strip_quantities()[:2]
+    clashing = [quantities[0], dataclasses.replace(quantities[1], key=quantities[0].key)]
+    with pytest.raises(ValueError, match='share a key'):
+        model._striped_backplanes(clashing)
 
 
 # ---------------------------------------------------------------------------

@@ -232,6 +232,10 @@ class _StripQuantity:
     """One whole-frame backplane quantity, as ``_striped_backplanes`` evaluates it.
 
     Parameters:
+        key: Name the assembled array comes back under, distinct within one
+            call. Quantities are named rather than positional because which
+            of them are asked for varies with the configuration, so a
+            position means different things on different frames.
         evaluate: Called with a strip's :class:`~oops.backplane.Backplane` and
             returning the quantity over that strip.
         fill: Value substituted where the strip's result is masked.
@@ -240,6 +244,7 @@ class _StripQuantity:
             its evaluation raises, e.g. ``'Planet shadow for SATURN'``.
     """
 
+    key: str
     evaluate: Callable[[Backplane], Any]
     fill: Any
     dtype: Any
@@ -539,6 +544,7 @@ class NavModelRings(NavModelRingsBase):
         # line naming the quantity, and the orchestrator logs the traceback.
         quantities = [
             _StripQuantity(
+                key='ring_plane_distance',
                 evaluate=lambda bp: bp.distance(ring_target, direction='dep'),
                 fill=math.inf,
                 dtype=np.float64,
@@ -549,6 +555,7 @@ class NavModelRings(NavModelRingsBase):
         if remove_planet_shadow:
             quantities.append(
                 _StripQuantity(
+                    key='planet_shadow',
                     evaluate=lambda bp: bp.where_inside_shadow(ring_target, planet.lower()),
                     fill=False,
                     dtype=bool,
@@ -568,6 +575,7 @@ class NavModelRings(NavModelRingsBase):
         # which navigates to a wrong offset rather than to none.
         quantities.append(
             _StripQuantity(
+                key='ring_occlusion',
                 evaluate=lambda bp: bp.where_in_front(planet.lower(), ring_target),
                 fill=False,
                 dtype=bool,
@@ -577,11 +585,13 @@ class NavModelRings(NavModelRingsBase):
         assembled = self._striped_backplanes(quantities)
         # Each array already has the dtype it was asked for; ``asarray`` with
         # that dtype returns it unchanged and only names the type here.
-        distance_arr: NDArrayFloatType = np.asarray(assembled[0], dtype=np.float64)
+        distance_arr: NDArrayFloatType = np.asarray(
+            assembled['ring_plane_distance'], dtype=np.float64
+        )
         shadow_mask: NDArrayBoolType | None = None
         if remove_planet_shadow:
-            shadow_mask = np.asarray(assembled[1], dtype=bool)
-        self._ring_occluded_ext = np.asarray(assembled[-1], dtype=bool)
+            shadow_mask = np.asarray(assembled['planet_shadow'], dtype=bool)
+        self._ring_occluded_ext = np.asarray(assembled['ring_occlusion'], dtype=bool)
         # Subject range -- closest visible ring radius
         if np.any(np.isfinite(distance_arr)):
             self._subject_range_km = float(distance_arr[np.isfinite(distance_arr)].min())
@@ -632,7 +642,7 @@ class NavModelRings(NavModelRingsBase):
 
     def _striped_backplanes(
         self, quantities: Sequence[_StripQuantity]
-    ) -> list[np.ndarray[Any, np.dtype[Any]]]:
+    ) -> dict[str, np.ndarray[Any, np.dtype[Any]]]:
         """Evaluate whole-frame backplane quantities a strip of rows at a time.
 
         The array returned per quantity is what a single whole-frame evaluation
@@ -648,23 +658,30 @@ class NavModelRings(NavModelRingsBase):
         meshgrid, the backplane, the release afterwards -- is paid once.
 
         Parameters:
-            quantities: What to evaluate on each strip's backplane, in the
-                order the arrays are wanted back.
+            quantities: What to evaluate on each strip's backplane, each under
+                a ``key`` distinct from the others'.
 
         Returns:
             One extended-frame array per quantity, row-major and of that
-            quantity's ``dtype``, in the order given.
+            quantity's ``dtype``, under that quantity's ``key``.
 
         Raises:
+            ValueError: If two quantities share a ``key``, which would drop
+                one of them silently.
             Exception: Whatever a quantity's evaluation raised, after one line
                 naming the quantity by its ``failure`` text has been logged;
                 the orchestrator logs the traceback when it fails the image.
         """
         obs = self.obs
         rows, cols = obs.extdata_shape_vu
-        assembled: list[np.ndarray[Any, np.dtype[Any]]] = [
-            np.empty((rows, cols), dtype=quantity.dtype) for quantity in quantities
-        ]
+        assembled: dict[str, np.ndarray[Any, np.dtype[Any]]] = {
+            quantity.key: np.empty((rows, cols), dtype=quantity.dtype) for quantity in quantities
+        }
+        if len(assembled) != len(quantities):
+            raise ValueError(
+                'two strip quantities share a key: '
+                + ', '.join(quantity.key for quantity in quantities)
+            )
         v_min = obs.extfov_v_min
         for start in range(0, rows, BACKPLANE_STRIP_ROWS):
             stop = min(start + BACKPLANE_STRIP_ROWS, rows)
@@ -675,13 +692,13 @@ class NavModelRings(NavModelRingsBase):
                 swap=True,
             )
             backplane = Backplane(obs, meshgrid=meshgrid)
-            for quantity, out in zip(quantities, assembled, strict=True):
+            for quantity in quantities:
                 try:
                     strip = quantity.evaluate(backplane)
                 except Exception as exc:
                     self._logger.error('%s could not be evaluated: %s', quantity.failure, exc)
                     raise
-                out[start:stop, :] = np.asarray(
+                assembled[quantity.key][start:stop, :] = np.asarray(
                     strip.mvals.filled(quantity.fill), dtype=quantity.dtype
                 )
                 del strip
