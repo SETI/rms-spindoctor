@@ -24,6 +24,7 @@ NDArrayLike = npt.ArrayLike
 DTypeLike = npt.DTypeLike
 NDArrayAnyType = npt.NDArray[Any]
 NDArrayBoolType = npt.NDArray[np.bool_]
+NDArrayComplexType = npt.NDArray[np.complexfloating[Any, Any]]
 NDArrayFloatType = npt.NDArray[np.floating[Any]]
 NDArrayIntType = npt.NDArray[np.integer[Any]]
 NDArrayUint8Type = npt.NDArray[np.uint8]

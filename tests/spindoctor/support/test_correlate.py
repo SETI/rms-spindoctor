@@ -1,12 +1,18 @@
 """Tests for spindoctor.support.correlate, focused on masked NCC and pyramid navigation."""
 
+import weakref
 from itertools import pairwise
+from typing import Any
 
 import numpy as np
 import pytest
 
 from spindoctor.support.correlate import (
     _MAX_PEAK_RATIO,
+    _NCC_BIDIR_VAR_FRAC_MIN,
+    _NCC_BIDIR_W_FRAC_MIN,
+    _NCC_EPS,
+    _masked_ncc_bidir,
     _residual_correlation_area,
     gradient_magnitude,
     masked_ncc,
@@ -18,6 +24,7 @@ from spindoctor.support.correlate import (
 )
 from spindoctor.support.image import normalize_array, pad_top_left
 from spindoctor.support.misc import mad_std
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 # =========================================================================
 # Helpers
@@ -692,3 +699,218 @@ def test_residual_correlation_area_smoothed_field_exceeds_white() -> None:
     white = rng.normal(0.0, 1.0, (96, 96))
     smoothed = gaussian_filter(white, sigma=3.0)
     assert _residual_correlation_area(smoothed) > 5.0 * _residual_correlation_area(white)
+
+
+class TestMaskedNccBidirectional:
+    """The data-mask-aware NCC against a direct spatial-domain evaluation."""
+
+    @staticmethod
+    def _brute_force_sums(
+        image: NDArrayFloatType,
+        model: NDArrayFloatType,
+        mask: NDArrayBoolType,
+        data_mask: NDArrayBoolType,
+    ) -> dict[str, NDArrayFloatType]:
+        """Compute every shift-wise sum by looping, using no transform.
+
+        The correlation the transforms compute is circular, so the shifts
+        wrap; this indexes with the same wrap rather than reproducing the
+        transform itself. It is the independent oracle the transform-based
+        implementation is checked against.
+
+        Parameters:
+            image: Image array, already zero outside ``data_mask``.
+            model: Model array.
+            mask: Where the model is painted.
+            data_mask: Where the image carries data.
+
+        Returns:
+            The six sums, each indexed by shift.
+        """
+        rows, cols = image.shape
+        mask_f = mask.astype(np.float64)
+        dmask_f = data_mask.astype(np.float64)
+        model_mask = model * mask_f
+        model2_mask = (model * model) * mask_f
+        out: dict[str, NDArrayFloatType] = {
+            name: np.zeros((rows, cols), np.float64)
+            for name in ('w_d', 'sum_iw', 'sum_i2w', 'sum_imw', 'sum_mw', 'sum_m2w')
+        }
+        for sv in range(rows):
+            for su in range(cols):
+                shifted_v = (np.arange(rows)[:, None] - sv) % rows
+                shifted_u = (np.arange(cols)[None, :] - su) % cols
+                m_s = mask_f[shifted_v, shifted_u]
+                mm_s = model_mask[shifted_v, shifted_u]
+                m2m_s = model2_mask[shifted_v, shifted_u]
+                out['w_d'][sv, su] = float((dmask_f * m_s).sum())
+                out['sum_iw'][sv, su] = float((image * m_s).sum())
+                out['sum_i2w'][sv, su] = float((image * image * m_s).sum())
+                out['sum_imw'][sv, su] = float((image * mm_s).sum())
+                out['sum_mw'][sv, su] = float((dmask_f * mm_s).sum())
+                out['sum_m2w'][sv, su] = float((dmask_f * m2m_s).sum())
+        return out
+
+    @classmethod
+    def _brute_force_ncc(
+        cls,
+        image: NDArrayFloatType,
+        model: NDArrayFloatType,
+        mask: NDArrayBoolType,
+        data_mask: NDArrayBoolType,
+    ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+        """Assemble the published NCC from the looped sums.
+
+        Parameters:
+            image: Image array, already zero outside ``data_mask``.
+            model: Model array.
+            mask: Where the model is painted.
+            data_mask: Where the image carries data.
+
+        Returns:
+            ``(ncc, num)``, matching what the implementation returns.
+        """
+        s = cls._brute_force_sums(image, model, mask, data_mask)
+        w_d = s['w_d']
+        w_floor = max(_NCC_BIDIR_W_FRAC_MIN * float(w_d.max()), _NCC_EPS)
+        overlap_ok = w_d >= w_floor
+        safe_w = np.where(overlap_ok, w_d, w_floor)
+        num = s['sum_imw'] - (s['sum_iw'] / safe_w) * s['sum_mw']
+        ssd_iw = np.maximum(s['sum_i2w'] - s['sum_iw'] ** 2 / safe_w, 0.0)
+        ssd_mw = np.maximum(s['sum_m2w'] - s['sum_mw'] ** 2 / safe_w, 0.0)
+        var_ok = (ssd_iw > _NCC_BIDIR_VAR_FRAC_MIN * float(ssd_iw.max())) & (
+            ssd_mw > _NCC_BIDIR_VAR_FRAC_MIN * float(ssd_mw.max())
+        )
+        valid = overlap_ok & var_ok
+        ncc = np.where(valid, num / np.maximum(np.sqrt(ssd_iw * ssd_mw), _NCC_EPS), 0.0)
+        ncc = np.clip(ncc, -1.0, 1.0)
+        ncc[~valid] = -np.inf
+        return ncc, num
+
+    def test_transforms_are_few_at_once_and_none_outlive_the_call(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The build order and the copied-out real parts are the whole point.
+
+        Each transform output is a complex array of the padded frame, which on
+        a wide-margin frame is the largest thing in the process.  Building a
+        spectrum before the one it replaces has been dropped costs a whole
+        extra copy, and so does keeping an inverse transform alive through a
+        view of its real part; nothing about the result changes either way,
+        so only a count of what is alive can catch it.
+        """
+        # Reached by name rather than through the module attribute, which
+        # strict typing reads as a re-export of numpy's.
+        real_fft2 = np.fft.fft2
+        real_ifft2 = np.fft.ifft2
+        seen: list[weakref.ref[Any]] = []
+        made = {'forward': 0, 'inverse': 0}
+        high = 0
+
+        def _record(kind: str, out: Any) -> Any:
+            """Weakly note one transform output and how many are alive with it.
+
+            Parameters:
+                kind: ``'forward'`` or ``'inverse'``, which counter to advance.
+                out: The transform's output array.
+
+            Returns:
+                That same array, so this stands in the call's place.
+            """
+            nonlocal high
+            made[kind] += 1
+            seen.append(weakref.ref(out))
+            high = max(high, sum(1 for ref in seen if ref() is not None))
+            return out
+
+        def counting_fft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            """Stand in for ``fft2``, recording its output.
+
+            Parameters:
+                a: Array to transform.
+                *args: Passed through.
+                **kwargs: Passed through.
+
+            Returns:
+                The transform numpy would have returned.
+            """
+            return _record('forward', real_fft2(a, *args, **kwargs))
+
+        def counting_ifft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            """Stand in for ``ifft2``, recording its output.
+
+            Parameters:
+                a: Spectrum to inverse-transform.
+                *args: Passed through.
+                **kwargs: Passed through.
+
+            Returns:
+                The transform numpy would have returned.
+            """
+            return _record('inverse', real_ifft2(a, *args, **kwargs))
+
+        monkeypatch.setattr('spindoctor.support.correlate.fft2', counting_fft2)
+        monkeypatch.setattr('spindoctor.support.image.ifft2', counting_ifft2)
+        rng = np.random.default_rng(11)
+        rows, cols = 24, 20
+        data_mask = rng.random((rows, cols)) > 0.25
+        image = rng.normal(size=(rows, cols)) * data_mask
+        model = rng.normal(size=(rows, cols))
+        mask = rng.random((rows, cols)) > 0.35
+        _masked_ncc_bidir(image, model, mask, data_mask)
+        assert made['forward'] == 6
+        assert made['inverse'] == 6
+        # Three spectra, plus the one inverse transform in flight.  This counts
+        # transform outputs; the conjugate and product temporaries of the
+        # statement being evaluated are one more frame-sized complex array
+        # again, which no reordering of the transforms can remove.
+        assert high <= 4
+        assert all(ref() is None for ref in seen)
+
+    def test_the_scores_match_a_direct_evaluation(self) -> None:
+        """Every shift's score is the one a transform-free evaluation gives."""
+        rng = np.random.default_rng(4242)
+        rows, cols = 10, 12
+        data_mask = rng.random((rows, cols)) > 0.25
+        image = rng.normal(size=(rows, cols)) * data_mask
+        model = rng.normal(size=(rows, cols))
+        mask = rng.random((rows, cols)) > 0.35
+        ncc, _ = _masked_ncc_bidir(image, model, mask, data_mask)
+        expected_ncc, _ = self._brute_force_ncc(image, model, mask, data_mask)
+        assert np.allclose(ncc, expected_ncc, rtol=1e-9, atol=1e-9, equal_nan=True)
+
+    def test_the_numerator_matches_a_direct_evaluation(self) -> None:
+        """The unnormalized cross term likewise survives the transform."""
+        rng = np.random.default_rng(4242)
+        rows, cols = 10, 12
+        data_mask = rng.random((rows, cols)) > 0.25
+        image = rng.normal(size=(rows, cols)) * data_mask
+        model = rng.normal(size=(rows, cols))
+        mask = rng.random((rows, cols)) > 0.35
+        _, num = _masked_ncc_bidir(image, model, mask, data_mask)
+        _, expected_num = self._brute_force_ncc(image, model, mask, data_mask)
+        assert np.allclose(num, expected_num, rtol=1e-9, atol=1e-9)
+
+    def test_a_perfect_match_is_the_strongest_shift(self) -> None:
+        """An unshifted copy of the image scores highest at zero shift."""
+        rng = np.random.default_rng(7)
+        rows, cols = 16, 16
+        data_mask = np.ones((rows, cols), bool)
+        image = rng.normal(size=(rows, cols))
+        mask = np.zeros((rows, cols), bool)
+        mask[4:12, 4:12] = True
+        ncc, _ = _masked_ncc_bidir(image, image, mask, data_mask)
+        assert int(np.argmax(ncc)) == 0
+
+    def test_every_finite_score_is_a_correlation(self) -> None:
+        """No shift reports a normalized score outside [-1, 1]."""
+        rng = np.random.default_rng(11)
+        rows, cols = 14, 14
+        data_mask = rng.random((rows, cols)) > 0.2
+        image = rng.normal(size=(rows, cols)) * data_mask
+        model = rng.normal(size=(rows, cols))
+        mask = rng.random((rows, cols)) > 0.4
+        ncc, _ = _masked_ncc_bidir(image, model, mask, data_mask)
+        finite = ncc[np.isfinite(ncc)]
+        assert finite.size > 0
+        assert float(np.max(np.abs(finite))) <= 1.0

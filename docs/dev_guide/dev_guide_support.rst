@@ -14,3 +14,4 @@ do not have to chase them through the per-pipeline pages.
    dev_guide_config_and_static_data
    dev_guide_logging
    dev_guide_filters
+   dev_guide_memory

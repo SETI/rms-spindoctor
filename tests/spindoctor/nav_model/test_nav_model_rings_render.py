@@ -18,13 +18,17 @@ module / method docstrings, not from the current implementation:
 - Skip paths: no ring-plane intersection, visible range beyond the catalog,
   every feature filtered out, empty catalog.
 
-Backplane data is supplied by the table-driven ``tests.shims`` fakes; the
-sparse pre-check's oops ``Meshgrid`` / ``Backplane`` names are monkeypatched
-so the tests are hermetic (no SPICE, no holdings).
+Backplane data is supplied by the table-driven ``tests.shims`` fakes; the oops
+``Meshgrid`` / ``Backplane`` names the module builds its own backplanes from
+are monkeypatched with stand-ins serving both the sparse pre-check and the
+striped whole-frame evaluations, so the tests are hermetic (no SPICE, no
+holdings).
 """
 
 from __future__ import annotations
 
+import dataclasses
+import math
 import types
 from collections.abc import Sequence
 from typing import Any, cast
@@ -39,7 +43,11 @@ from spindoctor.annotation import Annotations
 from spindoctor.config.config import Config
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import RingAnnulusGeometry, RingEdgePolyline
-from spindoctor.nav_model.nav_model_rings import NavModelRings
+from spindoctor.nav_model.nav_model_rings import (
+    BACKPLANE_STRIP_ROWS,
+    NavModelRings,
+    _StripQuantity,
+)
 from spindoctor.nav_model.rings import RingFeature, RingFeatureFilter
 from spindoctor.support.types import NDArrayBoolType
 
@@ -64,8 +72,12 @@ class _RingBackplane(FakeBackplane):
         return self.ring_radius(key[1])
 
 
-class _FakeSparseMeshgrid:
-    """Meshgrid stand-in accepting the sparse pre-check's ``undersample``.
+class _FakeMeshgrid:
+    """Meshgrid stand-in for the sparse pre-check and the striped evaluations.
+
+    It only records what it was built over.  The sparse pre-check passes an
+    ``undersample``; the striped whole-frame evaluations pass a strip's rows
+    as ``origin`` / ``limit``, which :class:`_DelegatingBackplane` reads back.
 
     Parameters:
         origin: ``(u, v)`` grid origin.
@@ -96,30 +108,60 @@ class _FakeSparseMeshgrid:
         limit: tuple[float, float],
         undersample: tuple[int, int] = (1, 1),
         swap: bool = False,
-    ) -> _FakeSparseMeshgrid:
-        """Mirror the ``oops.Meshgrid.for_fov`` sparse-grid signature."""
+    ) -> _FakeMeshgrid:
+        """Mirror the ``oops.Meshgrid.for_fov`` keywords the model passes."""
         del fov
         return cls(origin, limit, undersample=undersample, swap=swap)
 
 
-class _DelegatingSparseBackplane:
-    """Backplane stand-in for the sparse pre-check.
+class _DelegatingBackplane:
+    """Backplane stand-in for the sparse pre-check and the striped evaluations.
 
-    Delegates ``ring_radius`` to the observation's dense ``ext_bp`` so the
-    sparse visibility verdict always matches the dense data the test wired.
+    Delegates every query to the observation's dense ``ext_bp``, so the sparse
+    visibility verdict always matches the dense data the test wired and a
+    strip's answer is that strip's rows of the same dense arrays.
 
     Parameters:
         obs: Observation carrying the fake ``ext_bp``.
-        meshgrid: Accepted for signature parity; unused.
+        meshgrid: The strip's meshgrid.  Its origin and limit are what say
+            which rows of the dense arrays this stand-in answers for; None
+            answers for the whole frame.
     """
 
     def __init__(self, obs: Any, meshgrid: Any = None) -> None:
-        del meshgrid
         self._obs = obs
+        self._meshgrid = meshgrid
+
+    def _rows(self) -> slice:
+        """Rows of the dense arrays this stand-in was built to cover.
+
+        The render evaluates its whole-frame backplanes a strip of rows at a
+        time, so a stand-in for one strip has to answer for that strip and not
+        for the frame. The strip is read back from the meshgrid's origin and
+        limit, which is where the caller put it.
+        """
+        mg = self._meshgrid
+        if mg is None or not hasattr(mg, 'origin') or not hasattr(mg, 'limit'):
+            return slice(None)
+        first = round(mg.origin[1] - 0.5) - self._obs.extfov_v_min
+        last = round(mg.limit[1] - 0.5) - self._obs.extfov_v_min
+        return slice(first, last + 1)
 
     def ring_radius(self, ring_target: str) -> Any:
         """Return the dense fake backplane's ring radius Scalar."""
         return self._obs.ext_bp.ring_radius(ring_target)
+
+    def distance(self, ring_target: str, direction: str = 'dep') -> Any:
+        """Return this strip's rows of the dense ring-plane distance."""
+        return self._obs.ext_bp.distance(ring_target, direction=direction)[self._rows()]
+
+    def where_inside_shadow(self, ring_target: str, planet: str) -> Any:
+        """Return this strip's rows of the dense planet-shadow mask."""
+        return self._obs.ext_bp.where_inside_shadow(ring_target, planet)[self._rows()]
+
+    def where_in_front(self, near_target: str, far_target: str) -> Any:
+        """Return this strip's rows of the dense occlusion mask."""
+        return self._obs.ext_bp.where_in_front(near_target, far_target)[self._rows()]
 
 
 def _ramp_ring(
@@ -286,14 +328,15 @@ def _ring_config(features: dict[str, Any], *, planet_entry: dict[str, Any] | Non
     return config
 
 
-def _make_obs(ring_data: RingBackplaneData) -> FakeObs:
+def _make_obs(ring_data: RingBackplaneData, *, shape: tuple[int, int] = _SHAPE) -> FakeObs:
     """Return a zero-margin FakeObs over the fake ring backplane.
 
     Parameters:
         ring_data: Ring backplane tables for the ``saturn:ring`` target.
+        shape: ``(rows, cols)`` of the image, which the ring tables match.
     """
     return FakeObs(
-        data=np.zeros(_SHAPE, dtype=np.float64),
+        data=np.zeros(shape, dtype=np.float64),
         extfov_margin_vu=(0, 0),
         closest_planet='SATURN',
         ext_bp=_RingBackplane(per_ring={_TARGET: ring_data}),
@@ -310,13 +353,14 @@ def _make_model(
 
     Parameters:
         monkeypatch: Pytest monkeypatch fixture (patches the module's oops
-            ``Meshgrid`` / ``Backplane`` used by the sparse pre-check).
+            ``Meshgrid`` / ``Backplane``, which serve both the sparse
+            pre-check and the striped whole-frame evaluations).
         ring_data: Ring backplane tables.
         config: Config carrying the synthetic catalog.
     """
     obs = _make_obs(ring_data)
-    monkeypatch.setattr(nav_model_rings_module, 'Meshgrid', _FakeSparseMeshgrid)
-    monkeypatch.setattr(nav_model_rings_module, 'Backplane', _DelegatingSparseBackplane)
+    monkeypatch.setattr(nav_model_rings_module, 'Meshgrid', _FakeMeshgrid)
+    monkeypatch.setattr(nav_model_rings_module, 'Backplane', _DelegatingBackplane)
     model = NavModelRings('rings:SATURN', cast(Any, obs), config=config)
     return model, obs
 
@@ -591,6 +635,120 @@ def test_shadow_removal_zeroes_shadowed_pixels(monkeypatch: pytest.MonkeyPatch) 
     assert float(model_img[:, 60:].max()) == 0.0
     assert not bool(model_mask[:, 60:].any())
     assert bool(model_mask[:, :60].any())
+
+
+# ---------------------------------------------------------------------------
+# _striped_backplanes: assembly against a whole-frame evaluation
+# ---------------------------------------------------------------------------
+
+
+def _strip_quantities() -> list[_StripQuantity]:
+    """Return the three quantities ``_render`` asks for, as it asks for them."""
+    return [
+        _StripQuantity(
+            key='ring_plane_distance',
+            evaluate=lambda bp: bp.distance(_TARGET, direction='dep'),
+            fill=math.inf,
+            dtype=np.float64,
+            failure='Ring-plane distance for SATURN',
+        ),
+        _StripQuantity(
+            key='planet_shadow',
+            evaluate=lambda bp: bp.where_inside_shadow(_TARGET, 'saturn'),
+            fill=False,
+            dtype=bool,
+            failure='Planet shadow for SATURN',
+        ),
+        _StripQuantity(
+            key='ring_occlusion',
+            evaluate=lambda bp: bp.where_in_front('saturn', _TARGET),
+            fill=False,
+            dtype=bool,
+            failure='Planet occlusion of rings for SATURN',
+        ),
+    ]
+
+
+def test_striped_backplanes_assemble_the_whole_frame_arrays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A frame taller than one strip assembles to the whole-frame arrays.
+
+    The fake ``ext_bp`` answers each strip with that strip's rows of its dense
+    tables, so the assembled arrays must equal those tables filled the way a
+    whole-frame evaluation is: distance with inf where the ring plane is not
+    sampled, shadow and occlusion with False.  The distance, the ring mask and
+    the shadow all vary by row, so a strip put back in the wrong place shows.
+    """
+    rows = 300
+    shape = (rows, _SHAPE[1])
+    vv, uu = np.indices(shape, dtype=np.float64)
+    ring = RingBackplaneData(
+        ring_radius_km=100_000.0 + 100.0 * uu,
+        ring_mask=(vv % 7.0) != 0.0,
+        distance_km=1.0e6 + vv,
+        shadow_mask=(vv % 5.0) == 0.0,
+    )
+    obs = _make_obs(ring, shape=shape)
+    built: list[Any] = []
+
+    class _CountingBackplane(_DelegatingBackplane):
+        """Delegating stand-in that records each construction."""
+
+        def __init__(self, obs: Any, meshgrid: Any = None) -> None:
+            super().__init__(obs, meshgrid)
+            built.append(meshgrid)
+
+    monkeypatch.setattr(nav_model_rings_module, 'Meshgrid', _FakeMeshgrid)
+    monkeypatch.setattr(nav_model_rings_module, 'Backplane', _CountingBackplane)
+    model = NavModelRings('rings:SATURN', cast(Any, obs))
+    assembled = model._striped_backplanes(_strip_quantities())
+    distance = assembled['ring_plane_distance']
+    in_shadow = assembled['planet_shadow']
+    occluded = assembled['ring_occlusion']
+    ext_bp = obs.ext_bp
+    assert ext_bp is not None
+    assert np.array_equal(
+        distance, ext_bp.distance(_TARGET, direction='dep').mvals.filled(math.inf)
+    )
+    assert np.array_equal(
+        in_shadow, ext_bp.where_inside_shadow(_TARGET, 'saturn').mvals.filled(False)
+    )
+    assert np.array_equal(occluded, ext_bp.where_in_front('saturn', _TARGET).mvals.filled(False))
+    assert len(built) == math.ceil(rows / BACKPLANE_STRIP_ROWS)
+
+
+def test_a_failing_strip_quantity_logs_one_line_and_reraises(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A quantity that cannot be evaluated names itself once and fails the image."""
+    model, _obs = _make_model(monkeypatch, _ramp_ring(), _ring_config({}))
+
+    def _unanswerable(bp: Any) -> Any:
+        """Raise the way a backplane query without its kernels does."""
+        del bp
+        raise RuntimeError('no kernel covers the epoch')
+
+    quantity = _StripQuantity(
+        key='planet_shadow',
+        evaluate=_unanswerable,
+        fill=False,
+        dtype=bool,
+        failure='Planet shadow for SATURN',
+    )
+    with pytest.raises(RuntimeError, match='no kernel covers the epoch'):
+        model._striped_backplanes([quantity])
+    logged = capsys.readouterr().out
+    assert 'Planet shadow for SATURN could not be evaluated: no kernel covers the epoch' in logged
+
+
+def test_two_quantities_sharing_a_key_are_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A repeated key would drop one quantity's array without saying so."""
+    model, _obs = _make_model(monkeypatch, _ramp_ring(), _ring_config({}))
+    quantities = _strip_quantities()[:2]
+    clashing = [quantities[0], dataclasses.replace(quantities[1], key=quantities[0].key)]
+    with pytest.raises(ValueError, match='share a key'):
+        model._striped_backplanes(clashing)
 
 
 # ---------------------------------------------------------------------------

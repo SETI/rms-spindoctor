@@ -543,6 +543,40 @@ asserts the generated half matches the registries.
 
 ### Cloud and scale
 
+- **Navigation memory, and #573** -- a navigation's resident size is bounded
+  by the extended frame, which is the detector plus twice the instrument's
+  search margin, and `oops` sizes its intermediates by the meshgrid it is
+  handed. The wide-margin instruments are therefore the expensive ones: a
+  Voyager frame extends to 3.24 Mpx against a 1000x1000 image. Bounding
+  Titan's two backplane boxes, striping the ring and Titan backplanes,
+  collecting each strip's transient memory and returning the freed arenas to
+  the operating system where the C library can, and holding fewer correlation
+  spectra at once are the mechanisms; the body model's share follows
+  separately. Striping alone bought nothing measurable until the release was
+  added, because oops intermediates live in reference cycles and glibc
+  retains freed arenas, so a striped pass grew by the sum of its strips
+  rather than the largest. What will remain once the whole chain is in is
+  about four gigabytes of a ring render's resident size, and #573's premise
+  that this is fragmentation does not hold: the C library reports 0.23 GB free
+  and retained against six-plus gigabytes handed out, and the holder is the
+  observation's own backplane caches, which return 5.03 GB when emptied.
+  Releasing more often cannot reach it, because a release reclaims only what
+  nothing refers to; dropping the caches at the end of the model stage does,
+  and no program here does that yet. The two placements measured to be worth
+  nothing are recorded in `docs/dev_guide/dev_guide_memory.rst` so they are not
+  tried again. The ring
+  radius, radial resolution, `border_atop` and `radial_mode` backplanes
+  remain whole-frame through the extended backplane and set the ring model's
+  remaining floor until striping lands in oops: striping belongs in `oops`
+  rather than in each consumer, which is SETI/rms-oops#222. A striped answer
+  holds to the photon solver's convergence tolerance rather than to the last
+  bit, because oops converges on the largest light-time change anywhere on the
+  meshgrid; the measured agreement is recorded in
+  `docs/dev_guide/dev_guide_memory.rst`. Titan's envelope box is strided rather
+  than striped because its work, not just its memory, is unbounded; #594 would
+  remove that box altogether by projecting the sub-solar direction instead of
+  searching a backplane for it.
+
 - **#108** — audit every `sd_*` CLI for logging, cloud operation, and
   working `cloud_tasks` variants; fix what the audit finds. The logging
   third is done: every pipeline program takes the same flags with the same

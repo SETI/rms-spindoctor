@@ -45,11 +45,51 @@ extfov margin, the same convention every predicted position in the pipeline
 uses (a catalog star's extfov position is ``star.v + extfov_margin_v``).
 Holding to it is what lets a haze offset and a star offset on the same frame
 be compared directly.  Bounding boxes are a separate matter: they are
-integer pixel indices, they only bound where backplanes are evaluated, and
-the ones handed to the backplane are deliberately UNCLIPPED because ``oops``
+integer pixel indices and they only bound where backplanes are evaluated.
+
+A box grows with the body's apparent size, which is unbounded: Titan at
+0.754 km/pixel has an envelope 4343 pixels in radius inside a 1024-pixel
+frame, an 8688-square box covering seventy times the frame's area.  The two
+boxes are bounded differently because they need different things.
+
+The mask box is CLIPPED to the extended field of view, which costs nothing:
+every pixel it computes outside the extfov is discarded downstream, once
+where the box-local mask is embedded and again where the mask is
+intersected with the box region, so clipping first changes no result.
+
+The envelope box the symmetry axis reads stays UNCLIPPED, because ``oops``
 evaluates fine at off-detector pixel coordinates while a clipped box would
 leave zero surface-intercept pixels on exactly the off-edge frames the
-visibility condition exists for.
+visibility condition exists for.  It is bounded by UNDERSAMPLING instead.
+Striping would bound its memory too, and would cost no accuracy, but it
+would not bound its TIME: the work is one evaluation per sample however the
+samples are grouped, and seventy times the frame's area is seventy frames'
+work.  Undersampling is the bound that reaches the cost itself, and what it
+spends is angular resolution.
+
+The axis is one angle, ``atan2`` of the offset from the disc centre to the
+minimum-incidence pixel, which is the sub-solar point on the SOLID body and
+projects ``r_solid * sin(phase)`` from the centre (``r_solid`` itself, at
+the limb, above 90 degrees of phase).  Sampling every k-th pixel locates
+that pixel to within the stride, so the angle moves by about
+``k / (r_solid * sin(phase))`` radians.  The stride is the smallest INTEGER
+that fits the box inside the sample cap, so it is the ceiling of
+``2 * r_env / sqrt(cap)``, the box side over the square root of the cap;
+just above a threshold that ceiling is up to twice the continuous estimate,
+and the cap is then only a quarter used.  Taking the estimate, the
+quantization is about ``2 * (r_env / r_solid) / (sqrt(cap) * sin(phase))``
+radians, and up to twice that in the band above a threshold.  It depends on
+the phase and on the envelope-to-solid ratio, which is 1.27 for Titan's
+2575 km radius under the 700 km atmosphere, and not on the body's apparent
+size, because the stride and the arm scale together; it is bounded, not
+vanishing.  At a million samples the estimate is 0.15 degrees at 90 degrees
+of phase, 0.29 at 30 and 0.84 at 10, and the worst case in the band above a
+threshold is 0.30, 0.58 and 1.68.  The worst case crosses the 0.5-degree
+step of the angle refinement below about 35 degrees of phase.  That
+refinement searches plus or minus 5 degrees around the initial axis, so the
+initial axis need only land inside that window, which it does above about
+3.5 degrees of phase; a disc at lower phase is nearly rotationally
+symmetric, where the axis matters least.
 """
 
 from __future__ import annotations
@@ -70,9 +110,11 @@ from spindoctor.nav_model.nav_model_body import (
     occluder_mask_for_body,
 )
 from spindoctor.nav_model.stars.catalog import stars_in_extfov
+from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.types import NDArrayBoolType
 
 __all__ = [
+    'OCCLUDER_STRIP_ROWS',
     'STAR_MASK_PHOTOMETRY_SPLIT_VMAG',
     'STAR_MASK_YBSC_MIN_VMAG',
     'NonFiniteInventoryError',
@@ -105,6 +147,15 @@ _RING_TARGET_SUFFIX: str = ':ring'
 """Suffix appended to a lowercase planet name to name its ring surface."""
 
 
+OCCLUDER_STRIP_ROWS: int = 128
+"""How many rows one sibling-occlusion evaluation covers at a time.
+
+See ``_striped_occlusion``. The same bound, for the same reason, as
+:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS`, whose
+docstring carries the reasoning and the measured agreement between a striped
+pass and a whole-frame one.
+"""
+
 _MASK_BOX_SLOP_PX: float = 0.5
 """Slop added when converting a field-of-view centre to a bounding-box index.
 
@@ -114,17 +165,6 @@ is widened by this much to compensate that frame shift. The inventory
 midpoint feeding the centre may itself be quantized by up to half a pixel,
 so the low edge of the box can still fall one pixel short; every consumer
 carries pad far in excess of that residual.
-"""
-
-
-_BOX_SAMPLE_STRIDE_PX: float = 1.0
-"""Sampling stride, in pixels, of the box meshgrids this module builds.
-
-:func:`_restricted_backplane` samples once per pixel.  A square lattice with
-this stride has covering radius ``stride / sqrt(2)``, so a disc whose radius
-is at least the stride always contains a sample: an envelope box that must
-contain such a body yet shows no surface intercept is a defect, while a body
-narrower than the stride can fall between samples and show none.
 """
 
 
@@ -373,22 +413,129 @@ def _body_scale(obs: Observation, config: Config) -> _BodyScale | None:
     )
 
 
+def _bbox_extent(bbox_nominal: tuple[int, int, int, int]) -> tuple[int, int]:
+    """Return the ``(width, height)`` of a nominal-frame bbox, in pixels."""
+    u_min, u_max, v_min, v_max = bbox_nominal
+    return max(0, u_max - u_min + 1), max(0, v_max - v_min + 1)
+
+
+def _bbox_undersample(bbox_nominal: tuple[int, int, int, int], max_samples: int) -> int:
+    """Return the stride that keeps a box within ``max_samples`` samples.
+
+    A body's apparent size sets the box, and nothing bounds it: a close
+    approach puts a body of thousands of pixels' radius inside a
+    thousand-pixel frame, and a backplane evaluated at one sample per pixel
+    over that box costs tens of times what the frame itself costs -- seventy,
+    for the 8688-square box of the module docstring over a 1024-square
+    frame.  Striding the grid bounds that cost by the sample count rather
+    than by the geometry, which striping the box would not: striping moves
+    the same work into smaller pieces, and it is the work that is unbounded
+    here.
+
+    The stride is an integer, so it steps rather than slides.  A box just
+    over a threshold takes the next stride up and lands at a quarter of the
+    cap: a 1001-square box under a cap of a million strides by 2 and samples
+    251001, where the continuous estimate ``side / sqrt(cap)`` says 1.001.
+    The stride is therefore up to twice that estimate, and whatever the
+    stride costs is up to twice what the estimate predicts.
+
+    Parameters:
+        bbox_nominal: ``(u_min, u_max, v_min, v_max)`` in pixel indices.
+        max_samples: Largest number of samples the grid may hold; a
+            non-positive value imposes no bound.
+
+    Returns:
+        The stride to sample each axis by, never less than 1.  A box already
+        within the bound samples every pixel.
+    """
+    width, height = _bbox_extent(bbox_nominal)
+    samples = width * height
+    if max_samples <= 0 or samples <= max_samples:
+        return 1
+    # Each axis rounds up, so the count a stride actually produces can exceed
+    # the count the exact division promised -- a 101x101 box under a cap of
+    # 2600 divides to a stride of 2 and then samples 51x51 = 2601.  Step until
+    # what it produces is inside the bound.
+    stride = max(1, math.ceil(math.sqrt(samples / max_samples)))
+    while _sampled_count(width, height, stride) > max_samples:
+        stride += 1
+    return stride
+
+
+def _sampled_count(width: int, height: int, stride: int) -> int:
+    """How many samples a stride actually takes over a box.
+
+    Parameters:
+        width: The box width in pixels.
+        height: The box height in pixels.
+        stride: The sampling stride along each axis.
+
+    Returns:
+        The number of grid points, both axes rounding up.
+    """
+    return math.ceil(width / stride) * math.ceil(height / stride)
+
+
+def _clip_bbox_to_extfov(
+    bbox_nominal: tuple[int, int, int, int],
+    extfov_shape_vu: tuple[int, int],
+    margin_vu: tuple[int, int],
+) -> tuple[int, int, int, int] | None:
+    """Intersect a nominal-frame bbox with the extended field of view.
+
+    Parameters:
+        bbox_nominal: ``(u_min, u_max, v_min, v_max)`` in pixel indices.
+        extfov_shape_vu: ``(rows, cols)`` of the extended frame.
+        margin_vu: ``(margin_v, margin_u)`` extfov margins, so nominal index
+            ``v`` sits at extfov row ``v + margin_v``.
+
+    Returns:
+        The clipped box, or ``None`` when it does not reach the extended
+        frame at all.
+    """
+    u_min, u_max, v_min, v_max = bbox_nominal
+    rows, cols = extfov_shape_vu
+    v_lo = max(v_min, -margin_vu[0])
+    v_hi = min(v_max, rows - margin_vu[0] - 1)
+    u_lo = max(u_min, -margin_vu[1])
+    u_hi = min(u_max, cols - margin_vu[1] - 1)
+    if v_hi < v_lo or u_hi < u_lo:
+        return None
+    return u_lo, u_hi, v_lo, v_hi
+
+
 def _restricted_backplane(
-    obs: Observation, bbox_nominal: tuple[int, int, int, int]
+    obs: Observation, bbox_nominal: tuple[int, int, int, int], *, undersample: int = 1
 ) -> tuple[Backplane, Meshgrid]:
-    """Build a one-sample-per-pixel backplane over a nominal-frame bbox.
+    """Build a backplane over a nominal-frame bbox.
 
     ``bbox_nominal`` is ``(u_min, u_max, v_min, v_max)`` in nominal-frame
-    pixel indices, which may run negative inside the extfov margin or past
-    the detector: ``oops`` backplanes evaluate at off-detector pixel
-    coordinates, and clipping the box would leave zero surface-intercept
-    pixels on exactly the off-edge frames the visibility condition targets.
+    pixel indices.  It may run negative inside the extfov margin or past the
+    detector: ``oops`` backplanes evaluate fine at off-detector pixel
+    coordinates, so nothing here clips the box.  Whether a box is clipped is
+    the caller's decision.  The symmetry axis keeps its envelope box
+    unclipped, because the sunward pixel it wants may lie off-frame; the
+    mask box arrives clipped, because its off-frame pixels are discarded
+    downstream.
+
+    Parameters:
+        obs: Observation snapshot.
+        bbox_nominal: The box to evaluate over.
+        undersample: Sample every ``undersample``-th pixel along each axis;
+            ``1`` samples every pixel.  The meshgrid reports the pixel
+            coordinate of every sample either way, so a caller reading
+            positions off it needs no correction for the stride, only the
+            knowledge that its answer is quantized by it.
+
+    Returns:
+        The backplane and the meshgrid it was built over.
     """
     u_min, u_max, v_min, v_max = bbox_nominal
     meshgrid = Meshgrid.for_fov(
         obs.fov,
         origin=(u_min + 0.5, v_min + 0.5),
         limit=(u_max + 0.5, v_max + 0.5),
+        undersample=max(1, undersample),
         swap=True,
     )
     return Backplane(obs, meshgrid=meshgrid), meshgrid
@@ -402,6 +549,7 @@ def _symmetry_axis(
     *,
     axis_min_offset_px: float,
     r_solid_px: float,
+    max_samples: int,
 ) -> tuple[float, bool]:
     """Return ``(theta_rad, axis_degenerate)`` from the incidence backplane.
 
@@ -410,8 +558,9 @@ def _symmetry_axis(
     anti-solar surface point, which becomes visible past 90 degrees phase
     and points the wrong way, so the choice is deliberately phase-free.)
     The axis angle is ``atan2`` of that pixel's offset from the disc center;
-    an offset shorter than ``axis_min_offset_px`` means a near-zero-phase
-    disc that is rotationally symmetric, where any axis is equally valid.
+    an offset shorter than ``axis_min_offset_px`` sampling strides means a
+    near-zero-phase disc that is rotationally symmetric, where any axis is
+    equally valid.
 
     Both ends of that difference are expressed in the same frame -- the
     field-of-view coordinate plus the extfov margin, which is what the
@@ -426,18 +575,47 @@ def _symmetry_axis(
             v_max)`` in nominal-frame pixel indices.
         center_vu: Predicted disc center in extfov coordinates.
         margin_vu: ``(margin_v, margin_u)`` extfov margins.
-        axis_min_offset_px: Offset below which the axis is degenerate.
+        axis_min_offset_px: Offset below which the axis is degenerate, at a
+            sampling quantum of one pixel: with the sunward pixel located to
+            one pixel and an arm this long, the axis is known to about
+            ``1 / axis_min_offset_px`` radians.  Under a stride the located
+            pixel can sit up to ``stride / sqrt(2)`` from the true one, so
+            the same angular floor is applied at the sampling quantum in
+            use, an arm of ``axis_min_offset_px * stride``.  A strided box
+            implies an envelope over about 500 pixels in radius, so the
+            stride reaches this guard only on frames of very low phase.
         r_solid_px: Apparent solid-body radius in pixels, which decides
             whether a box with no surface-intercept pixel is a frame
             condition or a defect.
+        max_samples: Largest grid the incidence backplane may be evaluated
+            over.  A box wider than this is strided rather than clipped,
+            because the pixel wanted is the sunward one and it can lie
+            outside the frame.  Striping it would bound the memory but not
+            the work, which is what is unbounded.  The stride is the
+            smallest integer fitting the box inside this, so it is the
+            ceiling of the box side over the square root of this, and the
+            side is twice the envelope radius: ``k`` is the ceiling of
+            ``2 * r_env / sqrt(max_samples)``, up to twice that estimate
+            just above a threshold.  The pixel it locates is the sub-solar
+            point on the solid body, ``r_solid * sin(phase)`` from the
+            centre (``r_solid``, at the limb, above 90 degrees of phase), so
+            the angle quantizes by about ``2 * (r_env / r_solid) /
+            (sqrt(max_samples) * sin(phase))`` radians and up to twice that:
+            for a million samples under the shipped 700 km atmosphere, 0.15
+            degrees at 90 degrees of phase, 0.29 at 30 and 0.84 at 10, or
+            0.30, 0.58 and 1.68 at worst.  The worst case crosses the
+            0.5-degree step of the angle refinement below about 35 degrees
+            of phase and its 5-degree search window only below about 3.5.
 
     Returns:
         ``(theta_rad, axis_degenerate)``.  The axis is degenerate when the
-        minimum-incidence pixel lies within ``axis_min_offset_px`` of the disc
-        center, and when the box holds no surface-intercept pixel around a
-        body narrower than the sampling stride.  The backplane mask marks
-        pixels with no surface intercept at all; an unlit surface is still
-        intercepted, so lighting never empties the box.
+        minimum-incidence pixel lies within ``axis_min_offset_px`` sampling
+        strides of the disc center -- the same angular floor, applied at the
+        sampling quantum in use -- and when the box holds no
+        surface-intercept pixel around a body narrower than the sampling
+        stride.  The backplane mask marks pixels with no surface intercept at
+        all; an unlit surface is still intercepted, so lighting never empties
+        the box.
 
     Raises:
         RuntimeError: If the incidence backplane's shape differs from its
@@ -447,8 +625,24 @@ def _symmetry_axis(
         Exception: Whatever the backplane raises when the incidence angle
             cannot be evaluated, after one log line naming the stage.
     """
+    # The pixel this search locates is fixed by the geometry, so the search,
+    # its cap and the stride-scaled degeneracy floor could all give way to
+    # projecting the sub-solar direction and clamping to the limb above 90
+    # degrees of phase (#594).
+    undersample = _bbox_undersample(bbox_nominal, max_samples)
+    if undersample > 1:
+        width, height = _bbox_extent(bbox_nominal)
+        IMAGE_LOGGER.info(
+            'Titan: envelope box is %d x %d px (%d samples); sampling every %d px '
+            'to stay within %d',
+            width,
+            height,
+            width * height,
+            undersample,
+            max_samples,
+        )
     try:
-        bp, meshgrid = _restricted_backplane(obs, bbox_nominal)
+        bp, meshgrid = _restricted_backplane(obs, bbox_nominal, undersample=undersample)
         incidence = bp.incidence_angle(TITAN_BODY_NAME)
         invalid = np.asarray(incidence.expand_mask().mask, dtype=bool)
         values = np.asarray(incidence.vals, dtype=np.float64)
@@ -464,17 +658,20 @@ def _symmetry_axis(
         )
     valid = ~invalid
     if not valid.any():
-        if r_solid_px >= _BOX_SAMPLE_STRIDE_PX:
+        # A square lattice with stride k has covering radius k / sqrt(2), so a
+        # disc of radius at least k always holds a sample: an empty box around
+        # such a body is a defect, while a body narrower than the stride can
+        # fall between samples.
+        if r_solid_px >= undersample:
             raise RuntimeError(
                 'Titan: no surface-intercept pixel in an envelope box that must contain '
-                f'the body (solid radius {r_solid_px:.3f} px, sampling stride '
-                f'{_BOX_SAMPLE_STRIDE_PX:.3f} px)'
+                f'the body (solid radius {r_solid_px:.3f} px, sampling stride {undersample} px)'
             )
         IMAGE_LOGGER.warning(
             'Titan: body narrower than the sampling stride (solid radius %.3f px, stride '
-            '%.3f px) shows no surface-intercept pixel; axis is degenerate',
+            '%d px) shows no surface-intercept pixel; axis is degenerate',
             r_solid_px,
-            _BOX_SAMPLE_STRIDE_PX,
+            undersample,
         )
         return 0.0, True
     index = np.unravel_index(int(np.argmin(np.where(valid, values, np.inf))), values.shape)
@@ -482,7 +679,10 @@ def _symmetry_axis(
     sun_v = float(uv[index][1]) + margin_vu[0]
     d_v = sun_v - center_vu[0]
     d_u = sun_u - center_vu[1]
-    if math.hypot(d_v, d_u) < axis_min_offset_px:
+    # The floor was set for a one-pixel sampling quantum; a strided box
+    # locates the sunward pixel only to within the stride, so the same
+    # angular floor needs an arm that many times longer.
+    if math.hypot(d_v, d_u) < axis_min_offset_px * undersample:
         return 0.0, True
     return math.atan2(d_v, d_u), False
 
@@ -664,6 +864,90 @@ class _ContaminantMask:
     occluded_fraction: float
 
 
+def _striped_occlusion(
+    *,
+    obs: Observation,
+    bbox_nominal: tuple[int, int, int, int],
+    sibling_ranges: list[tuple[str, float]],
+    subject_range_km: float,
+    planet: str | None,
+    ring_radii_km: tuple[float, float],
+) -> tuple[NDArrayBoolType | None, NDArrayBoolType | None]:
+    """Both occlusion masks over a box, a strip of rows at a time.
+
+    The bodies and the rings are asked about together because they are asked
+    about over the same box: one set of strips, and each strip's backplane
+    answers both questions before it is discarded.  The ring question reads
+    the ring radius as well as the ring-plane distance, so this is the one
+    striped site whose answer depends on a strided ring-radius array; that
+    array is the quantity whose strip-to-frame agreement is loosest, at
+    5.6e-12 of its value on the frame measured, which matters only for a
+    pixel sitting that near an annulus edge.
+
+    Parameters:
+        obs: Observation snapshot.
+        bbox_nominal: ``(u_min, u_max, v_min, v_max)`` of the mask box.
+        sibling_ranges: ``(body name, range_km)`` for the other bodies in the
+            field of view.
+        subject_range_km: Center range of the subject body; only strictly
+            nearer siblings and ring intercepts can hide it.
+        planet: The planet whose rings might occlude, or None for a frame with
+            no planet to speak of, which asks the rings nothing.
+        ring_radii_km: Inner and outer radius of the annulus treated as opaque.
+
+    Returns:
+        ``(body mask, ring mask)`` box-local, each None when nothing is hidden
+        -- the answers the whole-box calls give, to within the photon solver's
+        convergence tolerance.
+    """
+    u_min, u_max, v_min, v_max = bbox_nominal
+    height = v_max - v_min + 1
+    width = u_max - u_min + 1
+    if height <= 0 or width <= 0:
+        return None, None
+    # Preallocated and written into a strip at a time, as the ring model's
+    # striping is: keeping every strip and stacking at the end would hold the
+    # assembled mask twice over while it stacked.
+    body_mask: NDArrayBoolType = np.zeros((height, width), dtype=bool)
+    ring_mask: NDArrayBoolType = np.zeros((height, width), dtype=bool)
+    any_body = False
+    any_ring = False
+    for start in range(0, height, OCCLUDER_STRIP_ROWS):
+        stop = min(start + OCCLUDER_STRIP_ROWS, height)
+        try:
+            strip_bp, strip_meshgrid = _restricted_backplane(
+                obs, (u_min, u_max, v_min + start, v_min + stop - 1)
+            )
+        except Exception as exc:
+            IMAGE_LOGGER.error('Titan: mask-box backplane could not be evaluated: %s', exc)
+            raise
+        body = occluder_mask_for_body(
+            strip_bp,
+            TITAN_BODY_NAME,
+            sibling_ranges,
+            subject_range_km,
+            oversample_v=1,
+            oversample_u=1,
+        )
+        if body is not None:
+            body_mask[start:stop, :] = body
+            any_body = True
+        ring = (
+            None
+            if planet is None
+            else _ring_occlusion_local(strip_bp, planet, subject_range_km, ring_radii_km)
+        )
+        if ring is not None:
+            ring_mask[start:stop, :] = ring
+            any_ring = True
+        # The meshgrid is the other half of the strip and has to go with it:
+        # bound to a throwaway name it outlives the release and is only
+        # replaced once the next strip has been built beside it.
+        del strip_bp, strip_meshgrid, body, ring
+        release_transient_memory()
+    return body_mask if any_body else None, ring_mask if any_ring else None
+
+
 def _contaminant_mask(
     obs: Observation,
     config: Config,
@@ -704,34 +988,38 @@ def _contaminant_mask(
     mask_bbox = (u_min - pad_int, u_max + pad_int, v_min - pad_int, v_max + pad_int)
     occluder_ext: NDArrayBoolType = np.zeros(extfov_shape_vu, dtype=bool)
     contaminant_ext: NDArrayBoolType = np.zeros(extfov_shape_vu, dtype=bool)
-    try:
-        bp, _ = _restricted_backplane(obs, mask_bbox)
-    except Exception as exc:
-        IMAGE_LOGGER.error('Titan: mask-box backplane could not be evaluated: %s', exc)
-        raise
-    sibling_ranges = [
-        (name.upper(), float(entry.get('range', float('inf')))) for name, entry in siblings
-    ]
-    body_local = occluder_mask_for_body(
-        bp,
-        TITAN_BODY_NAME,
-        sibling_ranges,
-        subject_range_km,
-        oversample_v=1,
-        oversample_u=1,
-    )
-    planet = obs.closest_planet
-    radii = nav_config['ring_occlusion_radii_km']
-    ring_local = (
-        None
-        if planet is None
-        else _ring_occlusion_local(
-            bp, str(planet), subject_range_km, (float(radii[0]), float(radii[1]))
+    # Clipping here costs nothing and bounds the box by the frame instead of by
+    # the body's apparent size: a mask pixel outside the extended frame is
+    # dropped twice downstream, once by the embed and once by the box region,
+    # so the only thing evaluating it ever bought was the memory it took.
+    clipped_bbox = _clip_bbox_to_extfov(mask_bbox, extfov_shape_vu, margin_vu)
+    if clipped_bbox is None:
+        IMAGE_LOGGER.info('Titan: mask box lies outside the extended frame; occlusion not masked')
+    else:
+        sibling_ranges = [
+            (name.upper(), float(entry.get('range', float('inf')))) for name, entry in siblings
+        ]
+        # Evaluated a strip of rows at a time. Each sibling costs one whole-box
+        # occlusion backplane, and the box is the envelope plus twice the search
+        # window -- which is the extfov margin, 400 pixels on Voyager, so the box
+        # is most of the frame however small the body in it. Sixteen siblings
+        # over that box measured 12.3 GB (2026-09-05). oops materializes its
+        # intermediates over whatever meshgrid it is handed, so handing it a
+        # strip costs a strip's worth; the mask assembled from the strips is the
+        # mask the whole-box call returns.
+        planet = obs.closest_planet
+        radii = nav_config['ring_occlusion_radii_km']
+        body_local, ring_local = _striped_occlusion(
+            obs=obs,
+            bbox_nominal=clipped_bbox,
+            sibling_ranges=sibling_ranges,
+            subject_range_km=subject_range_km,
+            planet=None if planet is None else str(planet),
+            ring_radii_km=(float(radii[0]), float(radii[1])),
         )
-    )
-    for local in (body_local, ring_local):
-        if local is not None:
-            _embed_local(occluder_ext, local, mask_bbox, margin_vu)
+        for local in (body_local, ring_local):
+            if local is not None:
+                _embed_local(occluder_ext, local, clipped_bbox, margin_vu)
     contaminant_ext |= occluder_ext
     _paint_sibling_bboxes(contaminant_ext, siblings, margin_vu)
     _paint_bright_stars(
@@ -742,6 +1030,11 @@ def _contaminant_mask(
         vmag_limit=float(nav_config['star_mask_vmag_limit']),
         radius_px=float(nav_config['star_mask_radius_px']),
     )
+    # Deliberately the unclipped box, not the clipped one the backplanes were
+    # evaluated over.  The region indicator is built inside the extended frame
+    # either way, so the two give the same array; and the unclipped box is
+    # always there, where the clip is None for a box that never reaches the
+    # frame.
     contaminant_ext &= _mask_box_region(extfov_shape_vu, mask_bbox, margin_vu)
     fraction = occluded_disc_fraction(occluder_ext, center_vu, r_env_px)
     return _ContaminantMask(
@@ -909,6 +1202,7 @@ def geometry_from_obs(
         margin_vu,
         axis_min_offset_px=float(config.titan['navigation']['axis_min_offset_px']),
         r_solid_px=scale.r_solid_px,
+        max_samples=int(config.titan['navigation']['backplane_max_samples']),
     )
     contaminant = _contaminant_mask(
         obs,
