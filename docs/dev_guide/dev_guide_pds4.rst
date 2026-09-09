@@ -63,6 +63,41 @@ Cloud-tasks variant ``sd_create_bundle_cloud_tasks`` reads the same task JSON
 schema as ``sd_offset_cloud_tasks`` (see :doc:`/user_guide/user_guide_navigation`) so the
 same task queue can drive offset + backplane + bundle in three queue passes.
 
+Exit status
+-----------
+
+``sd_create_bundle labels`` counts the images whose labels it did not write --
+an image whose data or browse label failed to render, and an image whose inputs
+it could not read -- and exits 1 when that count is not zero.  It closes with a
+line giving that count alongside the number of images it labeled and the number
+it skipped, so a selection that matched nothing reads as the zero it is.  It
+counts a batch that did not hold exactly one image the same way; that is a
+guard on the one-image-per-batch invariant
+:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` also
+asserts, and no selection argument this dataset offers can produce one.
+
+An image the bundle has nothing to describe is skipped rather than failed and
+does not count against the run: an image with no navigation metadata document,
+an image whose navigation status is not ``success``, and a navigated image with
+no backplane metadata document are all cases of a selection naming more images
+than the bundle covers, which is the ordinary state of a selection made by
+volume.  A document that is there but cannot be read is a different thing: the
+generation raises, the driver logs the traceback naming the image, counts the
+image against the run, and carries on to the next one.
+
+A dry run reports what it would have processed and exits 0.  It writes nothing,
+so it counts nothing against the run, including a batch it reports it could not
+have processed.
+
+``sd_create_bundle summary`` counts the collection and index labels it did not
+write, over both generators, and exits 1 the same way.  The inventory and index
+``.tab`` tables are written either way.
+
+``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
+``status: error`` result carrying ``status_error: label_not_written``, and asks
+for no retry: a template that could not be rendered will not render on a second
+attempt.
+
 Per-dataset extension points
 ============================
 
@@ -151,19 +186,67 @@ A typical render looks like:
 
    import pdstemplate
 
+   from spindoctor.cli.pds4.labels import write_label
+
    template_path = template_dir / 'data.lblx'
    variables = dataset.pds4_template_variables(
        image_file=image_file,
        nav_metadata=nav_metadata,
        backplane_metadata=backplane_metadata,
    )
-   template = pdstemplate.Template(str(template_path))
-   rendered = template.generate(variables)
-   destination.write_text(rendered)
+   template = pdstemplate.PdsTemplate(str(template_path))
+   if write_label(template, variables, destination, logger=logger):
+       logger.info('Generated PDS4 label: %s', destination)
 
 The ``pdstemplate`` library handles the XML escaping, the expression syntax,
 and the per-template error reporting; consumers only supply the variable
-dictionary and the destination path.
+dictionary and the destination path.  The destination is an ``FCPath`` naming
+the label's place in the bundle, never a local cache path standing in for it:
+on a cloud bundle root those are two different files, and the label belongs in
+the bundle.
+
+Label-write failures
+--------------------
+
+Constructing a ``PdsTemplate`` raises when the template file is not there.
+Rendering one does not raise: an unresolved variable, a failed expression or a
+template validation error is reported through the ``(errors, warnings)`` pair
+``write`` returns, so a caller that discards it cannot tell a product that got a
+label from one that did not.
+
+Every label the bundle stage writes therefore goes through
+:func:`~spindoctor.cli.pds4.labels.write_label`, which renders in
+``pdstemplate``'s ``repair`` mode and acts on what comes back:
+
+- Warnings are logged at warning level, and the label is written.
+- Errors are logged at error level naming the label path, and the label is not
+  written.  A render that drew errors writes nothing at all, so a label an
+  earlier run left at that path would survive untouched and stand in the bundle
+  for the label this run could not write; it is removed instead.  A bundle that
+  mixes one run's products with another's is harder to diagnose than one
+  missing a label.
+
+Repair mode reads back whatever is already at the label path in order to
+compare it with what it rendered, so a file left there by a killed run that is
+not readable as text ends the render.  That file is removed too and the label
+counts as not written, which leaves an operator's re-run a clear path to write
+on.
+
+A failed render does not stop the run.  Both of an image's labels are attempted
+when the image has both products, and so is every collection and index label, so
+a single run reports every label it could not write rather than one per run.
+Whichever labels did render stay on disk, and the driver's exit status is what
+says the bundle is incomplete.
+
+An image whose navigation left no summary PNG has no browse product, so no
+browse label is rendered for it and none is counted against the run.  The
+browse collection's inventory is built from the data labels, so it lists a
+browse product that image does not have; reconciling the inventories with what
+is on disk belongs to the collection stage rather than to the label writer.
+
+A label whose template file is not in the dataset's template directory is
+skipped rather than failed, and does not affect the exit status.  This is what
+lets a dataset ship a partial template set.
 
 Template tree
 -------------
@@ -278,3 +361,5 @@ documented above.
   + bundle assembly.
 - :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` — per-bundle bodies
   / rings global indexes.
+- :func:`~spindoctor.cli.pds4.labels.write_label` — the one place a label is
+  written, shared by both.

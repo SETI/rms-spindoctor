@@ -266,6 +266,61 @@ The summary pass generates:
     values for each configured ring backplane type (formatted to 5 decimal places)
   * ``global_index_rings.lblx``: PDS4 label for the rings index
 
+Exit Status
+===========
+
+Both passes exit 0 only when every label they set out to write is on disk. A
+label whose template file is not in the dataset's template directory is one the
+pass never set out to write, and is skipped without affecting the exit status.
+
+A label is not written when its template cannot be rendered: an unresolved
+template variable, an expression that fails, or a value the template rejects.
+The label path and the number of errors are logged at error level, no label is
+left at that path (including one an earlier run wrote there), and the pass
+carries on, so a single run reports every label it could not write rather than
+one per run.
+
+* ``sd_create_bundle labels`` exits 1 when an image's data label or browse label
+  was not written, or when an image's inputs could not be read. It closes with a
+  line giving the number of images it labeled, the number it skipped and the
+  number whose labels it did not write, so a selection that matched no images at
+  all reads as the zero it is.
+
+  An image the bundle has nothing to describe is skipped, not failed, and does
+  not affect the exit status: an image with no navigation metadata document, an
+  image whose navigation did not succeed, and a navigated image with no
+  backplane metadata document. A selection made by volume ordinarily names far
+  more images than have been navigated and backplaned, and a run over one is
+  mostly skips.
+
+  An image whose navigation left no summary PNG has no browse products, so it
+  gets no browse label and is not failed for the one it does not have. What a
+  browse collection then says about that image is covered below.
+
+  ``--dry-run`` reports what the run would have processed and exits 0. It writes
+  nothing, so it counts nothing against the run.
+
+* ``sd_create_bundle summary`` exits 1 when any collection or global index label
+  was not written. The inventory and index ``.tab`` tables are written either
+  way.
+
+* ``sd_create_bundle_cloud_tasks`` returns a ``status: error`` result carrying
+  ``status_error: label_not_written`` for a task whose label was not written, and
+  asks for no retry, because a template that could not be rendered will not
+  render on a second attempt.
+
+A non-zero exit means the bundle is incomplete: the labels that did render are
+still in place, and the log names the ones that did not.
+
+The inventories and index tables the summary pass writes are built from what is
+in the bundle's ``data/`` tree, so a run in which some images were skipped or
+failed leaves the bundle internally inconsistent -- a browse product listed in
+``collection_browse.tab`` that is not on disk, or an index row naming a label
+that is not there -- and the summary pass is silent about it. Its exit status
+does not report this: a labels pass that skipped images exits 0, and the
+summary pass that follows it exits 0 as well. Take the labels pass's closing
+line as the account of what the bundle covers.
+
 Configuration
 =============
 
@@ -406,6 +461,11 @@ Common Issues
 
 * **Collection files incomplete**: Ensure all images have been processed in the labels
   pass before running the summary pass.
+
+* **Label not written**: the run logs ``Rendering PDS4 label ... drew N error(s)``
+  and exits non-zero. The ``pdstemplate`` lines just above it name the template
+  expression that failed; the usual cause is a template variable the dataset's
+  ``pds4_template_variables()`` does not supply.
 
 Getting Help
 ------------
