@@ -18,6 +18,7 @@ from spindoctor.config import (
     strict_scope_override,
 )
 from spindoctor.config.log_scope import _reset_reported_call_sites
+from tests.mini_nav_results.cohort import Cohort, write_cohort
 
 
 @pytest.fixture(autouse=True)
@@ -279,3 +280,23 @@ def child_interpreter_environment() -> dict[str, str]:
         f'{source_root}{os.pathsep}{inherited}' if inherited else str(source_root)
     )
     return environment
+
+
+@pytest.fixture(scope='session')
+def mini_nav_cohort(tmp_path_factory: pytest.TempPathFactory) -> Cohort:
+    """Return the bundle cohort, built once for the whole session.
+
+    The PDS4 phases assert against a navigation root and a backplane root that
+    hold real products -- a FITS an astropy reader reopens, a PNG with a size
+    and a checksum, and the documents beside them -- and building those per
+    test would rewrite a FITS for every label a test looks at.  It is built
+    into a temporary directory and torn down with the session, so nothing it
+    produces reaches the working tree.
+
+    Parameters:
+        tmp_path_factory: Factory the cohort root is made under.
+
+    Returns:
+        The written cohort.
+    """
+    return write_cohort(tmp_path_factory.mktemp('mini_nav_cohort'))

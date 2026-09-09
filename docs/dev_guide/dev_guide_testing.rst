@@ -243,6 +243,16 @@ navigate in-process and need no holdings.
      - Regenerates the simulator regression baselines under ``sim_baselines/``.
    * - ``python -m tests.integration.update_baselines``
      - Regenerates the real-image regression baselines (needs holdings).
+   * - ``python -m tests.mini_nav_results results_tree
+       tests/spindoctor/cli/stats/data/results_tree``
+     - Rewrites the stored statistics fixture tree through the navigation
+       metadata writer. The frozen report output has to be re-ratified against
+       whatever it wrote.
+   * - ``python -m tests.mini_nav_results cohort <outdir>``
+     - Writes the PDS4 bundle cohort -- navigation documents, browse PNGs,
+       backplane FITS files and their metadata -- for pointing a bundle run or
+       a schema validator at without navigating anything. Nothing it writes is
+       checked in; the suite builds its own copy into a temporary directory.
 
 After a deliberate change that shifts a baseline or a figure, rerun the relevant
 updater or runner and review the diff before committing -- the baselines are

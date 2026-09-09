@@ -357,6 +357,55 @@ A finished bundle has the standard PDS4 directory shape:
        global_index_rings.lblx
        global_index_rings.csv
 
+Testing bundle generation
+=========================
+
+The suite asks two different questions of the bundle stage, and answers them in
+two different environments.
+
+The first is plumbing: which file goes where, which variable reaches which
+template, what a render that errors leaves behind. Those tests run a duck-typed
+dataset over tiny templates the test itself wrote, so every variable in play is
+one the test controls and a failure names the wiring that broke.
+
+The second is content: what a label actually says. Those tests run the
+registered
+:class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISSSaturn`
+over the shipped ``cassini_iss_saturn_1.0`` templates, on the products a
+navigation run and the backplane stage leave behind. Neither environment
+answers the other's question: a label rendered from a template the test wrote
+says whatever the test put there, and a plumbing failure inside the shipped
+template set is a needle in three hundred lines of XML.
+
+The inputs for the second come from ``tests/mini_nav_results``, a package that
+builds a miniature of what a navigation run leaves on disk -- three Cassini
+images, of which two navigated and one did not; a real backplane FITS and its
+metadata document per navigated image, written by the backplane stage's own
+:func:`~spindoctor.cli.backplanes.writer.write_fits`; a real summary PNG,
+because the browse label states its size and its checksum; and the index row an
+enumeration hands on with each image. The two navigated images shard into
+different bundle directories and only one of them has ring backplanes, so a
+run over the cohort exercises both layouts.
+
+Every image is built from its epoch and nothing else. The spacecraft clock
+readings a document records and the number the image is named for are both
+derived from it, so no document of the cohort can carry a reading its own
+epoch does not convert to.
+
+Nothing the cohort produces is checked in. A test takes it as a session-scoped
+fixture, ``mini_nav_cohort``, built into a temporary directory and torn down
+with the session; a test asserts that none of its products reaches the working
+tree. To build one outside the suite -- to point a bundle run or a schema
+validator at without waiting for a navigation run:
+
+.. code-block:: bash
+
+   PYTHONPATH=src python -m tests.mini_nav_results cohort /tmp/cohort
+
+Adding an instrument to the cohort is a module beside ``cohort_cassini``. The
+FITS files, the browse images and the documents it implies exist only while a
+test is running, so it costs the repository nothing.
+
 Adding PDS4 support to a new dataset
 ====================================
 

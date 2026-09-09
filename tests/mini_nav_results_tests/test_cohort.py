@@ -11,12 +11,17 @@ The rest is the layout the bundle stage is built over: two images that shard
 into different bundle directories, one with ring backplanes and one without.
 """
 
+import json
+import subprocess
+from pathlib import Path
 from typing import Any
 
 import pytest
+from astropy.io import fits
 
 from spindoctor.dataset import DataSetPDS3CassiniISSSaturn
 from tests.mini_nav_results import cohort_documents
+from tests.mini_nav_results.cohort import Cohort
 from tests.mini_nav_results.cohort_cassini import (
     LIMB_IMAGE_NAME,
     RINGS_IMAGE_NAME,
@@ -105,3 +110,103 @@ def test_the_two_navigated_images_shard_into_different_bundle_directories() -> N
         for name in (LIMB_IMAGE_NAME, RINGS_IMAGE_NAME)
     ]
     assert shards[0] != shards[1]
+
+
+_BODY_HDU_NAMES = (
+    'BODY_LONGITUDE',
+    'BODY_LATITUDE',
+    'BODY_INCIDENCE_ANGLE',
+    'BODY_EMISSION_ANGLE',
+    'BODY_PHASE_ANGLE',
+    'BODY_FINEST_RESOLUTION',
+    'BODY_COARSEST_RESOLUTION',
+)
+"""The image HDUs a frame with body backplanes carries, in the order written."""
+
+_RING_HDU_NAMES = (
+    'RING_RADIUS',
+    'RING_LONGITUDE',
+    'RING_EMISSION_ANGLE',
+    'RING_PHASE_ANGLE',
+    'RING_RADIAL_RESOLUTION',
+    'RING_LONGITUDINAL_RESOLUTION',
+)
+"""The image HDUs a frame with ring backplanes carries as well."""
+
+
+def test_each_fits_carries_the_hdus_its_backplanes_imply(mini_nav_cohort: Cohort) -> None:
+    """A reader opens a real FITS and finds the planes the image was navigated on.
+
+    The byte blob a stand-in writes has no HDUs to find, and the label states
+    where in the file each array begins.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+    """
+    found: dict[str, tuple[str, ...]] = {}
+    for image in cohort_images():
+        if not image.navigated:
+            continue
+        path = mini_nav_cohort.backplane_results_root / f'{image.stub}_backplanes.fits'
+        with fits.open(path) as hdul:
+            found[image.image_name] = tuple(hdu.name for hdu in hdul)
+    assert found == {
+        LIMB_IMAGE_NAME: ('PRIMARY', 'BODY_ID_MAP', *_BODY_HDU_NAMES),
+        RINGS_IMAGE_NAME: ('PRIMARY', 'BODY_ID_MAP', *_BODY_HDU_NAMES, *_RING_HDU_NAMES),
+    }
+
+
+def test_each_backplane_document_names_the_planes_its_fits_carries(
+    mini_nav_cohort: Cohort,
+) -> None:
+    """The index columns come from one and the arrays from the other.
+
+    A document naming a plane the FITS does not carry, or missing one it does,
+    puts a global index column beside an array that is not the one it measures.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+    """
+    disagreeing: list[str] = []
+    for image in cohort_images():
+        if not image.navigated:
+            continue
+        stem = mini_nav_cohort.backplane_results_root / image.stub
+        with fits.open(Path(f'{stem}_backplanes.fits')) as hdul:
+            in_the_fits = {hdu.name for hdu in hdul} - {'PRIMARY', 'BODY_ID_MAP'}
+        document = json.loads(Path(f'{stem}_backplane_metadata.json').read_text(encoding='utf-8'))
+        named: set[str] = set()
+        for body in document['bodies'].values():
+            named |= {name.upper() for name in body['backplanes']}
+        named |= {name.upper() for name in document['rings'].get('backplanes', {})}
+        if named != in_the_fits:
+            disagreeing.append(
+                f'{image.image_name}: the document names {sorted(named)} and the FITS '
+                f'carries {sorted(in_the_fits)}'
+            )
+    assert disagreeing == []
+
+
+def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> None:
+    """The cohort is built where it is torn down, and nothing it writes is committed.
+
+    Its products are named for their images, so a file of one of those names
+    anywhere in the repository is a build that escaped the temporary directory
+    -- reported here rather than committed by whoever runs ``git add`` next.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+    """
+    repository = Path(__file__).resolve().parents[2]
+    if not (repository / '.git').exists():
+        pytest.skip('not a git checkout')
+    reported = subprocess.run(
+        ['git', 'status', '--porcelain', '--untracked-files=all'],
+        cwd=repository,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    product_names = {path.name for path in mini_nav_cohort.written}
+    escaped = [line for line in reported if Path(line[3:]).name in product_names]
+    assert escaped == []

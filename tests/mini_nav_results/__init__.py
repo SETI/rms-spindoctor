@@ -48,10 +48,18 @@ holds the ``*_backplanes.fits`` files and the ``*_backplane_metadata.json``
 documents the backplane stage leaves under ``backplane_results_root``.  The
 statistics tree is documents alone; the cohort is both.
 
-Run the package as a script, from the repository root, to write the tree
-again::
+Run the package as a script, from the repository root, naming the set to write
+and where to write it::
 
-    PYTHONPATH=src python -m tests.mini_nav_results
+    PYTHONPATH=src python -m tests.mini_nav_results results_tree \\
+        tests/spindoctor/cli/stats/data/results_tree
+    PYTHONPATH=src python -m tests.mini_nav_results cohort <outdir>
+
+Both arguments are required in both forms, and the statistics path is spelled
+out rather than defaulted, so that regenerating a checked-in fixture tree is
+something the operator asked for by name.  The cohort form is what an operator
+points a bundle run and a schema validator at without waiting for a navigation
+run.
 
 The stored tree is then what the writer emits, and the frozen report output has
 to be re-ratified against it.  ``test_results_tree_documents.py`` holds the two
@@ -116,6 +124,7 @@ from .cassini import (
     cassini_star_and_limb,
     cassini_suspect_offset,
 )
+from .cohort import Cohort, write_cohort
 from .cohort_cassini import cohort_images
 from .shared import COISS_SUBTREE, VGISS_SUBTREE
 from .simulated import simulated_scene
@@ -123,9 +132,11 @@ from .voyager import voyager_no_features, voyager_ring_edges
 
 __all__ = [
     'RESULTS_TREE',
+    'Cohort',
     'cohort_documents',
     'results_tree_documents',
     'stored_documents',
+    'write_cohort',
     'write_results_tree',
 ]
 

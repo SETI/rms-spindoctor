@@ -24,8 +24,8 @@ rather than from reading alone: section 2 records what that run produced and
 what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`.
 
-Phase 1 has run; Phases 2-10 have not. Two changes landed ahead of the
-phases, both because they must precede anything generated against them: the
+Phases 1 and 2 have run; Phases 3-10 have not. Two changes landed ahead of
+the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
 so has to be settled before a label describes one.
@@ -45,8 +45,8 @@ this table first and trusts it over any recollection.
 |---|---|---|
 | Landed ahead: rings dictionary to `1F00` | **done** | `ed0b9e15`, section 3.9 |
 | Landed ahead: backplane masked value `-999` | **done** | `04b84a62`, section 3.13 |
-| 1 — Surface label-write failures | **done** | `6c089447` plus the review rulings applied on `rf_pds4_phase1`, section 4 |
-| 2 — The synthetic cohort | not started | |
+| 1 — Surface label-write failures | **done** | `674cd782` plus the review rulings, on `rf_pds4_phase1`, section 4 |
+| 2 — The synthetic cohort | **done** | `rf_pds4_phase2`, sections 3.12 and 4 |
 | 3 — Epochs | not started | |
 | 4 — The FITS in the bundle, with its data objects | not started | |
 | 5 — Inventories that conform | not started | |
@@ -597,26 +597,21 @@ of it can depend on holdings, on SPICE, or on a navigation run. A test that
 needs a navigated Cassini frame to check that a `Target_Identification` block
 appeared is a test that will not run in CI and will rot.
 
-Most of what is needed already exists and must not be rebuilt.
-`tests/spindoctor/cli/stats/results_tree_documents/` is a package that builds
-navigation documents **through the production writer** --
+`tests/mini_nav_results/` is the package that builds navigation documents
+**through the production writer** --
 `build_metadata_from_result` and `build_timing_section` from
 `navigate_image_files` -- over hand-constructed `NavResult` objects. It
 touches no SPICE and no holdings, it covers three instruments, three
 outcomes, BOTSIM pairs and gated features, and it derives every spacecraft
-clock reading from the epoch beside it rather than inventing one. It is
-regenerated with:
+clock reading from the epoch beside it rather than inventing one.
 
-```bash
-PYTHONPATH=src python -m tests.spindoctor.cli.stats.results_tree_documents
-```
-
-That package is the nav half of the cohort, but not by extending the set it
-already holds. The two sets are selected for different things. The eight
-documents in `results_tree_documents()` are chosen for what they make the
-*statistics report* exercise -- three outcomes, four feature sources, a
-BOTSIM pair, a suspect offset -- and the package docstring states that every
-document earns its place there. An image added for bundle sharding earns
+That package is the nav half of the cohort, and it holds the cohort in a set
+of its own rather than by extending the set it already held. The two sets are
+selected for different things. The eight documents in
+`results_tree_documents()` are chosen for what they make the *statistics
+report* exercise -- three outcomes, four feature sources, a BOTSIM pair, a
+suspect offset -- and the package docstring states that every document earns
+its place there. An image added for bundle sharding earns
 nothing in that report; it adds rows to a fixture whose whole value is that
 each row is deliberate.
 
@@ -624,18 +619,18 @@ The stored golden output is cheap to regenerate and no one has signed it
 off, so the cost of touching it is not the argument. The argument is that a
 fixture selected for two unrelated criteria stops being legible for either.
 
-So the package gains a **second document set**, `cohort_documents()`, built
+So the package holds a **second document set**, `cohort_documents()`, built
 from the same `shared.py` primitives and written to a cohort root rather
 than into `RESULTS_TREE`. `results_tree_documents()` and the stats fixture
-tree are untouched.
+tree are untouched by it.
 
 **The cohort is never checked in.** It is built at test time into `tmp_path`
 and torn down with it; no cohort bytes live under `tests/`, and the
 `python -m tests.mini_nav_results cohort <outdir>` form writes wherever the
 operator points it. The builders are the artifact, not their output. That is
 what keeps a fifth instrument's cohort from costing the repository anything
--- adding one is a module beside `cassini.py`, and the FITS, the PNGs and
-the tables it implies exist only while a test is running.
+-- adding one is a module beside `cohort_cassini.py`, and the FITS, the PNGs
+and the tables it implies exist only while a test is running.
 
 The two sets differ on this deliberately, and it is worth saying why rather
 than leaving it to look like an inconsistency. The stats tree stays stored
@@ -662,9 +657,10 @@ What the cohort set holds beyond the documents:
 - **Backplane metadata beside each FITS**, whose `bodies` and `rings`
   statistics name the same backplanes the FITS carries, since the global
   index columns come from one and the arrays from the other.
-- **`ImageFile`s carrying `index_file_row`**, because thirty of the
-  `cassini:*` template variables are read from the PDS3 index row and Phase 8
-  puts them in the label. No index file is parsed; the row is a dict.
+- **`ImageFile`s carrying `index_file_row`**, because sixty-six of the
+  seventy `cassini:*` template variables are read from the PDS3 index row and
+  Phase 8 puts them in the label. No index file is parsed; the row is a dict,
+  keyed by the index file's own column names.
 - **Coverage the bundle stage cares about**, which the stats corpus has no
   reason to carry: two images whose numbers shard into *different*
   `1234xxxxxx/123456xxxx` directories, one image with ring backplanes and one
@@ -673,12 +669,13 @@ What the cohort set holds beyond the documents:
 Two rules bind the additions.
 
 **Epochs first, everything else derived.** #530 is the open record of what
-happens otherwise: four Cassini documents in the existing set carry clock
+happens otherwise: four Cassini documents in the statistics set carry clock
 seconds taken from the image number rather than converted from the epoch
 beside them. The response here is not a test that exempts those four. It is
 a `shared.py` constructor that takes an epoch and returns the clock triple,
-so a document built through it cannot carry an invented one. The cohort set
-is built entirely through it. Routing the existing four through it as well
+so a document built through it cannot carry an invented one, and a second
+beside it derives the image number from the same epoch. The cohort set is
+built entirely through both. Routing the existing four through it as well
 is #530's own work -- a coordinated change to four documents, four
 filenames, the `filtered` variant's image-number bounds and both goldens,
 which belongs in a PR about the statistics fixtures rather than on a PDS4
@@ -690,15 +687,15 @@ fixture too, called with synthetic arrays. A fixture built by a second,
 parallel writer is a fixture that stops describing the product the moment
 the real writer changes.
 
-The package moves to `tests/mini_nav_results/`, beside `tests/shims/` and
+The package sits at `tests/mini_nav_results/`, beside `tests/shims/` and
 `tests/cmatrix_helpers.py`, because a package two suites import should not
-live inside one of them, and takes the shorter name on the way: it is a
+live inside one of them, and it takes the shorter name because it is a
 miniature of what a navigation run leaves behind, which is what every
-consumer of it wants it for. The move and rename are import-only -- the
+consumer of it wants it for. Getting it there was import-only -- the
 documents it emits are unchanged, so the stats suite's stored golden output
-does not move.
+did not move.
 
-The backplane products it grows are not, strictly, navigation results: they
+The backplane products it writes are not, strictly, navigation results: they
 live under `backplane_results_root`, not `nav_results_root`. The name is
 still the right one, because what the package models is the state of disk
 after a navigation run and the stages that follow it, and no reader will
@@ -819,7 +816,7 @@ requires.
 
 ### Phase 1 — Surface label-write failures
 
-**Done, `6c089447`, with the review rulings that followed it applied on
+**Done, `674cd782`, with the review rulings that followed it applied on
 `rf_pds4_phase1`.**
 
 All six `template.write` call sites go through one helper,
@@ -913,66 +910,55 @@ in Phase 10.
 
 ### Phase 2 — The synthetic cohort
 
-Build the fixture cohort section 3.12 describes, so that every phase after
-this one can assert against the shipped templates without holdings, without
-SPICE and without navigating anything.
+**Done, `rf_pds4_phase2`.**
 
-Three commits:
+`tests/mini_nav_results/` is the fixture cohort section 3.12 describes: the
+package moved out of the statistics suite that held it, with two document sets
+built through the production writers. `results_tree_documents()` is the statistics fixture
+tree, unchanged and still stored under `tests/spindoctor/cli/stats/data/`;
+`cohort_documents()` is the three Cassini images bundle generation is asserted
+against, and is never stored.
 
-1. **Move and rename** `tests/spindoctor/cli/stats/results_tree_documents/`
-   to `tests/mini_nav_results/`. Three things follow it: its one importer,
-   `tests/spindoctor/cli/stats/test_results_tree_documents.py` (whose own
-   name still describes what it tests and stays); the regeneration command
-   in the package docstring; and the docstring itself, which gains a line
-   naming the roots the package writes. The `results_tree_documents()`
-   function keeps its name -- it returns the documents of the results tree,
-   which is still what it does. Import-only: the emitted documents are
-   byte-identical, so the stats golden report is untouched. Verify that by
-   regenerating the tree and confirming `git diff` over
-   `tests/spindoctor/cli/stats/data/results_tree` is empty.
+The cohort is two navigated images and one that is not. The two shard into
+different `1234xxxxxx/123456xxxx` pairs at both levels, one carries ring
+backplanes and one carries none, and each navigated image has a real
+`astropy`-written FITS of 16x16 planes, the backplane metadata document beside
+it, and a real summary PNG. Every image carries the index row an enumeration
+hands on with it, keyed by the index file's own column names.
 
-2. **Add a second document set**, `cohort_documents()`, over the same
-   `shared.py` builders -- not more entries in `results_tree_documents()`.
-   The stats fixture tree and both goldens are untouched, and a test asserts
-   that: regenerate, and `git diff` over
-   `tests/spindoctor/cli/stats/data/` is empty. The cohort set holds the
-   images the bundle stage needs and the report has no use for -- two
-   sharding into different `1234xxxxxx/123456xxxx` pairs, one with ring
-   backplanes, one that did not navigate -- plus what bundle generation
-   reads: a `backplanes` module calling `writer.py:write_fits` with
-   synthetic 16x16 arrays for a real FITS and its metadata sidecar, a
-   summary PNG, and `index_file_row` dicts carrying the COISS index columns
-   `pds4_template_variables` reads. Every clock triple built through the
-   epoch-first constructor described in section 3.12, which is added here
-   and which the existing four documents do not yet use.
+`backplanes.py` calls `writer.py:write_fits` with synthesized arrays rather
+than writing a FITS of its own, so the fixture drifts when the product does. It
+hands the writer an observation that reports itself simulated and carries an
+inventory dict, which is all the writer reads before it stops asking about
+SPICE.
 
-3. **The cohort builder**, as `tests/mini_nav_results/cohort.py`: it
-   assembles nav root, backplane root and `ImageFiles` list into one object
-   the tests take as a session-scoped fixture, written into a temporary
-   directory and torn down with it. Nothing it produces is committed.
-   `__main__.py` becomes the two-argument entry point of section 3.12 -- set
-   name, then output directory, both required for both sets. The statistics
-   regeneration command changes shape with it, so update the one place it is
-   written down (the package docstring) and any test docstring that quotes
-   it.
+Every clock reading and every image number is derived from one epoch, through
+`shared.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
+from one correlation point the mission clock kernel gives, and stamped onto a
+result by `with_pointing_from_epoch`, which takes no clock argument at all.
+Routing the four existing Cassini documents of the statistics set through the
+same constructor is #530's own work: it is a coordinated change to four
+documents, four filenames, the `filtered` variant's image-number bounds and
+both goldens, and it belongs in a PR about the statistics fixtures.
 
-Then repoint the PDS4 suite. `tests/spindoctor/cli/pds4/conftest.py` keeps
-`FakePds4DataSet` and its tiny templates — they exist to test the *plumbing*
-with variables the tests control, and that is still worth having. What it
-gains is a second environment built on the cohort, using the real
-`DataSetPDS3CassiniISSSaturn` hooks and the real shipped templates, which is
-what every phase after this one asserts against.
+`cohort.py` assembles the two roots and the `ImageFiles` list, and
+`tests/conftest.py` serves the result as the session-scoped `mini_nav_cohort`
+fixture. `python -m tests.mini_nav_results` takes the set to write and where to
+write it, both required for both sets.
+`tests/spindoctor/cli/pds4/conftest.py` keeps `FakePds4DataSet` for the
+plumbing questions and gains `CohortBundleEnv`, which runs the registered
+Cassini dataset over the shipped templates and is what the phases after this
+one assert against.
 
-Tests: the cohort writes a FITS `astropy` reopens with the expected HDU
-names; the two Cassini images land in different shard directories; each
-image's backplane metadata names the same backplanes its FITS carries; the
-non-success image is present and is skipped by the bundle stage; every
-cohort clock triple spans the epochs beside it; and the stats fixture tree
-regenerates byte-identical. Plus one guard that the cohort stays ephemeral:
-`git status` is clean after the suite runs, so a cohort written into the
-working tree by mistake is reported rather than committed.
+Two things the phase does not reach. An enumeration reads only the index
+columns it declares -- `FILE_SPECIFICATION_NAME` and `INSTRUMENT_ID` for
+Cassini -- so the `cassini:*` template variables read from an index row are
+empty on every real run today whatever the cohort holds; that is Phase 8's, and
+is recorded there. And a dozen of those variables name columns the COISS index
+has no such column for; the cohort uses the index's own names, so those render
+empty in the fixture exactly as they do on a real image.
 
-No issue closes here. This phase exists because the nine after it are
+No issue closes here. This phase exists because the eight after it are
 untestable without it.
 
 ### Phase 3 — Epochs
@@ -1101,6 +1087,23 @@ body present in the image's backplane metadata.
 variables. Ring geometry class fields and the ring incidence angle in the
 label.
 
+**The index row a run hands over holds two columns.** The enumeration reads
+only the columns it declares -- `_INDEX_COLUMNS` plus `_INDEX_CAMERA_COLUMNS`,
+which for Cassini are `FILE_SPECIFICATION_NAME` and `INSTRUMENT_ID`, plus the
+four a BOTSIM grouping adds -- and `PdsTable` returns those alone, so every one
+of the seventy `cassini:*` variables `pds4_template_variables` reads from
+`index_file_row` takes its default on every real run. Declaring the columns the
+label reads is this phase's, and so is the second half of it: a dozen of those
+variables name columns the COISS index has no such column for
+(`SPACECRAFT_CLOCK_COUNT_PARTITION` against the index's
+`SPACECRAFT_CLOCK_CNT_PARTITION`, `FILTER1` and `FILTER2` against one
+two-element `FILTER_NAME`, `GROUND_SOFTWARE_VERSION_ID` against
+`SOFTWARE_VERSION_ID`, `START_TIME_DOY` and `STOP_TIME_DOY` against
+`START_TIME` and `STOP_TIME`, and the `EXPECTED_MAXIMUM` / `VALID_MAXIMUM` /
+`INST_CMPRS_RATE` pairs against one array column each). The cohort keys its
+rows by the index's own names, so both halves are visible there rather than
+papered over.
+
 Also carries section 3.8 into prose: the user-guide paragraph on why arrays
 and tables use different angular units, and the comment at the conversion
 site that currently reads as an incidental fix.
@@ -1213,6 +1216,17 @@ the cohort is written by the production writers, so it drifts when they do
 rather than silently disagreeing, and criterion 2 is asserted on a real
 cohort, not the synthetic one. Whether the values in the label are
 *correct* is #232 and is not settled by anything in this plan.
+
+**A zero-byte template legitimately produces a zero-byte label.**
+`global_index_bodies.lblx` and `global_index_rings.lblx` ship as zero-byte
+files and stay that way through Phase 6 by decision, so for that stretch
+`sd_create_bundle summary` exiting 0 does not mean those two labels are real: a
+healthy run writes both at zero bytes, `pdstemplate` reports no warnings and no
+errors, and the run reports the labels as generated. That is honest reporting
+of a template that renders to nothing, and it is deliberately not worked around
+in the label writer -- having the writer second-guess its own template would
+hide the defect rather than fix it. Phase 7 gives those two labels their
+content and closes it.
 
 **Two guides and four plan files change.** Every PR in this branch edits
 `plans/PROGRAM_PLAN.md`, so each merge re-conflicts the rest. Take both

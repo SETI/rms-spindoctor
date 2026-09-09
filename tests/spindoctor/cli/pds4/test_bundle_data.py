@@ -24,6 +24,8 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
+from tests.mini_nav_results.cohort import Cohort
+from tests.mini_nav_results.cohort_cassini import GATED_STUB
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.config import MAIN_LOGGER, Config
@@ -36,6 +38,7 @@ from .conftest import (
     BundleEnv,
     NoPds4DataSet,
     make_bundle_env,
+    make_cohort_bundle_env,
     make_image_file,
     write_nav_inputs,
 )
@@ -642,3 +645,30 @@ def test_an_image_carrying_no_record_needs_the_document(tmp_path: Path) -> None:
     assert outcome is BundleDataOutcome.SKIPPED
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     assert not suppl.exists()
+
+
+def test_the_cohort_image_that_did_not_navigate_is_skipped(
+    mini_nav_cohort: Cohort, tmp_path: Path
+) -> None:
+    """An image the bundle has nothing to describe is skipped, not failed.
+
+    Over the registered dataset and the shipped templates rather than
+    stand-ins, because a selection made by volume routinely names images that
+    did not navigate, and what the bundle does with one is a property of the
+    run rather than of a fixture's ``status`` key.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+        tmp_path: pytest-provided temporary directory for this test's bundle.
+    """
+    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
+    outcome = generate_bundle_data_files(
+        env.dataset,
+        mini_nav_cohort.batch(GATED_STUB),
+        nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
+        backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
+        bundle_results_root=FCPath(env.bundle_results_root),
+        logger=MAIN_LOGGER,
+    )
+    assert outcome is BundleDataOutcome.SKIPPED
+    assert not env.bundle_dir.exists()
