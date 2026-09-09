@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 from filecache import FCPath
 
+from spindoctor.cli.pds4 import collections as collections_module
 from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
@@ -48,26 +49,39 @@ from .conftest import (
 
 BODY_STATS = {'MIMAS': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2}}}}
 RING_STATS = {'backplanes': {'radius': {'min': 74500.0, 'max': 136800.987654}}}
+BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
+"""A template naming a variable no caller defines, so the render errors."""
+COLLECTION_LABELS = {
+    'collection_data.lblx': ('data', COLLECTION_DATA_TEMPLATE),
+    'collection_browse.lblx': ('browse', COLLECTION_BROWSE_TEMPLATE),
+}
+"""Each collection label's bundle subdirectory and its intact template body."""
 
 
-def _run_collections(env: BundleEnv) -> None:
+def _run_collections(env: BundleEnv) -> int:
     """Run generate_collection_files against the environment's bundle root.
 
     Parameters:
         env: The hermetic bundle environment to process.
+
+    Returns:
+        The number of collection labels that could not be rendered.
     """
-    generate_collection_files(
+    return generate_collection_files(
         FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
     )
 
 
-def _run_global_index(env: BundleEnv) -> None:
+def _run_global_index(env: BundleEnv) -> int:
     """Run generate_global_index_files against the environment's bundle root.
 
     Parameters:
         env: The hermetic bundle environment to process.
+
+    Returns:
+        The number of index labels that could not be rendered.
     """
-    generate_global_index_files(
+    return generate_global_index_files(
         FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
     )
 
@@ -179,7 +193,8 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
         },
     )
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
-    _run_collections(env)
+    failed = _run_collections(env)
+    assert failed == 0
     data_label = env.bundle_dir / 'data' / 'collection_data.lblx'
     text = data_label.read_text(encoding='utf-8')
     assert str(FCPath(env.bundle_dir) / 'data' / 'collection_data.tab') in text
@@ -190,11 +205,109 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
     assert str(FCPath(env.bundle_dir) / 'browse' / 'collection_browse.tab') in browse_text
 
 
+@pytest.mark.parametrize(
+    ('label', 'subdir'),
+    [('collection_data.lblx', 'data'), ('collection_browse.lblx', 'browse')],
+    ids=['data collection', 'browse collection'],
+)
+def test_a_collection_label_is_written_to_the_bundle_not_to_a_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, label: str, subdir: str
+) -> None:
+    """Each collection label writer is handed the bundle's own path for the label.
+
+    The location an ``FCPath`` names and the location of its local cache copy
+    are the same file only while the bundle root is local.  On a cloud bundle
+    root they are two different files, so a caller that hands over the cache
+    path asks about a stale label in the cache rather than in the bundle, leaves
+    a stale label in the bundle untouched, and names in its error report a path
+    that is nowhere in the bundle.  A local bundle root cannot tell those apart
+    by the file that appears, so what the writer is handed is what says which
+    one it was.  Each label is a case of its own because each is handed over by
+    a statement of its own.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+        monkeypatch: Fixture the recording label writer is installed through.
+        label: The collection label this case checks.
+        subdir: The bundle subdirectory that label belongs in.
+    """
+    handed_over: dict[str, Any] = {}
+
+    def _record(
+        template: Any, template_vars: dict[str, Any], label_path: Any, *, logger: Any
+    ) -> bool:
+        """Record the path handed over and report the label as written.
+
+        Parameters:
+            template: The parsed template, unused.
+            template_vars: The template variables, unused.
+            label_path: The path whose type and value are under test.
+            logger: The logger the caller passed, unused.
+
+        Returns:
+            True, so the caller counts the label as written.
+        """
+        handed_over[FCPath(label_path).name] = label_path
+        return True
+
+    env = make_bundle_env(
+        tmp_path,
+        template_contents={
+            'collection_data.lblx': COLLECTION_DATA_TEMPLATE,
+            'collection_browse.lblx': COLLECTION_BROWSE_TEMPLATE,
+        },
+    )
+    touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    monkeypatch.setattr(collections_module, 'write_label', _record)
+    _run_collections(env)
+    assert isinstance(handed_over[label], FCPath)
+    assert handed_over[label] == FCPath(env.bundle_dir) / subdir / label
+
+
+@pytest.mark.parametrize(
+    ('broken', 'intact'),
+    [
+        ('collection_data.lblx', 'collection_browse.lblx'),
+        ('collection_browse.lblx', 'collection_data.lblx'),
+    ],
+    ids=['data collection', 'browse collection'],
+)
+def test_a_broken_collection_template_is_counted_and_leaves_the_other(
+    tmp_path: Path, broken: str, intact: str
+) -> None:
+    """One unrenderable collection label is counted; the other still gets written.
+
+    Failing on the first would hide the second, so a run reports every broken
+    collection template rather than one per run.  Each label is a case of its
+    own because each is counted by a statement of its own.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+        broken: Template whose render errors in this case.
+        intact: Template that still renders in this case.
+    """
+    broken_dir, _ = COLLECTION_LABELS[broken]
+    intact_dir, intact_body = COLLECTION_LABELS[intact]
+    env = make_bundle_env(
+        tmp_path, template_contents={broken: BROKEN_TEMPLATE, intact: intact_body}
+    )
+    touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    failed = _run_collections(env)
+    assert failed == 1
+    assert not (env.bundle_dir / broken_dir / broken).exists()
+    assert (env.bundle_dir / intact_dir / intact).is_file()
+
+
 def test_collection_labels_skipped_when_templates_missing(tmp_path: Path) -> None:
-    """Missing collection templates skip the labels but still write the inventories."""
+    """Missing collection templates skip the labels but still write the inventories.
+
+    A template that is not in the template directory is a label the run never
+    set out to write, so it is skipped rather than counted against the run.
+    """
     env = make_bundle_env(tmp_path, template_contents={})
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
-    _run_collections(env)
+    failed = _run_collections(env)
+    assert failed == 0
     assert (env.bundle_dir / 'data' / 'collection_data.tab').is_file()
     assert not (env.bundle_dir / 'data' / 'collection_data.lblx').exists()
     assert not (env.bundle_dir / 'browse' / 'collection_browse.lblx').exists()
@@ -326,7 +439,8 @@ def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
     write_supplemental(
         env.bundle_dir / 'data', 'shard0/1234567890w', bodies=two_bodies, rings=RING_STATS
     )
-    _run_global_index(env)
+    failed = _run_global_index(env)
+    assert failed == 0
     supplemental_dir = env.bundle_dir / 'document' / 'supplemental'
     bodies_text = (supplemental_dir / 'global_index_bodies.lblx').read_text(encoding='utf-8')
     assert '<records>2</records>' in bodies_text
@@ -334,11 +448,49 @@ def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
     assert '<records>1</records>' in rings_text
 
 
+@pytest.mark.parametrize(
+    ('broken', 'intact'),
+    [
+        ('global_index_bodies.lblx', 'global_index_rings.lblx'),
+        ('global_index_rings.lblx', 'global_index_bodies.lblx'),
+    ],
+    ids=['bodies index', 'rings index'],
+)
+def test_a_broken_index_template_is_counted_and_leaves_the_other(
+    tmp_path: Path, broken: str, intact: str
+) -> None:
+    """One unrenderable index label is counted; the other still gets written.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+        broken: Template whose render errors in this case.
+        intact: Template that still renders in this case.
+    """
+    env = _index_env(tmp_path)
+    write_templates(
+        Path(env.dataset.pds4_bundle_template_dir()),
+        {broken: BROKEN_TEMPLATE, intact: GLOBAL_INDEX_TEMPLATE},
+    )
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS
+    )
+    failed = _run_global_index(env)
+    assert failed == 1
+    supplemental_dir = env.bundle_dir / 'document' / 'supplemental'
+    assert not (supplemental_dir / broken).exists()
+    assert (supplemental_dir / intact).is_file()
+
+
 def test_global_index_labels_skipped_when_templates_missing(tmp_path: Path) -> None:
-    """Missing global index templates skip the labels but still write the tables."""
+    """Missing global index templates skip the labels but still write the tables.
+
+    A template that is not in the template directory is a label the run never
+    set out to write, so it is skipped rather than counted against the run.
+    """
     env = _index_env(tmp_path)
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
-    _run_global_index(env)
+    failed = _run_global_index(env)
+    assert failed == 0
     supplemental_dir = env.bundle_dir / 'document' / 'supplemental'
     assert (supplemental_dir / 'global_index_bodies.tab').is_file()
     assert not (supplemental_dir / 'global_index_bodies.lblx').exists()

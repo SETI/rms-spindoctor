@@ -20,7 +20,7 @@ package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, package_source_path)
 
 from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
-from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
@@ -190,28 +190,81 @@ def main_labels() -> None:
 
     assert DATASET is not None
 
+    written_images = 0
+    skipped_images = 0
+    failed_images = 0
+    listed_images = 0
+
     for imagefiles in DATASET.yield_image_files_from_arguments(arguments):
         if len(imagefiles.image_files) != 1:
+            # A batch of any other size is an image the run did not write a
+            # label for, so it counts against the run the same way a broken
+            # label does.  A dry run writes nothing, so it reports the batch it
+            # cannot process without counting a label it never set out to write.
             MAIN_LOGGER.error(
                 'Expected 1 image file, got %d for %s',
                 len(imagefiles.image_files),
                 imagefiles,
             )
+            if not arguments.dry_run:
+                failed_images += 1
             continue
         if arguments.dry_run:
             MAIN_LOGGER.info(
                 'Would process: %s', imagefiles.image_files[0].label_file_url.as_posix()
             )
+            listed_images += 1
             continue
 
-        generate_bundle_data_files(
-            dataset=DATASET,
-            image_files=imagefiles,
-            nav_results_root=nav_results_root,
-            backplane_results_root=backplane_results_root,
-            bundle_results_root=bundle_results_root,
-            logger=MAIN_LOGGER,
+        try:
+            outcome = generate_bundle_data_files(
+                dataset=DATASET,
+                image_files=imagefiles,
+                nav_results_root=nav_results_root,
+                backplane_results_root=backplane_results_root,
+                bundle_results_root=bundle_results_root,
+                logger=MAIN_LOGGER,
+            )
+        except Exception:
+            # One image whose inputs cannot be read or whose template cannot be
+            # found is one image without a label, not a run without a report:
+            # the images after it are still processed and the run still says at
+            # the end how many labels it did not write.
+            MAIN_LOGGER.exception(
+                'Failed to generate bundle data files for %s',
+                imagefiles.image_files[0].image_file_url.as_posix(),
+            )
+            failed_images += 1
+            continue
+
+        if outcome is BundleDataOutcome.FAILED:
+            failed_images += 1
+        elif outcome is BundleDataOutcome.SKIPPED:
+            skipped_images += 1
+        else:
+            written_images += 1
+
+    if failed_images > 0:
+        MAIN_LOGGER.error(
+            'Label generation incomplete: %d image(s) labeled, %d skipped, '
+            '%d whose labels were not written',
+            written_images,
+            skipped_images,
+            failed_images,
         )
+        sys.exit(1)
+
+    if arguments.dry_run:
+        # A dry run counts nothing against itself, so it never reaches the
+        # report above; what it has to say is what it would have processed.
+        MAIN_LOGGER.info('Dry run complete: %d image(s) would be processed', listed_images)
+        return
+
+    MAIN_LOGGER.info(
+        'Label generation complete: %d image(s) labeled, %d skipped',
+        written_images,
+        skipped_images,
+    )
 
 
 def main_summary() -> None:
@@ -237,7 +290,7 @@ def main_summary() -> None:
 
     # Generate collection files
     try:
-        generate_collection_files(
+        failed_labels = generate_collection_files(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
@@ -248,13 +301,19 @@ def main_summary() -> None:
 
     # Generate global index files
     try:
-        generate_global_index_files(
+        failed_labels += generate_global_index_files(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
         )
     except Exception:
         MAIN_LOGGER.exception('Failed to generate global index files')
+        sys.exit(1)
+
+    if failed_labels > 0:
+        MAIN_LOGGER.error(
+            'Summary generation incomplete: %d label(s) were not written', failed_labels
+        )
         sys.exit(1)
 
     MAIN_LOGGER.info('Summary generation complete')

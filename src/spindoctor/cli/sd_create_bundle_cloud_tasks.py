@@ -19,7 +19,7 @@ from filecache import FCPath, FileCache
 package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, package_source_path)
 
-from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.config import (
     DEFAULT_CONFIG,
     IMAGE_LOGGER,
@@ -94,7 +94,7 @@ def process_task(
         )
         image_files.append(image_file)
 
-    generate_bundle_data_files(
+    outcome = generate_bundle_data_files(
         dataset=dataset,
         image_files=ImageFiles(image_files=image_files),
         nav_results_root=nav_results_root,
@@ -102,8 +102,13 @@ def process_task(
         bundle_results_root=bundle_results_root,
         logger=IMAGE_LOGGER,
     )
+    # Neither result asks for a retry, under any circumstances: a product whose
+    # labels are on disk has nothing left to do, and a label the template could
+    # not render will not render on a second attempt either.
+    if outcome is BundleDataOutcome.FAILED:
+        return False, {'status': 'error', 'status_error': 'label_not_written'}
 
-    return False, {'status': 'success'}  # No retry under any circumstances
+    return False, {'status': 'success'}
 
 
 async def async_main() -> None:
