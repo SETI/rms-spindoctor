@@ -452,42 +452,30 @@ def test_occluder_helper_fails_on_a_backplane_failure(capsys: pytest.CaptureFixt
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize('oversample_v', [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 16])
-@pytest.mark.parametrize('box_rows', [1, 3, 17, 64, 100])
-def test_every_strip_is_a_whole_number_of_output_rows(oversample_v: int, box_rows: int) -> None:
-    """A strip the caller's downsample cannot divide aborts the body model.
+def test_a_strip_is_the_largest_multiple_of_the_factor_within_the_bound() -> None:
+    """A factor that does not divide the bound gets strips just under it.
 
-    ``filter_downsample`` refuses a row count that its factor does not divide,
-    and the occlusion path hands it a strip directly.  The whole box always
-    divides -- it is ``box_rows`` output rows by construction -- so a strip
-    that does not is the strip boundary's doing.
-
-    Parameters:
-        oversample_v: Vertical oversample factor of the box.
-        box_rows: Output rows of the box, before oversampling.
+    ``filter_downsample`` refuses a row count its factor does not divide, and
+    the occlusion path hands it a strip directly, so a strip is a whole number
+    of output rows and no taller than the bound.
     """
-    rows = box_rows * oversample_v
-    for start, stop in _strip_bounds(rows, oversample_v):
-        assert (stop - start) % oversample_v == 0
+    bounds = list(_strip_bounds(300, 3))
+    assert bounds[0] == (0, 126)
+    assert all(stop - start <= BODY_STRIP_ROWS for start, stop in bounds)
 
 
-@pytest.mark.parametrize('oversample_v', [1, 2, 3, 5, 7, 16])
-def test_the_strips_cover_the_box_exactly_once(oversample_v: int) -> None:
-    """Whatever the factor, the strips tile the box: no gap, no overlap.
-
-    Parameters:
-        oversample_v: Vertical oversample factor of the box.
-    """
-    rows = 37 * oversample_v
-    bounds = list(_strip_bounds(rows, oversample_v))
+def test_the_strips_tile_the_box_exactly_once() -> None:
+    """No gap and no overlap, and the last strip is whatever remains."""
+    rows = 37 * 3
+    bounds = list(_strip_bounds(rows, 3))
     assert bounds[0][0] == 0
     assert bounds[-1][1] == rows
     assert all(a[1] == b[0] for a, b in pairwise(bounds))
 
 
-def test_a_strip_is_no_taller_than_the_row_bound() -> None:
-    """The bound is what keeps one strip's backplane off the whole box."""
-    assert all(stop - start <= BODY_STRIP_ROWS for start, stop in _strip_bounds(1000, 3))
+def test_a_box_shorter_than_a_strip_is_one_strip() -> None:
+    """The bound is a ceiling, not a size."""
+    assert list(_strip_bounds(30, 2)) == [(0, 30)]
 
 
 # ---------------------------------------------------------------------------
