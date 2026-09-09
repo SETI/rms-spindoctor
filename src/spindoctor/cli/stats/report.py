@@ -774,7 +774,8 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
         metavar='N',
         help='List up to N example image names per category in categorical '
         'sections, cap the suspect-offset and worst-BOTSIM-pair tables at N '
-        'rows, and list the N slowest images (default: 0 = off)',
+        'rows, and list the N slowest and the N hungriest images '
+        '(default: 0 = off)',
     )
     parser.add_argument(
         '--filelists',
