@@ -39,7 +39,7 @@ criteria hold.
 ## 1. Purpose and scope
 
 A PDS4 bundle is not a directory of labels. It is a bundle product, four or
-five collection products, an inventory per collection, and a data file
+six collection products, an inventory per collection, and a data file
 beside every label that names one, all of which must resolve against each
 other and against the PDS4 schemas. What the pipeline produces today is the
 per-image half of that and nothing else, and nothing in the repository can
@@ -55,7 +55,8 @@ review comment.
 
 - Every structural product the bundle label declares and the generator does
   not write: the bundle product itself, the readme, and the context,
-  document and schema collections.
+  document and schema collections — plus a `misc` collection the label does
+  not yet declare, which is where the global index tables belong.
 - The backplane FITS as an archived file with a described data object, in
   the bundle, beside its label.
 - The label content that is empty, self-referential, or absent today:
@@ -131,7 +132,7 @@ plan).
 |---|---|---|---|
 | 1 | The backplane FITS is never copied into the bundle. The label names a bare `1702240231n_backplanes.fits`, which must therefore sit beside it in `data/`; the file stays in `backplane_results_root`. | `bundle_data.py:108`, xfail-pinned at `test_bundle_data.py:319` | #265 (layout item), #69 |
 | 2 | `bundle.lblx` is never written. The template exists and nothing references it: `grep -rn "bundle.lblx" src/ --include=*.py` is empty. | — | #265 area |
-| 3 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. | — | #72, #74 |
+| 3 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. A sixth, `misc`, is neither declared nor generated; section 3.1 adds it and moves the global index tables into it. | — | #72, #74 |
 | 4 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
 | 5 | `<start_date_time>` and `<stop_date_time>` are empty in every data label and in `collection_data.lblx`. The code reads `observation.start_time`; the document holds `navigation_result.times.{start_et,stop_et,midtime_et}`. `collections.py:80-81` separately hardcodes the collection range to `''`. | `dataset_pds3_cassini_iss.py:589-593`, `collections.py:80-81` | #519 |
 | 6 | `File_Area_Observational` has a `<File>` and no data object. The FITS carries a `PrimaryHDU` plus one `ImageHDU` per surviving backplane (9 HDUs on the verified frame); `writer.py:58-60` drops any plane with no valid pixels, so the set is per-image dynamic. | `data.lblx:174-183` | #69, #30 |
@@ -200,22 +201,44 @@ both to this.
     collection_document.lblx
     cassini-iss-saturn-backplanes-user-guide.pdf
     cassini-iss-saturn-backplanes-user-guide.lblx
-    supplemental/
-      global_index_bodies.csv
-      global_index_bodies.lblx
-      global_index_rings.csv
-      global_index_rings.lblx
+  misc/
+    collection_misc.csv
+    collection_misc.lblx
+    global_index_bodies.csv
+    global_index_bodies.lblx
+    global_index_rings.csv
+    global_index_rings.lblx
   xml_schema/
     collection_xml_schema.csv
     collection_xml_schema.lblx
 ```
 
-Three decisions are recorded in that tree. Inventories are `.csv`, because
+Four decisions are recorded in that tree. Inventories are `.csv`, because
 that is what the templates already declare and what the PDS4 convention
 uses; the `.tab` extension goes away. The global index tables move to `.csv`
 with them, for one rule about delimited tables in this bundle rather than
-two. And the FITS lives beside its label, because the label names it with no
+two. The FITS lives beside its label, because the label names it with no
 directory part.
+
+And the global index tables live in a **`misc` collection of their own**,
+not under `document/supplemental/` where the code writes them today. They
+are not documents: they are derived tables a pipeline reads to select images
+without opening a FITS, and PDS4 has a collection type for exactly that.
+Checked against `PDS4_PDS_1O00`: `collection_type` must be one of ten
+values, `Miscellaneous` is among them, and the bundle-level reference type
+`bundle_has_miscellaneous_collection` is in the Schematron's controlled
+list. So this is a sixth collection, not a stretched use of the document
+one, and `bundle.lblx` grows a sixth `Bundle_Member_Entry`.
+
+Two consequences that are easy to miss. The global index tables become
+**products with LIDs** rather than loose files beside a label, because a
+collection inventory lists its members:
+`urn:nasa:pds:<bundle>:misc:global-index-bodies` and
+`...:global-index-rings`, built from the bundle name the way the data and
+browse LIDs are. And `readme.txt` currently tells a reader that the document
+collection holds the user guide "along with index files that summarize
+information about all backplanes"; that sentence stops being true and is
+edited with the move.
 
 ### 3.2 Rendered products versus copied products
 
@@ -223,7 +246,7 @@ Two kinds of file end up in a bundle, and the generator currently
 understands only the first.
 
 **Rendered** — a template plus variables, one per image or one per run:
-`data.lblx`, `browse.lblx`, the four collection labels, the two global-index
+`data.lblx`, `browse.lblx`, the five collection labels, the two global-index
 labels, `bundle.lblx`.
 
 **Copied** — a file that ships in the template directory and belongs in the
@@ -290,10 +313,16 @@ lineterminator='\n')`, file opened with `newline=''`), one `P,<lidvid>` line
 per member. `<records>` counts members. The `FILE_RECORDS` template function
 counts lines, so it agrees once the header is gone.
 
-The context, document and schema inventories are copied verbatim from the
-template directory (section 3.2), and their `collection_*.csv` templates get
-the same treatment: no header, LF, and `collection_context.csv`'s trailing
-`# TODO` comment line removed, since it is currently counted as a record.
+Three inventories are **generated**, because their membership depends on
+what the run produced: `collection_data.csv`, `collection_browse.csv`, and
+`collection_misc.csv`, whose two members are the global-index products of
+section 3.1.
+
+Three are **copied verbatim** from the template directory (section 3.2),
+because their membership is fixed: context, document and schema. Their
+`collection_*.csv` templates get the same treatment as the generated ones --
+no header, LF -- and `collection_context.csv`'s trailing `# TODO` comment
+line is removed, since it is currently counted as a record.
 
 ### 3.6 The document collection
 
@@ -301,8 +330,11 @@ the same treatment: no header, LF, and `collection_context.csv`'s trailing
 Data User's Guide. The first is a product this bundle owns and must
 therefore contain; the second is an external reference and stays `S`.
 
-The user-guide PDF is an operator deliverable. The code path is written so
-that the PDF's presence in the template directory is what decides:
+The user-guide PDF is an operator deliverable, tracked as #595 (a shared
+LaTeX template for all four instruments' guides) and #596 (the Cassini guide
+written from it; #597, #598 and #599 are the other three, which wait on
+their instrument's half of #53). The code path is written so that the PDF's
+presence in the template directory is what decides:
 
 - PDF present: it is copied, `cassini-iss-saturn-backplanes-user-guide.lblx`
   is rendered, `collection_document.csv` lists it `P`, and
@@ -711,22 +743,41 @@ correct form comes from the PDS4 Cassini ISS bundle's data LID scheme, and
 the value is derived in `pds4_template_variables` beside the other LID
 builders.
 
+`bundle.lblx` also grows its sixth `Bundle_Member_Entry`, for the `misc`
+collection, with `reference_type` `bundle_has_miscellaneous_collection`;
+Phase 7 supplies the collection it points at. And `readme.txt` loses the
+clause placing the index files in the document collection, which section 3.1
+moved.
+
 Tests: the summary pass over a one-image bundle produces every file section
-3.1 lists; the five `Bundle_Member_Entry` LIDs each resolve to a
+3.1 lists; the six `Bundle_Member_Entry` LIDs each resolve to a
 `collection_*.lblx` that exists.
 
 Closes #72, #74, and the new LID and source-product issues.
 
-### Phase 7 — Global index labels
+### Phase 7 — The misc collection and its global index labels
+
+Move the global index tables out of `document/supplemental/` into a `misc`
+collection of their own (section 3.1), and make them products rather than
+loose files: each gets a LID (`urn:nasa:pds:<bundle>:misc:global-index-bodies`
+and `...:global-index-rings`) built from the bundle name beside the data and
+browse LID builders.
 
 Replace the two 0-byte templates with `Table_Delimited` labels whose
 `Field_Delimited` blocks come from a `$FOR` over the configured backplane
 list — the same list `collections.py` builds the header from, so a config
 change moves table and label together. Field `data_type`, `unit` and
-`description` come from the config entry.
+`description` come from the config entry; `unit` is the degrees spelling per
+section 3.8, which is not the unit the arrays carry.
+
+Then the collection itself: a `collection_misc.lblx` template with
+`collection_type` `Miscellaneous`, and a generated `collection_misc.csv`
+listing the two products, written after them for the same reason the data
+inventory is written after the labels it lists.
 
 Tests: adding a backplane to the config adds a column to the table and a
-`Field_Delimited` to the label; `fields` matches the column count.
+`Field_Delimited` to the label; `fields` matches the column count; the misc
+inventory's two LIDVIDs each resolve to a label in the same collection.
 
 Closes #76.
 
@@ -876,6 +927,11 @@ branch.
 
 **Deferred, with the issue that carries them:**
 
+- #595, #596, #597, #598, #599 — the backplanes user guides: one shared
+  LaTeX template and one guide per instrument. #596 is what section 3.6's
+  acceptance criterion 9 turns on for this bundle; the other three wait on
+  their instrument's half of #53. #595 carries an open decision on where the
+  LaTeX sources and the built PDFs live relative to the template directory.
 - #79 — scrape the PDS4 context products so `target_lids` is maintained
   rather than hand-written.
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow
