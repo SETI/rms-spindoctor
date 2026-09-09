@@ -98,7 +98,10 @@ BODY_STRIP_ROWS: int = 128
 A body larger than the frame has its box clipped to the frame, so its grid is
 the whole extended frame; oops sizes its intermediates by the grid, so that is
 what the stage costs. Striping bounds it by the strip. The same figure, for the
-same reason, as the ring and Titan strips.
+same reason, as the ring and Titan strips, and the same bound on the answer: a
+strip is refined by the photon solver against its own pixels rather than the
+box's, which on Cassini frames leaves every mask and polyline bit-identical to
+a whole-box evaluation and the incidence angle within 1e-6 of it.
 """
 
 __all__ = [
@@ -286,63 +289,138 @@ def _strip_bounds(rows: int, oversample_v: int) -> Iterator[tuple[int, int]]:
         yield start, min(start + step, rows)
 
 
-def _body_strips(
+def _sample_count(lo: float, hi: float, oversample: int) -> int:
+    """Samples of an oversampled grid between two inclusive pixel-centre bounds.
+
+    Parameters:
+        lo: Coordinate of the first sample.
+        hi: Coordinate of the last sample.
+        oversample: Samples per pixel along the axis.
+
+    Returns:
+        The count, which for a box of whole pixels is the pixel count times the
+        factor.
+    """
+    return round((hi - lo) * oversample) + 1
+
+
+@dataclass(frozen=True)
+class _BodyStripArrays:
+    """The per-pixel quantities of a body's oversampled box, assembled from strips.
+
+    Parameters:
+        incidence: Incidence angle in radians, masked off the silhouette.
+        lambert: Lambert reflectance, zero off the silhouette; None when the
+            configuration does not ask for it.
+        resolution: Kilometres per pixel, zero off the silhouette.
+        occluder: Downsampled mask of the pixels a nearer sibling hides; None
+            when no sibling hides any.
+    """
+
+    incidence: Any
+    lambert: NDArrayFloatType | None
+    resolution: NDArrayFloatType
+    occluder: NDArrayBoolType | None
+
+
+def _striped_body_quantities(
     obs: Observation,
+    body_name: str,
     *,
     u_range: tuple[float, float],
     v_range: tuple[float, float],
     oversample: tuple[int, int],
-) -> Iterator[Backplane]:
-    """Yield a backplane per strip of rows of a body's oversampled box.
+    siblings: list[tuple[str, float]],
+    subject_range_km: float,
+    want_lambert: bool,
+) -> _BodyStripArrays:
+    """Evaluate a body's oversampled box a strip of rows at a time.
 
-    Every quantity a caller needs from one strip must be taken while that
-    strip's backplane is the one being yielded: the point of the strips is that
-    only one exists at a time, and asking again later would build the whole box
-    after all.
+    A body larger than the frame has its box clipped to the frame, so its grid
+    is the whole extended frame, and oops materializes its intermediates over
+    the grid it is handed: Saturn overfilling a Cassini frame measured 7.5 GB
+    here, more than every other stage of that navigation put together.  Each
+    strip is at most :data:`BODY_STRIP_ROWS` rows, every quantity is taken from
+    a strip while its backplane is the one in hand, and each is written into
+    its place in a preallocated whole-box array, so a strip's memory is given
+    back before the next strip is built and nothing is copied at the end.
+    Striping one quantity and leaving another to a whole-box backplane would
+    pay for the whole box anyway and the strips on top, which measured worse
+    than not striping.
 
-    Strip boundaries fall on whole rows of the oversampled grid, so quantities
-    stacked from the strips are the arrays a whole-box evaluation gives, and a
-    caller's downsample sees what it saw before.
+    Strip boundaries fall on whole rows, so the assembled arrays are the ones a
+    whole-box evaluation gives up to the photon solver's convergence: oops
+    refines every pixel until the largest light-time change anywhere on the
+    meshgrid is under its goal, so a strip is refined against its own pixels
+    rather than the box's.  Measured against a whole-box evaluation on Cassini
+    frames of Dione and Rhea, the silhouette, limb and terminator masks and the
+    polyline vertices come back bit-identical; the incidence agrees to 1e-6 of
+    its value, the Lambert reflectance to 4e-7 and the resolution to 2e-9,
+    looser than the ring quantities because a grazing limb ray's intercept
+    slides far along the surface for a small move along the ray.
 
     Parameters:
         obs: Observation snapshot.
-        u_range: ``(min, max)`` of the oversampled grid's horizontal extent.
+        body_name: SPICE name of the body.
+        u_range: ``(min, max)`` pixel-centre coordinates of the grid's
+            horizontal extent.
         v_range: ``(min, max)`` of its vertical extent.
         oversample: ``(u, v)`` oversample factors of the grid.
+        siblings: ``(body_name, range_km)`` for the other bodies in the FOV.
+        subject_range_km: Centre range of the body, against which a sibling
+            counts as nearer.
+        want_lambert: Whether to evaluate the Lambert reflectance at all.
 
-    Yields:
-        One :class:`~oops.backplane.Backplane` per strip, in row order.
+    Returns:
+        The assembled arrays over the whole box.
     """
     oversample_u, oversample_v = oversample
+    u_min, u_max = u_range
     v_min, v_max = v_range
-    rows = round((v_max - v_min) * oversample_v) + 1
+    rows = _sample_count(v_min, v_max, oversample_v)
+    cols = _sample_count(u_min, u_max, oversample_u)
+    incidence = np.empty((rows, cols), dtype=np.float64)
+    incidence_mask = np.empty((rows, cols), dtype=bool)
+    lambert = np.empty((rows, cols), dtype=np.float64) if want_lambert else None
+    resolution = np.empty((rows, cols), dtype=np.float64)
+    occluder = np.zeros((rows // oversample_v, cols // oversample_u), dtype=bool)
+    any_occluder = False
     for start, stop in _strip_bounds(rows, oversample_v):
-        yield Backplane(
+        strip_bp = Backplane(
             obs,
             meshgrid=Meshgrid.for_fov(
                 obs.fov,
-                origin=(u_range[0], v_min + start / oversample_v),
-                limit=(u_range[1], v_min + (stop - 1) / oversample_v),
+                origin=(u_min, v_min + start / oversample_v),
+                limit=(u_max, v_min + (stop - 1) / oversample_v),
                 oversample=(oversample_u, oversample_v),
                 swap=True,
             ),
         )
-
-
-def _stack(parts: list[Any]) -> Any:
-    """Stack per-strip masked arrays back into the whole-box array.
-
-    Parameters:
-        parts: One masked array per strip, in row order, each covering the
-            full width of the box.
-
-    Returns:
-        The array a whole-box evaluation would have produced, or the single
-        part unchanged when there was only one strip.
-    """
-    if len(parts) == 1:
-        return parts[0]
-    return np.ma.concatenate(parts, axis=0)
+        strip_incidence = strip_bp.incidence_angle(body_name).mvals
+        incidence[start:stop] = np.ma.getdata(strip_incidence)
+        incidence_mask[start:stop] = np.ma.getmaskarray(strip_incidence)
+        if lambert is not None:
+            lambert[start:stop] = strip_bp.lambert_law(body_name).mvals.filled(0.0)
+        resolution[start:stop] = strip_bp.resolution(body_name).mvals.filled(0.0)
+        hidden = occluder_mask_for_body(
+            strip_bp,
+            body_name,
+            siblings,
+            subject_range_km,
+            oversample_v=oversample_v,
+            oversample_u=oversample_u,
+        )
+        if hidden is not None:
+            occluder[start // oversample_v : stop // oversample_v] = hidden
+            any_occluder = True
+        del strip_bp, strip_incidence, hidden
+        release_transient_memory()
+    return _BodyStripArrays(
+        incidence=np.ma.MaskedArray(incidence, mask=incidence_mask),
+        lambert=lambert,
+        resolution=resolution,
+        occluder=occluder if any_occluder else None,
+    )
 
 
 def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
@@ -867,57 +945,18 @@ class NavModelBody(NavModelBodyBase):
         restr_u_max = u_max + 1 - 1.0 / (2 * oversample_u)
         restr_v_min = v_min + 1.0 / (2 * oversample_v)
         restr_v_max = v_max + 1 - 1.0 / (2 * oversample_v)
-        # Evaluated a strip of rows at a time, and every quantity taken from
-        # each strip before it is dropped. A body larger than the frame has its
-        # box clipped to the frame, so this grid is the whole extended frame,
-        # and oops materializes its intermediates over the grid it is handed:
-        # Saturn overfilling a Cassini frame measured 7.5 GB here, more than
-        # every other stage of that navigation put together.
-        #
-        # All four quantities come from the same pass. Striping one of them and
-        # leaving the rest to a whole-box backplane pays for the whole box
-        # anyway and the strips on top, which measured worse than not striping.
         want_lambert = bool(body_config.use_lambert)
-        incidence_parts: list[Any] = []
-        lambert_parts: list[Any] = []
-        resolution_parts: list[Any] = []
-        occluder_parts: list[NDArrayBoolType] = []
-        any_occluder = False
-        for strip_bp in _body_strips(
+        strips = _striped_body_quantities(
             obs,
+            body_name,
             u_range=(restr_u_min, restr_u_max),
             v_range=(restr_v_min, restr_v_max),
             oversample=(oversample_u, oversample_v),
-        ):
-            strip_incidence = strip_bp.incidence_angle(body_name).mvals
-            incidence_parts.append(strip_incidence)
-            if want_lambert:
-                lambert_parts.append(strip_bp.lambert_law(body_name).mvals.filled(0.0))
-            resolution_parts.append(strip_bp.resolution(body_name).mvals.filled(0.0))
-            strip_occluder = occluder_mask_for_body(
-                strip_bp,
-                body_name,
-                self._siblings,
-                self._subject_range_km,
-                oversample_v=oversample_v,
-                oversample_u=oversample_u,
-            )
-            if strip_occluder is None:
-                occluder_parts.append(
-                    np.zeros(
-                        (
-                            strip_incidence.shape[0] // oversample_v,
-                            strip_incidence.shape[1] // oversample_u,
-                        ),
-                        dtype=bool,
-                    )
-                )
-            else:
-                occluder_parts.append(strip_occluder)
-                any_occluder = True
-            del strip_bp, strip_incidence, strip_occluder
-            release_transient_memory()
-        oversampled_incidence_mvals = _stack(incidence_parts)
+            siblings=self._siblings,
+            subject_range_km=self._subject_range_km,
+            want_lambert=want_lambert,
+        )
+        oversampled_incidence_mvals = strips.incidence
         downsampled_incidence_mvals = filter_downsample(
             oversampled_incidence_mvals, oversample_v, oversample_u
         )
@@ -964,9 +1003,8 @@ class NavModelBody(NavModelBodyBase):
             local_model: NDArrayFloatType = np.zeros_like(body_mask_valid, dtype=np.float64)
             local_model[body_mask_valid] = 0.01
         else:
-            if want_lambert:
-                lambert_oversampled = np.concatenate(lambert_parts, axis=0)
-                local_model = filter_downsample(lambert_oversampled, oversample_v, oversample_u)
+            if strips.lambert is not None:
+                local_model = filter_downsample(strips.lambert, oversample_v, oversample_u)
                 local_model = local_model + 0.05
                 local_model[body_mask_invalid] = 0.0
             else:
@@ -999,8 +1037,7 @@ class NavModelBody(NavModelBodyBase):
         # try to downsample an already-downsampled array, asserting on
         # the (downsampled-)shape vs oversample divisibility.
         if body_mask_valid.any():
-            km_per_pixel_arr = np.concatenate(resolution_parts, axis=0)
-            km_per_pixel_local = filter_downsample(km_per_pixel_arr, oversample_v, oversample_u)
+            km_per_pixel_local = filter_downsample(strips.resolution, oversample_v, oversample_u)
         else:
             km_per_pixel_local = np.zeros_like(body_mask_valid, dtype=np.float64)
 
@@ -1009,7 +1046,7 @@ class NavModelBody(NavModelBodyBase):
         # never chases an arc the image does not show) and, promoted to extfov
         # coordinates, is trimmed out of the disc template (so the correlator
         # does not score against disc brightness that is not there).
-        occluder_local = np.concatenate(occluder_parts, axis=0) if any_occluder else None
+        occluder_local = strips.occluder
         occluder_ext = obs.make_extfov_false()
         if occluder_local is not None:
             occluder_ext[v_slice, u_slice] = occluder_local & body_mask_valid

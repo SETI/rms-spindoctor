@@ -31,14 +31,15 @@ depends on which other pixels shared the call. That goal bounds the light time t
 3e-07 s, about 90 m of travel, and that is the bound on a striped answer: not the
 last bit, but far tighter than anything a navigation can see.
 
-Measured against whole-frame calls on a Cassini frame:
+Measured against whole-box calls on Cassini frames, the ring quantities on a Saturn
+frame and the body quantities on Dione and Rhea:
 
 .. list-table::
    :header-rows: 1
    :widths: 45 55
 
    * - Backplane
-     - Striped against whole-frame
+     - Striped against whole-box
    * - ``where_in_front``
      - bit-identical
    * - ``where_inside_shadow``
@@ -47,13 +48,22 @@ Measured against whole-frame calls on a Cassini frame:
      - agrees to 2.5e-13 of its value
    * - ``ring_radius``
      - agrees to 5.6e-12 of its value
+   * - ``incidence_angle`` of a body
+     - agrees to 1e-6 of its value; the silhouette, limb and terminator masks and
+       the polyline vertices are bit-identical
+   * - ``lambert_law`` of a body
+     - agrees to 4e-7 of its value
+   * - ``resolution`` of a body
+     - agrees to 2e-9 of its value
 
 The boolean backplanes are comparisons, so they are bit-identical only while no
 pixel sits nearer its threshold than the difference above; a frame that has one
 flips that pixel. Anything that lowers the precision goal -- a reprojection does,
-for the whole process -- widens all of this in proportion. The ring radius is the
-loosest of the four and is the one the haze model's strips read, where it is
-thresholded against the ring annulus.
+for the whole process -- widens all of this in proportion. The body's incidence
+angle is the loosest: a grazing limb ray's intercept slides far along the surface
+for a small move along the ray, so the angle at the limb moves with the solver
+where a ring radius barely does. The ring radius is the one the haze model's
+strips read, where it is thresholded against the ring annulus.
 
 The tests check the assembly against the whole-frame array through a backplane
 stand-in that answers each strip from the same dense arrays, on a frame taller
@@ -62,7 +72,7 @@ measured rather than asserted.
 
 Three places stripe:
 ``NavModelRings._striped_backplanes`` for the ring quantities,
-``nav_model_body._body_strips`` for a body's oversampled box, and
+``nav_model_body._striped_body_quantities`` for a body's oversampled box, and
 ``titan_geometry._striped_occlusion`` for both occlusion masks over one set of
 strips. Each caps a strip at
 :data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS`,

@@ -963,3 +963,30 @@ def test_the_decline_is_reached_without_a_supplied_inventory(
     model = NavModelBody(f'body:{_BODY}', cast(Any, obs), _BODY)
     model.create_model()
     assert model.metadata['edge_in_frame'] is False
+
+
+# ---------------------------------------------------------------------------
+# Strips against the whole box
+# ---------------------------------------------------------------------------
+
+
+def test_the_strips_assemble_to_the_whole_box_render(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rendered sixteen rows at a time or in one piece, every product comes out the same.
+
+    The stand-in answers each strip from the same analytic sphere, so this
+    checks the assembly and not the solver; the solver's agreement is measured
+    on real frames rather than asserted here.
+    """
+    spec = _SphereSpec((50.0, 50.0), 40.0, sun_vuz=_sun_for_angle(60.0))
+    striped, _obs = _make_model(monkeypatch, spec)
+    monkeypatch.setattr(nav_model_body_module, 'BODY_STRIP_ROWS', 16)
+    striped.create_model()
+    whole, _obs = _make_model(monkeypatch, spec)
+    monkeypatch.setattr(nav_model_body_module, 'BODY_STRIP_ROWS', 10**9)
+    whole.create_model()
+    for product in ('_model_img', '_body_mask', '_limb_mask', '_terminator_mask', '_occluder_mask'):
+        assert np.array_equal(getattr(striped, product), getattr(whole, product)), product
+    assert striped._limb_sampler is not None
+    assert whole._limb_sampler is not None
+    assert np.array_equal(striped._limb_sampler.vertices_vu, whole._limb_sampler.vertices_vu)
+    assert striped._km_per_pixel_at_limb == whole._km_per_pixel_at_limb
