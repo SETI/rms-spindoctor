@@ -175,6 +175,7 @@ def _make_obs(
         'v_max_unclipped': int(np.ceil(center_v + r)),
         'u_pixel_size': 2.0 * r,
         'v_pixel_size': 2.0 * r,
+        'center_uv': np.array([center_u, center_v], dtype=np.float64),
         'range': target_range_km,
     }
     geometry_body = BodyBackplaneData(
@@ -564,22 +565,7 @@ def test_a_body_off_to_one_side_does_not_fill_the_frame() -> None:
 
 
 def test_a_body_with_no_measurable_size_does_not_fill_the_frame() -> None:
-    """A record that cannot be measured is looked at rather than dismissed."""
+    """A disc of no extent covers nothing, and is looked at rather than dismissed."""
     obs = _fov_obs()
     entry = _entry(centre=(50.0, 50.0), size=(0.0, 0.0))
-    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
-
-
-def test_a_body_with_a_missing_field_does_not_fill_the_frame() -> None:
-    """Nor is an incomplete record read as covering the frame."""
-    obs = _fov_obs()
-    entry = _entry(centre=(50.0, 50.0), size=(4000.0, 4000.0))
-    del entry['u_pixel_size']
-    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
-
-
-def test_a_non_finite_size_does_not_fill_the_frame() -> None:
-    """A NaN extent fails every comparison, so it is rejected explicitly."""
-    obs = _fov_obs()
-    entry = _entry(centre=(50.0, 50.0), size=(float('nan'), 4000.0))
     assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False

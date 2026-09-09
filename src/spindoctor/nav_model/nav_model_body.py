@@ -364,24 +364,20 @@ def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
 
     Parameters:
         obs: Observation snapshot, for the extended frame's bounds.
-        inventory: The body's inventory record.
+        inventory: The body's inventory record, as oops builds it: the centre
+            and both pixel sizes are always present and finite.
 
     Returns:
-        True when every corner of the extended frame lies inside the disc.
-        False when the record does not carry what the test needs, because a
-        body that cannot be measured has to be looked at rather than dismissed.
+        True when every corner of the extended frame lies inside the disc, and
+        False for a disc of no extent, which covers nothing and is looked at
+        rather than dismissed.
     """
-    try:
-        centre = inventory['center_uv']
-        u_c = float(centre[0])
-        v_c = float(centre[1])
-        semi_u = float(inventory['u_pixel_size']) / 2.0
-        semi_v = float(inventory['v_pixel_size']) / 2.0
-    except (KeyError, IndexError, TypeError, ValueError):
-        return False
+    centre = inventory['center_uv']
+    u_c = float(centre[0])
+    v_c = float(centre[1])
+    semi_u = float(inventory['u_pixel_size']) / 2.0
+    semi_v = float(inventory['v_pixel_size']) / 2.0
     if not (semi_u > 0.0 and semi_v > 0.0):
-        return False
-    if not all(math.isfinite(x) for x in (u_c, v_c, semi_u, semi_v)):
         return False
     return all(
         ((u - u_c) / semi_u) ** 2 + ((v - v_c) / semi_v) ** 2 <= 1.0
@@ -719,9 +715,8 @@ class NavModelBody(NavModelBodyBase):
         ext_bp = obs.ext_bp
         body_name = self._body_name
         body_config = self._config.bodies
-        if self._inventory is None:
-            self._inventory = obs.inventory([body_name], return_type='full')[body_name]
         inventory = self._inventory
+        assert inventory is not None  # resolved in create_model, ahead of the decline
 
         sub_solar_lon = float(np.degrees(ext_bp.sub_solar_longitude(body_name).vals))
         sub_solar_lat = float(np.degrees(ext_bp.sub_solar_latitude(body_name).vals))
