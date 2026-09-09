@@ -54,6 +54,12 @@ STATUS_REASON_INFO_TEMPLATE: dict[NavStatusReason, list[str]] = {
         'Final: status=failed',
         'No config block for this instrument camera',
     ],
+    NavStatusReason.BODY_FILLS_FOV: [
+        'Final: status=failed',
+        'A body covers the extended frame with neither limb nor terminator inside '
+        'it, and nothing in front of it was in view: the image could not have '
+        'been navigated',
+    ],
     NavStatusReason.NO_FEATURES_EXTRACTED: [
         'Final: status=failed',
         'No extractor produced a feature',

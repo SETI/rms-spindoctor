@@ -64,6 +64,16 @@ class NavStatusReason(StrEnum):
     - ``CONTRACT_VIOLATION``: an internal navigation invariant was violated
       (``NavContractError``); a programming error upstream, not bad image
       data.  The full traceback is in the error log.
+    - ``BODY_FILLS_FOV``: a body's disc covers the extended field of view,
+      shows neither a limb nor a terminator inside it, and nothing in front
+      of it emitted a feature; the only features, if any, were stars the body
+      hides.  That is the image that could not have been navigated, and the
+      reason exists so a statistics report can omit it from success
+      statistics instead of counting it as a failure to explain.  It is
+      separate from ``NO_FEATURES_EXTRACTED``, which says the same of an
+      image with nothing in it at all, because the hidden stars are emitted
+      and gated rather than absent, which would otherwise file the image
+      under ``ALL_FEATURES_GATED`` beside frames that had something to fit.
     - ``INTERNAL_ERROR``: a NavModel or NavTechnique raised an exception
       nothing anticipated (``NavInternalError``), so the image was not
       navigated as designed and is failed rather than answered from the
@@ -83,6 +93,7 @@ class NavStatusReason(StrEnum):
     IMAGE_CORRUPT = 'image_corrupt'
     KERNELS_UNAVAILABLE = 'kernels_unavailable'
     INSTRUMENT_NOT_CONFIGURED = 'instrument_not_configured'
+    BODY_FILLS_FOV = 'body_fills_fov'
     NO_FEATURES_EXTRACTED = 'no_features_extracted'
     ALL_FEATURES_GATED = 'all_features_gated'
     NO_FEASIBLE_TECHNIQUES = 'no_feasible_techniques'

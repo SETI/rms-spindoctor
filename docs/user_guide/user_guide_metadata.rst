@@ -426,6 +426,13 @@ accompanies ``failed``.
      - SPICE coverage was missing for the image epoch.
    * - ``instrument_not_configured``
      - No per-instrument configuration block exists for this camera.
+   * - ``body_fills_fov``
+     - A body's disc covers the extended field of view, shows neither a limb
+       nor a terminator inside it, and nothing in front of it emitted a
+       feature; the only features, if any, were stars the body hides. The
+       image could not have been navigated, and a statistics report can omit
+       it from success statistics on that basis. ``no_features_extracted``
+       says the same of an image with nothing in it at all.
    * - ``no_features_extracted``
      - Every feature extractor returned an empty list.
    * - ``all_features_gated``

@@ -31,14 +31,15 @@ depends on which other pixels shared the call. That goal bounds the light time t
 3e-07 s, about 90 m of travel, and that is the bound on a striped answer: not the
 last bit, but far tighter than anything a navigation can see.
 
-Measured against whole-frame calls on a Cassini frame:
+Measured against whole-box calls on Cassini frames, the ring quantities on a Saturn
+frame and the body quantities on Dione and Rhea:
 
 .. list-table::
    :header-rows: 1
    :widths: 45 55
 
    * - Backplane
-     - Striped against whole-frame
+     - Striped against whole-box
    * - ``where_in_front``
      - bit-identical
    * - ``where_inside_shadow``
@@ -47,24 +48,35 @@ Measured against whole-frame calls on a Cassini frame:
      - agrees to 2.5e-13 of its value
    * - ``ring_radius``
      - agrees to 5.6e-12 of its value
+   * - ``incidence_angle`` of a body
+     - agrees to 1e-6 of its value; the silhouette, limb and terminator masks and
+       the polyline vertices are bit-identical
+   * - ``lambert_law`` of a body
+     - agrees to 4e-7 of its value
+   * - ``resolution`` of a body
+     - agrees to 2e-9 of its value
 
 The boolean backplanes are comparisons, so they are bit-identical only while no
 pixel sits nearer its threshold than the difference above; a frame that has one
 flips that pixel. Anything that lowers the precision goal -- a reprojection does,
-for the whole process -- widens all of this in proportion. The ring radius is the
-loosest of the four and is the one the haze model's strips read, where it is
-thresholded against the ring annulus.
+for the whole process -- widens all of this in proportion. The body's incidence
+angle is the loosest: a grazing limb ray's intercept slides far along the surface
+for a small move along the ray, so the angle at the limb moves with the solver
+where a ring radius barely does. The ring radius is the one the haze model's
+strips read, where it is thresholded against the ring annulus.
 
 The tests check the assembly against the whole-frame array through a backplane
 stand-in that answers each strip from the same dense arrays, on a frame taller
 than one strip. They test the stacking, not the solver: the agreement above is
 measured rather than asserted.
 
-Two places stripe:
-``NavModelRings._striped_backplanes`` for the ring quantities and
+Three places stripe:
+``NavModelRings._striped_backplanes`` for the ring quantities,
+``nav_model_body._striped_body_quantities`` for a body's oversampled box, and
 ``titan_geometry._striped_occlusion`` for both occlusion masks over one set of
 strips. Each caps a strip at
-:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS` and
+:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS`,
+:data:`~spindoctor.nav_model.nav_model_body.BODY_STRIP_ROWS` and
 :data:`~spindoctor.nav_model.titan_geometry.OCCLUDER_STRIP_ROWS` rows
 respectively, the same number for the same reason, and each strip's single
 backplane answers every quantity asked of it, so the surface intercept is solved
@@ -145,7 +157,7 @@ between strips does not register against it.
 Where it is called
 ------------------
 
-After each strip, in each of the two striped loops, and nowhere else.
+After each strip, in each of the three striped loops, and nowhere else.
 
 Coarser placements were measured and rejected. Releasing at the boundary between
 whole models, and again between techniques, changed a Voyager Saturn frame's peak
@@ -249,8 +261,20 @@ tests check the result against a transform-free evaluation of the same sums.
 Declining early
 ===============
 
-The cheapest backplane is the one never built. The ring model tries a sparse
-pre-check first: a 16 x 16 evaluation rules out the two common cases -- no
-ring-plane intersection anywhere in the frame, and a visible radial range
+The cheapest backplane is the one never built. A body whose disc reaches past all
+four corners of the extended frame leaves no sky around it, and if its terminator
+is outside the frame as well there is nothing in the image a shape-based technique
+could match. :func:`~spindoctor.nav_model.nav_model_body.body_fills_extfov` asks
+the first question of the inventory alone -- a disc against the frame corners,
+costing no backplane -- and
+:func:`~spindoctor.nav_model.nav_model_body.body_edge_in_frame` asks the second of
+four one-pixel-wide backplanes along the frame's boundary, which is where any limb
+or terminator inside the frame has to show. Only then does the model decline before
+building anything. When nothing in front of the body was in view either, the
+navigation records ``body_fills_fov`` as its reason, which is what lets a
+statistics report omit the image as one that could not have been navigated.
+
+The ring model's pre-check is the same idea: a 16 x 16 evaluation rules out the two
+common cases -- no ring-plane intersection anywhere in the frame, and a visible radial range
 entirely outside the catalogue's outermost feature -- without paying for a dense
 backplane.

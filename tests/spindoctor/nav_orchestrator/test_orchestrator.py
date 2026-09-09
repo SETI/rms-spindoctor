@@ -170,6 +170,53 @@ class _FakeTitanModel(NavModel):
         return Annotations()
 
 
+class _FakeCoveringBodyModel(NavModel):
+    """A body model that declined a body covering the frame with no edge inside it.
+
+    It emits nothing, which is what a declined body model does, and records
+    the decline in its metadata, which is where the orchestrator reads it.
+    """
+
+    _abstract = True
+
+    def __init__(self, obs: Any) -> None:
+        """Build the stand-in over an observation.
+
+        Parameters:
+            obs: The observation the model is built against.
+        """
+        super().__init__('body:SATURN', obs)
+
+    def create_model(self) -> None:
+        """Record the decline, which is all a covering body's model does."""
+        self._metadata['fills_extfov'] = True
+        self._metadata['edge_in_frame'] = False
+
+    def to_features(self, context: NavContext) -> list[NavFeature]:
+        """Emit nothing, as a declined body model does.
+
+        Parameters:
+            context: The per-image navigation context, unread here.
+
+        Returns:
+            The empty list.
+        """
+        del context
+        return []
+
+    def to_annotations(self, context: NavContext) -> Annotations:
+        """Draw nothing, there being no silhouette to draw.
+
+        Parameters:
+            context: The per-image navigation context, unread here.
+
+        Returns:
+            Empty annotations.
+        """
+        del context
+        return Annotations()
+
+
 class _FakeStarTechnique(NavTechnique):
     """Stand-in technique that always reports a fixed offset.
 
@@ -367,6 +414,41 @@ def test_orchestrator_titan_usable_but_unfittable_yields_all_techniques_spurious
     obs = _FakeObs(extfov_margin=(8, 8))
     model = _FakeTitanModel(obs, reliability=0.9)
     orch = NavOrchestrator([model], only_techniques=['TitanHazeNav'])
+    result = orch.navigate(obs)  # type: ignore[arg-type]
+    assert result.status == 'failed'
+    assert result.status_reason == NavStatusReason.ALL_TECHNIQUES_SPURIOUS
+
+
+def test_a_covering_body_alone_files_the_image_as_one_nothing_could_navigate() -> None:
+    """With nothing else in view, the gate's reason gives way to the covering body's."""
+    obs = _FakeObs(extfov_margin=(8, 8))
+    orch = NavOrchestrator([_FakeCoveringBodyModel(obs)], only_techniques=['TitanHazeNav'])
+    result = orch.navigate(obs)  # type: ignore[arg-type]
+    assert result.status_reason == NavStatusReason.BODY_FILLS_FOV
+
+
+def test_a_gated_feature_in_front_of_a_covering_body_keeps_the_gate_reason() -> None:
+    """A feature that was in view and fell to the gate is a failure to explain.
+
+    The covering body's reason is for the image with nothing navigable in it,
+    and a Titan limb the gate dropped was something in front of the body.
+    """
+    obs = _FakeObs(extfov_margin=(8, 8))
+    models = [_FakeTitanModel(obs, reliability=0.0), _FakeCoveringBodyModel(obs)]
+    orch = NavOrchestrator(models, only_techniques=['TitanHazeNav'])
+    result = orch.navigate(obs)  # type: ignore[arg-type]
+    assert result.status_reason == NavStatusReason.ALL_FEATURES_GATED
+
+
+def test_a_covering_body_does_not_override_a_reason_a_technique_reached() -> None:
+    """Something a technique ran on was in view, so the image could have been navigated.
+
+    A Titan limb the haze technique fitted and rejected is not the image with
+    nothing navigable in it, and the ensemble's own reason stands.
+    """
+    obs = _FakeObs(extfov_margin=(8, 8))
+    models = [_FakeTitanModel(obs, reliability=0.9), _FakeCoveringBodyModel(obs)]
+    orch = NavOrchestrator(models, only_techniques=['TitanHazeNav'])
     result = orch.navigate(obs)  # type: ignore[arg-type]
     assert result.status == 'failed'
     assert result.status_reason == NavStatusReason.ALL_TECHNIQUES_SPURIOUS
