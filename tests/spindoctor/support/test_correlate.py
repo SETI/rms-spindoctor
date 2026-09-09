@@ -808,6 +808,15 @@ class TestMaskedNccBidirectional:
         high = 0
 
         def _record(kind: str, out: Any) -> Any:
+            """Weakly note one transform output and how many are alive with it.
+
+            Parameters:
+                kind: ``'forward'`` or ``'inverse'``, which counter to advance.
+                out: The transform's output array.
+
+            Returns:
+                That same array, so this stands in the call's place.
+            """
             nonlocal high
             made[kind] += 1
             seen.append(weakref.ref(out))
@@ -815,9 +824,29 @@ class TestMaskedNccBidirectional:
             return out
 
         def counting_fft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            """Stand in for ``fft2``, recording its output.
+
+            Parameters:
+                a: Array to transform.
+                *args: Passed through.
+                **kwargs: Passed through.
+
+            Returns:
+                The transform numpy would have returned.
+            """
             return _record('forward', real_fft2(a, *args, **kwargs))
 
         def counting_ifft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            """Stand in for ``ifft2``, recording its output.
+
+            Parameters:
+                a: Spectrum to inverse-transform.
+                *args: Passed through.
+                **kwargs: Passed through.
+
+            Returns:
+                The transform numpy would have returned.
+            """
             return _record('inverse', real_ifft2(a, *args, **kwargs))
 
         monkeypatch.setattr('spindoctor.support.correlate.fft2', counting_fft2)

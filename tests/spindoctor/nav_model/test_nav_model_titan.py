@@ -786,6 +786,16 @@ def _recorded_boxes(monkeypatch: pytest.MonkeyPatch) -> list[_RecordedBackplane]
     def _record(
         obs: Any, bbox: tuple[int, int, int, int], *, undersample: int = 1
     ) -> tuple[Any, Any]:
+        """Build the backplane the module would have built, and note how.
+
+        Parameters:
+            obs: Observation snapshot, passed through.
+            bbox: The box the caller asked for, recorded as given.
+            undersample: The stride the caller asked for, recorded as given.
+
+        Returns:
+            Whatever the real helper returns, unchanged.
+        """
         bp, meshgrid = real(obs, bbox, undersample=undersample)
         calls.append(_RecordedBackplane(bbox, undersample, cast(_BoxMeshgrid, meshgrid)))
         return bp, meshgrid
