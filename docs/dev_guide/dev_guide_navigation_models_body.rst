@@ -82,8 +82,13 @@ the maximum. The cap exists to bound memory on field-filling targets where a hig
 oversample would balloon the backplane query.
 
 At each oversampled grid point an incidence-angle backplane is queried from the SPICE
-prediction. The discrete silhouette mask comes from the pixels where the incidence query
-returns a finite value (i.e. the line of sight intersects the body). The oversampled mask is
+prediction, a strip of at most :data:`~spindoctor.nav_model.nav_model_body.BODY_STRIP_ROWS`
+rows at a time: every quantity the render needs is taken from a strip while its backplane
+exists, written into its place in a whole-box array, and the strip's memory is released
+before the next is built. What a strip costs in agreement with a whole-box evaluation is
+measured in :doc:`dev_guide_memory`. The discrete silhouette mask comes from the pixels where
+the incidence query returns a finite value (i.e. the line of sight intersects the body). The
+oversampled mask is
 filter-downsampled to the extended-FOV grid so that anti-aliased limb pixels at the silhouette
 boundary remain represented as fractional values rather than being lost to round-off.
 
@@ -643,6 +648,11 @@ to surface in the per-image JSON sidecar:
 - ``km_per_pixel_at_limb`` — mean km/px scale across the limb polyline.
 - ``predicted_diameter_px`` — predicted body diameter in pixels.
 - ``visible_lit_fraction`` / ``overflow_fraction`` — fractions defined in Theory above.
+- ``fills_extfov`` / ``edge_in_frame`` — present only when the body's disc covers every
+  corner of the extended frame: whether it does, and whether its limb or terminator
+  crosses the frame's boundary. A body that covers the corners and shows no edge is
+  declined, and its metadata then carries the timing entries, ``body_name`` and these two
+  and nothing else, since every other entry comes from the render it skipped.
 
 Call path
 ---------
@@ -652,14 +662,24 @@ Call path traced through
 :meth:`~spindoctor.nav_model.nav_model_body.NavModelBody.to_features`:
 
 1. :meth:`~spindoctor.nav_model.nav_model_body.NavModelBody.create_model` opens a logged section,
-   clears ``self._metadata``, records ``start_time``, and invokes the private render helper.
-2. The render helper looks up the inventory entry, queries five sub-solar / sub-observer /
+   clears ``self._metadata``, records ``start_time``, resolves the inventory entry, and asks
+   whether the body covers the extended frame:
+   :func:`~spindoctor.nav_model.nav_model_body.body_fills_extfov` puts the inventory's disc
+   against the frame corners, costing no backplane, and
+   :func:`~spindoctor.nav_model.nav_model_body.body_edge_in_frame` samples the frame's
+   boundary through four one-pixel-wide backplanes for sky or a terminator crossing. A body
+   that covers the corners with neither limb nor terminator inside the frame is declined:
+   nothing is rendered and ``to_features`` emits nothing. Otherwise the private render helper
+   is invoked.
+2. The render helper reads the inventory entry, queries five sub-solar / sub-observer /
    phase-angle backplanes for the geometry summary, and clips an inflated bounding box into
    the extended FOV. The inflation factor is
    :data:`~spindoctor.nav_model.nav_model_body.BODY_POSITION_SLOP_FRAC` of the inventory extent.
-3. The render helper builds an oversampled meshgrid + backplane around the clipped bounding
-   box, queries the incidence-angle backplane, downsamples the mask to extfov resolution,
-   and derives the limb / terminator / body / lit masks via discrete neighbour shifts.
+3. The render helper evaluates the incidence-angle, Lambert, resolution and occlusion
+   backplanes over the clipped bounding box a strip of rows at a time, at most
+   :data:`~spindoctor.nav_model.nav_model_body.BODY_STRIP_ROWS` per strip, assembling each
+   into a whole-box array, then downsamples the mask to extfov resolution and derives the
+   limb / terminator / body / lit masks via discrete neighbour shifts.
 4. A predicted brightness image is built from the Lambert cosine when ``use_lambert`` is true
    and the body is at least partly lit; otherwise the silhouette is rendered as a binary
    mask with a small offset so empty body pixels remain non-zero. When ``use_albedo`` is
