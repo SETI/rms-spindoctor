@@ -710,19 +710,39 @@ replace across two files rather than a one-line edit. Fold this into Phase 9
 with the bundle name and version, since it is the same parameterization
 problem.
 
-**A declared sentinel for absent data.** The reference fills invalid pixels
-with `-999`, passes it to the label as a variable, and carries a
-`SENTINEL_DESCRIPTION` explaining what an absent pixel means. Our arrays
-fill with `0.0` instead, and that is deliberate rather than careless:
-`BODY_ID_MAP` is the validity mask for the body planes, nonzero exactly
-where a body claimed the pixel, and a check over a real product finds no
-pixel that is `0.0` while the map is nonzero. What is missing is narrower --
-the ring planes have no such map, since the ring merge never writes
-`body_id_map`, so their validity has to be inferred from `RING_RADIUS != 0`;
-and neither rule is stated in a guide or declarable in the label as things
-stand. Filed as #601. `collections.py`'s "TODO Need an appropriate sentinel
-value for missing data" is the table-cell half of the same question and is
-genuinely open.
+**A declared sentinel for absent data, and we are adopting it.** The
+reference fills invalid pixels with `-999`, passes it to the label as a
+variable, and carries a `SENTINEL_DESCRIPTION` explaining what an absent
+pixel means. Our arrays fill with `0.0`, which is not ambiguous for the body
+planes -- `BODY_ID_MAP` is nonzero exactly where a body claimed the pixel,
+and a check over a real product finds no pixel that is `0.0` while the map
+is nonzero -- but is unresolvable for the ring planes, which have no such
+map because the ring merge never writes `body_id_map`.
+
+Decided 2026-09-09: **every masked value becomes `-999`**, which is outside
+the range of every plane written. That replaces two inference rules
+(`BODY_ID_MAP != 0` for bodies, `RING_RADIUS != 0` for rings) with one
+comparison that works on every plane, and lets the label declare it through
+`Special_Constants` rather than explaining it in prose. `BODY_ID_MAP` keeps
+`0` for unclaimed, since it is the mask and not a measurement.
+
+**The backplane generator changes, not the bundle generator.** The two
+`master = np.zeros(...)` in `merge.py:109` and `merge.py:144` become
+`np.full(..., SENTINEL)`; `writer.py:59`'s plane-worth-writing test
+`np.any((v != 0.0) & np.isfinite(v))` compares against the sentinel instead,
+which also stops a plane whose only valid pixels are exactly `0.0` from
+being dropped; `backplanes_bodies.py:170` and its ring counterpart fill
+per-source arrays to match; and the value itself lives in
+`config_900_backplanes.yaml` so the label reads it rather than repeating a
+literal. The per-image statistics are unaffected, because they already run
+off the boolean masks (`valid_values = full[full_mask]`) rather than off the
+fill. Tracked on #601, and it lands off `main` rather than on this branch,
+because it changes a science product rather than a bundle. What this plan
+owes is the declaration in the label.
+
+`collections.py`'s "TODO Need an appropriate sentinel value for missing
+data" is the table-cell half of the same question. The same `-999` is the
+obvious answer there and should be settled with it.
 
 **DOIs are products of their own.** The reference carries `BUNDLE_DOI` and a
 separate `USERGUIDE_DOI`, and its user-guide label fills a real `<doi>`
@@ -853,9 +873,17 @@ Copy the FITS into `data/`. Build the per-HDU descriptor list from the
 copied file. `data.lblx` grows the `$FOR` block described in section 3.3,
 with `local_identifier` `image` on the first array.
 
-Tests: a two-HDU fixture FITS produces two `Array_2D` blocks with the
-offsets `fileinfo()` reports; a frame with no ring planes produces no ring
-arrays; the display settings' referenced identifier is defined in the label.
+Each array also declares its masked value: a `Special_Constants` block whose
+`missing_constant` is the sentinel from `config_900_backplanes.yaml`, per
+section 3.13, so a reader masks on the label rather than on a convention.
+This phase can be written before the generator emits `-999` -- it reads the
+configured value either way -- but the draft bundle should be built from
+backplanes that carry it.
+
+Tests: a two-HDU fixture FITS produces two `Array_2D_Image` blocks with the
+offsets `fileinfo()` reports; each declares the configured sentinel as its
+`missing_constant`; a frame with no ring planes produces no ring arrays; the
+display settings' referenced identifier is defined in the label.
 
 Closes #69; contributes to #30.
 
@@ -1102,10 +1130,12 @@ branch.
   LaTeX sources and the built PDFs live relative to the template directory.
 - #600 — what the bundle says about images that did not navigate. Replaces
   section 3.11 when it is decided; nothing before Phase 10 depends on it.
-- #601 — backplane validity is inferred rather than declared: `BODY_ID_MAP`
-  serves for the body planes, nothing serves for the ring planes, and no
-  guide or label states either rule. The label side belongs to this plan;
-  an explicit mask would be a product change (#55, #57).
+- #601 — masked backplane values become `-999` (decided 2026-09-09), so one
+  comparison masks every plane instead of two inference rules. The work is
+  in the backplane generator (`merge.py`, `writer.py`, the two per-source
+  fills, and the constant in `config_900_backplanes.yaml`) and lands off
+  `main`; what this plan owes is the `Special_Constants` declaration in the
+  data label, which Phase 4 carries.
 - #79 — scrape the PDS4 context products so `target_lids` is maintained
   rather than hand-written.
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow
