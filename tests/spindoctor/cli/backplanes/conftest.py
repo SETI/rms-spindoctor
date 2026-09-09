@@ -20,6 +20,13 @@ from spindoctor.config import Config
 from spindoctor.obs import Obs, ObsSnapshotInst
 from spindoctor.support.types import PathLike
 
+MASKED_VALUE = -999.0
+"""The ``backplanes.masked_value`` the shipped configuration sets.
+
+Bound here so a test asserts against a name rather than a literal, and so a
+change to the shipped value is made in one place on the test side.
+"""
+
 
 class HermeticObs(ObsSnapshotInst):
     """Hermetic ``ObsSnapshotInst`` that needs no SPICE kernels or holdings.
@@ -330,6 +337,7 @@ class FakeBackplanesConfig:
         bodies: list[dict[str, Any]] | None = None,
         rings: list[dict[str, Any]] | None = None,
         satellites: dict[str, list[str]] | None = None,
+        masked_value: float = MASKED_VALUE,
     ) -> None:
         """Build the fake config.
 
@@ -338,8 +346,10 @@ class FakeBackplanesConfig:
             rings: ``backplanes.rings`` entry list, or None to omit the attribute.
             satellites: Planet name to satellite-name-list map for
                 :meth:`satellites`.
+            masked_value: ``backplanes.masked_value``, the value a pixel carries
+                where the backplane has no valid measurement.
         """
-        self.backplanes = SimpleNamespace()
+        self.backplanes = SimpleNamespace(masked_value=masked_value)
         if bodies is not None:
             self.backplanes.bodies = bodies
         if rings is not None:

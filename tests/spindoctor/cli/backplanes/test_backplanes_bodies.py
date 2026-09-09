@@ -27,6 +27,7 @@ from spindoctor.cli.backplanes.backplanes_bodies import (
 from spindoctor.config import IMAGE_LOGGER
 
 from .conftest import (
+    MASKED_VALUE,
     FakeBackplanesConfig,
     HermeticObs,
     inventory_entry,
@@ -79,7 +80,7 @@ def test_simulated_body_values_confined_to_body_mask() -> None:
     arr = result['MIMAS']['arrays']['body_latitude']
     assert arr.shape == SHAPE_VU
     assert np.all(arr[mask] > 0.0)
-    assert np.all(arr[~mask] == 0.0)
+    assert np.all(arr[~mask] == MASKED_VALUE)
 
 
 def test_simulated_body_mask_matches_sim_mask() -> None:
@@ -121,6 +122,7 @@ snapshot = SimpleNamespace(
     sim_body_mask_map={},
     sim_body_order_near_to_far=[],
     sim_body_index_map=None,
+    config=SimpleNamespace(backplanes=SimpleNamespace(masked_value=-999.0)),
 )
 full, _ = _create_simulated_body_backplane(snapshot, 'MIMAS', 'body_latitude', 2, 3, 3, 5)
 print(repr(float(full[2, 3])))
@@ -227,8 +229,8 @@ def test_body_bounding_box_clipped_into_sensor() -> None:
     result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
     arr = result['MIMAS']['arrays']['body_latitude']
     assert np.all(arr[3:8, 0:5] > 0.0)
-    assert np.all(arr[0:3, :] == 0.0)
-    assert np.all(arr[:, 5:] == 0.0)
+    assert np.all(arr[0:3, :] == MASKED_VALUE)
+    assert np.all(arr[:, 5:] == MASKED_VALUE)
 
 
 # ---------------------------------------------------------------------------
@@ -333,13 +335,15 @@ def test_real_body_values_embedded_at_bounding_box(monkeypatch: pytest.MonkeyPat
     arr = result['MIMAS']['arrays']['body_latitude']
     assert arr[2, 3] == np.float32(0.75)
     assert arr[4, 6] == np.float32(0.75)
-    assert np.all(arr[5:, :] == 0.0)
-    assert np.all(arr[:2, :] == 0.0)
-    assert np.all(arr[:, 7:] == 0.0)
+    assert np.all(arr[5:, :] == MASKED_VALUE)
+    assert np.all(arr[:2, :] == MASKED_VALUE)
+    assert np.all(arr[:, 7:] == MASKED_VALUE)
 
 
-def test_real_body_masked_pixels_fill_zero(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pixels masked by oops are filled with 0.0 and marked invalid.
+def test_real_body_masked_pixels_carry_the_masked_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pixels masked by oops carry the configured masked value and are marked invalid.
 
     Parameters:
         monkeypatch: pytest monkeypatch fixture.
@@ -349,7 +353,7 @@ def test_real_body_masked_pixels_fill_zero(monkeypatch: pytest.MonkeyPatch) -> N
     result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
     arr = result['MIMAS']['arrays']['body_latitude']
     mask = result['MIMAS']['masks']['body_latitude']
-    assert arr[2, 3] == 0.0
+    assert arr[2, 3] == MASKED_VALUE
     assert not bool(mask[2, 3])
     assert arr[2, 4] == np.float32(0.75)
     assert bool(mask[2, 4])
@@ -435,7 +439,7 @@ def test_simulated_backplane_index_map_fallback() -> None:
     )
     full, full_mask = _create_simulated_body_backplane(snap, 'BETA', 'body_latitude', 2, 4, 3, 5)
     assert full[2, 3] > 0.0
-    assert full[3, 4] == 0.0
+    assert full[3, 4] == MASKED_VALUE
     assert bool(full_mask[2, 3])
     assert not bool(full_mask[3, 4])
 
@@ -446,4 +450,4 @@ def test_simulated_backplane_rect_fallback_fills_whole_box() -> None:
     full, full_mask = _create_simulated_body_backplane(snap, 'UNKNOWN', 'body_latitude', 2, 3, 3, 5)
     assert np.all(full[2:4, 3:6] > 0.0)
     assert np.all(full_mask[2:4, 3:6])
-    assert np.all(full[4:, :] == 0.0)
+    assert np.all(full[4:, :] == MASKED_VALUE)

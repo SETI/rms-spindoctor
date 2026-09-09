@@ -53,10 +53,11 @@ def write_fits(
         if rp['name'] != 'distance':  # not written as a master backplane type
             units_map[rp['name']] = rp.get('units', '')
 
-    # Filter out backplanes with no valid pixels (unclaimed pixels are zero;
-    # non-finite values never count as valid)
+    # Filter out backplanes with no valid pixels (unclaimed pixels carry the
+    # configured masked value; non-finite values never count as valid)
+    masked_value = float(config.backplanes.masked_value)
     filtered_master = {
-        k: v for k, v in master_by_type.items() if np.any((v != 0.0) & np.isfinite(v))
+        k: v for k, v in master_by_type.items() if np.any((v != masked_value) & np.isfinite(v))
     }
 
     for name, arr in filtered_master.items():

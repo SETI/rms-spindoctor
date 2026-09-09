@@ -24,7 +24,13 @@ from spindoctor.cli.backplanes.merge import merge_sources_into_master
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import IMAGE_LOGGER
 
-from .conftest import FakeBackplanesConfig, FakeRingBackplane, HermeticObs, make_snapshot
+from .conftest import (
+    MASKED_VALUE,
+    FakeBackplanesConfig,
+    FakeRingBackplane,
+    HermeticObs,
+    make_snapshot,
+)
 
 SHAPE_VU = (6, 8)
 
@@ -147,15 +153,15 @@ def test_result_records_planet() -> None:
     assert result['planet'] == 'SATURN'
 
 
-def test_ring_arrays_nan_filled_outside_mask() -> None:
-    """Ring arrays carry values where valid and NaN where the ring is absent."""
+def test_ring_arrays_masked_outside_mask() -> None:
+    """Ring arrays carry values where valid and the masked value where absent."""
     valid, method_values = _ring_arrays(value=100000.0)
     snap, _ = _snapshot_with_fake_bp(method_values)
     result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
     assert result is not None
     arr = result['arrays']['ring_radius']
     assert np.all(arr[valid] == np.float32(100000.0))
-    assert np.all(np.isnan(arr[~valid]))
+    assert np.all(arr[~valid] == MASKED_VALUE)
 
 
 def test_ring_masks_true_where_valid() -> None:

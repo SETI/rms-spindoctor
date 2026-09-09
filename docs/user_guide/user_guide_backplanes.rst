@@ -49,7 +49,12 @@ Key properties:
 
 - The output FITS places ``BODY_ID_MAP`` as the first image HDU (after the
   primary HDU).
-- Backplanes that are entirely zero are omitted from the FITS file.
+- Pixels a backplane did not measure carry the masked value, ``-999.0`` as
+  shipped (``backplanes.masked_value``). It sits outside the range of every
+  plane, so ``!= -999.0`` selects the measured pixels of any plane.
+  ``BODY_ID_MAP`` is the exception: it holds ``0`` where no body claimed the
+  pixel, ``0`` not being a NAIF ID.
+- Backplanes that are entirely masked are omitted from the FITS file.
 - The list of backplanes to generate is configured under ``backplanes`` in
   ``src/spindoctor/config_files/config_900_backplanes.yaml``.
 - For simulated observations, synthetic backplanes are produced whose masks
@@ -215,8 +220,8 @@ For each processed image, ``sd_backplanes`` writes two files under
 
   - A primary HDU.
   - ``BODY_ID_MAP`` (int32) as the first image HDU.
-  - One ``ImageHDU`` per non-all-zero backplane array, with ``BUNIT`` set when
-    configured.
+  - One ``ImageHDU`` per backplane array that measured at least one pixel,
+    with ``BUNIT`` set when configured.
 
 - ``<results_path_stub>_backplane_metadata.json`` containing per-body
   inventory information and per-backplane ``min``/``max`` statistics
@@ -268,7 +273,7 @@ Features
 
   - Lists all FITS image HDUs: ``BODY_ID_MAP`` (int32) plus each backplane (float32).
   - Each backplane can be toggled with a checkbox, assigned transparency 0-1, a colormap, and scaling mode (Absolute or Relative).
-  - Relative mode computes min/max using only pixels where ``BODY_ID_MAP != 0`` (numeric zeros are not treated specially).
+  - Relative mode computes min/max using only the pixels a plane measured, which are the finite ones that are not the masked value.
   - Absolute mode:
 
     - Longitudes: 0-360 deg; Latitudes: -90-90 deg.
@@ -282,4 +287,4 @@ Notes
 -----
 
 - Units: Angular FITS HDUs with ``BUNIT=rad`` are converted to degrees for display and absolute scaling. Heuristics are used for common angle names if units are missing.
-- Masking: Backplane visualizations use ``BODY_ID_MAP != 0`` to determine valid pixels for relative scaling; numeric zeros are not treated as masked unless indicated by the body map.
+- Masking: Backplane visualizations treat a pixel as valid when it is finite and is not the masked value, which is the same rule for body and ring planes.

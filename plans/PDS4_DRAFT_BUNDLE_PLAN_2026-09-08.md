@@ -24,9 +24,11 @@ rather than from reading alone: section 2 records what that run produced and
 what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`.
 
-No phase has run. One change has landed ahead of them, because it is
-mechanical, self-contained and must precede any label generated against a
-schema: the rings dictionary bump recorded in section 3.9.
+No phase has run. Two changes have landed ahead of them, both because they
+must precede anything generated against them: the rings dictionary bump
+recorded in section 3.9, and the masked-value change recorded in section
+3.13, which alters what the backplane arrays contain and so has to be
+settled before a label describes one.
 
 This plan is the "finish and validate the Cassini path" half of #53, which
 `plans/ENGINEERING_PLAN.md` (Track D, "PDS4 output bundles") lists as the
@@ -729,19 +731,25 @@ read either way, and settled the same day: it is the mask rather than a
 measurement, `0` is not a NAIF ID, and a sentinel there would make it the
 one plane a reader has to special-case.
 
-**The backplane generator changes, not the bundle generator.** The two
-`master = np.zeros(...)` in `merge.py:109` and `merge.py:144` become
-`np.full(..., SENTINEL)`; `writer.py:59`'s plane-worth-writing test
-`np.any((v != 0.0) & np.isfinite(v))` compares against the sentinel instead,
+**Applied 2026-09-09, in the backplane generator.** `backplanes.masked_value`
+in `config_900_backplanes.yaml` is the single source; the two
+`master = np.zeros(...)` in `merge.py` became `np.full(..., masked_value)`;
+`writer.py`'s plane-worth-writing test compares against it instead of `0.0`,
 which also stops a plane whose only valid pixels are exactly `0.0` from
-being dropped; `backplanes_bodies.py:170` and its ring counterpart fill
-per-source arrays to match; and the value itself lives in
-`config_900_backplanes.yaml` so the label reads it rather than repeating a
-literal. The per-image statistics are unaffected, because they already run
-off the boolean masks (`valid_values = full[full_mask]`) rather than off the
-fill. Tracked on #601, and it lands off `main` rather than on this branch,
-because it changes a science product rather than a bundle. What this plan
-owes is the declaration in the label.
+being dropped; and the per-source fills in `backplanes_bodies.py` and
+`backplanes_rings.py` match, which incidentally ends a second divergence --
+bodies filled with `0.0` while rings filled with `NaN`. Per-image statistics
+are untouched, because they already run off the boolean masks
+(`valid_values = full[full_mask]`) rather than off the fill.
+
+`sd_backplane_viewer` moved with it, and is better for the change: it used
+to take `BODY_ID_MAP != 0` as validity for body planes and `== 0` for ring
+planes, the second of which marks empty sky valid. Both now ask the array
+whether a pixel is measured, which is one rule and the right answer for
+each.
+
+What this plan still owes is the declaration: Phase 4 gives every
+`Array_2D_Image` a `Special_Constants` block naming the configured value.
 
 `collections.py`'s "TODO Need an appropriate sentinel value for missing
 data" is the table-cell half of the same question. The same `-999` is the
@@ -1133,12 +1141,13 @@ branch.
   LaTeX sources and the built PDFs live relative to the template directory.
 - #600 — what the bundle says about images that did not navigate. Replaces
   section 3.11 when it is decided; nothing before Phase 10 depends on it.
-- #601 — masked backplane values become `-999` (decided 2026-09-09), so one
-  comparison masks every plane instead of two inference rules. The work is
-  in the backplane generator (`merge.py`, `writer.py`, the two per-source
-  fills, and the constant in `config_900_backplanes.yaml`) and lands off
-  `main`; what this plan owes is the `Special_Constants` declaration in the
-  data label, which Phase 4 carries.
+- #601 — masked backplane values are `-999` as of 2026-09-09, applied on
+  this branch (section 3.13), so one comparison masks every plane. What
+  remains of it here is the `Special_Constants` declaration in the data
+  label, which Phase 4 carries. The ring half of the original finding turned
+  out to duplicate #251, which is the `xfail`-pinned record that ring-won
+  pixels get no `BODY_ID_MAP` entry; the sentinel makes that gap harmless
+  for consumers without closing it.
 - #79 — scrape the PDS4 context products so `target_lids` is maintained
   rather than hand-written.
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow

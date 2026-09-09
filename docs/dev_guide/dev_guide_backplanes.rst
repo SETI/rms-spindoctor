@@ -134,8 +134,8 @@ Restrictions and assumptions
 - **Per-body bounding-box evaluation.**  Body backplanes are evaluated
   on a meshgrid clipped to the body's predicted bounding box (no
   oversampling). Pixels outside any body's bounding box and outside
-  the ring system have no backplane contribution and stay zero in the
-  master arrays.
+  the ring system have no backplane contribution and carry the masked
+  value in the master arrays.
 
 Per-source backplane generation
 ===============================
@@ -195,7 +195,15 @@ exactly once. For each pixel it iterates the per-source distances and
 picks the source with the smallest finite distance (closest along the
 line of sight); the per-backplane values from that source are copied
 into the master arrays. Pixels with no finite distance from any source
-stay zero.
+carry the masked value.
+
+The masked value is ``backplanes.masked_value`` in
+``config_900_backplanes.yaml``, ``-999.0`` as shipped. It sits outside the
+range of every plane written, so one comparison -- ``!= masked_value`` --
+identifies the measured pixels of any plane, and the PDS4 label declares it
+as the array's missing constant. ``BODY_ID_MAP`` is the exception: it is the
+body identity map rather than a measurement, and ``0`` is not a NAIF ID, so
+zero there already means no body claimed the pixel.
 
 The function also fills a sensor-shaped ``BODY_ID_MAP`` carrying the NAIF
 ID of the winning source per pixel. Bodies use their real NAIF IDs;
@@ -220,9 +228,9 @@ output FITS file structure:
   emitted only when at least one pixel has a non-zero ID.
 - **One HDU per backplane** — name from ``backplanes.bodies[i].name`` /
   ``backplanes.rings[i].name``, ``BUNIT`` header from the per-backplane
-  ``units`` field, ``float32`` data. Backplanes that are entirely zero
-  on this image are omitted (a body backplane on a no-body-in-FOV image
-  contributes no HDU).
+  ``units`` field, ``float32`` data. Backplanes that are entirely the
+  masked value on this image are omitted (a body backplane on a
+  no-body-in-FOV image contributes no HDU).
 
 Alongside the FITS file the writer drops a companion
 ``<image>_backplane_metadata.json`` containing:

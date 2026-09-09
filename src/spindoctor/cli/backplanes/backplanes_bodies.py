@@ -36,7 +36,8 @@ def _create_simulated_body_backplane(
         corresponding boolean mask.
     """
 
-    full = np.zeros(snapshot.data.shape, dtype=np.float32)
+    masked_value = float(snapshot.config.backplanes.masked_value)
+    full = np.full(snapshot.data.shape, masked_value, dtype=np.float32)
     full_mask = np.zeros(snapshot.data.shape, dtype=bool)
     # hashlib, not hash(): str hashing is salted per interpreter run and the
     # simulated values must be deterministic
@@ -87,6 +88,8 @@ def create_body_backplanes(
         - "distance": The body backplane distance.
         - "statistics": The body backplane statistics.
     """
+
+    masked_value = float(config.backplanes.masked_value)
 
     # maps body_name -> arrays/masks/distance
     # per_body is ordered by increasing distance
@@ -165,11 +168,11 @@ def create_body_backplanes(
                 # Convert to masked array via .mvals to preserve mask
                 mvals = vals.mvals  # masked numpy array
                 # Embed into full-frame arrays
-                full = np.zeros(snapshot.data.shape, dtype=np.float32)
+                full = np.full(snapshot.data.shape, masked_value, dtype=np.float32)
                 full_mask = np.zeros(snapshot.data.shape, dtype=bool)
-                full[v0 : v1 + 1, u0 : u1 + 1] = np.ma.filled(mvals, fill_value=0.0).astype(
-                    np.float32
-                )
+                full[v0 : v1 + 1, u0 : u1 + 1] = np.ma.filled(
+                    mvals, fill_value=masked_value
+                ).astype(np.float32)
                 mask = ~np.ma.getmaskarray(mvals)
                 full_mask[v0 : v1 + 1, u0 : u1 + 1] = mask  # True where valid
 

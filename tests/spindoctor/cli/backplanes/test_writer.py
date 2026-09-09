@@ -20,7 +20,13 @@ from filecache import FCPath
 
 from spindoctor.cli.backplanes.writer import write_fits
 
-from .conftest import FakeBackplanesConfig, HermeticObs, inventory_entry, make_snapshot
+from .conftest import (
+    MASKED_VALUE,
+    FakeBackplanesConfig,
+    HermeticObs,
+    inventory_entry,
+    make_snapshot,
+)
 
 SHAPE_VU = (6, 11)
 
@@ -195,13 +201,13 @@ def test_write_fits_no_bunit_for_unconfigured_name(tmp_path: Path) -> None:
         assert 'BUNIT' not in hdul['MYSTERY'].header
 
 
-def test_write_fits_all_zero_backplane_omitted(tmp_path: Path) -> None:
-    """A backplane that is entirely zero contributes no HDU.
+def test_write_fits_fully_masked_backplane_omitted(tmp_path: Path) -> None:
+    """A backplane that is entirely the masked value contributes no HDU.
 
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    master = {'body_latitude': np.zeros(SHAPE_VU, dtype=np.float32)}
+    master = {'body_latitude': np.full(SHAPE_VU, MASKED_VALUE, dtype=np.float32)}
     fits_path, _ = _write(tmp_path, master=master, id_map=_id_map())
     with fits.open(fits_path) as hdul:
         assert 'BODY_LATITUDE' not in [hdu.name for hdu in hdul]

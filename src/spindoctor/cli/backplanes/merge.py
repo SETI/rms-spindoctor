@@ -42,7 +42,10 @@ def merge_sources_into_master(
     """
 
     height, width = snapshot.data.shape
+    masked_value = float(snapshot.config.backplanes.masked_value)
     master_by_type: dict[str, np.ndarray] = {}
+    # Not masked_value: this is the body identity map, and 0 is not a NAIF ID, so
+    # zero already says no body claimed the pixel.
     body_id_map = np.zeros((height, width), dtype=np.int32)
 
     # Build source list with per-pixel distance and NAIF IDs
@@ -104,9 +107,9 @@ def merge_sources_into_master(
             body_types.update(body_source['arrays'].keys())
 
         # 1) Body backplanes: use nearest body among bodies only; rings do not affect these.
-        # Unclaimed pixels stay zero (the writer omits all-zero planes).
+        # Unclaimed pixels carry the masked value (the writer omits all-masked planes).
         for bp_type in sorted(body_types):
-            master = np.zeros((height, width), dtype=np.float32)
+            master = np.full((height, width), masked_value, dtype=np.float32)
             for body_idx, body_source in enumerate(body_sources):
                 arrays = body_source['arrays']
                 masks = body_source['masks']
@@ -141,7 +144,7 @@ def merge_sources_into_master(
                 continue
             if bp_type not in ring_arrays or bp_type not in ring_masks:
                 raise ValueError(f'Backplane type {bp_type} array or mask not found for rings')
-            master = np.zeros((height, width), dtype=np.float32)
+            master = np.full((height, width), masked_value, dtype=np.float32)
             src_vals = ring_arrays[bp_type]
             src_mask = ring_masks[bp_type]
             # occlusion: if any body is present and nearer than ring, mask out ring

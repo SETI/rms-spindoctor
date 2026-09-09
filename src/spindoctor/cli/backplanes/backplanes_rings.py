@@ -31,6 +31,8 @@ def create_ring_backplanes(
         - "distance": The ring backplane distance.
     """
 
+    masked_value = float(config.backplanes.masked_value)
+
     result: dict[str, Any] = {
         'planet': None,
         'target_key': None,
@@ -80,7 +82,7 @@ def create_ring_backplanes(
             result['distance'] = np.asarray(vals.mvals.filled(np.inf), dtype=np.float32)
 
         mvals = vals.mvals
-        full = np.asarray(np.ma.filled(mvals, fill_value=np.nan), dtype=np.float32)
+        full = np.asarray(np.ma.filled(mvals, fill_value=masked_value), dtype=np.float32)
         mask = ~np.ma.getmaskarray(mvals)
 
         if np.any(mask):

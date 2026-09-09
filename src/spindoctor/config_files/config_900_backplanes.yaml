@@ -42,5 +42,13 @@ backplanes:
       method: ring_angular_resolution
       units: rad/pixel
 
+  # Value written wherever a backplane has no valid measurement. It sits outside
+  # the range of every plane written -- longitudes 0 to 360, latitudes -90 to 90,
+  # angles 0 to 180, resolutions and ring radii positive -- so a single comparison
+  # masks every plane, and the PDS4 label declares it as the array's missing
+  # constant. BODY_ID_MAP is exempt: it is the body identity map rather than a
+  # measurement, and 0 (not a NAIF ID) already means no body claimed the pixel.
+  masked_value: -999.0
+
   # Optional mapping from NAIF ID to PDS4 LID (used for label target identification)
   target_lids: {}
