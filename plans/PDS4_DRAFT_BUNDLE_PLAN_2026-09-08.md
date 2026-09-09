@@ -724,7 +724,10 @@ the range of every plane written. That replaces two inference rules
 (`BODY_ID_MAP != 0` for bodies, `RING_RADIUS != 0` for rings) with one
 comparison that works on every plane, and lets the label declare it through
 `Special_Constants` rather than explaining it in prose. `BODY_ID_MAP` keeps
-`0` for unclaimed, since it is the mask and not a measurement.
+`0` for unclaimed -- raised as the one place "every masked value" could be
+read either way, and settled the same day: it is the mask rather than a
+measurement, `0` is not a NAIF ID, and a sentinel there would make it the
+one plane a reader has to special-case.
 
 **The backplane generator changes, not the bundle generator.** The two
 `master = np.zeros(...)` in `merge.py:109` and `merge.py:144` become
