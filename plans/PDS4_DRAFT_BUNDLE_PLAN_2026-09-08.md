@@ -537,8 +537,16 @@ touched by the earlier phases.
 the bundle contains a subset of the images the selection named, and nothing
 today says which or how many.
 
-The integrity pass (#66) is the right answer and this plan includes a
-minimal form of it: a `--check-only` flag on the labels pass that reports,
+**Whether that is right is now #600**, filed as a decision rather than
+settled here: exclude entirely, carry a global-index row with a status and
+no product, or record the attempt as a product of its own. The F ring
+reference excludes entirely (recorded on that issue), which is a precedent
+and not an answer, because its exclusions are operational failures while
+ours are scientific outcomes. Whatever #600 decides replaces this section.
+
+Until then, and regardless: the integrity pass (#66) is the right answer for
+reporting the gap outside the bundle, and this plan includes a minimal form
+of it: a `--check-only` flag on the labels pass that reports,
 per selected image, whether the navigation document, the summary PNG, the
 backplane FITS and the backplane metadata all exist and whether the
 navigation succeeded, and exits non-zero if any selected image is
@@ -681,6 +689,54 @@ package docstring so it can be copied rather than remembered.
 The `cohort` form is what an operator points `sd_create_bundle` and the Java
 `validate` tool at without waiting for a navigation run, and what Phase 10's
 schema gate runs over.
+
+### 3.13 The reference implementation, and where this bundle differs
+
+`/seti/research/f-ring/f-ring/pds4_bundle_gen/` generates the F ring mosaics
+bundle (`urn:nasa:pds:cassini_iss_fring_mosaics_rsfrench2025`), built at
+`/data/fring-bundles/pds4/`. It is delivered, it has a DOI, and it is the
+closest existing product from this group. Where this plan and that generator
+disagree without a reason, the generator wins; the paragraphs above already
+took its layout, its inventory conventions, its `Table_Character` index
+tables and its `Array_2D_Image` arrays.
+
+Four more things worth taking:
+
+**Every schema URL is a template variable.** `BASIC_XML_METADATA` holds
+`PDS4_RINGS_SCHEMA_XSD`, `PDS4_PDS_SCHEMA` and the rest in one dictionary,
+and the templates substitute them. Our templates hardcode each URL in each
+file, which is why the section 3.9 dictionary bump had to be a search and
+replace across two files rather than a one-line edit. Fold this into Phase 9
+with the bundle name and version, since it is the same parameterization
+problem.
+
+**A declared sentinel for absent data.** The reference fills invalid pixels
+with `-999`, passes it to the label as a variable, and carries a
+`SENTINEL_DESCRIPTION` explaining what an absent pixel means. Our arrays
+fill with `0.0`, which is a legal value for every angular plane, and nothing
+in the label says so. Filed as #601; the fix is a backplane-content decision
+(#55, #57), and the bundle side is only that the label declares whatever is
+chosen. `collections.py`'s "TODO Need an appropriate sentinel value for
+missing data" is the table-cell half of the same question.
+
+**DOIs are products of their own.** The reference carries `BUNDLE_DOI` and a
+separate `USERGUIDE_DOI`, and its user-guide label fills a real `<doi>`
+where ours has `TODO DOI`. Registering both is an operator step with the
+node, not a coding step, and it should be started early rather than
+discovered at delivery.
+
+**Authors and editors are template variables**, not prose: the reference
+carries an `AUTHORS` string and an `EDITORS` string naming the node staff
+who reviewed the bundle. Ours has a single hardcoded `List_Author` block.
+
+Two places where this plan deliberately does **not** follow the reference:
+
+- `populate_template` there discards `template.write`'s `(errors, warnings)`
+  return exactly as ours does. Phase 1 fixes that here; it is a defect the
+  reference shares, not a convention to copy.
+- The reference declares `PDS4_RINGS_1O00_1E00`. Section 3.9 moved us to
+  `1F00`, so on this one point we are ahead of it, and the F ring bundle may
+  want the same bump.
 
 ---
 
@@ -905,6 +961,11 @@ Closes #73, #75, #47; contributes to #53's template list. #79 stays open.
 `bundle_version` in `config_950_pds4.yaml`; every hardcoded bundle name and
 `version_id` in every template becomes a variable.
 
+The five schema URLs go the same way, per section 3.13: one place holding
+`PDS4_PDS_SCHEMA`, `PDS4_RINGS_SCHEMA_XSD` and the rest, substituted into
+every template that declares them, so a future dictionary bump is one edit
+rather than the search-and-replace section 3.9 needed.
+
 Tests: a config naming a different bundle produces that name in every LID in
 every rendered label — one test that walks the generated tree and asserts no
 label contains the default name.
@@ -1034,6 +1095,11 @@ branch.
   acceptance criterion 9 turns on for this bundle; the other three wait on
   their instrument's half of #53. #595 carries an open decision on where the
   LaTeX sources and the built PDFs live relative to the template directory.
+- #600 — what the bundle says about images that did not navigate. Replaces
+  section 3.11 when it is decided; nothing before Phase 10 depends on it.
+- #601 — backplane arrays fill invalid pixels with `0.0`, a legal value, and
+  the label says nothing about it. A backplane-content decision (#55, #57);
+  the bundle side is only that the label declares whatever is chosen.
 - #79 — scrape the PDS4 context products so `target_lids` is maintained
   rather than hand-written.
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow
