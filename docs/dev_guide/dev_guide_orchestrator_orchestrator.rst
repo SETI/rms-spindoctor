@@ -247,6 +247,11 @@ Call path traced through
 
    Each returns a failed
    :class:`~spindoctor.nav_orchestrator.nav_result.NavResult` via the ``_fail`` helper.
+   Either gate reports ``BODY_FILLS_FOV`` instead when a body model declined its body
+   as covering the extended frame with neither limb nor terminator inside it and every
+   feature emitted was a star behind it, so that a statistics report can tell an image
+   that could not have been navigated from one that failed; see
+   :class:`~spindoctor.support.status_reason.NavStatusReason`.
 8. **Pass 1.**  Run the prior-free techniques whose feature types overlap the gated
    cohort and whose ``is_feasible`` returns feasible: primary-tier techniques first,
    then fallback-tier techniques excluding any body already covered by a non-spurious

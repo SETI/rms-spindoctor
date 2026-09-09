@@ -427,11 +427,12 @@ accompanies ``failed``.
    * - ``instrument_not_configured``
      - No per-instrument configuration block exists for this camera.
    * - ``body_fills_fov``
-     - A body's disc covers every corner of the extended field of view, so
-       the image shows no limb on any edge and no measurable disc extent.
-       Separated from ``no_features_extracted`` because the frame is
-       unnavigable by geometry rather than by any shortfall in extraction,
-       and a statistics report should be able to set such frames aside.
+     - A body's disc covers the extended field of view, shows neither a limb
+       nor a terminator inside it, and nothing in front of it emitted a
+       feature; the only features, if any, were stars the body hides. The
+       image could not have been navigated, and a statistics report can omit
+       it from success statistics on that basis. ``no_features_extracted``
+       says the same of an image with nothing in it at all.
    * - ``no_features_extracted``
      - Every feature extractor returned an empty list.
    * - ``all_features_gated``

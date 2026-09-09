@@ -252,13 +252,17 @@ Declining early
 ===============
 
 The cheapest backplane is the one never built. A body whose disc reaches past all
-four corners of the extended frame leaves no sky around it, no limb inside the
-frame, and no measurable extent, so there is nothing a shape-based technique could
-match. :func:`~spindoctor.nav_model.nav_model_body.body_fills_extfov` decides that
-from the inventory alone -- an ellipse against the frame corners, costing no
-backplane -- and the model declines before building anything. The navigation records
-``body_fills_fov`` as its reason, which separates a frame that is unnavigable by
-that body from one that merely failed.
+four corners of the extended frame leaves no sky around it, and if its terminator
+is outside the frame as well there is nothing in the image a shape-based technique
+could match. :func:`~spindoctor.nav_model.nav_model_body.body_fills_extfov` asks
+the first question of the inventory alone -- a disc against the frame corners,
+costing no backplane -- and
+:func:`~spindoctor.nav_model.nav_model_body.body_edge_in_frame` asks the second of
+four one-pixel-wide backplanes along the frame's boundary, which is where any limb
+or terminator inside the frame has to show. Only then does the model decline before
+building anything. When nothing in front of the body was in view either, the
+navigation records ``body_fills_fov`` as its reason, which is what lets a
+statistics report omit the image as one that could not have been navigated.
 
 The ring model's pre-check is the same idea: a 16 x 16 evaluation rules out the two
 common cases -- no ring-plane intersection anywhere in the frame, and a visible radial range
