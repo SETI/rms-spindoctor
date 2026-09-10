@@ -57,9 +57,10 @@ and where to write it::
 
 Both arguments are required in both forms, and the statistics path is spelled
 out rather than defaulted, so that regenerating a checked-in fixture tree is
-something the operator asked for by name.  The cohort form is what an operator
-points a bundle run and a schema validator at without waiting for a navigation
-run.
+something the operator asked for by name.  What the cohort form writes is what
+the bundle stage's library entry points read, and what its tests are run over.
+It is not enough for ``sd_create_bundle`` itself, which enumerates a PDS3
+volume out of an index table the cohort does not write.
 
 The stored tree is then what the writer emits, and the frozen report output has
 to be re-ratified against it.  ``test_results_tree_documents.py`` holds the two

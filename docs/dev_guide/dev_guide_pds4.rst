@@ -411,12 +411,17 @@ default run because the kernels are not there to furnish.
 Nothing the cohort produces is checked in. A test takes it as a session-scoped
 fixture, ``mini_nav_cohort``, built into a temporary directory and torn down
 with the session; a test asserts that none of its products reaches the working
-tree. To build one outside the suite -- to point a bundle run or a schema
-validator at without waiting for a navigation run:
+tree. To build one outside the suite, to read or to call the bundle stage
+over:
 
 .. code-block:: bash
 
    PYTHONPATH=src python -m tests.mini_nav_results cohort /tmp/cohort
+
+What that writes is what the bundle stage's library entry points read: the
+navigation and backplane roots, and the images to pass them. It is not a
+holdings tree, so ``sd_create_bundle`` cannot enumerate it -- a PDS3 selection
+by volume reads that volume's index table, and the cohort writes none.
 
 Adding an instrument to the cohort is a module beside ``cohort_cassini``. The
 FITS files, the browse images and the documents it implies exist only while a

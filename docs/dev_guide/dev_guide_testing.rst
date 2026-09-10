@@ -250,9 +250,10 @@ navigate in-process and need no holdings.
        whatever it wrote.
    * - ``python -m tests.mini_nav_results cohort <outdir>``
      - Writes the PDS4 bundle cohort -- navigation documents, browse PNGs,
-       backplane FITS files and their metadata -- for pointing a bundle run or
-       a schema validator at without navigating anything. Nothing it writes is
-       checked in; the suite builds its own copy into a temporary directory.
+       backplane FITS files and their metadata -- for calling the bundle stage
+       over without navigating anything. It is not a holdings tree, so
+       ``sd_create_bundle`` cannot enumerate it. Nothing it writes is checked
+       in; the suite builds its own copy into a temporary directory.
 
 After a deliberate change that shifts a baseline or a figure, rerun the relevant
 updater or runner and review the diff before committing -- the baselines are

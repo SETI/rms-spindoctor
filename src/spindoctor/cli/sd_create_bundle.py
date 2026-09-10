@@ -37,6 +37,7 @@ from spindoctor.config import (
 from spindoctor.config.program_names import SD_CREATE_BUNDLE
 from spindoctor.dataset import dataset_name_to_class, dataset_names
 from spindoctor.dataset.dataset import DataSet, Pds4Pass
+from spindoctor.dataset.dataset_pds3 import DataSetPDS3
 
 PROGRAM_NAME = SD_CREATE_BUNDLE
 """Program identity: names the main log directory and the
@@ -89,7 +90,13 @@ def add_common_arguments(parser: argparse.ArgumentParser, *, for_labels: bool = 
 
 
 def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
-    """Parse arguments for the labels subcommand."""
+    """Parse arguments for the labels subcommand.
+
+    The dataset is constructed after the parse rather than before it, so that a
+    holdings root named on the command line is the one it enumerates from.  The
+    selection arguments it declares are its class's, so nothing about the parse
+    needs an instance.
+    """
     global DATASET
     global DATASET_NAME
 
@@ -105,7 +112,7 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
         print('Usage: sd_create_bundle labels <dataset_name> [args]')
         sys.exit(1)
 
-    DATASET = dataset_name_to_class(DATASET_NAME)()
+    dataset_class = dataset_name_to_class(DATASET_NAME)
 
     cmdparser = argparse.ArgumentParser(
         description='PDS4 Bundle Generation - Labels',
@@ -125,9 +132,22 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
     )
 
     # Dataset selection
-    DATASET.add_selection_arguments(cmdparser)
+    dataset_class.add_selection_arguments(cmdparser)
 
     arguments = cmdparser.parse_args(command_list[1:])
+
+    if arguments.pds3_holdings_root is None:
+        DATASET = dataset_class()
+    elif issubclass(dataset_class, DataSetPDS3):
+        DATASET = dataset_class(arguments.pds3_holdings_root)
+    else:
+        # Silently walking the configured archive instead is how a run against
+        # a holdings root of one's own comes back having enumerated something
+        # else entirely.
+        print(f'Dataset "{DATASET_NAME}" reads no PDS3 holdings; --pds3-holdings-root cannot')
+        print('be applied to it')
+        sys.exit(1)
+
     return arguments
 
 

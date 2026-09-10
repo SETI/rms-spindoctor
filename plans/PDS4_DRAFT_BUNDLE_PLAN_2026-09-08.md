@@ -749,9 +749,20 @@ rather than defaulted so that regenerating a checked-in fixture tree is
 something the operator asked for by name; it is written here and in the
 package docstring so it can be copied rather than remembered.
 
-The `cohort` form is what an operator points `sd_create_bundle` and the Java
-`validate` tool at without waiting for a navigation run, and what Phase 10's
-schema gate runs over.
+What the `cohort` form feeds is the bundle stage's library entry points
+and the tests over them, without waiting for a navigation run. It does
+not feed `sd_create_bundle` itself, and saying that it did was wrong in
+two ways, each independently sufficient. The first is fixed here:
+`--pds3-holdings-root` was declared by the labels subcommand and read by
+nothing, so a run pointed at a cohort walked the configured archive
+instead, silently. The second is real work and is not done: PDS3
+enumeration reads a volume's index table out of
+`<holdings>/metadata/<set>/<vol>/`, and the cohort writes no index label
+and no index table, so a selection by volume matches nothing. Growing
+the cohort a minimal holdings tree -- a parseable index label and table,
+and an image stub per row -- belongs to Phase 10, which is where the CLI
+and `validate` workflow is actually needed, and is tracked as an issue
+of its own.
 
 ### 3.13 The reference implementation, and where this bundle differs
 

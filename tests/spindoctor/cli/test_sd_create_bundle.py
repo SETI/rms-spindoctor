@@ -25,6 +25,7 @@ from filecache import FCPath
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
+from spindoctor.dataset.dataset_pds3 import DataSetPDS3
 
 
 def _image_file(name: str, *, base_dir: Path | None = None) -> ImageFile:
@@ -660,3 +661,45 @@ def test_a_cloud_task_reports_a_product_it_wrote(
     """A product whose labels are on disk still comes back a success."""
     _, result = _run_cloud_task(monkeypatch, BundleDataOutcome.WRITTEN)
     assert result == {'status': 'success'}
+
+
+def test_a_holdings_root_named_on_the_command_line_is_the_one_enumerated(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The flag has to reach the dataset, which is built to enumerate from it.
+
+    A dataset built before the parse enumerates whatever the environment or the
+    configuration names, and a run pointed at a holdings root of its own then
+    walks the archive instead -- with nothing said, and every image it finds
+    reported as skipped.
+
+    Parameters:
+        monkeypatch: Fixture the module globals are set through, so the parse
+            cannot leave one behind.
+        tmp_path: The holdings root the run is pointed at.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', None)
+    monkeypatch.setattr(sd_create_bundle, 'DATASET_NAME', None)
+    sd_create_bundle.parse_args_labels(['coiss_saturn', '--pds3-holdings-root', str(tmp_path)])
+    dataset = sd_create_bundle.DATASET
+    assert isinstance(dataset, DataSetPDS3)
+    assert dataset.pds3_holdings_root.as_posix() == tmp_path.as_posix()
+
+
+def test_a_dataset_with_no_holdings_refuses_a_holdings_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A flag that cannot be applied ends the run rather than being dropped.
+
+    Parameters:
+        monkeypatch: Fixture the module globals are set through, so the parse
+            cannot leave one behind.
+        tmp_path: The holdings root the run is pointed at.
+        capsys: Fixture the refusal is read back through.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', None)
+    monkeypatch.setattr(sd_create_bundle, 'DATASET_NAME', None)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.parse_args_labels(['sim', '--pds3-holdings-root', str(tmp_path)])
+    assert excinfo.value.code == 1
+    assert 'reads no PDS3 holdings' in capsys.readouterr().out
