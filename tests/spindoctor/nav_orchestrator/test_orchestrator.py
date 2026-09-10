@@ -72,19 +72,23 @@ class _FakeObs:
             ] = True
         self._sensor_mask = sensor_mask
         self.midtime = midtime
+        self.reset_all_calls = 0
+        self.resets_seen_by_a_technique: int | None = None
 
     def extfov_data_sensor_mask(self) -> np.ndarray:
         return self._sensor_mask
 
     def reset_all(self) -> None:
-        """Drop cached geometry, as a real snapshot does.
+        """Drop cached geometry, as a real snapshot does, and count the call.
 
         The orchestrator calls this once every model is built, to give back
         what the backplanes were holding.  This stand-in caches nothing, so
         it has nothing to drop -- but it still has to answer, because a
         stand-in that cannot is an incomplete stand-in rather than evidence
-        that production should not have asked.
+        that production should not have asked.  The count is what lets a test
+        say the release happened at all, and where.
         """
+        self.reset_all_calls += 1
 
 
 class _FakeStarModel(NavModel):
@@ -251,6 +255,12 @@ class _FakeStarTechnique(NavTechnique):
         return NavFeasibilityReport(feasible=False, reason='no_stars')
 
     def navigate(self, features: list[NavFeature], context: NavContext) -> NavTechniqueResult:
+        # Noted on the way past so a test can ask whether the backplanes had
+        # already been given back by the time a technique ran, which is the
+        # half of the placement that a call count alone cannot show.
+        obs = context.obs
+        if isinstance(obs, _FakeObs):
+            obs.resets_seen_by_a_technique = obs.reset_all_calls
         return NavTechniqueResult(
             technique_name=self.name,
             feature_ids=tuple(f.feature_id for f in features),
@@ -319,6 +329,59 @@ def test_orchestrator_runs_pipeline_end_to_end(fake_obs: _FakeObs) -> None:
     assert result.offset_px == (1.5, 2.5)
     assert [t.technique_name for t in result.per_technique] == ['_FakeStarTechnique']
     assert result.confidence_rank == 'high'
+
+
+def test_the_backplanes_are_given_back_once_the_models_are_done(
+    fake_obs: _FakeObs,
+) -> None:
+    """The observation is asked to drop its geometry, exactly once.
+
+    This is the whole of the model stage's memory saving: about five
+    gigabytes on a Voyager frame, held through every technique below for no
+    reader.  Nothing about a result changes when the call is removed, so only
+    an assertion that it happened can keep it.
+    """
+    obs = fake_obs
+    orch = NavOrchestrator(
+        [_FakeStarModel(obs, feature_count=3)], only_techniques=['_FakeStarTechnique']
+    )
+    result = orch.navigate(obs)  # type: ignore[arg-type]
+    assert result.status == 'success'
+    assert obs.reset_all_calls == 1
+
+
+def test_the_backplanes_are_given_back_before_any_technique_runs(
+    fake_obs: _FakeObs,
+) -> None:
+    """The release is placed ahead of the techniques, not merely somewhere.
+
+    A technique is where the correlators want the largest arrays in the
+    process, so a release after them would give the memory back at the one
+    moment it was not needed.
+    """
+    obs = fake_obs
+    orch = NavOrchestrator(
+        [_FakeStarModel(obs, feature_count=3)], only_techniques=['_FakeStarTechnique']
+    )
+    orch.navigate(obs)  # type: ignore[arg-type]
+    assert obs.resets_seen_by_a_technique == 1
+
+
+def test_the_backplanes_are_given_back_even_when_no_feature_survives(
+    fake_obs: _FakeObs,
+) -> None:
+    """A frame that fails at the feature gate releases them too.
+
+    The failure returns from inside the same stage, so a release placed after
+    that return would skip exactly the frames a batch produces most of.
+    """
+    obs = fake_obs
+    orch = NavOrchestrator(
+        [_FakeStarModel(obs, feature_count=0)], only_techniques=['_FakeStarTechnique']
+    )
+    result = orch.navigate(obs)  # type: ignore[arg-type]
+    assert result.status == 'failed'
+    assert obs.reset_all_calls == 1
 
 
 def test_orchestrator_handles_nonzero_extfov_margin() -> None:
