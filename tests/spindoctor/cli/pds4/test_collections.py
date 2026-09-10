@@ -11,7 +11,7 @@ dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
 scans ``data/`` for ``*_supplemental.txt`` files and writes
 ``document/supplemental/global_index_bodies.tab`` (one row per image/body) and
 ``global_index_rings.tab`` (one row per image with ring backplanes), with
-min/max columns for each configured backplane type formatted to 5 decimal
+min/max columns for each configured backplane type formatted to 8 decimal
 places, plus their labels.  Every template a generator renders is required: the
 drivers check the ones their dataset declares before processing anything, so one
 that is missing raises here rather than being passed over.
@@ -352,14 +352,31 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     assert body_names == ['MIMAS', 'ENCELADUS', 'MIMAS']
 
 
-def test_bodies_index_numeric_values_formatted_to_five_decimals(tmp_path: Path) -> None:
-    """Numeric min/max values are written with exactly five decimal places."""
+def test_bodies_index_numeric_values_formatted_to_eight_decimals(tmp_path: Path) -> None:
+    """Numeric min/max values are written with exactly eight decimal places."""
     env = _index_env(tmp_path)
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
-    assert rows[1][3] == '1.23457'
-    assert rows[1][4] == '2.00000'
+    assert rows[1][3] == '1.23456789'
+    assert rows[1][4] == '2.00000000'
+
+
+def test_index_keeps_a_value_far_smaller_than_one(tmp_path: Path) -> None:
+    """A ring longitudinal resolution in degrees per pixel survives the table.
+
+    The column that motivates the width: an angular resolution is of order a
+    thousandth of a degree per pixel, so a narrower fixed-point format rounds it
+    to one significant figure or to zero, and the table reports a measurement it
+    did not make.
+    """
+    env = _index_env(tmp_path)
+    fine = {'MIMAS': {'backplanes': {'latitude': {'min': 0.00015470, 'max': 0.00080214}}}}
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=fine)
+    _run_global_index(env)
+    rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
+    assert rows[1][3] == '0.00015470'
+    assert rows[1][4] == '0.00080214'
 
 
 def test_bodies_index_missing_backplane_values_blank(tmp_path: Path) -> None:
@@ -395,8 +412,8 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
     assert rows[0] == ['LID', 'path_to_image_file', 'radius_min', 'radius_max']
     assert len(rows) == 2
     assert rows[1][1] == 'data/shard0/2222222222w_backplanes.lblx'
-    assert rows[1][2] == '74500.00000'
-    assert rows[1][3] == '136800.98765'
+    assert rows[1][2] == '74500.00000000'
+    assert rows[1][3] == '136800.98765400'
 
 
 def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> None:

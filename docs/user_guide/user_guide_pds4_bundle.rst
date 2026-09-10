@@ -273,11 +273,11 @@ The summary pass generates:
 * **Global Index Files**:
 
   * ``global_index_bodies.tab``: CSV file with one row per image/body combination,
-    containing min/max values for each configured backplane type (formatted to 5 decimal
+    containing min/max values for each configured backplane type (formatted to 8 decimal
     places)
   * ``global_index_bodies.lblx``: PDS4 label for the bodies index
   * ``global_index_rings.tab``: CSV file with one row per image, containing min/max
-    values for each configured ring backplane type (formatted to 5 decimal places)
+    values for each configured ring backplane type (formatted to 8 decimal places)
   * ``global_index_rings.lblx``: PDS4 label for the rings index
 
 Both index tables are meant to be read by a person, so every angular column in

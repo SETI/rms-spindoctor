@@ -266,9 +266,9 @@ def generate_global_index_files(
                 min_val = row.get(f'{bp_type}_min', '')
                 max_val = row.get(f'{bp_type}_max', '')
                 if isinstance(min_val, (int, float)):
-                    min_val = f'{min_val:.5f}'
+                    min_val = f'{min_val:.8f}'
                 if isinstance(max_val, (int, float)):
-                    max_val = f'{max_val:.5f}'
+                    max_val = f'{max_val:.8f}'
                 row_data.append(min_val)
                 row_data.append(max_val)
             writer.writerow(row_data)
@@ -296,9 +296,9 @@ def generate_global_index_files(
                 min_val = row.get(f'{ring_type}_min', '')
                 max_val = row.get(f'{ring_type}_max', '')
                 if isinstance(min_val, (int, float)):
-                    min_val = f'{min_val:.5f}'
+                    min_val = f'{min_val:.8f}'
                 if isinstance(max_val, (int, float)):
-                    max_val = f'{max_val:.5f}'
+                    max_val = f'{max_val:.8f}'
                 row_data.append(min_val)
                 row_data.append(max_val)
             writer.writerow(row_data)
