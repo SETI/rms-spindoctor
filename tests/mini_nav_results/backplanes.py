@@ -289,12 +289,17 @@ def write_backplanes(
         if entry['name'] != 'distance'
     }
 
+    # Every pixel some body covers, which is where the rings are not seen.
     claimed: NDArrayBoolType = np.zeros(COHORT_SHAPE_VU, dtype=np.bool_)
     bodies_result: dict[str, Any] = {}
     sim_inventory: dict[str, Any] = {}
 
     for body in bodies:
-        mask = _disc_mask(body) & ~claimed
+        # The disc the body covers, whole: which of two overlapping bodies owns
+        # a pixel is the merge's decision, taken on their ranges, and deciding
+        # it here as well would be a second answer that agrees only while the
+        # nearer body happens to be declared first.
+        mask = _disc_mask(body)
         claimed |= mask
         planes = {name: _ramp(_bounds_for(name), mask, masked_value) for name in body_units}
         masks = dict.fromkeys(planes, mask)
