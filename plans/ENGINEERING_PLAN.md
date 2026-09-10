@@ -569,7 +569,9 @@ asserts the generated half matches the registries.
   in the results index, and the statistics report summarizes it per
   instrument with a histogram and the hungriest images, so the next
   regression is read off a pass's own numbers rather than found by a cloud
-  pool dying. Six Voyager frames still sit above the 8 GB target, the worst
+  pool dying. The record is null where the kernel publishes no peak or will
+  not let the mark be reset ahead of the image, `/proc` being Linux-only.
+  Six Voyager frames still sit above the 8 GB target, the worst
   at 9.82, enumerated with what is known and what is not in
   `critiques/NAV_MEMORY_AFTER_THE_FIXES_2026-09-05.md`; none has been
   traced. The two placements measured to be worth nothing are recorded in
