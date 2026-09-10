@@ -120,7 +120,9 @@ write, over both generators, and exits 1 the same way.  The inventory and index
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
 for no retry: a template that could not be rendered will not render on a second
-attempt.
+attempt.  It makes neither up-front check, because it holds one task rather
+than the run: a template it cannot find raises out of that task, and the empty
+bundle root is the queue-driven run's own precondition to establish.
 
 Per-dataset extension points
 ============================
@@ -249,13 +251,16 @@ Every label the bundle stage writes therefore goes through
 
 - Warnings are logged at warning level, and the label is written.
 - Errors are logged at error level naming the label path, and the label is not
-  written.  A render that drew errors writes nothing at all, and the bundle root
-  was empty when the run started, so nothing is left at that path for the label
-  to be confused with.
+  written.  A render that drew errors writes nothing at all, so whatever was at
+  that path before is what is there after -- nothing, in a bundle the labels
+  pass wrote into an empty directory.
 
 That is the whole of it.  ``write_label`` neither reads nor removes what is at
-the label path, because the labels pass has already established that nothing is:
-a bundle is written into an empty directory or not at all.
+the label path, because it does not have to: a bundle is written into an empty
+directory or not at all.  The one way an earlier label can be at the path is a
+summary pass run a second time over a bundle it has already summarized, where
+the collection and index labels of the first run are still in place; a render
+that errors this time leaves the earlier label, and the error line names it.
 
 A failed render does not stop the run.  Both of an image's labels are attempted
 when the image has both products, and so is every collection and index label, so
