@@ -169,6 +169,10 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
 
     A document naming a plane the FITS does not carry, or missing one it does,
     puts a global index column beside an array that is not the one it measures.
+    A frame with no ring pixels in view is read the same way, through the same
+    key: the ring stage returns a result holding nothing rather than no result,
+    so ``rings`` names an empty ``backplanes`` rather than being empty itself,
+    and a document that has to be read defensively is one no run wrote.
 
     Parameters:
         mini_nav_cohort: The session's cohort.
@@ -184,7 +188,7 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
         named: set[str] = set()
         for body in document['bodies'].values():
             named |= {name.upper() for name in body['backplanes']}
-        named |= {name.upper() for name in document['rings'].get('backplanes', {})}
+        named |= {name.upper() for name in document['rings']['backplanes']}
         if named != in_the_fits:
             disagreeing.append(
                 f'{image.image_name}: the document names {sorted(named)} and the FITS '

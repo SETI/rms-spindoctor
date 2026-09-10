@@ -270,7 +270,9 @@ def write_backplanes(
         bodies: The bodies the frame has backplanes for, each claiming a disc
             of the frame.
         rings: Whether the frame has ring backplanes, which claim every pixel
-            no body does.
+            no body does.  A frame with none still carries a ring result with
+            nothing in it, as a real frame whose rings are out of the field
+            does.
         config: The configuration whose declared planes, units and masked value
             the products are built from.
     """
@@ -306,19 +308,23 @@ def write_backplanes(
             'v_pixel_size': 2.0 * radius_v,
         }
 
-    rings_result: dict[str, Any] | None = None
-    if rings:
-        ring_mask = ~claimed
-        ring_planes = {
-            name: _ramp(_bounds_for(name), ring_mask, masked_value) for name in ring_units
-        }
-        ring_masks = dict.fromkeys(ring_planes, ring_mask)
-        rings_result = {
-            'arrays': ring_planes,
-            'masks': ring_masks,
-            'distance': _ring_distance(bodies),
-            'statistics': _statistics(ring_planes, ring_masks, ring_units),
-        }
+    # A frame with no ring pixels in view still carries a ring result, holding
+    # nothing: that is what the ring stage returns for a real frame whose rings
+    # are all out of the field, and it is the shape -- "rings" naming an empty
+    # "backplanes" rather than being empty itself -- that the collections read.
+    ring_mask = ~claimed
+    ring_planes = (
+        {name: _ramp(_bounds_for(name), ring_mask, masked_value) for name in ring_units}
+        if rings
+        else {}
+    )
+    ring_masks = dict.fromkeys(ring_planes, ring_mask)
+    rings_result: dict[str, Any] = {
+        'arrays': ring_planes,
+        'masks': ring_masks,
+        'distance': _ring_distance(bodies),
+        'statistics': _statistics(ring_planes, ring_masks, ring_units),
+    }
 
     snapshot = cast(ObsSnapshot, _SimulatedSnapshot(sim_inventory, config))
     master_by_type, body_id_map = merge_sources_into_master(
