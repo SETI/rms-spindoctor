@@ -88,16 +88,25 @@ class CohortBody:
     name, as it does for a real image, so the identity map cannot carry an
     identifier the name does not resolve to.
 
+    Every value here differs between the two axes, deliberately.  The frame is
+    square and the products state a body's center and its extent as pairs, so a
+    body centered on the frame with a circular disc is one a swapped pair
+    describes exactly as well -- and the writer transposes one of those pairs
+    and not the other.  An off-center body with an elliptical disc is what
+    makes the axis order load-bearing, and it costs the fixture nothing.
+
     Attributes:
         name: The body's name, as the inventory and the backplanes key it.
-        center_vu: Where the body's center sits in the frame, in pixels.
-        radius_px: How far from that center the body's disc reaches.
+        center_vu: Where the body's center sits in the frame, in pixels, down
+            the frame first and across it second.
+        radii_vu: How far from that center the body's disc reaches along each
+            axis, in the same order.
         range_km: How far the body is from the observer.
     """
 
     name: str
     center_vu: tuple[float, float]
-    radius_px: float
+    radii_vu: tuple[float, float]
     range_km: float
 
 
@@ -203,7 +212,8 @@ def _disc_mask(body: CohortBody) -> NDArrayBoolType:
     """Return the pixels a body's disc claims.
 
     Parameters:
-        body: The body, with the center and radius its disc covers.
+        body: The body, with the center its disc is drawn around and how far it
+            reaches along each axis.
 
     Returns:
         True wherever the body is seen.
@@ -211,8 +221,9 @@ def _disc_mask(body: CohortBody) -> NDArrayBoolType:
     size_v, size_u = COHORT_SHAPE_VU
     grid_v, grid_u = np.mgrid[0:size_v, 0:size_u]
     center_v, center_u = body.center_vu
-    distance = np.hypot(grid_v - center_v, grid_u - center_u)
-    return cast(NDArrayBoolType, distance <= body.radius_px)
+    radius_v, radius_u = body.radii_vu
+    reach = np.hypot((grid_v - center_v) / radius_v, (grid_u - center_u) / radius_u)
+    return cast(NDArrayBoolType, reach <= 1.0)
 
 
 def _ring_distance(bodies: tuple[CohortBody, ...]) -> NDArrayFloatType:
@@ -287,11 +298,12 @@ def write_backplanes(
             'statistics': _statistics(planes, masks, body_units),
         }
         center_v, center_u = body.center_vu
+        radius_v, radius_u = body.radii_vu
         sim_inventory[body.name] = {
             'center_uv': [center_u, center_v],
             'range': body.range_km,
-            'u_pixel_size': 2.0 * body.radius_px,
-            'v_pixel_size': 2.0 * body.radius_px,
+            'u_pixel_size': 2.0 * radius_u,
+            'v_pixel_size': 2.0 * radius_v,
         }
 
     rings_result: dict[str, Any] | None = None

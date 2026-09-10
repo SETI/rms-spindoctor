@@ -243,7 +243,7 @@ def cassini_body_limb() -> dict[str, Any]:
             reliability=0.71,
             gated=False,
             gate_reason=None,
-            bbox_extfov_vu=(2, 2, 13, 13),
+            bbox_extfov_vu=(2, 4, 10, 14),
             reliability_reasons=NavReliabilityBreakdown(
                 visible_lit_fraction=0.71, overflow_fraction=0.0
             ),
@@ -255,7 +255,7 @@ def cassini_body_limb() -> dict[str, Any]:
             reliability=0.86,
             gated=False,
             gate_reason=None,
-            bbox_extfov_vu=(2, 2, 13, 13),
+            bbox_extfov_vu=(2, 4, 10, 14),
             reliability_reasons=NavReliabilityBreakdown(
                 visible_arc_fraction=0.97, incidence_factor=0.91
             ),
@@ -334,7 +334,7 @@ def cassini_ring_edges() -> dict[str, Any]:
             reliability=0.64,
             gated=False,
             gate_reason=None,
-            bbox_extfov_vu=(0, 0, 9, 9),
+            bbox_extfov_vu=(3, 2, 14, 8),
             reliability_reasons=NavReliabilityBreakdown(
                 visible_lit_fraction=0.64, overflow_fraction=0.12
             ),
@@ -507,8 +507,8 @@ def cohort_images() -> tuple[CohortImage, ...]:
             bodies=(
                 CohortBody(
                     name='ENCELADUS',
-                    center_vu=(7.5, 7.5),
-                    radius_px=5.5,
+                    center_vu=(6.0, 9.0),
+                    radii_vu=(4.0, 5.0),
                     range_km=284913.0,
                 ),
             ),
@@ -526,8 +526,8 @@ def cohort_images() -> tuple[CohortImage, ...]:
             bodies=(
                 CohortBody(
                     name='SATURN',
-                    center_vu=(4.0, 4.0),
-                    radius_px=4.5,
+                    center_vu=(8.5, 5.0),
+                    radii_vu=(5.5, 3.5),
                     range_km=1904772.0,
                 ),
             ),

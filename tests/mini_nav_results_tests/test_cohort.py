@@ -193,6 +193,36 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
     assert disagreeing == []
 
 
+def test_each_body_is_placed_down_the_frame_and_sized_across_it(
+    mini_nav_cohort: Cohort,
+) -> None:
+    """The writer states a body's center and its extent in opposite axis orders.
+
+    ``center_uv`` is written down the frame first and ``size_uv`` across it
+    first, which is a convention nothing in a document declares and everything
+    that draws a body over an image depends on.  Both are read here against the
+    geometry the cohort declared, so a transposition on either side is reported
+    rather than absorbed by a body a swap describes just as well.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+    """
+    found: dict[str, tuple[list[float], list[float]]] = {}
+    expected: dict[str, tuple[list[float], list[float]]] = {}
+    for image in cohort_images():
+        if not image.navigated:
+            continue
+        stem = mini_nav_cohort.backplane_results_root / image.stub
+        document = json.loads(Path(f'{stem}_backplane_metadata.json').read_text(encoding='utf-8'))
+        for body in image.bodies:
+            entry = document['bodies'][body.name]
+            found[body.name] = (entry['center_uv'], entry['size_uv'])
+            center_v, center_u = body.center_vu
+            radius_v, radius_u = body.radii_vu
+            expected[body.name] = ([center_v, center_u], [2.0 * radius_u, 2.0 * radius_v])
+    assert found == expected
+
+
 def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> None:
     """The cohort is built where it is torn down, and nothing it writes is committed.
 
