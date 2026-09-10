@@ -543,7 +543,7 @@ asserts the generated half matches the registries.
 
 ### Cloud and scale
 
-- **Navigation memory, and #573** -- a navigation's resident size is bounded
+- **Navigation memory** -- a navigation's resident size is bounded
   by the extended frame, which is the detector plus twice the instrument's
   search margin, and `oops` sizes its intermediates by the meshgrid it is
   handed. The wide-margin instruments are therefore the expensive ones: a
@@ -561,10 +561,10 @@ asserts the generated half matches the registries.
   because oops intermediates live in reference cycles and glibc retains freed
   arenas, so a striped pass grew by the sum of its strips rather than the
   largest. And the residue a ring render leaves was recorded as unreturnable
-  fragmentation, which is #573's premise, on a probe that cleared one cache
-  on one of the three live backplanes; it is held, by the observation's own
-  backplane caches, and dropping them takes settled resident size from
-  6.80 GB to 1.77 GB, so #573 should be closed as misdiagnosed. The model
+  fragmentation on a probe that cleared one cache on one of the three live
+  backplanes; it is held, by the observation's own backplane caches, and
+  dropping them takes settled resident size from 6.80 GB to 1.77 GB. That
+  was #573, closed as misdiagnosed with the measurement on it. The model
   stage now sets the peak, at 7.66 GB on the heaviest frame, which is 0.34 GB
   of headroom against a run-to-run spread of about 0.1 GB; #584 is the
   measured way to widen it and #585 is the question the padding raises. Each
