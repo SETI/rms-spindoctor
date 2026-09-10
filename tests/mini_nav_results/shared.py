@@ -357,8 +357,16 @@ _CASSINI_CAMERA_FRAME_IDS = {'NAC': -82360, 'WAC': -82361}
 _VOYAGER_CAMERA_FRAME_IDS = {'NAC': -31101, 'WAC': -31102}
 """SPICE frame id of each Voyager 1 ISS camera frame."""
 
-_CASSINI_EXPOSURE_S = 0.46
+CASSINI_EXPOSURE_S = 0.46
 """Exposure the Cassini images were taken with."""
+
+CASSINI_EXPOSURE_MS = CASSINI_EXPOSURE_S * 1000.0
+"""The same exposure, in the milliseconds a PDS3 index records it in.
+
+Derived rather than written out again beside the index row that carries it: a
+row whose exposure is one number while the clock triple beside it is counted
+over another spans two different exposures, and no reader of it holds both.
+"""
 
 _VOYAGER_EXPOSURE_S = 1.44
 """Exposure the Voyager images were taken with."""
@@ -547,6 +555,18 @@ def _exposure_span(midtime_et: float, exposure_s: float) -> tuple[float, float, 
     return midtime_et - exposure_s / 2.0, midtime_et, midtime_et + exposure_s / 2.0
 
 
+def cassini_exposure_span(midtime_et: float) -> tuple[float, float, float]:
+    """Return the start, midtime and stop epochs of one Cassini exposure.
+
+    Parameters:
+        midtime_et: The exposure midtime, which is the image's epoch.
+
+    Returns:
+        The three epochs, in that order.
+    """
+    return _exposure_span(midtime_et, CASSINI_EXPOSURE_S)
+
+
 # ---------------------------------------------------------------------------
 # Epochs first, everything else derived
 # ---------------------------------------------------------------------------
@@ -605,7 +625,7 @@ def cassini_image_number(midtime_et: float) -> int:
     Returns:
         The image number.
     """
-    start_et, _midtime_et, _stop_et = _exposure_span(midtime_et, _CASSINI_EXPOSURE_S)
+    start_et, _midtime_et, _stop_et = cassini_exposure_span(midtime_et)
     return cassini_sclk_at(start_et) // _CASSINI_SCLK_TICKS_PER_SECOND
 
 
@@ -619,7 +639,7 @@ def cassini_sclk_triple(midtime_et: float) -> tuple[str, str, str]:
         The readings at start, midtime and stop, spelled as the conversion
         spells them, partition and all.
     """
-    start_et, _midtime_et, stop_et = _exposure_span(midtime_et, _CASSINI_EXPOSURE_S)
+    start_et, _midtime_et, stop_et = cassini_exposure_span(midtime_et)
     return _sclk_triple(
         cassini_sclk_at(start_et),
         start_et=start_et,
@@ -654,7 +674,7 @@ def with_pointing_from_epoch(
     Returns:
         The same result, carrying the solution.
     """
-    start_et, _midtime_et, _stop_et = _exposure_span(midtime_et, _CASSINI_EXPOSURE_S)
+    start_et, _midtime_et, _stop_et = cassini_exposure_span(midtime_et)
     return with_pointing(
         result,
         camera=camera,
@@ -760,7 +780,7 @@ def with_pointing(
         camera_frame_id = _CASSINI_CAMERA_FRAME_IDS[camera]
         ck_frame_id = -82000
         oops_from_spice = _CASSINI_OOPS_FROM_SPICE
-        exposure_s = _CASSINI_EXPOSURE_S
+        exposure_s = CASSINI_EXPOSURE_S
         tick_s = _CASSINI_SCLK_TICK_S
         spell = _cassini_sclk_reading
     else:

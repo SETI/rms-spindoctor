@@ -43,7 +43,9 @@ from spindoctor.support.status_reason import NavStatusReason
 
 from .backplanes import COHORT_SHAPE_VU, CohortBody
 from .shared import (
+    CASSINI_EXPOSURE_MS,
     COISS_KERNELS,
+    cassini_exposure_span,
     cassini_image_number,
     cassini_sclk_triple,
     classifier,
@@ -82,9 +84,6 @@ Each observation directory of a Cassini volume is named for the range of image
 numbers it holds, and each of these holds the number derived from its image's
 own epoch.
 """
-
-_EXPOSURE_MS = 460.0
-"""The exposure the cohort images were taken with, in the milliseconds the index records."""
 
 
 def _image_name(midtime_et: float, camera_letter: str) -> str:
@@ -136,7 +135,11 @@ def _index_row(stub: str, midtime_et: float, *, camera: str, shutter_mode: str) 
 
     The volume and the directory come from the stub the results are written
     under, so the file the row names is the file the document is written for
-    rather than a second answer to the same question.
+    rather than a second answer to the same question.  The times and the
+    exposure come from the one epoch and the one exposure the clock triple is
+    counted over, for the same reason: a row is free to record a shutter that
+    was open for one interval beside readings taken over another, and every
+    reader of it holds only one of the two.
 
     Parameters:
         stub: Where the image's results sit under a results root.
@@ -147,9 +150,7 @@ def _index_row(stub: str, midtime_et: float, *, camera: str, shutter_mode: str) 
     Returns:
         The row, keyed by the index file's own column names.
     """
-    exposure_s = _EXPOSURE_MS / 1000.0
-    start_et = midtime_et - exposure_s / 2.0
-    stop_et = midtime_et + exposure_s / 2.0
+    start_et, _midtime_et, stop_et = cassini_exposure_span(midtime_et)
     sclk_start, _sclk_midtime, sclk_stop = cassini_sclk_triple(midtime_et)
     image_number = cassini_image_number(midtime_et)
     letter = 'N' if camera == 'NAC' else 'W'
@@ -175,7 +176,7 @@ def _index_row(stub: str, midtime_et: float, *, camera: str, shutter_mode: str) 
         'ELECTRONICS_BIAS': 112,
         'EXPECTED_MAXIMUM': np.array([50.0, 75.0]),
         'EXPECTED_PACKETS': 1143,
-        'EXPOSURE_DURATION': _EXPOSURE_MS,
+        'EXPOSURE_DURATION': CASSINI_EXPOSURE_MS,
         'FILTER_NAME': ('CL1', 'CL2'),
         'FILTER_TEMPERATURE': -0.468354,
         'FLIGHT_SOFTWARE_VERSION_ID': '1.3',
