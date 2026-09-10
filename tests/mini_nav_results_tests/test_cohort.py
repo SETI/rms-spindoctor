@@ -314,6 +314,32 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
     assert disagreeing == []
 
 
+def test_no_backplane_statistic_is_left_in_radians(mini_nav_cohort: Cohort) -> None:
+    """Every statistic a document records is in the unit the index tables state.
+
+    The tables are read by a person, and everything angular in them is degrees.
+    A plane whose statistic is still in radians is a column of radians beside
+    columns of degrees, saying nothing about which it is unless the reader
+    happens to know the plane.  A plane declared in radians per pixel is the
+    one exposed to it, its unit not being one an equality against ``rad``
+    recognises.
+    """
+    in_radians: list[str] = []
+    for image in cohort_images():
+        if not image.navigated:
+            continue
+        stem = mini_nav_cohort.backplane_results_root / image.stub
+        document = json.loads(Path(f'{stem}_backplane_metadata.json').read_text(encoding='utf-8'))
+        planes = dict(document['rings']['backplanes'])
+        for body in document['bodies'].values():
+            planes |= body['backplanes']
+        for name, statistics in planes.items():
+            measure = statistics['units'].partition('/')[0]
+            if measure.lower().startswith('rad'):
+                in_radians.append(f'{image.image_name}: {name} is in {statistics["units"]}')
+    assert in_radians == []
+
+
 def test_each_body_is_placed_down_the_frame_and_sized_across_it(
     mini_nav_cohort: Cohort,
 ) -> None:

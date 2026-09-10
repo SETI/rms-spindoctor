@@ -320,7 +320,7 @@ def _mimas_setup() -> tuple[HermeticObs, dict[str, Any]]:
             'arrays': {},
             'masks': {},
             'distance': 500000.0,
-            'statistics': {'body_latitude': {'min': -10.0, 'max': 25.0}},
+            'statistics': {'body_latitude': {'min': -10.0, 'max': 25.0, 'units': 'deg'}},
         }
     }
     return snap, bodies_result
@@ -342,7 +342,7 @@ def test_write_fits_sidecar_body_statistics(tmp_path: Path) -> None:
     )
     metadata = json.loads(sidecar.read_text())
     assert metadata['bodies']['MIMAS']['backplanes'] == {
-        'body_latitude': {'min': -10.0, 'max': 25.0}
+        'body_latitude': {'min': -10.0, 'max': 25.0, 'units': 'deg'}
     }
 
 
@@ -399,13 +399,15 @@ def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
         'arrays': {},
         'masks': {},
         'distance': None,
-        'statistics': {'ring_radius': {'min': 70000.0, 'max': 140000.0}},
+        'statistics': {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}},
     }
     _, sidecar = _write(
         tmp_path, master=_master_with(1.0), id_map=_id_map(), rings_result=rings_result
     )
     metadata = json.loads(sidecar.read_text())
-    assert metadata['rings'] == {'backplanes': {'ring_radius': {'min': 70000.0, 'max': 140000.0}}}
+    assert metadata['rings'] == {
+        'backplanes': {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}}
+    }
 
 
 def test_write_fits_sidecar_omits_body_with_no_content(tmp_path: Path) -> None:

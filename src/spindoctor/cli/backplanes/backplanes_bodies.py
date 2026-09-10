@@ -6,6 +6,7 @@ from oops.backplane import Backplane
 from oops.meshgrid import Meshgrid
 from pdslogger import PdsLogger
 
+from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 
@@ -86,7 +87,10 @@ def create_body_backplanes(
         - "arrays": The body backplane arrays.
         - "masks": The body backplane masks.
         - "distance": The body backplane distance.
-        - "statistics": The body backplane statistics.
+        - "statistics": The body backplane statistics, each stating the unit it
+          is in, which is not the unit of the array it was taken from wherever
+          the plane is angular.  See
+          :mod:`spindoctor.cli.backplanes.statistics`.
     """
 
     masked_value = float(config.backplanes.masked_value)
@@ -143,7 +147,7 @@ def create_body_backplanes(
 
         per_type_arrays: dict[str, np.ndarray] = {}
         per_type_masks: dict[str, np.ndarray] = {}
-        body_stats: dict[str, dict[str, float]] = {}
+        body_stats: dict[str, PlaneStatistics] = {}
 
         for bp_cfg in bodies_cfg:
             bp_name = bp_cfg['name']
@@ -182,12 +186,7 @@ def create_body_backplanes(
             # Calculate min/max statistics
             valid_values = full[full_mask]
             if len(valid_values) > 0:
-                # Check if this backplane type is in radians and needs conversion
-                if units.lower() == 'rad':
-                    valid_values = np.degrees(valid_values)
-                min_val = float(np.nanmin(valid_values))
-                max_val = float(np.nanmax(valid_values))
-                body_stats[bp_name] = {'min': min_val, 'max': max_val}
+                body_stats[bp_name] = plane_statistics(valid_values, units=units)
 
         result[body_name] = {
             'arrays': per_type_arrays,

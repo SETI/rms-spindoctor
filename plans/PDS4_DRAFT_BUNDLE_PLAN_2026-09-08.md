@@ -28,7 +28,10 @@ Phases 1 and 2 have run; Phases 3-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
-so has to be settled before a label describes one.
+so has to be settled before a label describes one. A third, the statistics
+units fix recorded in section 3.8, landed with Phase 2 rather than ahead of it,
+and for the same reason: it alters what the metadata documents contain and
+therefore what Phase 7's tables and labels are sized and written against.
 
 This plan is the "finish and validate the Cassini path" half of #53, which
 `plans/ENGINEERING_PLAN.md` (Track D, "PDS4 output bundles") lists as the
@@ -47,6 +50,7 @@ this table first and trusts it over any recollection.
 | Landed ahead: backplane masked value `-999` | **done** | `04b84a62`, section 3.13 |
 | 1 — Surface label-write failures | **done** | `674cd782` plus the review rulings, on `rf_pds4_phase1`, section 4 |
 | 2 — The synthetic cohort | **done** | `rf_pds4_phase2`, sections 3.12 and 4 |
+| Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
 | 3 — Epochs | not started | |
 | 4 — The FITS in the bundle, with its data objects | not started | |
 | 5 — Inventories that conform | not started | |
@@ -61,8 +65,9 @@ guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the `Special_Constants`
 declaration, which is what remains of the masked-value work), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
-6 own). #603, the two passes disagreeing about a missing template, closes in
-Phase 1.
+6 own), #611 (the backplane viewer carries the same unit equality the
+statistics carried, on the same plane). #603, the two passes disagreeing
+about a missing template, closes in Phase 1.
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -116,7 +121,8 @@ review comment.
   the generator should write. Section 3.8 is the closest it comes: it records
   why the arrays and the tables carry different angular units, because the
   labels have to state both and a later reader will otherwise take one of
-  them for a mistake.
+  them for a mistake, and it carries the one change that made every angular
+  column follow that rule.
 - **Cloud-only operation** (#67). The `shutil.copy2` at
   `bundle_data.py:131` stays, and this plan adds a second local-path copy
   for the FITS. Both are recorded as #67's work, and the draft run is local.
@@ -191,8 +197,11 @@ in Track D's index means five more closes to reconcile on a branch where
 every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Defect 1 additionally
 has an `xfail` and belongs to #265 and #69. The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
-bundle is ever built -- were the units pair, and section 3.8 records that as
-settled design rather than a defect.
+bundle is ever built -- were the units pair. Section 3.8 records the
+difference between the arrays and the tables as settled design rather than a
+defect; the conversion implementing it tested the configured unit for equality
+against `rad` and so left `rad/pixel` unconverted, and that half was a defect,
+fixed ahead of the phases.
 
 ### 2.3 What this implies about order
 
@@ -465,9 +474,37 @@ backplane metadata.
 ### 3.8 Units: radians in the arrays, degrees in the tables
 
 The FITS arrays are radians and say so in `BUNIT`. The statistics -- and
-therefore the global index tables -- are degrees, converted at
-`backplanes_bodies.py:184` and `backplanes_rings.py:95` when the configured
-unit is `rad`.
+therefore the global index tables -- are degrees. Both per-source stages reduce
+their planes through `spindoctor/cli/backplanes/statistics.py`, which converts
+an angular plane and records the unit the resulting minimum and maximum are in
+beside them, so the document states which of the two conventions each statistic
+follows rather than leaving a reader to infer it from the plane's name.
+
+What is compared there is the unit's measure, everything up to the first
+solidus, and not the whole string: `rad` becomes `deg` and `rad/pixel` becomes
+`deg/pixel`, while `km` and `km/pixel` are left alone. That generality is not
+decoration. The rule was first written as an equality against the whole string,
+and `ring_longitudinal_resolution` is declared `rad/pixel`, so it was the one
+angular column of the tables published in radians per pixel while every other
+angular column was degrees -- a table mixing units without saying so, which for
+a human-readable product is worse than the precision loss #607 was opened for.
+
+Radians is spelled `rad` and degrees `deg`, which is both what the
+configuration writes and what the PDS4 units-of-angle vocabulary names, so the
+unit Phase 7 puts in a label is a token that vocabulary has. An angle spelled
+another way -- `mrad`, `arcsec` -- needs scaling as well as renaming and is not
+converted; a test over the shipping configuration fails if one is ever
+declared, which is the only place such an entry can appear. The operator's
+ruling of
+2026-09-09 is that the index tables are human-readable and everything in them
+is degrees; the fix landed on `rf_pds4_phase2` ahead of the phases that consume
+the statistics.
+
+`sd_backplane_viewer` still decides the same question the same way, and so
+displays that one plane in radians per pixel. Nothing this plan generates goes
+through it, so it is #611 rather than a phase; what it needs from here is to
+call `statistics_units` instead of testing for a literal, and a ruling on the
+name heuristic it carries beside that test for an HDU with no `BUNIT`.
 
 **This is the design and it stays.** The two products have different
 readers. A backplane array is consumed by software, which wants the unit its
@@ -482,20 +519,24 @@ What follows for the labels, and what a later reader must not "fix":
 - The `Array_2D` blocks Phase 4 generates state `unit` from the HDU's
   `BUNIT`, so an angular plane is labelled `rad`. The label describes the
   array, and the array is radians.
-- The `Field_Delimited` blocks Phase 7 generates for the global index take
+- The `Field_Character` blocks Phase 7 generates for the global index take
   their `unit` from the same config entry the column was built from, mapped
-  through the same `rad` to `deg` rule the statistics use. An angular column
-  is labelled `deg`.
+  through `statistics_units`, which is the function that produced the
+  column's values. An angular column is labelled `deg`, a resolution in
+  radians per pixel `deg/pixel`. Phase 7 calls it rather than reproducing
+  it, so a label and the column it describes cannot disagree.
 - So one bundle carries `unit="rad"` on an array and `unit="deg"` on the
   table summarizing it, deliberately. Both labels are correct about the file
   they describe, which is the only thing a label is required to be correct
   about.
 
-Two places must say so in prose rather than leaving it to be rediscovered:
-the backplanes user guide (section 3.6's operator deliverable), and a
-comment at the conversion site in the statistics path, which currently reads
-as an incidental unit fix rather than as a deliberate difference between two
-audiences. Phase 8 adds both.
+Two places say so in prose rather than leaving it to be rediscovered: the
+backplanes user guide and the backplanes developer guide, both of which carry
+the difference and the recorded unit. The conversion site says it too --
+`statistics.py` exists to hold the rule and its module docstring is where the
+reasoning lives -- rather than reading as an incidental unit fix. What is still
+section 3.6's operator deliverable is the user-guide PDF, which repeats it for
+the bundle's own readers.
 
 It is worth expecting the RMS Node to ask about it during review. The answer
 above is the answer; the point of writing it down here is that it should be
@@ -1175,10 +1216,6 @@ two-element `FILTER_NAME`, `GROUND_SOFTWARE_VERSION_ID` against
 rows by the index's own names, so both halves are visible there rather than
 papered over.
 
-Also carries section 3.8 into prose: the user-guide paragraph on why arrays
-and tables use different angular units, and the comment at the conversion
-site that currently reads as an incidental fix.
-
 Tests: an image with two bodies emits two `Target_Identification` blocks; an
 image with rings emits the ring geometry block and one without emits none.
 
@@ -1314,10 +1351,14 @@ adds a close to reconcile and no reader. Defect 1 additionally has an
 `xfail` and belongs to #265 and #69.
 
 The one row that would have outlived this plan was the angular-unit
-difference between the arrays and the tables, and it turned out not to be a
-defect: section 3.8 records it as the design, decided 2026-09-09, and Phase
-8 writes it down where a reader will meet it. Nothing there is left for
-someone else to pick up.
+difference between the arrays and the tables, and the difference itself
+turned out not to be a defect: section 3.8 records it as the design, decided
+2026-09-09, and both backplane guides now say so where a reader will meet it.
+What was a defect was the conversion recognising only the literal `rad`,
+leaving `ring_longitudinal_resolution` in radians per pixel in a table of
+degrees; that is fixed, and the formatting half of #607 stays open for Phase
+7, which sizes the columns. Nothing else there is left for someone else to
+pick up.
 
 If this branch is abandoned, section 2.2 is where the findings live. That is
 a deliberate trade against five issues that would each close within the same
@@ -1415,7 +1456,8 @@ is open and is not the operator's to answer alone: whether this information
 model build's dictionaries are registered (section 3.9), which the
 Engineering Node is being asked. It bears on acceptance criterion 6 and on
 nothing before Phase 10. The angular-unit question that section 3.8 once
-held open was settled 2026-09-09 in favour of what the products already do.
+held open was settled 2026-09-09 in favour of degrees in the tables, which is
+what the products did for every angular column but one.
 
 The branch merges to `main` as a merge commit, not a squash, so the
 individually reviewed phase PRs survive in the history.

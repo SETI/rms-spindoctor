@@ -42,6 +42,7 @@ import numpy as np
 from filecache import FCPath
 
 from spindoctor.cli.backplanes.merge import merge_sources_into_master
+from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import MAIN_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
@@ -190,11 +191,12 @@ def _statistics(
     planes: dict[str, NDArrayFloatType],
     masks: dict[str, NDArrayBoolType],
     units: dict[str, str],
-) -> dict[str, dict[str, float]]:
+) -> dict[str, PlaneStatistics]:
     """Return the per-plane statistics, as the backplane stage computes them.
 
-    Over the valid pixels alone, and in degrees wherever the plane's declared
-    units are radians, which is the convention the global index tables state.
+    Over the valid pixels alone, and through the stage's own reduction, so the
+    unit each statistic is stated in is the one a run would state rather than a
+    second answer that agrees until one of the two changes.
 
     Parameters:
         planes: The full-frame planes, keyed by name.
@@ -202,15 +204,12 @@ def _statistics(
         units: The units each plane's values are in, keyed by name.
 
     Returns:
-        The lowest and highest value of each plane.
+        The lowest and highest value of each plane, and the unit they are in.
     """
-    statistics: dict[str, dict[str, float]] = {}
-    for name, plane in planes.items():
-        values = plane[masks[name]]
-        if units[name].lower() == 'rad':
-            values = np.degrees(values)
-        statistics[name] = {'min': float(np.nanmin(values)), 'max': float(np.nanmax(values))}
-    return statistics
+    return {
+        name: plane_statistics(plane[masks[name]], units=units[name])
+        for name, plane in planes.items()
+    }
 
 
 def _disc_mask(body: CohortBody) -> NDArrayBoolType:

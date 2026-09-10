@@ -175,6 +175,13 @@ def test_simulated_body_stats_convert_radians_to_degrees() -> None:
     assert stats['max'] == pytest.approx(math.degrees(val))
 
 
+def test_simulated_body_stats_name_the_unit_they_are_in() -> None:
+    """The statistic carries the unit it ended up in, not the array's."""
+    snap, _ = _sim_snapshot_with_mimas()
+    result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
+    assert result['MIMAS']['statistics']['body_latitude']['units'] == 'deg'
+
+
 def test_simulated_body_stats_keep_non_angle_units() -> None:
     """Statistics for a non-'rad' plane are not unit converted."""
     snap, _ = _sim_snapshot_with_mimas()

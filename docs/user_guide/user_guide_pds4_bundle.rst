@@ -280,6 +280,13 @@ The summary pass generates:
     values for each configured ring backplane type (formatted to 5 decimal places)
   * ``global_index_rings.lblx``: PDS4 label for the rings index
 
+Both index tables are meant to be read by a person, so every angular column in
+them is in degrees — degrees per pixel where the quantity is a resolution — and
+not in the radians the backplane arrays themselves carry. Columns that are not
+angular are in the unit of the array they summarize: a ring radius in
+kilometres, a radial resolution in kilometres per pixel. :doc:`user_guide_backplanes`
+explains why the two products differ and where each states its unit.
+
 Exit Status
 ===========
 

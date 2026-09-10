@@ -29,6 +29,7 @@ from tests.cmatrix_helpers import synthetic_frame_identity
 import spindoctor.support.cmatrix as cmatrix_module
 from spindoctor.cli.backplanes import backplanes as backplanes_mod
 from spindoctor.cli.backplanes.backplanes import generate_backplanes_image_files
+from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.reproj.pointing_source import FilePointingSource
 from spindoctor.config import (
     DEFAULT_CONFIG,
@@ -107,6 +108,28 @@ def test_default_config_angle_backplanes_declare_radians() -> None:
             name = entry['name']
             if name.endswith('_angle') or name in angle_names:
                 assert entry['units'] == 'rad', f'{name} must declare rad units'
+
+
+@pytest.mark.parametrize('kind', ['bodies', 'rings'])
+def test_default_config_declares_no_angle_the_statistics_cannot_convert(kind: str) -> None:
+    """No shipping entry declares an angular unit that reaches a table unconverted.
+
+    The statistics are published in degrees and recognise radians spelled
+    ``rad``, alone or qualified.  An entry declaring an angle any other way --
+    milliradians, arcseconds -- would need scaling as well as renaming, so it
+    would pass through and put an angle in a table of degrees without saying so.
+    That is a change to the conversion rule, and this is where the config half
+    of it is caught.
+
+    Parameters:
+        kind: The config list under test ('bodies' or 'rings').
+    """
+    unconvertible = {'radian', 'radians', 'mrad', 'microrad', 'arcsec', 'arcmin', 'milliarcsec'}
+    for entry in _config_entries(kind):
+        measure = statistics_units(entry['units']).partition('/')[0].lower()
+        assert measure not in unconvertible, (
+            f'{entry["name"]} declares {entry["units"]}, which the statistics do not convert'
+        )
 
 
 # ---------------------------------------------------------------------------
