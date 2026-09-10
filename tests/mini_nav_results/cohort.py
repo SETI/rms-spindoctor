@@ -25,7 +25,7 @@ from spindoctor.support.file import json_as_string
 
 from .backplanes import write_backplanes
 from .browse import write_summary_png
-from .cohort_cassini import cohort_images
+from .cohort_cassini import HOLDINGS_SUBTREE, cohort_images
 
 NAV_RESULTS_DIR_NAME = 'nav_results'
 """The directory under a cohort root standing in for ``nav_results_root``."""
@@ -36,9 +36,16 @@ BACKPLANE_RESULTS_DIR_NAME = 'backplane_results'
 HOLDINGS_DIR_NAME = 'holdings'
 """The directory under a cohort root the images' own URLs name.
 
-No image is written there and no consumer of the cohort opens one: what a
-bundle describes is what a navigation run left behind, not the image it read.
-The directory is where a consumer that resolves an image's local path puts it.
+It is created and left empty.  No image is written there and no consumer of the
+cohort opens one: what a bundle describes is what a navigation run left behind,
+not the image it read.  What the directory is for is being somewhere -- a
+dataset is constructed over it, and a documented directory that is not there is
+a diagnostic about the wrong thing for whoever first resolves a path under it.
+
+Below it, an image sits where an enumeration would find it: under the
+calibrated products of its volume set and volume, which is the layout each
+document records as well, under the holdings root the run that wrote it was
+given.
 """
 
 
@@ -51,7 +58,7 @@ class Cohort:
         nav_results_root: Where the navigation documents and browse images are.
         backplane_results_root: Where the backplane FITS files and their
             metadata documents are.
-        holdings_root: Where the images' own URLs point.
+        holdings_root: Where the images' own URLs point, created and empty.
         image_files: Every image, in the shape an enumeration hands them on --
             two URLs, a results path stub, an index row and a camera.
         written: Every file written, in the order it was written.
@@ -98,6 +105,7 @@ def write_cohort(root: Path) -> Cohort:
     nav_results_root = root / NAV_RESULTS_DIR_NAME
     backplane_results_root = root / BACKPLANE_RESULTS_DIR_NAME
     holdings_root = root / HOLDINGS_DIR_NAME
+    holdings_root.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     image_files: list[ImageFile] = []
 
@@ -123,7 +131,7 @@ def write_cohort(root: Path) -> Cohort:
             written.append(fits_path)
             written.append(backplane_results_root / f'{image.stub}_backplane_metadata.json')
 
-        image_url = holdings_root / f'{image.stub}.IMG'
+        image_url = holdings_root / HOLDINGS_SUBTREE / f'{image.stub}.IMG'
         image_files.append(
             ImageFile(
                 image_file_url=FCPath(image_url),

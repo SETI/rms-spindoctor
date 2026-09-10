@@ -26,6 +26,7 @@ from spindoctor.dataset import DataSetPDS3CassiniISSSaturn
 from tests.mini_nav_results import cohort_documents
 from tests.mini_nav_results.cohort import Cohort
 from tests.mini_nav_results.cohort_cassini import (
+    HOLDINGS_SUBTREE,
     LIMB_IMAGE_NAME,
     RINGS_IMAGE_NAME,
     cohort_images,
@@ -380,6 +381,48 @@ def test_each_body_is_placed_down_the_frame_and_sized_across_it(
             center_v, center_u = body.center_vu
             radius_v, radius_u = body.radii_vu
             expected[body.name] = ([center_v, center_u], [2.0 * radius_u, 2.0 * radius_v])
+    assert found == expected
+
+
+def _below_the_holdings_root(path: str) -> str:
+    """Return the part of an image's path a holdings root is not.
+
+    Parameters:
+        path: The path, holdings root and all.
+
+    Returns:
+        Everything below the last ``holdings`` directory in it.
+    """
+    return path.rsplit('/holdings/', 1)[-1]
+
+
+def test_a_document_and_its_image_file_name_one_file(mini_nav_cohort: Cohort) -> None:
+    """The path a run recorded and the URL an enumeration hands on are one file.
+
+    Two roots, deliberately -- a document records the machine that navigated
+    the image and a bundle run is given holdings of its own -- but one layout
+    below them, since a phase deriving a volume or a collection out of either
+    has only the layout to derive it from.  The index row is the odd one out on
+    purpose: it names the raw product on its own volume, which is what a real
+    index names and a different file.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+    """
+    found: dict[str, tuple[str, str]] = {}
+    expected: dict[str, tuple[str, str]] = {}
+    for image, image_file in zip(cohort_images(), mini_nav_cohort.image_files, strict=True):
+        document = json.loads(
+            Path(f'{mini_nav_cohort.nav_results_root / image.stub}_metadata.json').read_text(
+                encoding='utf-8'
+            )
+        )
+        found[image.stub] = (
+            _below_the_holdings_root(str(document['observation']['image_path'])),
+            _below_the_holdings_root(image_file.image_file_url.as_posix()),
+        )
+        one_file = f'{HOLDINGS_SUBTREE}/{image.stub}.IMG'
+        expected[image.stub] = (one_file, one_file)
     assert found == expected
 
 

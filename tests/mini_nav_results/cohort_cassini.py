@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import julian
@@ -116,6 +117,38 @@ RINGS_STUB = f'{_RINGS_SUBTREE}/{RINGS_IMAGE_NAME}'
 
 GATED_STUB = f'{_LIMB_SUBTREE}/{GATED_IMAGE_NAME}'
 """Where the gated image's results sit under a results root."""
+
+
+HOLDINGS_SUBTREE = 'calibrated/COISS_2xxx'
+"""Where a Cassini volume's calibrated images sit under a holdings root.
+
+An enumeration finds an image under the directory its products were calibrated
+into and the volume set its volume belongs to, so a path that names neither
+tells a reader who parses one nothing at all.
+"""
+
+_RECORDED_HOLDINGS_ROOT = '/holdings'
+"""The holdings root the run that wrote these documents was given.
+
+A document records the file that run read, on the machine it read it on, and
+nothing rewrites that when the results are copied somewhere else or read by a
+bundle run given holdings of its own.  So the cohort's own holdings root, which
+is wherever it was written, is deliberately not this: what is shared between
+the two is the layout below the root, which is the half anything derives a
+volume or a collection from.
+"""
+
+
+def _image_path(stub: str) -> Path:
+    """Return the file a run read for the image whose results sit at a stub.
+
+    Parameters:
+        stub: Where the image's results sit under a results root.
+
+    Returns:
+        The full path, holdings root and all.
+    """
+    return Path(f'{_RECORDED_HOLDINGS_ROOT}/{HOLDINGS_SUBTREE}/{stub}.IMG')
 
 
 def _doy(epoch_et: float) -> str:
@@ -309,6 +342,7 @@ def cassini_body_limb() -> dict[str, Any]:
     return navigated(
         result,
         image_name=f'{LIMB_IMAGE_NAME}.IMG',
+        image_path=_image_path(LIMB_STUB),
         instrument='coiss',
         camera='NAC',
         shutter_mode='NACONLY',
@@ -397,6 +431,7 @@ def cassini_ring_edges() -> dict[str, Any]:
     return navigated(
         result,
         image_name=f'{RINGS_IMAGE_NAME}.IMG',
+        image_path=_image_path(RINGS_STUB),
         instrument='coiss',
         camera='WAC',
         shutter_mode='WACONLY',
@@ -449,6 +484,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
     return navigated(
         result,
         image_name=f'{GATED_IMAGE_NAME}.IMG',
+        image_path=_image_path(GATED_STUB),
         instrument='coiss',
         camera='NAC',
         shutter_mode='NACONLY',

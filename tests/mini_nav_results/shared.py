@@ -717,6 +717,7 @@ def navigated(
     result: NavResult,
     *,
     image_name: str,
+    image_path: Path | None = None,
     instrument: str,
     camera: str,
     shutter_mode: str | None,
@@ -730,6 +731,11 @@ def navigated(
     Parameters:
         result: The navigation result to curate.
         image_name: Basename of the source image.
+        image_path: The file the run read, which a run records in full: the
+            holdings root it was given, the volume set and volume under it, and
+            the observation directory the image sits in.  Defaults to the
+            basename directly under a holdings root, which is enough for a
+            document whose reader asks nothing of the path.
         instrument: Registered instrument name of the observation class.
         camera: The camera that took the image.
         shutter_mode: The shutter mode the label recorded, or None for a host
@@ -744,7 +750,7 @@ def navigated(
     """
     return build_metadata_from_result(
         result,
-        Path(f'/holdings/{image_name}'),
+        image_path if image_path is not None else Path(f'/holdings/{image_name}'),
         image_name,
         instrument=instrument,
         camera=camera,
