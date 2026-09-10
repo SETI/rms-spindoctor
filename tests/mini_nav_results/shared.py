@@ -9,6 +9,17 @@ block an orchestrator stamps onto a result.
 
 Nothing here is a document.  The documents are in the per-host modules beside
 it, and the package they belong to is the public surface.
+
+What the clock conversions here are held to, and by what.  The two tests over
+the cohort's readings -- that a triple spans the epochs beside it, and that an
+image is named for the reading its shutter opened at -- compare two quantities
+this module derived from one function, so they report a triple written out by
+hand beside one it counted, which is the state they exist to make unreachable.
+They cannot report a conversion that is wrong the same way everywhere: move the
+anchors below by an hour and every one of them still passes, with every image
+renamed.  What reports that is an integration test that furnishes the mission
+clock kernel and converts each epoch again, and it is excluded from the default
+run because the kernel is not there to furnish.
 """
 
 from __future__ import annotations
@@ -391,11 +402,10 @@ _CASSINI_SCLK_TICKS_PER_SECOND = 256
 
 The clock is two fields, whole seconds and a fractional field counting ticks of
 one 256th of a second, so a reading is a count of those ticks and the fields
-are its quotient and its remainder by this.
+are its quotient and its remainder by this.  It is the width of the field, not
+the rate the clock runs at; how long a tick lasts is measured against the
+kernel further down.
 """
-
-_CASSINI_SCLK_TICK_S = 1.0 / _CASSINI_SCLK_TICKS_PER_SECOND
-"""Seconds in one tick of the Cassini clock."""
 
 _VOYAGER_SCLK_LINES_PER_MINOR = 800
 """Lines in one minor frame, the modulus of the Voyager clock's line field."""
@@ -580,32 +590,50 @@ def cassini_exposure_span(midtime_et: float) -> tuple[float, float, float]:
 # there is nowhere in that path for a second answer to enter.
 
 
-_CASSINI_SCLK_ANCHOR_ET = 129305290.24137056
-"""The epoch of the Cassini clock reading anchoring this fixture's conversion.
+_CASSINI_SCLK_ANCHORS = ((1454725799, 129305290.24137056), (1456120518, 130700000.15065941))
+"""Two Cassini clock readings and the epochs the mission clock kernel gives them.
 
-The mission clock kernel converts ``1/1454725799.000`` to this, so the pair is
-one correlation point taken from the kernel rather than a number chosen here.
+Both pairs are correlation points read out of ``cas00172.tsc`` rather than
+numbers chosen here, and they bracket every epoch the cohort uses.  A line
+through two of them calibrates the rate the clock runs at as well as where it
+started, which one of them cannot: the clock gains 6.5 parts per million on
+ephemeris time, so a conversion anchored at one point alone reads 0.6 s off a
+day away and 9.1 s off at the far end of the cohort's own span, and named one
+cohort image for a second the kernel puts nine seconds later.
+
+A mission clock kernel is linear in pieces, each with its own rate, so a single
+line cannot be right everywhere.  Measured against the kernel over the 16 days
+these two span, this one is never more than half a tick out, and each of the
+three cohort epochs converts to exactly the tick the kernel returns for it.
 """
 
-_CASSINI_SCLK_ANCHOR_TICKS = 1454725799 * _CASSINI_SCLK_TICKS_PER_SECOND
-"""The reading at that epoch, as a tick count.
+_CASSINI_SCLK_ANCHOR_TICKS = _CASSINI_SCLK_ANCHORS[0][0] * _CASSINI_SCLK_TICKS_PER_SECOND
+"""The first anchor's reading, as a tick count, which the conversion counts from."""
 
-The conversion below counts ticks from here, which makes it one linear clock.
-A mission clock kernel is linear in pieces, each with its own rate, so readings
-far from an anchor drift from what the kernel returns for them; what a document
-needs is that its own epoch, reading and image number agree with each other,
-and one piece gives that exactly.
+_CASSINI_SCLK_ANCHOR_ET = _CASSINI_SCLK_ANCHORS[0][1]
+"""The epoch of that reading."""
+
+_CASSINI_SCLK_TICK_S = (_CASSINI_SCLK_ANCHORS[1][1] - _CASSINI_SCLK_ANCHOR_ET) / (
+    _CASSINI_SCLK_ANCHORS[1][0] * _CASSINI_SCLK_TICKS_PER_SECOND - _CASSINI_SCLK_ANCHOR_TICKS
+)
+"""How long one tick of the Cassini clock lasts, as the two anchors measure it.
+
+Slightly less than one 256th of a second, which is the whole point of taking
+two of them.
 """
 
 
 def cassini_sclk_at(epoch_et: float) -> int:
     """Return the Cassini clock's reading at an epoch, as a tick count.
 
+    The conversion is the line through the two kernel correlation points above,
+    which is what a mission clock kernel is over any short enough span.
+
     Parameters:
         epoch_et: The epoch to read the clock at.
 
     Returns:
-        The reading, as a count of ticks of one 256th of a second.
+        The reading, as a count of ticks of the clock's fractional field.
     """
     return _CASSINI_SCLK_ANCHOR_TICKS + _elapsed_ticks(
         epoch_et - _CASSINI_SCLK_ANCHOR_ET, _CASSINI_SCLK_TICK_S

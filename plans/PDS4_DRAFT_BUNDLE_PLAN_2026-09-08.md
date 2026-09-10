@@ -681,11 +681,40 @@ filenames, the `filtered` variant's image-number bounds and both goldens,
 which belongs in a PR about the statistics fixtures rather than on a PDS4
 branch.
 
+The conversion those readings come out of is a line through two
+correlation points read out of `cas00172.tsc`, which calibrates the rate
+the clock runs at as well as where it started. One point does not: the
+clock gains 6.5 ppm on ephemeris time, so a single anchor reads 0.6 s
+off a day away and 9.1 s off at the far end of this cohort's own 16-day
+span, and named one image for a second nine seconds from the one the
+kernel gives it. Two points, measured against the kernel across that
+span, are never more than half a tick out, and each cohort epoch
+converts to exactly the tick the kernel returns for it. A cohort
+reaching much further has to measure that again or take a third point;
+the arithmetic is a line either way and no SPICE is called at build
+time.
+
+What holds it there is an `integration`-marked test that furnishes the
+kernel and converts every cohort epoch again. It has to be that test and
+cannot be one of the cohort's own: those compare a reading to a reading
+and a name to the reading it came from, both derived here from one
+function, so they report a hand-authored triple added later -- their
+real job -- and an anchor moved by an hour leaves every one of them
+green with every image renamed. Both the module and the guide say so, so
+that nobody reads the green as more than it is.
+
 **Production writers write the fixture.** `writer.py:write_fits` writes the
 FITS and its metadata sidecar for real code, so it writes them for the
-fixture too, called with synthetic arrays. A fixture built by a second,
-parallel writer is a fixture that stops describing the product the moment
-the real writer changes.
+fixture too. So does `merge.py:merge_sources_into_master`, which is the
+stage before it: what the fixture synthesizes is what a `Backplane` computes
+-- one array and one mask per plane per source, and the range to each source
+-- and the merge resolves those into the master arrays and the body identity
+map that the writer writes. A fixture built by a second, parallel writer is a
+fixture that stops describing the product the moment the real writer changes,
+and the merge is where that first bit: it is the merge that decides the HDU
+order, by inserting the body planes sorted and then the ring planes sorted,
+and Phase 4 states every array's byte offset against that order and calls the
+first one the image.
 
 The package sits at `tests/mini_nav_results/`, beside `tests/shims/` and
 `tests/cmatrix_helpers.py`, because a package two suites import should not

@@ -389,8 +389,24 @@ run over the cohort exercises both layouts.
 
 Every image is built from its epoch and nothing else. The spacecraft clock
 readings a document records and the number the image is named for are both
-derived from it, so no document of the cohort can carry a reading its own
-epoch does not convert to.
+derived from it, so no document of the cohort can carry a reading it counted
+one of the others from a different moment.
+
+The conversion those readings come from is a line through two correlation
+points read out of the Cassini mission clock kernel, calibrating both where the
+clock started and the rate it runs at. A clock kernel is a line only in pieces,
+so the two part company away from the points: measured against the kernel over
+the 16 days the cohort spans, the fixture is never more than half a tick out,
+and each cohort epoch converts to exactly the tick the kernel returns for it. A
+cohort reaching much further would have to measure that again, or take a third
+point.
+
+The suite cannot measure it. The cohort's self-tests compare a reading to a
+reading and a name to the reading it came from, so they hold the fixture to
+itself; an anchor moved by an hour leaves them all green with every image
+renamed. What reports that is an integration test that furnishes the mission
+clock kernel and converts every cohort epoch again, which is excluded from the
+default run because the kernels are not there to furnish.
 
 Nothing the cohort produces is checked in. A test takes it as a session-scoped
 fixture, ``mini_nav_cohort``, built into a temporary directory and torn down
