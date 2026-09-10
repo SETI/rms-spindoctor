@@ -12,7 +12,7 @@ import os
 import sys
 
 import pdstemplate
-from filecache import FileCache
+from filecache import FCPath, FileCache
 
 # Make CLI runnable from source tree with
 #    python src/package
@@ -164,8 +164,30 @@ def parse_args_summary(command_list: list[str]) -> argparse.Namespace:
     return arguments
 
 
+def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
+    """Report whether the bundle's own directory already holds something.
+
+    Parameters:
+        bundle_root: The bundle's directory under the bundle results root.
+
+    Returns:
+        True if anything at all is in that directory, False if it is empty or
+        is not there at all.
+    """
+    try:
+        return next(iter(bundle_root.iterdir()), None) is not None
+    except FileNotFoundError:
+        return False
+
+
 def main_labels() -> None:
-    """Main function for labels subcommand."""
+    """Main function for labels subcommand.
+
+    A bundle is written into an empty directory: a run whose bundle root
+    already holds files writes nothing and exits 1, naming the directory,
+    rather than assembling one bundle out of two runs.  A dry run is refused
+    the same way, because what it reports on is a run that would be.
+    """
     command_list = sys.argv[2:]  # Skip 'labels'
     arguments = parse_args_labels(command_list)
 
@@ -189,6 +211,15 @@ def main_labels() -> None:
     pdstemplate.PdsTemplate.set_logger(MAIN_LOGGER)
 
     assert DATASET is not None
+
+    bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
+    if _bundle_root_holds_anything(bundle_root):
+        MAIN_LOGGER.error(
+            'The bundle root %s already holds files; a bundle is written into an empty '
+            'directory. Clear it, or name another bundle results root, and run again',
+            bundle_root,
+        )
+        sys.exit(1)
 
     written_images = 0
     skipped_images = 0

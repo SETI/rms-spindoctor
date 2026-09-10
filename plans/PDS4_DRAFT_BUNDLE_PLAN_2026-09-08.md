@@ -824,12 +824,21 @@ the bundle -- never a local cache path standing in for it -- renders in
 `pdstemplate`'s `mode='repair'` -- which saves a label that drew warnings but
 never one that drew errors -- logs warnings at warning level and errors at
 error level naming the label path, and returns whether the label is on disk.
-It also removes whatever is at that path: a render that drew errors writes
-nothing at all, so a label an earlier run left there would survive untouched
-and stand in the bundle for the label this run could not write, and a bundle
-assembled out of two runs is worse than one missing a label. A file at that
-path that is not readable as text, or that cannot be removed, is reported and
-the label counts as not written.
+That is the whole function: it neither reads nor removes what is at the label
+path, because `main_labels` has already established that nothing is.
+
+A bundle is written into an empty directory. Before it processes any image,
+`main_labels` requires `bundle_results_root / DATASET.pds4_bundle_name()` to
+be empty or absent, and otherwise logs an error naming the directory and exits
+1 having written nothing; a dry run is refused the same way. The program will
+not clear the directory itself, so an operator re-running after a partial
+failure clears it deliberately, and a bundle assembled out of two runs is
+impossible rather than detected. The check is the local driver's alone:
+`sd_create_bundle_cloud_tasks` runs many workers into one bundle root, so a
+per-image check there would refuse every task after the first, and
+`main_summary` reads the tree `main_labels` wrote, so it requires a populated
+bundle. There is no `--force`: it would reintroduce exactly the state the
+precondition removes.
 
 `generate_bundle_data_files` returns a `BundleDataOutcome` of written,
 skipped or failed rather than `None`. An image the bundle has nothing to

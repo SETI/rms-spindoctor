@@ -218,12 +218,11 @@ def test_a_collection_label_is_written_to_the_bundle_not_to_a_cache(
     The location an ``FCPath`` names and the location of its local cache copy
     are the same file only while the bundle root is local.  On a cloud bundle
     root they are two different files, so a caller that hands over the cache
-    path asks about a stale label in the cache rather than in the bundle, leaves
-    a stale label in the bundle untouched, and names in its error report a path
-    that is nowhere in the bundle.  A local bundle root cannot tell those apart
-    by the file that appears, so what the writer is handed is what says which
-    one it was.  Each label is a case of its own because each is handed over by
-    a statement of its own.
+    path writes the label into the cache rather than into the bundle, and names
+    in its error report a path that is nowhere in the bundle.  A local bundle
+    root cannot tell those apart by the file that appears, so what the writer is
+    handed is what says which one it was.  Each label is a case of its own
+    because each is handed over by a statement of its own.
 
     Parameters:
         tmp_path: Base temporary directory.

@@ -66,6 +66,20 @@ same task queue can drive offset + backplane + bundle in three queue passes.
 Exit status
 -----------
 
+Before it processes anything, ``sd_create_bundle labels`` requires
+``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent, and exits
+1 naming the directory when it is not.  A bundle is the product of one run: with
+that precondition there is no stale label to detect and no directory to clean,
+which is why nothing downstream of this check looks for either.  The check is
+the local driver's alone.  ``sd_create_bundle_cloud_tasks`` calls
+:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` once per
+task, many workers into one bundle root, so a per-image emptiness check there
+would refuse every task after the first; the precondition belongs to the run
+that owns the whole bundle, and a queue-driven run establishes it by starting
+from an empty bundle root of its own.  ``sd_create_bundle summary`` does not
+check it either: it reads the tree the labels pass wrote, so it requires a
+populated bundle rather than an empty one.
+
 ``sd_create_bundle labels`` counts the images whose labels it did not write --
 an image whose data or browse label failed to render, and an image whose inputs
 it could not read -- and exits 1 when that count is not zero.  It closes with a
@@ -220,17 +234,13 @@ Every label the bundle stage writes therefore goes through
 
 - Warnings are logged at warning level, and the label is written.
 - Errors are logged at error level naming the label path, and the label is not
-  written.  A render that drew errors writes nothing at all, so a label an
-  earlier run left at that path would survive untouched and stand in the bundle
-  for the label this run could not write; it is removed instead.  A bundle that
-  mixes one run's products with another's is harder to diagnose than one
-  missing a label.
+  written.  A render that drew errors writes nothing at all, and the bundle root
+  was empty when the run started, so nothing is left at that path for the label
+  to be confused with.
 
-Repair mode reads back whatever is already at the label path in order to
-compare it with what it rendered, so a file left there by a killed run that is
-not readable as text ends the render.  That file is removed too and the label
-counts as not written, which leaves an operator's re-run a clear path to write
-on.
+That is the whole of it.  ``write_label`` neither reads nor removes what is at
+the label path, because the labels pass has already established that nothing is:
+a bundle is written into an empty directory or not at all.
 
 A failed render does not stop the run.  Both of an image's labels are attempted
 when the image has both products, and so is every collection and index label, so

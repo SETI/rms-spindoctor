@@ -60,6 +60,10 @@ def _batch_image_name(batch: int, index: int) -> str:
     return f'12345678{batch}{index}w'
 
 
+BUNDLE_NAME = 'fake_bundle'
+"""The bundle the stub dataset names, and so the directory a run writes into."""
+
+
 class _BatchDataset:
     """A dataset whose enumeration yields batches of a chosen size."""
 
@@ -77,6 +81,10 @@ class _BatchDataset:
         self._image_count = image_count
         self._batch_count = batch_count
         self._base_dir = base_dir
+
+    def pds4_bundle_name(self) -> str:
+        """Return the bundle name whose directory the run writes into."""
+        return BUNDLE_NAME
 
     def yield_image_files_from_arguments(
         self, arguments: argparse.Namespace
@@ -169,6 +177,86 @@ def _dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sd_create_bundle, 'parse_args_labels', lambda _: argparse.Namespace(dry_run=True)
     )
+
+
+def _record_generation(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """Record every image the labels run generates products for.
+
+    Parameters:
+        monkeypatch: Fixture the recording stand-in is installed through.
+
+    Returns:
+        The list the calls are appended to, one entry per image.
+    """
+    calls: list[dict[str, Any]] = []
+
+    def _generate(**kwargs: Any) -> BundleDataOutcome:
+        """Record one image's generation and report it written.
+
+        Parameters:
+            **kwargs: What the driver passed for this image.
+
+        Returns:
+            WRITTEN, so the run counts the image as labeled.
+        """
+        calls.append(kwargs)
+        return BundleDataOutcome.WRITTEN
+
+    monkeypatch.setattr(sd_create_bundle, 'generate_bundle_data_files', _generate)
+    return calls
+
+
+def test_main_labels_refuses_a_bundle_root_that_holds_files(
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A bundle goes into an empty directory, so a populated one ends the run at once.
+
+    The run writes nothing rather than assembling one bundle out of two runs,
+    and it will not clear the directory itself, so the report has to say what
+    the operator is to do about it.
+    """
+    bundle_root = tmp_path / BUNDLE_NAME
+    (bundle_root / 'data').mkdir(parents=True)
+    calls = _record_generation(monkeypatch)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_labels()
+    assert excinfo.value.code == 1
+    assert calls == []
+    out = capsys.readouterr().out
+    assert f'The bundle root {bundle_root} already holds files' in out
+    assert 'Clear it, or name another bundle results root' in out
+
+
+@pytest.mark.parametrize('root_exists', [True, False], ids=['empty root', 'no root at all'])
+def test_main_labels_writes_into_a_bundle_root_with_nothing_in_it(
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    root_exists: bool,
+) -> None:
+    """A bundle root with nothing in it is what the run asks for, made or not.
+
+    A first run makes the directory itself, and an operator who cleared one by
+    hand leaves it there, so both are the empty directory the precondition
+    names.
+
+    Parameters:
+        labels_run: Fixture standing the subcommand up on stubs.
+        monkeypatch: Fixture the recording generation is installed through.
+        tmp_path: Base temporary directory served as the bundle results root.
+        capsys: Fixture the closing report is read from.
+        root_exists: Whether the empty bundle root is already on disk.
+    """
+    if root_exists:
+        (tmp_path / BUNDLE_NAME).mkdir()
+    calls = _record_generation(monkeypatch)
+    sd_create_bundle.main_labels()
+    assert len(calls) == 1
+    assert 'Label generation complete: 1 image(s) labeled, 0 skipped' in capsys.readouterr().out
 
 
 def test_main_labels_exits_non_zero_when_a_product_fails(

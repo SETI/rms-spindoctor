@@ -74,6 +74,14 @@ Labels Pass
 
 The labels pass processes individual images to generate per-image PDS4 products.
 
+The bundle's own directory -- ``<bundle results root>/<bundle name>/`` -- must be
+empty, or not there at all, when the pass starts. A run that finds anything in it
+writes nothing, names the directory at error level and exits 1; a ``--dry-run``
+is refused the same way, because what it reports on is a run that would be. This
+is what makes a bundle the product of one run rather than a mixture of two. The
+pass will not clear the directory for you, so re-running after a partial failure
+means clearing it yourself, or naming another bundle results root, deliberately.
+
 Basic Usage
 ^^^^^^^^^^^
 
@@ -275,16 +283,18 @@ pass never set out to write, and is skipped without affecting the exit status.
 
 A label is not written when its template cannot be rendered: an unresolved
 template variable, an expression that fails, or a value the template rejects.
-The label path and the number of errors are logged at error level, no label is
-left at that path (including one an earlier run wrote there), and the pass
-carries on, so a single run reports every label it could not write rather than
-one per run.
+The label path and the number of errors are logged at error level, nothing is
+left at that path, and the pass carries on, so a single run reports every label
+it could not write rather than one per run.
 
 * ``sd_create_bundle labels`` exits 1 when an image's data label or browse label
   was not written, or when an image's inputs could not be read. It closes with a
   line giving the number of images it labeled, the number it skipped and the
   number whose labels it did not write, so a selection that matched no images at
   all reads as the zero it is.
+
+  It exits 1 before processing any image when the bundle's own directory
+  already holds files, naming that directory. Nothing is written by such a run.
 
   An image the bundle has nothing to describe is skipped, not failed, and does
   not affect the exit status: an image with no navigation metadata document, an
@@ -461,6 +471,11 @@ Common Issues
 
 * **Collection files incomplete**: Ensure all images have been processed in the labels
   pass before running the summary pass.
+
+* **Bundle root already holds files**: the labels pass writes a bundle into an
+  empty directory and refuses a populated one. Clear the bundle's directory
+  under the bundle results root, or point ``--bundle-results-root`` somewhere
+  else, and run the pass again from the start.
 
 * **Label not written**: the run logs ``Rendering PDS4 label ... drew N error(s)``
   and exits non-zero. The ``pdstemplate`` lines just above it name the template
