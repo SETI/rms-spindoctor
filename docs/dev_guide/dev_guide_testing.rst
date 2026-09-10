@@ -245,9 +245,12 @@ navigate in-process and need no holdings.
      - Regenerates the real-image regression baselines (needs holdings).
    * - ``python -m tests.mini_nav_results results_tree
        tests/spindoctor/cli/stats/data/results_tree``
-     - Rewrites the stored statistics fixture tree through the navigation
-       metadata writer. The frozen report output has to be re-ratified against
-       whatever it wrote.
+     - Rewrites the documents of the stored statistics fixture tree through the
+       navigation metadata writer. The frozen report output has to be
+       re-ratified against whatever it wrote. Documents are all it writes: the
+       stored tree also holds an empty browse image beside three of them, which
+       nothing reads, so an empty directory this is pointed at gets the
+       documents alone.
    * - ``python -m tests.mini_nav_results cohort <outdir>``
      - Writes the PDS4 bundle cohort -- navigation documents, browse PNGs,
        backplane FITS files and their metadata -- for calling the bundle stage

@@ -62,6 +62,10 @@ the bundle stage's library entry points read, and what its tests are run over.
 It is not enough for ``sd_create_bundle`` itself, which enumerates a PDS3
 volume out of an index table the cohort does not write.
 
+Documents are all the statistics form writes.  The stored tree also holds an
+empty browse image beside three of its documents, which nothing reads, so a
+regeneration into an empty directory produces the documents alone.
+
 The stored tree is then what the writer emits, and the frozen report output has
 to be re-ratified against it.  ``test_results_tree_documents.py`` holds the two
 against each other, so a writer change is reported here rather than being

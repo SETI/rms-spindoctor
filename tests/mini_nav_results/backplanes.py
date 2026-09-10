@@ -52,8 +52,13 @@ COHORT_SHAPE_VU = (16, 16)
 
 A miniature of the 1024 by 1024 frame the camera reads out.  Every plane, every
 mask and every browse image is sized from this, so the whole cohort is built
-and torn down inside one test session; nothing in the bundle stage reads a
-frame's size against the instrument mode its index row records.
+and torn down inside one test session.
+
+It is smaller than any real Cassini readout, which leaves one thing about the
+product untrue: the index row records an instrument mode of ``FULL``, and no
+Cassini mode names a 16 pixel frame, so there is no value it could record
+instead.  A reader holding a frame's size against the mode beside it therefore
+finds a frame this size claiming to be a full one.
 """
 
 _PLANE_BOUNDS = {

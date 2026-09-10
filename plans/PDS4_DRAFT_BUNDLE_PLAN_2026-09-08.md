@@ -666,6 +666,37 @@ What the cohort set holds beyond the documents:
   `1234xxxxxx/123456xxxx` directories, one image with ring backplanes and one
   without, and one image whose navigation did not succeed.
 
+Three things about the cohort's products are known not to hold, and are
+recorded here rather than only in a docstring, because each is a
+property of the product a later phase describes rather than of the code
+that writes it.
+
+**A 16 by 16 frame records `INSTRUMENT_MODE_ID = FULL`.** `FULL` is a
+claim about size and no Cassini mode value names a frame this small, so
+there is no truthful value to record instead and the simplification
+stands. It stops being purely internal at Phase 8, which puts
+`cassini:instrument_mode_id` into the same label as Phase 4's 16-element
+`Array_2D_Image` blocks: re-check it there, and decide whether the
+cohort grows a full-size frame for one image or the label carries the
+mode the row holds.
+
+**One body per image, where a real frame often has several.** The merge
+resolves overlapping bodies by nearest distance and aggregates a plane's
+statistics over all of them, and a cohort with one body per frame cannot
+tell a correct aggregation from one that reports the first body it
+found. A second body is what Phase 7 and Phase 8 need, since that is
+where a per-body inventory and the global index columns over it are
+written; the backplane fixture takes a tuple of bodies already, so
+adding one is a line in the image's declaration.
+
+**The backplane products under `/data` are not ground truth for this.**
+They were written before the masked value became `-999`, so every plane
+in them reads 100% valid with a minimum of `0`, and a cohort adjusted to
+match them would be adjusted to match a product the pipeline no longer
+writes. What they are good for is what does not depend on the fill: the
+HDU order, the shape of the metadata document, and which planes a frame
+carries.
+
 Two rules bind the additions.
 
 **Epochs first, everything else derived.** #530 is the open record of what
