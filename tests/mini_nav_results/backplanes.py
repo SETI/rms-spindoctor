@@ -2,18 +2,27 @@
 
 A FITS of one image HDU per backplane, a per-pixel body identity map, and the
 metadata document beside them whose statistics the global index tables are
-built from.  All three are written by
-:func:`spindoctor.cli.backplanes.writer.write_fits`, the same call the
-backplane stage makes, over arrays synthesized here instead of over arrays a
-``Backplane`` computed from SPICE.  A fixture written by a second, parallel
-writer stops describing the product the moment the real writer changes, and
-what every phase after this one reads is the product.
+built from.  What this module synthesizes is what a ``Backplane`` computes from
+SPICE: one array and one mask per plane per source, and the range to each
+source.  Everything downstream of that is the backplane stage's own code --
+:func:`spindoctor.cli.backplanes.merge.merge_sources_into_master` resolves the
+sources into one array per plane and the body identity map, and
+:func:`spindoctor.cli.backplanes.writer.write_fits` writes the FITS and the
+metadata document from what it returns.
 
-The writer reads four things from the observation it is handed --
-``is_simulated``, ``sim_inventory``, ``closest_planet`` and ``inventory()`` --
-and reads the last two only when the first is False, so an observation that
-reports itself simulated and carries an inventory dict reaches no SPICE and no
-image.  That is what stands in for a snapshot here.
+The merge belongs here as much as the writer does, because it is the merge that
+decides what order the HDUs are written in: it inserts the body planes in
+sorted order and then the ring planes in sorted order, and the writer walks that
+dict as it found it.  A fixture that assembled the same dict itself would be a
+second implementation of the merge, and the first thing it would get wrong is
+the order every array's byte offset in the file is stated against.
+
+The two stages read six things between them from the observation they are
+handed -- ``data``, ``config`` and ``is_simulated`` in the merge,
+``is_simulated``, ``sim_inventory``, ``closest_planet`` and ``inventory()`` in
+the writer -- and read the last two only when ``is_simulated`` is False, so an
+observation that reports itself simulated and carries an inventory dict reaches
+no SPICE and no image.  That is what stands in for a snapshot here.
 
 The planes are the ones the shipped configuration declares, and their values
 are ramps between the bounds one plane of that name spans.  A plane the
@@ -32,10 +41,11 @@ from typing import Any, cast
 import numpy as np
 from filecache import FCPath
 
+from spindoctor.cli.backplanes.merge import merge_sources_into_master
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import MAIN_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 COHORT_SHAPE_VU = (16, 16)
 """The pixel dimensions of a cohort frame.
@@ -74,39 +84,50 @@ of a body a few hundred thousand kilometres away resolves.
 class CohortBody:
     """A body one cohort image has backplanes for.
 
+    The body's NAIF identifier is not stated here.  The merge reads it from the
+    name, as it does for a real image, so the identity map cannot carry an
+    identifier the name does not resolve to.
+
     Attributes:
         name: The body's name, as the inventory and the backplanes key it.
-        naif_id: Its NAIF identifier, which is what the body identity map
-            carries wherever the body claims a pixel.
         center_vu: Where the body's center sits in the frame, in pixels.
         radius_px: How far from that center the body's disc reaches.
         range_km: How far the body is from the observer.
     """
 
     name: str
-    naif_id: int
     center_vu: tuple[float, float]
     radius_px: float
     range_km: float
 
 
 class _SimulatedSnapshot:
-    """The observation the writer is handed: simulated, with an inventory.
+    """The observation the merge and the writer are handed.
+
+    Simulated, with an inventory: that is what routes both stages away from
+    SPICE and away from the image, and it is the whole of what either reads.
 
     Attributes:
         is_simulated: True, which is what routes the writer to the inventory
-            below rather than to the SPICE-driven one.
+            below rather than to the SPICE-driven one, and what lets the merge
+            name a body the kernels do not know.
         sim_inventory: Per-body inventory entries, keyed by body name.
+        data: An array of the frame's shape, which is where the merge reads how
+            large a plane is.  Its values are never read.
+        config: The configuration whose masked value the merge fills with.
     """
 
-    def __init__(self, sim_inventory: dict[str, Any]) -> None:
-        """Hold the inventory the writer reads.
+    def __init__(self, sim_inventory: dict[str, Any], config: Config) -> None:
+        """Hold what the merge and the writer read off an observation.
 
         Parameters:
             sim_inventory: Per-body inventory entries, keyed by body name.
+            config: The configuration the merge reads the masked value from.
         """
         self.is_simulated = True
         self.sim_inventory = sim_inventory
+        self.data: NDArrayFloatType = np.zeros(COHORT_SHAPE_VU, dtype=np.float32)
+        self.config = config
 
 
 def _ramp(
@@ -194,6 +215,26 @@ def _disc_mask(body: CohortBody) -> NDArrayBoolType:
     return cast(NDArrayBoolType, distance <= body.radius_px)
 
 
+def _ring_distance(bodies: tuple[CohortBody, ...]) -> NDArrayFloatType:
+    """Return how far the ring system is at each pixel, as the merge reads it.
+
+    The merge drops a ring pixel a nearer body claims, so what this says about
+    the rings decides which of the two the frame keeps where they overlap.  It
+    puts the rings behind every body in the frame, which is what leaves each
+    body's disc to the body and every other pixel to the rings -- the same
+    division the ring mask already carries, stated where the merge reads it so
+    the two cannot disagree.
+
+    Parameters:
+        bodies: The bodies in the frame, whose ranges the rings sit beyond.
+
+    Returns:
+        The full-frame distance.
+    """
+    beyond = max((body.range_km for body in bodies), default=0.0) + 1.0
+    return cast(NDArrayFloatType, np.full(COHORT_SHAPE_VU, beyond, dtype=np.float32))
+
+
 def write_backplanes(
     fits_file_path: FCPath,
     *,
@@ -202,6 +243,11 @@ def write_backplanes(
     config: Config,
 ) -> None:
     """Write one image's backplane FITS and the metadata document beside it.
+
+    The per-source arrays, masks and ranges are synthesized here; the merge and
+    the writer take them from there, so the HDU order, the body identity map and
+    the metadata document are the backplane stage's own answers rather than a
+    second set that agrees with them until one of the two changes.
 
     The run log takes the writer's own diagnostics: building a fixture is not
     navigating an image, and the image logger has no image open to file them
@@ -225,8 +271,6 @@ def write_backplanes(
         if entry['name'] != 'distance'
     }
 
-    master_by_type: dict[str, NDArrayFloatType] = {}
-    body_id_map: NDArrayIntType = np.zeros(COHORT_SHAPE_VU, dtype=np.int32)
     claimed: NDArrayBoolType = np.zeros(COHORT_SHAPE_VU, dtype=np.bool_)
     bodies_result: dict[str, Any] = {}
     sim_inventory: dict[str, Any] = {}
@@ -234,15 +278,13 @@ def write_backplanes(
     for body in bodies:
         mask = _disc_mask(body) & ~claimed
         claimed |= mask
-        body_id_map[mask] = body.naif_id
         planes = {name: _ramp(_bounds_for(name), mask, masked_value) for name in body_units}
-        for name, plane in planes.items():
-            master = master_by_type.setdefault(
-                name, np.full(COHORT_SHAPE_VU, masked_value, dtype=np.float32)
-            )
-            master[mask] = plane[mask]
+        masks = dict.fromkeys(planes, mask)
         bodies_result[body.name] = {
-            'statistics': _statistics(planes, dict.fromkeys(planes, mask), body_units)
+            'arrays': planes,
+            'masks': masks,
+            'distance': body.range_km,
+            'statistics': _statistics(planes, masks, body_units),
         }
         center_v, center_u = body.center_vu
         sim_inventory[body.name] = {
@@ -259,12 +301,20 @@ def write_backplanes(
             name: _ramp(_bounds_for(name), ring_mask, masked_value) for name in ring_units
         }
         ring_masks = dict.fromkeys(ring_planes, ring_mask)
-        master_by_type.update(ring_planes)
-        rings_result = {'statistics': _statistics(ring_planes, ring_masks, ring_units)}
+        rings_result = {
+            'arrays': ring_planes,
+            'masks': ring_masks,
+            'distance': _ring_distance(bodies),
+            'statistics': _statistics(ring_planes, ring_masks, ring_units),
+        }
 
+    snapshot = cast(ObsSnapshot, _SimulatedSnapshot(sim_inventory, config))
+    master_by_type, body_id_map = merge_sources_into_master(
+        snapshot, bodies_result=bodies_result, rings_result=rings_result
+    )
     write_fits(
         fits_file_path=fits_file_path,
-        snapshot=cast(ObsSnapshot, _SimulatedSnapshot(sim_inventory)),
+        snapshot=snapshot,
         master_by_type=master_by_type,
         body_id_map=body_id_map,
         config=config,

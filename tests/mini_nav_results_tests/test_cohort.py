@@ -113,25 +113,31 @@ def test_the_two_navigated_images_shard_into_different_bundle_directories() -> N
 
 
 _BODY_HDU_NAMES = (
-    'BODY_LONGITUDE',
-    'BODY_LATITUDE',
-    'BODY_INCIDENCE_ANGLE',
-    'BODY_EMISSION_ANGLE',
-    'BODY_PHASE_ANGLE',
-    'BODY_FINEST_RESOLUTION',
     'BODY_COARSEST_RESOLUTION',
+    'BODY_EMISSION_ANGLE',
+    'BODY_FINEST_RESOLUTION',
+    'BODY_INCIDENCE_ANGLE',
+    'BODY_LATITUDE',
+    'BODY_LONGITUDE',
+    'BODY_PHASE_ANGLE',
 )
-"""The image HDUs a frame with body backplanes carries, in the order written."""
+"""The image HDUs a frame with body backplanes carries, in the order written.
+
+Written out rather than sorted here: the order is what every array's byte
+offset in the file is stated against, and a test that sorts the names it
+expects agrees with a merge that stopped sorting.  This is the order both real
+products on this machine carry.
+"""
 
 _RING_HDU_NAMES = (
-    'RING_RADIUS',
-    'RING_LONGITUDE',
     'RING_EMISSION_ANGLE',
+    'RING_LONGITUDE',
+    'RING_LONGITUDINAL_RESOLUTION',
     'RING_PHASE_ANGLE',
     'RING_RADIAL_RESOLUTION',
-    'RING_LONGITUDINAL_RESOLUTION',
+    'RING_RADIUS',
 )
-"""The image HDUs a frame with ring backplanes carries as well."""
+"""The image HDUs a frame with ring backplanes carries as well, after them all."""
 
 
 def test_each_fits_carries_the_hdus_its_backplanes_imply(mini_nav_cohort: Cohort) -> None:

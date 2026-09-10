@@ -86,12 +86,6 @@ own epoch.
 _EXPOSURE_MS = 460.0
 """The exposure the cohort images were taken with, in the milliseconds the index records."""
 
-_SATURN_NAIF_ID = 699
-"""NAIF identifier of Saturn."""
-
-_ENCELADUS_NAIF_ID = 602
-"""NAIF identifier of Enceladus."""
-
 
 def _image_name(midtime_et: float, camera_letter: str) -> str:
     """Return the name of the calibrated image taken at an epoch.
@@ -513,7 +507,6 @@ def cohort_images() -> tuple[CohortImage, ...]:
             bodies=(
                 CohortBody(
                     name='ENCELADUS',
-                    naif_id=_ENCELADUS_NAIF_ID,
                     center_vu=(7.5, 7.5),
                     radius_px=5.5,
                     range_km=284913.0,
@@ -533,7 +526,6 @@ def cohort_images() -> tuple[CohortImage, ...]:
             bodies=(
                 CohortBody(
                     name='SATURN',
-                    naif_id=_SATURN_NAIF_ID,
                     center_vu=(4.0, 4.0),
                     radius_px=4.5,
                     range_km=1904772.0,
