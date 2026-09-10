@@ -80,13 +80,14 @@ from an empty bundle root of its own.  ``sd_create_bundle summary`` does not
 check it either: it reads the tree the labels pass wrote, so it requires a
 populated bundle rather than an empty one.
 
-``sd_create_bundle labels`` counts the images whose labels it did not write --
-an image whose data or browse label failed to render, and an image whose inputs
-it could not read -- and exits 1 when that count is not zero.  It closes with a
-line giving that count alongside the number of images it labeled and the number
-it skipped, so a selection that matched nothing reads as the zero it is.  It
-counts a batch that did not hold exactly one image the same way; that is a
-guard on the one-image-per-batch invariant
+``sd_create_bundle labels`` counts the images whose products it did not write --
+an image whose data or browse label failed to render, an image whose summary PNG
+was not in the navigation results, and an image whose inputs it could not read --
+and exits 1 when that count is not zero.  It closes with a line giving that
+count alongside the number of images it labeled and the number it skipped, so a
+selection that matched nothing reads as the zero it is.  It counts a batch that
+did not hold exactly one image the same way; that is a guard on the
+one-image-per-batch invariant
 :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` also
 asserts, and no selection argument this dataset offers can produce one.
 
@@ -248,11 +249,14 @@ a single run reports every label it could not write rather than one per run.
 Whichever labels did render stay on disk, and the driver's exit status is what
 says the bundle is incomplete.
 
-An image whose navigation left no summary PNG has no browse product, so no
-browse label is rendered for it and none is counted against the run.  The
-browse collection's inventory is built from the data labels, so it lists a
-browse product that image does not have; reconciling the inventories with what
-is on disk belongs to the collection stage rather than to the label writer.
+An image whose navigation left no summary PNG is a failure rather than an image
+without a browse product.  :func:`~spindoctor.navigate_image_files.navigate_image_files`
+writes the summary PNG before the metadata document and under the same
+condition, precisely so that a fault in the PNG is recorded as that image's
+failure instead of leaving a success document beside no PNG; a success document
+with no PNG beside it therefore means the input tree is broken.  The data label
+is written and stays, the browse products are not written, and the image counts
+against the run.
 
 A label whose template file is not in the dataset's template directory is
 skipped rather than failed, and does not affect the exit status.  This is what

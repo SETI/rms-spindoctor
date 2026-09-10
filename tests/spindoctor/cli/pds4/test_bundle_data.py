@@ -188,27 +188,28 @@ def test_browse_label_rendered(tmp_path: Path) -> None:
     assert '1234567890w_summary.png' in text
 
 
-def test_missing_summary_png_skips_browse_products(
+def test_missing_summary_png_fails_the_image_and_keeps_the_data_label(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Browse products are optional: no PNG means no browse output, data still written.
+    """A success document with no summary PNG beside it fails the image.
 
-    An image whose navigation left no summary PNG is a product with no browse
-    label to write, so the outcome is what a run that wrote everything it set
-    out to write reports.  What a browse collection should then say about that
-    image is a bundle-content question and not the label writer's.
+    The navigation stage writes the PNG before the document that records the
+    success, and both under one condition, so there is no run in which a
+    success document legitimately has no PNG beside it.  One that has none is a
+    broken input and the bundle stage says so.  The data half succeeded, so its
+    label stays, exactly as when a browse template will not render.
     """
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env, summary_png=None)
     outcome = _generate(env)
-    assert outcome is BundleDataOutcome.WRITTEN
+    assert outcome is BundleDataOutcome.FAILED
     data_label = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.lblx'
     assert data_label.is_file()
     browse_label = env.bundle_dir / 'browse' / f'{env.pds4_path_stub}_summary.lblx'
     assert not browse_label.exists()
     browse_png = env.bundle_dir / 'browse' / f'{env.pds4_path_stub}_summary.png'
     assert not browse_png.exists()
-    assert 'Summary PNG not found' in capsys.readouterr().out
+    assert 'ERROR | No summary PNG at' in capsys.readouterr().out
 
 
 def test_unicode_template_variables_round_trip(tmp_path: Path) -> None:

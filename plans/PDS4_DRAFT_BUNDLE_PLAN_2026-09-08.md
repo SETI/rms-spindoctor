@@ -846,10 +846,18 @@ describe is skipped, which is not a failure and does not affect the exit
 status: no navigation metadata document, a navigation status that is not
 `success`, or no backplane metadata document. That is the ordinary state of a
 selection made by volume; what a bundle should say about such images stays
-open on #600. A document that is there and cannot be read still raises. Both
-per-image labels are attempted before failed is returned, and so is every
-collection and index label, so one run reports every label it could not write
-rather than one per run. `generate_collection_files` and
+open on #600. A document that is there and cannot be read still raises.
+
+A navigated image whose summary PNG is not in the navigation results is
+failed rather than skipped. `navigate_image_files` writes that PNG before the
+document that records the success and under the same condition, so a success
+document with no PNG beside it is a broken input rather than an image without
+a browse product; its data label is written and stays, its browse products are
+not, and the run exits 1.
+
+Both per-image labels are attempted before failed is returned, and so is
+every collection and index label, so one run reports every label it could not
+write rather than one per run. `generate_collection_files` and
 `generate_global_index_files` each return the number of labels that failed;
 the inventory and index `.tab` tables are written either way.
 

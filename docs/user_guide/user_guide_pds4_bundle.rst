@@ -209,7 +209,8 @@ The labels pass requires:
 * Navigation metadata files (``*_metadata.json``) from the navigation pass
 * Backplane FITS files (``*_backplanes.fits``) from the backplanes pass
 * Backplane metadata files (``*_backplane_metadata.json``) from the backplanes pass
-* Summary PNG files (``*_summary.png``) from the navigation pass
+* Summary PNG files (``*_summary.png``) from the navigation pass, one beside every
+  navigation metadata document that records a success
 
 A run that also names an error filter (``--has-offset-error``,
 ``--has-no-offset-error``, ``--has-offset-spice-error``,
@@ -241,10 +242,16 @@ For each image, the labels pass generates:
   * Backplane metadata (min/max statistics per body and ring, inventory information)
 
 * **Browse Label File** (``<image_name>_summary.lblx``): XML label file describing the
-  browse image, generated from dataset-specific templates (if summary PNG exists).
+  browse image, generated from dataset-specific templates.
 
 * **Browse Image** (``<image_name>_summary.png``): Copy of the summary PNG from the
-  navigation pass (if available).
+  navigation pass.
+
+Every successfully navigated image has both browse products. The navigation pass
+writes an image's summary PNG before the metadata document that records the
+success, so a success document with no PNG beside it means something removed the
+PNG afterwards; the labels pass reports that image as failed rather than writing
+a bundle that is missing a browse product it claims.
 
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
@@ -303,9 +310,11 @@ it could not write rather than one per run.
   more images than have been navigated and backplaned, and a run over one is
   mostly skips.
 
-  An image whose navigation left no summary PNG has no browse products, so it
-  gets no browse label and is not failed for the one it does not have. What a
-  browse collection then says about that image is covered below.
+  A navigated image whose summary PNG is not in the navigation results is
+  failed, not skipped: its data label is written and stays, its browse products
+  are not, and the run exits 1. That PNG is written by the navigation pass
+  before the document recording the success, so its absence beside a success
+  document is a broken input rather than an image with no browse product.
 
   ``--dry-run`` reports what the run would have processed and exits 0. It writes
   nothing, so it counts nothing against the run.
@@ -466,8 +475,11 @@ Common Issues
 * **Template not found**: Verify that the template directory exists and matches the
   ``template_dir`` configuration setting.
 
-* **Summary PNG not found**: Browse products are optional. If summary PNGs are missing,
-  browse labels will not be generated, but data products will still be created.
+* **Summary PNG not found**: the run logs ``No summary PNG at ...`` at error
+  level and fails that image. A successfully navigated image always has one, so
+  either the file was removed from the navigation results or the document beside
+  it did not come from the navigation pass. Re-navigate the image, or drop it
+  from the selection.
 
 * **Collection files incomplete**: Ensure all images have been processed in the labels
   pass before running the summary pass.

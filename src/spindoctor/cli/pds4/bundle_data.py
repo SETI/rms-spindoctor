@@ -22,7 +22,9 @@ class BundleDataOutcome(Enum):
             it was not navigated or because its backplanes were never
             generated.  A skip is an image the bundle has nothing to say about,
             not a failure of the run.
-        FAILED: At least one label could not be rendered and is not on disk.
+        FAILED: At least one of the image's products is not in the bundle: a
+            label that could not be rendered, or a browse product whose summary
+            PNG the navigation results do not hold.
     """
 
     WRITTEN = 'written'
@@ -51,6 +53,13 @@ def generate_bundle_data_files(
     naming more images than the bundle covers, which is the ordinary state of a
     selection made by volume.  A document that is there but cannot be read is
     not one of them, and still raises.
+
+    A navigated image whose summary PNG is not in the navigation results is not
+    one of them either.  The navigation stage writes that PNG before, and under
+    the same condition as, the document that records the success, so a success
+    document with no PNG beside it is a broken input rather than an image
+    without a browse product; the image is failed, and its data label stays on
+    disk.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -182,8 +191,12 @@ def generate_bundle_data_files(
         if data_written:
             logger.info('Generated PDS4 label: %s', label_file_path)
 
-        # Copy summary PNG to browse directory and generate browse label
-        browse_written = True
+        # Copy summary PNG to browse directory and generate browse label.
+        # navigate_image_files writes the summary PNG before the navigation
+        # document and under the same condition, so a success document always
+        # has a PNG beside it.  One that does not is a broken input, not an
+        # image with no browse product, and is failed rather than passed over.
+        browse_written = False
         if summary_png_source.exists():
             # Copy the summary PNG file
             summary_png_local = cast(Path, summary_png_source.get_local_path())
@@ -203,7 +216,12 @@ def generate_bundle_data_files(
             if browse_written:
                 logger.info('Generated browse label: %s', browse_label_path)
         else:
-            logger.warning('Summary PNG not found: %s', summary_png_source)
+            logger.error(
+                'No summary PNG at %s for "%s", whose navigation succeeded; the browse '
+                'products for this image were not written',
+                summary_png_source,
+                image_path,
+            )
 
         if data_written and browse_written:
             return BundleDataOutcome.WRITTEN
