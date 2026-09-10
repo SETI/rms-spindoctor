@@ -7,11 +7,19 @@ spelling the statistics path out is what makes regenerating a checked-in
 fixture tree something the operator asked for by name.
 
 Every path written is printed, which is the step a change to a writer or to a
-document is re-ratified by.
+document is re-ratified by.  Standard output carries those paths and nothing
+else, so the list can be redirected to a file or read by another program; the
+writers' own diagnostics, which the run log takes, go to standard error along
+with everything else that is not the list.
 """
 
 import argparse
+import sys
 from pathlib import Path
+
+import pdslogger
+
+from spindoctor.config import MAIN_LOGGER
 
 from . import write_cohort, write_results_tree
 
@@ -33,6 +41,8 @@ _parser.add_argument(
     help='the root to write the set under',
 )
 _arguments = _parser.parse_args()
+
+MAIN_LOGGER.replace_handler(pdslogger.stream_handler(stream=sys.stderr))
 
 if _arguments.document_set == 'results_tree':
     _written = write_results_tree(_arguments.output_directory)

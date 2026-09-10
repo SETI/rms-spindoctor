@@ -30,6 +30,7 @@ from tests.mini_nav_results import (
     results_tree_documents,
     stored_documents,
 )
+from tests.sclk_readings import triples_disagreeing_with_their_epochs
 
 from spindoctor.support.file import json_as_string
 
@@ -50,43 +51,6 @@ _LOAD_ERROR = 'COISS_2001/data/1294561143_1295221348/N1294563000_1_CALIB'
 
 _SIMULATED = 'sim_scene_000042'
 """The stub of the simulated scene, the one host with no SPICE camera frame."""
-
-_SCLK_TICK_S = {'coiss': 1.0 / 256.0, 'vgiss': 0.06}
-"""How long one tick of each host's spacecraft clock is.
-
-Written out here rather than taken from the builders, which is the point: a
-test that asks the code what its own clock counts in agrees with every answer
-the code gives.  These are the ticks the mission clock kernels record -- a
-256th of a second on Cassini, a Voyager line of 0.06 seconds -- so a triple
-that disagrees with its own epochs by more than one of them is a triple the
-epoch-to-clock conversion could not have returned.
-"""
-
-_VOYAGER_MINORS_PER_FRAME = 60
-"""Minor frames in one Voyager FDS frame."""
-
-_VOYAGER_LINES_PER_MINOR = 800
-"""Lines in one Voyager minor frame; the line field counts from one."""
-
-
-def _sclk_seconds(instrument: str, reading: str) -> float:
-    """Read a spacecraft clock string back as a number of seconds on that clock.
-
-    Parameters:
-        instrument: Which host recorded the reading.
-        reading: The clock string, partition and all.
-
-    Returns:
-        The reading in seconds, on that clock's own origin.  Only differences
-        between two readings of one clock mean anything.
-    """
-    count = reading.split('/', 1)[1]
-    if instrument == 'coiss':
-        seconds, fraction = count.split('.')
-        return int(seconds) + int(fraction) * _SCLK_TICK_S['coiss']
-    frame, minor, line = count.split(':')
-    lines = (int(frame) * _VOYAGER_MINORS_PER_FRAME + int(minor)) * _VOYAGER_LINES_PER_MINOR
-    return (lines + int(line) - 1) * _SCLK_TICK_S['vgiss']
 
 
 @pytest.fixture(scope='module')
@@ -227,23 +191,7 @@ def test_every_clock_triple_spans_the_exposure_it_was_read_over(
     the epochs say is a hand-authored one, and every reader that subtracts two
     of its readings measures that fifth.
     """
-    disagreeing: list[str] = []
-    for stub, document in stored.items():
-        times = document.get('navigation_result', {}).get('times')
-        if times is None:
-            continue
-        instrument = str(document['observation']['instrument'])
-        tick_s = _SCLK_TICK_S[instrument]
-        opened = _sclk_seconds(instrument, str(times['sclk_start']))
-        for reading, epoch in (('sclk_midtime', 'midtime_et'), ('sclk_stop', 'stop_et')):
-            on_the_clock = _sclk_seconds(instrument, str(times[reading])) - opened
-            between_the_epochs = float(times[epoch]) - float(times['start_et'])
-            if abs(on_the_clock - between_the_epochs) > tick_s:
-                disagreeing.append(
-                    f'{stub}: {reading} is {on_the_clock} s after sclk_start, against '
-                    f'{between_the_epochs} s between the epochs'
-                )
-    assert disagreeing == []
+    assert triples_disagreeing_with_their_epochs(stored) == []
 
 
 def test_every_technique_cites_features_the_inventory_holds(

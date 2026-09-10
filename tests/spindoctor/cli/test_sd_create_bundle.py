@@ -672,11 +672,6 @@ def test_a_holdings_root_named_on_the_command_line_is_the_one_enumerated(
     configuration names, and a run pointed at a holdings root of its own then
     walks the archive instead -- with nothing said, and every image it finds
     reported as skipped.
-
-    Parameters:
-        monkeypatch: Fixture the module globals are set through, so the parse
-            cannot leave one behind.
-        tmp_path: The holdings root the run is pointed at.
     """
     monkeypatch.setattr(sd_create_bundle, 'DATASET', None)
     monkeypatch.setattr(sd_create_bundle, 'DATASET_NAME', None)
@@ -689,14 +684,7 @@ def test_a_holdings_root_named_on_the_command_line_is_the_one_enumerated(
 def test_a_dataset_with_no_holdings_refuses_a_holdings_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A flag that cannot be applied ends the run rather than being dropped.
-
-    Parameters:
-        monkeypatch: Fixture the module globals are set through, so the parse
-            cannot leave one behind.
-        tmp_path: The holdings root the run is pointed at.
-        capsys: Fixture the refusal is read back through.
-    """
+    """A flag that cannot be applied ends the run rather than being dropped."""
     monkeypatch.setattr(sd_create_bundle, 'DATASET', None)
     monkeypatch.setattr(sd_create_bundle, 'DATASET_NAME', None)
     with pytest.raises(SystemExit) as excinfo:

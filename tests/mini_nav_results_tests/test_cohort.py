@@ -31,29 +31,7 @@ from tests.mini_nav_results.cohort_cassini import (
     RINGS_IMAGE_NAME,
     cohort_images,
 )
-
-_SCLK_TICK_S = 1.0 / 256.0
-"""How long one tick of the Cassini clock is.
-
-Written out rather than taken from the builders: a test that asks the code what
-its own clock counts in agrees with every answer the code gives.  This is the
-tick the mission clock kernel records, so a triple that disagrees with its own
-epochs by more than one of them is a triple no conversion could have returned.
-"""
-
-
-def _sclk_seconds(reading: str) -> float:
-    """Read a Cassini clock string back as a number of seconds on that clock.
-
-    Parameters:
-        reading: The clock string, partition and all.
-
-    Returns:
-        The reading in seconds, on the clock's own origin.  Only differences
-        between two readings mean anything.
-    """
-    seconds, fraction = reading.split('/', 1)[1].split('.')
-    return int(seconds) + int(fraction) * _SCLK_TICK_S
+from tests.sclk_readings import triples_disagreeing_with_their_epochs
 
 
 @pytest.fixture(scope='module')
@@ -74,19 +52,7 @@ def test_every_clock_triple_spans_the_epochs_beside_it(
     Every reader that subtracts two readings, or converts one back into an
     epoch, reads whatever a hand-authored triple happened to say.
     """
-    disagreeing: list[str] = []
-    for stub, document in documents.items():
-        times = document['navigation_result']['times']
-        opened = _sclk_seconds(str(times['sclk_start']))
-        for reading, epoch in (('sclk_midtime', 'midtime_et'), ('sclk_stop', 'stop_et')):
-            on_the_clock = _sclk_seconds(str(times[reading])) - opened
-            between_the_epochs = float(times[epoch]) - float(times['start_et'])
-            if abs(on_the_clock - between_the_epochs) > _SCLK_TICK_S:
-                disagreeing.append(
-                    f'{stub}: {reading} is {on_the_clock} s after sclk_start, against '
-                    f'{between_the_epochs} s between the epochs'
-                )
-    assert disagreeing == []
+    assert triples_disagreeing_with_their_epochs(documents) == []
 
 
 def test_every_image_is_named_for_the_reading_its_shutter_opened_at(
@@ -302,9 +268,6 @@ def test_each_fits_carries_the_hdus_its_backplanes_imply(mini_nav_cohort: Cohort
 
     The byte blob a stand-in writes has no HDUs to find, and the label states
     where in the file each array begins.
-
-    Parameters:
-        mini_nav_cohort: The session's cohort.
     """
     found: dict[str, tuple[str, ...]] = {}
     for image in cohort_images():
@@ -330,9 +293,6 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
     key: the ring stage returns a result holding nothing rather than no result,
     so ``rings`` names an empty ``backplanes`` rather than being empty itself,
     and a document that has to be read defensively is one no run wrote.
-
-    Parameters:
-        mini_nav_cohort: The session's cohort.
     """
     disagreeing: list[str] = []
     for image in cohort_images():
@@ -364,9 +324,6 @@ def test_each_body_is_placed_down_the_frame_and_sized_across_it(
     that draws a body over an image depends on.  Both are read here against the
     geometry the cohort declared, so a transposition on either side is reported
     rather than absorbed by a body a swap describes just as well.
-
-    Parameters:
-        mini_nav_cohort: The session's cohort.
     """
     found: dict[str, tuple[list[float], list[float]]] = {}
     expected: dict[str, tuple[list[float], list[float]]] = {}
@@ -405,9 +362,6 @@ def test_a_document_and_its_image_file_name_one_file(mini_nav_cohort: Cohort) ->
     has only the layout to derive it from.  The index row is the odd one out on
     purpose: it names the raw product on its own volume, which is what a real
     index names and a different file.
-
-    Parameters:
-        mini_nav_cohort: The session's cohort.
     """
     found: dict[str, tuple[str, str]] = {}
     expected: dict[str, tuple[str, str]] = {}
@@ -467,9 +421,6 @@ def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> 
     Its products are named for their images, so a file of one of those names
     anywhere in the repository is a build that escaped the temporary directory
     -- reported here rather than committed by whoever runs ``git add`` next.
-
-    Parameters:
-        mini_nav_cohort: The session's cohort.
     """
     repository = Path(__file__).resolve().parents[2]
     if not (repository / '.git').exists():

@@ -662,10 +662,6 @@ def test_the_cohort_image_that_did_not_navigate_is_skipped(
     stand-ins, because a selection made by volume routinely names images that
     did not navigate, and what the bundle does with one is a property of the
     run rather than of a fixture's ``status`` key.
-
-    Parameters:
-        mini_nav_cohort: The session's cohort.
-        tmp_path: pytest-provided temporary directory for this test's bundle.
     """
     env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
     outcome = generate_bundle_data_files(
@@ -715,10 +711,6 @@ def test_the_cohort_s_navigated_images_are_written_into_the_bundle(
     template the fixture cannot satisfy, a product written under the wrong
     number, or a render that fails and leaves half a bundle behind is reported
     here, in the phase that owns the fixture.
-
-    Parameters:
-        mini_nav_cohort: The session's cohort.
-        tmp_path: pytest-provided temporary directory for this test's bundle.
     """
     env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
     outcomes = {
