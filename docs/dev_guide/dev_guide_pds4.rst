@@ -66,7 +66,16 @@ same task queue can drive offset + backplane + bundle in three queue passes.
 Exit status
 -----------
 
-Before it processes anything, ``sd_create_bundle labels`` requires
+Before either pass processes anything, it checks that every template
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` declares for
+it is in the directory
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_template_dir` names, and
+exits 1 naming each one that is not.  Every product of a pass renders from that
+one directory, so a template that is missing is missing for every product, and a
+per-product report would be the same line thousands of times.  The two passes
+render different templates and each checks its own.
+
+Before it processes anything, ``sd_create_bundle labels`` also requires
 ``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent, and exits
 1 naming the directory when it is not.  A bundle is the product of one run: with
 that precondition there is no stale label to detect and no directory to clean,
@@ -134,6 +143,11 @@ The full extension-point set:
   ``cassini_iss_saturn_backplanes_rsfrench2027``). The bundle root is
   ``<bundle_results_root>/<bundle_name>/``. Lookups consult
   ``config.pds4.<dataset_name>.bundle_name``.
+- :meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` — the
+  template filenames one pass must find in that directory, ``labels`` for the
+  per-image pass and ``summary`` for the collection and index pass. Each pass
+  checks them before it processes anything and refuses to run when one is not
+  there, so this is where a dataset says what its template tree carries.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_path_for_image` — maps an
   image name to its position in the bundle's ``data/`` directory tree
   (typically a sharded path like ``1234xxxxxx/123456xxxx`` to keep per-leaf
@@ -258,9 +272,10 @@ with no PNG beside it therefore means the input tree is broken.  The data label
 is written and stays, the browse products are not written, and the image counts
 against the run.
 
-A label whose template file is not in the dataset's template directory is
-skipped rather than failed, and does not affect the exit status.  This is what
-lets a dataset ship a partial template set.
+A template that is not in the dataset's template directory is not a label
+skipped: each pass checks the templates its dataset declares before it processes
+anything and refuses to run without them, so a render this far in has its
+template.
 
 Template tree
 -------------
@@ -342,6 +357,7 @@ The end-to-end checklist:
    :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS` as
    the reference implementation. The methods that absolutely must work
    are :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_template_dir`,
+   :meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates`,
    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_name`,
    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_path_stub`, the four
    ``pds4_image_name_to_*_lid[vid]`` methods,

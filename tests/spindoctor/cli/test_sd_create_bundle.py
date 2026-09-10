@@ -24,7 +24,7 @@ from filecache import FCPath
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
-from spindoctor.dataset.dataset import ImageFile, ImageFiles
+from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 
 
 def _image_file(name: str, *, base_dir: Path | None = None) -> ImageFile:
@@ -63,21 +63,39 @@ def _batch_image_name(batch: int, index: int) -> str:
 BUNDLE_NAME = 'fake_bundle'
 """The bundle the stub dataset names, and so the directory a run writes into."""
 
+REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
+    'labels': ['data.lblx', 'browse.lblx'],
+    'summary': [
+        'collection_data.lblx',
+        'collection_browse.lblx',
+        'global_index_bodies.lblx',
+        'global_index_rings.lblx',
+    ],
+}
+"""What the stub dataset declares each pass must find, as Cassini declares it."""
 
-class _BatchDataset:
-    """A dataset whose enumeration yields batches of a chosen size."""
+
+class _StubDataset:
+    """A dataset serving the pds4_* hooks the drivers call, over chosen batches."""
 
     def __init__(
-        self, image_count: int, *, batch_count: int = 1, base_dir: Path | None = None
+        self,
+        template_dir: Path,
+        *,
+        image_count: int = 1,
+        batch_count: int = 1,
+        base_dir: Path | None = None,
     ) -> None:
         """Prepare an enumeration of batches holding that many images each.
 
         Parameters:
+            template_dir: Directory served as the dataset's template directory.
             image_count: How many images each batch holds.
             batch_count: How many batches the enumeration yields.
             base_dir: Directory the enumerated images live in; only a run that
                 reaches the real generation needs a real one.
         """
+        self._template_dir = template_dir
         self._image_count = image_count
         self._batch_count = batch_count
         self._base_dir = base_dir
@@ -85,6 +103,18 @@ class _BatchDataset:
     def pds4_bundle_name(self) -> str:
         """Return the bundle name whose directory the run writes into."""
         return BUNDLE_NAME
+
+    def pds4_bundle_template_dir(self) -> str:
+        """Return the template directory the declared templates are looked for in."""
+        return str(self._template_dir)
+
+    def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
+        """Return the template filenames the given pass must find.
+
+        Parameters:
+            pds4_pass: Which pass's templates to name.
+        """
+        return REQUIRED_TEMPLATES[pds4_pass]
 
     def yield_image_files_from_arguments(
         self, arguments: argparse.Namespace
@@ -106,6 +136,34 @@ class _BatchDataset:
             )
 
 
+def _stub_dataset(
+    tmp_path: Path,
+    *,
+    image_count: int = 1,
+    batch_count: int = 1,
+    base_dir: Path | None = None,
+) -> _StubDataset:
+    """Build the stub dataset over a template directory holding every template.
+
+    Parameters:
+        tmp_path: Base temporary directory the template directory lives under.
+        image_count: How many images each enumerated batch holds.
+        batch_count: How many batches the enumeration yields.
+        base_dir: Directory the enumerated images live in.
+
+    Returns:
+        The stub dataset, whose template directory is already populated.
+    """
+    template_dir = tmp_path / 'templates'
+    template_dir.mkdir(exist_ok=True)
+    for names in REQUIRED_TEMPLATES.values():
+        for name in names:
+            (template_dir / name).write_text('<Product/>\n', encoding='utf-8')
+    return _StubDataset(
+        template_dir, image_count=image_count, batch_count=batch_count, base_dir=base_dir
+    )
+
+
 @pytest.fixture
 def labels_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Stand the labels subcommand up on stubs, leaving only its counting live.
@@ -123,7 +181,7 @@ def labels_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sd_create_bundle, 'get_backplane_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(pdstemplate.PdsTemplate, 'set_logger', staticmethod(lambda *a: None))
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _BatchDataset(1))
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path))
 
 
 @pytest.fixture
@@ -143,7 +201,8 @@ def summary_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sd_create_bundle, 'build_run_logging', lambda *a: None)
     monkeypatch.setattr(sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(pdstemplate.PdsTemplate, 'set_logger', staticmethod(lambda *a: None))
-    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: object)
+    dataset = _stub_dataset(tmp_path)
+    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
 
 
 def _labels_outcome(monkeypatch: pytest.MonkeyPatch, outcome: BundleDataOutcome) -> None:
@@ -259,6 +318,29 @@ def test_main_labels_writes_into_a_bundle_root_with_nothing_in_it(
     assert 'Label generation complete: 1 image(s) labeled, 0 skipped' in capsys.readouterr().out
 
 
+def test_main_labels_refuses_a_template_the_dataset_does_not_have(
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A template the dataset declares and does not have ends the run at once.
+
+    Every image of the pass renders from the same template directory, so a
+    template that is not there is not there for any of them; the run names it
+    once, before it has processed an image, rather than failing identically
+    thousands of times.
+    """
+    missing = tmp_path / 'templates' / 'data.lblx'
+    missing.unlink()
+    calls = _record_generation(monkeypatch)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_labels()
+    assert excinfo.value.code == 1
+    assert calls == []
+    assert f'PDS4 template not found: {missing}' in capsys.readouterr().out
+
+
 def test_main_labels_exits_non_zero_when_a_product_fails(
     labels_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -280,10 +362,16 @@ def test_main_labels_exits_non_zero_when_a_product_fails(
 
 
 def test_main_labels_exits_non_zero_when_a_batch_is_not_one_image(
-    labels_run: None, monkeypatch: pytest.MonkeyPatch
+    labels_run: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A batch of any other size is a product the run did not write."""
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _BatchDataset(2))
+    """A batch of any other size is a product the run did not write.
+
+    Parameters:
+        labels_run: Fixture standing the subcommand up on stubs.
+        monkeypatch: Fixture the two-image enumeration is installed through.
+        tmp_path: Base temporary directory the stub dataset is built under.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, image_count=2))
     _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_labels()
@@ -313,15 +401,24 @@ def test_main_labels_does_not_fail_a_run_over_a_skipped_image(
 
 
 def test_main_labels_reports_a_selection_that_matched_no_images(
-    labels_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A selection matching nothing reports zero rather than an unqualified completion.
 
     Image-name selection is by prefix, so a mistyped name matches nothing and is
     otherwise indistinguishable from a healthy run; the closing line has to make
     zero visible as zero.
+
+    Parameters:
+        labels_run: Fixture standing the subcommand up on stubs.
+        monkeypatch: Fixture the empty enumeration is installed through.
+        tmp_path: Base temporary directory the stub dataset is built under.
+        capsys: Fixture the closing report is read from.
     """
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _BatchDataset(1, batch_count=0))
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, batch_count=0))
     _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
     sd_create_bundle.main_labels()
     assert 'Label generation complete: 0 image(s) labeled, 0 skipped' in capsys.readouterr().out
@@ -344,15 +441,24 @@ def test_a_dry_run_reports_what_it_would_have_processed(
 
 
 def test_a_dry_run_over_a_malformed_batch_reports_it_and_exits_zero(
-    labels_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry run reports a batch it could not have processed without failing on it.
 
     Reporting the batch is what the dry run is for; counting a label it never
     set out to write is not.
+
+    Parameters:
+        labels_run: Fixture standing the subcommand up on stubs.
+        monkeypatch: Fixture the two-image enumeration is installed through.
+        tmp_path: Base temporary directory the stub dataset is built under.
+        capsys: Fixture the report is read from.
     """
     _dry_run(monkeypatch)
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _BatchDataset(2))
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, image_count=2))
     _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
     sd_create_bundle.main_labels()
     assert 'Expected 1 image file, got 2' in capsys.readouterr().out
@@ -373,7 +479,7 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
     saying so.
     """
     monkeypatch.setattr(
-        sd_create_bundle, 'DATASET', _BatchDataset(1, batch_count=3, base_dir=tmp_path)
+        sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, batch_count=3, base_dir=tmp_path)
     )
     middle = _batch_image_name(1, 0)
     unparseable = tmp_path / 'res' / f'{middle}_metadata.json'
@@ -389,6 +495,27 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
         '1 whose labels were not written'
     )
     assert expected in out
+
+
+def test_main_summary_refuses_a_template_the_dataset_does_not_have(
+    summary_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The summary pass checks its own templates up front, as the labels pass does.
+
+    The two passes render different templates, so each looks for the ones it
+    renders; a summary run whose collection template is not there stops on it
+    even though the labels pass before it found everything it needed.
+    """
+    missing = tmp_path / 'templates' / 'collection_data.lblx'
+    missing.unlink()
+    _summary_counts(monkeypatch, collections=0, index=0)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    assert f'PDS4 template not found: {missing}' in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(

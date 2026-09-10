@@ -284,9 +284,14 @@ The summary pass generates:
 Exit Status
 ===========
 
-Both passes exit 0 only when every label they set out to write is on disk. A
-label whose template file is not in the dataset's template directory is one the
-pass never set out to write, and is skipped without affecting the exit status.
+Both passes exit 0 only when every label they set out to write is on disk, and
+each sets out to write every label the dataset declares for it. A template that
+is not in the dataset's template directory ends the pass before it writes
+anything, naming the file, rather than being passed over.
+
+A file on disk is still not always a label: the two global index templates ship
+empty, so a run that writes everything it set out to write leaves two empty
+files where those labels belong.
 
 A label is not written when its template cannot be rendered: an unresolved
 template variable, an expression that fails, or a value the template rejects.
@@ -392,6 +397,12 @@ Each dataset has its own template directory containing:
 * ``global_index_bodies.lblx``: Template for bodies global index label
 * ``global_index_rings.lblx``: Template for rings global index label
 
+Each dataset declares which of these files each pass requires. Before it
+processes anything, a pass checks that every template it needs is in the
+template directory, and exits 1 naming each one that is not: every product of a
+pass renders from the same directory, so a template that is missing is missing
+for every product.
+
 Templates use the PdsTemplate system (from ``rms-pdstemplate``) for variable
 substitution. Template variables are provided by dataset-specific implementations of
 ``pds4_template_variables()``, which map PDS3 index columns and computed metadata to
@@ -472,8 +483,10 @@ Common Issues
 * **Missing backplane files**: Ensure the backplanes pass has completed successfully and
   both FITS and metadata files exist in the backplane results root.
 
-* **Template not found**: Verify that the template directory exists and matches the
-  ``template_dir`` configuration setting.
+* **Template not found**: the run logs ``PDS4 template not found: ...`` for each
+  one and exits before writing anything. Verify that the template directory
+  exists, matches the ``template_dir`` configuration setting, and holds every
+  file the dataset's passes render.
 
 * **Summary PNG not found**: the run logs ``No summary PNG at ...`` at error
   level and fails that image. A successfully navigated image always has one, so

@@ -18,7 +18,7 @@ from typing import Any, cast
 
 from filecache import FCPath
 
-from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles
+from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 # Minimal pdstemplate templates.  Each references only variables the module under
 # test injects itself (BACKPLANE_*/BROWSE_FULL_*/COLLECTION_*/FILE_RECORDS) plus
@@ -49,6 +49,20 @@ COLLECTION_BROWSE_TEMPLATE = (
     '<Collection_Browse>\n  <csv>$COLLECTION_BROWSE_CSV_PATH$</csv>\n</Collection_Browse>\n'
 )
 GLOBAL_INDEX_TEMPLATE = '<Index>\n  <records>$FILE_RECORDS$</records>\n</Index>\n'
+
+LABELS_TEMPLATES = {'data.lblx': DATA_TEMPLATE, 'browse.lblx': BROWSE_TEMPLATE}
+"""The templates the per-image labels pass renders, and their fake bodies."""
+
+SUMMARY_TEMPLATES = {
+    'collection_data.lblx': COLLECTION_DATA_TEMPLATE,
+    'collection_browse.lblx': COLLECTION_BROWSE_TEMPLATE,
+    'global_index_bodies.lblx': GLOBAL_INDEX_TEMPLATE,
+    'global_index_rings.lblx': GLOBAL_INDEX_TEMPLATE,
+}
+"""The templates the summary pass renders, and their fake bodies."""
+
+DEFAULT_TEMPLATES = LABELS_TEMPLATES | SUMMARY_TEMPLATES
+"""Every template the fake dataset declares, which is every one it is given."""
 
 DEFAULT_BUNDLE_NAME = 'fake_bundle'
 DEFAULT_SHARD = 'shard0'
@@ -112,6 +126,19 @@ class FakePds4DataSet:
     def pds4_bundle_name(self) -> str:
         """Return the configured bundle name."""
         return self._bundle_name
+
+    def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
+        """Return the template filenames the given pass must find.
+
+        These are the templates :func:`make_bundle_env` writes into the
+        template directory, so what the fake declares is what its tree carries.
+
+        Parameters:
+            pds4_pass: Which pass's templates to name.
+        """
+        if pds4_pass == 'labels':
+            return list(LABELS_TEMPLATES)
+        return list(SUMMARY_TEMPLATES)
 
     def pds4_path_stub(self, image_file: ImageFile) -> str:
         """Return ``<shard>/<image name>`` as the per-image bundle path stub.
@@ -294,8 +321,10 @@ def make_bundle_env(
     Parameters:
         tmp_path: Base temporary directory.
         image_name: Bare image name for the single input image.
-        template_contents: Template files to write; defaults to the minimal data
-            and browse templates.
+        template_contents: Template files written over the default set, which
+            holds every template the fake dataset declares.  A test naming one
+            replaces that one and keeps the rest, because a dataset is required
+            to carry all of them.
         template_variables: Variables served by the fake dataset's
             ``pds4_template_variables`` hook; defaults to DATA_LID / BROWSE_LID
             entries matching ``image_name``.
@@ -306,9 +335,7 @@ def make_bundle_env(
         The populated :class:`BundleEnv`.
     """
     template_dir = tmp_path / 'templates'
-    if template_contents is None:
-        template_contents = {'data.lblx': DATA_TEMPLATE, 'browse.lblx': BROWSE_TEMPLATE}
-    write_templates(template_dir, template_contents)
+    write_templates(template_dir, DEFAULT_TEMPLATES | (template_contents or {}))
 
     if template_variables is None:
         template_variables = {

@@ -23,6 +23,10 @@ def generate_collection_files(
     inventory tables are written whether or not the labels that describe them
     render.
 
+    Every collection template the dataset declares is required.  The caller is
+    expected to have checked them before processing anything, so one that is
+    missing here raises rather than being passed over.
+
     Parameters:
         bundle_results_root: Root directory of the bundle. The bundle data directory
             will be scanned for all backplane label files.
@@ -33,7 +37,8 @@ def generate_collection_files(
         The number of collection labels that could not be rendered.
 
     Raises:
-        FileNotFoundError: If the bundle has no data directory to scan.
+        FileNotFoundError: If the bundle has no data directory to scan, or a
+            collection template is not in the dataset's template directory.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -84,18 +89,17 @@ def generate_collection_files(
 
     # Collection data label
     collection_data_template = template_base / 'collection_data.lblx'
-    if collection_data_template.exists():
-        template = pdstemplate.PdsTemplate(str(collection_data_template))
-        collection_data_label = bundle_root / 'data' / 'collection_data.lblx'
-        template_vars = {
-            'COLLECTION_DATA_CSV_PATH': str(collection_data_csv),
-            'EARLIEST_START_DATE_TIME': '',  # TODO: Calculate from all images
-            'LATEST_STOP_DATE_TIME': '',  # TODO: Calculate from all images
-        }
-        if write_label(template, template_vars, collection_data_label, logger=logger):
-            logger.info('Generated "collection_data.lblx"')
-        else:
-            failed_labels += 1
+    template = pdstemplate.PdsTemplate(str(collection_data_template))
+    collection_data_label = bundle_root / 'data' / 'collection_data.lblx'
+    template_vars = {
+        'COLLECTION_DATA_CSV_PATH': str(collection_data_csv),
+        'EARLIEST_START_DATE_TIME': '',  # TODO: Calculate from all images
+        'LATEST_STOP_DATE_TIME': '',  # TODO: Calculate from all images
+    }
+    if write_label(template, template_vars, collection_data_label, logger=logger):
+        logger.info('Generated "collection_data.lblx"')
+    else:
+        failed_labels += 1
 
     # Generate collection_browse.tab (must be written before collection_browse.lblx)
     collection_browse_csv = bundle_root / 'browse' / 'collection_browse.tab'
@@ -114,16 +118,15 @@ def generate_collection_files(
 
     # Collection browse label
     collection_browse_template = template_base / 'collection_browse.lblx'
-    if collection_browse_template.exists():
-        template = pdstemplate.PdsTemplate(str(collection_browse_template))
-        collection_browse_label = bundle_root / 'browse' / 'collection_browse.lblx'
-        template_vars = {
-            'COLLECTION_BROWSE_CSV_PATH': str(collection_browse_csv),
-        }
-        if write_label(template, template_vars, collection_browse_label, logger=logger):
-            logger.info('Generated "collection_browse.lblx"')
-        else:
-            failed_labels += 1
+    template = pdstemplate.PdsTemplate(str(collection_browse_template))
+    collection_browse_label = bundle_root / 'browse' / 'collection_browse.lblx'
+    template_vars = {
+        'COLLECTION_BROWSE_CSV_PATH': str(collection_browse_csv),
+    }
+    if write_label(template, template_vars, collection_browse_label, logger=logger):
+        logger.info('Generated "collection_browse.lblx"')
+    else:
+        failed_labels += 1
 
     logger.info('Generated collection files: %d products', len(label_files))
     return failed_labels
@@ -139,6 +142,10 @@ def generate_global_index_files(
     Both index labels are attempted, whichever of them fail, and the index
     tables are written whether or not the labels that describe them render.
 
+    Both index templates the dataset declares are required.  The caller is
+    expected to have checked them before processing anything, so one that is
+    missing here raises rather than being passed over.
+
     Parameters:
         bundle_results_root: Root directory of the bundle. The bundle data directory
             will be scanned for all supplemental text files.
@@ -147,6 +154,10 @@ def generate_global_index_files(
 
     Returns:
         The number of index labels that could not be rendered.
+
+    Raises:
+        FileNotFoundError: If an index template is not in the dataset's template
+            directory.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -299,29 +310,27 @@ def generate_global_index_files(
 
     # Global index bodies label
     bodies_template = template_base / 'global_index_bodies.lblx'
-    if bodies_template.exists():
-        template = pdstemplate.PdsTemplate(str(bodies_template))
-        bodies_label = supplemental_dir / 'global_index_bodies.lblx'
-        template_vars = {
-            'FILE_RECORDS': len(body_index_rows),
-        }
-        if write_label(template, template_vars, bodies_label, logger=logger):
-            logger.info('Generated global_index_bodies.lblx')
-        else:
-            failed_labels += 1
+    template = pdstemplate.PdsTemplate(str(bodies_template))
+    bodies_label = supplemental_dir / 'global_index_bodies.lblx'
+    template_vars = {
+        'FILE_RECORDS': len(body_index_rows),
+    }
+    if write_label(template, template_vars, bodies_label, logger=logger):
+        logger.info('Generated global_index_bodies.lblx')
+    else:
+        failed_labels += 1
 
     # Global index rings label
     rings_template = template_base / 'global_index_rings.lblx'
-    if rings_template.exists():
-        template = pdstemplate.PdsTemplate(str(rings_template))
-        rings_label = supplemental_dir / 'global_index_rings.lblx'
-        template_vars = {
-            'FILE_RECORDS': len(ring_index_rows),
-        }
-        if write_label(template, template_vars, rings_label, logger=logger):
-            logger.info('Generated global_index_rings.lblx')
-        else:
-            failed_labels += 1
+    template = pdstemplate.PdsTemplate(str(rings_template))
+    rings_label = supplemental_dir / 'global_index_rings.lblx'
+    template_vars = {
+        'FILE_RECORDS': len(ring_index_rows),
+    }
+    if write_label(template, template_vars, rings_label, logger=logger):
+        logger.info('Generated global_index_rings.lblx')
+    else:
+        failed_labels += 1
 
     logger.info(
         'Generated global index files: %d body rows, %d ring rows',

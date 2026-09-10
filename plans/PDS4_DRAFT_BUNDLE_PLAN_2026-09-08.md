@@ -59,7 +59,10 @@ this table first and trusts it over any recollection.
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the `Special_Constants`
-declaration, which is what remains of the masked-value work).
+declaration, which is what remains of the masked-value work), #602 (a
+skipped or failed product leaves the bundle inconsistent, which Phases 5 and
+6 own). #603, the two passes disagreeing about a missing template, closes in
+Phase 1.
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -871,6 +874,18 @@ counts; each exits 1 when its count is not zero.
 `sd_create_bundle_cloud_tasks` maps a failed product onto a `status: error`
 result carrying `status_error: label_not_written`, with no retry.
 
+A missing template is fatal, and both passes check for one up front. A
+`pds4_required_templates()` hook on `DataSet`, beside the other `pds4_*`
+hooks, names the templates that dataset's tree must carry for a given pass;
+`main_labels` checks the per-image pass's, `main_summary` checks the summary
+pass's, and either exits 1 naming each file that is not there before it has
+written anything. Every product of a pass renders from the same directory, so
+a missing `data.lblx` would otherwise fail identically for thousands of
+images. The four `if <template>.exists():` guards in `collections.py` go with
+it: they are what made a missing template invisible on that side, where the
+other side already raised. `DataSetPDS3CassiniISS` is the reference
+implementation, as it is for the rest of the `pds4_*` surface.
+
 Two things this phase does not reach. `global_index_bodies.lblx` and
 `global_index_rings.lblx` ship as zero-byte templates, so a healthy run
 writes two zero-byte labels and the guarantee "the label is on disk" is
@@ -879,8 +894,9 @@ their content. And an image that was skipped or failed still leaves the
 bundle internally inconsistent, because the inventories and index tables are
 built from the data labels; Phases 5 and 6 own that.
 
-Closes the swallowed-label-write part of #265.  Its inventory-filename part
-closes in Phase 5 and its dev-guide output-layout part in Phase 10.
+Closes #603, and the swallowed-label-write part of #265.  #265's
+inventory-filename part closes in Phase 5 and its dev-guide output-layout part
+in Phase 10.
 
 ### Phase 2 — The synthetic cohort
 

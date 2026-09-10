@@ -7,12 +7,14 @@ Contract under test (docs/user_guide/user_guide_pds4_bundle.rst "Summary Pass" /
 ``collection_data.tab`` / ``collection_browse.tab`` inventories (``Member
 Status`` + ``LIDVID_LID`` columns, one ``P`` row per product, LIDVIDs from the
 dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
-``.lblx`` labels when the templates exist.  ``generate_global_index_files``
+``.lblx`` labels.  ``generate_global_index_files``
 scans ``data/`` for ``*_supplemental.txt`` files and writes
 ``document/supplemental/global_index_bodies.tab`` (one row per image/body) and
 ``global_index_rings.tab`` (one row per image with ring backplanes), with
 min/max columns for each configured backplane type formatted to 5 decimal
-places, plus their labels when templates exist.
+places, plus their labels.  Every template a generator renders is required: the
+drivers check the ones their dataset declares before processing anything, so one
+that is missing raises here rather than being passed over.
 
 Both generators recover the original image name from each on-disk product stem
 via ``DataSet.pds4_lid_part_to_image_name`` before building LIDs, so the stem
@@ -297,19 +299,19 @@ def test_a_broken_collection_template_is_counted_and_leaves_the_other(
     assert (env.bundle_dir / intact_dir / intact).is_file()
 
 
-def test_collection_labels_skipped_when_templates_missing(tmp_path: Path) -> None:
-    """Missing collection templates skip the labels but still write the inventories.
+def test_a_missing_collection_template_raises(tmp_path: Path) -> None:
+    """A collection template the dataset declares and does not have ends the run.
 
-    A template that is not in the template directory is a label the run never
-    set out to write, so it is skipped rather than counted against the run.
+    The driver checks every declared template before it processes anything, so
+    one that is missing this far in is a template tree that does not carry what
+    its dataset says it does.  Passing over it would leave the bundle with an
+    inventory no label describes, and nothing saying so.
     """
-    env = make_bundle_env(tmp_path, template_contents={})
+    env = make_bundle_env(tmp_path)
+    (Path(env.dataset.pds4_bundle_template_dir()) / 'collection_data.lblx').unlink()
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
-    failed = _run_collections(env)
-    assert failed == 0
-    assert (env.bundle_dir / 'data' / 'collection_data.tab').is_file()
-    assert not (env.bundle_dir / 'data' / 'collection_data.lblx').exists()
-    assert not (env.bundle_dir / 'browse' / 'collection_browse.lblx').exists()
+    with pytest.raises(FileNotFoundError, match=r'collection_data\.lblx'):
+        _run_collections(env)
 
 
 # ---------------------------------------------------------------------------
@@ -480,20 +482,18 @@ def test_a_broken_index_template_is_counted_and_leaves_the_other(
     assert (supplemental_dir / intact).is_file()
 
 
-def test_global_index_labels_skipped_when_templates_missing(tmp_path: Path) -> None:
-    """Missing global index templates skip the labels but still write the tables.
+def test_a_missing_index_template_raises(tmp_path: Path) -> None:
+    """An index template the dataset declares and does not have ends the run.
 
-    A template that is not in the template directory is a label the run never
-    set out to write, so it is skipped rather than counted against the run.
+    As with the collection labels: the template tree does not carry what its
+    dataset says it does, and an index table with no label describing it is
+    worse than a run that stops.
     """
     env = _index_env(tmp_path)
+    (Path(env.dataset.pds4_bundle_template_dir()) / 'global_index_bodies.lblx').unlink()
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
-    failed = _run_global_index(env)
-    assert failed == 0
-    supplemental_dir = env.bundle_dir / 'document' / 'supplemental'
-    assert (supplemental_dir / 'global_index_bodies.tab').is_file()
-    assert not (supplemental_dir / 'global_index_bodies.lblx').exists()
-    assert not (supplemental_dir / 'global_index_rings.lblx').exists()
+    with pytest.raises(FileNotFoundError, match=r'global_index_bodies\.lblx'):
+        _run_global_index(env)
 
 
 # ---------------------------------------------------------------------------
@@ -652,3 +652,18 @@ def test_cassini_template_tree_ships_documented_files(tmp_path: Path, template_n
     dataset = _cassini_dataset(tmp_path)
     template_dir = Path(dataset.pds4_bundle_template_dir())
     assert (template_dir / template_name).is_file()
+
+
+def test_cassini_declares_only_templates_it_ships(tmp_path: Path) -> None:
+    """Every template the Cassini dataset declares required is in its shipped tree.
+
+    Each pass refuses to run when a template it declares is not there, so a
+    declaration naming a file the package does not ship would stop every run of
+    that pass rather than one product of it.
+    """
+    dataset = _cassini_dataset(tmp_path)
+    template_dir = Path(dataset.pds4_bundle_template_dir())
+    declared = dataset.pds4_required_templates('labels') + dataset.pds4_required_templates(
+        'summary'
+    )
+    assert [name for name in declared if not (template_dir / name).is_file()] == []

@@ -36,7 +36,7 @@ from spindoctor.config import (
 )
 from spindoctor.config.program_names import SD_CREATE_BUNDLE
 from spindoctor.dataset import dataset_name_to_class, dataset_names
-from spindoctor.dataset.dataset import DataSet
+from spindoctor.dataset.dataset import DataSet, Pds4Pass
 
 PROGRAM_NAME = SD_CREATE_BUNDLE
 """Program identity: names the main log directory and the
@@ -164,6 +164,40 @@ def parse_args_summary(command_list: list[str]) -> argparse.Namespace:
     return arguments
 
 
+def _exit_on_missing_templates(dataset: DataSet, pds4_pass: Pds4Pass) -> None:
+    """Report every template the pass needs and cannot find, and stop if any.
+
+    Every product of a pass renders from the same template directory, so a
+    template that is not there is not there for every image; the pass says so
+    once, before it has written anything, rather than failing identically for
+    thousands of images.
+
+    Parameters:
+        dataset: The dataset whose template directory the pass renders from.
+        pds4_pass: Which pass's declared templates to look for.
+
+    Raises:
+        SystemExit: If any declared template is not in the template directory.
+    """
+    template_dir = FCPath(dataset.pds4_bundle_template_dir())
+    missing = [
+        template_dir / name
+        for name in dataset.pds4_required_templates(pds4_pass)
+        if not (template_dir / name).exists()
+    ]
+    if len(missing) == 0:
+        return
+    for template_path in missing:
+        MAIN_LOGGER.error('PDS4 template not found: %s', template_path)
+    MAIN_LOGGER.error(
+        'The %s pass needs %d template(s) that are not in %s; nothing was written',
+        pds4_pass,
+        len(missing),
+        template_dir,
+    )
+    sys.exit(1)
+
+
 def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
     """Report whether the bundle's own directory already holds something.
 
@@ -183,10 +217,13 @@ def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
 def main_labels() -> None:
     """Main function for labels subcommand.
 
-    A bundle is written into an empty directory: a run whose bundle root
-    already holds files writes nothing and exits 1, naming the directory,
-    rather than assembling one bundle out of two runs.  A dry run is refused
-    the same way, because what it reports on is a run that would be.
+    Two preconditions are checked before any image is processed, and each ends
+    the run with exit status 1 having written nothing.  Every template the
+    dataset declares for this pass must be in its template directory, since one
+    that is not would otherwise fail identically for every image.  And the
+    bundle root must be empty or absent: a bundle is written into an empty
+    directory rather than assembled out of two runs.  A dry run is refused the
+    same way, because what it reports on is a run that would be.
     """
     command_list = sys.argv[2:]  # Skip 'labels'
     arguments = parse_args_labels(command_list)
@@ -211,6 +248,8 @@ def main_labels() -> None:
     pdstemplate.PdsTemplate.set_logger(MAIN_LOGGER)
 
     assert DATASET is not None
+
+    _exit_on_missing_templates(DATASET, 'labels')
 
     bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
     if _bundle_root_holds_anything(bundle_root):
@@ -299,7 +338,13 @@ def main_labels() -> None:
 
 
 def main_summary() -> None:
-    """Main function for summary subcommand."""
+    """Main function for summary subcommand.
+
+    Every template the dataset declares for this pass must be in its template
+    directory; one that is not ends the run with exit status 1 before anything
+    is written.  The bundle root is not checked for emptiness here: this pass
+    reads the tree the labels pass wrote.
+    """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
 
@@ -318,6 +363,8 @@ def main_summary() -> None:
 
     dataset_name = arguments.dataset_name
     dataset = dataset_name_to_class(dataset_name)()
+
+    _exit_on_missing_templates(dataset, 'summary')
 
     # Generate collection files
     try:

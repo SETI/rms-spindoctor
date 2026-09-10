@@ -3,12 +3,17 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Literal, cast
 
 from filecache import FCPath
 
 from spindoctor.config import MAIN_LOGGER, Config, LogRole
 from spindoctor.support.nav_base import NavBase
+
+Pds4Pass = Literal['labels', 'summary']
+"""Which pass of PDS4 bundle generation a set of templates belongs to:
+``labels`` for the per-image pass, ``summary`` for the collection and index
+pass."""
 
 
 @dataclass
@@ -255,6 +260,26 @@ class DataSet(ABC, NavBase):
 
         Returns:
             Bundle name (e.g., "cassini_iss_saturn_backplanes_rsfrench2027").
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
+        """Returns the template filenames one bundle pass must find for this dataset.
+
+        Each pass checks these before it processes anything, in the directory
+        :meth:`pds4_bundle_template_dir` names, and refuses to run when one of
+        them is not there.  Every product of a pass renders from the same
+        directory, so a template that is missing is missing for every image, and
+        saying so once is the whole of the report.
+
+        Parameters:
+            pds4_pass: Which pass's templates to name: ``labels`` for the
+                per-image pass, ``summary`` for the collection and index pass.
+
+        Returns:
+            The filenames, relative to the template directory.
         """
         # We don't make PDS4 methods as @abstractmethod because it's possible to make
         # a DataSet that doesn't support PDS4 bundle generation
