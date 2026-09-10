@@ -45,7 +45,7 @@ this table first and trusts it over any recollection.
 |---|---|---|
 | Landed ahead: rings dictionary to `1F00` | **done** | `ed0b9e15`, section 3.9 |
 | Landed ahead: backplane masked value `-999` | **done** | `04b84a62`, section 3.13 |
-| 1 — Surface label-write failures | **done** | `6c089447`, section 4 |
+| 1 — Surface label-write failures | **done** | `6c089447` plus the review rulings applied on `rf_pds4_phase1`, section 4 |
 | 2 — The synthetic cohort | not started | |
 | 3 — Epochs | not started | |
 | 4 — The FITS in the bundle, with its data objects | not started | |
@@ -819,7 +819,8 @@ requires.
 
 ### Phase 1 — Surface label-write failures
 
-**Done, `6c089447`.**
+**Done, `6c089447`, with the review rulings that followed it applied on
+`rf_pds4_phase1`.**
 
 All six `template.write` call sites go through one helper,
 `spindoctor.cli.pds4.labels.write_label`, which takes the label's `FCPath` in
@@ -850,6 +851,11 @@ status: no navigation metadata document, a navigation status that is not
 `success`, or no backplane metadata document. That is the ordinary state of a
 selection made by volume; what a bundle should say about such images stays
 open on #600. A document that is there and cannot be read still raises.
+
+Treating absence as a skip is **provisional**, not ratified: it was reviewed
+with the rest of Phase 1 and kept as it stands, and #600 is where it is
+decided for good. A later session reading this should not take the skip rule
+as settled.
 
 A navigated image whose summary PNG is not in the navigation results is
 failed rather than skipped. `navigate_image_files` writes that PNG before the
