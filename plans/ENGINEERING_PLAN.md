@@ -563,9 +563,8 @@ asserts the generated half matches the registries.
   largest. And the residue a ring render leaves was recorded as unreturnable
   fragmentation on a probe that cleared one cache on one of the three live
   backplanes; it is held, by the observation's own backplane caches, and
-  dropping them takes settled resident size from 6.80 GB to 1.77 GB. That
-  was #573, closed as misdiagnosed with the measurement on it. The model
-  stage now sets the peak, at 7.66 GB on the heaviest frame, which is 0.34 GB
+  dropping them takes settled resident size from 6.80 GB to 1.77 GB. The
+  model stage now sets the peak, at 7.66 GB on the heaviest frame, 0.34 GB
   of headroom against a run-to-run spread of about 0.1 GB; #584 is the
   measured way to widen it and #585 is the question the padding raises. Each
   navigation records the peak it reached, in the metadata document and in the
