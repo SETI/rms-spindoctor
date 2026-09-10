@@ -25,7 +25,13 @@ from typing import Any
 import pytest
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
-from tests.mini_nav_results.cohort_cassini import GATED_STUB
+from tests.mini_nav_results.cohort_cassini import (
+    GATED_STUB,
+    LIMB_IMAGE_NAME,
+    LIMB_STUB,
+    RINGS_IMAGE_NAME,
+    RINGS_STUB,
+)
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.config import MAIN_LOGGER, Config
@@ -672,3 +678,67 @@ def test_the_cohort_image_that_did_not_navigate_is_skipped(
     )
     assert outcome is BundleDataOutcome.SKIPPED
     assert not env.bundle_dir.exists()
+
+
+def _bundle_products(image_name: str) -> set[str]:
+    """Return every bundle file one navigated Cassini image calls for.
+
+    The sharded directories and the product stem are spelled out here rather
+    than asked of the dataset, since what they are is what this test is for: a
+    bundle is read by walking those directories, and an image that lands in the
+    wrong one is found by whoever cannot find it.
+
+    Parameters:
+        image_name: The calibrated image's name, camera letter and all.
+
+    Returns:
+        The paths, relative to the bundle's own directory.
+    """
+    number = image_name[1:11]
+    stem = f'{number[:4]}xxxxxx/{number[:6]}xxxx/{number}{image_name[0].lower()}'
+    return {
+        f'data/{stem}_backplanes.lblx',
+        f'data/{stem}_supplemental.txt',
+        f'browse/{stem}_summary.lblx',
+        f'browse/{stem}_summary.png',
+    }
+
+
+def test_the_cohort_s_navigated_images_are_written_into_the_bundle(
+    mini_nav_cohort: Cohort, tmp_path: Path
+) -> None:
+    """The shipped Cassini templates render over the cohort, into their shards.
+
+    This is the assertion the cohort exists to make possible and the one every
+    phase after this builds on: the registered dataset, the shipped template
+    set and a real backplane FITS, with nothing standing in for anything.  A
+    template the fixture cannot satisfy, a product written under the wrong
+    number, or a render that fails and leaves half a bundle behind is reported
+    here, in the phase that owns the fixture.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+        tmp_path: pytest-provided temporary directory for this test's bundle.
+    """
+    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
+    outcomes = {
+        stub: generate_bundle_data_files(
+            env.dataset,
+            mini_nav_cohort.batch(stub),
+            nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
+            backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
+            bundle_results_root=FCPath(env.bundle_results_root),
+            logger=MAIN_LOGGER,
+        )
+        for stub in (LIMB_STUB, RINGS_STUB)
+    }
+    assert outcomes == {
+        LIMB_STUB: BundleDataOutcome.WRITTEN,
+        RINGS_STUB: BundleDataOutcome.WRITTEN,
+    }
+    written = {
+        path.relative_to(env.bundle_dir).as_posix()
+        for path in env.bundle_dir.rglob('*')
+        if path.is_file()
+    }
+    assert written == _bundle_products(LIMB_IMAGE_NAME) | _bundle_products(RINGS_IMAGE_NAME)
