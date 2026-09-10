@@ -896,9 +896,13 @@ Two things this phase does not reach. `global_index_bodies.lblx` and
 `global_index_rings.lblx` ship as zero-byte templates, so a healthy run
 writes two zero-byte labels and the guarantee "the label is on disk" is
 satisfied by a file that is not a label; Phase 7 is where those labels get
-their content. And an image that was skipped or failed still leaves the
-bundle internally inconsistent, because the inventories and index tables are
-built from the data labels; Phases 5 and 6 own that.
+their content. And an image that got a data label and no browse label still
+leaves the bundle internally inconsistent, because the browse inventory is
+built from the data labels and so lists a product that is not on disk; the
+labels pass counts that image, but the summary pass that follows inspects
+nothing. That is #602, and Phases 5 and 6 own it. A skipped image is not that
+case: it has no data label, so it is in none of the inventories, and what it
+leaves is a bundle covering fewer images than the selection named.
 
 Closes #603, and the swallowed-label-write part of #265.  #265's
 inventory-filename part closes in Phase 5 and its dev-guide output-layout part

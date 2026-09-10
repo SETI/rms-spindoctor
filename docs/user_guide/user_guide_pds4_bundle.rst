@@ -321,8 +321,9 @@ it could not write rather than one per run.
   before the document recording the success, so its absence beside a success
   document is a broken input rather than an image with no browse product.
 
-  ``--dry-run`` reports what the run would have processed and exits 0. It writes
-  nothing, so it counts nothing against the run.
+  ``--dry-run`` reports what the run would have processed and exits 0 once both
+  of the conditions above are met. It writes nothing, so it counts nothing
+  against the run.
 
 * ``sd_create_bundle summary`` exits 1 when any collection or global index label
   was not written. The inventory and index ``.tab`` tables are written either
@@ -337,13 +338,16 @@ A non-zero exit means the bundle is incomplete: the labels that did render are
 still in place, and the log names the ones that did not.
 
 The inventories and index tables the summary pass writes are built from what is
-in the bundle's ``data/`` tree, so a run in which some images were skipped or
-failed leaves the bundle internally inconsistent -- a browse product listed in
-``collection_browse.tab`` that is not on disk, or an index row naming a label
-that is not there -- and the summary pass is silent about it. Its exit status
-does not report this: a labels pass that skipped images exits 0, and the
-summary pass that follows it exits 0 as well. Take the labels pass's closing
-line as the account of what the bundle covers.
+in the bundle's ``data/`` tree, so an image that got a data label and no browse
+label leaves the bundle internally inconsistent: ``collection_browse.tab`` lists
+a browse product that is not on disk. The labels pass counts that image and
+exits 1, but the summary pass run afterwards inspects nothing and exits 0, so
+its own exit status says nothing about it.
+
+An image that was skipped has no data label and no supplemental file, so it is
+in none of the inventories and leaves nothing dangling; what it leaves is a
+bundle covering fewer images than the selection named. Take the labels pass's
+closing line as the account of what the bundle covers.
 
 Configuration
 =============
