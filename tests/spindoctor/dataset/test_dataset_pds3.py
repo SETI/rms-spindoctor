@@ -11,6 +11,7 @@ from tests.spindoctor.conftest import metadata_document
 from tests.spindoctor.dataset.conftest import coiss_filespecs, install_fake_index
 
 from spindoctor.cli.results_index import ingest_metadata_files
+from spindoctor.config import Config
 from spindoctor.dataset import dataset_pds3 as dataset_pds3_module
 from spindoctor.dataset.dataset_pds3 import DataSetPDS3
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISS
@@ -1198,3 +1199,136 @@ def test_the_enumeration_hands_the_filter_the_tuning_the_configuration_names(
         )
     )
     assert handed == [configured]
+
+
+def _named_config(tmp_path: Path, holdings_root: str) -> Config:
+    """Return a configuration whose environment block names one holdings root.
+
+    Parameters:
+        tmp_path: Directory the override file is written into.
+        holdings_root: The root the configuration names.
+
+    Returns:
+        The configuration, with the shipped defaults under the override.
+    """
+    override = tmp_path / 'holdings.yaml'
+    override.write_text(f'environment:\n  pds3_holdings_root: {holdings_root}\n', encoding='utf-8')
+    config = Config()
+    config.read_config()
+    config.update_config(str(override))
+    return config
+
+
+def _enumerated_image_url(
+    ds: DataSetPDS3CassiniISS, monkeypatch: pytest.MonkeyPatch, *argv: str
+) -> str:
+    """Return the URL of the one image an enumeration yields.
+
+    The dataset's own selection parser is what the command line is read with, so
+    the option is asserted where a program would find it rather than where a
+    test put it.
+
+    Parameters:
+        ds: The dataset to enumerate with.
+        monkeypatch: Fixture the index reads are replaced through.
+        argv: The command line, without the volume the index is served for.
+
+    Returns:
+        The image URL, which is built under whichever root answered.
+    """
+    install_fake_index(ds, monkeypatch, {'COISS_2001': coiss_filespecs('N', [1000000100])})
+    parser = argparse.ArgumentParser()
+    DataSetPDS3CassiniISS.add_selection_arguments(parser)
+    arguments = parser.parse_args(['--volumes', 'COISS_2001', *argv])
+
+    groups = list(ds.yield_image_files_from_arguments(arguments))
+
+    return groups[0].image_files[0].image_file_url.as_posix()
+
+
+def test_the_root_named_on_the_command_line_is_where_the_enumeration_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typed holdings root is read in preference to an exported one.
+
+    Both are named, and they name different trees. A run configured with one
+    root cannot tell which of the two answered, which is how this option came to
+    be parsed by six programs and read by none of them.
+    """
+    monkeypatch.setenv('PDS3_HOLDINGS_DIR', '/exported/holdings')
+
+    url = _enumerated_image_url(
+        DataSetPDS3CassiniISS(), monkeypatch, '--pds3-holdings-root', '/typed/holdings'
+    )
+
+    assert url.startswith('/typed/holdings/')
+
+
+def test_the_exported_root_is_read_when_no_option_names_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The control for it: the exported root is live, and answers when nothing else does."""
+    monkeypatch.setenv('PDS3_HOLDINGS_DIR', '/exported/holdings')
+
+    url = _enumerated_image_url(DataSetPDS3CassiniISS(), monkeypatch)
+
+    assert url.startswith('/exported/holdings/')
+
+
+def test_the_root_named_on_the_command_line_beats_the_configured_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The configuration is the level between the two, and loses to the command line."""
+    monkeypatch.delenv('PDS3_HOLDINGS_DIR', raising=False)
+    ds = DataSetPDS3CassiniISS(config=_named_config(tmp_path, '/configured/holdings'))
+
+    url = _enumerated_image_url(ds, monkeypatch, '--pds3-holdings-root', '/typed/holdings')
+
+    assert url.startswith('/typed/holdings/')
+
+
+def test_the_configured_root_is_read_when_no_option_names_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The control for that one."""
+    monkeypatch.delenv('PDS3_HOLDINGS_DIR', raising=False)
+    ds = DataSetPDS3CassiniISS(config=_named_config(tmp_path, '/configured/holdings'))
+
+    url = _enumerated_image_url(ds, monkeypatch)
+
+    assert url.startswith('/configured/holdings/')
+
+
+def test_the_configured_root_is_read_over_the_exported_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The bottom two rungs, which the command line is above rather than between.
+
+    A deployment writes its holdings root into a configuration file so that every
+    run on the machine reads the same tree; a variable exported into one shell
+    must not silently redirect it.
+    """
+    monkeypatch.setenv('PDS3_HOLDINGS_DIR', '/exported/holdings')
+    ds = DataSetPDS3CassiniISS(config=_named_config(tmp_path, '/configured/holdings'))
+
+    url = _enumerated_image_url(ds, monkeypatch)
+
+    assert url.startswith('/configured/holdings/')
+
+
+def test_a_root_named_after_the_property_was_read_is_still_the_one_read_from(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resolving the root early must not settle it before the command line applies.
+
+    Nothing in a program reads the root before its enumeration starts today, so
+    an implementation that cached the fallback over the typed value would pass
+    every other test here and leave the whole defect one refactor away.
+    """
+    monkeypatch.setenv('PDS3_HOLDINGS_DIR', '/exported/holdings')
+    ds = DataSetPDS3CassiniISS()
+    _settled_early = ds.pds3_holdings_root
+
+    url = _enumerated_image_url(ds, monkeypatch, '--pds3-holdings-root', '/typed/holdings')
+
+    assert url.startswith('/typed/holdings/')

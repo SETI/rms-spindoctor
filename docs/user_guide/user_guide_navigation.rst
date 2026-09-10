@@ -111,17 +111,13 @@ An image's metadata document is written when the run completes that image, whate
 Command-Line Arguments
 ----------------------
 
-The command-line interface groups options by purpose. Environment options control configuration sources and output roots. Navigation options select which models or techniques to run. Output options determine whether to write artifacts locally or to produce a cloud-tasks description instead of processing. Dataset selection options are provided by each dataset type: PDS3 datasets expose volume and image filters. A single profiling toggle is available for performance analysis.
+The command-line interface groups options by purpose. Environment options control configuration sources and output roots; where the images themselves are read from belongs to the dataset, and is listed with its selection options below. Navigation options select which models or techniques to run. Output options determine whether to write artifacts locally or to produce a cloud-tasks description instead of processing. Dataset selection options are provided by each dataset type: PDS3 datasets expose volume and image filters. A single profiling toggle is available for performance analysis.
 
 Environment options
 ^^^^^^^^^^^^^^^^^^^
 
 * ``--config-file PATH`` (repeatable): one or more configuration file paths to
   override defaults. See :doc:`/introduction_configuration` for details.
-
-* ``--pds3-holdings-root PATH``: root directory or URL for PDS3 holdings,
-  overriding both the ``PDS3_HOLDINGS_DIR`` environment variable and any
-  corresponding configuration setting.
 
 * ``--nav-results-root PATH``: root directory or URL where navigation results
   will be written, overriding both the ``NAV_RESULTS_ROOT`` environment variable
@@ -166,6 +162,11 @@ Dataset selection (PDS3 datasets)
 
 For PDS3 datasets (``coiss``, ``coiss_pds3``, ``coiss_cruise``, ``coiss_cruise_pds3``, ``coiss_saturn``, ``coiss_saturn_pds3``, ``gossi``, ``gossi_pds3``, ``nhlorri``, ``nhlorri_pds3``, ``vgiss``, ``vgiss_pds3``), the following options control which images are selected. All filters combine with logical AND, and explicit lists restrict the search domain before range filters to improve performance.
 
+* ``--pds3-holdings-root PATH``: root directory or URL of the PDS3 holdings tree
+  the images are read from, overriding both the ``environment.pds3_holdings_root``
+  configuration setting and the ``PDS3_HOLDINGS_DIR`` environment variable, in
+  that order. Offered by the dataset, so it is present exactly when the dataset
+  named on the command line reads PDS3 holdings, and absent otherwise.
 * ``img_name`` (positional, repeatable): specific image name(s) to process.
 * ``--first-image-num N``: minimum image number (inclusive).
 * ``--last-image-num N``: maximum image number (inclusive). Voyager Flight
