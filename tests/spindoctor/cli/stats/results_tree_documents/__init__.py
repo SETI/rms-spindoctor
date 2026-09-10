@@ -18,11 +18,15 @@ are serialized by the writer's own
 what a navigation run reads from its image and its configuration: the geometry,
 the scores, the epochs, the clock.
 
-Two values a run takes from the wall clock are pinned instead, since a stored
-document cannot hold one: the ``timing`` block is built by the writer's own
-:func:`~spindoctor.navigate_image_files.build_timing_section` from fixed
-moments, and ``provenance.pipeline_run_iso8601`` carries a fixed stamp in the
-spelling the orchestrator produces.
+Three values a run takes from the machine it runs on are pinned instead, since a
+stored document cannot hold one: the ``timing`` block is built by the writer's
+own :func:`~spindoctor.navigate_image_files.build_timing_section` from fixed
+moments, its ``peak_memory_bytes`` is written over with a fixed count because the
+writer reads that one out of the running process, and
+``provenance.pipeline_run_iso8601`` carries a fixed stamp in the spelling the
+orchestrator produces.  Each document is given a different peak, so that the
+report's minimum, maximum, mean, median and standard deviation over them are
+five different numbers and a wrong one shows.
 
 The builders are one module per host -- ``cassini``, ``voyager`` and
 ``simulated`` -- over the constants and writer wrappers in ``shared``.  This

@@ -33,6 +33,7 @@ from typing import Any, TypeVar
 
 from spindoctor.cli.stats.report_common import (
     BotsimFrame,
+    MemoryImage,
     ReportStatistics,
     SuspectOffset,
     TimedImage,
@@ -165,6 +166,7 @@ def _add_image(stats: ReportStatistics, facts: ImageFacts) -> None:
     _add_suspect(stats, facts, instrument)
     _add_botsim(stats, facts, instrument)
     _add_runtime(stats, facts, instrument)
+    _add_peak_memory(stats, facts, instrument)
 
 
 def _bump(counts: dict[_Key, dict[str, int]], key: _Key, instrument: str) -> None:
@@ -542,6 +544,40 @@ def _add_botsim(stats: ReportStatistics, facts: ImageFacts, instrument: str) -> 
     held = frames.get(camera)
     if held is None or frame.identity < held.identity:
         frames[camera] = frame
+
+
+# 1024**3, so the unit is the gibibyte the value is actually divided into,
+# and every label over these numbers says GiB.
+_BYTES_PER_GIB = float(1024**3)
+
+
+def _add_peak_memory(stats: ReportStatistics, facts: ImageFacts, instrument: str) -> None:
+    """Hold one image's peak memory, and offer it to the hungriest-image list.
+
+    An image whose run recorded no peak contributes to neither, so the counts
+    the section prints are of images that reported one rather than of images
+    that ran.
+
+    Parameters:
+        stats: The accumulators.
+        facts: What the image's record says.
+        instrument: The image's instrument.
+    """
+    image = facts.image
+    peak = image.get('peak_memory_bytes')
+    if peak is None:
+        return
+    gb = float(peak) / _BYTES_PER_GIB
+    stats.peak_memory_by_instrument.setdefault(instrument, array('d')).append(gb)
+    stats.hungriest.add(
+        MemoryImage(
+            peak_memory_gib=gb,
+            image_name=str(image['image_name']),
+            instrument=instrument,
+            root_url=str(image['root_url']),
+            results_path_stub=str(image['results_path_stub']),
+        )
+    )
 
 
 def _add_runtime(stats: ReportStatistics, facts: ImageFacts, instrument: str) -> None:

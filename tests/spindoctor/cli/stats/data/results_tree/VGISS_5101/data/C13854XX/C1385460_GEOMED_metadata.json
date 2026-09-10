@@ -104,7 +104,8 @@
   "timing": {
     "start_iso8601": "2026-08-08T16:47:46.612907Z",
     "end_iso8601": "2026-08-08T16:47:54.862907Z",
-    "elapsed_s": 8.25
+    "elapsed_s": 8.25,
+    "peak_memory_bytes": 2684354560
   },
   "confidence": 0.0
 }

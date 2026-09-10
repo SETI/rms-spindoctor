@@ -24,6 +24,29 @@ whole-frame ring pass put the released and unreleased runs within noise of each
 other.  This is deliberately not wired into a general allocation path: it is
 worth doing between units of work already large enough to pay for it, and
 nowhere else.
+
+Reading the peak
+----------------
+
+The kernel keeps a process's high-water resident size, which is the figure an
+out-of-memory kill is decided against.  It is a high-water mark over the life of
+the process, so a process navigating several images in turn would report the
+largest of them against every image after the first.  Resetting it at the start
+of each navigation is what stops that.
+
+The reset sets the mark to the resident size at that moment, not to zero, so
+what a unit of work reports is what the process reached while it ran rather than
+what the work itself allocated.  For a process handling one image the two are
+the same.  For a process handling several they are not: memory an earlier image
+left resident and unreturnable is inside the floor the next one is measured from.
+That is the honest figure for sizing a worker, which has to hold the whole
+process, and the wrong one for asking how much memory a single image uses on
+its own.
+
+Both operations read and write ``/proc``, which exists on Linux and not
+elsewhere.  Where it is absent the peak is reported as None rather than as a
+number that would mean something different, and a run records no peak instead
+of recording a wrong one.
 """
 
 import ctypes
@@ -74,3 +97,37 @@ def release_transient_memory() -> None:
     gc.collect()
     if _LIBC is not None:
         _LIBC.malloc_trim(0)
+
+
+def peak_resident_bytes() -> int | None:
+    """The largest resident size this process has reached.
+
+    Returns:
+        The peak in bytes, or None where the kernel does not publish one.
+    """
+    try:
+        with open('/proc/self/status') as handle:
+            for line in handle:
+                if line.startswith('VmHWM:'):
+                    return int(line.split()[1]) * 1024
+    except OSError:
+        return None
+    return None
+
+
+def reset_peak_resident() -> bool:
+    """Set the recorded peak back to the resident size right now.
+
+    Called at the start of a unit of work whose own peak is wanted, so that
+    what a longer-lived process reached earlier is not attributed to it.
+
+    Returns:
+        True when the peak was reset, False where the kernel does not allow
+        it, in which case the peak remains the whole process's.
+    """
+    try:
+        with open('/proc/self/clear_refs', 'w') as handle:
+            handle.write('5\n')
+    except OSError:
+        return False
+    return True

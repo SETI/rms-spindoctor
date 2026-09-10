@@ -162,6 +162,7 @@ RECORD_FIELDS: tuple[RecordField, ...] = (
     RecordField(('run_start',), _TIMING, 'start_iso8601'),
     RecordField(('run_end',), _TIMING, 'end_iso8601'),
     RecordField(('elapsed_s',), _TIMING, 'elapsed_s'),
+    RecordField(('peak_memory_bytes',), _TIMING, 'peak_memory_bytes'),
 )
 """Every column that is a faithful copy of one field of one document.
 

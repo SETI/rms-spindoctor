@@ -264,6 +264,7 @@ _CSV_HEADER = (
     'run_start',
     'run_end',
     'elapsed_s',
+    'peak_memory_bytes',
     'config_hash',
     'git_sha',
     'pipeline_run',

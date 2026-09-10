@@ -91,4 +91,5 @@ def simulated_scene() -> dict[str, Any]:
         image_shape=(256, 256),
         start=datetime(2026, 8, 8, 16, 47, 55, 180332, tzinfo=UTC),
         elapsed_s=12.5,
+        peak_memory_bytes=1073741824,
     )

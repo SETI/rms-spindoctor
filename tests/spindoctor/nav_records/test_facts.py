@@ -551,6 +551,41 @@ def test_the_camera_frame_name_is_stored_as_recorded() -> None:
     assert rows.image['camera_frame'] == 'CASSINI_ISS_NAC'
 
 
+@pytest.mark.parametrize(
+    ('recorded', 'stored'),
+    [
+        (0, 0),
+        (1, 1),
+        (2**63 - 1, 2**63 - 1),
+        (2**63, None),
+        (2**70, None),
+        (-1, None),
+        (1.5, None),
+        (True, None),
+        ('4096', None),
+        (None, None),
+    ],
+)
+def test_a_peak_memory_the_column_cannot_hold_is_stored_as_absent(
+    recorded: Any, stored: int | None
+) -> None:
+    """The column is a signed 64-bit integer, so the reader has to be too.
+
+    No kernel publishes a peak above that, so a document carrying one says the
+    document was edited or damaged.  Passing it through would fail the insert
+    and end the ingest of every image behind it, in place of the one absent
+    measurement it actually is.
+
+    Parameters:
+        recorded: The value as the document carries it.
+        stored: What the column should hold for it.
+    """
+    document = metadata_document()
+    document['timing']['peak_memory_bytes'] = recorded
+    rows = facts_from_document(document, SOURCE)
+    assert rows.image['peak_memory_bytes'] == stored
+
+
 def test_a_document_without_an_image_name_is_refused() -> None:
     """This is what a file that is not a navigation document looks like."""
     with pytest.raises(MetadataDocumentError, match=r'no observation\.image_name'):

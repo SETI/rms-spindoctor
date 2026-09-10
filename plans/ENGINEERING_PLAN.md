@@ -564,9 +564,29 @@ asserts the generated half matches the registries.
   emptied. Releasing more often cannot reach it, because a release reclaims
   only what nothing refers to; dropping the caches at the end of the model
   stage does, and no program here does that yet, so the headroom above the
-  target is roughly 0.3 GB against a run-to-run spread of about 0.1 GB. The
-  two placements measured to be worth nothing are recorded in
+  target is roughly 0.3 GB against a run-to-run spread of about 0.1 GB. Each
+  navigation now records the peak it reached, in the metadata document and
+  in the results index, and the statistics report summarizes it per
+  instrument with a histogram and the hungriest images, so the next
+  regression is read off a pass's own numbers rather than found by a cloud
+  pool dying. The record is null where the kernel publishes no peak or will
+  not let the mark be reset ahead of the image, `/proc` being Linux-only.
+  Six Voyager frames still sit above the 8 GB target, the worst
+  at 9.82, enumerated with what is known and what is not in
+  `critiques/NAV_MEMORY_AFTER_THE_FIXES_2026-09-05.md`; none has been
+  traced. The two placements measured to be worth nothing are recorded in
   `docs/dev_guide/dev_guide_memory.rst` so they are not tried again. The ring
+  radius, radial resolution, `border_atop` and `radial_mode` backplanes
+  remain whole-frame through the extended backplane and set the ring model's
+  remaining floor until striping lands in oops: striping belongs in `oops`
+  rather than in each consumer, which is SETI/rms-oops#222. A striped answer
+  holds to the photon solver's convergence tolerance rather than to the last
+  bit, because oops converges on the largest light-time change anywhere on
+  the meshgrid; the measured agreement, now including the body quantities, is
+  recorded in `docs/dev_guide/dev_guide_memory.rst`. Titan's envelope box is
+  undersampled rather than striped because its work, not just its memory, is
+  unbounded; #594 would remove that box altogether by projecting the
+  sub-solar direction instead of searching a backplane for it.
 
 - **#108** — audit every `sd_*` CLI for logging, cloud operation, and
   working `cloud_tasks` variants; fix what the audit finds. The logging
