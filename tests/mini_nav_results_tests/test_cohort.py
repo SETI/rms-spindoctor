@@ -383,6 +383,41 @@ def test_each_body_is_placed_down_the_frame_and_sized_across_it(
     assert found == expected
 
 
+def _paths_git_reports(repository: Path) -> list[str]:
+    """Return every path ``git status`` reports, read without quoting.
+
+    Asked for in the NUL-separated form, because the readable form quotes a
+    path holding a space or a byte outside ASCII and a reader that does not
+    unquote it then compares a name with a quotation mark on the end of it,
+    which matches nothing -- so the one file most likely to be somewhere it
+    should not be is the one a guard over the readable form cannot see.
+
+    Parameters:
+        repository: The checkout to ask about.
+
+    Returns:
+        The paths, with a renamed entry contributing both of its names.
+    """
+    reported = subprocess.run(
+        ['git', 'status', '--porcelain', '-z', '--untracked-files=all'],
+        cwd=repository,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    entries = iter(reported.split('\0'))
+    paths: list[str] = []
+    for entry in entries:
+        if not entry:
+            continue
+        paths.append(entry[3:])
+        if 'R' in entry[:2] or 'C' in entry[:2]:
+            # A rename or a copy names where it went and then, as a record of
+            # its own, where it came from.
+            paths.append(next(entries, ''))
+    return paths
+
+
 def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> None:
     """The cohort is built where it is torn down, and nothing it writes is committed.
 
@@ -396,13 +431,6 @@ def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> 
     repository = Path(__file__).resolve().parents[2]
     if not (repository / '.git').exists():
         pytest.skip('not a git checkout')
-    reported = subprocess.run(
-        ['git', 'status', '--porcelain', '--untracked-files=all'],
-        cwd=repository,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.splitlines()
     product_names = {path.name for path in mini_nav_cohort.written}
-    escaped = [line for line in reported if Path(line[3:]).name in product_names]
+    escaped = [path for path in _paths_git_reports(repository) if Path(path).name in product_names]
     assert escaped == []
