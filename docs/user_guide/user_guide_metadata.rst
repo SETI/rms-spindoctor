@@ -151,7 +151,7 @@ Top-level keys
    * - ``timing``
      - object
      - all
-     - Run timing and cost: ``start_iso8601`` and ``end_iso8601`` (UTC ISO
+     - Run timing and memory usage: ``start_iso8601`` and ``end_iso8601`` (UTC
        8601 strings with a ``Z`` suffix, microsecond precision),
        ``elapsed_s`` (float seconds) and ``peak_memory_bytes`` (integer or
        null).
@@ -159,7 +159,8 @@ Top-level keys
        the largest resident size the navigating process reached while this
        image was being navigated, which is the figure an out-of-memory kill is
        decided against. A process handling one image reports that image's whole
-       cost; a process handling several reports what it reached while each ran,
+       memory usage; a process handling several reports what it reached while
+       each ran,
        measured from a floor that includes what earlier images left resident.
        It is null where the kernel publishes no peak, and where the mark
        could not be reset ahead of this image. Built by

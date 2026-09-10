@@ -40,7 +40,8 @@ what the work itself allocated.  For a process handling one image the two are
 the same.  For a process handling several they are not: memory an earlier image
 left resident and unreturnable is inside the floor the next one is measured from.
 That is the honest figure for sizing a worker, which has to hold the whole
-process, and the wrong one for asking what a single image costs on its own.
+process, and the wrong one for asking how much memory a single image uses on
+its own.
 
 Both operations read and write ``/proc``, which exists on Linux and not
 elsewhere.  Where it is absent the peak is reported as None rather than as a

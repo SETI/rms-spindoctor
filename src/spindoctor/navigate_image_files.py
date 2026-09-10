@@ -138,10 +138,10 @@ def build_timing_section(start: datetime, end: datetime, *, peak_measured: bool)
     The peak is the largest resident size the navigating process reached while
     this image was being navigated, which is the figure an out-of-memory kill is
     decided against.  A process handling one image reports that image's whole
-    cost.  A process handling several reports, for each, what it reached while
-    that image ran, measured from a floor that includes whatever earlier images
-    left resident: the memory a worker has to hold at that moment rather than
-    what the image would cost on its own.  It is absent where the kernel
+    memory usage.  A process handling several reports, for each, what it reached
+    while that image ran, measured from a floor that includes whatever earlier
+    images left resident: the memory a worker has to hold at that moment rather
+    than the memory the image would use on its own.  It is absent where the kernel
     publishes no peak at all.
 
     Parameters:

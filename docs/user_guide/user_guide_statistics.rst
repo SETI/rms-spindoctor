@@ -252,6 +252,7 @@ The report contains:
   worker, since it is the figure an out-of-memory kill is decided against,
   and the distribution says how much of a pass runs nowhere near it. Each
   peak is what the navigating process reached while that image ran, so a pass
-  whose images were navigated one per process reads as their individual costs.
+  whose images were navigated one per process reads as their individual memory
+  usage.
   The image count is of images that recorded a peak rather than of images that
   ran, and the section is omitted when none did.

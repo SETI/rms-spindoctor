@@ -277,7 +277,7 @@ class TopImages(Generic[_RankedT]):
     A list of every image's value is retained anyway, packed, because the
     quantiles and the histogram need every value.  The names are not: the
     leading list is the only thing that wants them, it is bounded by
-    ``--top-n``, and a name is the expensive half of a per-image retention.
+    ``--top-n``, and a name is the memory-heavy half of a per-image retention.
 
     Parameters:
         limit: How many to keep.  Zero keeps none, which is what the default
