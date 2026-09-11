@@ -1119,7 +1119,7 @@ discovered at delivery.
 carries an `AUTHORS` string and an `EDITORS` string naming the node staff
 who reviewed the bundle. Ours has a single hardcoded `List_Author` block.
 
-Three places where this plan deliberately does **not** follow the reference:
+Six places where this plan deliberately does **not** follow the reference:
 
 - `populate_template` there discards `template.write`'s `(errors, warnings)`
   return exactly as ours does. Phase 1 fixes that here; it is a defect the
@@ -1145,6 +1145,36 @@ Three places where this plan deliberately does **not** follow the reference:
   The collection range follows the first, whole seconds with the start
   floored and the stop ceiled, which contains every product's written start
   and stop.
+- The display direction. Every `disp:Display_Settings` in a data label here
+  displays `Line` Top to Bottom and `Sample` Left to Right, and both reference
+  labels display `Line` Bottom to Top. Each is right for its own array. The
+  reference's is a reprojected ring grid whose `Line` 0 is the innermost
+  radius. A backplane array is laid out as the calibrated image it describes.
+  `oops` reads that image from its VICAR file in record order, the first record
+  its first line (`vic.data_2d` in `oops/hosts/cassini/iss.py`); the VICAR File
+  Format document (`documents/COISS_0xxx/VICAR-File-Format.pdf` in the PDS3
+  holdings) puts one image line in each record of a band-sequential file, and a
+  calibrated ISS image is one (`ORG='BSQ'`). The backplane stage evaluates every
+  plane over the image's lines by its samples: the body planes on a
+  `Meshgrid.for_fov(..., swap=True)`, whose indices are (v, u)
+  (`backplanes_bodies.py`), and the ring planes on the snapshot's full-frame
+  backplane, whose meshgrid follows the observation's axes, which the Cassini
+  ISS host declares as `('v', 'u')`. The writer writes each array as it is,
+  unflipped. The Cassini ISS User's Guide
+  (`documents/COISS_0xxx/ISS-Users-Guide.pdf`, page 13) says to "display the
+  image such that the (line, sample) origin point is at top left", and the
+  Cassini ISS PDS4 archive declares exactly that for its raw images: `Line`
+  Top to Bottom and `Sample` Left to Right in
+  `urn:nasa:pds:cassini_iss_saturn:data_raw:1454725799n`. Decided on that
+  evidence; the template is unchanged.
+- The missing constant is written `-999.0`, the shortest decimal spelling of
+  the 32-bit float every masked pixel holds; the reference writes `-999` for
+  its float array. They are the same number.
+- Every `Header` carries a `<name>`, the HDU's `EXTNAME` (`PRIMARY` for the
+  first), which is the optional first child the schema gives a `Header`, so
+  that a reader can tell which HDU a header belongs to. The reference's image
+  file has no `Header`, and the `Header`s of its supplemental tables carry no
+  `<name>`.
 
 ---
 
