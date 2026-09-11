@@ -88,12 +88,6 @@ def parse_args(command_list: list[str]) -> argparse.Namespace:
         ./nav_default_config.yaml if present.""",
     )
     environment_group.add_argument(
-        '--pds3-holdings-root',
-        type=str,
-        default=None,
-        help='Root directory of PDS3 holdings; overrides PDS3_HOLDINGS_DIR or config',
-    )
-    environment_group.add_argument(
         '--nav-results-root',
         type=str,
         default=None,

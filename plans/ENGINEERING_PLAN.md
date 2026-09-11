@@ -811,8 +811,7 @@ line-based missing data, #158 smooth-shaded meshes.
 
 Mostly small, any time, no ordering: #13 SCET strings, #15 overlay
 occlusion of background models, #21 metadata inventory cleanup, #38
-filecache config, #39 AttrDict, #43 `--pds3-holdings-root`
-placement, #65 exception class, #92 dependency groups, #96 dead code, #97 oversized
+filecache config, #39 AttrDict, #65 exception class, #92 dependency groups, #96 dead code, #97 oversized
 modules, #98 registry consolidation, #99 orphan report_profile, #100
 root-path getters, #101 ArgumentParser.error, #102 CLI globals, #103
 thread-unsafe caches, #105 typed interop

@@ -30,9 +30,10 @@ def add_common_env_args(parser: argparse.ArgumentParser) -> None:
 
     Side effects:
         Adds three groups (``Environment``, ``Logging``, ``Miscellaneous``) with
-        flags ``--config-file`` (appendable), ``--pds3-holdings-root``,
-        ``--nav-results-root``, ``--results-index-db``, the shared logging options, and
-        ``--profile``.
+        flags ``--config-file`` (appendable), ``--nav-results-root``,
+        ``--results-index-db``, the shared logging options, and ``--profile``.
+        Where the PDS3 images themselves are read from is named by
+        ``--pds3-holdings-root``, which the selected dataset declares.
         Defaults do not
         read the environment implicitly beyond what downstream nav code does when
         these flags are omitted. No files are read at parse time. Does not raise.
@@ -43,12 +44,6 @@ def add_common_env_args(parser: argparse.ArgumentParser) -> None:
         action='append',
         default=None,
         help='Config file(s) to override defaults; may be specified multiple times.',
-    )
-    env.add_argument(
-        '--pds3-holdings-root',
-        type=str,
-        default=None,
-        help='Root directory for PDS3 holdings; overrides PDS3_HOLDINGS_DIR env var.',
     )
     env.add_argument(
         '--nav-results-root',
