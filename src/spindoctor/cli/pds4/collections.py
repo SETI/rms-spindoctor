@@ -333,9 +333,9 @@ def generate_global_index_files(
     failed_labels = 0
 
     # Get configured backplane types from config
-    bodies_cfg = getattr(config.backplanes, 'bodies', [])
+    bodies_cfg = config.backplanes.bodies
     body_backplane_types = [bp['name'] for bp in bodies_cfg]
-    rings_cfg = getattr(config.backplanes, 'rings', [])
+    rings_cfg = config.backplanes.rings
     ring_backplane_types = [bp['name'] for bp in rings_cfg]
     # Every plane's format is looked up before any supplemental file is read,
     # so a plane declared in a unit the table cannot size fails the run here
