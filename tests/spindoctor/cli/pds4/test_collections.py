@@ -363,12 +363,13 @@ def test_bodies_index_numeric_values_formatted_to_eight_decimals(tmp_path: Path)
 
 
 def test_index_keeps_a_value_far_smaller_than_one(tmp_path: Path) -> None:
-    """A ring longitudinal resolution in degrees per pixel survives the table.
+    """A body latitude of order a ten-thousandth of a degree survives the table.
 
-    The column that motivates the width: an angular resolution is of order a
-    thousandth of a degree per pixel, so a narrower fixed-point format rounds it
-    to one significant figure or to zero, and the table reports a measurement it
-    did not make.
+    The magnitude is what motivates the width, whatever column carries it: a
+    narrower fixed-point format rounds a value this small to one significant
+    figure or to zero, and the table then reports a measurement it did not make.
+    Both the minimum and the maximum are checked, since a format applied to one
+    and not the other is the way a table half-rounds.
     """
     env = _index_env(tmp_path)
     fine = {'MIMAS': {'backplanes': {'latitude': {'min': 0.00015470, 'max': 0.00080214}}}}
