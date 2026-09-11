@@ -1,9 +1,12 @@
 """Pytest configuration and shared fixtures."""
 
+from __future__ import annotations
+
 import os
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pdslogger
 import pytest
@@ -18,7 +21,9 @@ from spindoctor.config import (
     strict_scope_override,
 )
 from spindoctor.config.log_scope import _reset_reported_call_sites
-from tests.mini_nav_results.cohort import Cohort, write_cohort
+
+if TYPE_CHECKING:
+    from tests.mini_nav_results.cohort import Cohort
 
 
 @pytest.fixture(autouse=True)
@@ -299,4 +304,10 @@ def mini_nav_cohort(tmp_path_factory: pytest.TempPathFactory) -> Cohort:
     Returns:
         The written cohort.
     """
+    # Imported here rather than at the top: the cohort package pulls the whole
+    # navigation stack in, and this file is loaded by every pytest process,
+    # so a top-level import would cost every test the stack whether or not it
+    # asks for the cohort.
+    from tests.mini_nav_results.cohort import write_cohort
+
     return write_cohort(tmp_path_factory.mktemp('mini_nav_cohort'))
