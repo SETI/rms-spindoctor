@@ -609,7 +609,7 @@ def _latitude_in(units: str) -> dict[str, Any]:
     Returns:
         The ``backplanes.bodies`` payload of a supplemental file.
     """
-    return {'MIMAS': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': units}}}}
+    return {'MOON': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': units}}}}
 
 
 def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
