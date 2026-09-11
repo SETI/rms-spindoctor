@@ -32,7 +32,7 @@ PDS4 bundle generation serves to:
 Bundle Structure
 ================
 
-Each bundle follows a standard PDS4 directory structure:
+The two passes write this directory structure:
 
 .. code-block:: text
 
@@ -49,13 +49,12 @@ Each bundle follows a standard PDS4 directory structure:
    │   └── <directory_structure>/
    │       └── <image_name>_backplanes.lblx
    │       └── <image_name>_supplemental.txt
-   ├── document/
-   │   └── supplemental/
-   │       ├── global_index_bodies.lblx
-   │       ├── global_index_bodies.tab
-   │       ├── global_index_rings.lblx
-   │       └── global_index_rings.tab
-   └── bundle.lblx
+   └── document/
+       └── supplemental/
+           ├── global_index_bodies.lblx
+           ├── global_index_bodies.tab
+           ├── global_index_rings.lblx
+           └── global_index_rings.tab
 
 The directory structure within ``data/`` and ``browse/`` mirrors the structure of the
 original PDS4 dataset (if it existed), with paths derived from image names using
@@ -143,8 +142,8 @@ Cloud Tasks Variant
 ^^^^^^^^^^^^^^^^^^^
 
 Queue-driven processing for the labels pass is supported by ``sd_create_bundle_cloud_tasks``.
-This variant reads tasks from a queue and processes each batch of files. It accepts the
-same environment options used to derive configuration and results roots.
+This variant reads tasks from a queue, one image per task, and accepts the same
+environment options used to derive configuration and results roots.
 
 .. code-block:: bash
 
@@ -156,13 +155,10 @@ same environment options used to derive configuration and results roots.
 
 Each task payload must be a JSON object with the following fields:
 
-* ``dataset_name``: one of the supported dataset names.
-* ``arguments``: an object with optional keys ``nav_models`` and ``nav_techniques``
-  (lists or ``null``).
-* ``files``: an array of objects, each containing required fields ``image_file_url``,
-  ``label_file_url``, and ``results_path_stub``, and optional fields ``index_file_row``
-  (metadata) and ``extra_params`` (a JSON object/dictionary of arbitrary key/value pairs
-  that will be passed through to the observation class's from_file method when the file is read).
+* ``dataset_name``: a dataset that can be bundled (see `Supported Datasets`_).
+* ``files``: an array holding one object, for the task's image, with the required
+  fields ``image_file_url``, ``label_file_url`` and ``results_path_stub``, and the
+  optional field ``index_file_row`` (the image's row of its PDS3 index).
 
 Summary Pass
 ------------

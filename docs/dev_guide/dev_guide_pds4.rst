@@ -18,26 +18,24 @@ Pipeline overview
 
 Bundle generation is a two-phase process driven by ``sd_create_bundle``:
 
-1. **Per-image data labels.**  For each image in the input batch,
+1. **Per-image products.**  For each image in the input batch,
    :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` reads the
    ``_metadata.json`` produced by ``sd_offset`` and the
    ``_backplane_metadata.json`` produced by ``sd_backplanes``, populates a
    ``pdstemplate`` rendering context with per-image template variables, and
-   writes the matching ``<image>_backplanes.lblx`` file (plus a copy of the
-   browse PNG into the bundle's ``browse/`` tree). The backplane FITS file
-   itself is copied (or symlinked, depending on the dataset's preference) from
-   the backplane root into the bundle's ``data/`` tree.
+   writes into the bundle's ``data/`` tree the image's ``<image>_backplanes.lblx``
+   label and ``<image>_supplemental.txt`` file, and into its ``browse/`` tree a
+   copy of the summary PNG and its ``<image>_summary.lblx`` label. The data label
+   names the backplane FITS; the pass does not copy the FITS into the bundle.
 
-2. **Collections + bundle assembly.**  After every per-image data label is in
-   place, :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
-   bundle's ``data/`` tree, collects every ``_backplanes.lblx`` it finds,
-   sorts them by image name, writes the
-   ``collection_data.csv`` inventory and the matching
-   ``collection_data.lblx`` label, and renders the bundle's other collection
-   labels (context, browse, document, xml_schema) plus the top-level
-   ``bundle.lblx``.  :func:`~spindoctor.cli.pds4.collections.generate_global_index_files`
-   writes the per-bundle ``global_index_bodies.lblx`` and
-   ``global_index_rings.lblx`` summary tables.
+2. **Collections and indexes.**  After every per-image data label is in place,
+   :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
+   bundle's ``data/`` tree, collects every ``_backplanes.lblx`` it finds, sorts
+   them by image name, and writes the ``collection_data.tab`` and
+   ``collection_browse.tab`` inventories and their labels.
+   :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` writes
+   the ``global_index_bodies`` and ``global_index_rings`` tables and their labels
+   under ``document/supplemental/``.
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
@@ -46,22 +44,22 @@ label in place before it can build the inventory).
 Driver: ``sd_create_bundle``
 =============================
 
-``sd_create_bundle`` (``src/spindoctor/cli/sd_create_bundle.py``) is the per-image
-phase-1 entry point. Like the other CLIs it takes a ``DATASET_NAME``, the
-selection flags from the matching :class:`~spindoctor.dataset.dataset.DataSet`
-subclass (``--pds3-holdings-root`` among them, for a PDS3 dataset), the standard
-environment options (``--config-file``, ``--bundle-results-root``,
-``--nav-results-root``, ``--backplane-results-root``), and walks every
-selected image.
+``sd_create_bundle`` (``src/spindoctor/cli/sd_create_bundle.py``) has two
+subcommands. ``sd_create_bundle labels`` runs phase 1: it takes a
+``DATASET_NAME``, the selection flags from the matching
+:class:`~spindoctor.dataset.dataset.DataSet` subclass (``--pds3-holdings-root``
+among them, for a PDS3 dataset), the environment options (``--config-file``,
+``--bundle-results-root``, ``--nav-results-root``, ``--backplane-results-root``),
+the logging options and ``--dry-run``, and walks every selected image.
+``sd_create_bundle summary`` runs phase 2 once over the bundle: it takes a
+``DATASET_NAME``, ``--config-file``, ``--bundle-results-root`` and the logging
+options.
 
-A separate ``--collections`` flag triggers phase 2 (collection + bundle
-labels) without re-rendering per-image data labels. Operators typically run
-``sd_create_bundle DATASET --image-list FOO --no-collections`` in parallel
-across many shards, then once with ``--collections`` to assemble the bundle.
-
-Cloud-tasks variant ``sd_create_bundle_cloud_tasks`` reads the same task JSON
-schema as ``sd_offset_cloud_tasks`` (see :doc:`/user_guide/user_guide_navigation`) so the
-same task queue can drive offset + backplane + bundle in three queue passes.
+The cloud-tasks variant ``sd_create_bundle_cloud_tasks`` runs phase 1 from a
+queue, one image per task. A task carries a ``dataset_name`` and a ``files`` list
+holding that image's ``image_file_url``, ``label_file_url`` and
+``results_path_stub``, and optionally its ``index_file_row``: the fields of a
+``sd_offset_cloud_tasks`` task that the bundle needs.
 
 Exit status
 -----------
@@ -363,49 +361,36 @@ layout:
      global_index_rings.lblx                  # per-bundle rings summary
      cassini-iss-saturn-backplanes-user-guide.lblx  # bundle user-guide doc
 
-The static inventory CSVs are copied verbatim into the bundle; the
-per-image and per-bundle ``.lblx`` files are rendered fresh on every run.
+The two passes render ``data.lblx`` and ``browse.lblx`` for each image and the
+collection and global index labels for the bundle, on every run; the other files
+ship with the templates, and no pass writes them into a bundle.
 
 Output layout
 =============
 
-A finished bundle has the standard PDS4 directory shape:
+The two passes write this tree:
 
 ::
 
    <bundle_results_root>/<bundle_name>/
-     bundle.lblx
-     readme.txt
      data/
+       collection_data.tab                   # summary pass
+       collection_data.lblx                  # summary pass
        <pds4_bundle_path_for_image>/
          <image>_backplanes.lblx
-         <image>_backplanes.fits             # copied from backplane_results_root
+         <image>_supplemental.txt
      browse/
+       collection_browse.tab                 # summary pass
+       collection_browse.lblx                # summary pass
        <pds4_bundle_path_for_image>/
-         <image>_browse.lblx
-         <image>_browse.png                  # copied from nav_results_root
-     collection/
-       data/
-         collection_data.lblx
-         collection_data.csv
-       browse/
-         collection_browse.lblx
-         collection_browse.csv
-       context/
-         collection_context.lblx
-         collection_context.csv              # static
-       document/
-         collection_document.lblx
-         collection_document.csv             # static
-         <user-guide doc>.lblx
-       xml_schema/
-         collection_xml_schema.lblx
-         collection_xml_schema.csv           # static
-     index/
-       global_index_bodies.lblx
-       global_index_bodies.csv
-       global_index_rings.lblx
-       global_index_rings.csv
+         <image>_summary.lblx
+         <image>_summary.png                 # copied from nav_results_root
+     document/
+       supplemental/
+         global_index_bodies.tab             # summary pass
+         global_index_bodies.lblx            # summary pass
+         global_index_rings.tab              # summary pass
+         global_index_rings.lblx             # summary pass
 
 Testing bundle generation
 =========================
