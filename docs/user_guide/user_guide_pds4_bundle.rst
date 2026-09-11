@@ -298,8 +298,9 @@ the log names what was not.
   more images than have been navigated and backplaned, so such a run is mostly
   skips.
 
-  A navigated image whose summary PNG is missing is **failed**, not skipped: its
-  data label is written and stays, its browse products are not.
+  A navigated image whose summary PNG is missing is **failed**, not skipped. It
+  loses its browse products and nothing else; its data label is written or not
+  on its own account.
 
   ``--dry-run`` writes nothing and, given an empty bundle directory, exits 0.
 

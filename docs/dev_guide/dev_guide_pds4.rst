@@ -109,9 +109,11 @@ volume.  A document that is there but cannot be read is a different thing: the
 generation raises, the driver logs the traceback naming the image, counts the
 image against the run, and carries on to the next one.
 
-A dry run reports what it would have processed and exits 0.  It writes nothing,
-so it counts nothing against the run, including a batch it reports it could not
-have processed.
+A dry run reports what it would have processed and exits 0, once both
+preconditions above are met: they are checked before ``--dry-run`` is read, so a
+dry run over a missing template or a populated bundle root exits 1 naming what
+it found, like any other run.  Past them it writes nothing, so it counts nothing
+against the run, including a batch it reports it could not have processed.
 
 ``sd_create_bundle summary`` counts the collection and index labels it did not
 write, over both generators, and exits 1 the same way.  The inventory and index
@@ -275,9 +277,10 @@ without a browse product.  :func:`~spindoctor.navigate_image_files.navigate_imag
 writes the summary PNG before the metadata document and under the same
 condition, precisely so that a fault in the PNG is recorded as that image's
 failure instead of leaving a success document beside no PNG; a success document
-with no PNG beside it therefore means the input tree is broken.  The data label
-is written and stays, the browse products are not written, and the image counts
-against the run.
+with no PNG beside it therefore means the input tree is broken.  The missing PNG
+costs the image its browse products and nothing else: the data label is rendered
+on its own account, stays if it rendered, and the image counts against the run
+either way.
 
 A template that is not in the dataset's template directory is not a label
 skipped: each pass checks the templates its dataset declares before it processes
