@@ -14,23 +14,19 @@ millisecond for an epoch not exactly on one and the epoch's own millisecond for 
 epoch that is.
 """
 
-import os
 from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
 
+from tests.oops_resources import retrieved_kernel
+
 pytestmark = pytest.mark.integration
 
-_RESOURCES = os.environ.get('OOPS_RESOURCES', '')
-_LSK = Path(_RESOURCES) / 'SPICE' / 'General' / 'LSK' / 'naif0012.tls'
-
-if len(_RESOURCES) == 0 or not _LSK.is_file():
-    pytest.skip(
-        'OOPS_RESOURCES does not name a local SPICE tree holding the leapseconds kernel; '
-        'skipping the cohort epoch kernel tests',
-        allow_module_level=True,
-    )
+_LSK = retrieved_kernel(
+    'SPICE/General/LSK/naif0012.tls',
+    what='the leapseconds kernel',
+    tests='the cohort epoch kernel tests',
+)
 
 import cspyce  # noqa: E402  (guarded import)
 
