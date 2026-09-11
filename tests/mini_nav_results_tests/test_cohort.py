@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 from astropy.io import fits
+from filecache import FCPath
 
 from spindoctor.dataset import DataSetPDS3CassiniISSSaturn
 from tests.mini_nav_results import cohort_documents
@@ -301,7 +302,8 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
         stem = mini_nav_cohort.backplane_results_root / image.stub
         with fits.open(Path(f'{stem}_backplanes.fits')) as hdul:
             in_the_fits = {hdu.name for hdu in hdul} - {'PRIMARY', 'BODY_ID_MAP'}
-        document = json.loads(Path(f'{stem}_backplane_metadata.json').read_text(encoding='utf-8'))
+        metadata_path = FCPath(f'{stem}_backplane_metadata.json')
+        document = json.loads(metadata_path.read_text(encoding='utf-8'))
         named: set[str] = set()
         for body in document['bodies'].values():
             named |= {name.upper() for name in body['backplanes']}
@@ -329,7 +331,8 @@ def test_no_backplane_statistic_is_left_in_radians(mini_nav_cohort: Cohort) -> N
         if not image.navigated:
             continue
         stem = mini_nav_cohort.backplane_results_root / image.stub
-        document = json.loads(Path(f'{stem}_backplane_metadata.json').read_text(encoding='utf-8'))
+        metadata_path = FCPath(f'{stem}_backplane_metadata.json')
+        document = json.loads(metadata_path.read_text(encoding='utf-8'))
         planes = dict(document['rings']['backplanes'])
         for body in document['bodies'].values():
             planes |= body['backplanes']
@@ -357,7 +360,8 @@ def test_each_body_is_placed_down_the_frame_and_sized_across_it(
         if not image.navigated:
             continue
         stem = mini_nav_cohort.backplane_results_root / image.stub
-        document = json.loads(Path(f'{stem}_backplane_metadata.json').read_text(encoding='utf-8'))
+        metadata_path = FCPath(f'{stem}_backplane_metadata.json')
+        document = json.loads(metadata_path.read_text(encoding='utf-8'))
         for body in image.bodies:
             entry = document['bodies'][body.name]
             found[body.name] = (entry['center_uv'], entry['size_uv'])
