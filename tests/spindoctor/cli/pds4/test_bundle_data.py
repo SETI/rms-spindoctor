@@ -150,7 +150,7 @@ def test_injected_file_path_template_variables(tmp_path: Path) -> None:
     assert variables['BACKPLANE_FILENAME'] == '1234567890w_backplanes.fits'
     assert variables['BACKPLANE_SUPPL_FILENAME'] == '1234567890w_supplemental.txt'
     assert variables['BROWSE_FULL_FILENAME'] == '1234567890w_summary.png'
-    expected_fits = str(FCPath(env.backplane_root) / f'{env.results_path_stub}_backplanes.fits')
+    expected_fits = str(FCPath(env.bundle_dir) / 'data' / f'{env.pds4_path_stub}_backplanes.fits')
     assert variables['BACKPLANE_PATH'] == expected_fits
     expected_suppl = str(FCPath(env.bundle_dir) / 'data' / f'{env.pds4_path_stub}_supplemental.txt')
     assert variables['BACKPLANE_SUPPL_PATH'] == expected_suppl
@@ -513,22 +513,34 @@ def test_dataset_without_pds4_support_raises(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason='dev_guide_pds4.rst "Pipeline overview" says the backplane FITS file is '
-    'copied (or symlinked) into the bundle data/ tree, but generate_bundle_data_files '
-    'never copies it; user_guide_pds4_bundle.rst omits it from the outputs, so this '
-    'may be deliberately deferred to template/bundle finalization',
-)
 def test_backplane_fits_copied_into_bundle_data_tree(tmp_path: Path) -> None:
-    """Dev guide: the backplane FITS product is placed in the bundle data/ tree."""
+    """The backplane FITS is copied into the bundle beside its data label, byte for byte."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     fits_source = env.backplane_root / f'{env.results_path_stub}_backplanes.fits'
-    fits_source.write_bytes(b'FAKE FITS BYTES')
     _generate(env)
     bundled_fits = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.fits'
-    assert bundled_fits.is_file()
+    assert bundled_fits.read_bytes() == fits_source.read_bytes()
+
+
+def test_a_navigated_image_with_no_backplane_fits_fails_with_nothing_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An image whose backplane metadata has no FITS beside it fails with nothing written.
+
+    The backplane stage writes the FITS before its metadata document, so a document with
+    no FITS beside it is a broken input rather than an image without backplanes, and the
+    summary pass refuses a supplemental file with no data label, so a supplemental file
+    written ahead of the failure would break that pass as well.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, backplane_fits=False)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert not env.bundle_dir.exists()
+    missing = FCPath(env.backplane_root) / f'{env.results_path_stub}_backplanes.fits'
+    expected = f'no backplane FITS at {missing} beside its backplane metadata'
+    assert expected in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

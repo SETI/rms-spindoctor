@@ -30,10 +30,10 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold -- one in a unit other than the one
             the configuration gives its plane, or with a minimum or maximum
-            that is not a finite number within the range of a float -- or a
+            that is not a finite number within the range of a float -- a
             navigation document that does not record the exposure's start,
             stop and midtime as finite numbers, the stop no earlier than the
-            start.
+            start, or backplane metadata with no backplane FITS beside it.
     """
 
     WRITTEN = 'written'
@@ -90,6 +90,14 @@ def generate_bundle_data_files(
     empty time is not one PDS4 accepts.  The log names the image and what the
     document lacks.
 
+    The backplane FITS is copied into the bundle, beside its data label, which names
+    it with no directory part, and the label's size, checksum and time are the
+    copy's.  A navigated image whose backplane metadata is there and whose FITS is
+    not is failed before anything is written for it, the missing file named in the
+    log: the backplane stage writes the FITS before its metadata document, so a
+    document with no FITS beside it is a broken input rather than an image without
+    backplanes.
+
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
         image_files: List of images; must have exactly one image in the batch.
@@ -104,8 +112,8 @@ def generate_bundle_data_files(
         rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
         minimum or maximum that is not a finite number within the range of a
-        float, or the navigation document does not record the exposure's
-        epochs.
+        float, the navigation document does not record the exposure's epochs,
+        or the backplane FITS is not beside the backplane metadata.
 
     Raises:
         ValueError: If the batch does not hold exactly one image, or if the
@@ -211,6 +219,24 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.FAILED
 
+        # The backplane stage writes the FITS before its metadata document, so a
+        # document with no FITS beside it is a broken input.  The image is failed
+        # before anything is written for it: the summary pass refuses a
+        # supplemental file with no data label beside it, so a supplemental file
+        # written here would break that pass as well.
+        fits_source_path = backplane_results_root / (results_path_stub + '_backplanes.fits')
+        try:
+            fits_source_local = cast(Path, fits_source_path.retrieve())
+        except FileNotFoundError:
+            logger.error(
+                'Failing bundle generation for "%s": no backplane FITS at %s beside its '
+                'backplane metadata. Nothing is written for the image until its '
+                'backplanes are regenerated',
+                image_path,
+                fits_source_path,
+            )
+            return BundleDataOutcome.FAILED
+
         pds4_path_stub = dataset.pds4_path_stub(image_file)
         bundle_name = dataset.pds4_bundle_name()
         template_dir = dataset.pds4_bundle_template_dir()
@@ -235,14 +261,25 @@ def generate_bundle_data_files(
         data_dir = bundle_root / 'data'
         browse_dir = bundle_root / 'browse'
         label_file_path = data_dir / (pds4_path_stub + '_backplanes.lblx')
+        fits_file_path = data_dir / (pds4_path_stub + '_backplanes.fits')
         suppl_file_path = data_dir / (pds4_path_stub + '_supplemental.txt')
         browse_label_path = browse_dir / (pds4_path_stub + '_summary.lblx')
         browse_image_path = browse_dir / (pds4_path_stub + '_summary.png')
 
+        # The FITS goes into the bundle beside its label, which names it with no
+        # directory part, and BACKPLANE_PATH names the copy, so that the size,
+        # checksum and time the label states are the archived file's.  As with the
+        # summary PNG below, the copy is written to a local path and uploaded, and
+        # the label's FILE_* functions read BACKPLANE_PATH as a local file, so a
+        # bundle root in the cloud is not handled here (#67).
+        fits_file_local = cast(Path, fits_file_path.get_local_path())
+        shutil.copy2(fits_source_local, fits_file_local)
+        fits_file_path.upload()
+        logger.info('Copied backplane FITS: %s', fits_file_path)
+
         # Add file path variables to template_vars
-        fits_file_path = backplane_results_root / (results_path_stub + '_backplanes.fits')
         summary_png_source = nav_results_root / (results_path_stub + '_summary.png')
-        template_vars['BACKPLANE_FILENAME'] = label_file_path.name.replace('.lblx', '.fits')
+        template_vars['BACKPLANE_FILENAME'] = fits_file_path.name
         template_vars['BACKPLANE_PATH'] = str(fits_file_path)
         template_vars['BACKPLANE_SUPPL_FILENAME'] = suppl_file_path.name
         template_vars['BACKPLANE_SUPPL_PATH'] = str(suppl_file_path)

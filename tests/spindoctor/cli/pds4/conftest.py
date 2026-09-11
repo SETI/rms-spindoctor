@@ -30,6 +30,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import numpy as np
+from astropy.io import fits
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
@@ -424,6 +426,7 @@ def write_nav_inputs(
     nav_extra: dict[str, Any] | None = None,
     backplane_metadata: dict[str, Any] | None = None,
     summary_png: bytes | None = b'\x89PNG fake bytes',
+    backplane_fits: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Write the navigation and backplane input files for the environment's image.
 
@@ -437,6 +440,8 @@ def write_nav_inputs(
             ``navigation_result`` it holds otherwise.
         backplane_metadata: Backplane metadata dict; a small default when None.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
+        backplane_fits: Whether :func:`write_backplane_fits` writes the
+            ``_backplanes.fits`` beside the backplane metadata.
 
     Returns:
         The navigation metadata dict and the backplane metadata dict as written.
@@ -462,7 +467,26 @@ def write_nav_inputs(
     if summary_png is not None:
         png_file = env.nav_root / f'{env.results_path_stub}_summary.png'
         png_file.write_bytes(summary_png)
+    if backplane_fits:
+        write_backplane_fits(env.backplane_root / f'{env.results_path_stub}_backplanes.fits')
     return nav_metadata, backplane_metadata
+
+
+def write_backplane_fits(path: Path) -> None:
+    """Write a small backplane FITS: an empty primary HDU and one float plane.
+
+    The labels pass copies an image's FITS into the bundle beside its data label, so
+    every image the plumbing tests label needs one beside its backplane metadata.  It
+    is a real FITS, as the backplane stage writes one, rather than a few bytes
+    standing in for one, so that it is the kind of file the pass copies.
+
+    Parameters:
+        path: Where the FITS goes; its directory is created if it is not there.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plane = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.float32), name='BODY_LATITUDE')
+    plane.header['BUNIT'] = 'rad'
+    fits.HDUList([fits.PrimaryHDU(), plane]).writeto(path)
 
 
 def write_supplemental(
