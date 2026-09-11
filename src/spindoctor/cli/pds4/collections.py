@@ -11,7 +11,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.labels import write_label
-from spindoctor.cli.pds4.statistic_units import statistic_in_another_unit
+from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.dataset.dataset import DataSet
 
 
@@ -63,7 +63,13 @@ class IndexValueFormat:
         Returns:
             The value as a plain decimal number to a fixed number of decimals,
             with no exponent and no trailing point.
+
+        Raises:
+            ValueError: If ``value`` is NaN or infinite, which has no decimal
+                form.  The message names the value.
         """
+        if not math.isfinite(value):
+            raise ValueError(f'An index value has to be a finite number; got {value!r}')
         if self.significant is None:
             return format(value, f'.{self.decimals}f')
         magnitude = 0 if value == 0 else math.floor(math.log10(abs(value)))
@@ -137,6 +143,28 @@ def index_value_format(units: str) -> IndexValueFormat:
             f'the formats are sized for {", ".join(INDEX_VALUE_FORMATS)}'
         )
     return INDEX_VALUE_FORMATS[statistic_units]
+
+
+def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueFormat) -> list[str]:
+    """Write one plane's minimum and maximum as the two cells an index row gives it.
+
+    Parameters:
+        statistic: The plane's statistic as a supplemental file records it, its
+            minimum and maximum already checked as finite numbers, or None when
+            the file records none for the plane.
+        value_format: The format the plane's column is written in.
+
+    Returns:
+        The minimum and the maximum, rendered, or two blanks when there is no
+        statistic, which is what a plane that measured nothing leaves.
+
+    Raises:
+        ValueError: If the minimum or the maximum is not a finite number.
+    """
+    if statistic is None:
+        # TODO Need an appropriate sentinel value for missing data
+        return ['', '']
+    return [value_format.render(statistic['min']), value_format.render(statistic['max'])]
 
 
 def generate_collection_files(
@@ -286,12 +314,16 @@ def generate_global_index_files(
     Raises:
         FileNotFoundError: If an index template is not in the dataset's template
             directory.
+        TypeError: If a configured plane declares no unit, or one that is not a
+            string.
         ValueError: If a configured plane's statistic is in a unit the index has
-            no column format for, or if a supplemental file records a statistic
-            in a unit other than the one the configuration gives its plane, or
-            in none.  The message names the file, the plane and both units.
-            Every supplemental file is read and its rows accumulated before
-            either table is written, so in both cases nothing is written.
+            no column format for, or if a supplemental file holds a statistic no
+            column can: one in a unit other than the one the configuration gives
+            its plane, or in none, or with a minimum or maximum that is not a
+            finite number.  The message names the file and the plane, and what
+            the file records there.  Every supplemental file is read, and every
+            value in both tables rendered, before either table is opened, so
+            none of these leaves a table behind.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -308,8 +340,8 @@ def generate_global_index_files(
     # Every plane's format is looked up before any supplemental file is read,
     # so a plane declared in a unit the table cannot size fails the run here
     # rather than after half a table has been written.
-    body_formats = {bp['name']: index_value_format(bp['units']) for bp in bodies_cfg}
-    ring_formats = {bp['name']: index_value_format(bp['units']) for bp in rings_cfg}
+    body_formats = {bp['name']: index_value_format(bp.get('units')) for bp in bodies_cfg}
+    ring_formats = {bp['name']: index_value_format(bp.get('units')) for bp in rings_cfg}
 
     # Scan for all supplemental files
     supplemental_files: list[FCPath] = []
@@ -326,9 +358,11 @@ def generate_global_index_files(
     supplemental_files.sort(key=get_image_name_from_supplemental)
     logger.info('Found %d supplemental files', len(supplemental_files))
 
-    # Collect body and ring statistics
-    body_index_rows: list[dict[str, Any]] = []
-    ring_index_rows: list[dict[str, Any]] = []
+    # Collect body and ring statistics, every cell already rendered: both
+    # tables are opened only once every value in them has been written out, so
+    # nothing a render can raise leaves a table half-written.
+    body_index_rows: list[list[str]] = []
+    ring_index_rows: list[list[str]] = []
 
     for suppl_file in supplemental_files:
         try:
@@ -341,18 +375,17 @@ def generate_global_index_files(
 
         backplanes = metadata.get('backplanes', {})
         # A supplemental file holds the backplane document the labels pass
-        # read, and a tree can hold ones a labels pass wrote before the unit
-        # was recorded or held to.  Indexing one would put a column in two
-        # units, so the run is refused here, before either table exists.
-        disagreement = statistic_in_another_unit(backplanes, config)
-        if disagreement is not None:
-            plane, recorded, expected = disagreement
-            recorded_text = 'no unit at all' if recorded is None else recorded
+        # read, and a tree can hold ones a labels pass wrote before it held a
+        # document to its unit and its values.  Indexing one would put a column
+        # in two units, or a value in it that no column can hold, so the run is
+        # refused here, before either table exists.
+        unindexable = unindexable_statistic(backplanes, config)
+        if unindexable is not None:
             raise ValueError(
-                f'Supplemental file {suppl_file} records the {plane} statistic in '
-                f'{recorded_text} where the configuration expects {expected}; the labels '
-                'of this bundle were written by more than one version of the labels '
-                'pass, and the bundle has to be regenerated into an empty directory'
+                f'Supplemental file {suppl_file} {unindexable.description}; '
+                f'{unindexable.reason}; the labels of this bundle were written by more '
+                'than one version of the labels pass, and the bundle has to be '
+                'regenerated into an empty directory'
             )
         bodies = backplanes.get('bodies', {})
         rings = backplanes.get('rings', {})
@@ -372,31 +405,22 @@ def generate_global_index_files(
 
         # Body index: one line per image per body
         for body_name, body_data in bodies.items():
-            body_row: dict[str, Any] = {
-                'LID': lid,
-                'body_name': body_name,
-                'path_to_image_file': path_to_image,
-            }
+            body_row: list[str] = [lid, body_name, path_to_image]
             body_backplanes = body_data.get('backplanes', {})
             # Add min/max columns for each configured backplane type
             for bp_type in body_backplane_types:
-                bp_values = body_backplanes.get(bp_type, {})
-                body_row[f'{bp_type}_min'] = bp_values.get('min')
-                body_row[f'{bp_type}_max'] = bp_values.get('max')
+                body_row.extend(_index_cells(body_backplanes.get(bp_type), body_formats[bp_type]))
             body_index_rows.append(body_row)
 
         # Ring index: one line per image
         ring_backplanes = rings.get('backplanes', {})
         if ring_backplanes:
-            ring_row: dict[str, Any] = {
-                'LID': lid,
-                'path_to_image_file': path_to_image,
-            }
+            ring_row: list[str] = [lid, path_to_image]
             # Add min/max columns for each configured ring backplane type
             for ring_type in ring_backplane_types:
-                ring_values = ring_backplanes.get(ring_type, {})
-                ring_row[f'{ring_type}_min'] = ring_values.get('min', '')
-                ring_row[f'{ring_type}_max'] = ring_values.get('max', '')
+                ring_row.extend(
+                    _index_cells(ring_backplanes.get(ring_type), ring_formats[ring_type])
+                )
             ring_index_rows.append(ring_row)
 
     # Generate global_index_bodies.tab
@@ -411,20 +435,7 @@ def generate_global_index_files(
             header.append(f'{bp_type}_min')
             header.append(f'{bp_type}_max')
         writer.writerow(header)
-
-        for row in body_index_rows:
-            row_data = [row['LID'], row['body_name'], row['path_to_image_file']]
-            for bp_type in body_backplane_types:
-                # TODO Need an appropriate sentinel value for missing data
-                min_val = row.get(f'{bp_type}_min', '')
-                max_val = row.get(f'{bp_type}_max', '')
-                if isinstance(min_val, (int, float)):
-                    min_val = body_formats[bp_type].render(min_val)
-                if isinstance(max_val, (int, float)):
-                    max_val = body_formats[bp_type].render(max_val)
-                row_data.append(min_val)
-                row_data.append(max_val)
-            writer.writerow(row_data)
+        writer.writerows(body_index_rows)
     bodies_tab.upload()
     logger.info('Generated global_index_bodies.tab with %d rows', len(body_index_rows))
 
@@ -442,19 +453,7 @@ def generate_global_index_files(
             header.append(f'{ring_type}_min')
             header.append(f'{ring_type}_max')
         writer.writerow(header)
-
-        for row in ring_index_rows:
-            row_data = [row['LID'], row['path_to_image_file']]
-            for ring_type in ring_backplane_types:
-                min_val = row.get(f'{ring_type}_min', '')
-                max_val = row.get(f'{ring_type}_max', '')
-                if isinstance(min_val, (int, float)):
-                    min_val = ring_formats[ring_type].render(min_val)
-                if isinstance(max_val, (int, float)):
-                    max_val = ring_formats[ring_type].render(max_val)
-                row_data.append(min_val)
-                row_data.append(max_val)
-            writer.writerow(row_data)
+        writer.writerows(ring_index_rows)
     rings_tab.upload()
     logger.info('Generated global_index_rings.tab with %d rows', len(ring_index_rows))
 

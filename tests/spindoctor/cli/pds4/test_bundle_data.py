@@ -18,6 +18,7 @@ layout plumbing, never PDS4-standard content correctness of the draft labels.
 """
 
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -376,6 +377,59 @@ def test_a_foreign_unit_on_an_undeclared_plane_is_ignored(tmp_path: Path) -> Non
     write_nav_inputs(env, backplane_metadata=_ring_resolution_document('furlong/pixel'))
     outcome = _generate(env)
     assert outcome is BundleDataOutcome.WRITTEN
+
+
+RESOLUTION_PLANE: list[dict[str, Any]] = [{'name': 'resolution', 'units': 'km/pixel'}]
+"""A body plane in kilometers per pixel, whose statistic keeps that unit."""
+
+
+def _resolution_document(maximum: float) -> dict[str, Any]:
+    """Build backplane metadata holding one body resolution statistic with this maximum.
+
+    Parameters:
+        maximum: The maximum the statistic records, in the unit the plane takes.
+
+    Returns:
+        The document, in the shape the backplane writer leaves on disk.
+    """
+    statistic = {'min': 60.0, 'max': maximum, 'units': 'km/pixel'}
+    return {'bodies': {'SATURN': {'backplanes': {'resolution': statistic}}}, 'rings': {}}
+
+
+def test_a_statistic_that_is_not_a_finite_number_fails_the_image(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A maximum of NaN fails the image, and the log names the plane and the value.
+
+    No index column can hold it, and a blank in its place would say the plane
+    measured nothing, so it is refused as a statistic in another unit is.
+    """
+    env = make_bundle_env(tmp_path, bodies=RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_resolution_document(math.nan))
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert 'records a resolution maximum of nan' in capsys.readouterr().out
+
+
+def test_a_statistic_that_is_not_a_finite_number_writes_nothing(tmp_path: Path) -> None:
+    """The values are checked before any product is written, so nothing is on disk."""
+    env = make_bundle_env(tmp_path, bodies=RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_resolution_document(math.nan))
+    _generate(env)
+    assert not env.bundle_dir.exists()
+
+
+def test_a_plane_declaring_no_unit_is_refused_as_a_null_unit_is(tmp_path: Path) -> None:
+    """A configuration entry with no units key raises the TypeError a null unit raises.
+
+    The local driver refuses such a configuration before it reads anything, but
+    the queue-driven one reaches this with it, and a KeyError naming the key says
+    less than a message naming what a unit has to be.
+    """
+    env = make_bundle_env(tmp_path, rings=[{'name': 'longitudinal_resolution'}])
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('deg/pixel'))
+    with pytest.raises(TypeError, match='units must be a string'):
+        _generate(env)
 
 
 def test_malformed_nav_metadata_raises(tmp_path: Path) -> None:

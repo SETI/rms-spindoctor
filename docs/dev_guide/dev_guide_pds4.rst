@@ -100,12 +100,13 @@ populated bundle rather than an empty one.
 ``sd_create_bundle labels`` counts the images whose products it did not write --
 an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
-statistic in a unit other than the one the configuration gives its plane, and an
-image whose inputs it could not read -- and exits 1 when that count is not zero.  It closes with a line giving that
-count alongside the number of images it labeled and the number it skipped, so a
-selection that matched nothing reads as the zero it is.  It counts a batch that
-did not hold exactly one image the same way; that is a guard on the
-one-image-per-batch invariant
+statistic no global index column can hold (one in a unit other than the one the
+configuration gives its plane, or a minimum or maximum that is not a finite
+number), and an image whose inputs it could not read -- and exits 1 when that
+count is not zero.  It closes with a line giving that count alongside the number
+of images it labeled and the number it skipped, so a selection that matched
+nothing reads as the zero it is.  It counts a batch that did not hold exactly
+one image the same way; that is a guard on the one-image-per-batch invariant
 :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` also
 asserts, and no selection argument this dataset offers can produce one.
 
@@ -127,12 +128,13 @@ against the run, including a batch it reports it could not have processed.
 ``sd_create_bundle summary`` counts the collection and index labels it did not
 write, over both generators, and exits 1 the same way.  The inventory and index
 ``.tab`` tables are written either way.  It also exits 1 when a supplemental
-file records a statistic in a unit other than the one the configuration gives
-its plane, or in none -- the comparison the labels pass makes per image, through
-:func:`~spindoctor.cli.pds4.statistic_units.statistic_in_another_unit` -- naming
-the file, the plane and both units.  Every supplemental file is read before
-either index table is written, so neither exists; the collection files, written
-first, do.
+file holds a statistic no index column can -- one in a unit other than the one
+the configuration gives its plane, or in none, or a minimum or maximum that is
+not a finite number -- the check the labels pass makes per image, through
+:func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
+file and the plane and saying what the file records there.  Every supplemental
+file is read, and every value in both index tables rendered, before either
+table is opened, so neither exists; the collection files, written first, do.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
@@ -488,5 +490,6 @@ documented above.
   / rings global indexes.
 - :func:`~spindoctor.cli.pds4.labels.write_label` — the one place a label is
   written, shared by both.
-- :func:`~spindoctor.cli.pds4.statistic_units.statistic_in_another_unit` — the
-  one comparison both passes hold a document to its configured unit with.
+- :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one
+  check both passes hold every statistic of a document to, its unit and its
+  values.

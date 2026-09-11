@@ -23,6 +23,7 @@ transform.  This is what keeps the inventory LIDVIDs and global-index LIDs
 matching the product labels' DATA_LID (regression coverage for #139 and #256).
 """
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -473,6 +474,26 @@ def test_an_index_value_format_sets_exactly_one_of_its_fields(
         IndexValueFormat(decimals=decimals, significant=significant)
 
 
+@pytest.mark.parametrize(
+    'value_format',
+    [IndexValueFormat(decimals=3), IndexValueFormat(significant=5)],
+    ids=['decimals', 'significant figures'],
+)
+def test_an_index_value_format_refuses_a_value_that_is_not_a_finite_number(
+    value_format: IndexValueFormat,
+) -> None:
+    """NaN has no decimal form, so it is refused by name rather than written as ``nan``.
+
+    Each way of writing a value is a case of its own, since each reaches the
+    value by a path of its own.
+
+    Parameters:
+        value_format: The format asked to write NaN.
+    """
+    with pytest.raises(ValueError, match='got nan'):
+        value_format.render(math.nan)
+
+
 def test_a_plane_in_a_unit_the_index_cannot_size_is_refused_before_any_table(
     tmp_path: Path,
 ) -> None:
@@ -574,6 +595,59 @@ def test_a_disagreeing_supplemental_file_anywhere_is_refused_before_the_first_ta
         env.bundle_dir / 'data', 'shard0/2222222222w', rings=_ring_resolution_stats('rad/pixel')
     )
     with pytest.raises(ValueError, match='2222222222w_supplemental'):
+        _run_global_index(env)
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_supplemental_file_holding_an_infinite_statistic_is_refused_with_nothing_written(
+    tmp_path: Path,
+) -> None:
+    """A maximum of Infinity ends the run, naming the file and the plane, with no table written.
+
+    The JSON reader returns an infinity for the token the writer writes for one,
+    so a supplemental file can carry it, and no column can hold it.
+    """
+    env = _index_env(tmp_path)
+    infinite = {
+        'SATURN': {
+            'backplanes': {'resolution': {'min': 60.0, 'max': math.inf, 'units': 'km/pixel'}}
+        }
+    }
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=infinite)
+    with pytest.raises(ValueError) as excinfo:
+        _run_global_index(env)
+    message = str(excinfo.value)
+    assert '1234567890w_supplemental.txt' in message
+    assert 'records a resolution maximum of inf' in message
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_render_that_fails_leaves_no_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every cell is rendered before either table is opened, so a render that raises leaves none.
+
+    The checks refuse every value they know no column can hold, but they are not
+    the only way a render can fail, and a table opened before its cells exist is
+    left half-written by whichever failure comes.
+    """
+
+    def _refuse(self: IndexValueFormat, value: float) -> str:
+        """Fail every render, as a value no check anticipated would.
+
+        Parameters:
+            self: The format asked to render, unused.
+            value: The value asked for, named in the message.
+
+        Raises:
+            ValueError: Always.
+        """
+        raise ValueError(f'cannot render {value!r}')
+
+    env = _index_env(tmp_path)
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    monkeypatch.setattr(IndexValueFormat, 'render', _refuse)
+    with pytest.raises(ValueError, match='cannot render'):
         _run_global_index(env)
     assert not (env.bundle_dir / 'document').exists()
 

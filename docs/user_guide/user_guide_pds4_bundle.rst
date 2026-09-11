@@ -324,7 +324,11 @@ the log names what was not.
   other than the one the configuration gives its plane — a document written
   before the statistics recorded their unit, or under another configuration —
   is **failed** before anything is written for it, since indexing it would put
-  one column of the global index in two units. Regenerate its backplanes.
+  one column of the global index in two units. Regenerate its backplanes. So
+  is an image whose backplane metadata records a minimum or maximum that is
+  not a finite number, NaN or an infinity among them: no column can hold one,
+  and a blank in its place would say the plane measured nothing. The log names
+  the plane and what the document records for it.
 
   ``--dry-run`` writes nothing, and exits 0 once the templates are present,
   every configured unit is usable, and the bundle directory is empty.
@@ -338,7 +342,9 @@ the log names what was not.
   records a statistic in a unit other than the one the configuration gives
   its plane, or in none: the bundle's labels were written by more than one
   version of the labels pass, and the bundle is regenerated into an empty
-  directory. The log names the file, the plane and both units.
+  directory. The log names the file, the plane and both units. A supplemental
+  file recording a minimum or maximum that is not a finite number ends the run
+  the same way, and the log names the file, the plane and the value.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
   written as ``status: error`` with ``status_error: label_not_written``, and asks

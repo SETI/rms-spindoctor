@@ -9,7 +9,7 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.pds4.labels import write_label
-from spindoctor.cli.pds4.statistic_units import statistic_in_another_unit
+from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.dataset.dataset import DataSet, ImageFiles
 from spindoctor.support.file import json_as_string
 
@@ -26,8 +26,10 @@ class BundleDataOutcome(Enum):
         FAILED: At least one of the image's products is not in the bundle: a
             label that could not be rendered, a browse product whose summary
             PNG the navigation results do not hold, or, with nothing written
-            for the image at all, backplane metadata recording a statistic in
-            a unit other than the one the configuration gives its plane.
+            for the image at all, backplane metadata recording a statistic no
+            global index column can hold: one in a unit other than the one the
+            configuration gives its plane, or with a minimum or maximum that is
+            not a finite number.
     """
 
     WRITTEN = 'written'
@@ -64,13 +66,15 @@ def generate_bundle_data_files(
     without a browse product; the image is failed, and its data label stays on
     disk.
 
-    A navigated image whose backplane metadata records a statistic in a unit
-    other than the one the configuration gives that plane is failed as well,
-    before anything is written for it.  The document was written before the
-    statistics recorded their unit, or under another configuration, and
-    indexing it would put one column of the global index in two units with
-    nothing saying so.  A plane the document holds that the configuration does
-    not declare is not compared.
+    A navigated image whose backplane metadata records a statistic no global
+    index column can hold is failed as well, before anything is written for it.
+    A statistic in a unit other than the one the configuration gives its plane,
+    or in none, was written before the statistics recorded their unit, or under
+    another configuration, and indexing it would put one column in two units
+    with nothing saying so.  A minimum or maximum that is not a finite number
+    has no decimal form a column can hold, and a blank in its place would say
+    the plane measured nothing.  A plane the document holds that the
+    configuration does not declare is not checked.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -84,10 +88,14 @@ def generate_bundle_data_files(
         WRITTEN when the image's labels are on disk, SKIPPED when the image has
         nothing for the bundle to describe, and FAILED when a label could not be
         rendered, the summary PNG is not there, or a backplane statistic is in a
-        unit other than the one the configuration gives its plane.
+        unit other than the one the configuration gives its plane or has a
+        minimum or maximum that is not a finite number.
 
     Raises:
-        ValueError: If the batch does not hold exactly one image.
+        ValueError: If the batch does not hold exactly one image, or if the
+            configuration entry of a plane the backplane metadata holds declares
+            a blank unit.
+        TypeError: If that entry declares no unit, or one that is not a string.
     """
 
     if len(image_files.image_files) != 1:
@@ -156,22 +164,19 @@ def generate_bundle_data_files(
 
         # A backplane root can hold documents written before the statistics
         # recorded their unit, or under a configuration declaring another,
-        # beside regenerated ones.  Indexing one would put a column of the
-        # global index in two units with nothing saying so, so the image is
-        # failed before anything is written for it.
-        disagreement = statistic_in_another_unit(bp_stats, dataset.config)
-        if disagreement is not None:
-            plane, recorded, expected = disagreement
+        # beside regenerated ones, and a statistic can be a value that has no
+        # decimal form.  Indexing either would put something in a column of the
+        # global index that the column cannot say, so the image is failed
+        # before anything is written for it.
+        unindexable = unindexable_statistic(bp_stats, dataset.config)
+        if unindexable is not None:
             logger.error(
-                'Failing bundle generation for "%s": the backplane metadata records the '
-                '%s statistic in %s where the configuration expects %s; the document was '
-                'written before the statistics recorded their unit, or under another '
-                'configuration, and would put one index column in two units. Regenerate '
-                'the backplanes and run again',
+                'Failing bundle generation for "%s": the backplane metadata %s; %s. '
+                'Nothing is written for the image until its backplanes are regenerated '
+                'with statistics an index column can hold',
                 image_path,
-                plane,
-                'no unit at all' if recorded is None else recorded,
-                expected,
+                unindexable.description,
+                unindexable.reason,
             )
             return BundleDataOutcome.FAILED
 
