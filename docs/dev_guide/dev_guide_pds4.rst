@@ -136,18 +136,18 @@ write, over both generators, and exits 1 the same way.  The inventory and index
 ``.tab`` tables are written either way.  The data collection label counts as not
 written when there is no range for it to state (see `Epochs`_).  The global index
 is generated first, and it refuses a bundle with no ``data/`` directory, naming
-the directory, before any index product is cleared or written.  The pass also
+the directory, before any product of the pass is cleared or written.  The pass also
 exits 1 when a supplemental file holds a statistic no index column can -- one in
 a unit other than the one the configuration gives its plane, or in none, or a
 minimum or maximum that is not a finite number within the range of a float --
 the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  The index tables
-and labels an earlier run wrote are cleared before the first supplemental file
-is read.  Every supplemental file is read, and every value in both index tables
-rendered, before either table is opened, so neither exists; the collection files,
-written after the index, are not written at all, and any an earlier run left are
-left as they were.
+and labels an earlier run wrote, and its collection tables and labels, are
+cleared before the first supplemental file is read, the collection files by the
+index generator since it runs first.  Every supplemental file is read, and every
+value in both index tables rendered, before either table is opened, so a refused
+run leaves no product of the pass, neither this run's nor an earlier run's.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks

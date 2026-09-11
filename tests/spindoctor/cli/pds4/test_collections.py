@@ -234,6 +234,22 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
     assert str(FCPath(env.bundle_dir) / 'browse' / 'collection_browse.tab') in browse_text
 
 
+def test_a_data_collection_with_no_range_leaves_no_earlier_label(tmp_path: Path) -> None:
+    """With no range to state, the label an earlier run left at the path is removed.
+
+    The generator keeps the rule write_label keeps, that a label on disk is one this
+    run wrote, on its own account and not only through the index generator, which
+    clears the label first in the summary pass.
+    """
+    env = make_bundle_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    data_dir.mkdir(parents=True)
+    earlier = data_dir / 'collection_data.lblx'
+    earlier.write_text('<an earlier run/>\n', encoding='utf-8')
+    _run_collections(env, epochs=NoEpochRange('no range is taken here'))
+    assert not earlier.exists()
+
+
 @pytest.mark.parametrize(
     ('label', 'subdir'),
     [('collection_data.lblx', 'data'), ('collection_browse.lblx', 'browse')],
@@ -892,8 +908,8 @@ def _cross_reference_env(tmp_path: Path) -> BundleEnv:
 def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) -> None:
     """#139 round trip: the bodies-index LID equals the collection inventory LID."""
     env = _cross_reference_env(tmp_path)
-    _run_collections(env)
     _run_global_index(env)
+    _run_collections(env)
     inventory_rows = read_tab(env.bundle_dir / 'data' / 'collection_data.tab')
     inventory_lid = inventory_rows[1][1].split('::')[0]
     bodies_rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
@@ -903,8 +919,8 @@ def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) ->
 def test_global_index_rings_lid_matches_collection_inventory(tmp_path: Path) -> None:
     """#139 round trip: the rings-index LID equals the collection inventory LID."""
     env = _cross_reference_env(tmp_path)
-    _run_collections(env)
     _run_global_index(env)
+    _run_collections(env)
     inventory_rows = read_tab(env.bundle_dir / 'data' / 'collection_data.tab')
     inventory_lid = inventory_rows[1][1].split('::')[0]
     rings_rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')

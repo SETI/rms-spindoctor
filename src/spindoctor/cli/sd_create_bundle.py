@@ -428,7 +428,9 @@ def main_summary() -> None:
     The global index is generated before the collection files.  Its read of the
     supplemental files is the one the pass makes, and the data collection label
     states the range of epochs taken in that read, so the collection files wait
-    for it, and a run the index generator refuses writes no collection file.
+    for it.  The index generator clears every product of the pass before that
+    read, the collection files with its own, so a run it refuses leaves none of
+    them, neither this run's nor an earlier run's.
     """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)

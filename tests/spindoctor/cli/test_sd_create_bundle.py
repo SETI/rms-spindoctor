@@ -21,6 +21,12 @@ import pdstemplate
 import pytest
 from cloud_tasks.worker import WorkerData
 from filecache import FCPath
+from tests.spindoctor.cli.pds4.conftest import (
+    make_bundle_env,
+    navigated_document,
+    touch_label,
+    write_supplemental,
+)
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
@@ -76,6 +82,18 @@ REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
     ],
 }
 """What the stub dataset declares each pass must find, as Cassini declares it."""
+
+SUMMARY_PRODUCTS = (
+    'data/collection_data.tab',
+    'data/collection_data.lblx',
+    'browse/collection_browse.tab',
+    'browse/collection_browse.lblx',
+    'document/supplemental/global_index_bodies.tab',
+    'document/supplemental/global_index_bodies.lblx',
+    'document/supplemental/global_index_rings.tab',
+    'document/supplemental/global_index_rings.lblx',
+)
+"""Every file the summary pass writes, relative to the bundle's directory."""
 
 
 class _StubDataset:
@@ -668,6 +686,59 @@ def test_main_summary_refuses_a_unit_the_bundle_cannot_use(
     assert 'Backplane body_tilt declares a unit the bundle cannot use' in out
     assert 'Backplane ring_radius declares a unit the bundle cannot use' in out
     assert 'Backplane ring_tilt declares no units' in out
+
+
+def _latitude_in(units: str) -> dict[str, Any]:
+    """Return one body's latitude statistic, recorded in the given unit.
+
+    Parameters:
+        units: The unit the statistic records.  The configuration the test gives its
+            dataset declares the latitude plane in radians, whose statistics are
+            taken in degrees.
+
+    Returns:
+        The ``backplanes.bodies`` payload of a supplemental file.
+    """
+    return {'MIMAS': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': units}}}}
+
+
+def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
+    summary_run: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A run refused over a supplemental file leaves no file of the pass behind.
+
+    The first run writes every file of the pass; the second is refused over a
+    supplemental file recording its statistic in another unit.  Both generators are
+    the real ones, so an earlier run's inventory or collection label left beside no
+    index is reported here, as is an earlier run's index.
+    """
+    env = make_bundle_env(tmp_path / 'env', bodies=[{'name': 'latitude', 'units': 'rad'}])
+    dataset = env.dataset.as_dataset()
+    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
+    monkeypatch.setattr(
+        sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(env.bundle_results_root)
+    )
+    data_dir = env.bundle_dir / 'data'
+    touch_label(data_dir, 'shard0/1111111111n')
+    write_supplemental(
+        data_dir,
+        'shard0/1111111111n',
+        bodies=_latitude_in('deg'),
+        navigation=navigated_document(),
+    )
+    sd_create_bundle.main_summary()
+    products = [env.bundle_dir / name for name in SUMMARY_PRODUCTS]
+    assert [product for product in products if not product.exists()] == []
+    write_supplemental(
+        data_dir,
+        'shard0/2222222222w',
+        bodies=_latitude_in('rad'),
+        navigation=navigated_document(),
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    assert [product for product in products if product.exists()] == []
 
 
 @pytest.mark.parametrize(

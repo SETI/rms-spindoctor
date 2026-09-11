@@ -377,17 +377,18 @@ the log names what was not.
   the file. Every other product of the pass is written as usual, the inventory
   tables among them.
 
-  It also exits 1, with neither index table nor any collection file written,
-  when a supplemental file records a statistic in a unit other than the one the
-  configuration gives its plane, or in none. A supplemental file carries a copy
-  of the backplane document the labels pass read, so the file was written from
-  one recorded before the statistics carried their unit, or under another
-  configuration: regenerate the backplanes, then the bundle into an empty
-  directory. The log names the file, the plane and both units. A supplemental
-  file recording a minimum or maximum that is not a finite number ends the run
-  the same way, and the log names the file and the plane and says what the file
-  records there; the labels pass of a regenerated bundle fails such an image
-  rather than writing it.
+  It also exits 1 when a supplemental file records a statistic in a unit other
+  than the one the configuration gives its plane, or in none, and leaves none of
+  the pass's products: no index table, no collection file and no label of
+  either, neither this run's nor any an earlier run wrote. A supplemental file
+  carries a copy of the backplane document the labels pass read, so the file
+  was written from one recorded before the statistics carried their unit, or
+  under another configuration: regenerate the backplanes, then the bundle into
+  an empty directory. The log names the file, the plane and both units. A
+  supplemental file recording a minimum or maximum that is not a finite number
+  ends the run the same way, and the log names the file and the plane and says
+  what the file records there; the labels pass of a regenerated bundle fails
+  such an image rather than writing it.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
   written as ``status: error`` with ``status_error: label_not_written``, and asks

@@ -3,7 +3,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Self, cast
 
 import pdstemplate
 from filecache import FCPath
@@ -226,6 +226,48 @@ def _data_dir(bundle_root: FCPath) -> FCPath:
     return data_dir
 
 
+@dataclass(frozen=True)
+class _CollectionProducts:
+    """Where in a bundle the collection tables and labels the summary pass writes go.
+
+    Attributes:
+        data_table: The data collection's inventory, ``data/collection_data.tab``.
+        data_label: Its label, ``data/collection_data.lblx``.
+        browse_table: The browse collection's inventory, ``browse/collection_browse.tab``.
+        browse_label: Its label, ``browse/collection_browse.lblx``.
+    """
+
+    data_table: FCPath
+    data_label: FCPath
+    browse_table: FCPath
+    browse_label: FCPath
+
+    @classmethod
+    def in_bundle(cls, bundle_root: FCPath) -> Self:
+        """Return where the four go in one bundle.
+
+        Parameters:
+            bundle_root: The bundle's own directory.
+
+        Returns:
+            The four paths, under the bundle's ``data`` and ``browse`` directories.
+        """
+        return cls(
+            data_table=bundle_root / 'data' / 'collection_data.tab',
+            data_label=bundle_root / 'data' / 'collection_data.lblx',
+            browse_table=bundle_root / 'browse' / 'collection_browse.tab',
+            browse_label=bundle_root / 'browse' / 'collection_browse.lblx',
+        )
+
+    def paths(self) -> tuple[FCPath, ...]:
+        """Return all four paths.
+
+        Returns:
+            The data collection's table and label, then the browse collection's.
+        """
+        return (self.data_table, self.data_label, self.browse_table, self.browse_label)
+
+
 def generate_collection_files(
     bundle_results_root: FCPath,
     dataset: DataSet,
@@ -274,6 +316,7 @@ def generate_collection_files(
     bundle_name = dataset.pds4_bundle_name()
     template_dir = dataset.pds4_bundle_template_dir()
     bundle_root = bundle_results_root / bundle_name
+    products = _CollectionProducts.in_bundle(bundle_root)
     failed_labels = 0
 
     # Scan for all label files in data directory
@@ -297,7 +340,7 @@ def generate_collection_files(
     logger.info('Found %d label files in bundle', len(label_files))
 
     # Generate collection_data.tab
-    collection_data_csv = bundle_root / 'data' / 'collection_data.tab'
+    collection_data_csv = products.data_table
     collection_data_local = cast(Path, collection_data_csv.get_local_path())
     collection_data_local.parent.mkdir(parents=True, exist_ok=True)
     with collection_data_local.open('w', newline='') as f:
@@ -320,7 +363,7 @@ def generate_collection_files(
     # an earlier run's label never describes this run's inventory.
     collection_data_template = template_base / 'collection_data.lblx'
     template = pdstemplate.PdsTemplate(str(collection_data_template))
-    collection_data_label = bundle_root / 'data' / 'collection_data.lblx'
+    collection_data_label = products.data_label
     if isinstance(epochs, NoEpochRange):
         collection_data_label.unlink(missing_ok=True)
         logger.error(
@@ -341,7 +384,7 @@ def generate_collection_files(
             failed_labels += 1
 
     # Generate collection_browse.tab (must be written before collection_browse.lblx)
-    collection_browse_csv = bundle_root / 'browse' / 'collection_browse.tab'
+    collection_browse_csv = products.browse_table
     collection_browse_local = cast(Path, collection_browse_csv.get_local_path())
     collection_browse_local.parent.mkdir(parents=True, exist_ok=True)
     with collection_browse_local.open('w', newline='') as f:
@@ -358,7 +401,7 @@ def generate_collection_files(
     # Collection browse label
     collection_browse_template = template_base / 'collection_browse.lblx'
     template = pdstemplate.PdsTemplate(str(collection_browse_template))
-    collection_browse_label = bundle_root / 'browse' / 'collection_browse.lblx'
+    collection_browse_label = products.browse_label
     template_vars = {
         'COLLECTION_BROWSE_CSV_PATH': str(collection_browse_csv),
     }
@@ -406,10 +449,13 @@ def generate_global_index_files(
 
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
-    label before it renders, so a run refused over what a supplemental file
-    holds leaves none of them, rather than an earlier run's still indexing the
-    bundle as it was.  A configured plane whose unit the index cannot format is
-    refused before that, with nothing in the bundle touched.
+    label before it renders, and so are the two collection tables and two
+    collection labels :func:`generate_collection_files` writes after the index.
+    A run refused over what a supplemental file holds therefore leaves no product
+    of the summary pass, neither this run's nor an earlier run's: no index still
+    describing the bundle as it was, and no inventory beside no index.  A
+    configured plane whose unit the index cannot format is refused before that,
+    with nothing in the bundle touched.
 
     Both index templates the dataset declares are required.  The caller is
     expected to have checked them before processing anything, so one that is
@@ -429,8 +475,8 @@ def generate_global_index_files(
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, which is
-            checked before any index product is cleared or written, or an index
-            template is not in the dataset's template directory.
+            checked before any product of the pass is cleared or written, or an
+            index template is not in the dataset's template directory.
         TypeError: If a configured plane declares no unit, or one that is not a
             string.
         ValueError: If a configured plane's statistic is in a unit the index has
@@ -462,20 +508,24 @@ def generate_global_index_files(
     ring_formats = {bp['name']: index_value_format(bp.get('units')) for bp in rings_cfg}
 
     # A bundle with no data directory is not one a labels pass wrote.  The summary
-    # pass runs this generator first, so the check is made here, before an index
-    # product is cleared or written into a bundle that is not there.
+    # pass runs this generator first, so the check is made here, before any product
+    # of the pass is cleared or written into a bundle that is not there.
     data_dir = _data_dir(bundle_root)
 
     # Cleared before any supplemental file is read, by the rule write_label keeps
-    # for a label that what is on disk is what this run wrote, so a refusal over
-    # one cannot leave an earlier run's index describing the bundle as it was.
+    # for a label that what is on disk is what this run wrote: the index's own
+    # products, and the collection files the pass writes after it, so a refusal
+    # over one cannot leave an earlier run's index describing the bundle as it was,
+    # nor an earlier run's inventory and its label beside no index.
     supplemental_dir = bundle_root / 'document' / 'supplemental'
     bodies_tab = supplemental_dir / 'global_index_bodies.tab'
     bodies_label = supplemental_dir / 'global_index_bodies.lblx'
     rings_tab = supplemental_dir / 'global_index_rings.tab'
     rings_label = supplemental_dir / 'global_index_rings.lblx'
-    for index_product in (bodies_tab, bodies_label, rings_tab, rings_label):
-        index_product.unlink(missing_ok=True)
+    index_products = (bodies_tab, bodies_label, rings_tab, rings_label)
+    collection_products = _CollectionProducts.in_bundle(bundle_root).paths()
+    for summary_product in (*index_products, *collection_products):
+        summary_product.unlink(missing_ok=True)
 
     # Scan for all supplemental files
     supplemental_files: list[FCPath] = []
