@@ -672,16 +672,24 @@ def test_main_summary_refuses_a_unit_the_bundle_cannot_use(
     """The summary pass refuses the same units up front, before it reads the data tree.
 
     Every unusable backplane is named, where the index writer, left to it, would
-    stop on the first plane it could not format; and nothing is written, the check
-    coming before either generator.
+    stop on the first plane it could not format; and neither generator is called,
+    the check coming before both, so nothing in the bundle is written or cleared.
     """
     dataset = _dataset_with_unusable_units(tmp_path)
     monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
-    (tmp_path / BUNDLE_NAME / 'data').mkdir(parents=True)
+    called: list[str] = []
+    monkeypatch.setattr(
+        sd_create_bundle, 'generate_global_index_files', lambda **kwargs: called.append('index')
+    )
+    monkeypatch.setattr(
+        sd_create_bundle,
+        'generate_collection_files',
+        lambda **kwargs: called.append('collections'),
+    )
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
-    assert not (tmp_path / BUNDLE_NAME / 'data' / 'collection_data.tab').exists()
+    assert called == []
     out = capsys.readouterr().out
     assert 'Backplane body_tilt declares a unit the bundle cannot use' in out
     assert 'Backplane ring_radius declares a unit the bundle cannot use' in out

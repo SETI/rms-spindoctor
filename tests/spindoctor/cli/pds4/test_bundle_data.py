@@ -962,13 +962,14 @@ def test_a_start_nanoseconds_short_of_its_millisecond_is_written_as_pds3_states_
 
     W1630770594's PDS3 label records an ``IMAGE_TIME`` of ``2009-247T15:07:30.812``
     and an ``EXPOSURE_DURATION`` of 50 ms, with a ``START_TIME`` of
-    ``2009-247T15:07:30.762`` and a ``STOP_TIME`` of ``2009-247T15:07:30.812``.  The
-    epochs are built as oops builds them, the stop from ``IMAGE_TIME`` and the start
-    as the stop less the exposure, and are the ones the image's navigation document
-    records.  SPICE's ``et2utc`` writes the start at nine decimals as
-    ``15:07:30.761999965``, so rounded down it would be written a millisecond before
-    the start PDS3 states.  The expected strings are the PDS3 label's two times, in
-    the PDS4 spelling.
+    ``2009-247T15:07:30.762``, a ``STOP_TIME`` of ``2009-247T15:07:30.812`` and an
+    ``IMAGE_MID_TIME`` of ``2009-247T15:07:30.787``.  The epochs are built as oops
+    builds them, the stop from ``IMAGE_TIME``, the start as the stop less the
+    exposure and the midtime halfway between, and are the ones the image's
+    navigation document records.  SPICE's ``et2utc`` writes the start at nine
+    decimals as ``15:07:30.761999965`` and the midtime as ``15:07:30.786999941``, so
+    rounded down each would be written a millisecond before the time PDS3 states.
+    The expected strings are the PDS3 label's three times, in the PDS4 spelling.
     """
     stop_et = float(julian.tdb_from_tai(julian.tai_from_iso('2009-247T15:07:30.812')))
     start_et = stop_et - 50.0 / 1000.0
@@ -980,3 +981,4 @@ def test_a_start_nanoseconds_short_of_its_millisecond_is_written_as_pds3_states_
     )
     assert variables['START_DATE_TIME'] == '2009-09-04T15:07:30.762Z'
     assert variables['STOP_DATE_TIME'] == '2009-09-04T15:07:30.812Z'
+    assert variables['IMAGE_MID_TIME'] == '2009-09-04T15:07:30.787Z'
