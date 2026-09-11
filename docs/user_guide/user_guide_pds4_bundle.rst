@@ -314,7 +314,8 @@ with exit status 2 before it does anything.
   written as ``status: error``, with ``status_error`` saying why (for example
   ``label_not_written``), and does not retry it. A task that stops on an error,
   such as a missing template, is reported by the queue worker as an exception
-  instead, and is retried only if the worker runs with ``--retry-on-exception``.
+  instead, and is not retried unless the worker is set to retry on an exception
+  (``--retry-on-exception``, or ``retry_on_exception`` in the run configuration).
 
 A summary pass indexes whatever is in the bundle's ``data/`` tree, so its exit
 status says nothing about the labels pass; the labels pass's closing line says
@@ -381,8 +382,8 @@ Supported Datasets
 
 As the package ships, only the Cassini ISS Saturn dataset (``coiss_saturn``) can
 be bundled. Either pass stops with an error on any other dataset, before writing
-anything. Adding a dataset
-is a code change, described in :doc:`/dev_guide/dev_guide_pds4`.
+anything. Adding a dataset is a code change, described in
+:doc:`/dev_guide/dev_guide_pds4`.
 
 Workflow
 ========
