@@ -302,6 +302,13 @@ def generate_global_index_files(
     Both index labels are attempted, whichever of them fail, and the index
     tables are written whether or not the labels that describe them render.
 
+    Both index tables and both index labels are cleared before any supplemental
+    file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
+    label before it renders, so a run refused over what a supplemental file
+    holds leaves none of them, rather than an earlier run's still indexing the
+    bundle as it was.  A configured plane whose unit the index cannot format is
+    refused before that, with nothing in the bundle touched.
+
     Both index templates the dataset declares are required.  The caller is
     expected to have checked them before processing anything, so one that is
     missing here raises rather than being passed over.
@@ -328,7 +335,7 @@ def generate_global_index_files(
             file and the plane, what the file records there, and what to
             regenerate.  Every supplemental file is read, and every value in both
             tables rendered, before either table is opened, so none of these
-            leaves a table behind.
+            leaves a table half-written.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -347,6 +354,17 @@ def generate_global_index_files(
     # rather than after half a table has been written.
     body_formats = {bp['name']: index_value_format(bp.get('units')) for bp in bodies_cfg}
     ring_formats = {bp['name']: index_value_format(bp.get('units')) for bp in rings_cfg}
+
+    # Cleared before any supplemental file is read, by the rule write_label keeps
+    # for a label that what is on disk is what this run wrote, so a refusal over
+    # one cannot leave an earlier run's index describing the bundle as it was.
+    supplemental_dir = bundle_root / 'document' / 'supplemental'
+    bodies_tab = supplemental_dir / 'global_index_bodies.tab'
+    bodies_label = supplemental_dir / 'global_index_bodies.lblx'
+    rings_tab = supplemental_dir / 'global_index_rings.tab'
+    rings_label = supplemental_dir / 'global_index_rings.lblx'
+    for index_product in (bodies_tab, bodies_label, rings_tab, rings_label):
+        index_product.unlink(missing_ok=True)
 
     # Scan for all supplemental files
     supplemental_files: list[FCPath] = []
@@ -432,8 +450,6 @@ def generate_global_index_files(
             ring_index_rows.append(ring_row)
 
     # Generate global_index_bodies.tab
-    supplemental_dir = bundle_root / 'document' / 'supplemental'
-    bodies_tab = supplemental_dir / 'global_index_bodies.tab'
     bodies_tab_local = cast(Path, bodies_tab.get_local_path())
     with bodies_tab_local.open('w', newline='') as f:
         writer = csv.writer(f)
@@ -448,7 +464,6 @@ def generate_global_index_files(
     logger.info('Generated global_index_bodies.tab with %d rows', len(body_index_rows))
 
     # Generate global_index_rings.tab
-    rings_tab = supplemental_dir / 'global_index_rings.tab'
     rings_tab_local = cast(Path, rings_tab.get_local_path())
     # No explicit parent mkdir: get_local_path() creates parents (matching the
     # bodies index above), so an extra mkdir here was redundant and asymmetric.
@@ -471,7 +486,6 @@ def generate_global_index_files(
     # Global index bodies label
     bodies_template = template_base / 'global_index_bodies.lblx'
     template = pdstemplate.PdsTemplate(str(bodies_template))
-    bodies_label = supplemental_dir / 'global_index_bodies.lblx'
     template_vars = {
         'FILE_RECORDS': len(body_index_rows),
     }
@@ -483,7 +497,6 @@ def generate_global_index_files(
     # Global index rings label
     rings_template = template_base / 'global_index_rings.lblx'
     template = pdstemplate.PdsTemplate(str(rings_template))
-    rings_label = supplemental_dir / 'global_index_rings.lblx'
     template_vars = {
         'FILE_RECORDS': len(ring_index_rows),
     }

@@ -688,6 +688,33 @@ def test_a_render_that_fails_leaves_no_table(
     assert not (env.bundle_dir / 'document').exists()
 
 
+def test_a_refused_run_leaves_none_of_the_index_products_an_earlier_run_wrote(
+    tmp_path: Path,
+) -> None:
+    """A refused run leaves none of the index tables and labels an earlier run wrote.
+
+    Left in place, they would sit beside the collection files the run has
+    rewritten, still indexing the refused file as it was.
+    """
+    products = [
+        'global_index_bodies.tab',
+        'global_index_bodies.lblx',
+        'global_index_rings.tab',
+        'global_index_rings.lblx',
+    ]
+    env = _ring_resolution_env(tmp_path)
+    supplemental_dir = env.bundle_dir / 'document' / 'supplemental'
+    supplemental_dir.mkdir(parents=True)
+    for product in products:
+        (supplemental_dir / product).write_text('an earlier run\n', encoding='utf-8')
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats('rad/pixel')
+    )
+    with pytest.raises(ValueError, match='1234567890w_supplemental'):
+        _run_global_index(env)
+    assert [product for product in products if (supplemental_dir / product).exists()] == []
+
+
 def test_bodies_index_missing_backplane_values_blank(tmp_path: Path) -> None:
     """Backplane types absent from a body's stats produce empty columns."""
     env = _index_env(tmp_path)

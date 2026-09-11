@@ -134,9 +134,11 @@ the configuration gives its plane, or in none, or a minimum or maximum that is
 not a finite number within the range of a float -- the check the labels pass
 makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
-file and the plane and saying what the file records there.  Every supplemental
-file is read, and every value in both index tables rendered, before either
-table is opened, so neither exists; the collection files, written first, do.
+file and the plane and saying what the file records there.  The index tables
+and labels an earlier run wrote are cleared before the first supplemental file
+is read.  Every supplemental file is read, and every value in both index tables
+rendered, before either table is opened, so neither exists; the collection
+files, written first, do.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
