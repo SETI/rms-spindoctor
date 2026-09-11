@@ -5,7 +5,6 @@ the file's own bytes, read without astropy, and the arrays and their units from
 astropy reading the file separately from the builder under test.
 """
 
-from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -14,11 +13,7 @@ import numpy as np
 import pytest
 from astropy.io import fits
 
-from spindoctor.cli.pds4.data_objects import (
-    UndescribableFitsError,
-    describe_backplane_fits,
-    unusable_masked_value,
-)
+from spindoctor.cli.pds4.data_objects import describe_backplane_fits, unusable_masked_value
 from spindoctor.config import DEFAULT_CONFIG, Config
 
 MASKED_VALUE = -999.0
@@ -32,16 +27,6 @@ CARD = 80
 
 NUMPY_TYPES = {'IEEE754MSBSingle': '>f4', 'SignedMSB4': '>i4'}
 """The numpy type each PDS4 data type names: most significant byte first, as it says."""
-
-TABLE_DEPRECATIONS = (
-    'ignore:The chararray class is deprecated:DeprecationWarning',
-    'ignore:Setting the dtype on a NumPy array has been deprecated:DeprecationWarning',
-)
-"""Numpy's deprecations of what astropy's binary tables still use.
-
-Writing and reading a binary table draws both from inside astropy, which is not the
-code under test.
-"""
 
 
 def _write_backplane_like(path: Path) -> None:
@@ -165,160 +150,6 @@ def test_a_fits_with_only_a_primary_hdu_has_one_header_and_no_array(tmp_path: Pa
     headers = [(hdu.header_offset, hdu.header_length) for hdu in described.hdus]
     assert headers == _headers_in(path.read_bytes())
     assert described.arrays == ()
-
-
-def _with_image(
-    data: np.ndarray, *, name: str | None = 'PLANE', **cards: float
-) -> Callable[[Path], None]:
-    """Return a writer of a FITS holding an empty primary HDU and one image HDU.
-
-    Parameters:
-        data: The image's array.
-        name: The image HDU's name; None leaves it unnamed.
-        **cards: Header cards to set on the image HDU before it is written.
-
-    Returns:
-        A function writing that FITS at the path it is given.
-    """
-
-    def write(path: Path) -> None:
-        image = fits.ImageHDU(data=data) if name is None else fits.ImageHDU(data=data, name=name)
-        for keyword, value in cards.items():
-            image.header[keyword] = value
-        fits.HDUList([fits.PrimaryHDU(), image]).writeto(path)
-
-    return write
-
-
-def _write_primary_with_data(path: Path) -> None:
-    """Write a FITS whose primary HDU holds an image.
-
-    Parameters:
-        path: Where the FITS goes.
-    """
-    fits.HDUList([fits.PrimaryHDU(data=np.zeros((2, 2), dtype=np.float32))]).writeto(path)
-
-
-def _write_table(path: Path) -> None:
-    """Write a FITS whose one extension is a binary table.
-
-    Parameters:
-        path: Where the FITS goes.
-    """
-    column = fits.Column(name='VALUE', format='E', array=np.zeros(2, dtype=np.float32))
-    table = fits.BinTableHDU.from_columns([column], name='TABLE')
-    fits.HDUList([fits.PrimaryHDU(), table]).writeto(path)
-
-
-def _write_two_of_a_name(path: Path) -> None:
-    """Write a FITS holding two image HDUs whose names differ only in case.
-
-    Parameters:
-        path: Where the FITS goes.
-    """
-    upper = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.float32), name='PLANE')
-    mixed = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.float32))
-    mixed.header['EXTNAME'] = 'Plane'
-    fits.HDUList([fits.PrimaryHDU(), upper, mixed]).writeto(path)
-
-
-@pytest.mark.parametrize(
-    ('write', 'refusal'),
-    [
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.int16)),
-            r'HDU 1 \(PLANE\) of .* BITPIX = 16',
-            id='BITPIX 16',
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.float64)),
-            r'HDU 1 \(PLANE\) of .* BITPIX = -64',
-            id='BITPIX -64',
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 3, 4), dtype=np.float32)),
-            r'HDU 1 \(PLANE\) of .* is not two-dimensional \(NAXIS = 3\)',
-            id='three axes',
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.int32), BSCALE=2.0),
-            r'HDU 1 \(PLANE\) of .* carries BSCALE,',
-            id='BSCALE',
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.int32), BZERO=5.0),
-            r'HDU 1 \(PLANE\) of .* carries BZERO,',
-            id='BZERO',
-        ),
-        pytest.param(
-            _write_primary_with_data,
-            r'HDU 0 \(PRIMARY\) of .* holds data \(NAXIS = 2\)',
-            id='a primary HDU holding data',
-        ),
-        pytest.param(
-            _write_table,
-            r'HDU 1 \(TABLE\) of .* is a BinTableHDU, not an image',
-            id='a table',
-            marks=[pytest.mark.filterwarnings(ignored) for ignored in TABLE_DEPRECATIONS],
-        ),
-        pytest.param(
-            lambda path: fits.HDUList(
-                [
-                    fits.PrimaryHDU(),
-                    fits.CompImageHDU(data=np.zeros((16, 16), dtype=np.float32), name='PLANE'),
-                ]
-            ).writeto(path),
-            r'HDU 1 \(PLANE\) of .* is a BinTableHDU, not an image',
-            id='a tile-compressed image',
-            marks=[pytest.mark.filterwarnings(ignored) for ignored in TABLE_DEPRECATIONS],
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.float32), name=None),
-            r'HDU 1 \(unnamed\) of .* is not a local identifier',
-            id='an unnamed image',
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.float32), name='1PLANE'),
-            r'HDU 1 \(1PLANE\) of .* is not a local identifier',
-            id='a name beginning with a digit',
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.float32), name='PLANE 1'),
-            r'HDU 1 \(PLANE 1\) of .* is not a local identifier',
-            id='a name holding a space',
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.float32), name='PLANE:1'),
-            r'HDU 1 \(PLANE:1\) of .* is not a local identifier',
-            id='a name holding a colon',
-        ),
-        pytest.param(
-            _write_two_of_a_name,
-            r'more than one image HDU named plane in lower case',
-            id='two names alike in lower case',
-        ),
-        pytest.param(
-            _with_image(np.zeros((2, 2), dtype=np.float32), name='NAVIGATION-DETAILS'),
-            r'HDU 1 \(NAVIGATION-DETAILS\) of .* which the data label gives to another',
-            id='the name the label gives its supplemental file',
-        ),
-    ],
-)
-def test_a_fits_the_backplane_writer_does_not_write_is_refused(
-    tmp_path: Path, write: Callable[[Path], None], refusal: str
-) -> None:
-    """What the backplane writer does not write is refused, naming the file and the HDU.
-
-    Parameters:
-        tmp_path: Where the FITS goes.
-        write: Writes the FITS at the path it is given.
-        refusal: What the refusal has to say.
-    """
-    path = tmp_path / 'backplanes.fits'
-    write(path)
-    with pytest.raises(UndescribableFitsError, match=refusal) as excinfo:
-        describe_backplane_fits(path, masked_value=MASKED_VALUE)
-    assert str(path) in str(excinfo.value)
 
 
 def _configured(masked_value: object) -> Config:

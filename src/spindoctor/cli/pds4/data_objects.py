@@ -1,30 +1,23 @@
 """The data objects a backplane FITS holds, as its PDS4 data label describes them.
 
-A backplane FITS is an empty primary HDU followed by one image HDU per array: the
-body identity map, when some body claimed a pixel, and then one float plane per
-backplane that has a valid pixel.  A data label describes the header of every HDU
-as a ``Header`` and every image past the primary as an ``Array_2D_Image``, each at
-the byte offset the file holds it at.  :func:`describe_backplane_fits` reads those
-offsets, and everything else the label states about an array, from the file itself
-rather than from the configuration that asked for it, so that the label describes
-the file in the bundle: a plane the writer dropped is not described, and one it
-wrote is described as it was written.
-
-What the backplane writer does not write is refused rather than described.  A label
-that described such a file would be describing it wrongly -- an integer declared at
-the wrong width, or a scaled array declared as its raw values -- and a label that is
-wrong about its file is worse than no label.
+A backplane FITS, as :func:`~spindoctor.cli.backplanes.writer.write_fits` writes it, is
+an empty primary HDU followed by one image HDU per array: the body identity map, when
+some body claimed a pixel, and then one float plane per backplane that has a valid
+pixel.  A data label describes the header of every HDU as a ``Header`` and every image
+past the primary as an ``Array_2D_Image``, each at the byte offset the file holds it
+at.  :func:`describe_backplane_fits` reads those offsets, and everything else the label
+states about an array, from the file itself rather than from the configuration that
+asked for it, so that the label describes the file in the bundle: a plane the writer
+dropped is not described, and one it wrote is described as it was written.
 """
 
 import math
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from astropy.io import fits
-from filecache import FCPath
 
 from spindoctor.cli.backplanes.writer import BODY_ID_MAP_HDU_NAME
 from spindoctor.config import Config
@@ -47,31 +40,6 @@ The map declares no missing value: its 0 marks a pixel no body claimed, which is
 fact about the pixel rather than a missing measurement, and no NAIF ID is 0.
 """
 
-_LOCAL_IDENTIFIER = re.compile(r'[a-z_][a-z0-9_.-]*')
-"""What a lower-case HDU name has to be to serve as an array's local identifier.
-
-A PDS4 ``local_identifier`` is an XML ``ID``: a name that begins with a letter or an
-underscore and holds only letters, digits, underscores, hyphens and periods.
-"""
-
-_SCALING_KEYWORDS = ('BSCALE', 'BZERO')
-"""The header keywords that make an array's stored values other than its values."""
-
-SUPPLEMENTAL_FILE_IDENTIFIER = 'navigation-details'
-"""The ``local_identifier`` the data label gives its supplemental file.
-
-``data.lblx`` states it through a template variable set from this constant, and no
-array may take it, since a local identifier is its label's only one of its name.
-"""
-
-LABEL_LOCAL_IDENTIFIERS = frozenset({SUPPLEMENTAL_FILE_IDENTIFIER})
-"""Every ``local_identifier`` the data label defines of its own, none of which an
-array may take."""
-
-
-class UndescribableFitsError(ValueError):
-    """A backplane FITS holds something its data label could not truthfully describe."""
-
 
 @dataclass(frozen=True)
 class FitsArray:
@@ -85,13 +53,13 @@ class FitsArray:
         unit: The HDU's ``BUNIT``, or None when the header has none.
         lines: The number of elements down the frame, the HDU's ``NAXIS2``.
         samples: The number of elements across the frame, the HDU's ``NAXIS1``.
-        missing_constant: The value a float array holds wherever it measured nothing,
-            spelled as the label states it; None for an integer array.
-        description: What the array holds.  For a float plane: its name, the oops
+        missing_constant: The value a float plane holds wherever it measured nothing,
+            spelled as the label states it; None for the body identity map.
+        description: What the array holds.  For the body identity map,
+            :data:`BODY_ID_MAP_DESCRIPTION`.  For a float plane: its name, the oops
             backplane method it came from where the configuration names one, its unit
             where it has one, and that a pixel the plane does not cover holds the
-            missing constant.  For the body identity map,
-            :data:`BODY_ID_MAP_DESCRIPTION`.  None for any other integer array.
+            missing constant.
     """
 
     local_identifier: str
@@ -101,7 +69,7 @@ class FitsArray:
     lines: int
     samples: int
     missing_constant: str | None
-    description: str | None
+    description: str
 
 
 @dataclass(frozen=True)
@@ -140,7 +108,7 @@ class BackplaneFitsObjects:
 
 
 def describe_backplane_fits(
-    fits_path: str | Path | FCPath,
+    fits_path: Path,
     *,
     masked_value: float,
     methods: Mapping[str, str] | None = None,
@@ -151,18 +119,15 @@ def describe_backplane_fits(
     gets an array at the offset of its data, whose element type comes from its
     ``BITPIX`` through :data:`FITS_DATA_TYPES`, whose unit is its ``BUNIT`` when it has
     one, and whose lines and samples are its ``NAXIS2`` and ``NAXIS1``.  Its local
-    identifier is its name in lower case.  A float array declares ``masked_value`` as
-    its missing constant; an integer array declares none, and the body identity map
-    carries :data:`BODY_ID_MAP_DESCRIPTION` instead.  Every float array carries a
+    identifier is its name in lower case.  The body identity map declares no missing
+    constant and carries :data:`BODY_ID_MAP_DESCRIPTION`.  Every other array is a float
+    plane, which declares ``masked_value`` as its missing constant and carries a
     description of what it holds: its name, the oops backplane method it came from
     when ``methods`` names one, its unit, and that a pixel the plane does not cover
     holds the missing constant.
 
-    The file is read as it is stored, with no scaling applied, so that what is
-    described is the bytes in the file.
-
     Parameters:
-        fits_path: The FITS to describe.
+        fits_path: The local FITS to describe, as the backplane writer writes one.
         masked_value: The value a float plane holds wherever it measured nothing, the
             configuration's ``backplanes.masked_value``, taken to be one
             :func:`unusable_masked_value` accepts.
@@ -172,47 +137,17 @@ def describe_backplane_fits(
 
     Returns:
         The file's HDUs, the primary first, each with its header and its array.
-
-    Raises:
-        UndescribableFitsError: If its primary HDU holds data; an HDU past the
-            primary is not an image, which a tile-compressed image is, being a binary
-            table on disk; or an image HDU is not two-dimensional, has a ``BITPIX``
-            that :data:`FITS_DATA_TYPES` does not map, carries ``BSCALE`` or
-            ``BZERO``, or has a name that in lower case is not an XML name, is another
-            image HDU's, or is one of :data:`LABEL_LOCAL_IDENTIFIERS`.  The message
-            names the file, and the HDU by its index and name where the refusal is of
-            one HDU.
     """
-    fcpath = FCPath(fits_path)
     missing_constant = _missing_constant(masked_value)
-    with fcpath.open('rb') as fits_file:
-        # astropy decompresses a tile-compressed image and hands back an ImageHDU
-        # subclass with the image's header, where the file holds a binary table;
-        # without decompression the HDU is the table it is on disk, and is refused
-        # as an extension that is not an image.
-        hdul = fits.open(
-            fits_file,
-            do_not_scale_image_data=True,
-            lazy_load_hdus=False,
-            disable_image_compression=True,
-        )
-        with hdul:
-            hdus = tuple(
-                _describe_hdu(
-                    hdu,
-                    where=_where(index, hdu, fcpath),
-                    is_primary=index == 0,
-                    missing_constant=missing_constant,
-                    methods={} if methods is None else methods,
-                )
-                for index, hdu in enumerate(hdul)
+    with fits.open(fits_path) as hdul:
+        hdus = tuple(
+            _describe_hdu(
+                hdu,
+                is_primary=index == 0,
+                missing_constant=missing_constant,
+                methods={} if methods is None else methods,
             )
-    identifiers = [array.local_identifier for hdu in hdus if (array := hdu.array) is not None]
-    repeated = sorted({name for name in identifiers if identifiers.count(name) > 1})
-    if repeated:
-        raise UndescribableFitsError(
-            f'{fcpath} holds more than one image HDU named {", ".join(repeated)} in lower '
-            'case, and each array needs a local identifier of its own'
+            for index, hdu in enumerate(hdul)
         )
     return BackplaneFitsObjects(hdus=hdus)
 
@@ -284,50 +219,23 @@ def _missing_constant(masked_value: float) -> str:
     return repr(float(np.float32(masked_value)))
 
 
-def _where(index: int, hdu: fits.hdu.base._BaseHDU, fcpath: FCPath) -> str:
-    """Return how a refusal names one HDU of a file.
+def _plane_description(
+    local_identifier: str, *, method: str | None, unit: str | None, missing_constant: str
+) -> str:
+    """Return what the label says a float plane holds.
 
     Parameters:
-        index: The HDU's position in the file, from zero.
-        hdu: The HDU.
-        fcpath: The file.
-
-    Returns:
-        The HDU's index and name, ``unnamed`` for an HDU with none, and the file.
-    """
-    return f'HDU {index} ({hdu.name or "unnamed"}) of {fcpath}'
-
-
-def _array_description(
-    hdu_name: str,
-    local_identifier: str,
-    *,
-    is_float: bool,
-    method: str | None,
-    unit: str | None,
-    missing_constant: str,
-) -> str | None:
-    """Return what the label says an array holds.
-
-    Parameters:
-        hdu_name: The HDU's name as the file gives it.
-        local_identifier: The array's identifier, that name in lower case.
-        is_float: Whether the array holds 32-bit floats.
+        local_identifier: The plane's identifier, its HDU name in lower case.
         method: The oops backplane method the plane came from, when the configuration
             names one.
         unit: The HDU's ``BUNIT``, when it has one.
         missing_constant: The masked value, spelled as the label states it.
 
     Returns:
-        :data:`BODY_ID_MAP_DESCRIPTION` for the body identity map.  For a float plane,
-        a sentence naming the plane and, where there are ones, its method and its unit,
+        A sentence naming the plane and, where there are ones, its method and its unit,
         and a sentence saying a pixel the plane does not cover holds the missing
-        constant.  None for any other integer array.
+        constant.
     """
-    if hdu_name == BODY_ID_MAP_HDU_NAME:
-        return BODY_ID_MAP_DESCRIPTION
-    if not is_float:
-        return None
     source = '' if method is None else f', from the oops backplane method {method},'
     measure = '' if unit is None else f', in {unit}'
     return (
@@ -340,73 +248,46 @@ def _array_description(
 def _describe_hdu(
     hdu: fits.hdu.base._BaseHDU,
     *,
-    where: str,
     is_primary: bool,
     missing_constant: str,
     methods: Mapping[str, str],
 ) -> FitsHdu:
-    """Return one HDU's header and array, refusing what the writer does not write.
+    """Return one HDU's header and, past the primary, its array.
 
     Parameters:
-        hdu: The HDU, from a file opened with no scaling applied.
-        where: The HDU's index and name and the file's path, for a refusal's message.
-        is_primary: Whether this is the file's first HDU.
+        hdu: The HDU.
+        is_primary: Whether this is the file's first HDU, which holds no array.
         missing_constant: The masked value, spelled as the label states it.
         methods: The oops backplane method each plane was computed with, by name.
 
     Returns:
         The HDU's header, and its array when it is an image past the primary.
-
-    Raises:
-        UndescribableFitsError: If the HDU is one a backplane FITS does not hold, as
-            :func:`describe_backplane_fits` lists.
     """
     info = hdu.fileinfo()
     header_offset = int(info['hdrLoc'])
     data_offset = int(info['datLoc'])
-    header = hdu.header
-    naxis = int(header['NAXIS'])
     if is_primary:
-        if naxis != 0:
-            raise UndescribableFitsError(
-                f'{where} holds data (NAXIS = {naxis}), where a backplane FITS keeps its '
-                'primary HDU empty'
-            )
         return FitsHdu(
             name=hdu.name,
             header_offset=header_offset,
             header_length=data_offset - header_offset,
             array=None,
         )
-
-    if not isinstance(hdu, fits.ImageHDU):
-        raise UndescribableFitsError(f'{where} is a {type(hdu).__name__}, not an image')
-    if naxis != 2:
-        raise UndescribableFitsError(f'{where} is not two-dimensional (NAXIS = {naxis})')
-    bitpix = int(header['BITPIX'])
-    if bitpix not in FITS_DATA_TYPES:
-        raise UndescribableFitsError(
-            f'{where} has BITPIX = {bitpix}, where a backplane array has one of '
-            f'{", ".join(str(value) for value in FITS_DATA_TYPES)}'
-        )
-    scaling = [keyword for keyword in _SCALING_KEYWORDS if keyword in header]
-    if scaling:
-        raise UndescribableFitsError(
-            f'{where} carries {" and ".join(scaling)}, so its stored values are not its values'
-        )
+    header = hdu.header
     local_identifier = hdu.name.lower()
-    if _LOCAL_IDENTIFIER.fullmatch(local_identifier) is None:
-        raise UndescribableFitsError(
-            f'{where} has a name that in lower case is not a local identifier, which '
-            'begins with a letter or an underscore and holds only letters, digits, '
-            'underscores, hyphens and periods'
+    bunit = header.get('BUNIT')
+    unit = None if bunit is None else str(bunit)
+    if hdu.name == BODY_ID_MAP_HDU_NAME:
+        missing: str | None = None
+        description = BODY_ID_MAP_DESCRIPTION
+    else:
+        missing = missing_constant
+        description = _plane_description(
+            local_identifier,
+            method=methods.get(local_identifier),
+            unit=unit,
+            missing_constant=missing_constant,
         )
-    if local_identifier in LABEL_LOCAL_IDENTIFIERS:
-        raise UndescribableFitsError(
-            f'{where} has the name {local_identifier} in lower case, which the data '
-            'label gives to another of its objects'
-        )
-    unit = header.get('BUNIT')
     return FitsHdu(
         name=hdu.name,
         header_offset=header_offset,
@@ -414,18 +295,11 @@ def _describe_hdu(
         array=FitsArray(
             local_identifier=local_identifier,
             offset=data_offset,
-            data_type=FITS_DATA_TYPES[bitpix],
-            unit=None if unit is None else str(unit),
+            data_type=FITS_DATA_TYPES[int(header['BITPIX'])],
+            unit=unit,
             lines=int(header['NAXIS2']),
             samples=int(header['NAXIS1']),
-            missing_constant=missing_constant if bitpix < 0 else None,
-            description=_array_description(
-                hdu.name,
-                local_identifier,
-                is_float=bitpix < 0,
-                method=methods.get(local_identifier),
-                unit=None if unit is None else str(unit),
-                missing_constant=missing_constant,
-            ),
+            missing_constant=missing,
+            description=description,
         ),
     )

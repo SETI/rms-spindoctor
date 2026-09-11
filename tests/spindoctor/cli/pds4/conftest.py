@@ -435,7 +435,6 @@ def write_nav_inputs(
     nav_extra: dict[str, Any] | None = None,
     backplane_metadata: dict[str, Any] | None = None,
     summary_png: bytes | None = b'\x89PNG fake bytes',
-    backplane_fits: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Write the navigation and backplane input files for the environment's image.
 
@@ -449,8 +448,6 @@ def write_nav_inputs(
             ``navigation_result`` it holds otherwise.
         backplane_metadata: Backplane metadata dict; a small default when None.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
-        backplane_fits: Whether :func:`write_backplane_fits` writes the
-            ``_backplanes.fits`` beside the backplane metadata.
 
     Returns:
         The navigation metadata dict and the backplane metadata dict as written.
@@ -476,8 +473,7 @@ def write_nav_inputs(
     if summary_png is not None:
         png_file = env.nav_root / f'{env.results_path_stub}_summary.png'
         png_file.write_bytes(summary_png)
-    if backplane_fits:
-        write_backplane_fits(env.backplane_root / f'{env.results_path_stub}_backplanes.fits')
+    write_backplane_fits(env.backplane_root / f'{env.results_path_stub}_backplanes.fits')
     return nav_metadata, backplane_metadata
 
 

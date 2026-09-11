@@ -195,9 +195,7 @@
             <offset unit="byte">$hdu.array.offset$</offset>
             <axes>2</axes>
             <axis_index_order>Last Index Fastest</axis_index_order>
-            $IF(hdu.array.description is not None)
             <description>$hdu.array.description$</description>
-            $END_IF
             <Element_Array>
                 <data_type>$hdu.array.data_type$</data_type>
                 $IF(hdu.array.unit is not None)
@@ -227,7 +225,7 @@
         <!-- Supplemental file containing image navigation and SPICE kernel pointing parameters -->
         <File>
             <file_name>$BACKPLANE_SUPPL_FILENAME$</file_name>
-            <local_identifier>$SUPPLEMENTAL_FILE_IDENTIFIER$</local_identifier>
+            <local_identifier>navigation-details</local_identifier>
             <creation_date_time>$FILE_ZULU(BACKPLANE_SUPPL_PATH)$</creation_date_time>
             <file_size unit="byte">$FILE_BYTES(BACKPLANE_SUPPL_PATH)$</file_size>
             <md5_checksum>$FILE_MD5(BACKPLANE_SUPPL_PATH)$</md5_checksum>

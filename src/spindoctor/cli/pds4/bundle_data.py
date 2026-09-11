@@ -8,12 +8,7 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
-from spindoctor.cli.pds4.data_objects import (
-    SUPPLEMENTAL_FILE_IDENTIFIER,
-    UndescribableFitsError,
-    configured_methods,
-    describe_backplane_fits,
-)
+from spindoctor.cli.pds4.data_objects import configured_methods, describe_backplane_fits
 from spindoctor.cli.pds4.epochs import unrecorded_epoch
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
@@ -36,11 +31,10 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold -- one in a unit other than the one
             the configuration gives its plane, or with a minimum or maximum
-            that is not a finite number within the range of a float -- a
+            that is not a finite number within the range of a float -- or a
             navigation document that does not record the exposure's start,
             stop and midtime as finite numbers, the stop no earlier than the
-            start, or a backplane FITS holding something its data label cannot
-            describe.
+            start.
     """
 
     WRITTEN = 'written'
@@ -104,9 +98,7 @@ def generate_bundle_data_files(
     The data label describes every HDU of the FITS, through
     :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`, which reads the
     source before the copy is made; the copy is byte-identical, so the source's
-    description is the copy's.  A FITS that function refuses fails the image with
-    nothing created, the file and the HDU named in the log.  The configuration's
-    masked value is taken to be one
+    description is the copy's.  The configuration's masked value is taken to be one
     :func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value` accepts, which the
     drivers establish once before any image.
 
@@ -124,8 +116,7 @@ def generate_bundle_data_files(
         rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
         minimum or maximum that is not a finite number within the range of a
-        float, the navigation document does not record the exposure's epochs,
-        or the FITS holds something its data label cannot describe.
+        float, or the navigation document does not record the exposure's epochs.
 
     Raises:
         ValueError: If the batch does not hold exactly one image, if the
@@ -237,20 +228,11 @@ def generate_bundle_data_files(
         fits_source_local = cast(Path, fits_source_path.retrieve())
 
         # The copy made below is byte-identical, so the source's description is the copy's.
-        try:
-            fits_objects = describe_backplane_fits(
-                fits_source_local,
-                masked_value=float(dataset.config.backplanes.masked_value),
-                methods=configured_methods(dataset.config),
-            )
-        except UndescribableFitsError as exc:
-            logger.error(
-                'Failing bundle generation for "%s": %s. Nothing is written for the '
-                'image, whose data label describes every array its backplane FITS holds',
-                image_path,
-                exc,
-            )
-            return BundleDataOutcome.FAILED
+        fits_objects = describe_backplane_fits(
+            fits_source_local,
+            masked_value=float(dataset.config.backplanes.masked_value),
+            methods=configured_methods(dataset.config),
+        )
 
         pds4_path_stub = dataset.pds4_path_stub(image_file)
         bundle_name = dataset.pds4_bundle_name()
@@ -299,7 +281,6 @@ def generate_bundle_data_files(
         template_vars['BACKPLANE_FITS'] = fits_objects
         template_vars['BACKPLANE_SUPPL_FILENAME'] = suppl_file_path.name
         template_vars['BACKPLANE_SUPPL_PATH'] = str(suppl_file_path)
-        template_vars['SUPPLEMENTAL_FILE_IDENTIFIER'] = SUPPLEMENTAL_FILE_IDENTIFIER
         template_vars['BROWSE_FULL_FILENAME'] = browse_image_path.name
         template_vars['BROWSE_FULL_PATH'] = str(browse_image_path)
 

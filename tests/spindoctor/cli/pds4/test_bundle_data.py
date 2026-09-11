@@ -24,9 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import julian
-import numpy as np
 import pytest
-from astropy.io import fits
 from filecache import FCPath
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
@@ -528,40 +526,6 @@ def test_backplane_fits_copied_into_bundle_data_tree(tmp_path: Path) -> None:
     _generate(env)
     bundled_fits = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.fits'
     assert bundled_fits.read_bytes() == fits_source.read_bytes()
-
-
-def _tree(root: Path) -> list[str]:
-    """Return every directory and file below a root, relative to it, sorted.
-
-    Parameters:
-        root: The directory to list.
-
-    Returns:
-        The relative paths of everything below ``root``.
-    """
-    return sorted(path.relative_to(root).as_posix() for path in root.rglob('*'))
-
-
-def test_a_backplane_fits_its_label_cannot_describe_leaves_the_bundle_root_as_it_was(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A FITS the data label could not describe fails its image and creates nothing.
-
-    The FITS is described before anything is written for the image, so a refused one
-    leaves neither a file nor a directory: a directory left behind would have the next
-    labels run refuse the bundle root as one that holds files.  The log names the FITS
-    and the HDU it refused.
-    """
-    env = make_bundle_env(tmp_path)
-    write_nav_inputs(env, backplane_fits=False)
-    plane = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.int16), name='PLANE')
-    fits_source = env.backplane_root / f'{env.results_path_stub}_backplanes.fits'
-    fits.HDUList([fits.PrimaryHDU(), plane]).writeto(fits_source)
-    before = _tree(env.bundle_results_root)
-    outcome = _generate(env)
-    assert outcome is BundleDataOutcome.FAILED
-    assert _tree(env.bundle_results_root) == before
-    assert f'HDU 1 (PLANE) of {FCPath(fits_source)} has BITPIX = 16' in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
