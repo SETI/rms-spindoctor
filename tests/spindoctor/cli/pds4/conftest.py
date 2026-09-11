@@ -236,7 +236,13 @@ class NoPds4DataSet:
 
     Mirrors the ``DataSet`` base-class contract for datasets that do not support
     PDS4 bundle generation (dev_guide_pds4.rst "Per-dataset extension points").
+    It carries a configuration declaring no backplanes, as every dataset carries
+    one, so that what the bundle stage reads before it reaches a hook is there.
     """
+
+    def __init__(self) -> None:
+        """Build the dataset with a configuration declaring no backplanes."""
+        self.config = SimpleNamespace(backplanes=SimpleNamespace(bodies=[], rings=[]))
 
     def as_dataset(self) -> DataSet:
         """Return self cast to ``DataSet`` for passing into typed call sites."""

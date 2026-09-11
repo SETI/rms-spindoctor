@@ -318,6 +318,12 @@ the log names what was not.
   loses its browse products and nothing else; its data label is written or not
   on its own account.
 
+  A navigated image whose backplane metadata records a statistic in a unit
+  other than the one the configuration gives its plane — a document written
+  before the statistics recorded their unit, or under another configuration —
+  is **failed** before anything is written for it, since indexing it would put
+  one column of the global index in two units. Regenerate its backplanes.
+
   ``--dry-run`` writes nothing, and exits 0 once the templates are present and
   the bundle directory is empty.
 

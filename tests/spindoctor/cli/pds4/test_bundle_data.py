@@ -296,6 +296,88 @@ def test_missing_backplane_metadata_skips_generation(
     assert 'no backplane metadata at' in capsys.readouterr().out
 
 
+RING_RESOLUTION_PLANE: list[dict[str, Any]] = [
+    {'name': 'longitudinal_resolution', 'units': 'rad/pixel'}
+]
+"""A ring plane declared in radians per pixel, whose statistic is in degrees per pixel."""
+
+
+def _ring_resolution_document(units: str | None) -> dict[str, Any]:
+    """Build backplane metadata holding one ring longitudinal resolution statistic.
+
+    Parameters:
+        units: The unit the statistic records; None records no unit at all.
+
+    Returns:
+        The document, in the shape the backplane writer leaves on disk.
+    """
+    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05}
+    if units is not None:
+        statistic['units'] = units
+    return {'bodies': {}, 'rings': {'backplanes': {'longitudinal_resolution': statistic}}}
+
+
+def test_a_statistic_in_another_unit_fails_the_image(tmp_path: Path) -> None:
+    """A document recording a plane in a unit the configuration does not give it is failed.
+
+    A backplane root can hold documents written before the statistics were
+    converted beside regenerated ones, and indexing one would put a column of
+    the global index in two units with nothing saying so.
+    """
+    env = make_bundle_env(tmp_path, rings=RING_RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('rad/pixel'))
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+
+
+def test_a_statistic_in_another_unit_writes_nothing(tmp_path: Path) -> None:
+    """The unit is checked before any product is written, so nothing is on disk."""
+    env = make_bundle_env(tmp_path, rings=RING_RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('rad/pixel'))
+    _generate(env)
+    assert not env.bundle_dir.exists()
+
+
+def test_a_statistic_recording_no_unit_fails_the_image(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A statistic with no units key predates the unit being recorded, and is failed.
+
+    The plane is a body one, so the bodies are read as the rings are; the log
+    says that no unit was recorded rather than naming one.
+    """
+    env = make_bundle_env(tmp_path, bodies=[{'name': 'latitude', 'units': 'rad'}])
+    document: dict[str, Any] = {
+        'bodies': {'MIMAS': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4}}}},
+        'rings': {},
+    }
+    write_nav_inputs(env, backplane_metadata=document)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert 'latitude statistic in no unit at all' in capsys.readouterr().out
+
+
+def test_a_unit_disagreement_names_the_plane_and_both_units(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The error names the plane, the unit the document records and the unit expected."""
+    env = make_bundle_env(tmp_path, rings=RING_RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('rad/pixel'))
+    _generate(env)
+    out = capsys.readouterr().out
+    assert 'longitudinal_resolution' in out
+    assert 'in rad/pixel' in out
+    assert 'expects deg/pixel' in out
+
+
+def test_a_foreign_unit_on_an_undeclared_plane_is_ignored(tmp_path: Path) -> None:
+    """A plane the configuration does not declare is not compared, whatever it records."""
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('furlong/pixel'))
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.WRITTEN
+
+
 def test_malformed_nav_metadata_raises(tmp_path: Path) -> None:
     """Unparseable navigation metadata propagates a JSON decode error.
 

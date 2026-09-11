@@ -516,6 +516,17 @@ ruling of
 is degrees; the fix landed on `rf_pds4_phase2` ahead of the phases that consume
 the statistics.
 
+A backplane root can hold documents written before the conversion beside
+regenerated ones -- a ring longitudinal resolution in `rad/pixel`, or a
+statistic with no `units` key at all -- and one index column would then be
+in two units with nothing saying so. The bundle stage reads the unit every
+statistic now records: a document whose statistic for a configured plane is
+not in the unit the configuration gives that plane fails its image before
+anything is written for it, rather than being indexed. That is the
+operator's decision of 2026-09-10, and the remedy is to regenerate the
+backplanes. A plane the document holds that the configuration does not
+declare is not compared.
+
 `sd_backplane_viewer` still decides the same question the same way, and so
 displays that one plane in radians per pixel. Nothing this plan generates goes
 through it, so it is #611 rather than a phase; what it needs from here is to
