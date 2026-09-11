@@ -24,7 +24,7 @@ from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_d
 from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
-    index_value_format,
+    unusable_units,
 )
 from spindoctor.config import (
     DEFAULT_CONFIG,
@@ -239,21 +239,14 @@ def _exit_on_unusable_units(config: Config) -> None:
             backplane entries are checked.
 
     Raises:
-        SystemExit: If any entry has no ``units`` key, or a ``units`` that is not
-            a string, is blank, or names a unit the index tables have no format
+        SystemExit: If :func:`~spindoctor.cli.pds4.collections.unusable_units`
+            finds any entry with no ``units`` key, or a ``units`` that is not a
+            string, is blank, or names a unit the index tables have no format
             for.  Every such entry is reported before the exit: one with no
             ``units`` key as declaring none, every other with the reason the
             format lookup gives.
     """
-    unusable: list[tuple[str, str | None]] = []
-    for entry in [*config.backplanes.bodies, *config.backplanes.rings]:
-        if 'units' not in entry:
-            unusable.append((entry['name'], None))
-            continue
-        try:
-            index_value_format(entry['units'])
-        except (TypeError, ValueError) as exc:
-            unusable.append((entry['name'], str(exc)))
+    unusable = unusable_units(config)
     if len(unusable) == 0:
         return
     for name, reason in unusable:

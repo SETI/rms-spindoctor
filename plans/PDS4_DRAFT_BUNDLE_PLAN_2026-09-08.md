@@ -537,7 +537,11 @@ configuration does not declare is not compared. Beside that guard, both
 passes refuse before reading anything a configuration that declares a
 backplane in a unit the bundle cannot use -- a spelling the format mapping
 lacks, or no `units` at all -- naming every such entry once, as the
-missing-template check does.
+missing-template check does. `sd_create_bundle_cloud_tasks` makes the same
+check per task, through the same `unusable_units`, and returns the task as an
+`unusable_unit` error having generated nothing: the per-document guard sees
+only the planes a document holds, so without it every task would write labels
+the summary pass then refuses.
 
 A minimum or maximum that is not a finite number within the range of a
 float -- NaN, an infinity, an integer too large for a float, or no number at

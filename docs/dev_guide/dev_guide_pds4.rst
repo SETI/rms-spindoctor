@@ -76,7 +76,8 @@ per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
 Each pass also checks, before it reads anything, that every backplane the
-configuration declares is in a unit the bundle can use.  The labels pass holds
+configuration declares is in a unit the bundle can use, through
+:func:`~spindoctor.cli.pds4.collections.unusable_units`.  The labels pass holds
 each document's statistics to the configured unit and the summary pass writes
 each index column in the format that unit calls for, so a unit neither can use
 -- a spelling the format table has no entry for, or an entry with no ``units``
@@ -143,14 +144,19 @@ files, written first, do.
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
 for no retry: a template that could not be rendered will not render on a second
-attempt.  It makes none of the three up-front checks, because it holds one task
-rather than the run.  A template it cannot find raises out of every task, and so
-does a configured unit that is missing, blank or not a string, out of every
-task whose backplane metadata holds a statistic for that plane.  A unit spelled
-out but with no format in the index tables is not refused per task at all,
-since a document written under the same configuration agrees with it; the
-summary pass refuses it before it reads anything.  The empty bundle root is the
-queue-driven run's own precondition to establish.
+attempt.  Of the three up-front checks it makes the unit check alone, and makes
+it per task: once the dataset is constructed, and before any document is read,
+a task under a configuration in which
+:func:`~spindoctor.cli.pds4.collections.unusable_units` finds a backplane comes
+back as ``status_error: unusable_unit``, every such backplane and its reason in
+``status_exception``, having generated nothing, and again asks for no retry,
+since the configuration will not change on a second attempt.  The check each
+document gets covers only the planes that document holds, so a task that did
+not make this one would write labels the summary pass then refuses to index.
+It makes neither the template check nor the empty-root check, because it holds
+one task rather than the run: a template it cannot find raises out of every
+task, and the empty bundle root is the queue-driven run's own precondition to
+establish.
 
 Per-dataset extension points
 ============================
@@ -502,3 +508,6 @@ documented above.
 - :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one
   check both passes hold every statistic of a document to, its unit and its
   values.
+- :func:`~spindoctor.cli.pds4.collections.unusable_units` — the configured
+  backplanes no index column has a format for, which both passes and the
+  cloud-task worker refuse before reading a document.

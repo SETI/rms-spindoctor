@@ -12,6 +12,7 @@ from pdslogger import PdsLogger
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
+from spindoctor.config import Config
 from spindoctor.dataset.dataset import DataSet
 
 
@@ -147,6 +148,40 @@ def index_value_format(units: str) -> IndexValueFormat:
             f'the formats are sized for {", ".join(INDEX_VALUE_FORMATS)}'
         )
     return INDEX_VALUE_FORMATS[statistic_units]
+
+
+def unusable_units(config: Config) -> list[tuple[str, str | None]]:
+    """Find every configured backplane whose unit no index column has a format for.
+
+    Each body and ring backplane entry is looked up through
+    :func:`index_value_format`, the lookup the global index tables are written
+    with.  An entry it refuses is unusable for every image the configuration
+    covers, since every document is held to its plane's configured unit, so
+    whatever writes bundle products refuses such a configuration before it reads
+    a document rather than once per image or after products are on disk.
+
+    Parameters:
+        config: The configuration whose ``backplanes.bodies`` and
+            ``backplanes.rings`` entries are checked.
+
+    Returns:
+        One ``(name, reason)`` pair per unusable entry, the bodies first and then
+        the rings, each in configuration order, or an empty list when every entry
+        is usable.  ``name`` is the entry's ``name``.  ``reason`` is None for an
+        entry with no ``units`` key, and otherwise the message the format lookup
+        refuses its ``units`` with: one that is not a string, is blank, or names
+        a unit the tables have no format for.
+    """
+    unusable: list[tuple[str, str | None]] = []
+    for entry in [*config.backplanes.bodies, *config.backplanes.rings]:
+        if 'units' not in entry:
+            unusable.append((entry['name'], None))
+            continue
+        try:
+            index_value_format(entry['units'])
+        except (TypeError, ValueError) as exc:
+            unusable.append((entry['name'], str(exc)))
+    return unusable
 
 
 def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueFormat) -> list[str]:

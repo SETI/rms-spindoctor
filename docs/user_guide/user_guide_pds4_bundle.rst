@@ -286,7 +286,8 @@ exponent form, for km per pixel, whose values span eight orders of magnitude.
 The backplane arrays are float32, so a statistic carries seven significant
 digits at most, and each format is chosen within that from what one pixel
 resolves. A configured backplane in a unit the tables have no format for, or
-with no unit at all, ends either pass before it reads anything.
+with no unit at all, ends either pass before it reads anything, and fails every
+cloud task before it writes anything.
 
 Both index tables are meant to be read by a person, so every angular column in
 them is in degrees — degrees per pixel where the quantity is a resolution — and
@@ -352,7 +353,11 @@ the log names what was not.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
   written as ``status: error`` with ``status_error: label_not_written``, and asks
-  for no retry.
+  for no retry. A task run under a configuration that declares a backplane in a
+  unit the bundle cannot use, or with no unit, writes nothing and is reported as
+  ``status: error`` with ``status_error: unusable_unit``, every such backplane
+  and the reason in ``status_exception``. It asks for no retry either, since
+  every task under that configuration fails the same way.
 
 The summary pass builds its tables from what is in the bundle's ``data/`` tree
 without checking that tree for completeness, so it can exit 0 over a bundle the

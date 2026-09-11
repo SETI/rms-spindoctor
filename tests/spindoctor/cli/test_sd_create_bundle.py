@@ -14,7 +14,7 @@ generation they read.
 import argparse
 from collections.abc import Iterator
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 
 import pdstemplate
@@ -282,11 +282,15 @@ def _dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _record_generation(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    """Record every image the labels run generates products for.
+def _record_generation(
+    monkeypatch: pytest.MonkeyPatch, *, module: ModuleType = sd_create_bundle
+) -> list[dict[str, Any]]:
+    """Record every image a bundle driver generates products for.
 
     Parameters:
         monkeypatch: Fixture the recording stand-in is installed through.
+        module: The driver whose generation is replaced; the labels
+            subcommand's when not given.
 
     Returns:
         The list the calls are appended to, one entry per image.
@@ -305,7 +309,7 @@ def _record_generation(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         calls.append(kwargs)
         return BundleDataOutcome.WRITTEN
 
-    monkeypatch.setattr(sd_create_bundle, 'generate_bundle_data_files', _generate)
+    monkeypatch.setattr(module, 'generate_bundle_data_files', _generate)
     return calls
 
 
@@ -750,6 +754,9 @@ def test_main_summary_exits_zero_when_every_label_is_written(
 def cloud_task_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Stand the cloud-task worker up on stubs, leaving only its reporting live.
 
+    The dataset is the stub, whose configuration declares no backplanes and so
+    none in a unit the worker refuses.
+
     Parameters:
         tmp_path: Base temporary directory served as every results root.
         monkeypatch: Fixture the stand-ins are installed through.
@@ -759,7 +766,8 @@ def cloud_task_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(module, 'get_nav_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(module, 'get_backplane_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(module, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
-    monkeypatch.setattr(module, 'dataset_name_to_class', lambda _: object)
+    dataset = _stub_dataset(tmp_path)
+    monkeypatch.setattr(module, 'dataset_name_to_class', lambda _: lambda: dataset)
 
 
 def _run_cloud_task(
@@ -777,6 +785,15 @@ def _run_cloud_task(
     monkeypatch.setattr(
         sd_create_bundle_cloud_tasks, 'generate_bundle_data_files', lambda **kwargs: outcome
     )
+    return _process_cloud_task()
+
+
+def _process_cloud_task() -> tuple[bool, Any]:
+    """Run one cloud task over one image, through whatever generation is installed.
+
+    Returns:
+        The worker's retry flag and result.
+    """
     task_data = {
         'dataset_name': 'coiss_saturn',
         'files': [
@@ -806,6 +823,32 @@ def test_a_cloud_task_reports_a_product_it_wrote(
     """A product whose labels are on disk still comes back a success."""
     _, result = _run_cloud_task(monkeypatch, BundleDataOutcome.WRITTEN)
     assert result == {'status': 'success'}
+
+
+def test_a_cloud_task_refuses_a_unit_the_bundle_cannot_use(
+    cloud_task_run: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A task under a configuration no index column can format generates nothing.
+
+    The check each document gets covers only the planes that document holds, so
+    a task over images whose documents hold none of these planes would otherwise
+    write labels the summary pass then refuses to index.  Every unusable entry is
+    named in the one result, as the two passes name each in their log.
+    """
+    dataset = _dataset_with_unusable_units(tmp_path)
+    monkeypatch.setattr(
+        sd_create_bundle_cloud_tasks, 'dataset_name_to_class', lambda _: lambda: dataset
+    )
+    calls = _record_generation(monkeypatch, module=sd_create_bundle_cloud_tasks)
+    retry, result = _process_cloud_task()
+    assert calls == []
+    assert retry is False
+    status = {key: value for key, value in result.items() if key != 'status_exception'}
+    assert status == {'status': 'error', 'status_error': 'unusable_unit'}
+    reported = result['status_exception']
+    assert 'Backplane body_tilt declares a unit the bundle cannot use' in reported
+    assert 'Backplane ring_radius declares a unit the bundle cannot use' in reported
+    assert 'Backplane ring_tilt declares no units' in reported
 
 
 def test_the_labels_parser_builds_a_dataset_that_reads_no_holdings(
