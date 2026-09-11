@@ -394,8 +394,8 @@ def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
         tmp_path: pytest-provided temporary directory.
     """
     rings_result = {
-        'planet': 'SATURN',
-        'target_key': 'SATURN_MAIN_RINGS',
+        'planet': 'PLANET',
+        'target_key': 'PLANET_RING_SYSTEM',
         'arrays': {},
         'masks': {},
         'distance': None,
@@ -436,13 +436,13 @@ def test_write_fits_non_simulated_uses_config_satellites(tmp_path: Path) -> None
     snap = make_snapshot(
         shape_vu=SHAPE_VU,
         simulated=False,
-        closest_planet='SATURN',
+        closest_planet='PLANET',
         canned_inventory=inventory,
     )
     config = FakeBackplanesConfig(
         bodies=[{'name': 'body_latitude', 'method': 'latitude', 'units': 'rad'}],
         rings=[],
-        satellites={'SATURN': ['MIMAS', 'ENCELADUS']},
+        satellites={'PLANET': ['MIMAS', 'ENCELADUS']},
     )
     _write(
         tmp_path,
@@ -452,8 +452,8 @@ def test_write_fits_non_simulated_uses_config_satellites(tmp_path: Path) -> None
         config=config,
         bodies_result={'MIMAS': {'statistics': {}}},
     )
-    assert config.satellites_calls == ['SATURN']
-    assert snap.inventory_calls == [['SATURN', 'MIMAS', 'ENCELADUS']]
+    assert config.satellites_calls == ['PLANET']
+    assert snap.inventory_calls == [['PLANET', 'MIMAS', 'ENCELADUS']]
 
 
 @pytest.mark.xfail(

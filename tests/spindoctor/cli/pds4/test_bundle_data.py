@@ -360,7 +360,7 @@ def _resolution_document(maximum: float) -> dict[str, Any]:
         The document, in the shape the backplane writer leaves on disk.
     """
     statistic = {'min': 60.0, 'max': maximum, 'units': 'km/pixel'}
-    return {'bodies': {'SATURN': {'backplanes': {'resolution': statistic}}}, 'rings': {}}
+    return {'bodies': {'PLANET': {'backplanes': {'resolution': statistic}}}, 'rings': {}}
 
 
 def test_a_statistic_that_is_not_a_finite_number_fails_the_image(

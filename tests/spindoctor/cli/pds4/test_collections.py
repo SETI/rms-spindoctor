@@ -445,7 +445,7 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
         'MIMAS': {
             'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0, 'units': 'km/pixel'}}
         },
-        'SATURN': {
+        'PLANET': {
             'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0, 'units': 'km/pixel'}}
         },
         'PAN': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
@@ -590,7 +590,7 @@ def test_a_supplemental_file_holding_an_infinite_maximum_is_refused_with_nothing
     """
     env = _index_env(tmp_path)
     unholdable = {
-        'SATURN': {
+        'PLANET': {
             'backplanes': {'resolution': {'min': 60.0, 'max': math.inf, 'units': 'km/pixel'}}
         }
     }
