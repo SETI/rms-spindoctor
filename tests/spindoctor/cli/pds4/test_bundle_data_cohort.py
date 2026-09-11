@@ -12,7 +12,9 @@ import re
 from pathlib import Path
 from xml.etree import ElementTree
 
+import numpy as np
 import pytest
+from astropy.io import fits
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 from tests.mini_nav_results.cohort_cassini import (
@@ -24,7 +26,7 @@ from tests.mini_nav_results.cohort_cassini import (
 )
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
-from spindoctor.config import MAIN_LOGGER
+from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
 from .conftest import make_cohort_bundle_env
 
@@ -247,3 +249,291 @@ def test_the_files_a_cohort_data_label_names_are_the_ones_beside_it(
     assert int(_text(root, f'{fits_file}/pds:file_size')) == fits_copy.stat().st_size
     md5 = hashlib.md5(fits_copy.read_bytes(), usedforsecurity=False).hexdigest()
     assert _text(root, f'{fits_file}/pds:md5_checksum') == md5
+
+
+# ---------------------------------------------------------------------------
+# The data objects: each checked against the FITS bytes and astropy, not the builder
+# ---------------------------------------------------------------------------
+
+FITS_BLOCK = 2880
+"""The length of a FITS record; every header and every data unit fills whole ones."""
+
+END_CARD = b'END' + b' ' * 77
+"""The card that ends a FITS header."""
+
+DATA_TYPES = {-32: 'IEEE754MSBSingle', 32: 'SignedMSB4'}
+"""The PDS4 data type of a FITS array, by its BITPIX: big-endian, as FITS stores it."""
+
+NUMPY_TYPES = {'IEEE754MSBSingle': '>f4', 'SignedMSB4': '>i4'}
+"""The numpy type each PDS4 data type names."""
+
+
+def _labelled_fits(
+    cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+) -> tuple[ElementTree.Element, Path]:
+    """Label one cohort image, returning the label's root and the FITS it names.
+
+    Parameters:
+        cohort: The session's cohort.
+        tmp_path: Base temporary directory for this test's bundle.
+        stub: Which cohort image, by its results path stub.
+        image_name: That image's calibrated name.
+
+    Returns:
+        The data label's root element, and the path of the FITS beside it.
+    """
+    label = _label_cohort_image(cohort, tmp_path, stub, image_name)
+    root = ElementTree.parse(label).getroot()
+    file_name = _text(root, 'pds:File_Area_Observational/pds:File/pds:file_name')
+    return root, label.parent / file_name
+
+
+def _data_objects(root: ElementTree.Element, tag: str) -> list[ElementTree.Element]:
+    """Return a label's data objects of one kind, in the order the label states them.
+
+    Parameters:
+        root: The label's root element.
+        tag: The object's element name in the PDS4 namespace, ``Header`` for one.
+
+    Returns:
+        Every such element directly under ``File_Area_Observational``.
+    """
+    return root.findall(f'pds:File_Area_Observational/pds:{tag}', PDS4_NAMESPACES)
+
+
+def _read_array(raw: bytes, array: ElementTree.Element) -> np.ndarray:
+    """Read one array out of a file's bytes, as its ``Array_2D_Image`` describes it.
+
+    Parameters:
+        raw: The whole file.
+        array: The array's element in the label.
+
+    Returns:
+        The ``Line`` by ``Sample`` elements at the array's offset, of its data type.
+    """
+    axes = {
+        _text(axis, 'pds:axis_name'): int(_text(axis, 'pds:elements'))
+        for axis in array.iterfind('pds:Axis_Array', PDS4_NAMESPACES)
+    }
+    data_type = NUMPY_TYPES[_text(array, 'pds:Element_Array/pds:data_type')]
+    count = axes['Line'] * axes['Sample']
+    offset = int(_text(array, 'pds:offset'))
+    return np.frombuffer(raw, dtype=data_type, count=count, offset=offset).reshape(
+        axes['Line'], axes['Sample']
+    )
+
+
+def _end_card_record(header: bytes) -> int:
+    """Return which record of a header region holds its first ``END`` card.
+
+    Parameters:
+        header: The bytes a label says one header takes.
+
+    Returns:
+        The record's index from zero, or -1 when no card of the region is ``END``.
+    """
+    cards = [header[start : start + len(END_CARD)] for start in range(0, len(header), 80)]
+    if END_CARD not in cards:
+        return -1
+    return cards.index(END_CARD) * 80 // FITS_BLOCK
+
+
+@pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
+def test_a_cohort_data_label_describes_each_hdu_where_the_fits_holds_it(
+    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+) -> None:
+    """One header per HDU and one array per image HDU, each where its bytes are.
+
+    At each header's offset the file reads ``SIMPLE`` or ``XTENSION``, and the length
+    stated for it runs to the end of the record holding its ``END`` card.  Read out of
+    the file's bytes at each array's offset, as its stated lines, samples and type, each
+    array is the one astropy reads for its HDU, and its type and unit are the HDU's.
+    """
+    root, fits_copy = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    raw = fits_copy.read_bytes()
+    with fits.open(fits_copy) as hdul:
+        hdu_count = len(hdul)
+        names = [hdu.name.lower() for hdu in hdul[1:]]
+        values = [hdu.data.tolist() for hdu in hdul[1:]]
+        data_types = [DATA_TYPES[hdu.header['BITPIX']] for hdu in hdul[1:]]
+        units = [hdu.header.get('BUNIT') for hdu in hdul[1:]]
+    headers = [
+        raw[offset : offset + length]
+        for offset, length in (
+            (int(_text(header, 'pds:offset')), int(_text(header, 'pds:object_length')))
+            for header in _data_objects(root, 'Header')
+        )
+    ]
+    arrays = _data_objects(root, 'Array_2D_Image')
+    assert [header[:8] for header in headers] == [b'SIMPLE  '] + [b'XTENSION'] * (hdu_count - 1)
+    assert [len(header) % FITS_BLOCK for header in headers] == [0] * hdu_count
+    last_records = [len(header) // FITS_BLOCK - 1 for header in headers]
+    assert [_end_card_record(header) for header in headers] == last_records
+    assert [_text(array, 'pds:local_identifier') for array in arrays] == names
+    assert [_read_array(raw, array).tolist() for array in arrays] == values
+    assert [_text(array, 'pds:Element_Array/pds:data_type') for array in arrays] == data_types
+    stated_units = [
+        array.findtext('pds:Element_Array/pds:unit', namespaces=PDS4_NAMESPACES) for array in arrays
+    ]
+    assert stated_units == units
+
+
+@pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
+def test_a_cohort_data_label_declares_the_masked_value_its_float_arrays_hold(
+    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+) -> None:
+    """Every float array declares the configured masked value, and holds it where masked.
+
+    The body identity map declares none.  Which pixels a plane measured nothing at is
+    read from the identity map rather than from the label: in a cohort frame one body
+    claims a disc and its rings every other pixel, so a body plane is masked where no
+    body claimed the pixel and a ring plane where one did.  Every masked pixel holds the
+    declared value, and no measured one does.
+    """
+    root, fits_copy = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    raw = fits_copy.read_bytes()
+    masked_value = float(DEFAULT_CONFIG.backplanes.masked_value)
+    arrays = {
+        _text(array, 'pds:local_identifier'): array
+        for array in _data_objects(root, 'Array_2D_Image')
+    }
+    body_id_map = arrays.pop('body_id_map')
+    assert body_id_map.find('pds:Special_Constants', PDS4_NAMESPACES) is None
+    floats = {
+        name: array
+        for name, array in arrays.items()
+        if _text(array, 'pds:Element_Array/pds:data_type') == 'IEEE754MSBSingle'
+    }
+    assert sorted(floats) == sorted(arrays)
+    constants = {
+        name: float(_text(array, 'pds:Special_Constants/pds:missing_constant'))
+        for name, array in floats.items()
+    }
+    assert constants == dict.fromkeys(floats, masked_value)
+    claimed = _read_array(raw, body_id_map) != 0
+    planes = {name: _read_array(raw, array) for name, array in floats.items()}
+    masked = {name: claimed if name.startswith('ring_') else ~claimed for name in floats}
+    held = {name: sorted(set(planes[name][masked[name]].tolist())) for name in floats}
+    assert held == {name: [masked_value] for name in floats}
+    measured_as_masked = [
+        name for name in floats if bool((planes[name][~masked[name]] == masked_value).any())
+    ]
+    assert measured_as_masked == []
+
+
+@pytest.mark.parametrize(
+    ('stub', 'image_name', 'has_rings'),
+    [(LIMB_STUB, LIMB_IMAGE_NAME, False), (RINGS_STUB, RINGS_IMAGE_NAME, True)],
+    ids=NAVIGATED_IDS,
+)
+def test_only_the_ring_image_s_data_label_describes_ring_arrays(
+    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str, has_rings: bool
+) -> None:
+    """The ring image's label has an array per configured ring plane, the limb image's none.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+        tmp_path: Base temporary directory for this test's bundle.
+        stub: Which cohort image, by its results path stub.
+        image_name: That image's calibrated name.
+        has_rings: Whether the cohort gives the image ring backplanes.
+    """
+    root, _ = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    identifiers = [
+        _text(array, 'pds:local_identifier') for array in _data_objects(root, 'Array_2D_Image')
+    ]
+    # The writer never writes a ring plane named distance as an array of its own.
+    configured = [
+        entry['name'] for entry in DEFAULT_CONFIG.backplanes.rings if entry['name'] != 'distance'
+    ]
+    expected = sorted(configured) if has_rings else []
+    assert sorted(name for name in identifiers if name.startswith('ring_')) == expected
+
+
+@pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
+def test_each_array_of_a_cohort_data_label_has_display_settings_that_resolve(
+    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+) -> None:
+    """One display settings block per array, each naming an identifier the label defines.
+
+    Every ``local_identifier`` in the label is its only one of that name, every
+    ``local_identifier_reference`` names one of them, and the references are the
+    arrays', one each, in the order the arrays are described.
+    """
+    root, _ = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    identifiers = [
+        element.text for element in root.iterfind('.//pds:local_identifier', PDS4_NAMESPACES)
+    ]
+    references = [
+        element.text
+        for element in root.iterfind('.//pds:local_identifier_reference', PDS4_NAMESPACES)
+    ]
+    arrays = [
+        _text(array, 'pds:local_identifier') for array in _data_objects(root, 'Array_2D_Image')
+    ]
+    assert len(identifiers) == len(set(identifiers))
+    assert [reference for reference in references if reference not in identifiers] == []
+    assert references == arrays
+
+
+def _children(element: ElementTree.Element) -> list[str]:
+    """Return the names of an element's children, without their namespace.
+
+    Parameters:
+        element: The element.
+
+    Returns:
+        Each child's local name, in document order.
+    """
+    return [child.tag.rsplit('}', 1)[-1] for child in element]
+
+
+@pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
+def test_each_data_object_of_a_cohort_data_label_is_in_the_schema_s_shape(
+    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+) -> None:
+    """Each header and array holds the children PDS4_PDS_1O00 allows, in its order.
+
+    The order and the fixed values are the schema's: a ``Header`` is its name, offset,
+    length and parsing standard; an ``Array_2D_Image`` is its identifier, offset, axes,
+    index order, a description where it has one, its element, two axes and its special
+    constants where it has them; the parsing standard is one the Schematron names for
+    FITS and the index order the one it allows.  The ``File`` comes first.
+    """
+    root, _ = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    file_area = root.find('pds:File_Area_Observational', PDS4_NAMESPACES)
+    assert file_area is not None
+    assert _children(file_area)[0] == 'File'
+    headers = _data_objects(root, 'Header')
+    assert [_children(header) for header in headers] == [
+        ['name', 'offset', 'object_length', 'parsing_standard_id']
+    ] * len(headers)
+    assert {_text(header, 'pds:parsing_standard_id') for header in headers} == {'FITS 3.0'}
+    arrays = _data_objects(root, 'Array_2D_Image')
+    expected = []
+    for array in arrays:
+        is_body_id_map = _text(array, 'pds:local_identifier') == 'body_id_map'
+        expected.append(
+            ['local_identifier', 'offset', 'axes', 'axis_index_order']
+            + (['description'] if is_body_id_map else [])
+            + ['Element_Array', 'Axis_Array', 'Axis_Array']
+            + ([] if is_body_id_map else ['Special_Constants'])
+        )
+    assert [_children(array) for array in arrays] == expected
+    assert {_text(array, 'pds:axis_index_order') for array in arrays} == {'Last Index Fastest'}
+    assert {_text(array, 'pds:axes') for array in arrays} == {'2'}
+    axes = [
+        [(_text(axis, 'pds:axis_name'), _text(axis, 'pds:sequence_number')) for axis in each]
+        for each in (array.findall('pds:Axis_Array', PDS4_NAMESPACES) for array in arrays)
+    ]
+    assert axes == [[('Line', '1'), ('Sample', '2')]] * len(arrays)
+    units = {
+        element.get('unit')
+        for element in root.iterfind('pds:File_Area_Observational/*/pds:offset', PDS4_NAMESPACES)
+    } | {
+        element.get('unit')
+        for element in root.iterfind(
+            'pds:File_Area_Observational/pds:Header/pds:object_length', PDS4_NAMESPACES
+        )
+    }
+    assert units == {'byte'}

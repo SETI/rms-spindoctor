@@ -474,7 +474,7 @@ def write_nav_inputs(
     return nav_metadata, backplane_metadata
 
 
-def write_backplane_fits(path: Path) -> None:
+def write_backplane_fits(path: Path, *, shape: tuple[int, int] = (2, 2)) -> None:
     """Write a small backplane FITS: an empty primary HDU and one float plane.
 
     The labels pass copies an image's FITS into the bundle beside its data label, so
@@ -484,9 +484,10 @@ def write_backplane_fits(path: Path) -> None:
 
     Parameters:
         path: Where the FITS goes; its directory is created if it is not there.
+        shape: The plane's lines and samples.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    plane = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.float32), name='BODY_LATITUDE')
+    plane = fits.ImageHDU(data=np.zeros(shape, dtype=np.float32), name='BODY_LATITUDE')
     plane.header['BUNIT'] = 'rad'
     fits.HDUList([fits.PrimaryHDU(), plane]).writeto(path)
 

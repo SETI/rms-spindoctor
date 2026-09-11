@@ -677,13 +677,17 @@ def test_voyager_pds4_hooks_not_implemented(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None:
-    """Phase 1 renders the shipped draft Cassini templates without substitution errors.
+def _label_with_the_shipped_templates(
+    tmp_path: Path, *, fits_shape: tuple[int, int] = (2, 2)
+) -> Path:
+    """Run the labels pass over one Cassini image with the shipped templates.
 
-    Structural only: asserts the output files exist, the LID substitution took,
-    and no pdstemplate error markers ([[[...]]]) are embedded.  PDS4-standard
-    content correctness of the draft templates is out of scope until the
-    templates are finalized.
+    Parameters:
+        tmp_path: Base temporary directory for every root the pass reads and writes.
+        fits_shape: The lines and samples of the backplane FITS's one plane.
+
+    Returns:
+        The bundle's own directory.
     """
     dataset = _cassini_dataset(tmp_path)
     stub = 'COISS_2001/N1454725799_1'
@@ -699,7 +703,7 @@ def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None
     (backplane_root / f'{stub}_backplane_metadata.json').write_text(
         json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
     )
-    write_backplane_fits(backplane_root / f'{stub}_backplanes.fits')
+    write_backplane_fits(backplane_root / f'{stub}_backplanes.fits', shape=fits_shape)
     (nav_root / f'{stub}_summary.png').write_bytes(b'\x89PNG fake bytes')
 
     generate_bundle_data_files(
@@ -710,8 +714,18 @@ def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None
         bundle_results_root=FCPath(bundle_results_root),
         logger=MAIN_LOGGER,
     )
+    return bundle_results_root / 'cassini_iss_saturn_backplanes_rsfrench2027'
 
-    bundle_dir = bundle_results_root / 'cassini_iss_saturn_backplanes_rsfrench2027'
+
+def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None:
+    """Phase 1 renders the shipped draft Cassini templates without substitution errors.
+
+    Structural only: asserts the output files exist, the LID substitution took,
+    and no pdstemplate error markers ([[[...]]]) are embedded.  PDS4-standard
+    content correctness of the draft templates is out of scope until the
+    templates are finalized.
+    """
+    bundle_dir = _label_with_the_shipped_templates(tmp_path)
     label = bundle_dir / 'data' / '1454xxxxxx' / '145472xxxx' / '1454725799n_backplanes.lblx'
     assert label.is_file()
     text = label.read_text(encoding='utf-8')
@@ -724,6 +738,21 @@ def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None
     assert '[[[' not in browse_text
     suppl = bundle_dir / 'data' / '1454xxxxxx' / '145472xxxx' / '1454725799n_supplemental.txt'
     assert suppl.is_file()
+
+
+def test_the_shipped_data_label_states_a_plane_s_lines_and_samples_as_its_fits_does(
+    tmp_path: Path,
+) -> None:
+    """Over a plane 2 lines by 3 samples, the shipped label's axes say 2 and 3, in order.
+
+    Every frame of the cohort is square, so an exchange of the two axes in the
+    template would pass there unnoticed; this plane is not.
+    """
+    bundle_dir = _label_with_the_shipped_templates(tmp_path, fits_shape=(2, 3))
+    label = bundle_dir / 'data' / '1454xxxxxx' / '145472xxxx' / '1454725799n_backplanes.lblx'
+    text = label.read_text(encoding='utf-8')
+    axes = re.findall(r'<axis_name>(\w+)</axis_name>\s*<elements>(\d+)</elements>', text)
+    assert axes == [('Line', '2'), ('Sample', '3')]
 
 
 def test_cassini_data_label_lid_matches_dataset_builder(tmp_path: Path) -> None:
