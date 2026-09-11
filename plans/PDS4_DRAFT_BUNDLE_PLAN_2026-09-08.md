@@ -67,11 +67,12 @@ about images that did not navigate), #601 (the `Special_Constants`
 declaration, which is what remains of the masked-value work), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
 6 own), #611 (the backplane viewer carries the same unit equality the
-statistics carried, on the same plane). #603, the two passes disagreeing
-about a missing template, closes in Phase 1. #607, the index tables written
-to one precision whatever the column's unit, closes in Phase 2 with a format
-per unit (section 3.8); the missing-value sentinel it raised beside that is
-Phase 7's.
+statistics carried, on the same plane), #614 (a dataset without PDS4 support
+ends both passes in a traceback rather than a refusal). #603, the two passes
+disagreeing about a missing template, closes in Phase 1. #607, the index
+tables written to one precision whatever the column's unit, closes in Phase
+2 with a format per unit (section 3.8); the missing-value sentinel it raised
+beside that is Phase 7's.
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -118,12 +119,13 @@ review comment.
   implement `pds4_bundle_template_dir` and `pds4_bundle_name`, over template
   directories that do not ship, and raise `NotImplementedError` from every
   other `pds4_*` hook, `pds4_required_templates` among them, so both passes
-  stop on them before looking for a template; `DataSetPDS4` raises
-  throughout. Their template trees and hooks are the second half of #53 and
-  are mechanical once a validated reference tree exists. This plan produces
-  that reference. The Cassini cruise dataset has every hook but names
-  `cassini_iss_cruise_1.0`, which does not ship either, so both passes refuse
-  it at the missing-template check: as shipped, only `coiss_saturn` bundles.
+  stop on them, in a traceback, before looking for a template (#614 is to
+  make that a refusal); `DataSetPDS4` raises throughout. Their template
+  trees and hooks are the second half of #53 and are mechanical once a
+  validated reference tree exists. This plan produces that reference. The
+  Cassini cruise dataset has every hook but names `cassini_iss_cruise_1.0`,
+  which does not ship either, so both passes refuse it at the
+  missing-template check: as shipped, only `coiss_saturn` bundles.
 - **PDS4 input** (#34). Unrelated to output bundles despite the shared
   acronym; no such archive exists to read.
 - **The backplane set and HDU content decisions** (#55, #57, #54, #77).
