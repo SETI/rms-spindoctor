@@ -73,8 +73,8 @@ disagreeing about a missing template, was closed by hand on 2026-09-11, after
 #605, Phase 1's PR, merged. #607, the index tables written to one precision
 whatever the column's unit, closes in Phase 2 with a format per unit (section
 3.8); the missing-value sentinel it raised beside that is Phase 7's. #519,
-which predates this plan and found every data label's start and stop empty,
-closes with Phase 3 (section 3.4).
+which found every data label's start and stop empty, closes with Phase 3
+(section 3.4).
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -189,20 +189,19 @@ plan).
 | 2 | `bundle.lblx` is never written. The template exists and nothing references it: `grep -rn "bundle.lblx" src/ --include=*.py` is empty. | — | #265 area |
 | 3 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. Two more, `miscellaneous` and `spice_kernels`, are neither declared nor generated; section 3.1 adds both, moving the global index tables into the first and the metakernel into the second. | — | #72, #74 |
 | 4 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
-| 5 | `<start_date_time>` and `<stop_date_time>` are empty in every data label and in `collection_data.lblx`. The code reads `observation.start_time`; the document holds `navigation_result.times.{start_et,stop_et,midtime_et}`. `collections.py:80-81` separately hardcodes the collection range to `''`. | `dataset_pds3_cassini_iss.py:589-593`, `collections.py:80-81` | #519 |
-| 6 | `File_Area_Observational` has a `<File>` and no data object. The FITS carries a `PrimaryHDU` plus one `ImageHDU` per surviving backplane (9 HDUs on the verified frame); `writer.py:58-60` drops any plane with no valid pixels, so the set is per-image dynamic. | `data.lblx:174-183` | #69, #30 |
-| 7 | `data.lblx:104` references `<local_identifier_reference>image</local_identifier_reference>`; no object in the label defines that identifier. Falls out of 6. |  `data.lblx:104` | **new** |
-| 8 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
-| 9 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
-| 10 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
-| 11 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
-| 12 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
-| 13 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
-| 14 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 15 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
-| 16 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
-| 17 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 18 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 5 | `File_Area_Observational` has a `<File>` and no data object. The FITS carries a `PrimaryHDU` plus one `ImageHDU` per surviving backplane (9 HDUs on the verified frame); `writer.py:58-60` drops any plane with no valid pixels, so the set is per-image dynamic. | `data.lblx:174-183` | #69, #30 |
+| 6 | `data.lblx:104` references `<local_identifier_reference>image</local_identifier_reference>`; no object in the label defines that identifier. Falls out of 6. |  `data.lblx:104` | **new** |
+| 7 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
+| 8 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
+| 9 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
+| 10 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
+| 11 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
+| 12 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
+| 13 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
+| 14 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
+| 15 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
+| 16 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 17 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
 
 None of these gets its own tracking issue. Every row is fixed by a named
 phase of this plan, which carries the evidence and the disposition together;
@@ -386,19 +385,15 @@ rather than from the config.
 `navigation_result.times` holds `start_et`, `stop_et` and `midtime_et` as
 TDB seconds past J2000. `spindoctor/support/time.py` is the one rule that
 turns one into UTC: `et_to_utc` writes the plain ISO spelling the observation
-metadata and the statistics report use, and `et_to_pds4_utc` the spelling a
-PDS4 label takes, `ASCII_Date_Time_YMD_UTC` with its trailing `Z`, to a given
-number of decimals, rounded to the nearer or down or up. The module this plan
-first named, `spindoctor/cli/stats/classify.py`, no longer exists; the
-statistics report's two derived values, `date_from_image_et` and
-`datetime_from_image_et` in `spindoctor/nav_records/derived.py`, carried the
-second and third copies of `julian.iso_from_tai(julian.tai_from_tdb(...))`,
-and now go through `et_to_utc` with the same digits, which leaves the report
-byte-identical: regenerating the statistics fixture tree and its golden output
-changes nothing. `julian` agrees with SPICE's `et2utc` to the millisecond over
-the Cassini mission, both leap seconds included, and an integration test holds
-the cohort's epochs to the leapseconds kernel. #519 asked for exactly this and
-said so. The C-kernel report converts through `cspyce.et2utc` against the
+metadata and the statistics report use (the report's `date_from_image_et` and
+`datetime_from_image_et` in `spindoctor/nav_records/derived.py`), and
+`et_to_pds4_utc` the spelling a PDS4 label takes, `ASCII_Date_Time_YMD_UTC`
+with its trailing `Z`, to a given number of decimals, rounded to the nearer or
+down or up. `julian` agrees with SPICE's `et2utc` to the millisecond over the
+Cassini mission, both leap seconds included, and an integration test,
+`tests/integration/test_cohort_cassini_epochs_against_kernel.py`, holds the
+Cassini cohort's epochs to the leapseconds kernel. #519 asked for exactly this
+and said so. The C-kernel report converts through `cspyce.et2utc` against the
 kernel its generator furnishes, and is the one conversion outside the rule.
 
 A data label states its exposure's start and stop to the millisecond, each
@@ -513,7 +508,7 @@ The draft is acceptable either way; a bundle delivered to the Node is not.
 Acceptance criterion 8 records that distinction.
 
 Whichever way it goes, the LID gets its `:document:` segment back in all
-three places that drop it (defect 13).
+three places that drop it (defect 12).
 
 ### 3.7 Targets and the mission area
 
@@ -1191,13 +1186,14 @@ statistics report's `date_from_image_et` and `datetime_from_image_et` and by
 `IMAGE_MID_TIME` is the midpoint of the two as written, a half rounding up
 (section 3.4). The data
 collection range is taken in the global index's read of the supplemental files,
-which now runs first, and written at whole seconds, rounded outward; with no
+which runs first, and written at whole seconds, rounded outward; with no
 range the data collection label is counted as not written. The bundle label's
 range is Phase 6's, from the same `GlobalIndexOutcome`.
 
 Tests: known epochs to the strings `et2utc` writes for them, leap seconds
-included, and an integration test converting every cohort epoch through the
-kernel; the shipped data label over the cohort states each navigated image's
+included, and an integration test converting every Cassini cohort epoch
+through the kernel (`test_cohort_cassini_epochs_against_kernel.py`); the
+shipped data label over the cohort states each navigated image's
 start and stop; W1630770594's start, computed a few nanoseconds short of its
 millisecond, is written as its PDS3 label states it, and W1629783475's
 midtime, on a half millisecond, as its `IMAGE_MID_TIME`; the range contains a
@@ -1205,6 +1201,8 @@ product's written times where they meet its whole seconds; the collection
 range over three supplemental files is the min and the max; the shipped
 `collection_data.lblx` over the cohort states the range of its two navigated
 images; a summary over no supplemental file writes no data collection label.
+The tests only the Cassini ISS Saturn bundle can state are in modules named
+for it.
 
 Closes #519, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
