@@ -360,8 +360,16 @@ metadata is there and whose FITS is not fails before anything is written for
 it -- supplemental file, label or copy -- since the summary pass refuses a
 supplemental file with no data label beside it.
 
-The data object block is generated from the copied file, by
-`spindoctor/cli/pds4/data_objects.py`. `astropy.io.fits` gives everything the
+The data object block is generated from the FITS by
+`spindoctor/cli/pds4/data_objects.py`, which reads the source in
+`backplane_results_root` before anything is created in the bundle, so that
+neither a refusal nor an error leaves a file or a directory behind -- a
+directory left there would have the next labels run refuse the bundle root as
+one that holds files. The label is still the copy's: `shutil.copy2` writes the
+copy byte for byte, and the pass then holds its size to the source's, failing
+the image and removing the copy and every directory made for it when the two
+differ, so a description of the source is a description of the copy.
+`astropy.io.fits` gives everything the
 label needs without a second convention: `hdu.fileinfo()` returns `hdrLoc` and
 `datLoc`, and the header carries `NAXIS1`, `NAXIS2`, `BITPIX` and `BUNIT`. For
 each HDU the label gets a `Header` (offset `hdrLoc`, size `datLoc - hdrLoc`,
@@ -380,9 +388,13 @@ and 3.0 is stated because every construct the writer uses is in it.
 Every float array declares the configured masked value as the
 `missing_constant` of a `Special_Constants` block, read from
 `backplanes.masked_value` rather than written as a literal (section 3.13).
-`BODY_ID_MAP` declares none, because its `0` is the mask rather than a missing
-measurement; its `description` says instead that `0` marks a pixel no body
-claimed and every other value is the NAIF ID of the body that did.
+The labels pass and the cloud-task worker hold that value, once and before any
+image, to a finite number a 32-bit float holds exactly (`unusable_masked_value`
+in the same module), and refuse the run or the task otherwise, since every
+float array of every label would declare it; the per-image path takes it as
+checked. `BODY_ID_MAP` declares none, because its `0` is the mask rather than a
+missing measurement; its `description` says instead that `0` marks a pixel no
+body claimed and every other value is the NAIF ID of the body that did.
 
 The builder refuses, naming the HDU, what the backplane writer does not write,
 since describing one wrongly is worse than refusing it: a `BITPIX` other than
@@ -390,8 +402,8 @@ since describing one wrongly is worse than refusing it: a `BITPIX` other than
 primary HDU holding data, an extension that is not an image, a lower-case
 name that is not an XML `ID` or repeats another's, and a file astropy reads
 only with an error or a warning, which is what a truncated one draws. A
-refused FITS fails its image; the copy is removed and nothing else is
-written.
+refused FITS fails its image with nothing created for it, neither a file nor
+a directory, because the FITS is described before anything is written.
 
 `Array_2D_Image` rather than the generic `Array_2D`, and `Line`/`Sample`
 axis names, are what the F ring bundle's `data_reproj_img.lblx` uses for an
@@ -1299,7 +1311,8 @@ Done on `rf_pds4_phase4`. The labels pass copies the FITS into `data/` beside
 its label and points `BACKPLANE_PATH` at the copy; backplane metadata with no
 FITS beside it fails the image before anything is written.
 `spindoctor/cli/pds4/data_objects.py` builds a descriptor per HDU from the
-copy, and `data.lblx` renders them in two `$FOR` blocks: a `Header` per HDU and
+source FITS before anything is written, the copy being the same bytes, and
+`data.lblx` renders them in two `$FOR` blocks: a `Header` per HDU and
 an `Array_2D_Image` per image HDU in `File_Area_Observational`, and one
 `disp:Display_Settings` per array in the `Discipline_Area` (section 3.3, which
 records why one block per array replaced the single `image` reference).

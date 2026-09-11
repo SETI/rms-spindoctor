@@ -246,7 +246,11 @@ class NoPds4DataSet:
 
     def __init__(self) -> None:
         """Build the dataset with a configuration declaring no backplanes."""
-        self.config = SimpleNamespace(backplanes=SimpleNamespace(bodies=[], rings=[]))
+        self.config = SimpleNamespace(
+            backplanes=SimpleNamespace(
+                bodies=[], rings=[], masked_value=DEFAULT_CONFIG.backplanes.masked_value
+            )
+        )
 
     def as_dataset(self) -> DataSet:
         """Return self cast to ``DataSet`` for passing into typed call sites."""

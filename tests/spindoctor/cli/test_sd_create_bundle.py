@@ -32,6 +32,7 @@ from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
 from spindoctor.cli.pds4.collections import GlobalIndexOutcome
 from spindoctor.cli.pds4.epochs import EpochRange, NoEpochRange
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 from spindoctor.dataset.dataset_sim import DataSetSim
 
@@ -133,6 +134,7 @@ class _StubDataset:
             backplanes=SimpleNamespace(
                 bodies=bodies if bodies is not None else [],
                 rings=rings if rings is not None else [],
+                masked_value=DEFAULT_CONFIG.backplanes.masked_value,
             )
         )
 
@@ -433,6 +435,31 @@ def test_main_labels_refuses_a_unit_the_bundle_cannot_use(
     out = capsys.readouterr().out
     assert 'Backplane body_tilt declares a unit the bundle cannot use' in out
     assert 'Backplane ring_radius declares a unit the bundle cannot use' in out
+
+
+def test_main_labels_refuses_a_masked_value_no_float_plane_can_hold(
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A configured masked value no float plane can hold ends the labels run at once.
+
+    Every float array of every data label declares it as its missing constant, so it is
+    unusable for every image; the run says so once, before it has read an image, and
+    leaves the bundle root as it found it.
+    """
+    dataset = _stub_dataset(tmp_path)
+    dataset.config.backplanes.masked_value = -999.1
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', dataset)
+    calls = _record_generation(monkeypatch)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_labels()
+    assert excinfo.value.code == 1
+    assert calls == []
+    assert not (tmp_path / BUNDLE_NAME).exists()
+    expected = 'the configured masked value -999.1 is not one a 32-bit float holds exactly'
+    assert expected in capsys.readouterr().out
 
 
 def test_main_labels_exits_non_zero_when_a_product_fails(
@@ -1012,6 +1039,31 @@ def test_a_cloud_task_refuses_a_unit_the_bundle_cannot_use(
     assert 'Backplane body_tilt declares a unit the bundle cannot use' in reported
     assert 'Backplane ring_radius declares a unit the bundle cannot use' in reported
     assert 'Backplane ring_tilt declares no units' in reported
+
+
+def test_a_cloud_task_refuses_a_masked_value_no_float_plane_can_hold(
+    cloud_task_run: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A task under a masked value no float plane can hold generates nothing.
+
+    Every float array of every data label declares the value as its missing constant,
+    so a task is refused as the labels pass is, and asks for no retry, since the
+    configuration will not change on a second attempt.
+    """
+    dataset = _stub_dataset(tmp_path)
+    dataset.config.backplanes.masked_value = float('nan')
+    monkeypatch.setattr(
+        sd_create_bundle_cloud_tasks, 'dataset_name_to_class', lambda _: lambda: dataset
+    )
+    calls = _record_generation(monkeypatch, module=sd_create_bundle_cloud_tasks)
+    retry, result = _process_cloud_task()
+    assert calls == []
+    assert retry is False
+    assert result == {
+        'status': 'error',
+        'status_error': 'unusable_masked_value',
+        'status_exception': 'the configured masked value nan is not a finite number',
+    }
 
 
 def test_the_labels_parser_builds_a_dataset_that_reads_no_holdings(

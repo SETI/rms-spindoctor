@@ -26,7 +26,8 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    writes the matching ``<image>_backplanes.lblx`` file (plus a copy of the
    browse PNG into the bundle's ``browse/`` tree). The backplane FITS file
    itself is copied from the backplane root into the bundle's ``data/`` tree,
-   beside its label, and the label's data objects are read from the copy (see
+   beside its label; the label's data objects are read from the source before
+   anything is created in the bundle, and the copy is the same bytes (see
    `The FITS and its data objects`_).
 
 2. **Collections + bundle assembly.**  After every per-image data label is in
@@ -88,6 +89,14 @@ each index column in the format that unit calls for, so a unit neither can use
 at all -- is refused once, with every such entry named and the reason, rather
 than once per image or after the collection files are on disk.
 
+The labels pass also checks, before it reads anything, that the configured masked
+value is one a float plane can hold, through
+:func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value`.  Every float array
+of every data label declares it as its missing constant, so a value that is not a
+finite number a 32-bit float holds exactly is refused once, naming the value,
+rather than stated in every label as a constant no masked pixel holds.  The
+summary pass reads no masked value and does not check it.
+
 Before it processes anything, ``sd_create_bundle labels`` also requires
 ``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent, and exits
 1 naming the directory when it is not.  A bundle is the product of one run: with
@@ -129,7 +138,8 @@ image against the run, and carries on to the next one.
 
 A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
-dry run over a missing template, an unusable unit or a populated bundle root
+dry run over a missing template, an unusable unit, an unusable masked value or a
+populated bundle root
 exits 1 naming what it found, like any other run.  Past them it writes nothing,
 so it counts nothing against the run, including a batch it reports it could not
 have processed.
@@ -164,13 +174,16 @@ run's products stay where it left them.
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
 for no retry: a template that could not be rendered will not render on a second
-attempt.  Of the three up-front checks it makes the unit check alone, and makes
-it per task: once the dataset is constructed, and before any document is read,
-a task under a configuration in which
+attempt.  Of the up-front checks it makes the unit check and the masked-value
+check, and makes them per task: once the dataset is constructed, and before any
+document is read, a task under a configuration in which
 :func:`~spindoctor.cli.pds4.collections.unusable_units` finds a backplane comes
 back as ``status_error: unusable_unit``, every such backplane and its reason in
-``status_exception``, having generated nothing, and again asks for no retry,
-since the configuration will not change on a second attempt.  The check each
+``status_exception``, and one whose masked value
+:func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value` refuses comes back
+as ``status_error: unusable_masked_value``, the reason in ``status_exception``.
+Either has generated nothing, and again asks for no retry, since the
+configuration will not change on a second attempt.  The check each
 document gets covers only the planes that document holds, so a task that did
 not make this one would write labels the summary pass then refuses to index.
 It makes neither the template check nor the empty-root check, because it holds
@@ -395,8 +408,9 @@ metadata is there and whose FITS is not is failed before anything is written for
 it: the backplane stage writes the FITS before its metadata document, and the
 summary pass refuses a supplemental file with no data label beside it.
 
-:func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` then reads the
-copy with ``astropy.io.fits``, no scaling applied, into a
+:func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` reads the source
+FITS, before anything is created in the bundle, with ``astropy.io.fits`` and no
+scaling applied, into a
 :class:`~spindoctor.cli.pds4.data_objects.BackplaneFitsObjects`: one
 :class:`~spindoctor.cli.pds4.data_objects.FitsHdu` per HDU, in file order, whose
 header offset and length come from astropy's ``fileinfo()`` (``hdrLoc``, and
@@ -409,9 +423,12 @@ big-endian), its unit is its ``BUNIT`` when it has one, its ``Line`` and ``Sampl
 extents are ``NAXIS2`` and ``NAXIS1``, and its local identifier is its HDU name in
 lower case.  A float array's missing constant is the configuration's
 ``backplanes.masked_value``, spelled as the shortest decimal that reads back as the
-32-bit float the plane holds; the function is handed the value rather than the
-configuration, and refuses with :exc:`ValueError` one a 32-bit float does not hold
-exactly.  The body identity map declares no missing constant and carries
+32-bit float the plane holds.  The function is handed the value rather than the
+configuration, and takes it to be one
+:func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value` accepts -- a finite
+number a 32-bit float holds exactly -- which the labels pass and the cloud-task
+worker establish once, before any image, refusing the run or the task otherwise.
+The body identity map declares no missing constant and carries
 :data:`~spindoctor.cli.pds4.data_objects.BODY_ID_MAP_DESCRIPTION` instead: its
 ``0`` is a pixel no body claimed, not a missing measurement.  The map is found by
 :data:`~spindoctor.cli.backplanes.writer.BODY_ID_MAP_HDU_NAME`, the name the
@@ -436,8 +453,14 @@ either of which would leave data the label does not describe; a lower-case HDU n
 that is not an XML name or repeats another's, since a ``local_identifier`` is an
 XML ``ID`` and unique in the label; and a file astropy reads only with an error or a
 warning, which is what a truncated file draws.  On a refusal the labels pass fails
-the image, removes the copy and writes nothing else, logging the refusal; on a
-local bundle root the copy's emptied directory stays.
+the image having created nothing, since the FITS is described before the copy is
+made, and logs the refusal; an error astropy raises while reading it, such as a
+card it cannot parse, is raised having created nothing too.  The copy is the same
+bytes as the source -- ``shutil.copy2`` writes it, and its size is then held to
+the source's -- so the description of the source is the copy's.  A copy whose
+size differs fails the image, and a copy that fails partway raises its error,
+each after removing the copy and every directory made for it, and only those: a
+directory another image has written into since is left.
 
 Epochs
 ======
@@ -667,9 +690,13 @@ documented above.
 - :func:`~spindoctor.cli.pds4.epochs.unrecorded_epoch` — the one check a
   navigation document's exposure epochs are held to before a label states them.
 - :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` — the headers
-  and arrays of a backplane FITS, read from the copy in the bundle for its data
-  label, and :exc:`~spindoctor.cli.pds4.data_objects.UndescribableFitsError`, what
-  it raises for a FITS the backplane writer does not write.
+  and arrays of a backplane FITS, read from the source before anything is written,
+  for the data label of its copy, and
+  :exc:`~spindoctor.cli.pds4.data_objects.UndescribableFitsError`, what it raises
+  for a FITS the backplane writer does not write.
+- :func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value` — the check the
+  labels pass and the cloud-task worker hold the configured masked value to, once,
+  before any image.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
   :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome` — the range of the
   products' epochs, taken in the global index's read of the supplemental files

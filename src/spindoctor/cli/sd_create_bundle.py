@@ -26,6 +26,7 @@ from spindoctor.cli.pds4.collections import (
     generate_global_index_files,
     unusable_units,
 )
+from spindoctor.cli.pds4.data_objects import unusable_masked_value
 from spindoctor.config import (
     DEFAULT_CONFIG,
     MAIN_LOGGER,
@@ -264,6 +265,28 @@ def _exit_on_unusable_units(config: Config) -> None:
     sys.exit(1)
 
 
+def _exit_on_unusable_masked_value(config: Config) -> None:
+    """Stop the run when the configured masked value cannot be a missing constant.
+
+    Every float array of every data label declares ``backplanes.masked_value`` as its
+    missing constant, so a value no float plane can hold is unusable for every image.
+    The labels pass says so once, before it has read anything, rather than stating a
+    constant no masked pixel holds in every label it writes.
+
+    Parameters:
+        config: The configuration the pass runs under.
+
+    Raises:
+        SystemExit: If :func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value`
+            finds the value unusable, after logging why.
+    """
+    problem = unusable_masked_value(config)
+    if problem is None:
+        return
+    MAIN_LOGGER.error('The data labels cannot declare it: %s; nothing was written', problem)
+    sys.exit(1)
+
+
 def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
     """Report whether the bundle's own directory already holds something.
 
@@ -283,12 +306,14 @@ def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
 def main_labels() -> None:
     """Main function for labels subcommand.
 
-    Three preconditions are checked before any image is processed, and each
+    Four preconditions are checked before any image is processed, and each
     ends the run with exit status 1 having written nothing.  Every template the
     dataset declares for this pass must be in its template directory, since one
     that is not would otherwise fail identically for every image.  Every
     backplane the configuration declares must be in a unit the bundle can use,
-    for the same reason.  And the bundle root must be empty or absent: a bundle
+    for the same reason, and the configured masked value must be one a float
+    plane can hold, since every float array of every data label declares it.
+    And the bundle root must be empty or absent: a bundle
     is written into an empty directory rather than assembled out of two runs.
     A dry run is refused the same way, because what it reports on is a run
     that would be.
@@ -319,6 +344,7 @@ def main_labels() -> None:
 
     _exit_on_missing_templates(DATASET, 'labels')
     _exit_on_unusable_units(DATASET.config)
+    _exit_on_unusable_masked_value(DATASET.config)
 
     bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
     if _bundle_root_holds_anything(bundle_root):

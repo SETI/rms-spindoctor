@@ -1,3 +1,4 @@
+import errno
 import json
 import shutil
 from enum import Enum
@@ -35,7 +36,8 @@ class BundleDataOutcome(Enum):
             navigation document that does not record the exposure's start,
             stop and midtime as finite numbers, the stop no earlier than the
             start, backplane metadata with no backplane FITS beside it, or a
-            backplane FITS holding something its data label cannot describe.
+            backplane FITS holding something its data label cannot describe; and,
+            the copy removed, a copy of the FITS whose size is not the source's.
     """
 
     WRITTEN = 'written'
@@ -100,11 +102,17 @@ def generate_bundle_data_files(
     document with no FITS beside it is a broken input rather than an image without
     backplanes.
 
-    The data label describes every HDU of the copy, through
-    :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`.  A FITS
-    holding something that function refuses to describe fails the image as well: the
-    copy is removed and nothing else is written, the file and the HDU named in the
-    log.
+    The data label describes every HDU of the FITS, through
+    :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`, which reads the
+    source before anything is created in the bundle; the copy is the same bytes,
+    ``shutil.copy2`` writing it and its size then held to the source's.  A FITS that
+    function refuses fails the image with nothing created, the file and the HDU named
+    in the log, and one it cannot read raises with nothing created.  So does a copy
+    whose size is not the source's, which fails the image: the copy, and every
+    directory made for it, are removed.  A copy that fails partway is removed the same
+    way and its error raised.  The configuration's masked value is taken to be one
+    :func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value` accepts, which the
+    drivers establish once before any image.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -247,6 +255,24 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.FAILED
 
+        # The label's data objects are read from the source FITS, before anything is
+        # created in the bundle, so that neither a refusal nor an error -- a header
+        # card astropy cannot parse, say -- leaves a file or a directory behind.  The
+        # copy made below is the same bytes, written by shutil.copy2 and then held to
+        # the source's size, so a description of the source is one of the copy.
+        try:
+            fits_objects = describe_backplane_fits(
+                fits_source_local, masked_value=float(dataset.config.backplanes.masked_value)
+            )
+        except UndescribableFitsError as exc:
+            logger.error(
+                'Failing bundle generation for "%s": %s. Nothing is written for the '
+                'image, whose data label describes every array its backplane FITS holds',
+                image_path,
+                exc,
+            )
+            return BundleDataOutcome.FAILED
+
         pds4_path_stub = dataset.pds4_path_stub(image_file)
         bundle_name = dataset.pds4_bundle_name()
         template_dir = dataset.pds4_bundle_template_dir()
@@ -282,28 +308,34 @@ def generate_bundle_data_files(
         # summary PNG below, the copy is written to a local path and uploaded, and
         # the label's FILE_* functions read BACKPLANE_PATH as a local file, so a
         # bundle root in the cloud is not handled here (#67).
+        created = _absent_directories(fits_file_path, bundle_results_root)
         fits_file_local = cast(Path, fits_file_path.get_local_path())
-        shutil.copy2(fits_source_local, fits_file_local)
-        fits_file_path.upload()
-        logger.info('Copied backplane FITS: %s', fits_file_path)
-
-        # The label's data objects are read from the copy, the file the label is
-        # for.  A FITS holding something the label could not state truthfully fails
-        # the image, and the copy is removed with it, so that nothing is left in the
-        # bundle for an image that gets no label.
         try:
-            fits_objects = describe_backplane_fits(
-                fits_file_local, masked_value=float(dataset.config.backplanes.masked_value)
-            )
-        except UndescribableFitsError as exc:
-            fits_file_path.unlink(missing_ok=True)
+            shutil.copy2(fits_source_local, fits_file_local)
+            fits_file_path.upload()
+        except OSError:
+            # A copy that fails partway takes what it made with it, so that the
+            # bundle holds no file, and no directory, for an image with no label.
+            _remove_copy(fits_file_path, created)
+            raise
+        source_bytes = fits_source_local.stat().st_size
+        copied_bytes = fits_file_local.stat().st_size
+        if copied_bytes != source_bytes:
+            # The description above is the source's, and is the copy's only while
+            # the two are the same bytes, which a copy cut short is not.
+            _remove_copy(fits_file_path, created)
             logger.error(
-                'Failing bundle generation for "%s": %s. Nothing is written for the '
-                'image, whose data label describes every array its backplane FITS holds',
+                'Failing bundle generation for "%s": the copy of %s at %s holds %d bytes '
+                'where the source holds %d. The copy is removed and nothing is written '
+                'for the image',
                 image_path,
-                exc,
+                fits_source_path,
+                fits_file_path,
+                copied_bytes,
+                source_bytes,
             )
             return BundleDataOutcome.FAILED
+        logger.info('Copied backplane FITS: %s', fits_file_path)
 
         # Add file path variables to template_vars
         summary_png_source = nav_results_root / (results_path_stub + '_summary.png')
@@ -361,3 +393,54 @@ def generate_bundle_data_files(
         if data_written and browse_written:
             return BundleDataOutcome.WRITTEN
         return BundleDataOutcome.FAILED
+
+
+def _absent_directories(path: FCPath, top: FCPath) -> list[Path]:
+    """Return the directories copying a file to a path would create, deepest first.
+
+    On a local bundle root ``get_local_path()`` creates every missing directory above
+    the file, so recording which ones were missing beforehand is what lets a copy that
+    fails remove what it created and nothing another image made.  A path that is not
+    local creates no directory in the bundle.
+
+    Parameters:
+        path: Where the copy goes.
+        top: The directory at which the walk up from ``path`` stops; it is never
+            listed.
+
+    Returns:
+        Every directory between ``top`` and ``path`` that does not exist, the deepest
+        first; none when ``path`` is not local.
+    """
+    if not path.is_local():
+        return []
+    # A local path's directories are directories on this machine, which pathlib can
+    # ask about and remove and an FCPath offers no way to remove.
+    stop = Path(top.as_posix())
+    absent: list[Path] = []
+    for directory in Path(path.as_posix()).parents:
+        if directory == stop or directory.exists():
+            break
+        absent.append(directory)
+    return absent
+
+
+def _remove_copy(path: FCPath, created: list[Path]) -> None:
+    """Remove a copy and the directories its call created.
+
+    Parameters:
+        path: The copy.
+        created: The directories the call created, the deepest first, as
+            :func:`_absent_directories` lists them.
+    """
+    path.unlink(missing_ok=True)
+    for directory in created:
+        try:
+            directory.rmdir()
+        except OSError as exc:
+            # A directory that is no longer empty holds a product another image
+            # has written there since, which is not this call's to remove, and
+            # neither are the directories above it.
+            if exc.errno != errno.ENOTEMPTY:
+                raise
+            return

@@ -17,9 +17,11 @@ The shipped Cassini templates are drafts: tests below assert substitution and
 layout plumbing, never PDS4-standard content correctness of the draft labels.
 """
 
+import errno
 import json
 import math
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +29,14 @@ import julian
 import numpy as np
 import pytest
 from astropy.io import fits
+from astropy.io.fits.verify import VerifyError
 from filecache import FCPath
 
-from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_data import (
+    BundleDataOutcome,
+    _remove_copy,
+    generate_bundle_data_files,
+)
 from spindoctor.config import MAIN_LOGGER, Config
 from spindoctor.dataset.dataset import ImageFiles
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
@@ -546,25 +553,126 @@ def test_a_navigated_image_with_no_backplane_fits_fails_with_nothing_written(
     assert expected in capsys.readouterr().out
 
 
-def test_a_backplane_fits_its_label_cannot_describe_fails_with_no_file_left(
+FITS_RECORD = 2880
+"""The length of a FITS record, the unit a FITS file grows by."""
+
+
+def _tree(root: Path) -> list[str]:
+    """Return every directory and file below a root, relative to it, sorted.
+
+    Parameters:
+        root: The directory to list.
+
+    Returns:
+        The relative paths of everything below ``root``.
+    """
+    return sorted(path.relative_to(root).as_posix() for path in root.rglob('*'))
+
+
+def test_a_backplane_fits_its_label_cannot_describe_leaves_the_bundle_root_as_it_was(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A FITS the data label could not describe fails its image, leaving no file behind.
+    """A FITS the data label could not describe fails its image and creates nothing.
 
-    The label describes the copy in the bundle, so the copy is made before the FITS is
-    described; a refused FITS takes its copy with it, and nothing else is written.  The
-    log names the copy and the HDU it refused.
+    The FITS is described before anything is written for the image, so a refused one
+    leaves neither a file nor a directory: a directory left behind would have the next
+    labels run refuse the bundle root as one that holds files.  The log names the FITS
+    and the HDU it refused.
     """
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env, backplane_fits=False)
     plane = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.int16), name='PLANE')
     fits_source = env.backplane_root / f'{env.results_path_stub}_backplanes.fits'
     fits.HDUList([fits.PrimaryHDU(), plane]).writeto(fits_source)
+    before = _tree(env.bundle_results_root)
     outcome = _generate(env)
     assert outcome is BundleDataOutcome.FAILED
-    assert [path for path in env.bundle_dir.rglob('*') if path.is_file()] == []
-    copy = FCPath(env.bundle_dir) / 'data' / f'{env.pds4_path_stub}_backplanes.fits'
-    assert f'HDU 1 (PLANE) of {copy} has BITPIX = 16' in capsys.readouterr().out
+    assert _tree(env.bundle_results_root) == before
+    assert f'HDU 1 (PLANE) of {FCPath(fits_source)} has BITPIX = 16' in capsys.readouterr().out
+
+
+@pytest.mark.filterwarnings('default')
+def test_a_backplane_fits_astropy_cannot_parse_raises_having_created_nothing(
+    tmp_path: Path,
+) -> None:
+    """A FITS whose BUNIT card astropy cannot parse raises before anything is created.
+
+    That is an error rather than a refusal: the driver logs the traceback and counts the
+    image failed.  It is raised while the FITS is described, which is before anything is
+    written for the image.  The warning filters are the defaults, as the drivers run.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env)
+    fits_source = env.backplane_root / f'{env.results_path_stub}_backplanes.fits'
+    raw = fits_source.read_bytes()
+    start = raw.index(b"BUNIT   = '")
+    fits_source.write_bytes(raw[:start] + b'BUNIT   = rad'.ljust(80) + raw[start + 80 :])
+    before = _tree(env.bundle_results_root)
+    with pytest.raises(VerifyError, match='BUNIT'):
+        _generate(env)
+    assert _tree(env.bundle_results_root) == before
+
+
+def test_a_copy_cut_short_fails_the_image_and_leaves_the_bundle_root_as_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A copy whose size is not the source's fails the image, and what it made goes.
+
+    The label describes the source, which is the copy's description only while the two
+    are the same bytes.  The copy here stops a record short, as one onto a full disk
+    might.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env)
+    fits_source = env.backplane_root / f'{env.results_path_stub}_backplanes.fits'
+    source_bytes = fits_source.stat().st_size
+
+    def copy_short(source: Path, destination: Path) -> None:
+        Path(destination).write_bytes(Path(source).read_bytes()[:-FITS_RECORD])
+
+    monkeypatch.setattr(shutil, 'copy2', copy_short)
+    before = _tree(env.bundle_results_root)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert _tree(env.bundle_results_root) == before
+    expected = f'holds {source_bytes - FITS_RECORD} bytes where the source holds {source_bytes}'
+    assert expected in capsys.readouterr().out
+
+
+def test_a_copy_that_fails_partway_raises_and_leaves_the_bundle_root_as_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A copy that raises partway takes the file and the directories it made with it."""
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env)
+
+    def copy_then_fail(source: Path, destination: Path) -> None:
+        Path(destination).write_bytes(b'SIMPLE')
+        raise OSError(errno.ENOSPC, 'No space left on device')
+
+    monkeypatch.setattr(shutil, 'copy2', copy_then_fail)
+    before = _tree(env.bundle_results_root)
+    with pytest.raises(OSError, match='No space left on device'):
+        _generate(env)
+    assert _tree(env.bundle_results_root) == before
+
+
+def test_removing_a_copy_leaves_a_directory_another_product_has_since_entered(
+    tmp_path: Path,
+) -> None:
+    """Of the directories a copy's call made, one now holding another file is kept.
+
+    Another worker writing into the same bundle root can put its product in a directory
+    this call created, and that product, and every directory above it, stays.
+    """
+    shard = tmp_path / 'data' / 'shard0'
+    shard.mkdir(parents=True)
+    copy = shard / 'one_backplanes.fits'
+    copy.write_bytes(b'SIMPLE')
+    other = shard / 'another_backplanes.lblx'
+    other.write_text('<Product/>\n', encoding='utf-8')
+    _remove_copy(FCPath(copy), [shard, shard.parent])
+    assert _tree(tmp_path) == ['data', 'data/shard0', 'data/shard0/another_backplanes.lblx']
 
 
 # ---------------------------------------------------------------------------

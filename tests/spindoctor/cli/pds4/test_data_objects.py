@@ -8,6 +8,8 @@ astropy reading the file separately from the builder under test.
 import re
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 import pytest
@@ -16,7 +18,9 @@ from astropy.io import fits
 from spindoctor.cli.pds4.data_objects import (
     UndescribableFitsError,
     describe_backplane_fits,
+    unusable_masked_value,
 )
+from spindoctor.config import DEFAULT_CONFIG, Config
 
 MASKED_VALUE = -999.0
 """The masked value the tests hand the builder, which a 32-bit float holds exactly."""
@@ -307,20 +311,53 @@ def test_a_fits_the_backplane_writer_does_not_write_is_refused(
     assert str(path) in str(excinfo.value)
 
 
-@pytest.mark.parametrize('masked_value', [0.1, float('inf')], ids=['inexact', 'not finite'])
-def test_a_masked_value_no_float_plane_can_hold_is_refused(
-    tmp_path: Path, masked_value: float
-) -> None:
-    """A masked value a 32-bit float does not hold exactly, or at all, is refused.
+def _configured(masked_value: object) -> Config:
+    """Return a configuration declaring one masked value and nothing else.
 
     Parameters:
-        tmp_path: Where the FITS goes.
-        masked_value: The masked value handed to the builder.
+        masked_value: The ``backplanes.masked_value`` it declares.
+
+    Returns:
+        The configuration.
     """
-    path = tmp_path / 'backplanes.fits'
-    _write_backplane_like(path)
-    with pytest.raises(ValueError, match='is not a finite number a 32-bit float holds exactly'):
-        describe_backplane_fits(path, masked_value=masked_value)
+    return cast(Config, SimpleNamespace(backplanes=SimpleNamespace(masked_value=masked_value)))
+
+
+@pytest.mark.parametrize(
+    ('masked_value', 'problem'),
+    [
+        pytest.param(-999.1, 'is not one a 32-bit float holds exactly', id='inexact'),
+        pytest.param(float('nan'), 'is not a finite number', id='not finite'),
+        pytest.param('-999', 'is not a number', id='a string'),
+    ],
+)
+def test_a_masked_value_no_float_plane_can_hold_is_unusable(
+    masked_value: object, problem: str
+) -> None:
+    """A masked value that is not a number, not finite or not a float32's is named.
+
+    Parameters:
+        masked_value: The configured masked value.
+        problem: What the check has to say of it.
+    """
+    reason = str(unusable_masked_value(_configured(masked_value)))
+    assert repr(masked_value) in reason
+    assert problem in reason
+
+
+@pytest.mark.parametrize(
+    'masked_value',
+    [pytest.param(None, id='the shipped value'), pytest.param(-999, id='an integer')],
+)
+def test_a_masked_value_a_float_plane_holds_is_usable(masked_value: object) -> None:
+    """The shipped masked value, and an integer a 32-bit float holds, are usable.
+
+    Parameters:
+        masked_value: The configured masked value; None for the shipped
+            configuration's.
+    """
+    config = DEFAULT_CONFIG if masked_value is None else _configured(masked_value)
+    assert unusable_masked_value(config) is None
 
 
 def test_a_fits_that_is_not_there_is_not_found(tmp_path: Path) -> None:

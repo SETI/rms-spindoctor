@@ -16,6 +16,7 @@ the wrong width, a scaled array declared as its raw values, an array past the en
 a truncated file -- and a label that is wrong about its file is worse than no label.
 """
 
+import math
 import re
 import warnings
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from astropy.utils.exceptions import AstropyUserWarning
 from filecache import FCPath
 
 from spindoctor.cli.backplanes.writer import BODY_ID_MAP_HDU_NAME
+from spindoctor.config import Config
 
 FITS_DATA_TYPES: dict[int, str] = {-32: 'IEEE754MSBSingle', 32: 'SignedMSB4'}
 """The PDS4 ``data_type`` of an array's elements, by the ``BITPIX`` of its HDU.
@@ -143,7 +145,8 @@ def describe_backplane_fits(
     Parameters:
         fits_path: The FITS to describe.
         masked_value: The value a float plane holds wherever it measured nothing, the
-            configuration's ``backplanes.masked_value``.
+            configuration's ``backplanes.masked_value``, taken to be one
+            :func:`unusable_masked_value` accepts.
 
     Returns:
         The file's HDUs, the primary first, each with its header and its array.
@@ -156,9 +159,9 @@ def describe_backplane_fits(
             map, carries ``BSCALE`` or ``BZERO``, or has a name that in lower case is
             not an XML name or is another image HDU's.  The message names the file,
             and the HDU by its index and name.
-        ValueError: If ``masked_value`` is not a finite number that a 32-bit float
-            holds exactly, since no float plane could then hold it.
         FileNotFoundError: If there is no file at ``fits_path``.
+        astropy.io.fits.verify.VerifyError: If a header card the description reads,
+            ``EXTNAME`` or ``BUNIT``, is one astropy cannot parse.
     """
     fcpath = FCPath(fits_path)
     missing_constant = _missing_constant(masked_value)
@@ -194,27 +197,53 @@ def describe_backplane_fits(
     return BackplaneFitsObjects(hdus=hdus)
 
 
+def unusable_masked_value(config: Config) -> str | None:
+    """Return why the configured masked value cannot be a label's missing constant.
+
+    Every float array of every data label declares ``backplanes.masked_value`` as its
+    missing constant, and the backplane writer fills every unmeasured pixel of a float
+    plane with it, so it has to be a number a 32-bit float holds exactly: one that is
+    not a number, not finite, or not exactly representable would be declared as a value
+    no masked pixel holds.  It is the same for every image, so the drivers ask this
+    once, before any image is processed.
+
+    Parameters:
+        config: The configuration whose ``backplanes.masked_value`` is checked.
+
+    Returns:
+        None when the value is usable, and otherwise a sentence naming the value and
+        what is wrong with it: that it is not a number, not a finite number, or not
+        one a 32-bit float holds exactly.
+    """
+    value = config.backplanes.masked_value
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return f'the configured masked value {value!r} is not a number'
+    if not math.isfinite(value):
+        return f'the configured masked value {value!r} is not a finite number'
+    with np.errstate(over='ignore'):
+        stored = float(np.float32(value))
+    if stored != value:
+        return (
+            f'the configured masked value {value!r} is not one a 32-bit float holds '
+            'exactly, so no float plane can hold it'
+        )
+    return None
+
+
 def _missing_constant(masked_value: float) -> str:
-    """Return the masked value as a label states it, holding it to a 32-bit float.
+    """Return the masked value as a label states it.
+
+    The value is taken to be one :func:`unusable_masked_value` accepts, which the
+    drivers establish once before any image is processed.
 
     Parameters:
         masked_value: The configuration's masked value.
 
     Returns:
-        The shortest decimal spelling of the value, which reads back as the 32-bit
-        float every masked pixel of a plane holds.
-
-    Raises:
-        ValueError: If the value is not finite, or a 32-bit float does not hold it
-            exactly.
+        The shortest decimal spelling of the 32-bit float every masked pixel of a
+        float plane holds.
     """
-    stored = np.float32(masked_value)
-    if not np.isfinite(stored) or float(stored) != masked_value:
-        raise ValueError(
-            f'the configured masked value {masked_value!r} is not a finite number a '
-            '32-bit float holds exactly, so no float plane can hold it'
-        )
-    return repr(float(stored))
+    return repr(float(np.float32(masked_value)))
 
 
 def _describe_hdu(

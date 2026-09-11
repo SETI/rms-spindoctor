@@ -21,6 +21,7 @@ sys.path.insert(0, package_source_path)
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.cli.pds4.collections import unusable_units
+from spindoctor.cli.pds4.data_objects import unusable_masked_value
 from spindoctor.config import (
     DEFAULT_CONFIG,
     IMAGE_LOGGER,
@@ -42,7 +43,9 @@ def process_task(
     before any image is read.  A unit no global index column has a format for is
     unusable for every image, and the check each document gets covers only the
     planes that document holds, so a task that did not make this one would write
-    labels the summary pass then refuses to index.
+    labels the summary pass then refuses to index.  So is the configured masked
+    value, through :func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value`:
+    every float array of every data label declares it as its missing constant.
 
     Parameters:
         _task_id: The queue's identifier for the task, unused.
@@ -119,6 +122,16 @@ def process_task(
                 else f'Backplane {name} declares a unit the bundle cannot use: {reason}'
                 for name, reason in unusable
             ),
+        }
+
+    # So is a masked value no float plane can hold, which every float array of every
+    # data label would declare as its missing constant.
+    masked_value_problem = unusable_masked_value(dataset.config)
+    if masked_value_problem is not None:
+        return False, {
+            'status': 'error',
+            'status_error': 'unusable_masked_value',
+            'status_exception': masked_value_problem,
         }
 
     files = task_data.get('files')
