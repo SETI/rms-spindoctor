@@ -25,7 +25,7 @@ from tests.mini_nav_results.cohort_cassini import (
     LIMB_STUB,
     RINGS_IMAGE_NAME,
     RINGS_STUB,
-    CassiniISSSaturnCohort,
+    CohortCassiniISSSaturn,
 )
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
@@ -50,13 +50,13 @@ def _cassini_dataset(tmp_path: Path) -> DataSetPDS3CassiniISSSaturn:
 
 
 @pytest.fixture
-def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CassiniISSSaturnCohort:
+def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
     """Return the Cassini ISS Saturn cohort, as the session wrote it.
 
     Returns:
         The written cohort.
     """
-    return mini_nav_cohorts(CassiniISSSaturnCohort)
+    return mini_nav_cohorts(CohortCassiniISSSaturn)
 
 
 def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None:

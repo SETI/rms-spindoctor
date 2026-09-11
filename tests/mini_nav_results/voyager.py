@@ -18,6 +18,7 @@ from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
 
+from .host_voyager import VGISS_KERNELS, VOYAGER_ISS, voyager_sclk_open
 from .shared import (
     classifier,
     navigated,
@@ -26,7 +27,6 @@ from .shared import (
     rotation,
     with_pointing,
 )
-from .voyager_host import VGISS_KERNELS, VOYAGER_ISS, voyager_sclk_open
 
 VGISS_SUBTREE = 'VGISS_5101/data/C13854XX'
 """The Voyager volume and image directory the Voyager images sit under."""

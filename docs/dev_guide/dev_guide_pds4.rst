@@ -443,7 +443,7 @@ and the registered dataset the bundle is built with. The package's ``COHORTS``
 registry lists them.
 
 The Cassini ISS Saturn cohort,
-:class:`~tests.mini_nav_results.cohort_cassini.CassiniISSSaturnCohort`, is the
+:class:`~tests.mini_nav_results.cohort_cassini.CohortCassiniISSSaturn`, is the
 one that exists: three images, two navigated and one not, the two navigated ones
 sharding into different bundle directories and only one of them with ring
 backplanes, so a run over it exercises both layouts.

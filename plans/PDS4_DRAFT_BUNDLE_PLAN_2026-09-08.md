@@ -670,7 +670,7 @@ fixture selected for two unrelated criteria stops being legible for either.
 So the package holds a **cohort per bundle**, each a `Cohort` subclass in a
 module named for the bundle and registered in `COHORTS`, built from the same
 `shared.py` primitives and written to a cohort root rather than into
-`RESULTS_TREE`. The Cassini ISS Saturn cohort, `CassiniISSSaturnCohort` in
+`RESULTS_TREE`. The Cassini ISS Saturn cohort, `CohortCassiniISSSaturn` in
 `cohort_cassini.py`, is the one that exists. `results_tree_documents()` and the
 stats fixture tree are untouched by it.
 
@@ -758,7 +758,7 @@ Two rules bind the additions.
 happens otherwise: four Cassini documents in the statistics set carry clock
 seconds taken from the image number rather than converted from the epoch
 beside them. The response here is not a test that exempts those four. It is
-a constructor in `cassini_host.py`, the Cassini host's module, that takes an
+a constructor in `host_cassini.py`, the Cassini host's module, that takes an
 epoch and returns the clock triple, so a document built through it cannot
 carry an invented one, and a second beside it derives the image number from
 the same epoch. The Cassini cohort is built entirely through both; another
@@ -1050,7 +1050,7 @@ built through the production writers. `results_tree_documents()` is the statisti
 tree, unchanged and still stored under `tests/spindoctor/cli/stats/data/`,
 composed from each host's own documents; the cohorts, one `Cohort` subclass per
 bundle registered in `COHORTS`, are what bundle generation is asserted against,
-and are never stored. The one that exists, `CassiniISSSaturnCohort`, is three
+and are never stored. The one that exists, `CohortCassiniISSSaturn`, is three
 Cassini images.
 
 The Cassini cohort is two navigated images and one that is not. The two shard into
@@ -1067,7 +1067,7 @@ inventory dict, which is all the writer reads before it stops asking about
 SPICE.
 
 Every clock reading and every image number is derived from one epoch, through
-`cassini_host.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
+`host_cassini.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
 from a line through two correlation points the mission clock kernel gives --
 calibrating where the clock started and the rate it runs at -- and stamped onto
 a result by `with_pointing_from_epoch`, which takes no clock argument at all.
@@ -1088,8 +1088,8 @@ for a cohort the bundle, and where to write it, all required.
 plumbing questions and gains `CohortBundleEnv`, which runs the registered
 dataset a cohort's bundle is built with over the templates it ships, and is
 what the phases after this one assert against. Each host's camera frames,
-exposure and clock are in a module named for the host (`cassini_host.py`,
-`voyager_host.py`), described to `with_pointing` by a `Host`; each host's clock
+exposure and clock are in a module named for the host (`host_cassini.py`,
+`host_voyager.py`), described to `with_pointing` by a `Host`; each host's clock
 reader is in a module named for it under `tests/sclk_readings/`; and the tests
 only one bundle's cohort can state are in modules named for the bundle.
 

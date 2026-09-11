@@ -8,8 +8,8 @@ did not succeed, which is what the bundle stage skips.  The documents in
 a fixture chosen against two unrelated criteria stops being legible for either.
 
 Each image is built from its epoch and nothing else.  The clock readings come
-from :func:`~tests.mini_nav_results.cassini_host.cassini_sclk_triple` and the
-image number from :func:`~tests.mini_nav_results.cassini_host.cassini_image_number`,
+from :func:`~tests.mini_nav_results.host_cassini.cassini_sclk_triple` and the
+image number from :func:`~tests.mini_nav_results.host_cassini.cassini_image_number`,
 so the
 name, the readings, the index row and the document cannot disagree about when
 the shutter was open.
@@ -31,7 +31,7 @@ frame, so there is no value it could record instead.  A reader holding a frame's
 size against the mode beside it therefore finds a frame this size claiming to be
 a full one.
 
-:class:`CassiniISSSaturnCohort` is the cohort itself, registered with the package
+:class:`CohortCassiniISSSaturn` is the cohort itself, registered with the package
 under its ``NAME``: these images, the holdings layout they sit in, how the
 Cassini dataset reads a camera from an index row, the range each plane spans, and
 the registered Saturn dataset the bundle is built with.
@@ -62,7 +62,8 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
 
 from .backplanes import COHORT_SHAPE_VU, CohortBody
-from .cassini_host import (
+from .cohort import Cohort, CohortImage
+from .host_cassini import (
     CASSINI_EXPOSURE_MS,
     COISS_KERNELS,
     cassini_exposure_span,
@@ -70,7 +71,6 @@ from .cassini_host import (
     cassini_sclk_triple,
     with_pointing_from_epoch,
 )
-from .cohort import Cohort, CohortImage
 from .shared import classifier, navigated, provenance, ring_edge, rotation
 
 LIMB_MIDTIME_ET = 129400000.0
@@ -519,7 +519,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
     )
 
 
-class CassiniISSSaturnCohort(Cohort):
+class CohortCassiniISSSaturn(Cohort):
     """The Cassini ISS Saturn bundle's cohort, over the registered Saturn dataset.
 
     Three images: two successes whose numbers shard into different bundle
