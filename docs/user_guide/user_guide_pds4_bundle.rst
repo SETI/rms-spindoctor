@@ -75,12 +75,11 @@ Labels Pass
 The labels pass processes individual images to generate per-image PDS4 products.
 
 The bundle's own directory -- ``<bundle results root>/<bundle name>/`` -- must be
-empty, or not there at all, when the pass starts. A run that finds anything in it
-writes nothing, names the directory at error level and exits 1; a ``--dry-run``
-is refused the same way, because what it reports on is a run that would be. This
-is what makes a bundle the product of one run rather than a mixture of two. The
-pass will not clear the directory for you, so re-running after a partial failure
-means clearing it yourself, or naming another bundle results root, deliberately.
+empty or absent when the pass starts, so that a bundle is the product of one run
+rather than a mixture of two. A run that finds anything there writes nothing and
+exits 1, ``--dry-run`` included. The pass will not clear the directory for you:
+to run again after a partial failure, clear it yourself or name a different
+bundle results root.
 
 Basic Usage
 ^^^^^^^^^^^
@@ -209,8 +208,8 @@ The labels pass requires:
 * Navigation metadata files (``*_metadata.json``) from the navigation pass
 * Backplane FITS files (``*_backplanes.fits``) from the backplanes pass
 * Backplane metadata files (``*_backplane_metadata.json``) from the backplanes pass
-* Summary PNG files (``*_summary.png``) from the navigation pass, one beside every
-  navigation metadata document that records a success
+* Summary PNG files (``*_summary.png``) from the navigation pass, one for every
+  image whose navigation succeeded
 
 A run that also names an error filter (``--has-offset-error``,
 ``--has-no-offset-error``, ``--has-offset-spice-error``,
@@ -247,11 +246,9 @@ For each image, the labels pass generates:
 * **Browse Image** (``<image_name>_summary.png``): Copy of the summary PNG from the
   navigation pass.
 
-Every successfully navigated image has both browse products. The navigation pass
-writes an image's summary PNG before the metadata document that records the
-success, so a success document with no PNG beside it means something removed the
-PNG afterwards; the labels pass reports that image as failed rather than writing
-a bundle that is missing a browse product it claims.
+Browse products are not optional: every successfully navigated image gets both,
+and an image whose summary PNG is missing from the navigation results is failed
+rather than bundled without one.
 
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
@@ -284,70 +281,40 @@ The summary pass generates:
 Exit Status
 ===========
 
-Both passes exit 0 only when every label they set out to write is on disk, and
-each sets out to write every label the dataset declares for it. A template that
-is not in the dataset's template directory ends the pass before it writes
-anything, naming the file, rather than being passed over.
+A pass exits 0 only when every file it set out to write is on disk. A non-zero
+exit means the bundle is incomplete: whatever was written is still in place, and
+the log names what was not.
 
-A file on disk is still not always a label: the two global index templates ship
-empty, so a run that writes everything it set out to write leaves two empty
-files where those labels belong.
+* ``sd_create_bundle labels`` exits 1 when any image's labels could not be
+  written or its inputs could not be read, and exits 1 before processing
+  anything when the bundle's directory already holds files. It closes with a
+  line giving the number of images it labeled, skipped and failed, so a
+  selection that matched nothing reads as the zero it is.
 
-A label is not written when its template cannot be rendered: an unresolved
-template variable, an expression that fails, or a value the template rejects.
-The label path and the number of errors are logged at error level, nothing is
-left at that path, and the pass carries on, so a single run reports every label
-it could not write rather than one per run.
-
-* ``sd_create_bundle labels`` exits 1 when an image's data label or browse label
-  was not written, or when an image's inputs could not be read. It closes with a
-  line giving the number of images it labeled, the number it skipped and the
-  number whose labels it did not write, so a selection that matched no images at
-  all reads as the zero it is.
-
-  It exits 1 before processing any image when the bundle's own directory
-  already holds files, naming that directory. Nothing is written by such a run.
-
-  An image the bundle has nothing to describe is skipped, not failed, and does
-  not affect the exit status: an image with no navigation metadata document, an
-  image whose navigation did not succeed, and a navigated image with no
+  An image the bundle has nothing to describe is **skipped**, not failed, and
+  does not affect the exit status: an image with no navigation metadata
+  document, one whose navigation did not succeed, and a navigated image with no
   backplane metadata document. A selection made by volume ordinarily names far
-  more images than have been navigated and backplaned, and a run over one is
-  mostly skips.
+  more images than have been navigated and backplaned, so such a run is mostly
+  skips.
 
-  A navigated image whose summary PNG is not in the navigation results is
-  failed, not skipped: its data label is written and stays, its browse products
-  are not, and the run exits 1. That PNG is written by the navigation pass
-  before the document recording the success, so its absence beside a success
-  document is a broken input rather than an image with no browse product.
+  A navigated image whose summary PNG is missing is **failed**, not skipped: its
+  data label is written and stays, its browse products are not.
 
-  ``--dry-run`` reports what the run would have processed and exits 0 once both
-  of the conditions above are met. It writes nothing, so it counts nothing
-  against the run.
+  ``--dry-run`` writes nothing and, given an empty bundle directory, exits 0.
 
 * ``sd_create_bundle summary`` exits 1 when any collection or global index label
-  was not written. The inventory and index ``.tab`` tables are written either
-  way.
+  could not be written. The ``.tab`` tables are written either way.
 
-* ``sd_create_bundle_cloud_tasks`` returns a ``status: error`` result carrying
-  ``status_error: label_not_written`` for a task whose label was not written, and
-  asks for no retry, because a template that could not be rendered will not
-  render on a second attempt.
+* ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
+  written as ``status: error`` with ``status_error: label_not_written``, and asks
+  for no retry.
 
-A non-zero exit means the bundle is incomplete: the labels that did render are
-still in place, and the log names the ones that did not.
-
-The inventories and index tables the summary pass writes are built from what is
-in the bundle's ``data/`` tree, so an image that got a data label and no browse
-label leaves the bundle internally inconsistent: ``collection_browse.tab`` lists
-a browse product that is not on disk. The labels pass counts that image and
-exits 1, but the summary pass run afterwards inspects nothing and exits 0, so
-its own exit status says nothing about it.
-
-An image that was skipped has no data label and no supplemental file, so it is
-in none of the inventories and leaves nothing dangling; what it leaves is a
-bundle covering fewer images than the selection named. Take the labels pass's
-closing line as the account of what the bundle covers.
+The summary pass builds its tables from what is in the bundle's ``data/`` tree
+without checking that tree for completeness, so it exits 0 even after a labels
+pass that failed images -- and an image that got a data label but no browse label
+leaves ``collection_browse.tab`` listing a browse product that is not on disk.
+Take the labels pass's closing line as the account of what the bundle covers.
 
 Configuration
 =============
@@ -400,12 +367,6 @@ Each dataset has its own template directory containing:
 * ``collection_browse.lblx``: Template for browse collection label
 * ``global_index_bodies.lblx``: Template for bodies global index label
 * ``global_index_rings.lblx``: Template for rings global index label
-
-Each dataset declares which of these files each pass requires. Before it
-processes anything, a pass checks that every template it needs is in the
-template directory, and exits 1 naming each one that is not: every product of a
-pass renders from the same directory, so a template that is missing is missing
-for every product.
 
 Templates use the PdsTemplate system (from ``rms-pdstemplate``) for variable
 substitution. Template variables are provided by dataset-specific implementations of
@@ -487,29 +448,27 @@ Common Issues
 * **Missing backplane files**: Ensure the backplanes pass has completed successfully and
   both FITS and metadata files exist in the backplane results root.
 
-* **Template not found**: the run logs ``PDS4 template not found: ...`` for each
-  one and exits before writing anything. Verify that the template directory
-  exists, matches the ``template_dir`` configuration setting, and holds every
-  file the dataset's passes render.
+* **Template not found**: the pass exits before writing anything, naming each
+  file it could not find. Check that ``template_dir`` names a directory holding
+  every template listed above.
 
-* **Summary PNG not found**: the run logs ``No summary PNG at ...`` at error
-  level and fails that image. A successfully navigated image always has one, so
-  either the file was removed from the navigation results or the document beside
-  it did not come from the navigation pass. Re-navigate the image, or drop it
-  from the selection.
+* **Summary PNG not found**: that image is failed. A successfully navigated
+  image always has one, so either it was removed from the navigation results or
+  the document beside it did not come from the navigation pass. Re-navigate the
+  image, or drop it from the selection.
 
 * **Collection files incomplete**: Ensure all images have been processed in the labels
   pass before running the summary pass.
 
-* **Bundle root already holds files**: the labels pass writes a bundle into an
-  empty directory and refuses a populated one. Clear the bundle's directory
-  under the bundle results root, or point ``--bundle-results-root`` somewhere
-  else, and run the pass again from the start.
+* **Bundle root already holds files**: clear the bundle's directory under the
+  bundle results root, or point ``--bundle-results-root`` somewhere else, and
+  run the pass again from the start.
 
-* **Label not written**: the run logs ``Rendering PDS4 label ... drew N error(s)``
-  and exits non-zero. The ``pdstemplate`` lines just above it name the template
-  expression that failed; the usual cause is a template variable the dataset's
-  ``pds4_template_variables()`` does not supply.
+* **Label not written**: the run names the label it could not write and exits
+  non-zero. The ``pdstemplate`` lines just above it name the template expression
+  that failed. This is a fault in the dataset's templates or in the metadata
+  they are given rather than anything a run can be asked to do differently; see
+  :doc:`/dev_guide/dev_guide_pds4`.
 
 Getting Help
 ------------
