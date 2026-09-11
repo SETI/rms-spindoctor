@@ -64,6 +64,17 @@ underscore and holds only letters, digits, underscores, hyphens and periods.
 _SCALING_KEYWORDS = ('BSCALE', 'BZERO')
 """The header keywords that make an array's stored values other than its values."""
 
+SUPPLEMENTAL_FILE_IDENTIFIER = 'navigation-details'
+"""The ``local_identifier`` the data label gives its supplemental file.
+
+``data.lblx`` states it through a template variable set from this constant, and no
+array may take it, since a local identifier is its label's only one of its name.
+"""
+
+LABEL_LOCAL_IDENTIFIERS = frozenset({SUPPLEMENTAL_FILE_IDENTIFIER})
+"""Every ``local_identifier`` the data label defines of its own, none of which an
+array may take."""
+
 
 class UndescribableFitsError(ValueError):
     """A backplane FITS holds something its data label could not truthfully describe."""
@@ -169,7 +180,8 @@ def describe_backplane_fits(
             being a binary table on disk; or an image HDU is not
             two-dimensional, has a ``BITPIX`` that :data:`FITS_DATA_TYPES` does not
             map, carries ``BSCALE`` or ``BZERO``, or has a name that in lower case is
-            not an XML name or is another image HDU's.  The message names the file, and
+            not an XML name, is another image HDU's, or is one of
+            :data:`LABEL_LOCAL_IDENTIFIERS`.  The message names the file, and
             the HDU by its index and name where the refusal is of one HDU, with the
             byte counts where it is of the file's length.
         FileNotFoundError: If there is no file at ``fits_path``.
@@ -391,6 +403,11 @@ def _describe_hdu(
             f'{where} has a name that in lower case is not a local identifier, which '
             'begins with a letter or an underscore and holds only letters, digits, '
             'underscores, hyphens and periods'
+        )
+    if local_identifier in LABEL_LOCAL_IDENTIFIERS:
+        raise UndescribableFitsError(
+            f'{where} has the name {local_identifier} in lower case, which the data '
+            'label gives to another of its objects'
         )
     unit = header.get('BUNIT')
     return FitsHdu(

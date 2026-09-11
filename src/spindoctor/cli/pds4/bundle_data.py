@@ -9,7 +9,11 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
-from spindoctor.cli.pds4.data_objects import UndescribableFitsError, describe_backplane_fits
+from spindoctor.cli.pds4.data_objects import (
+    SUPPLEMENTAL_FILE_IDENTIFIER,
+    UndescribableFitsError,
+    describe_backplane_fits,
+)
 from spindoctor.cli.pds4.epochs import unrecorded_epoch
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
@@ -344,6 +348,7 @@ def generate_bundle_data_files(
         template_vars['BACKPLANE_FITS'] = fits_objects
         template_vars['BACKPLANE_SUPPL_FILENAME'] = suppl_file_path.name
         template_vars['BACKPLANE_SUPPL_PATH'] = str(suppl_file_path)
+        template_vars['SUPPLEMENTAL_FILE_IDENTIFIER'] = SUPPLEMENTAL_FILE_IDENTIFIER
         template_vars['BROWSE_FULL_FILENAME'] = browse_image_path.name
         template_vars['BROWSE_FULL_PATH'] = str(browse_image_path)
 

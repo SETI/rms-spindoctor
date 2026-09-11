@@ -341,6 +341,7 @@ def make_bundle_env(
     tmp_path: Path,
     *,
     image_name: str = '1234567890w',
+    results_path_stub: str | None = None,
     template_contents: dict[str, str] | None = None,
     template_variables: dict[str, Any] | None = None,
     bodies: list[dict[str, Any]] | None = None,
@@ -351,6 +352,8 @@ def make_bundle_env(
     Parameters:
         tmp_path: Base temporary directory.
         image_name: Bare image name for the single input image.
+        results_path_stub: The image's results path stub; ``res/<image_name>``
+            when None.
         template_contents: Template files written over the default set, which
             holds every template the fake dataset declares.  A test naming one
             replaces that one and keeps the rest, because a dataset is required
@@ -379,7 +382,7 @@ def make_bundle_env(
         rings=rings,
     )
 
-    image_file = make_image_file(image_name, base_dir=tmp_path)
+    image_file = make_image_file(image_name, results_path_stub=results_path_stub, base_dir=tmp_path)
     nav_root = tmp_path / 'nav'
     backplane_root = tmp_path / 'backplanes'
     bundle_results_root = tmp_path / 'bundle'

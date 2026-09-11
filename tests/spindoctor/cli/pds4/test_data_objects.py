@@ -204,13 +204,15 @@ def _write_table(path: Path) -> None:
 
 
 def _write_two_of_a_name(path: Path) -> None:
-    """Write a FITS holding two image HDUs of the same name.
+    """Write a FITS holding two image HDUs whose names differ only in case.
 
     Parameters:
         path: Where the FITS goes.
     """
-    planes = [fits.ImageHDU(data=np.zeros((2, 2), dtype=np.float32), name='PLANE')] * 2
-    fits.HDUList([fits.PrimaryHDU(), *planes]).writeto(path)
+    upper = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.float32), name='PLANE')
+    mixed = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.float32))
+    mixed.header['EXTNAME'] = 'Plane'
+    fits.HDUList([fits.PrimaryHDU(), upper, mixed]).writeto(path)
 
 
 def _cut(path: Path, length: int) -> None:
@@ -384,9 +386,29 @@ def _write_not_fits(path: Path) -> None:
             id='an unnamed image',
         ),
         pytest.param(
+            _with_image(np.zeros((2, 2), dtype=np.float32), name='1PLANE'),
+            r'HDU 1 \(1PLANE\) of .* is not a local identifier',
+            id='a name beginning with a digit',
+        ),
+        pytest.param(
+            _with_image(np.zeros((2, 2), dtype=np.float32), name='PLANE 1'),
+            r'HDU 1 \(PLANE 1\) of .* is not a local identifier',
+            id='a name holding a space',
+        ),
+        pytest.param(
+            _with_image(np.zeros((2, 2), dtype=np.float32), name='PLANE:1'),
+            r'HDU 1 \(PLANE:1\) of .* is not a local identifier',
+            id='a name holding a colon',
+        ),
+        pytest.param(
             _write_two_of_a_name,
             r'more than one image HDU named plane in lower case',
-            id='two images of one name',
+            id='two names alike in lower case',
+        ),
+        pytest.param(
+            _with_image(np.zeros((2, 2), dtype=np.float32), name='NAVIGATION-DETAILS'),
+            r'HDU 1 \(NAVIGATION-DETAILS\) of .* which the data label gives to another',
+            id='the name the label gives its supplemental file',
         ),
         pytest.param(
             _write_not_fits,

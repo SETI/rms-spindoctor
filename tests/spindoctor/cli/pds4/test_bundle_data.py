@@ -152,8 +152,12 @@ def test_data_label_rendered_with_substituted_variables(tmp_path: Path) -> None:
 
 
 def test_injected_file_path_template_variables(tmp_path: Path) -> None:
-    """The stage injects the BACKPLANE_*/BROWSE_FULL_* file variables into the dict."""
-    env = make_bundle_env(tmp_path)
+    """The stage injects the BACKPLANE_*/BROWSE_FULL_* file variables into the dict.
+
+    The image's results path stub names it otherwise than its bundle path stub, so
+    a file name taken from the one where the other belongs is seen.
+    """
+    env = make_bundle_env(tmp_path, results_path_stub='res/1234567890w_CALIB')
     write_nav_inputs(env)
     _generate(env)
     variables = env.dataset.template_variables

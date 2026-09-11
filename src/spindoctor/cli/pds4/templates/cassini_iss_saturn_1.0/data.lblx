@@ -227,7 +227,7 @@
         <!-- Supplemental file containing image navigation and SPICE kernel pointing parameters -->
         <File>
             <file_name>$BACKPLANE_SUPPL_FILENAME$</file_name>
-            <local_identifier>navigation-details</local_identifier>
+            <local_identifier>$SUPPLEMENTAL_FILE_IDENTIFIER$</local_identifier>
             <creation_date_time>$FILE_ZULU(BACKPLANE_SUPPL_PATH)$</creation_date_time>
             <file_size unit="byte">$FILE_BYTES(BACKPLANE_SUPPL_PATH)$</file_size>
             <md5_checksum>$FILE_MD5(BACKPLANE_SUPPL_PATH)$</md5_checksum>
