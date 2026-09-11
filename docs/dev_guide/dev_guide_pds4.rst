@@ -106,8 +106,8 @@ populated bundle rather than an empty one.
 an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
-configuration gives its plane, or a minimum or maximum that is not a finite
-number), and an image whose inputs it could not read -- and exits 1 when that
+configuration gives its plane, or a minimum or maximum that is NaN or
+infinite), and an image whose inputs it could not read -- and exits 1 when that
 count is not zero.  An image with such a statistic is failed before anything is
 written for it, and the log names the image, the plane and what the document
 records there.  The run closes with a line giving that count alongside the
@@ -137,8 +137,8 @@ have processed.
 write, over both generators, and exits 1 the same way.  The inventory and index
 ``.tab`` tables are written either way.  It also exits 1 when a supplemental
 file holds a statistic no index column can -- one in a unit other than the one
-the configuration gives its plane, or in none, or a minimum or maximum that is
-not a finite number within the range of a float -- the check the labels pass
+the configuration gives its plane, or a minimum or maximum that is NaN or
+infinite -- the check the labels pass
 makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  The index tables

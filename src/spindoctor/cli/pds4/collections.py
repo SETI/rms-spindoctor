@@ -365,8 +365,8 @@ def generate_global_index_files(
         ValueError: If a configured plane's statistic is in a unit the index has
             no column format for, or if a supplemental file holds a statistic no
             column can: one in a unit other than the one the configuration gives
-            its plane, or in none, or with a minimum or maximum that is not a
-            finite number within the range of a float.  The message names the
+            its plane, or with a minimum or maximum that is NaN or infinite.  The
+            message names the
             file and the plane, what the file records there, and what to
             regenerate.  Every supplemental file is read, and every value in both
             tables rendered, before either table is opened, so none of these

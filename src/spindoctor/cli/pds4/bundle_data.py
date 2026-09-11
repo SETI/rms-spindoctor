@@ -29,7 +29,7 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold: one in a unit other than the one the
             configuration gives its plane, or with a minimum or maximum that is
-            not a finite number within the range of a float.
+            NaN or infinite.
     """
 
     WRITTEN = 'written'
@@ -68,9 +68,8 @@ def generate_bundle_data_files(
 
     A navigated image whose backplane metadata records a statistic no global
     index column can hold is failed as well, before anything is written for it:
-    one in a unit other than the one the configuration gives its plane, or in
-    none, or with a minimum or maximum that is not a finite number within the
-    range of a float, as
+    one in a unit other than the one the configuration gives its plane, or with
+    a minimum or maximum that is NaN or infinite, as
     :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` checks.
     A plane the document holds that the configuration does not declare is not
     checked.
@@ -88,8 +87,7 @@ def generate_bundle_data_files(
         nothing for the bundle to describe, and FAILED when a label could not be
         rendered, the summary PNG is not there, or a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
-        minimum or maximum that is not a finite number within the range of a
-        float.
+        minimum or maximum that is NaN or infinite.
 
     Raises:
         ValueError: If the batch does not hold exactly one image, or if the

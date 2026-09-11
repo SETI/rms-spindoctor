@@ -4,10 +4,10 @@ Each column of the global index tables is in one unit, the configured unit of it
 plane restated through :func:`~spindoctor.cli.backplanes.statistics.statistics_units`,
 and holds only finite numbers, each written in the format that unit calls for.  So a
 statistic of a configured plane can be indexed only when the unit it records is that
-unit and its minimum and maximum are finite numbers within the range of a float.  A
-statistic in another unit, or in none, would put its column in two units with nothing
-saying so; a value that is not a finite number has no decimal form, and a blank in
-its place would say the plane measured nothing.
+unit and neither its minimum nor its maximum is NaN or infinite.  A statistic in
+another unit would put its column in two units with nothing saying so; a NaN or an
+infinity has no decimal form, and a blank in its place would say the plane measured
+nothing.
 
 The labels pass fails an image whose backplane metadata holds such a statistic,
 before writing anything for it, and the summary pass fails the run over a
@@ -28,13 +28,13 @@ __all__ = ['UnindexableStatistic', 'unindexable_statistic']
 _UNIT_REASON = (
     'every column of an index table is in one unit, the one the configuration gives its plane'
 )
-"""Why a statistic in another unit, or in none, cannot be indexed."""
+"""Why a statistic in another unit cannot be indexed."""
 
 _VALUE_REASON = (
-    'an index column holds only finite numbers within the range of a float, and a '
-    'blank in one would say the plane measured nothing'
+    'an index column holds only finite numbers, and a blank in one would say the plane '
+    'measured nothing'
 )
-"""Why a value that is not a finite number within a float's range cannot be indexed."""
+"""Why a NaN or infinite minimum or maximum cannot be indexed."""
 
 
 @dataclass(frozen=True)
@@ -46,11 +46,8 @@ class UnindexableStatistic:
         description: What the document records for the plane, as a clause beginning
             with ``records`` that a message completes by putting the document before
             it: ``records the ring_radius statistic in m where the configuration
-            expects km`` (``in no unit at all`` when none is recorded), ``records a
-            ring_radius minimum of nan, which is not a finite number``, ``records a
-            ring_radius maximum of an integer 401 digits long, which is too large for
-            a float`` (an integer is given by its length, not its digits), or
-            ``records no ring_radius maximum``.
+            expects km``, or ``records a ring_radius minimum of nan, which is not a
+            finite number``.
         reason: Why a column cannot take the statistic as recorded, as a clause a
             message puts after the description: for a unit, that every column is in
             the one unit the configuration gives its plane; for a value, what a
@@ -69,8 +66,8 @@ def unindexable_statistic(
 
     Every configured body and ring plane the document holds a statistic for is
     checked.  Its recorded unit has to be the one the configuration gives the
-    plane, restated as the statistic's unit, and its minimum and maximum each
-    have to be a finite number within the range of a float.  A plane the
+    plane, restated as the statistic's unit, and neither its minimum nor its
+    maximum may be NaN or infinite.  A plane the
     document holds that the configuration does not declare is not checked, and a
     plane the configuration declares that the document lacks is no concern of
     this check.
@@ -128,22 +125,17 @@ def _unindexable_part(
     """
     found = statistic.get('units')
     if found != expected:
-        recorded = 'no unit at all' if found is None else found
         return UnindexableStatistic(
             plane=name,
             description=(
-                f'records the {name} statistic in {recorded} where the configuration '
+                f'records the {name} statistic in {found} where the configuration '
                 f'expects {expected}'
             ),
             reason=_UNIT_REASON,
         )
     for key, word in (('min', 'minimum'), ('max', 'maximum')):
-        if key not in statistic:
-            return UnindexableStatistic(
-                plane=name, description=f'records no {name} {word}', reason=_VALUE_REASON
-            )
         value = statistic[key]
-        if not _is_finite_as_float(value):
+        if not math.isfinite(value):
             return UnindexableStatistic(
                 plane=name,
                 description=f'records a {name} {word} of {_described(value)}',
@@ -152,48 +144,14 @@ def _unindexable_part(
     return None
 
 
-def _is_finite_as_float(value: Any) -> bool:
-    """Report whether a value read from a document is a finite number a float can hold.
-
-    Parameters:
-        value: The value as the JSON reader returned it.
-
-    Returns:
-        True for a float that is neither NaN nor infinite, and for an integer
-        within the range of a float.  False for anything else: an integer too
-        large for a float, a boolean, or anything that is not a number.
-    """
-    # A JSON true or false reads as a bool, which Python counts as an int, and is
-    # not a measurement.  The JSON reader returns an int for an integer literal of
-    # any length, and every index format writes through a float, so an integer
-    # beyond a float's range is no more holdable than an infinity; isfinite
-    # raises OverflowError for one rather than returning False.
-    if isinstance(value, bool):
-        return False
-    if isinstance(value, int):
-        try:
-            return math.isfinite(value)
-        except OverflowError:
-            return False
-    return isinstance(value, float) and math.isfinite(value)
-
-
 def _described(value: Any) -> str:
     """Describe a minimum or maximum no column can hold, for a message.
 
     Parameters:
-        value: A value :func:`_is_finite_as_float` refused, as the JSON reader
-            returned it.
+        value: A NaN or infinite value, as the JSON reader returned it.
 
     Returns:
-        What the value is and why no column can hold it.  An integer, which is
-        refused only when it is too large for a float, is given by its length,
-        since its digits run to hundreds: ``an integer 401 digits long, which is
-        too large for a float``.  Anything else is given by its representation:
-        ``nan, which is not a finite number``.
+        The value's representation and why no column can hold it: ``nan, which is
+        not a finite number``.
     """
-    if isinstance(value, int) and not isinstance(value, bool):
-        # The JSON reader converts a literal under the same limit on digits that
-        # str does, so any integer it returns has a length str can measure.
-        return f'an integer {len(str(abs(value)))} digits long, which is too large for a float'
     return f'{value!r}, which is not a finite number'

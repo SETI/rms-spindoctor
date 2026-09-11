@@ -292,18 +292,16 @@ RING_RESOLUTION_PLANE: list[dict[str, Any]] = [
 """A ring plane declared in radians per pixel, whose statistic is in degrees per pixel."""
 
 
-def _ring_resolution_document(units: str | None) -> dict[str, Any]:
+def _ring_resolution_document(units: str) -> dict[str, Any]:
     """Build backplane metadata holding one ring longitudinal resolution statistic.
 
     Parameters:
-        units: The unit the statistic records; None records no unit at all.
+        units: The unit the statistic records.
 
     Returns:
         The document, in the shape the backplane writer leaves on disk.
     """
-    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05}
-    if units is not None:
-        statistic['units'] = units
+    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
     return {'bodies': {}, 'rings': {'backplanes': {'longitudinal_resolution': statistic}}}
 
 
@@ -325,25 +323,6 @@ def test_a_statistic_in_another_unit_writes_nothing(tmp_path: Path) -> None:
     write_nav_inputs(env, backplane_metadata=_ring_resolution_document('rad/pixel'))
     _generate(env)
     assert not env.bundle_dir.exists()
-
-
-def test_a_statistic_recording_no_unit_fails_the_image(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A statistic that records no unit is failed.
-
-    The plane is a body one, so the bodies are read as the rings are; the log
-    says that no unit was recorded rather than naming one.
-    """
-    env = make_bundle_env(tmp_path, bodies=[{'name': 'latitude', 'units': 'rad'}])
-    document: dict[str, Any] = {
-        'bodies': {'MIMAS': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4}}}},
-        'rings': {},
-    }
-    write_nav_inputs(env, backplane_metadata=document)
-    outcome = _generate(env)
-    assert outcome is BundleDataOutcome.FAILED
-    assert 'latitude statistic in no unit at all' in capsys.readouterr().out
 
 
 def test_a_unit_disagreement_names_the_plane_and_both_units(

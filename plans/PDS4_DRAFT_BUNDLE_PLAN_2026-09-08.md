@@ -510,17 +510,18 @@ declared.
 Both passes hold every statistic to what an index column can hold, through
 `spindoctor/cli/pds4/statistic_checks.py`, since every column is in one unit
 and holds only finite numbers: the unit a statistic records has to be its
-plane's configured unit restated through `statistics_units`, and its minimum
-and maximum finite numbers within the range of a float. A statistic in another
-unit, or in none, or with a value that is not a finite number -- NaN, an
-infinity, an integer too large for a float, or no number at all -- fails its
-image in the labels pass, before anything is written for it, and fails the run
-in the summary pass, before either index table is written. The remedy is to
-regenerate the backplanes, and for the summary pass then the bundle into an
-empty directory. A plane the document holds that the configuration does not
-declare is not checked. Both are the operator's rulings of 2026-09-10. The
-summary pass renders every cell of both tables before it opens either, so no
-failure of any kind leaves a table half-written.
+plane's configured unit restated through `statistics_units`, and neither its
+minimum nor its maximum may be NaN or infinite. A statistic in another unit, or
+with a NaN or infinite minimum or maximum, fails its image in the labels pass,
+before anything is written for it, and fails the run in the summary pass,
+before either index table is written. The remedy is to regenerate the
+backplanes, and for the summary pass then the bundle into an empty directory.
+A plane the document holds that the configuration does not declare is not
+checked. Both are the operator's rulings of 2026-09-10. The documents are
+written by this package's own software, so nothing else about them is checked:
+no value a writer of ours cannot produce is guarded against (the operator's
+ruling of 2026-09-11). The summary pass renders every cell of both tables
+before it opens either, so no failure of any kind leaves a table half-written.
 
 Beside that check, both passes refuse before reading anything a configuration
 that declares a backplane in a unit the bundle cannot use -- a spelling the

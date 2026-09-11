@@ -302,7 +302,7 @@ otherwise; the log says what went wrong.
   metadata cannot be read, a label cannot be written, its summary PNG is
   missing, or its backplane metadata holds a statistic the index tables cannot
   hold: one in a unit other than the configured one, or a minimum or maximum
-  that is not a finite number. For such a statistic, regenerate that image's
+  that is NaN or infinite. For such a statistic, regenerate that image's
   backplanes.
 
   ``--dry-run`` writes nothing, and exits 0 if those first checks pass.

@@ -526,18 +526,16 @@ def _ring_resolution_env(tmp_path: Path) -> BundleEnv:
     return _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
 
 
-def _ring_resolution_stats(units: str | None) -> dict[str, Any]:
+def _ring_resolution_stats(units: str) -> dict[str, Any]:
     """Build ring statistics holding one longitudinal resolution in the given unit.
 
     Parameters:
-        units: The unit the statistic records; None records no unit at all.
+        units: The unit the statistic records.
 
     Returns:
         The ``backplanes.rings`` payload of a supplemental file.
     """
-    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05}
-    if units is not None:
-        statistic['units'] = units
+    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
     return {'backplanes': {'longitudinal_resolution': statistic}}
 
 
@@ -561,24 +559,6 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
     assert 'in rad/pixel' in message
     assert 'expects deg/pixel' in message
     assert 'regenerate the backplanes, then the bundle into an empty directory' in message
-    assert not (env.bundle_dir / 'document').exists()
-
-
-def test_a_supplemental_file_recording_no_unit_is_refused_with_nothing_written(
-    tmp_path: Path,
-) -> None:
-    """A statistic that records no unit ends the run too."""
-    env = _ring_resolution_env(tmp_path)
-    write_supplemental(
-        env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats(None)
-    )
-    with pytest.raises(ValueError) as excinfo:
-        _run_global_index(env)
-    message = str(excinfo.value)
-    assert '1234567890w_supplemental.txt' in message
-    assert 'the longitudinal_resolution statistic' in message
-    assert 'in no unit at all' in message
-    assert 'expects deg/pixel' in message
     assert not (env.bundle_dir / 'document').exists()
 
 
@@ -618,39 +598,26 @@ def test_a_disagreeing_supplemental_file_anywhere_is_refused_before_the_first_ta
     assert not (env.bundle_dir / 'document').exists()
 
 
-@pytest.mark.parametrize(
-    ('maximum', 'recorded'),
-    [
-        (math.inf, 'records a resolution maximum of inf'),
-        (10**400, 'records a resolution maximum of an integer 401 digits long'),
-    ],
-    ids=['infinity', 'integer too large for a float'],
-)
-def test_a_supplemental_file_holding_a_maximum_no_column_can_is_refused_with_nothing_written(
-    tmp_path: Path, maximum: float, recorded: str
+def test_a_supplemental_file_holding_an_infinite_maximum_is_refused_with_nothing_written(
+    tmp_path: Path,
 ) -> None:
-    """A maximum no column can hold ends the run, naming file and plane, with no table.
+    """An infinite maximum ends the run, naming the file and the plane, with no table.
 
-    The JSON reader returns an infinity for the token the writer writes for one,
-    and an integer for an integer literal of any length, so a supplemental file
-    can carry either.  Every index format writes through a float, which holds
-    neither.
-
-    Parameters:
-        tmp_path: Base temporary directory.
-        maximum: The resolution maximum the supplemental file records.
-        recorded: What the refusal says the file records.
+    The JSON reader returns an infinity for the token the writer writes for one, and
+    no index column can hold it.
     """
     env = _index_env(tmp_path)
     unholdable = {
-        'SATURN': {'backplanes': {'resolution': {'min': 60.0, 'max': maximum, 'units': 'km/pixel'}}}
+        'SATURN': {
+            'backplanes': {'resolution': {'min': 60.0, 'max': math.inf, 'units': 'km/pixel'}}
+        }
     }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=unholdable)
     with pytest.raises(ValueError) as excinfo:
         _run_global_index(env)
     message = str(excinfo.value)
     assert '1234567890w_supplemental.txt' in message
-    assert recorded in message
+    assert 'records a resolution maximum of inf' in message
     assert not (env.bundle_dir / 'document').exists()
 
 
