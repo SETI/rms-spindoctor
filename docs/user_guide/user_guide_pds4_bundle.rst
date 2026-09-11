@@ -253,16 +253,8 @@ labels, and an image whose summary PNG is missing from the navigation results is
 failed rather than bundled without them.
 
 Each data label states when its image's exposure began and ended, in its
-``Time_Coordinates``. The two times are the ``start_et`` and ``stop_et`` the
-navigation metadata document records under ``navigation_result.times``, converted
-to UTC and written the way PDS4 writes a date and time: to the millisecond, with a
-trailing ``Z``, as in ``2004-02-07T04:25:35.585Z``. Each is rounded to the nearest
-millisecond. A Cassini image's start and stop are recorded to the millisecond in its
-PDS3 label and index, and the navigation computes its epochs from those values, so
-each epoch lies within a few nanoseconds of a millisecond and the nearest one is the
-time PDS3 records; rounding a start down or a stop up would put it a millisecond
-off whenever the epoch lands on the far side. A leap second is written as second
-60.
+``Time_Coordinates``: the start and stop in UTC, to the millisecond, as in
+``2004-02-07T04:25:35.585Z``.
 
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
@@ -292,13 +284,9 @@ The summary pass generates:
   * ``global_index_rings.lblx``: PDS4 label for the rings index
 
 The data collection label states the time range of the products the collection
-holds: the earliest exposure start and the latest exposure stop over every
-supplemental file in the bundle's ``data/`` tree, written to whole seconds with the
-start rounded down and the stop rounded up, as in ``2004-02-07T04:25:35Z`` to
-``2004-02-22T05:32:17Z``. Rounded outward, the range contains every product's own
-start and stop as its data label states them. The pass writes the global index
-files first, because the range is taken in the same read of the supplemental files
-that builds the index, and the collection files after them.
+holds, in whole seconds: from the earliest exposure start, rounded down, to the
+latest exposure stop, rounded up, as in ``2004-02-07T04:25:35Z`` to
+``2004-02-22T05:32:17Z``.
 
 Each min/max column is written with a precision suited to its unit: three
 decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and five
@@ -327,13 +315,11 @@ otherwise; the log says what went wrong.
   ``--dry-run`` writes nothing, and exits 0 if those first checks pass.
 
 * ``sd_create_bundle summary`` exits 1 without doing anything if a template is
-  missing or the bundle has no ``data/`` directory. It also exits 1 if a
-  collection or index label cannot be written, or if a supplemental file holds
-  such a statistic, in which case it leaves none of its tables and labels:
-  regenerate the backplanes, then the bundle, into an empty directory.
-
-  The data collection label is not written, and the pass exits 1, when there is
-  no time range for it to state: the ``data/`` tree holds no supplemental file.
+  missing. It also exits 1 if the bundle is empty (its ``data/`` directory is
+  missing or holds no products), if a collection or index label cannot be
+  written, or if a supplemental file holds such a statistic, in which case it
+  leaves none of its tables and labels: regenerate the backplanes, then the
+  bundle, into an empty directory.
 
 * ``sd_create_bundle_cloud_tasks`` reports a failed task as ``status: error``,
   with ``status_error`` saying why (for example ``label_not_written``), and

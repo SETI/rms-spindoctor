@@ -387,7 +387,8 @@ TDB seconds past J2000.  They are turned into UTC by one rule, in
 the plain ISO spelling the observation metadata and the statistics report use,
 and :func:`~spindoctor.support.time.et_to_pds4_utc` the spelling a PDS4 label
 takes, ``ASCII_Date_Time_YMD_UTC`` (``2004-02-07T04:25:35.585Z``), to a given
-number of decimals, rounded to the nearer value of the last digit, or down, or up.
+number of decimals, rounded to the nearer value of the last digit, or down, or up;
+a leap second is written as second 60.
 Both go from TDB to TAI to the calendar through ``julian``, whose leap-second table
 gives the answer SPICE's ``et2utc`` gives; an integration test holds every cohort
 epoch to the leapseconds kernel.  The C-kernel report converts through
