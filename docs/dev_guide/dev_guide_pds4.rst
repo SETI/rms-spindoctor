@@ -255,12 +255,14 @@ Every label the bundle stage writes therefore goes through
   that path before is what is there after -- nothing, in a bundle the labels
   pass wrote into an empty directory.
 
-That is the whole of it.  ``write_label`` neither reads nor removes what is at
-the label path, because it does not have to: a bundle is written into an empty
-directory or not at all.  The one way an earlier label can be at the path is a
-summary pass run a second time over a bundle it has already summarized, where
-the collection and index labels of the first run are still in place; a render
-that errors this time leaves the earlier label, and the error line names it.
+``write_label`` clears the label path before it renders.  For the labels pass
+that changes nothing, because a bundle is written into an empty directory.  It
+matters for a summary pass run a second time over a bundle it has already
+summarized, where the first run's collection and index labels are still in
+place: repair mode saves nothing when a render errors, so without clearing, the
+earlier label would stay beside the inventory table this run has already
+rewritten and describe data that is no longer there.  A label on disk is
+therefore always one this run wrote.
 
 A failed render does not stop the run.  Both of an image's labels are attempted
 when the image has both products, and so is every collection and index label, so

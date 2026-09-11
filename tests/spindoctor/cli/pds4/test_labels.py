@@ -83,3 +83,36 @@ def test_the_error_report_names_the_label_and_the_count(
     assert written is False
     expected = f'ERROR | Rendering PDS4 label {label_path} drew 1 error(s); it was not written'
     assert expected in capsys.readouterr().out
+
+
+def test_a_failed_render_does_not_leave_an_earlier_label(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A label that is already there does not survive a render that errors.
+
+    The summary pass rewrites an inventory table and then renders the label
+    describing it, and it can be run again over a bundle it has already
+    summarized.  Repair mode declines to save a label that drew errors, so
+    without this the first run's label would stay beside the second run's
+    table and describe data that is no longer there.
+    """
+    label_path = FCPath(tmp_path) / 'collection_data.lblx'
+    label_path.write_text('<Product>from an earlier run</Product>\n')
+    template = _CountingTemplate(errors=1, warnings=0)
+    written = write_label(template, {}, label_path, logger=MAIN_LOGGER)
+    assert written is False
+    assert not label_path.exists()
+    capsys.readouterr()
+
+
+def test_a_successful_render_replaces_an_earlier_label(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Clearing the path first does not cost the ordinary re-render its label."""
+    label_path = FCPath(tmp_path) / 'collection_data.lblx'
+    label_path.write_text('<Product>from an earlier run</Product>\n')
+    template = _CountingTemplate(errors=0, warnings=0)
+    written = write_label(template, {}, label_path, logger=MAIN_LOGGER)
+    assert written is True
+    assert label_path.read_text() == '<Product/>\n'
+    capsys.readouterr()
