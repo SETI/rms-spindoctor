@@ -234,7 +234,12 @@ Labels Pass Outputs
 For each image, the labels pass generates:
 
 * **PDS4 Label File** (``<image_name>_backplanes.lblx``): XML label file describing the
-  backplane FITS file, generated from dataset-specific templates.
+  backplane FITS file beside it, generated from dataset-specific templates.
+
+* **Backplane FITS File** (``<image_name>_backplanes.fits``): a byte-for-byte copy of
+  the image's backplane FITS from the backplane results root, so that the file the
+  label describes, and whose size, checksum and time it states, is the one in the
+  bundle.
 
 * **Supplemental File** (``<image_name>_supplemental.txt``): JSON file containing combined
   navigation and backplane metadata, including:
@@ -251,6 +256,27 @@ For each image, the labels pass generates:
 Browse products are not optional. Both are written for every image the pass
 labels, and an image whose summary PNG is missing from the navigation results is
 failed rather than bundled without them.
+
+The data label describes every HDU of the FITS beside it, in the order the file
+holds them, read from the copy in the bundle. Each HDU's header is a ``Header`` at
+its byte offset, stating its length and the ``FITS 3.0`` parsing standard. Each
+image HDU after the empty primary is an ``Array_2D_Image`` at the byte offset of
+its data, identified by its HDU name in lower case (``body_id_map``,
+``body_latitude``, ``ring_radius`` and so on), with a ``Line`` axis of the HDU's
+``NAXIS2`` elements and a ``Sample`` axis of its ``NAXIS1``, an element type of
+``IEEE754MSBSingle`` for a float plane and ``SignedMSB4`` for the body identity map,
+and the HDU's ``BUNIT`` as its unit: ``rad`` for an angular plane, because the
+arrays are in radians. Only the planes the FITS holds are described, so the label
+of a frame with no ring backplanes describes no ring arrays.
+
+Each float plane declares its masked value -- the configuration's
+``backplanes.masked_value``, ``-999.0`` as shipped -- as the ``missing_constant`` of
+its ``Special_Constants``, so a reader masks a plane on what its label says rather
+than on a convention. ``BODY_ID_MAP`` declares none: its ``0`` marks a pixel no
+body claimed and every other value is the NAIF ID of the body that did, which is
+what its ``description`` says. Each array has display settings of its own, laying
+it out with ``Sample`` running left to right across the display and ``Line`` top
+to bottom down it.
 
 Each data label states when its image's exposure began and ended, in its
 ``Time_Coordinates``. The two times are the ``start_et`` and ``stop_et`` the
@@ -360,6 +386,20 @@ the log names what was not.
   when the exposure began and ended, and a successful navigation always records
   both, so such a document is a broken input rather than an image whose time is
   unknown. The log names the image and what its document lacks.
+
+  A navigated image whose backplane metadata document is there and whose
+  backplane FITS is not is **failed** before anything is written for it. The
+  backplanes pass writes the FITS before its metadata document, so a document
+  with no FITS beside it is a broken input. The log names the missing file;
+  regenerate the image's backplanes.
+
+  So is an image whose backplane FITS holds something its data label could not
+  describe truthfully -- arrays of a type other than 32-bit floats or integers, an
+  image that is not two-dimensional, scaled values (``BSCALE`` or ``BZERO``), a
+  primary HDU holding data, an extension that is not an image, an HDU name that
+  cannot identify its array, or a file cut short. None of these is what the
+  backplanes pass writes. The copy of the FITS is removed, nothing else is written
+  for the image, and the log names the file and the HDU.
 
   ``--dry-run`` writes nothing, and exits 0 once the templates are present,
   every configured unit is usable, and the bundle directory is empty.

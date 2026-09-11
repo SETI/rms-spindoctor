@@ -25,8 +25,9 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    ``pdstemplate`` rendering context with per-image template variables, and
    writes the matching ``<image>_backplanes.lblx`` file (plus a copy of the
    browse PNG into the bundle's ``browse/`` tree). The backplane FITS file
-   itself is copied (or symlinked, depending on the dataset's preference) from
-   the backplane root into the bundle's ``data/`` tree.
+   itself is copied from the backplane root into the bundle's ``data/`` tree,
+   beside its label, and the label's data objects are read from the copy (see
+   `The FITS and its data objects`_).
 
 2. **Collections + bundle assembly.**  After every per-image data label is in
    place, :func:`~spindoctor.cli.pds4.collections.generate_global_index_files`
@@ -107,8 +108,10 @@ was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is not a finite
 number), an image whose navigation document records no exposure epochs a label
-can state (see `Epochs`_), and an image whose inputs it could not read -- and
-exits 1 when that count is not zero.  It closes with a line giving that count alongside the number
+can state (see `Epochs`_), an image whose backplane metadata has no FITS beside
+it, an image whose FITS holds something its data label cannot describe (see
+`The FITS and its data objects`_), and an image whose inputs it could not read --
+and exits 1 when that count is not zero.  It closes with a line giving that count alongside the number
 of images it labeled and the number it skipped, so a selection that matched
 nothing reads as the zero it is.  It counts a batch that did not hold exactly
 one image the same way; that is a guard on the one-image-per-batch invariant
@@ -378,6 +381,64 @@ layout:
 The static inventory CSVs are copied verbatim into the bundle; the
 per-image and per-bundle ``.lblx`` files are rendered fresh on every run.
 
+The FITS and its data objects
+=============================
+
+The labels pass copies an image's ``<stub>_backplanes.fits`` from the backplane
+root into the bundle's ``data/`` tree, beside its data label, which names the file
+with no directory part.  ``BACKPLANE_PATH`` names the copy, so the size, checksum
+and time the label states through ``pdstemplate``'s ``FILE_BYTES``, ``FILE_MD5``
+and ``FILE_ZULU`` are the archived file's.  The copy is written to a local path and
+uploaded, as the summary PNG's is, and those three functions read a local file, so
+a bundle root in the cloud is not supported.  A navigated image whose backplane
+metadata is there and whose FITS is not is failed before anything is written for
+it: the backplane stage writes the FITS before its metadata document, and the
+summary pass refuses a supplemental file with no data label beside it.
+
+:func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` then reads the
+copy with ``astropy.io.fits``, no scaling applied, into a
+:class:`~spindoctor.cli.pds4.data_objects.BackplaneFitsObjects`: one
+:class:`~spindoctor.cli.pds4.data_objects.FitsHdu` per HDU, in file order, whose
+header offset and length come from astropy's ``fileinfo()`` (``hdrLoc``, and
+``datLoc`` less ``hdrLoc``), and for every image HDU past the primary a
+:class:`~spindoctor.cli.pds4.data_objects.FitsArray` at ``datLoc``.  An array's
+element type comes from its ``BITPIX`` through
+:data:`~spindoctor.cli.pds4.data_objects.FITS_DATA_TYPES` (``IEEE754MSBSingle`` for
+-32 and ``SignedMSB4`` for 32, the most significant byte first because FITS is
+big-endian), its unit is its ``BUNIT`` when it has one, its ``Line`` and ``Sample``
+extents are ``NAXIS2`` and ``NAXIS1``, and its local identifier is its HDU name in
+lower case.  A float array's missing constant is the configuration's
+``backplanes.masked_value``, spelled as the shortest decimal that reads back as the
+32-bit float the plane holds; the function is handed the value rather than the
+configuration, and refuses with :exc:`ValueError` one a 32-bit float does not hold
+exactly.  The body identity map declares no missing constant and carries
+:data:`~spindoctor.cli.pds4.data_objects.BODY_ID_MAP_DESCRIPTION` instead: its
+``0`` is a pixel no body claimed, not a missing measurement.  The map is found by
+:data:`~spindoctor.cli.backplanes.writer.BODY_ID_MAP_HDU_NAME`, the name the
+backplane writer gives it.
+
+``data.lblx`` renders the result, handed to it as ``BACKPLANE_FITS``.  A ``$FOR``
+over its ``hdus`` writes a ``Header``, and an ``Array_2D_Image`` where the HDU has
+an array, into ``File_Area_Observational`` after the ``File``; a second ``$FOR``
+over its ``arrays`` writes one ``disp:Display_Settings`` per array into the
+``Discipline_Area``, each referring to its array's identifier.  The fixed PDS4
+values -- the ``FITS 3.0`` parsing standard, ``Last Index Fastest``, two axes named
+``Line`` and ``Sample`` -- are literals in the template; everything that depends on
+the file comes from the descriptor, so a plane the writer dropped is not described
+and a frame with no ring backplanes has no ring arrays.
+
+What the backplane writer does not write is refused rather than described, with an
+:exc:`~spindoctor.cli.pds4.data_objects.UndescribableFitsError` naming the file and
+the HDU: a ``BITPIX`` the mapping does not hold; an image that is not
+two-dimensional; ``BSCALE`` or ``BZERO``, since a scaled array's stored values are
+not its values; a primary HDU holding data, or an extension that is not an image,
+either of which would leave data the label does not describe; a lower-case HDU name
+that is not an XML name or repeats another's, since a ``local_identifier`` is an
+XML ``ID`` and unique in the label; and a file astropy reads only with an error or a
+warning, which is what a truncated file draws.  On a refusal the labels pass fails
+the image, removes the copy and writes nothing else, logging the refusal; on a
+local bundle root the copy's emptied directory stays.
+
 Epochs
 ======
 
@@ -605,6 +666,10 @@ documented above.
   cloud-task worker refuse before reading a document.
 - :func:`~spindoctor.cli.pds4.epochs.unrecorded_epoch` — the one check a
   navigation document's exposure epochs are held to before a label states them.
+- :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` — the headers
+  and arrays of a backplane FITS, read from the copy in the bundle for its data
+  label, and :exc:`~spindoctor.cli.pds4.data_objects.UndescribableFitsError`, what
+  it raises for a FITS the backplane writer does not write.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
   :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome` — the range of the
   products' epochs, taken in the global index's read of the supplemental files
