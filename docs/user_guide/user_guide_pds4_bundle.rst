@@ -279,9 +279,11 @@ Each float plane declares its masked value -- the configuration's
 its ``Special_Constants``, so a reader masks a plane on what its label says rather
 than on a convention. ``BODY_ID_MAP`` declares none: its ``0`` marks a pixel no
 body claimed and every other value is the NAIF ID of the body that did, which is
-what its ``description`` says. Each array has display settings of its own, laying
-it out with ``Sample`` running left to right across the display and ``Line`` top
-to bottom down it.
+what its ``description`` says. Every float plane's ``description`` says what it
+holds: the plane, the ``oops`` backplane method it came from, its unit, and that a
+pixel the plane does not cover holds the missing constant. Each array has display
+settings of its own, laying it out with ``Sample`` running left to right across
+the display and ``Line`` top to bottom down it.
 
 Each data label states when its image's exposure began and ended, in its
 ``Time_Coordinates``. The two times are the ``start_et`` and ``stop_et`` the

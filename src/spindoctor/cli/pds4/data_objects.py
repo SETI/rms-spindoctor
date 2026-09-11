@@ -22,6 +22,7 @@ allows and are not a refusal here.
 import io
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -94,8 +95,11 @@ class FitsArray:
         samples: The number of elements across the frame, the HDU's ``NAXIS1``.
         missing_constant: The value a float array holds wherever it measured nothing,
             spelled as the label states it; None for an integer array.
-        description: What the array's values are, for the body identity map; None for
-            every other array.
+        description: What the array holds.  For a float plane: its name, the oops
+            backplane method it came from where the configuration names one, its unit
+            where it has one, and that a pixel the plane does not cover holds the
+            missing constant.  For the body identity map,
+            :data:`BODY_ID_MAP_DESCRIPTION`.  None for any other integer array.
     """
 
     local_identifier: str
@@ -144,7 +148,10 @@ class BackplaneFitsObjects:
 
 
 def describe_backplane_fits(
-    fits_path: str | Path | FCPath, *, masked_value: float
+    fits_path: str | Path | FCPath,
+    *,
+    masked_value: float,
+    methods: Mapping[str, str] | None = None,
 ) -> BackplaneFitsObjects:
     """Return the data objects a backplane FITS holds, read from the file.
 
@@ -154,7 +161,10 @@ def describe_backplane_fits(
     one, and whose lines and samples are its ``NAXIS2`` and ``NAXIS1``.  Its local
     identifier is its name in lower case.  A float array declares ``masked_value`` as
     its missing constant; an integer array declares none, and the body identity map
-    carries :data:`BODY_ID_MAP_DESCRIPTION` instead.
+    carries :data:`BODY_ID_MAP_DESCRIPTION` instead.  Every float array carries a
+    description of what it holds: its name, the oops backplane method it came from
+    when ``methods`` names one, its unit, and that a pixel the plane does not cover
+    holds the missing constant.
 
     The file is read as it is stored, with no scaling applied, so that what is
     described is the bytes in the file.  A warning astropy emits while reading it is
@@ -166,6 +176,9 @@ def describe_backplane_fits(
         masked_value: The value a float plane holds wherever it measured nothing, the
             configuration's ``backplanes.masked_value``, taken to be one
             :func:`unusable_masked_value` accepts.
+        methods: The oops backplane method each plane was computed with, by the plane's
+            configured name, as :func:`configured_methods` gives them; a plane it does
+            not name is described without one.
 
     Returns:
         The file's HDUs, the primary first, each with its header and its array.
@@ -216,6 +229,7 @@ def describe_backplane_fits(
                     where=_where(index, hdu, fcpath),
                     is_primary=index == 0,
                     missing_constant=missing_constant,
+                    methods={} if methods is None else methods,
                 )
                 for index, hdu in enumerate(hdul)
             )
@@ -267,6 +281,24 @@ def unusable_masked_value(config: Config) -> str | None:
             'exactly, so no float plane can hold it'
         )
     return None
+
+
+def configured_methods(config: Config) -> dict[str, str]:
+    """Return the oops backplane method each configured plane is computed with.
+
+    Parameters:
+        config: The configuration whose ``backplanes.bodies`` and ``backplanes.rings``
+            entries are read.
+
+    Returns:
+        Each entry's ``method`` by its ``name``, for every entry that names both.
+    """
+    entries = [*config.backplanes.bodies, *config.backplanes.rings]
+    return {
+        str(entry['name']): str(entry['method'])
+        for entry in entries
+        if 'name' in entry and 'method' in entry
+    }
 
 
 def _missing_constant(masked_value: float) -> str:
@@ -342,12 +374,52 @@ def _refuse_data_past_the_end(hdul: fits.HDUList, *, file_size: int, fcpath: FCP
             )
 
 
+def _array_description(
+    hdu_name: str,
+    local_identifier: str,
+    *,
+    is_float: bool,
+    method: str | None,
+    unit: str | None,
+    missing_constant: str,
+) -> str | None:
+    """Return what the label says an array holds.
+
+    Parameters:
+        hdu_name: The HDU's name as the file gives it.
+        local_identifier: The array's identifier, that name in lower case.
+        is_float: Whether the array holds 32-bit floats.
+        method: The oops backplane method the plane came from, when the configuration
+            names one.
+        unit: The HDU's ``BUNIT``, when it has one.
+        missing_constant: The masked value, spelled as the label states it.
+
+    Returns:
+        :data:`BODY_ID_MAP_DESCRIPTION` for the body identity map.  For a float plane,
+        a sentence naming the plane and, where there are ones, its method and its unit,
+        and a sentence saying a pixel the plane does not cover holds the missing
+        constant.  None for any other integer array.
+    """
+    if hdu_name == BODY_ID_MAP_HDU_NAME:
+        return BODY_ID_MAP_DESCRIPTION
+    if not is_float:
+        return None
+    source = '' if method is None else f', from the oops backplane method {method},'
+    measure = '' if unit is None else f', in {unit}'
+    return (
+        f'The {local_identifier} backplane{source} evaluated at each pixel of the image'
+        f'{measure}. A pixel the plane does not cover holds the missing constant, '
+        f'{missing_constant}.'
+    )
+
+
 def _describe_hdu(
     hdu: fits.hdu.base._BaseHDU,
     *,
     where: str,
     is_primary: bool,
     missing_constant: str,
+    methods: Mapping[str, str],
 ) -> FitsHdu:
     """Return one HDU's header and array, refusing what the writer does not write.
 
@@ -356,6 +428,7 @@ def _describe_hdu(
         where: The HDU's index and name and the file's path, for a refusal's message.
         is_primary: Whether this is the file's first HDU.
         missing_constant: The masked value, spelled as the label states it.
+        methods: The oops backplane method each plane was computed with, by name.
 
     Returns:
         The HDU's header, and its array when it is an image past the primary.
@@ -422,6 +495,13 @@ def _describe_hdu(
             lines=int(header['NAXIS2']),
             samples=int(header['NAXIS1']),
             missing_constant=missing_constant if bitpix < 0 else None,
-            description=BODY_ID_MAP_DESCRIPTION if hdu.name == BODY_ID_MAP_HDU_NAME else None,
+            description=_array_description(
+                hdu.name,
+                local_identifier,
+                is_float=bitpix < 0,
+                method=methods.get(local_identifier),
+                unit=None if unit is None else str(unit),
+                missing_constant=missing_constant,
+            ),
         ),
     )

@@ -539,8 +539,7 @@ def test_each_data_object_of_a_cohort_data_label_is_in_the_schema_s_shape(
     for array in arrays:
         is_body_id_map = _text(array, 'pds:local_identifier') == 'body_id_map'
         expected.append(
-            ['local_identifier', 'offset', 'axes', 'axis_index_order']
-            + (['description'] if is_body_id_map else [])
+            ['local_identifier', 'offset', 'axes', 'axis_index_order', 'description']
             + ['Element_Array', 'Axis_Array', 'Axis_Array']
             + ([] if is_body_id_map else ['Special_Constants'])
         )
@@ -574,3 +573,44 @@ def test_each_data_object_of_a_cohort_data_label_is_in_the_schema_s_shape(
         'description',
         'record_delimiter',
     ]
+
+
+@pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
+def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
+    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+) -> None:
+    """Each float array's description names its method and unit, and the missing constant.
+
+    The method is the one the shipped configuration names for the plane, the unit the
+    HDU's ``BUNIT`` as astropy reads it, and the constant the configured masked value.
+    """
+    root, fits_copy = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    methods = {
+        entry['name']: entry['method']
+        for entry in [*DEFAULT_CONFIG.backplanes.bodies, *DEFAULT_CONFIG.backplanes.rings]
+    }
+    with fits.open(fits_copy) as hdul:
+        units = {hdu.name.lower(): hdu.header.get('BUNIT') for hdu in hdul[1:]}
+    descriptions = {
+        _text(array, 'pds:local_identifier'): _text(array, 'pds:description')
+        for array in _data_objects(root, 'Array_2D_Image')
+        if _text(array, 'pds:Element_Array/pds:data_type') == 'IEEE754MSBSingle'
+    }
+    assert sorted(descriptions) == sorted(name for name in units if name != 'body_id_map')
+    without_method = [
+        name
+        for name, text in descriptions.items()
+        if f'from the oops backplane method {methods[name]},' not in text
+    ]
+    assert without_method == []
+    without_unit = [
+        name for name, text in descriptions.items() if f', in {units[name]}.' not in text
+    ]
+    assert without_unit == []
+    constant = float(DEFAULT_CONFIG.backplanes.masked_value)
+    without_constant = [
+        name
+        for name, text in descriptions.items()
+        if f'holds the missing constant, {constant!r}.' not in text
+    ]
+    assert without_constant == []

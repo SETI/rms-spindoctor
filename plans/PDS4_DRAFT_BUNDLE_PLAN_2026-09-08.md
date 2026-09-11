@@ -395,7 +395,11 @@ in the same module), and refuse the run or the task otherwise, since every
 float array of every label would declare it; the per-image path takes it as
 checked. `BODY_ID_MAP` declares none, because its `0` is the mask rather than a
 missing measurement; its `description` says instead that `0` marks a pixel no
-body claimed and every other value is the NAIF ID of the body that did.
+body claimed and every other value is the NAIF ID of the body that did. Every
+float array carries a `description` too, as the reference's arrays do: the
+plane's name, the `oops` backplane method the configuration names for it, its
+unit, and a sentence saying that a pixel the plane does not cover holds the
+`missing_constant` value -- nothing about the geometry the method computes.
 
 The builder refuses, naming the HDU, what the backplane writer does not write,
 since describing one wrongly is worse than refusing it: a `BITPIX` other than

@@ -432,7 +432,11 @@ The body identity map declares no missing constant and carries
 :data:`~spindoctor.cli.pds4.data_objects.BODY_ID_MAP_DESCRIPTION` instead: its
 ``0`` is a pixel no body claimed, not a missing measurement.  The map is found by
 :data:`~spindoctor.cli.backplanes.writer.BODY_ID_MAP_HDU_NAME`, the name the
-backplane writer gives it.
+backplane writer gives it.  Every float array carries a description as well, built
+from what the configuration and the file know -- its name, the ``oops`` backplane
+method :func:`~spindoctor.cli.pds4.data_objects.configured_methods` gives for it,
+and its ``BUNIT`` -- and a sentence saying a pixel the plane does not cover holds
+the missing constant; nothing is said of the geometry the method computes.
 
 ``data.lblx`` renders the result, handed to it as ``BACKPLANE_FITS``.  A ``$FOR``
 over its ``hdus`` writes a ``Header``, and an ``Array_2D_Image`` where the HDU has

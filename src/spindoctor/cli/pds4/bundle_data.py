@@ -12,6 +12,7 @@ from pdslogger import PdsLogger
 from spindoctor.cli.pds4.data_objects import (
     SUPPLEMENTAL_FILE_IDENTIFIER,
     UndescribableFitsError,
+    configured_methods,
     describe_backplane_fits,
 )
 from spindoctor.cli.pds4.epochs import unrecorded_epoch
@@ -266,7 +267,9 @@ def generate_bundle_data_files(
         # the source's size, so a description of the source is one of the copy.
         try:
             fits_objects = describe_backplane_fits(
-                fits_source_local, masked_value=float(dataset.config.backplanes.masked_value)
+                fits_source_local,
+                masked_value=float(dataset.config.backplanes.masked_value),
+                methods=configured_methods(dataset.config),
             )
         except UndescribableFitsError as exc:
             logger.error(

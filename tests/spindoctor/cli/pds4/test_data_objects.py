@@ -127,11 +127,15 @@ def test_each_array_is_named_and_qualified_as_its_hdu_is(tmp_path: Path) -> None
 
     Its identifier is the HDU's name in lower case and its unit the HDU's ``BUNIT``,
     none when there is none; a float array declares the masked value it is handed and
-    the integer body identity map none, saying instead what its values are.
+    the integer body identity map none, saying instead what its values are.  Each
+    float array says what it holds: its name, the method it is handed for it, its
+    unit and the missing constant, and neither method nor unit where it has none.
     """
     path = tmp_path / 'backplanes.fits'
     _write_backplane_like(path)
-    arrays = describe_backplane_fits(path, masked_value=MASKED_VALUE).arrays
+    arrays = describe_backplane_fits(
+        path, masked_value=MASKED_VALUE, methods={'body_latitude': 'latitude'}
+    ).arrays
     with fits.open(path) as hdul:
         names = [hdu.name.lower() for hdu in hdul[1:]]
         units = [hdu.header.get('BUNIT') for hdu in hdul[1:]]
@@ -143,11 +147,15 @@ def test_each_array_is_named_and_qualified_as_its_hdu_is(tmp_path: Path) -> None
         MASKED_VALUE,
         MASKED_VALUE,
     ]
-    descriptions = [array.description for array in arrays]
-    assert descriptions[1:] == [None, None]
-    body_id_map = str(descriptions[0])
+    body_id_map, latitude, unitless = (str(array.description) for array in arrays)
     assert '0 where no body claimed it' in body_id_map
     assert 'otherwise the NAIF ID of the body that did' in body_id_map
+    assert 'The body_latitude backplane, from the oops backplane method latitude,' in latitude
+    assert ', in rad.' in latitude
+    assert f'holds the missing constant, {MASKED_VALUE!r}.' in latitude
+    assert 'oops backplane method' not in unitless
+    assert ', in ' not in unitless
+    assert f'holds the missing constant, {MASKED_VALUE!r}.' in unitless
 
 
 def test_a_fits_with_only_a_primary_hdu_has_one_header_and_no_array(tmp_path: Path) -> None:
