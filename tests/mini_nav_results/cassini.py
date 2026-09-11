@@ -39,7 +39,7 @@ from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
 from spindoctor.support.status_reason import NavStatusReason
 
-from .cassini_host import CASSINI_ISS, COISS_KERNELS, cassini_sclk_open
+from .host_cassini import CASSINI_ISS, COISS_KERNELS, cassini_sclk_open
 from .shared import (
     classifier,
     faint_star,

@@ -127,7 +127,7 @@ from spindoctor.support.file import json_as_string
 
 from .cassini import results_tree_documents as cassini_documents
 from .cohort import Cohort
-from .cohort_cassini import CassiniISSSaturnCohort
+from .cohort_cassini import CohortCassiniISSSaturn
 from .simulated import results_tree_documents as simulated_documents
 from .voyager import results_tree_documents as voyager_documents
 
@@ -140,7 +140,7 @@ __all__ = [
     'write_results_tree',
 ]
 
-COHORTS: dict[str, type[Cohort]] = {cohort.NAME: cohort for cohort in (CassiniISSSaturnCohort,)}
+COHORTS: dict[str, type[Cohort]] = {cohort.NAME: cohort for cohort in (CohortCassiniISSSaturn,)}
 """Every bundle's cohort, keyed by the name it is chosen under."""
 
 RESULTS_TREE = (

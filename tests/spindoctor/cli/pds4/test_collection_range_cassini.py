@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
-from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CassiniISSSaturnCohort
+from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.collections import generate_collection_files, generate_global_index_files
@@ -26,13 +26,16 @@ from .conftest import make_cohort_bundle_env, make_image_file
 
 
 @pytest.fixture
-def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CassiniISSSaturnCohort:
+def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
     """Return the Cassini ISS Saturn cohort, as the session wrote it.
+
+    Parameters:
+        mini_nav_cohorts: What the session's cohorts are written by.
 
     Returns:
         The written cohort.
     """
-    return mini_nav_cohorts(CassiniISSSaturnCohort)
+    return mini_nav_cohorts(CohortCassiniISSSaturn)
 
 
 def _instant(pds4_utc: str) -> datetime.datetime:

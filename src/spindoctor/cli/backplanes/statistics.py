@@ -30,9 +30,9 @@ class PlaneStatistics(TypedDict):
     Attributes:
         min: The smallest value the plane measured, in ``units``.
         max: The largest value the plane measured, in ``units``.
-        units: The unit those two are in, which is the degrees restatement of
-            the plane's own unit wherever the plane is angular and the plane's
-            own unit otherwise.
+        units: The unit those two are in: the plane's own unit restated in
+            degrees when it is in radians, as :func:`statistics_units` decides,
+            and the plane's own unit otherwise.
     """
 
     min: float
@@ -70,8 +70,8 @@ def plane_statistics(values: NDArrayFloatType, *, units: str) -> PlaneStatistics
         units: The unit those values carry, as the configuration declares it.
 
     Returns:
-        The plane's minimum and maximum, converted to degrees if the plane is
-        angular, and the unit they are in.
+        The plane's minimum and maximum, converted to degrees if the plane's unit
+        is in radians, and the unit they are in.
 
     Raises:
         ValueError: If ``values`` is empty.

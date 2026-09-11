@@ -70,6 +70,6 @@ def test_statistics_of_an_angular_plane_are_converted_and_say_so() -> None:
 
 def test_statistics_of_a_non_angular_plane_keep_their_values_and_unit() -> None:
     """A plane that is not angular is summarized in the unit its array carries."""
-    stats = plane_statistics(np.array([74658.0, 136780.0]), units='km')
-    assert stats['min'] == pytest.approx(74658.0)
+    stats = plane_statistics(np.array([1000.0, 2000.0]), units='km')
+    assert stats['min'] == pytest.approx(1000.0)
     assert stats['units'] == 'km'

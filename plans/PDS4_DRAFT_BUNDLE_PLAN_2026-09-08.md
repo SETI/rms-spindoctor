@@ -30,8 +30,8 @@ the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
 so has to be settled before a label describes one. A third, the statistics'
-units recorded in section 3.8, landed with Phase 2 rather than ahead of it,
-and for the same reason: it alters what the metadata documents contain and
+conversion to degrees, each statistic recording its unit (section 3.8), landed
+with Phase 2 rather than ahead of it, and for the same reason: it alters what the metadata documents contain and
 therefore what Phase 7's tables and labels are sized and written against.
 
 This plan is the "finish and validate the Cassini path" half of #53, which
@@ -66,8 +66,9 @@ guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the `Special_Constants`
 declaration, which is what remains of the masked-value work), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
-6 own), #611 (the backplane viewer converts only a `BUNIT` of `rad`, so it
-shows the `rad/pixel` plane in radians per pixel), #614 (a dataset without PDS4 support
+6 own), #611 (the backplane viewer decides degrees from `BUNIT` and the plane's
+name rather than through `statistics_units`, so it shows the `rad/pixel` plane
+in radians per pixel), #614 (a dataset without PDS4 support
 ends both passes in a traceback rather than a refusal). #603, the two passes
 disagreeing about a missing template, was closed by hand on 2026-09-11, after
 #605, Phase 1's PR, merged. #607, the index tables written to one precision
@@ -551,9 +552,10 @@ degrees.
 The tables are written with a format per unit (#607), from
 `INDEX_VALUE_FORMATS` in `collections.py`: three decimals for `deg`, one for
 `km`, eight for `deg/pixel`, and five significant figures for `km/pixel`,
-written positionally, never in exponent form. The arrays are float32, so no
-format prints more than the seven significant digits a statistic carries. No
-format fixes a column's width, so Phase 7 sizes each field from the widest
+written positionally, never in exponent form. The arrays are float32, so a
+statistic carries about seven significant digits; each format is chosen within
+that from what one pixel resolves, the eight decimals of `deg/pixel` reaching
+its edge. No format fixes a column's width, so Phase 7 sizes each field from the widest
 value its column holds. Nothing checks the configured units when a bundle is
 written (the operator's ruling of 2026-09-11): two tests over the shipped
 configuration are the guard, one holding each measure to the ones
@@ -723,7 +725,7 @@ fixture selected for two unrelated criteria stops being legible for either.
 So the package holds a **cohort per bundle**, each a `Cohort` subclass in a
 module named for the bundle and registered in `COHORTS`, built from the same
 `shared.py` primitives and written to a cohort root rather than into
-`RESULTS_TREE`. The Cassini ISS Saturn cohort, `CassiniISSSaturnCohort` in
+`RESULTS_TREE`. The Cassini ISS Saturn cohort, `CohortCassiniISSSaturn` in
 `cohort_cassini.py`, is the one that exists. `results_tree_documents()` and the
 stats fixture tree are untouched by it.
 
@@ -811,7 +813,7 @@ Two rules bind the additions.
 happens otherwise: four Cassini documents in the statistics set carry clock
 seconds taken from the image number rather than converted from the epoch
 beside them. The response here is not a test that exempts those four. It is
-a constructor in `cassini_host.py`, the Cassini host's module, that takes an
+a constructor in `host_cassini.py`, the Cassini host's module, that takes an
 epoch and returns the clock triple, so a document built through it cannot
 carry an invented one, and a second beside it derives the image number from
 the same epoch. The Cassini cohort is built entirely through both; another
@@ -1121,7 +1123,7 @@ built through the production writers. `results_tree_documents()` is the statisti
 tree, unchanged and still stored under `tests/spindoctor/cli/stats/data/`,
 composed from each host's own documents; the cohorts, one `Cohort` subclass per
 bundle registered in `COHORTS`, are what bundle generation is asserted against,
-and are never stored. The one that exists, `CassiniISSSaturnCohort`, is three
+and are never stored. The one that exists, `CohortCassiniISSSaturn`, is three
 Cassini images.
 
 The Cassini cohort is two navigated images and one that is not. The two shard into
@@ -1138,7 +1140,7 @@ inventory dict, which is all the writer reads before it stops asking about
 SPICE.
 
 Every clock reading and every image number is derived from one epoch, through
-`cassini_host.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
+`host_cassini.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
 from a line through two correlation points the mission clock kernel gives --
 calibrating where the clock started and the rate it runs at -- and stamped onto
 a result by `with_pointing_from_epoch`, which takes no clock argument at all.
@@ -1159,8 +1161,8 @@ for a cohort the bundle, and where to write it, all required.
 plumbing questions and gains `CohortBundleEnv`, which runs the registered
 dataset a cohort's bundle is built with over the templates it ships, and is
 what the phases after this one assert against. Each host's camera frames,
-exposure and clock are in a module named for the host (`cassini_host.py`,
-`voyager_host.py`), described to `with_pointing` by a `Host`; each host's clock
+exposure and clock are in a module named for the host (`host_cassini.py`,
+`host_voyager.py`), described to `with_pointing` by a `Host`; each host's clock
 reader is in a module named for it under `tests/sclk_readings/`; and the tests
 only one bundle's cohort can state are in modules named for the bundle.
 

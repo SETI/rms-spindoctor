@@ -258,15 +258,14 @@ If the part of a unit before any ``/`` is exactly ``rad``, it becomes ``deg``
 and the rest is kept, so ``rad/pixel`` becomes ``deg/pixel``. Every other unit
 is left alone. An angular unit other than ``rad`` (``mrad``, ``arcsec``) would
 need a change to that function, and every unit needs a format in
-:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS`. Nothing checks the
-configured units when a bundle is written: two tests over the shipped
-configuration are the guard, catching a unit that lacks either. One allows only
+:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS`. Two tests over the
+shipped configuration fail on a unit that needs either change: one allows only
 the measures ``rad``, ``deg`` and ``km``, and the other looks every unit up in
 that table.
 
-``sd_backplane_viewer`` has its own rule: it converts a plane whose ``BUNIT``
-is ``rad``, in any letter case, and any plane whose name contains
-``longitude``, ``latitude``, ``incidence``, ``emission`` or ``phase``.
+``sd_backplane_viewer`` has its own rule: it shows in degrees a plane whose
+``BUNIT`` is ``rad`` in any letter case, or whose name contains ``longitude``,
+``latitude``, ``incidence``, ``emission`` or ``phase``.
 
 Configuration
 =============

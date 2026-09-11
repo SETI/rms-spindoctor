@@ -18,29 +18,27 @@ Pipeline overview
 
 Bundle generation is a two-phase process driven by ``sd_create_bundle``:
 
-1. **Per-image data labels.**  For each image in the input batch,
+1. **Per-image products.**  For each image in the input batch,
    :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` reads the
    ``_metadata.json`` produced by ``sd_offset`` and the
    ``_backplane_metadata.json`` produced by ``sd_backplanes``, populates a
    ``pdstemplate`` rendering context with per-image template variables, and
-   writes the matching ``<image>_backplanes.lblx`` file (plus a copy of the
-   browse PNG into the bundle's ``browse/`` tree). The backplane FITS file
-   itself is copied (or symlinked, depending on the dataset's preference) from
-   the backplane root into the bundle's ``data/`` tree.
+   writes into the bundle's ``data/`` tree the image's ``<image>_backplanes.lblx``
+   label and ``<image>_supplemental.txt`` file, and into its ``browse/`` tree a
+   copy of the summary PNG and its ``<image>_summary.lblx`` label. The data label
+   names the backplane FITS; the pass does not copy the FITS into the bundle.
 
-2. **Collections + bundle assembly.**  After every per-image data label is in
-   place, :func:`~spindoctor.cli.pds4.collections.generate_global_index_files`
-   reads every ``_supplemental.txt`` in the bundle's ``data/`` tree once, writes
-   the per-bundle ``global_index_bodies`` and ``global_index_rings`` tables and
-   their labels, and takes the range of the products' exposure epochs in the
-   same read.  Then
+2. **Collections and indexes.**  After every per-image data label is in place,
+   :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` reads
+   every ``_supplemental.txt`` in the bundle's ``data/`` tree once, writes the
+   ``global_index_bodies`` and ``global_index_rings`` tables and their labels
+   under ``document/supplemental/``, and takes the range of the products'
+   exposure epochs in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
    ``data/`` tree, collects every ``_backplanes.lblx`` it finds, sorts them by
-   image name, and writes the ``collection_data.tab`` inventory with the matching
-   ``collection_data.lblx`` label, which states the range it is handed, and the
-   browse collection's inventory and label.  The other collection labels
-   (context, document, xml_schema) and the top-level ``bundle.lblx`` are rendered
-   by neither generator.
+   image name, and writes the ``collection_data.tab`` and
+   ``collection_browse.tab`` inventories and their labels, the data collection
+   label stating the range it is handed.
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
@@ -49,22 +47,22 @@ label in place before it can build the inventory).
 Driver: ``sd_create_bundle``
 =============================
 
-``sd_create_bundle`` (``src/spindoctor/cli/sd_create_bundle.py``) is the per-image
-phase-1 entry point. Like the other CLIs it takes a ``DATASET_NAME``, the
-selection flags from the matching :class:`~spindoctor.dataset.dataset.DataSet`
-subclass (``--pds3-holdings-root`` among them, for a PDS3 dataset), the standard
-environment options (``--config-file``, ``--bundle-results-root``,
-``--nav-results-root``, ``--backplane-results-root``), and walks every
-selected image.
+``sd_create_bundle`` (``src/spindoctor/cli/sd_create_bundle.py``) has two
+subcommands. ``sd_create_bundle labels`` runs phase 1: it takes a
+``DATASET_NAME``, the selection flags from the matching
+:class:`~spindoctor.dataset.dataset.DataSet` subclass (``--pds3-holdings-root``
+among them, for a PDS3 dataset), the environment options (``--config-file``,
+``--bundle-results-root``, ``--nav-results-root``, ``--backplane-results-root``),
+the logging options and ``--dry-run``, and walks every selected image.
+``sd_create_bundle summary`` runs phase 2 once over the bundle: it takes a
+``DATASET_NAME``, ``--config-file``, ``--bundle-results-root`` and the logging
+options.
 
-A separate ``--collections`` flag triggers phase 2 (collection + bundle
-labels) without re-rendering per-image data labels. Operators typically run
-``sd_create_bundle DATASET --image-list FOO --no-collections`` in parallel
-across many shards, then once with ``--collections`` to assemble the bundle.
-
-Cloud-tasks variant ``sd_create_bundle_cloud_tasks`` reads the same task JSON
-schema as ``sd_offset_cloud_tasks`` (see :doc:`/user_guide/user_guide_navigation`) so the
-same task queue can drive offset + backplane + bundle in three queue passes.
+The cloud-tasks variant ``sd_create_bundle_cloud_tasks`` runs phase 1 from a
+queue, one image per task. A task carries a ``dataset_name`` and a ``files`` list
+holding that image's ``image_file_url``, ``label_file_url`` and
+``results_path_stub``, and optionally its ``index_file_row``: the fields of a
+``sd_offset_cloud_tasks`` task that the bundle needs.
 
 Exit status
 -----------
@@ -79,9 +77,9 @@ per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
 Each index column is written in the format
-:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit: the
-backplane arrays are float32, so no format prints more than seven significant
-digits, and within that each is chosen from what one pixel resolves.  Nothing
+:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit, each
+chosen from what one pixel resolves, within the roughly seven significant digits a
+float32 array carries.  Nothing
 checks the configured units when a bundle is written: a unit the table has no
 format for is a ``KeyError`` from the summary pass's lookup.  The guard is the
 two tests over the shipped configuration that :doc:`dev_guide_backplanes`
@@ -106,7 +104,7 @@ an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or
-infinite), and an image whose inputs it could not read -- and exits 1 when that
+infinite), and an image whose processing raised an error -- and exits 1 when that
 count is not zero.  An image with such a statistic is failed before anything is
 written for it, and the log names the image, the plane and what the document
 records there.  The run closes with a line giving that count alongside the
@@ -114,16 +112,16 @@ number of images it labeled and the number it skipped, so a selection that
 matched nothing reads as the zero it is.  It counts a batch that did not hold
 exactly one image the same way; that is a guard on the one-image-per-batch
 invariant :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files`
-also asserts, and no selection argument this dataset offers can produce one.
+also asserts.
 
 An image the bundle has nothing to describe is skipped rather than failed and
 does not count against the run: an image with no navigation metadata document,
 an image whose navigation status is not ``success``, and a navigated image with
 no backplane metadata document are all cases of a selection naming more images
 than the bundle covers, which is the ordinary state of a selection made by
-volume.  A document that is there but cannot be read is a different thing: the
-generation raises, the driver logs the traceback naming the image, counts the
-image against the run, and carries on to the next one.
+volume.  An error raised while one image is processed is logged with its
+traceback naming the image, counts the image against the run, and the run
+carries on to the next one.
 
 A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
@@ -374,8 +372,9 @@ layout:
      global_index_rings.lblx                  # per-bundle rings summary
      cassini-iss-saturn-backplanes-user-guide.lblx  # bundle user-guide doc
 
-The static inventory CSVs are copied verbatim into the bundle; the
-per-image and per-bundle ``.lblx`` files are rendered fresh on every run.
+The two passes render ``data.lblx`` and ``browse.lblx`` for each image and the
+collection and global index labels for the bundle, on every run; the other files
+ship with the templates, and no pass writes them into a bundle.
 
 Epochs
 ======
@@ -432,43 +431,29 @@ dates.
 Output layout
 =============
 
-A finished bundle has the standard PDS4 directory shape:
+The two passes write this tree:
 
 ::
 
    <bundle_results_root>/<bundle_name>/
-     bundle.lblx
-     readme.txt
      data/
+       collection_data.tab                   # summary pass
+       collection_data.lblx                  # summary pass
        <pds4_bundle_path_for_image>/
          <image>_backplanes.lblx
-         <image>_backplanes.fits             # copied from backplane_results_root
+         <image>_supplemental.txt
      browse/
+       collection_browse.tab                 # summary pass
+       collection_browse.lblx                # summary pass
        <pds4_bundle_path_for_image>/
-         <image>_browse.lblx
-         <image>_browse.png                  # copied from nav_results_root
-     collection/
-       data/
-         collection_data.lblx
-         collection_data.csv
-       browse/
-         collection_browse.lblx
-         collection_browse.csv
-       context/
-         collection_context.lblx
-         collection_context.csv              # static
-       document/
-         collection_document.lblx
-         collection_document.csv             # static
-         <user-guide doc>.lblx
-       xml_schema/
-         collection_xml_schema.lblx
-         collection_xml_schema.csv           # static
-     index/
-       global_index_bodies.lblx
-       global_index_bodies.csv
-       global_index_rings.lblx
-       global_index_rings.csv
+         <image>_summary.lblx
+         <image>_summary.png                 # copied from nav_results_root
+     document/
+       supplemental/
+         global_index_bodies.tab             # summary pass
+         global_index_bodies.lblx            # summary pass
+         global_index_rings.tab              # summary pass
+         global_index_rings.lblx             # summary pass
 
 Testing bundle generation
 =========================
@@ -500,13 +485,14 @@ written by the backplane stage's own
 because the browse label states its size and its checksum; and the index row an
 enumeration hands on with each image. Each cohort is a subclass of
 :class:`~tests.mini_nav_results.cohort.Cohort`, which writes all of that from
-what the subclass supplies: the images, the holdings layout they sit in, how an
-image's camera is read from its index row, the range each backplane plane spans,
+what the subclass supplies: the images, the holdings layout they sit in and the
+extensions of their image and label files, how an image's camera is read from its
+index row, the range each backplane plane spans,
 and the registered dataset the bundle is built with. The package's ``COHORTS``
 registry lists them.
 
 The Cassini ISS Saturn cohort,
-:class:`~tests.mini_nav_results.cohort_cassini.CassiniISSSaturnCohort`, is the
+:class:`~tests.mini_nav_results.cohort_cassini.CohortCassiniISSSaturn`, is the
 one that exists: three images, two navigated and one not, the two navigated ones
 sharding into different bundle directories and only one of them with ring
 backplanes, so a run over it exercises both layouts.
@@ -533,7 +519,7 @@ clock kernel and converts every cohort epoch again, which is excluded from the
 default run because the kernels are not there to furnish.
 
 The self-tests every cohort is held to run over each registered cohort; what
-only one bundle's cohort can state -- its clock, its image names, its index
+only one bundle's cohort can state -- its image names, its index
 columns, its bundle directories, its holdings layout -- is tested in a module
 named for that bundle.
 
@@ -587,8 +573,7 @@ The end-to-end checklist:
    ``pds4_template_variables`` hook draws from.
 4. Add an integration smoke test that renders one image through
    ``sd_create_bundle`` and asserts the resulting ``data.lblx`` validates
-   against the PDS4 schema. The Cassini ISS test under
-   ``tests/integration/`` is the pattern to follow.
+   against the PDS4 schema.
 5. Add the bundle's cohort, as `Testing bundle generation`_ describes: a
    :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a module named for
    the bundle, its entry in ``COHORTS``, and a test module named for the bundle

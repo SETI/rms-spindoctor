@@ -9,7 +9,8 @@ cohort costs the repository nothing.
 
 Each bundle has its own cohort, a subclass of :class:`Cohort` in a module named for
 the bundle.  The subclass supplies what is the bundle's: its images, the holdings
-layout they sit in, how an image's camera is read from its index row, the range each
+layout they sit in and the extensions of their image and label files, how an image's
+camera is read from its index row, the range each
 backplane plane spans, and the registered dataset the bundle is built with.  This
 module supplies what every cohort shares: writing the two roots and the holdings
 directory, the images in the shape an enumeration hands them on, and the one-image
@@ -94,7 +95,7 @@ class CohortImage:
 class Cohort(ABC):
     """A written cohort, and where each half of it went.
 
-    The base of every bundle's cohort.  A subclass sets the three class attributes
+    The base of every bundle's cohort.  A subclass sets the five class attributes
     and implements :meth:`images`, :meth:`camera_of` and :meth:`dataset`; this class
     writes the cohort from them, with :meth:`write`.
 
@@ -102,6 +103,10 @@ class Cohort(ABC):
         NAME: The name the cohort is registered and chosen under.
         HOLDINGS_SUBTREE: Where the bundle's images sit under a holdings root,
             which is where an enumeration finds them.
+        IMAGE_SUFFIX: The extension of an image file, dot included, which follows
+            the image's results path stub in its URL.
+        LABEL_SUFFIX: The extension of the label beside an image file, dot
+            included, which replaces the image's own.
         PLANE_BOUNDS: What one plane of each configured name spans, in the units
             the configuration declares; the backplane products ramp between them.
         root: The directory everything below sits under.
@@ -116,6 +121,8 @@ class Cohort(ABC):
 
     NAME: ClassVar[str]
     HOLDINGS_SUBTREE: ClassVar[str]
+    IMAGE_SUFFIX: ClassVar[str]
+    LABEL_SUFFIX: ClassVar[str]
     PLANE_BOUNDS: ClassVar[Mapping[str, tuple[float, float]]]
 
     root: Path
@@ -208,11 +215,11 @@ class Cohort(ABC):
                 written.append(fits_path)
                 written.append(backplane_results_root / f'{image.stub}_backplane_metadata.json')
 
-            image_url = holdings_root / cls.HOLDINGS_SUBTREE / f'{image.stub}.IMG'
+            image_url = holdings_root / cls.HOLDINGS_SUBTREE / f'{image.stub}{cls.IMAGE_SUFFIX}'
             image_files.append(
                 ImageFile(
                     image_file_url=FCPath(image_url),
-                    label_file_url=FCPath(image_url.with_suffix('.LBL')),
+                    label_file_url=FCPath(image_url.with_suffix(cls.LABEL_SUFFIX)),
                     results_path_stub=image.stub,
                     index_file_row=image.index_file_row,
                     camera=cls.camera_of(image.index_file_row),

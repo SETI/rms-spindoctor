@@ -1,11 +1,12 @@
 """Self-tests of the Cassini ISS Saturn cohort: what only its bundle's images can say.
 
 The cohort is built from each image's epoch and nothing else, so what is worth
-holding it to is that everything derived from that epoch still agrees with it:
-the clock readings a document records, and the number the image is named for.
-An image whose name and epoch disagree is the defect the epoch-first
-constructor exists to make unreachable, and it is invisible to any test that
-reads one of them alone.
+holding it to is that everything derived from that epoch still agrees with it.
+The clock readings every cohort's documents record are held to their epochs in
+``test_cohort.py``; what is Cassini's is the number each image is named for, the
+whole-second field of the reading its shutter opened at.  An image whose name and
+epoch disagree is the defect the epoch-first constructor exists to make
+unreachable, and it is invisible to any test that reads one of them alone.
 
 The rest is what the bundle stage reads off this cohort and cannot check for
 itself: the layout, which is two navigated images that shard into different
@@ -26,9 +27,8 @@ from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import (
     LIMB_IMAGE_NAME,
     RINGS_IMAGE_NAME,
-    CassiniISSSaturnCohort,
+    CohortCassiniISSSaturn,
 )
-from tests.sclk_readings import triples_disagreeing_with_their_epochs
 
 
 @pytest.fixture(scope='module')
@@ -38,28 +38,20 @@ def documents() -> dict[str, dict[str, Any]]:
     Returns:
         Stub to the document the writer produces for it.
     """
-    return CassiniISSSaturnCohort.documents()
+    return CohortCassiniISSSaturn.documents()
 
 
 @pytest.fixture(scope='module')
-def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CassiniISSSaturnCohort:
+def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
     """Return the Cassini ISS Saturn cohort, as the session wrote it.
+
+    Parameters:
+        mini_nav_cohorts: What the session's cohorts are written by.
 
     Returns:
         The written cohort.
     """
-    return mini_nav_cohorts(CassiniISSSaturnCohort)
-
-
-def test_every_clock_triple_spans_the_epochs_beside_it(
-    documents: dict[str, dict[str, Any]],
-) -> None:
-    """A reading that is not the one its epoch converts to is an invented one.
-
-    Every reader that subtracts two readings, or converts one back into an
-    epoch, reads whatever a hand-authored triple happened to say.
-    """
-    assert triples_disagreeing_with_their_epochs(documents) == []
+    return mini_nav_cohorts(CohortCassiniISSSaturn)
 
 
 def test_every_image_is_named_for_the_reading_its_shutter_opened_at(
@@ -72,7 +64,7 @@ def test_every_image_is_named_for_the_reading_its_shutter_opened_at(
     is a number that came from somewhere else.
     """
     disagreeing: list[str] = []
-    for image in CassiniISSSaturnCohort.images():
+    for image in CohortCassiniISSSaturn.images():
         recorded = str(documents[image.stub]['navigation_result']['times']['sclk_start'])
         named = image.image_name[1:].split('_', 1)[0]
         if recorded.split('/', 1)[1].split('.')[0] != named:
@@ -90,7 +82,7 @@ def test_every_index_row_column_is_one_the_real_index_has() -> None:
     was never broken.
     """
     unknown: list[str] = []
-    for image in CassiniISSSaturnCohort.images():
+    for image in CohortCassiniISSSaturn.images():
         unknown += [
             f'{image.image_name}: {column}'
             for column in sorted(set(image.index_file_row) - _COISS_INDEX_COLUMNS)
@@ -262,12 +254,18 @@ def test_a_document_and_its_image_file_name_one_file(cassini_cohort: Cohort) -> 
     below them, since a phase deriving a volume or a collection out of either
     has only the layout to derive it from.  The index row is the odd one out on
     purpose: it names the raw product on its own volume, which is what a real
-    index names and a different file.
+    index names and a different file.  Beside the image an enumeration hands on
+    the label next to it and the camera the index row names.
     """
+    subtree = CohortCassiniISSSaturn.HOLDINGS_SUBTREE
     found: dict[str, tuple[str, str]] = {}
     expected: dict[str, tuple[str, str]] = {}
+    labels: dict[str, str] = {}
+    expected_labels: dict[str, str] = {}
+    cameras: dict[str, str | None] = {}
+    expected_cameras: dict[str, str | None] = {}
     for image, image_file in zip(
-        CassiniISSSaturnCohort.images(), cassini_cohort.image_files, strict=True
+        CohortCassiniISSSaturn.images(), cassini_cohort.image_files, strict=True
     ):
         document = json.loads(
             Path(f'{cassini_cohort.nav_results_root / image.stub}_metadata.json').read_text(
@@ -278,6 +276,12 @@ def test_a_document_and_its_image_file_name_one_file(cassini_cohort: Cohort) -> 
             _below_the_holdings_root(str(document['observation']['image_path'])),
             _below_the_holdings_root(image_file.image_file_url.as_posix()),
         )
-        one_file = f'{CassiniISSSaturnCohort.HOLDINGS_SUBTREE}/{image.stub}.IMG'
+        one_file = f'{subtree}/{image.stub}{CohortCassiniISSSaturn.IMAGE_SUFFIX}'
         expected[image.stub] = (one_file, one_file)
+        labels[image.stub] = _below_the_holdings_root(image_file.label_file_url.as_posix())
+        expected_labels[image.stub] = f'{subtree}/{image.stub}{CohortCassiniISSSaturn.LABEL_SUFFIX}'
+        cameras[image.stub] = image_file.camera
+        expected_cameras[image.stub] = image.camera
     assert found == expected
+    assert labels == expected_labels
+    assert cameras == expected_cameras

@@ -222,18 +222,17 @@ For each processed image, ``sd_backplanes`` writes two files under
   - A primary HDU.
   - ``BODY_ID_MAP`` (int32) as the first image HDU.
   - One ``ImageHDU`` per backplane array that measured at least one pixel,
-    with ``BUNIT`` set when configured.
+    with ``BUNIT`` set to the configured ``units``.
 
 - ``<results_path_stub>_backplane_metadata.json`` containing per-body
   inventory information and per-backplane ``min``/``max`` statistics with the
   ``units`` they are in (consumed by ``sd_create_bundle`` when generating PDS4
   labels).
 
-Angular backplane arrays are in radians, as their ``BUNIT`` headers say. The
-minimum and maximum in the metadata file are converted to degrees (``rad``
-becomes ``deg``, ``rad/pixel`` becomes ``deg/pixel``), because they become
-columns of the PDS4 bundle's index tables, which people read. Each statistic
-records its unit.
+Angular backplane arrays are in radians, as their ``BUNIT`` headers say. In the
+metadata file an angular plane's minimum and maximum are in degrees (``rad``
+becomes ``deg``, ``rad/pixel`` becomes ``deg/pixel``), and each statistic records
+its unit.
 
 Logs are written under the log root rather than beside these products: the
 run's own log to ``{log_root}/sd_backplanes/main_{timestamp}.log`` and one per
@@ -294,5 +293,5 @@ Features
 Notes
 -----
 
-- Units: a backplane whose ``BUNIT`` is ``rad`` (in any letter case), or whose name contains ``longitude``, ``latitude``, ``incidence``, ``emission`` or ``phase``, is shown in degrees; every other backplane is shown in the unit it is stored in.
+- Units: a backplane whose ``BUNIT`` is ``rad``, or whose name contains ``longitude``, ``latitude``, ``incidence``, ``emission`` or ``phase``, is shown in degrees; every other backplane is shown in the unit it is stored in, so ``ring_longitudinal_resolution``, in ``rad/pixel``, is shown in radians per pixel.
 - Masking: Backplane visualizations treat a pixel as valid when it is finite and is not the masked value, which is the same rule for body and ring planes.

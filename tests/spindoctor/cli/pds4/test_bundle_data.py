@@ -116,7 +116,7 @@ def test_supplemental_combines_navigation_and_backplane_metadata(tmp_path: Path)
     nav_metadata, backplane_metadata = write_nav_inputs(
         env,
         nav_extra={'offset': {'dv': 1.5, 'du': -2.0}},
-        backplane_metadata={'bodies': {'MIMAS': {'backplanes': {}}}, 'rings': {}},
+        backplane_metadata={'bodies': {'MOON_A': {'backplanes': {}}}, 'rings': {}},
     )
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'

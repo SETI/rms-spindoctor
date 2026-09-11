@@ -33,7 +33,7 @@ import cspyce  # noqa: E402  (guarded import)
 from spindoctor.support.time import Pds4Rounding, et_to_pds4_utc  # noqa: E402  (guarded import)
 from tests.kernel_pool import isolated_kernel_pool  # noqa: E402  (guarded import)
 from tests.mini_nav_results.cohort_cassini import (  # noqa: E402  (guarded import)
-    CassiniISSSaturnCohort,
+    CohortCassiniISSSaturn,
 )
 
 _EPOCH_KEYS = ('start_et', 'midtime_et', 'stop_et')
@@ -89,7 +89,7 @@ def test_every_cohort_epoch_is_written_as_the_kernel_rounds_it(
         rounding: Which way the epochs are rounded.
     """
     disagreeing: list[str] = []
-    for image in CassiniISSSaturnCohort.images():
+    for image in CohortCassiniISSSaturn.images():
         times = image.document['navigation_result']['times']
         for key in _EPOCH_KEYS:
             et = float(times[key])
