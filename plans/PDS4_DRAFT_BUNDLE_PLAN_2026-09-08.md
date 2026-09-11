@@ -389,11 +389,9 @@ and 3.0 is stated because every construct the writer uses is in it.
 Every float array declares the configured masked value as the
 `missing_constant` of a `Special_Constants` block, read from
 `backplanes.masked_value` rather than written as a literal (section 3.13).
-The labels pass and the cloud-task worker hold that value, once and before any
-image, to a finite number a 32-bit float holds exactly (`unusable_masked_value`
-in the same module), and refuse the run or the task otherwise, since every
-float array of every label would declare it; the per-image path takes it as
-checked. `BODY_ID_MAP` declares none, because its `0` is the mask rather than a
+A test holds the shipped value to a finite number a 32-bit float holds
+exactly, since every masked pixel holds it as one; nothing checks the
+configuration at run time. `BODY_ID_MAP` declares none, because its `0` is the mask rather than a
 missing measurement; its `description` says instead that `0` marks a pixel no
 body claimed and every other value is the NAIF ID of the body that did. Every
 float array carries a `description` too, as the reference's arrays do: the

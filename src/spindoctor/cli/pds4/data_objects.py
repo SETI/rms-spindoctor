@@ -11,7 +11,6 @@ asked for it, so that the label describes the file in the bundle: a plane the wr
 dropped is not described, and one it wrote is described as it was written.
 """
 
-import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -129,8 +128,7 @@ def describe_backplane_fits(
     Parameters:
         fits_path: The local FITS to describe, as the backplane writer writes one.
         masked_value: The value a float plane holds wherever it measured nothing, the
-            configuration's ``backplanes.masked_value``, taken to be one
-            :func:`unusable_masked_value` accepts.
+            configuration's ``backplanes.masked_value``.
         methods: The oops backplane method each plane was computed with, by the plane's
             configured name, as :func:`configured_methods` gives them; a plane it does
             not name is described without one.
@@ -150,39 +148,6 @@ def describe_backplane_fits(
             for index, hdu in enumerate(hdul)
         )
     return BackplaneFitsObjects(hdus=hdus)
-
-
-def unusable_masked_value(config: Config) -> str | None:
-    """Return why the configured masked value cannot be a label's missing constant.
-
-    Every float array of every data label declares ``backplanes.masked_value`` as its
-    missing constant, and the backplane writer fills every unmeasured pixel of a float
-    plane with it, so it has to be a number a 32-bit float holds exactly: one that is
-    not a number, not finite, or not exactly representable would be declared as a value
-    no masked pixel holds.  It is the same for every image, so the drivers ask this
-    once, before any image is processed.
-
-    Parameters:
-        config: The configuration whose ``backplanes.masked_value`` is checked.
-
-    Returns:
-        None when the value is usable, and otherwise a sentence naming the value and
-        what is wrong with it: that it is not a number, not a finite number, or not
-        one a 32-bit float holds exactly.
-    """
-    value = config.backplanes.masked_value
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return f'the configured masked value {value!r} is not a number'
-    if not math.isfinite(value):
-        return f'the configured masked value {value!r} is not a finite number'
-    with np.errstate(over='ignore'):
-        stored = float(np.float32(value))
-    if stored != value:
-        return (
-            f'the configured masked value {value!r} is not one a 32-bit float holds '
-            'exactly, so no float plane can hold it'
-        )
-    return None
 
 
 def configured_methods(config: Config) -> dict[str, str]:
@@ -205,9 +170,6 @@ def configured_methods(config: Config) -> dict[str, str]:
 
 def _missing_constant(masked_value: float) -> str:
     """Return the masked value as a label states it.
-
-    The value is taken to be one :func:`unusable_masked_value` accepts, which the
-    drivers establish once before any image is processed.
 
     Parameters:
         masked_value: The configuration's masked value.

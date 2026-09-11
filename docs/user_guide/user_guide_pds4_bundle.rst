@@ -360,10 +360,8 @@ the log names what was not.
 
 * ``sd_create_bundle labels`` exits 1 when any image's labels could not be
   written or its inputs could not be read, and exits 1 before processing
-  anything when the bundle's directory already holds files, when a configured
-  backplane declares a unit the bundle cannot use, or when the configured masked
-  value (``backplanes.masked_value``) is not a finite number a 32-bit float holds
-  exactly, since every float array's label declares it. It closes with a
+  anything when the bundle's directory already holds files or when a
+  configured backplane declares a unit the bundle cannot use. It closes with a
   line giving the number of images it labeled, skipped and failed, so a
   selection that matched nothing reads as the zero it is.
 
@@ -414,8 +412,7 @@ the log names what was not.
   removed, with every directory made for it.
 
   ``--dry-run`` writes nothing, and exits 0 once the templates are present,
-  every configured unit and the masked value are usable, and the bundle
-  directory is empty.
+  every configured unit is usable, and the bundle directory is empty.
 
 * ``sd_create_bundle summary`` exits 1 when any collection or global index label
   could not be written, and exits 1 before reading anything when a configured
@@ -463,10 +460,7 @@ the log names what was not.
   unit the bundle cannot use, or with no unit, writes nothing and is reported as
   ``status: error`` with ``status_error: unusable_unit``, every such backplane
   and the reason in ``status_exception``. It asks for no retry either, since
-  every task under that configuration fails the same way. A task under a masked
-  value that is not a finite number a 32-bit float holds exactly writes nothing
-  either, and is reported with ``status_error: unusable_masked_value``, the
-  reason in ``status_exception``.
+  every task under that configuration fails the same way.
 
 The summary pass builds its tables from what is in the bundle's ``data/`` tree
 without checking that tree for completeness, so it can exit 0 over a bundle the

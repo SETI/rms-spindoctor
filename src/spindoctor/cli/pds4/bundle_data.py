@@ -98,9 +98,7 @@ def generate_bundle_data_files(
     The data label describes every HDU of the FITS, through
     :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`, which reads the
     source before the copy is made; the copy is byte-identical, so the source's
-    description is the copy's.  The configuration's masked value is taken to be one
-    :func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value` accepts, which the
-    drivers establish once before any image.
+    description is the copy's.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -119,10 +117,9 @@ def generate_bundle_data_files(
         float, or the navigation document does not record the exposure's epochs.
 
     Raises:
-        ValueError: If the batch does not hold exactly one image, if the
+        ValueError: If the batch does not hold exactly one image, or if the
             configuration entry of a plane the backplane metadata holds declares
-            a blank unit, or if the configuration's masked value is not a finite
-            number a 32-bit float holds exactly.
+            a blank unit.
         TypeError: If that entry declares no unit, or one that is not a string.
         OSError: If the backplane FITS cannot be read or copied.
     """
