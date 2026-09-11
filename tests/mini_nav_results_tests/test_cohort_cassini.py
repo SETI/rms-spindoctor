@@ -262,10 +262,16 @@ def test_a_document_and_its_image_file_name_one_file(cassini_cohort: Cohort) -> 
     below them, since a phase deriving a volume or a collection out of either
     has only the layout to derive it from.  The index row is the odd one out on
     purpose: it names the raw product on its own volume, which is what a real
-    index names and a different file.
+    index names and a different file.  Beside the image an enumeration hands on
+    the label next to it and the camera the index row names.
     """
+    subtree = CohortCassiniISSSaturn.HOLDINGS_SUBTREE
     found: dict[str, tuple[str, str]] = {}
     expected: dict[str, tuple[str, str]] = {}
+    labels: dict[str, str] = {}
+    expected_labels: dict[str, str] = {}
+    cameras: dict[str, str | None] = {}
+    expected_cameras: dict[str, str | None] = {}
     for image, image_file in zip(
         CohortCassiniISSSaturn.images(), cassini_cohort.image_files, strict=True
     ):
@@ -278,6 +284,12 @@ def test_a_document_and_its_image_file_name_one_file(cassini_cohort: Cohort) -> 
             _below_the_holdings_root(str(document['observation']['image_path'])),
             _below_the_holdings_root(image_file.image_file_url.as_posix()),
         )
-        one_file = f'{CohortCassiniISSSaturn.HOLDINGS_SUBTREE}/{image.stub}.IMG'
+        one_file = f'{subtree}/{image.stub}{CohortCassiniISSSaturn.IMAGE_SUFFIX}'
         expected[image.stub] = (one_file, one_file)
+        labels[image.stub] = _below_the_holdings_root(image_file.label_file_url.as_posix())
+        expected_labels[image.stub] = f'{subtree}/{image.stub}{CohortCassiniISSSaturn.LABEL_SUFFIX}'
+        cameras[image.stub] = image_file.camera
+        expected_cameras[image.stub] = image.camera
     assert found == expected
+    assert labels == expected_labels
+    assert cameras == expected_cameras

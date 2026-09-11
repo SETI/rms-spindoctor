@@ -437,8 +437,9 @@ written by the backplane stage's own
 because the browse label states its size and its checksum; and the index row an
 enumeration hands on with each image. Each cohort is a subclass of
 :class:`~tests.mini_nav_results.cohort.Cohort`, which writes all of that from
-what the subclass supplies: the images, the holdings layout they sit in, how an
-image's camera is read from its index row, the range each backplane plane spans,
+what the subclass supplies: the images, the holdings layout they sit in and the
+extensions of their image and label files, how an image's camera is read from its
+index row, the range each backplane plane spans,
 and the registered dataset the bundle is built with. The package's ``COHORTS``
 registry lists them.
 

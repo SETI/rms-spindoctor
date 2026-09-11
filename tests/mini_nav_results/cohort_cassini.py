@@ -143,6 +143,12 @@ into and the volume set its volume belongs to, so a path that names neither
 tells a reader who parses one nothing at all.
 """
 
+_IMAGE_SUFFIX = '.IMG'
+"""The extension of a Cassini calibrated image file."""
+
+_LABEL_SUFFIX = '.LBL'
+"""The extension of the PDS3 label beside a Cassini calibrated image file."""
+
 _RECORDED_HOLDINGS_ROOT = '/holdings'
 """The holdings root the run that wrote these documents was given.
 
@@ -164,7 +170,7 @@ def _image_path(stub: str) -> Path:
     Returns:
         The full path, holdings root and all.
     """
-    return Path(f'{_RECORDED_HOLDINGS_ROOT}/{_HOLDINGS_SUBTREE}/{stub}.IMG')
+    return Path(f'{_RECORDED_HOLDINGS_ROOT}/{_HOLDINGS_SUBTREE}/{stub}{_IMAGE_SUFFIX}')
 
 
 def _doy(epoch_et: float) -> str:
@@ -529,6 +535,8 @@ class CohortCassiniISSSaturn(Cohort):
 
     NAME: ClassVar[str] = 'cassini_iss_saturn'
     HOLDINGS_SUBTREE: ClassVar[str] = _HOLDINGS_SUBTREE
+    IMAGE_SUFFIX: ClassVar[str] = _IMAGE_SUFFIX
+    LABEL_SUFFIX: ClassVar[str] = _LABEL_SUFFIX
     PLANE_BOUNDS: ClassVar[Mapping[str, tuple[float, float]]] = {
         'body_longitude': (0.0, 2.0 * math.pi),
         'body_latitude': (-math.pi / 2.0, math.pi / 2.0),
