@@ -391,14 +391,10 @@ with no directory part.  ``BACKPLANE_PATH`` names the copy, so the size, checksu
 and time the label states through ``pdstemplate``'s ``FILE_BYTES``, ``FILE_MD5``
 and ``FILE_ZULU`` are the archived file's.  The copy is written to a local path and
 uploaded, as the summary PNG's is, and those three functions read a local file, so
-a bundle root in the cloud is not supported.  A navigated image whose backplane
-metadata is there and whose FITS is not is failed before anything is written for
-it: the backplane stage writes the FITS before its metadata document, and the
-summary pass refuses a supplemental file with no data label beside it.
+a bundle root in the cloud is not supported.
 
 :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` reads the source
-FITS, before anything is created in the bundle, with ``astropy.io.fits`` and no
-scaling applied, into a
+FITS with ``astropy.io.fits``, before the copy is made, into a
 :class:`~spindoctor.cli.pds4.data_objects.BackplaneFitsObjects`: one
 :class:`~spindoctor.cli.pds4.data_objects.FitsHdu` per HDU, in file order, whose
 header offset and length come from astropy's ``fileinfo()`` (``hdrLoc``, and
@@ -435,33 +431,12 @@ Text`` with ``Line-Feed`` records: the pass writes it as the ASCII bytes of the
 one JSON object :func:`~spindoctor.support.file.json_as_string` produces, which
 escapes every character outside ASCII.
 
-What the backplane writer does not write is refused rather than described, with an
-:exc:`~spindoctor.cli.pds4.data_objects.UndescribableFitsError` naming the file and
-the HDU: a ``BITPIX`` the mapping does not hold; an image that is not
-two-dimensional; ``BSCALE`` or ``BZERO``, since a scaled array's stored values are
-not its values; a primary HDU holding data, or an extension that is not an image --
-a tile-compressed image among them, which on disk is a binary table and is read with
-decompression turned off so that it is seen as one -- either of which would leave
-data the label does not describe; a lower-case HDU name
-that is not an XML name, repeats another's, or is one the label defines of its own
-(:data:`~spindoctor.cli.pds4.data_objects.LABEL_LOCAL_IDENTIFIERS`, the supplemental
-file's ``navigation-details``, which ``data.lblx`` takes from
-:data:`~spindoctor.cli.pds4.data_objects.SUPPLEMENTAL_FILE_IDENTIFIER`), since a
-``local_identifier`` is an XML ``ID`` and unique in the label; a file astropy cannot read as FITS, which a
-header cut short at the end of a record is; and a file cut short otherwise: an HDU
-whose data run past the end of the file, or a length that is not a whole number of
-2880-byte records, which a header cut short within a record leaves when astropy
-drops its HDU.  Whether a file is cut short is judged from its length and the
-offsets astropy reads.  A warning astropy emits is not a refusal, since astropy also warns of files
-the FITS standard allows, one ending in a record of zeros among them.  On a refusal the labels pass fails
-the image having created nothing, since the FITS is described before the copy is
-made, and logs the refusal; an error astropy raises while reading it, such as a
-card it cannot parse, is raised having created nothing too.  The copy is the same
-bytes as the source -- ``shutil.copy2`` writes it, and its size is then held to
-the source's -- so the description of the source is the copy's.  A copy whose
-size differs fails the image, and a copy that fails partway raises its error,
-each after removing the copy and every directory made for it, and only those: a
-directory another image has written into since is left.
+The builder describes what :func:`~spindoctor.cli.backplanes.writer.write_fits`
+writes and refuses nothing: the FITS and its metadata are written by this
+repository's own programs, and the cohort tests, which run the real writer and
+hold every stated offset to the file's bytes, catch a change to the writer.
+The source is described before the copy is made, and the copy is byte-identical,
+so the source's description is the copy's.
 
 Epochs
 ======
@@ -691,10 +666,8 @@ documented above.
 - :func:`~spindoctor.cli.pds4.epochs.unrecorded_epoch` — the one check a
   navigation document's exposure epochs are held to before a label states them.
 - :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` — the headers
-  and arrays of a backplane FITS, read from the source before anything is written,
-  for the data label of its copy, and
-  :exc:`~spindoctor.cli.pds4.data_objects.UndescribableFitsError`, what it raises
-  for a FITS the backplane writer does not write.
+  and arrays of a backplane FITS, read from the source before the copy is made,
+  for the data label of its copy.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
   :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome` — the range of the
   products' epochs, taken in the global index's read of the supplemental files

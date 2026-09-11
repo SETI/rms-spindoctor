@@ -356,21 +356,12 @@ does not grow past its purpose. The summary pass calls it after
 The labels pass copies `<stub>_backplanes.fits` from `backplane_results_root`
 into the bundle `data/` directory beside the label, and `BACKPLANE_PATH`
 names the copy, so the `FILE_BYTES`/`FILE_MD5`/`FILE_ZULU` calls describe the
-archived file rather than the source. A navigated image whose backplane
-metadata is there and whose FITS is not fails before anything is written for
-it -- supplemental file, label or copy -- since the summary pass refuses a
-supplemental file with no data label beside it.
+archived file rather than the source.
 
 The data object block is generated from the FITS by
 `spindoctor/cli/pds4/data_objects.py`, which reads the source in
-`backplane_results_root` before anything is created in the bundle, so that
-neither a refusal nor an error leaves a file or a directory behind -- a
-directory left there would have the next labels run refuse the bundle root as
-one that holds files. The label is still the copy's: `shutil.copy2` writes the
-copy byte for byte, and the pass then holds its size to the source's, failing
-the image and removing the copy and every directory made for it when the two
-differ, so a description of the source is a description of the copy.
-`astropy.io.fits` gives everything the
+`backplane_results_root` before the copy is made; the copy is byte-identical,
+so the source's description is the copy's. `astropy.io.fits` gives everything the
 label needs without a second convention: `hdu.fileinfo()` returns `hdrLoc` and
 `datLoc`, and the header carries `NAXIS1`, `NAXIS2`, `BITPIX` and `BUNIT`. For
 each HDU the label gets a `Header` (offset `hdrLoc`, size `datLoc - hdrLoc`,
@@ -399,25 +390,14 @@ plane's name, the `oops` backplane method the configuration names for it, its
 unit, and a sentence saying that a pixel the plane does not cover holds the
 `missing_constant` value -- nothing about the geometry the method computes.
 
-The builder refuses, naming the HDU, what the backplane writer does not write,
-since describing one wrongly is worse than refusing it: a `BITPIX` other than
--32 and 32, an image that is not two-dimensional, `BSCALE` or `BZERO`, a
-primary HDU holding data, an extension that is not an image (a
-tile-compressed image among them, which on disk is a binary table, and which
-the builder reads with decompression turned off so that it is seen as one), a lower-case
-name that is not an XML `ID`, repeats another's, or is an identifier the label
-defines of its own (the supplemental file's `navigation-details`, which
-`data.lblx` takes from the same constant the builder holds names to), a file
-astropy cannot read
-as FITS, and a file cut short, judged from its length and the offsets astropy
-reads rather than from astropy's warnings: an HDU whose data run past the end
-of the file, or a length that is not a whole number of 2880-byte records,
-which is what a header cut short within a record leaves when astropy drops its
-HDU (one cut at a record's end astropy cannot read at all). A warning is not a refusal,
-since astropy also warns of files the FITS standard allows, such as one ending
-in a record of zeros (FITS 4.0 section 3.5). A
-refused FITS fails its image with nothing created for it, neither a file nor
-a directory, because the FITS is described before anything is written.
+The builder describes what `write_fits` writes and refuses nothing. The FITS
+and both metadata documents are written by this repository's own programs,
+one after another, by one operator, so a file cut short, corrupt, rewritten
+during a run or in a layout the writer does not produce is not a case the
+labels pass defends against (the operator's ruling on the Phase 4 re-review);
+the cohort tests, which run the real writer and hold every stated offset to
+the file's bytes, catch a change to the writer. `BITPIX` is mapped to its PDS4
+data type by a plain lookup.
 
 `Array_2D_Image` rather than the generic `Array_2D`, and `Line`/`Sample`
 axis names, are what the F ring bundle's `data_reproj_img.lblx` uses for an
@@ -1364,10 +1344,9 @@ Closes #519, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 ### Phase 4 — The FITS in the bundle, with its data objects
 
 Done on `rf_pds4_phase4`. The labels pass copies the FITS into `data/` beside
-its label and points `BACKPLANE_PATH` at the copy; backplane metadata with no
-FITS beside it fails the image before anything is written.
+its label and points `BACKPLANE_PATH` at the copy.
 `spindoctor/cli/pds4/data_objects.py` builds a descriptor per HDU from the
-source FITS before anything is written, the copy being the same bytes, and
+source FITS before the copy is made, the copy being byte-identical, and
 `data.lblx` renders them in two `$FOR` blocks: a `Header` per HDU and
 an `Array_2D_Image` per image HDU in `File_Area_Observational`, and one
 `disp:Display_Settings` per array in the `Discipline_Area` (section 3.3, which
@@ -1391,8 +1370,7 @@ ring image has ring arrays and the limb image none; every
 (criterion 5), and the FITS's stated size and MD5 are the copy's; each data
 object's children follow the schema's order. The cohort's frames are square,
 so a plane 2 lines by 3 samples rendered through the shipped template holds
-the two axes apart. Each refusal, and the missing FITS, fails the image as it
-should.
+the two axes apart.
 
 Closes #69, by hand when its PR merges into `rf_pds4_draft_bundle` (section
 8); contributes to #30.

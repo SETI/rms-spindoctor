@@ -394,23 +394,6 @@ the log names what was not.
   both, so such a document is a broken input rather than an image whose time is
   unknown. The log names the image and what its document lacks.
 
-  A navigated image whose backplane metadata document is there and whose
-  backplane FITS is not is **failed** before anything is written for it. The
-  backplanes pass writes the FITS before its metadata document, so a document
-  with no FITS beside it is a broken input. The log names the missing file;
-  regenerate the image's backplanes.
-
-  So is an image whose backplane FITS holds something its data label could not
-  describe truthfully -- arrays of a type other than 32-bit floats or integers, an
-  image that is not two-dimensional, scaled values (``BSCALE`` or ``BZERO``), a
-  primary HDU holding data, an extension that is not an image (a tile-compressed
-  image is one, being a binary table on disk), an HDU name that
-  cannot identify its array, or a file cut short. None of these is what the
-  backplanes pass writes. The FITS is described before anything is written for the
-  image, so nothing is, not even a directory, and the log names the file and the
-  HDU. A copy of the FITS whose size is not the source's fails the image too; it is
-  removed, with every directory made for it.
-
   ``--dry-run`` writes nothing, and exits 0 once the templates are present,
   every configured unit is usable, and the bundle directory is empty.
 
