@@ -15,6 +15,7 @@ index row, whose column names are the one thing a label variable is read by.
 """
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -414,7 +415,14 @@ def test_a_document_and_its_image_file_name_one_file(mini_nav_cohort: Cohort) ->
 
 
 def _paths_git_reports(repository: Path) -> list[str]:
-    """Return every path ``git status`` reports, read without quoting.
+    """Return every file in the checkout, tracked or not, read without quoting.
+
+    Tracked files are listed whether or not they have changed, so a cohort
+    product that was committed, and is therefore clean in every checkout after,
+    is listed as surely as one left untracked; ``git status`` reports neither a
+    clean file nor anything about it, so a guard over what it reports passes in
+    every clean checkout of a repository holding one.  Ignored files are not
+    listed, since ``git add`` passes over them.
 
     Asked for in the NUL-separated form, because the readable form quotes a
     path holding a space or a byte outside ASCII and a reader that does not
@@ -426,26 +434,16 @@ def _paths_git_reports(repository: Path) -> list[str]:
         repository: The checkout to ask about.
 
     Returns:
-        The paths, with a renamed entry contributing both of its names.
+        Each file's path relative to the checkout.
     """
     reported = subprocess.run(
-        ['git', 'status', '--porcelain', '-z', '--untracked-files=all'],
+        ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
         cwd=repository,
         capture_output=True,
         text=True,
         check=True,
     ).stdout
-    entries = iter(reported.split('\0'))
-    paths: list[str] = []
-    for entry in entries:
-        if not entry:
-            continue
-        paths.append(entry[3:])
-        if 'R' in entry[:2] or 'C' in entry[:2]:
-            # A rename or a copy names where it went and then, as a record of
-            # its own, where it came from.
-            paths.append(next(entries, ''))
-    return paths
+    return [path for path in reported.split('\0') if path]
 
 
 def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> None:
@@ -461,3 +459,31 @@ def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> 
     product_names = {path.name for path in mini_nav_cohort.written}
     escaped = [path for path in _paths_git_reports(repository) if Path(path).name in product_names]
     assert escaped == []
+
+
+def test_the_guard_lists_a_cohort_product_that_was_committed(
+    mini_nav_cohort: Cohort, tmp_path: Path
+) -> None:
+    """A cohort product committed, and unchanged since, is one the guard still sees.
+
+    ``git status`` says nothing about a clean file, so a guard built on it passes
+    in every clean checkout of a repository that holds one.  The repository here
+    is a throwaway one, with its committer configured in it alone.
+    """
+    name = min(path.name for path in mini_nav_cohort.written)
+    repository = tmp_path / 'repository'
+    (repository / 'data').mkdir(parents=True)
+    (repository / 'data' / name).write_bytes(b'a cohort product')
+    # A git hook exports the variables locating its own repository and index to
+    # whatever it runs, and with them set these writes would land in that one.
+    environment = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+    for command in (
+        ['git', 'init', '--quiet'],
+        ['git', 'config', 'user.name', 'Cohort Guard'],
+        ['git', 'config', 'user.email', 'cohort-guard@example.invalid'],
+        ['git', 'config', 'commit.gpgsign', 'false'],
+        ['git', 'add', '--all'],
+        ['git', 'commit', '--quiet', '--message', 'Commit a cohort product'],
+    ):
+        subprocess.run(command, cwd=repository, env=environment, capture_output=True, check=True)
+    assert _paths_git_reports(repository) == [f'data/{name}']
