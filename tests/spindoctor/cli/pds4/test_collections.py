@@ -811,6 +811,42 @@ def test_an_unreadable_supplemental_file_refuses_the_run_with_no_table_written(
     assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
 
 
+@pytest.mark.parametrize(
+    ('raw_text', 'kind'),
+    [
+        ('[]', 'an array'),
+        ('"a supplemental file"', 'a string'),
+        ('true', 'a boolean'),
+        ('null', 'null'),
+        ('1.5', 'a number'),
+    ],
+    ids=['an array', 'a string', 'a boolean', 'null', 'a number'],
+)
+def test_a_supplemental_file_that_is_no_object_refuses_the_run_with_no_table_written(
+    tmp_path: Path, raw_text: str, kind: str
+) -> None:
+    """A supplemental file whose JSON is not an object is refused like an unreadable one.
+
+    The labels pass writes each as an object, so any other JSON is a broken file.  The
+    refusal names the file and says what it holds, before either table is written.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+        raw_text: What the file holds.
+        kind: What the refusal says the file holds.
+    """
+    env = _index_env(tmp_path)
+    broken = write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', raw_text=raw_text)
+    write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
+    refusal = (
+        f'Supplemental file {FCPath(broken)} holds {kind} where a supplemental document is '
+        'a JSON object'
+    )
+    with pytest.raises(ValueError, match=re.escape(refusal)):
+        _run_global_index(env)
+    assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
+
+
 def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
     """Global index labels render with FILE_RECORDS set to the row counts."""
     env = _index_env(tmp_path)

@@ -207,6 +207,34 @@ def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueForma
     return [value_format.render(statistic['min']), value_format.render(statistic['max'])]
 
 
+_UNREADABLE_REMEDY = (
+    'The labels pass writes every supplemental file: regenerate the bundle into an empty directory'
+)
+"""What a refusal of a supplemental file the index cannot take says to do about it."""
+
+
+def _json_kind(value: Any) -> str:
+    """Name the kind of JSON value a supplemental file holds in place of an object.
+
+    Parameters:
+        value: What the file's JSON parsed to, anything but an object.
+
+    Returns:
+        ``an array``, ``a string``, ``a boolean``, ``null`` or ``a number``, as a
+        message says what the file holds.
+    """
+    if isinstance(value, list):
+        return 'an array'
+    if isinstance(value, str):
+        return 'a string'
+    # Python counts a boolean as an integer, so it is named before a number is.
+    if isinstance(value, bool):
+        return 'a boolean'
+    if value is None:
+        return 'null'
+    return 'a number'
+
+
 def _data_dir(bundle_root: FCPath) -> FCPath:
     """Return the bundle's data directory, which both summary generators scan.
 
@@ -445,8 +473,8 @@ def generate_global_index_files(
     that state it.  A supplemental file whose navigation document records no epochs
     a label can state leaves no range, since a range taken over the rest could leave
     its product outside, and is indexed all the same.  One that cannot be read, or
-    does not hold JSON, refuses the run, since left out of the index it would still
-    be listed in the collection's inventory.
+    does not hold a JSON object, refuses the run, since left out of the index it would
+    still be listed in the collection's inventory.
 
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
@@ -481,7 +509,8 @@ def generate_global_index_files(
             string.
         ValueError: If a configured plane's statistic is in a unit the index has
             no column format for; if a supplemental file cannot be read or does
-            not hold JSON, the message naming the file and the reason; or if one
+            not hold a JSON object, the message naming the file and the reason or
+            what it holds instead; or if one
             holds a statistic no column can -- one in a unit other than the one
             the configuration gives its plane, or in none, or with a minimum or
             maximum that is not a finite number within the range of a float --
@@ -551,20 +580,24 @@ def generate_global_index_files(
     epochs = EpochRangeScan()
 
     for suppl_file in supplemental_files:
-        # The labels pass writes every supplemental file, so one that cannot be read
-        # is a broken tree rather than a product to pass over: left out of the index
-        # it would still be listed in the collection's inventory, with no epochs for
-        # the range.  The run is refused here, before either table exists, as it is
-        # for a statistic no column can hold.
+        # The labels pass writes every supplemental file, and writes it as a JSON
+        # object, so one that cannot be read, or holds anything else, is a broken tree
+        # rather than a product to pass over: left out of the index it would still be
+        # listed in the collection's inventory, with no epochs for the range.  The run
+        # is refused here, before either table exists, as it is for a statistic no
+        # column can hold.
         try:
             suppl_text = suppl_file.read_text()
             metadata = json.loads(suppl_text)
         except (OSError, ValueError) as exc:
             raise ValueError(
-                f'Supplemental file {suppl_file} could not be read: {exc}. The labels '
-                'pass writes every supplemental file: regenerate the bundle into an '
-                'empty directory'
+                f'Supplemental file {suppl_file} could not be read: {exc}. {_UNREADABLE_REMEDY}'
             ) from exc
+        if not isinstance(metadata, dict):
+            raise ValueError(
+                f'Supplemental file {suppl_file} holds {_json_kind(metadata)} where a '
+                f'supplemental document is a JSON object. {_UNREADABLE_REMEDY}'
+            )
 
         epochs.include(f'supplemental file {suppl_file}', metadata.get('navigation'))
         backplanes = metadata.get('backplanes', {})

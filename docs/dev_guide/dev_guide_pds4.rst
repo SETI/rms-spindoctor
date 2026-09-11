@@ -143,8 +143,9 @@ minimum or maximum that is not a finite number within the range of a float --
 the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  It exits 1 the same
-way on a supplemental file it cannot read, or one that does not hold JSON, naming
-the file and the reason: left out of the index, the file's product would still be
+way on a supplemental file it cannot read, or one that does not hold a JSON object,
+naming the file and the reason or what it holds: left out of the index, the file's
+product would still be
 listed in the collection's inventory, with no epochs for the range.  The index tables
 and labels an earlier run wrote, and its collection tables and labels, are
 cleared before the first supplemental file is read, the collection files by the
@@ -424,9 +425,9 @@ second computation.  A scan that read no supplemental file, or read one whose
 document the epoch check refuses, yields a
 :class:`~spindoctor.cli.pds4.epochs.NoEpochRange` saying why, and the data
 collection label is then counted as not written rather than rendered with empty
-dates.  A supplemental file the index generator cannot read or parse never
-reaches the scan: the generator refuses the run on it, naming the file and the
-reason.
+dates.  A supplemental file the index generator cannot read, or that does not hold
+a JSON object, never reaches the scan: the generator refuses the run on it, naming
+the file and the reason or what it holds.
 
 Output layout
 =============

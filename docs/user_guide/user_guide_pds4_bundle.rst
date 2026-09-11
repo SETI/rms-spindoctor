@@ -376,11 +376,12 @@ the log names what was not.
   written, so the pass exits 1; the log says why and names the file. Every other
   product of the pass is written as usual, the inventory tables among them.
 
-  A supplemental file that cannot be read, or does not hold JSON, ends the pass
-  with exit status 1 before either index table is written, and leaves no product
-  of the pass, neither this run's nor any an earlier run wrote; the log names the
-  file and why it could not be read. The labels pass writes every supplemental
-  file, so the remedy is to regenerate the bundle into an empty directory.
+  A supplemental file that cannot be read, or does not hold a JSON object, ends
+  the pass with exit status 1 before either index table is written, and leaves no
+  product of the pass, neither this run's nor any an earlier run wrote; the log
+  names the file and why it could not be read, or what it holds in place of an
+  object. The labels pass writes every supplemental file, so the remedy is to
+  regenerate the bundle into an empty directory.
 
   It also exits 1 when a supplemental file records a statistic in a unit other
   than the one the configuration gives its plane, or in none, and leaves none of

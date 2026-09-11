@@ -443,11 +443,11 @@ and holds for `bundle.lblx`, which Phase 6 renders, without a second
 computation. With no range to state -- no supplemental file, or one whose
 document the epoch check refuses -- the data collection label is counted as
 not written, with an error saying why, and the inventory table is still
-written. A supplemental file that cannot be read, or does not hold JSON,
-refuses the run before either index table is written, naming the file and
-the reason, the way a statistic no column can hold is refused: left out of
-the index its product would still be in the inventory, with no epochs for the
-range. Running first, the index generator refuses a
+written. A supplemental file that cannot be read, or does not hold a JSON
+object, refuses the run before either index table is written, naming the file
+and the reason or what it holds, the way a statistic no column can hold is
+refused: left out of the index its product would still be in the inventory,
+with no epochs for the range. Running first, the index generator refuses a
 bundle with no data directory itself, as the collection generator does, rather
 than write its tables into a root the labels pass would then refuse.
 
