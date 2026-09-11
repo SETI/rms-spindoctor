@@ -368,28 +368,18 @@ Each dataset has its own template directory containing:
 * ``global_index_bodies.lblx``: Template for bodies global index label
 * ``global_index_rings.lblx``: Template for rings global index label
 
-Templates use the PdsTemplate system (from ``rms-pdstemplate``) for variable
-substitution. Template variables are provided by dataset-specific implementations of
-``pds4_template_variables()``, which map PDS3 index columns and computed metadata to
-PDS4 template variables.
+Each dataset supplies its own values for the variables its templates use.
+:doc:`/dev_guide/dev_guide_pds4` describes how a dataset does that, and what a
+new one has to provide.
 
-Dataset-Specific Behavior
-=========================
+Supported Datasets
+==================
 
-Each dataset class implements PDS4 bundle generation methods:
-
-* ``pds4_bundle_template_dir()``: Returns the template directory path
-* ``pds4_bundle_name()``: Returns the bundle name
-* ``pds4_bundle_path_for_image()``: Maps image name to bundle directory path
-* ``pds4_path_stub()``: Returns the full path stub (directory + filename prefix)
-* ``pds4_template_variables()``: Returns template variable dictionary
-* ``pds4_image_name_to_data_lidvid()``: Converts image name to data product LIDVID
-* ``pds4_image_name_to_browse_lidvid()``: Converts image name to browse product LIDVID
-
-Cassini ISS datasets (``coiss_cruise``, ``coiss_saturn``) provide complete
-implementations that map PDS3 index columns to PDS4 ``cassini:`` namespace variables.
-Other datasets may raise ``NotImplementedError`` for methods that are not yet
-implemented.
+The Cassini ISS datasets ``coiss_cruise`` and ``coiss_saturn`` can be bundled.
+A run naming any other dataset fails before it processes an image, because both
+passes ask the dataset for its template directory and bundle name first and an
+unsupported dataset supplies neither; nothing is written. Adding a dataset is a
+code change, described in :doc:`/dev_guide/dev_guide_pds4`.
 
 Workflow
 ========
