@@ -23,6 +23,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import julian
 import pytest
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
@@ -913,23 +914,23 @@ def test_a_navigated_image_recording_no_exposure_times_fails_with_nothing_writte
 @pytest.mark.parametrize(
     ('stub', 'image_name', 'start', 'stop'),
     [
-        (LIMB_STUB, LIMB_IMAGE_NAME, '2004-02-07T04:25:35.585Z', '2004-02-07T04:25:36.046Z'),
-        (RINGS_STUB, RINGS_IMAGE_NAME, '2004-02-22T05:32:15.894Z', '2004-02-22T05:32:16.355Z'),
+        (LIMB_STUB, LIMB_IMAGE_NAME, '2004-02-07T04:25:35.585Z', '2004-02-07T04:25:36.045Z'),
+        (RINGS_STUB, RINGS_IMAGE_NAME, '2004-02-22T05:32:15.895Z', '2004-02-22T05:32:16.355Z'),
     ],
     ids=['limb image', 'ring image'],
 )
-def test_a_cohort_data_label_states_the_interval_its_exposure_lies_in(
+def test_a_cohort_data_label_states_its_exposure_s_start_and_stop(
     mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str, start: str, stop: str
 ) -> None:
     """The shipped data label states the document's start and stop, to the millisecond.
 
     The expected strings are SPICE's.  With the leapseconds kernel furnished,
-    ``et2utc`` writes the limb image's recorded start and stop as
-    ``04:25:35.585069`` and ``04:25:36.045069`` and the ring image's as
-    ``05:32:15.894746`` and ``05:32:16.354746``.  The start is cut to its
-    millisecond and the stop taken to the next, so the interval stated contains the
-    exposure; the ring image's start and the limb image's stop are each a
-    millisecond from what rounding to the nearer would write.
+    ``et2utc`` writes the limb image's recorded start and stop at three decimals as
+    ``04:25:35.585`` and ``04:25:36.045``, and the ring image's as ``05:32:15.895``
+    and ``05:32:16.355``: each at the nearest millisecond.  At nine decimals the
+    ring image's start is ``05:32:15.894745827`` and the limb image's stop
+    ``04:25:36.045069233``, so the first is a millisecond from what rounding down
+    would write and the second a millisecond from what rounding up would.
 
     Parameters:
         mini_nav_cohort: The session's cohort.
@@ -952,3 +953,30 @@ def test_a_cohort_data_label_states_the_interval_its_exposure_lies_in(
     text = label.read_text(encoding='utf-8')
     assert re.findall(r'<start_date_time>(.*)</start_date_time>', text) == [start]
     assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == [stop]
+
+
+def test_a_start_nanoseconds_short_of_its_millisecond_is_written_as_pds3_states_it(
+    tmp_path: Path,
+) -> None:
+    """A start computed from times recorded to the millisecond is written as recorded.
+
+    W1630770594's PDS3 label records an ``IMAGE_TIME`` of ``2009-247T15:07:30.812``
+    and an ``EXPOSURE_DURATION`` of 50 ms, with a ``START_TIME`` of
+    ``2009-247T15:07:30.762`` and a ``STOP_TIME`` of ``2009-247T15:07:30.812``.  The
+    epochs are built as oops builds them, the stop from ``IMAGE_TIME`` and the start
+    as the stop less the exposure, and are the ones the image's navigation document
+    records.  SPICE's ``et2utc`` writes the start at nine decimals as
+    ``15:07:30.761999965``, so rounded down it would be written a millisecond before
+    the start PDS3 states.  The expected strings are the PDS3 label's two times, in
+    the PDS4 spelling.
+    """
+    stop_et = float(julian.tdb_from_tai(julian.tai_from_iso('2009-247T15:07:30.812')))
+    start_et = stop_et - 50.0 / 1000.0
+    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
+    variables = _cassini_dataset(tmp_path).pds4_template_variables(
+        image_file=make_image_file('W1630770594_1'),
+        nav_metadata={'status': 'success', 'navigation_result': {'times': times}},
+        backplane_metadata={},
+    )
+    assert variables['START_DATE_TIME'] == '2009-09-04T15:07:30.762Z'
+    assert variables['STOP_DATE_TIME'] == '2009-09-04T15:07:30.812Z'

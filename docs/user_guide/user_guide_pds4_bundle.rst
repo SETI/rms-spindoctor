@@ -256,10 +256,12 @@ Each data label states when its image's exposure began and ended, in its
 ``Time_Coordinates``. The two times are the ``start_et`` and ``stop_et`` the
 navigation metadata document records under ``navigation_result.times``, converted
 to UTC and written the way PDS4 writes a date and time: to the millisecond, with a
-trailing ``Z``, as in ``2004-02-07T04:25:35.585Z``. The start is rounded down to its
-millisecond and the stop up to the next one, so the interval a label states always
-contains the exposure, which rounding each to the nearer millisecond would not: it
-could state a start after the shutter opened. A leap second is written as second
+trailing ``Z``, as in ``2004-02-07T04:25:35.585Z``. Each is rounded to the nearest
+millisecond. A Cassini image's start and stop are recorded to the millisecond in its
+PDS3 label and index, and the navigation computes its epochs from those values, so
+each epoch lies within a few nanoseconds of a millisecond and the nearest one is the
+time PDS3 records; rounding a start down or a stop up would put it a millisecond
+off whenever the epoch lands on the far side. A leap second is written as second
 60. A navigated image whose document records no such times is failed rather than
 labeled, as the exit status below describes.
 

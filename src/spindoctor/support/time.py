@@ -110,12 +110,16 @@ def et_to_pds4_utc(et: float, *, digits: int = 3, rounding: Pds4Rounding = 'near
 
     ``rounding`` decides an instant that falls between two values of the last digit
     written.  ``nearest`` writes the nearer of the two, a half rounding up, which is
-    what SPICE's ``et2utc`` writes.  ``down`` writes the one at or before the instant
-    and ``up`` the one at or after it, so a start written down and a stop written up
-    state an interval that contains the true one, which rounding to the nearer does
-    not: it can state a start after the instant it stands for.  Since 1972 TAI and UTC
-    differ by a whole number of seconds, so a value rounded in one is rounded in the
-    other.
+    what SPICE's ``et2utc`` writes, and which gives back a time recorded to the digits
+    written: an epoch computed from one lies within a few nanoseconds of it, on either
+    side, where rounding down or up would move it a whole unit of the last digit
+    whenever it lands on the far side.  ``down`` writes the one at or before the
+    instant and ``up`` the one at or after it, which is how a range is written at a
+    coarser precision than the times it bounds: its start rounded down and its stop
+    up, it contains each of them written to the nearest at a finer precision, since
+    every value of the coarser last digit is also one of the finer, and rounding to
+    the nearest never carries an instant past one.  Since 1972 TAI and UTC differ by
+    a whole number of seconds, so a value rounded in one is rounded in the other.
 
     Parameters:
         et: The epoch, as SPICE ET (TDB seconds past J2000).

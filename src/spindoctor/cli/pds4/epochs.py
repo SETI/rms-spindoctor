@@ -42,7 +42,10 @@ RANGE_TIME_DIGITS = 0
 
 Whole seconds are what the reference bundle writes for its collection and bundle ranges.
 The start is rounded down and the stop up, so the range written contains every product's
-own start and stop at the millisecond each is written to.
+own start and stop as its data label writes them, at the nearest millisecond: the nearest
+millisecond of an epoch is never before the whole second at or before the epoch, nor
+after the one at or after it, since a whole second is itself a millisecond and rounding
+to the nearest never carries an epoch past one.
 """
 
 _NO_PRODUCTS = (
@@ -133,9 +136,10 @@ class EpochRange:
             and ``LATEST_STOP_DATE_TIME``, the stop rounded up to it, each in the PDS4
             UTC spelling with no decimals, as in ``2004-02-07T04:25:35Z``.  A range
             written this way contains every product's own start and stop as a data
-            label writes them, to the millisecond, which a range rounded to the nearer
-            second would not: it can begin after the first exposure opened and end
-            before the last one closed.
+            label writes them, at the nearest millisecond, which is never before the
+            whole second at or before its epoch nor after the one at or after it.  A
+            range rounded to the nearer second would not: it can begin after the
+            first exposure opened and end before the last one closed.
         """
         return {
             'EARLIEST_START_DATE_TIME': et_to_pds4_utc(

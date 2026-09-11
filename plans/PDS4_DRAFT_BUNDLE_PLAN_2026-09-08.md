@@ -401,17 +401,24 @@ the cohort's epochs to the leapseconds kernel. #519 asked for exactly this and
 said so. The C-kernel report converts through `cspyce.et2utc` against the
 kernel its generator furnishes, and is the one conversion outside the rule.
 
-A data label states its exposure's start and stop to the millisecond, the
-start rounded down and the stop up, so the interval stated contains the
-exposure; `IMAGE_MID_TIME`, an instant, goes to the nearer millisecond. This
-departs from the reference, which writes a product's times at whole seconds.
-The reference's own delivery changelog (`CHANGELOG-review-to-final.md`, item 13)
-says why it floors the start and ceils the stop: its review copy rounded to
-the nearer second, and the intervals it stated missed their exposures. The
-same rule is applied here at a millisecond, because a Cassini exposure is
-often shorter than a second, and whole seconds would state a 5 ms exposure as
-a window of one or two; a millisecond is also the precision the PDS3 label and
-index record an image's start and stop to.
+A data label states its exposure's start, stop and midtime to the
+millisecond, each rounded to the nearest. A millisecond is the precision the
+PDS3 label and index record an image's times to, and a Cassini exposure is
+often shorter than a second, so whole seconds would state a 5 ms exposure as
+a window of one or two. The nearest, rather than the start rounded down and
+the stop up, because the epochs are computed from those millisecond values --
+oops takes the stop from `IMAGE_TIME` and the start as the stop less the
+exposure (`oops/hosts/cassini/iss.py` 64-66) -- and the float lands a few
+nanoseconds to one side of the millisecond or the other, often enough that a
+floor or a ceiling moves it by one. Over the 10,194 rows of the COISS_2001,
+2057 and 2086 index tables, the floor puts 1,124 starts a millisecond before
+the PDS3 `START_TIME`, and the ceiling 339 stops a millisecond after
+`STOP_TIME`; W1630770594's start floors to `.761` where PDS3 says `.762`. The
+nearest reproduces PDS3 on every stop and on every start but 17, which are
+PDS3 rows whose `START_TIME` is not `IMAGE_TIME` less the exposure. It is
+also the rule the reference applies wherever it writes milliseconds; section
+3.13 says what it does at whole seconds, and which of the two this bundle
+follows for which element.
 
 An image whose navigation never reached a solution has no `times` block;
 section 3.11 says what happens to it, and the answer is that it never reaches
@@ -424,8 +431,10 @@ reachable.
 
 The data collection label states the cohort's earliest start and latest stop,
 at whole seconds as the reference's collection and bundle labels do, the start
-rounded down and the stop up, so the range contains every product's own
-interval at the millisecond it is written to. The summary pass already read
+rounded down and the stop up, so the range contains every product's own start
+and stop as its data label writes them: the nearest millisecond of an epoch is
+never before the whole second at or before it, nor after the one at or after
+it. The summary pass already read
 every supplemental file to build the global index, so the range is taken
 there, in that same read, by an `EpochRangeScan`. The index therefore runs
 before the collection files in `main_summary`, and returns the range in a
@@ -1022,11 +1031,19 @@ Three places where this plan deliberately does **not** follow the reference:
 - The reference declares `PDS4_RINGS_1O00_1E00`. Section 3.9 moved us to
   `1F00`, so on this one point we are ahead of it, and the F ring bundle may
   want the same bump.
-- The reference writes a product's start and stop at whole seconds, floored
-  and ceiled. A data label here writes them to the millisecond, floored and
-  ceiled there (section 3.4): the containment the reference chose for its
-  delivery, at the precision a Cassini exposure needs. The collection range is
-  written at whole seconds, as the reference writes its ranges.
+- The reference writes a product's times twice. Its label's
+  `START_DATE_TIME` and `STOP_DATE_TIME` are whole seconds, the start floored
+  and the stop ceiled (`generate_pds4_files.py` 2127-2129), which its delivery
+  changelog (item 13) explains: its review copy rounded to the nearer second,
+  and the intervals it stated missed their exposures. Its `START_DATE_TIME_3`,
+  `STOP_DATE_TIME_3` and `MIDTIME_DATE_TIME_3` are the same times rounded to
+  the nearest millisecond (2128-2133), which it writes into every product's
+  supplemental file header (1827-1842). A data label here follows the second
+  for its start, stop and midtime: the millisecond is the precision a Cassini
+  exposure needs, and the nearest gives back the PDS3 value where a floor or
+  a ceiling moves it (section 3.4). The collection range follows the first,
+  whole seconds with the start floored and the stop ceiled, which contains
+  every product's written start and stop.
 
 ---
 
@@ -1189,10 +1206,10 @@ untestable without it.
 Done on `rf_pds4_phase3`. One ET-to-UTC rule in `spindoctor/support/time.py`
 (`et_to_utc`, and `et_to_pds4_utc` for the PDS4 spelling), used by the
 statistics report's `date_from_image_et` and `datetime_from_image_et` and by
-`pds4_template_variables`. `START_DATE_TIME` and `STOP_DATE_TIME` read
-`navigation_result.times` to the millisecond, floored and ceiled, and
-`IMAGE_MID_TIME` to the nearer millisecond; an image whose success document
-records no usable epochs is failed before anything is written. The data
+`pds4_template_variables`. `START_DATE_TIME`, `STOP_DATE_TIME` and
+`IMAGE_MID_TIME` read `navigation_result.times`, each to the nearest
+millisecond (section 3.4); an image whose success document records no usable
+epochs is failed before anything is written. The data
 collection range is taken in the global index's read of the supplemental files,
 which now runs first, and written at whole seconds, rounded outward; with no
 range the data collection label is counted as not written. The bundle label's
@@ -1201,7 +1218,10 @@ range is Phase 6's, from the same `GlobalIndexOutcome`.
 Tests: known epochs to the strings `et2utc` writes for them, leap seconds
 included, and an integration test converting every cohort epoch through the
 kernel; the shipped data label over the cohort states each navigated image's
-start and stop; a success document with no `times` block fails with nothing
+start and stop; W1630770594's start, computed a few nanoseconds short of its
+millisecond, is written as its PDS3 label states it; the range contains a
+product's written times where they meet its whole seconds; a success
+document with no `times` block fails with nothing
 written; the collection range over three supplemental files is the min and the
 max; the shipped `collection_data.lblx` over the cohort states the range of its
 two navigated images; a summary over no supplemental file writes no data

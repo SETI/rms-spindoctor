@@ -592,11 +592,13 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         ``START_DATE_TIME`` and ``STOP_DATE_TIME`` are the exposure's start and stop,
         and ``IMAGE_MID_TIME`` its midtime, read from the epochs the navigation
         recorded under ``navigation_result.times`` and written the way a PDS4 label
-        writes a UTC time, to the millisecond, with a trailing ``Z``.  The start is
-        rounded down and the stop up, so the interval the label states contains the
-        exposure, which rounding each to the nearer millisecond would not: the
-        nearer can put a stated start after the shutter opened.  The midtime is an
-        instant rather than a bound, and is rounded to the nearer.
+        writes a UTC time, to the millisecond, with a trailing ``Z``.  Each is rounded
+        to the nearest millisecond.  An image's start and stop are recorded to the
+        millisecond in its PDS3 label and index, and the epochs are computed from
+        those values, so each epoch lies within a few nanoseconds of a millisecond, on
+        one side of it or the other: the nearest millisecond is the time recorded,
+        where rounding a start down or a stop up would move it a whole millisecond
+        whenever the epoch lands on the far side.
 
         Parameters:
             image_file: The image file being processed.
@@ -631,16 +633,16 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             vars_dict['CAMERA_WN_UC'] = ''
             vars_dict['CAMERA_WN_LC'] = ''
 
-        # The exposure's times, from the epochs its navigation recorded.  The
-        # bounds are rounded outward so the stated interval contains the exposure,
-        # the correction the reference bundle made between its review and its
-        # delivery; the midtime is an instant and goes to the nearer.
+        # The exposure's times, from the epochs its navigation recorded, each at the
+        # nearest millisecond: the epochs are computed from times recorded to the
+        # millisecond, so the nearest is the one recorded, where a floor or a ceiling
+        # would lose it whenever the float lands a few nanoseconds on its far side.
         times = nav_metadata['navigation_result']['times']
         vars_dict['START_DATE_TIME'] = et_to_pds4_utc(
-            times['start_et'], digits=_PDS4_TIME_DIGITS, rounding='down'
+            times['start_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
         )
         vars_dict['STOP_DATE_TIME'] = et_to_pds4_utc(
-            times['stop_et'], digits=_PDS4_TIME_DIGITS, rounding='up'
+            times['stop_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
         )
         vars_dict['IMAGE_MID_TIME'] = et_to_pds4_utc(
             times['midtime_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'

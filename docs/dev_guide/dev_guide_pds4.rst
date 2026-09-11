@@ -389,9 +389,12 @@ one conversion outside the rule.
 A data label's times come from the dataset's
 :meth:`~spindoctor.dataset.dataset.DataSet.pds4_template_variables`.
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS` writes
-``START_DATE_TIME`` rounded down and ``STOP_DATE_TIME`` rounded up, to the
-millisecond, so the interval stated contains the exposure, and ``IMAGE_MID_TIME``
-to the nearer millisecond.  Before the hook is called,
+``START_DATE_TIME``, ``STOP_DATE_TIME`` and ``IMAGE_MID_TIME`` each to the nearest
+millisecond.  A Cassini image's times are recorded to the millisecond and its epochs
+are computed from them, so each epoch lies within a few nanoseconds of a millisecond
+and the nearest is the recorded time, where a start rounded down or a stop rounded up
+would lose a millisecond whenever the epoch lands on the far side.  Before the hook
+is called,
 :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` holds the
 navigation document to :func:`~spindoctor.cli.pds4.epochs.unrecorded_epoch`: a
 ``times`` block with all three epochs, each a finite number, the stop no earlier
@@ -402,7 +405,9 @@ image whose backplane statistics no index column can hold is failed.
 The data collection label states the range of the products' epochs: the least
 start and the greatest stop over every supplemental file, written to whole seconds
 with the start rounded down and the stop up, so the range contains every product's
-own start and stop at the millisecond each is written to.  The range is taken in
+own start and stop as its data label writes them: the nearest millisecond of an epoch
+is never before the whole second at or before it, nor after the one at or after it.
+The range is taken in
 the one read of the supplemental files the summary pass makes -- the global
 index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
 :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` returns it in
