@@ -1,4 +1,3 @@
-import errno
 import json
 import shutil
 from enum import Enum
@@ -40,9 +39,8 @@ class BundleDataOutcome(Enum):
             that is not a finite number within the range of a float -- a
             navigation document that does not record the exposure's start,
             stop and midtime as finite numbers, the stop no earlier than the
-            start, backplane metadata with no backplane FITS beside it, or a
-            backplane FITS holding something its data label cannot describe; and,
-            the copy removed, a copy of the FITS whose size is not the source's.
+            start, or a backplane FITS holding something its data label cannot
+            describe.
     """
 
     WRITTEN = 'written'
@@ -101,21 +99,14 @@ def generate_bundle_data_files(
 
     The backplane FITS is copied into the bundle, beside its data label, which names
     it with no directory part, and the label's size, checksum and time are the
-    copy's.  A navigated image whose backplane metadata is there and whose FITS is
-    not is failed before anything is written for it, the missing file named in the
-    log: the backplane stage writes the FITS before its metadata document, so a
-    document with no FITS beside it is a broken input rather than an image without
-    backplanes.
+    copy's.
 
     The data label describes every HDU of the FITS, through
     :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`, which reads the
-    source before anything is created in the bundle; the copy is the same bytes,
-    ``shutil.copy2`` writing it and its size then held to the source's.  A FITS that
-    function refuses fails the image with nothing created, the file and the HDU named
-    in the log, and one it cannot read raises with nothing created.  So does a copy
-    whose size is not the source's, which fails the image: the copy, and every
-    directory made for it, are removed.  A copy that fails partway is removed the same
-    way and its error raised.  The configuration's masked value is taken to be one
+    source before the copy is made; the copy is byte-identical, so the source's
+    description is the copy's.  A FITS that function refuses fails the image with
+    nothing created, the file and the HDU named in the log.  The configuration's
+    masked value is taken to be one
     :func:`~spindoctor.cli.pds4.data_objects.unusable_masked_value` accepts, which the
     drivers establish once before any image.
 
@@ -134,8 +125,7 @@ def generate_bundle_data_files(
         unit other than the one the configuration gives its plane or has a
         minimum or maximum that is not a finite number within the range of a
         float, the navigation document does not record the exposure's epochs,
-        the backplane FITS is not beside the backplane metadata, or the FITS
-        holds something its data label cannot describe.
+        or the FITS holds something its data label cannot describe.
 
     Raises:
         ValueError: If the batch does not hold exactly one image, if the
@@ -143,6 +133,7 @@ def generate_bundle_data_files(
             a blank unit, or if the configuration's masked value is not a finite
             number a 32-bit float holds exactly.
         TypeError: If that entry declares no unit, or one that is not a string.
+        OSError: If the backplane FITS cannot be read or copied.
     """
 
     if len(image_files.image_files) != 1:
@@ -242,29 +233,10 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.FAILED
 
-        # The backplane stage writes the FITS before its metadata document, so a
-        # document with no FITS beside it is a broken input.  The image is failed
-        # before anything is written for it: the summary pass refuses a
-        # supplemental file with no data label beside it, so a supplemental file
-        # written here would break that pass as well.
         fits_source_path = backplane_results_root / (results_path_stub + '_backplanes.fits')
-        try:
-            fits_source_local = cast(Path, fits_source_path.retrieve())
-        except FileNotFoundError:
-            logger.error(
-                'Failing bundle generation for "%s": no backplane FITS at %s beside its '
-                'backplane metadata. Nothing is written for the image until its '
-                'backplanes are regenerated',
-                image_path,
-                fits_source_path,
-            )
-            return BundleDataOutcome.FAILED
+        fits_source_local = cast(Path, fits_source_path.retrieve())
 
-        # The label's data objects are read from the source FITS, before anything is
-        # created in the bundle, so that neither a refusal nor an error -- a header
-        # card astropy cannot parse, say -- leaves a file or a directory behind.  The
-        # copy made below is the same bytes, written by shutil.copy2 and then held to
-        # the source's size, so a description of the source is one of the copy.
+        # The copy made below is byte-identical, so the source's description is the copy's.
         try:
             fits_objects = describe_backplane_fits(
                 fits_source_local,
@@ -315,33 +287,9 @@ def generate_bundle_data_files(
         # summary PNG below, the copy is written to a local path and uploaded, and
         # the label's FILE_* functions read BACKPLANE_PATH as a local file, so a
         # bundle root in the cloud is not handled here (#67).
-        created = _absent_directories(fits_file_path, bundle_results_root)
         fits_file_local = cast(Path, fits_file_path.get_local_path())
-        try:
-            shutil.copy2(fits_source_local, fits_file_local)
-            fits_file_path.upload()
-        except OSError:
-            # A copy that fails partway takes what it made with it, so that the
-            # bundle holds no file, and no directory, for an image with no label.
-            _remove_copy(fits_file_path, created)
-            raise
-        source_bytes = fits_source_local.stat().st_size
-        copied_bytes = fits_file_local.stat().st_size
-        if copied_bytes != source_bytes:
-            # The description above is the source's, and is the copy's only while
-            # the two are the same bytes, which a copy cut short is not.
-            _remove_copy(fits_file_path, created)
-            logger.error(
-                'Failing bundle generation for "%s": the copy of %s at %s holds %d bytes '
-                'where the source holds %d. The copy is removed and nothing is written '
-                'for the image',
-                image_path,
-                fits_source_path,
-                fits_file_path,
-                copied_bytes,
-                source_bytes,
-            )
-            return BundleDataOutcome.FAILED
+        shutil.copy2(fits_source_local, fits_file_local)
+        fits_file_path.upload()
         logger.info('Copied backplane FITS: %s', fits_file_path)
 
         # Add file path variables to template_vars
@@ -405,54 +353,3 @@ def generate_bundle_data_files(
         if data_written and browse_written:
             return BundleDataOutcome.WRITTEN
         return BundleDataOutcome.FAILED
-
-
-def _absent_directories(path: FCPath, top: FCPath) -> list[Path]:
-    """Return the directories copying a file to a path would create, deepest first.
-
-    On a local bundle root ``get_local_path()`` creates every missing directory above
-    the file, so recording which ones were missing beforehand is what lets a copy that
-    fails remove what it created and nothing another image made.  A path that is not
-    local creates no directory in the bundle.
-
-    Parameters:
-        path: Where the copy goes.
-        top: The directory at which the walk up from ``path`` stops; it is never
-            listed.
-
-    Returns:
-        Every directory between ``top`` and ``path`` that does not exist, the deepest
-        first; none when ``path`` is not local.
-    """
-    if not path.is_local():
-        return []
-    # A local path's directories are directories on this machine, which pathlib can
-    # ask about and remove and an FCPath offers no way to remove.
-    stop = Path(top.as_posix())
-    absent: list[Path] = []
-    for directory in Path(path.as_posix()).parents:
-        if directory == stop or directory.exists():
-            break
-        absent.append(directory)
-    return absent
-
-
-def _remove_copy(path: FCPath, created: list[Path]) -> None:
-    """Remove a copy and the directories its call created.
-
-    Parameters:
-        path: The copy.
-        created: The directories the call created, the deepest first, as
-            :func:`_absent_directories` lists them.
-    """
-    path.unlink(missing_ok=True)
-    for directory in created:
-        try:
-            directory.rmdir()
-        except OSError as exc:
-            # A directory that is no longer empty holds a product another image
-            # has written there since, which is not this call's to remove, and
-            # neither are the directories above it.
-            if exc.errno != errno.ENOTEMPTY:
-                raise
-            return

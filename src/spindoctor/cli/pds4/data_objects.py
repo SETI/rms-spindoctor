@@ -12,14 +12,10 @@ wrote is described as it was written.
 
 What the backplane writer does not write is refused rather than described.  A label
 that described such a file would be describing it wrongly -- an integer declared at
-the wrong width, a scaled array declared as its raw values, an array past the end of
-a truncated file -- and a label that is wrong about its file is worse than no label.
-Whether a file is cut short is decided from its length and the offsets astropy
-reads, not from the warnings astropy emits, which also flag files the FITS standard
-allows and are not a refusal here.
+the wrong width, or a scaled array declared as its raw values -- and a label that is
+wrong about its file is worse than no label.
 """
 
-import io
 import math
 import re
 from collections.abc import Mapping
@@ -50,10 +46,6 @@ BODY_ID_MAP_DESCRIPTION = (
 The map declares no missing value: its 0 marks a pixel no body claimed, which is a
 fact about the pixel rather than a missing measurement, and no NAIF ID is 0.
 """
-
-FITS_RECORD = 2880
-"""The length of a FITS logical record: every header and every data unit fills whole
-records, so a whole FITS file is a whole number of them."""
 
 _LOCAL_IDENTIFIER = re.compile(r'[a-z_][a-z0-9_.-]*')
 """What a lower-case HDU name has to be to serve as an array's local identifier.
@@ -167,9 +159,7 @@ def describe_backplane_fits(
     holds the missing constant.
 
     The file is read as it is stored, with no scaling applied, so that what is
-    described is the bytes in the file.  A warning astropy emits while reading it is
-    not a refusal: whether the file is whole is decided from its length and the
-    offsets of its HDUs.
+    described is the bytes in the file.
 
     Parameters:
         fits_path: The FITS to describe.
@@ -184,45 +174,29 @@ def describe_backplane_fits(
         The file's HDUs, the primary first, each with its header and its array.
 
     Raises:
-        UndescribableFitsError: If astropy cannot read the file as FITS, which a
-            header cut short at the end of a record draws; the file is cut short
-            otherwise -- an HDU's data run past its end, or its length is not a whole
-            number of :data:`FITS_RECORD`-byte records, which a header cut short within
-            a record, and dropped by astropy, leaves; its primary HDU holds data; an
-            HDU past the primary is not an image, which a tile-compressed image is,
-            being a binary table on disk; or an image HDU is not
-            two-dimensional, has a ``BITPIX`` that :data:`FITS_DATA_TYPES` does not
-            map, carries ``BSCALE`` or ``BZERO``, or has a name that in lower case is
-            not an XML name, is another image HDU's, or is one of
-            :data:`LABEL_LOCAL_IDENTIFIERS`.  The message names the file, and
-            the HDU by its index and name where the refusal is of one HDU, with the
-            byte counts where it is of the file's length.
-        FileNotFoundError: If there is no file at ``fits_path``.
-        astropy.io.fits.verify.VerifyError: If a header card the description reads,
-            ``EXTNAME`` or ``BUNIT``, is one astropy cannot parse.
+        UndescribableFitsError: If its primary HDU holds data; an HDU past the
+            primary is not an image, which a tile-compressed image is, being a binary
+            table on disk; or an image HDU is not two-dimensional, has a ``BITPIX``
+            that :data:`FITS_DATA_TYPES` does not map, carries ``BSCALE`` or
+            ``BZERO``, or has a name that in lower case is not an XML name, is another
+            image HDU's, or is one of :data:`LABEL_LOCAL_IDENTIFIERS`.  The message
+            names the file, and the HDU by its index and name where the refusal is of
+            one HDU.
     """
     fcpath = FCPath(fits_path)
     missing_constant = _missing_constant(masked_value)
     with fcpath.open('rb') as fits_file:
-        file_size = fits_file.seek(0, io.SEEK_END)
-        fits_file.seek(0)
-        try:
-            # astropy decompresses a tile-compressed image and hands back an ImageHDU
-            # subclass with the image's header, where the file holds a binary table;
-            # without decompression the HDU is the table it is on disk, and is refused
-            # as an extension that is not an image.
-            hdul = fits.open(
-                fits_file,
-                do_not_scale_image_data=True,
-                lazy_load_hdus=False,
-                disable_image_compression=True,
-            )
-        except OSError as exc:
-            raise UndescribableFitsError(
-                f'{fcpath} is not a FITS file astropy can read: {exc}'
-            ) from exc
+        # astropy decompresses a tile-compressed image and hands back an ImageHDU
+        # subclass with the image's header, where the file holds a binary table;
+        # without decompression the HDU is the table it is on disk, and is refused
+        # as an extension that is not an image.
+        hdul = fits.open(
+            fits_file,
+            do_not_scale_image_data=True,
+            lazy_load_hdus=False,
+            disable_image_compression=True,
+        )
         with hdul:
-            _refuse_data_past_the_end(hdul, file_size=file_size, fcpath=fcpath)
             hdus = tuple(
                 _describe_hdu(
                     hdu,
@@ -233,13 +207,6 @@ def describe_backplane_fits(
                 )
                 for index, hdu in enumerate(hdul)
             )
-    # astropy drops, with a warning, an extension whose header the file cuts short
-    # within a record, and every HDU it keeps then ends within the file; what the cut
-    # leaves is a length that is not a whole number of records.
-    if file_size % FITS_RECORD != 0:
-        raise UndescribableFitsError(
-            f'{fcpath} is {file_size} bytes, not a whole number of {FITS_RECORD}-byte records'
-        )
     identifiers = [array.local_identifier for hdu in hdus if (array := hdu.array) is not None]
     repeated = sorted({name for name in identifiers if identifiers.count(name) > 1})
     if repeated:
@@ -329,49 +296,6 @@ def _where(index: int, hdu: fits.hdu.base._BaseHDU, fcpath: FCPath) -> str:
         The HDU's index and name, ``unnamed`` for an HDU with none, and the file.
     """
     return f'HDU {index} ({hdu.name or "unnamed"}) of {fcpath}'
-
-
-def _data_bytes(header: fits.Header) -> int:
-    """Return how many bytes an HDU's data take, before their padding.
-
-    Parameters:
-        header: The HDU's header.
-
-    Returns:
-        ``|BITPIX| / 8 * GCOUNT * (PCOUNT + NAXIS1 * ... * NAXISn)``, the FITS
-        standard's size of a data unit, and 0 for an HDU with no axes.
-    """
-    naxis = int(header['NAXIS'])
-    if naxis == 0:
-        return 0
-    elements = math.prod(int(header[f'NAXIS{axis}']) for axis in range(1, naxis + 1))
-    group_count = int(header.get('GCOUNT', 1))
-    parameter_count = int(header.get('PCOUNT', 0))
-    return abs(int(header['BITPIX'])) // 8 * group_count * (parameter_count + elements)
-
-
-def _refuse_data_past_the_end(hdul: fits.HDUList, *, file_size: int, fcpath: FCPath) -> None:
-    """Refuse a file holding an HDU whose data run past its end.
-
-    astropy reads such an HDU with a warning and goes on, so the offsets it reports are
-    held to the file's length here.
-
-    Parameters:
-        hdul: The file's HDUs, as astropy reads them.
-        file_size: The file's length in bytes.
-        fcpath: The file, for a refusal's message.
-
-    Raises:
-        UndescribableFitsError: If an HDU's data run past the end of the file, naming
-            the HDU, where its data end and where the file does.
-    """
-    for index, hdu in enumerate(hdul):
-        data_end = int(hdu.fileinfo()['datLoc']) + _data_bytes(hdu.header)
-        if data_end > file_size:
-            raise UndescribableFitsError(
-                f'{_where(index, hdu, fcpath)} has data running to byte {data_end}, and '
-                f'the file ends at byte {file_size}'
-            )
 
 
 def _array_description(

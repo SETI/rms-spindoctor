@@ -5,7 +5,6 @@ the file's own bytes, read without astropy, and the arrays and their units from
 astropy reading the file separately from the builder under test.
 """
 
-import re
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -223,121 +222,6 @@ def _write_two_of_a_name(path: Path) -> None:
     fits.HDUList([fits.PrimaryHDU(), upper, mixed]).writeto(path)
 
 
-def _cut(path: Path, length: int) -> None:
-    """Cut a file down to its first bytes.
-
-    Parameters:
-        path: The file.
-        length: How many bytes to keep.
-    """
-    path.write_bytes(path.read_bytes()[:length])
-
-
-def _last_data_end(path: Path) -> int:
-    """Return where the last array of a backplane-like FITS ends, from the file's bytes.
-
-    Parameters:
-        path: A FITS written by :func:`_write_backplane_like`, whose last array is 3 by 5
-            32-bit floats.
-
-    Returns:
-        The byte after that array's last element, its padding not counted.
-    """
-    offset, length = _headers_in(path.read_bytes())[-1]
-    return offset + length + 3 * 5 * 4
-
-
-@pytest.mark.filterwarnings('default')
-def test_a_fits_whose_last_array_runs_past_its_end_is_refused(tmp_path: Path) -> None:
-    """A FITS cut short inside an array is refused, naming the HDU and the byte counts.
-
-    astropy reads such a file with a warning and goes on, so the warning filters are
-    Python's defaults, as the drivers run, and what refuses the file is the builder's
-    own check of each array's extent against the file's length.
-    """
-    path = tmp_path / 'backplanes.fits'
-    _write_backplane_like(path)
-    data_end = _last_data_end(path)
-    _cut(path, data_end - 30)
-    expected = (
-        f'HDU 3 (PLANE_WITHOUT_UNIT) of {path} has data running to byte {data_end}, '
-        f'and the file ends at byte {data_end - 30}'
-    )
-    with pytest.raises(UndescribableFitsError, match=re.escape(expected)):
-        describe_backplane_fits(path, masked_value=MASKED_VALUE)
-
-
-def _last_header_start(path: Path) -> int:
-    """Return where the last header of a FITS begins, from the file's bytes.
-
-    Parameters:
-        path: The FITS.
-
-    Returns:
-        The byte the last header begins at.
-    """
-    offset, _ = _headers_in(path.read_bytes())[-1]
-    return offset
-
-
-@pytest.mark.filterwarnings('default')
-@pytest.mark.parametrize(
-    'cut_at',
-    [
-        pytest.param(_last_data_end, id="without the last record's padding"),
-        pytest.param(
-            lambda path: _last_header_start(path) + 1000,
-            id='within a header, which astropy drops',
-        ),
-    ],
-)
-def test_a_fits_that_is_not_a_whole_number_of_records_is_refused(
-    tmp_path: Path, cut_at: Callable[[Path], int]
-) -> None:
-    """A FITS whose length is not a whole number of records is refused, naming it.
-
-    Cut after the last array's last element, the file lacks the padding that fills its
-    record and astropy reads every HDU with a warning; cut within the last header,
-    astropy drops that HDU with a warning and reads the others, each of which ends
-    within the file.  Either way the length is what refuses it.
-
-    Parameters:
-        tmp_path: Where the FITS goes.
-        cut_at: Where to cut the file, from the file's bytes.
-    """
-    path = tmp_path / 'backplanes.fits'
-    _write_backplane_like(path)
-    length = cut_at(path)
-    _cut(path, length)
-    expected = f'{path} is {length} bytes, not a whole number of {FITS_BLOCK}-byte records'
-    with pytest.raises(UndescribableFitsError, match=re.escape(expected)):
-        describe_backplane_fits(path, masked_value=MASKED_VALUE)
-
-
-@pytest.mark.filterwarnings('default')
-def test_a_fits_ending_in_a_record_of_zeros_is_described(tmp_path: Path) -> None:
-    """A FITS followed by a record of zeros, which FITS 4.0 allows, is described.
-
-    astropy warns of the extra record; a warning is not a refusal, so every header is
-    described where the file holds it.
-    """
-    path = tmp_path / 'backplanes.fits'
-    _write_backplane_like(path)
-    path.write_bytes(path.read_bytes() + bytes(FITS_BLOCK))
-    described = describe_backplane_fits(path, masked_value=MASKED_VALUE)
-    headers = [(hdu.header_offset, hdu.header_length) for hdu in described.hdus]
-    assert headers == _headers_in(path.read_bytes())
-
-
-def _write_not_fits(path: Path) -> None:
-    """Write a file that is not FITS at all.
-
-    Parameters:
-        path: Where the file goes.
-    """
-    path.write_bytes(b'not a FITS file')
-
-
 @pytest.mark.parametrize(
     ('write', 'refusal'),
     [
@@ -418,11 +302,6 @@ def _write_not_fits(path: Path) -> None:
             r'HDU 1 \(NAVIGATION-DETAILS\) of .* which the data label gives to another',
             id='the name the label gives its supplemental file',
         ),
-        pytest.param(
-            _write_not_fits,
-            r'is not a FITS file astropy can read: No SIMPLE card found',
-            id='not FITS',
-        ),
     ],
 )
 def test_a_fits_the_backplane_writer_does_not_write_is_refused(
@@ -489,10 +368,3 @@ def test_a_masked_value_a_float_plane_holds_is_usable(masked_value: object) -> N
     """
     config = DEFAULT_CONFIG if masked_value is None else _configured(masked_value)
     assert unusable_masked_value(config) is None
-
-
-def test_a_fits_that_is_not_there_is_not_found(tmp_path: Path) -> None:
-    """A path with no file behind it raises FileNotFoundError, naming the path."""
-    path = tmp_path / 'backplanes.fits'
-    with pytest.raises(FileNotFoundError, match=re.escape(str(path))):
-        describe_backplane_fits(path, masked_value=MASKED_VALUE)
