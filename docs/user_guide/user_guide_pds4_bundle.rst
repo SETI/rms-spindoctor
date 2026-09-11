@@ -76,10 +76,12 @@ The labels pass processes individual images to generate per-image PDS4 products.
 
 The bundle's own directory -- ``<bundle results root>/<bundle name>/`` -- must be
 empty or absent when the pass starts, so that a bundle is the product of one run
-rather than a mixture of two. A run that finds anything there writes nothing and
-exits 1, ``--dry-run`` included. The pass will not clear the directory for you:
-to run again after a partial failure, clear it yourself or name a different
-bundle results root.
+rather than a mixture of two. ``sd_create_bundle labels`` checks this and, if it
+finds anything there, writes nothing and exits 1, ``--dry-run`` included. It
+will not clear the directory for you: to run again after a partial failure,
+clear it yourself or name a different bundle results root. The queue-driven
+variant below cannot make the check -- each of its workers holds one image, not
+the run -- so a queue-driven bundle is yours to start from an empty root.
 
 Basic Usage
 ^^^^^^^^^^^
@@ -246,9 +248,9 @@ For each image, the labels pass generates:
 * **Browse Image** (``<image_name>_summary.png``): Copy of the summary PNG from the
   navigation pass.
 
-Browse products are not optional: every successfully navigated image gets both,
-and an image whose summary PNG is missing from the navigation results is failed
-rather than bundled without one.
+Browse products are not optional. Both are written for every image the pass
+labels, and an image whose summary PNG is missing from the navigation results is
+failed rather than bundled without them.
 
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
@@ -302,20 +304,24 @@ the log names what was not.
   loses its browse products and nothing else; its data label is written or not
   on its own account.
 
-  ``--dry-run`` writes nothing and, given an empty bundle directory, exits 0.
+  ``--dry-run`` writes nothing, and exits 0 once the templates are present and
+  the bundle directory is empty.
 
 * ``sd_create_bundle summary`` exits 1 when any collection or global index label
-  could not be written. The ``.tab`` tables are written either way.
+  could not be written. The ``.tab`` tables are written whether or not the label
+  describing one is.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
   written as ``status: error`` with ``status_error: label_not_written``, and asks
   for no retry.
 
 The summary pass builds its tables from what is in the bundle's ``data/`` tree
-without checking that tree for completeness, so it exits 0 even after a labels
-pass that failed images -- and an image that got a data label but no browse label
-leaves ``collection_browse.tab`` listing a browse product that is not on disk.
-Take the labels pass's closing line as the account of what the bundle covers.
+without checking that tree for completeness, so it can exit 0 over a bundle the
+labels pass already failed images in -- and an image that got a data label but
+no browse label leaves ``collection_browse.tab`` listing a browse product that is
+not on disk. A summary pass exiting 0 says its own labels were written, and
+nothing about what the labels pass did; take the labels pass's closing line as
+the account of what the bundle covers.
 
 Configuration
 =============
