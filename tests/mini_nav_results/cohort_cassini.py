@@ -8,8 +8,9 @@ did not succeed, which is what the bundle stage skips.  The documents in
 a fixture chosen against two unrelated criteria stops being legible for either.
 
 Each image is built from its epoch and nothing else.  The clock readings come
-from :func:`~tests.mini_nav_results.shared.cassini_sclk_triple` and the image
-number from :func:`~tests.mini_nav_results.shared.cassini_image_number`, so the
+from :func:`~tests.mini_nav_results.cassini_host.cassini_sclk_triple` and the
+image number from :func:`~tests.mini_nav_results.cassini_host.cassini_image_number`,
+so the
 name, the readings, the index row and the document cannot disagree about when
 the shutter was open.
 
@@ -61,20 +62,16 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
 
 from .backplanes import COHORT_SHAPE_VU, CohortBody
-from .cohort import Cohort, CohortImage
-from .shared import (
+from .cassini_host import (
     CASSINI_EXPOSURE_MS,
     COISS_KERNELS,
     cassini_exposure_span,
     cassini_image_number,
     cassini_sclk_triple,
-    classifier,
-    navigated,
-    provenance,
-    ring_edge,
-    rotation,
     with_pointing_from_epoch,
 )
+from .cohort import Cohort, CohortImage
+from .shared import classifier, navigated, provenance, ring_edge, rotation
 
 LIMB_MIDTIME_ET = 129400000.0
 """The epoch of the image navigated on a satellite's limb."""
@@ -402,6 +399,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         ring_edge(
             'encke_gap',
             'IEG',
+            planet='SATURN',
             reliability=0.79,
             gated=False,
             gate_reason=None,

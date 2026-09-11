@@ -5,27 +5,19 @@ registered techniques and the same configuration digest for every image it
 navigated, so those are stated once here.  So are the wrappers the per-host
 modules build their documents through: the writer's own metadata and timing
 builders, the inventory entries whose shape repeats, and the attitude and clock
-block an orchestrator stamps onto a result.
+block an orchestrator stamps onto a result, which a :class:`Host` describes the
+host of.
 
-Nothing here is a document.  The documents are in the per-host modules beside
-it, and the package they belong to is the public surface.
-
-What the clock conversions here are held to, and by what.  The two tests over
-the cohort's readings -- that a triple spans the epochs beside it, and that an
-image is named for the reading its shutter opened at -- compare two quantities
-this module derived from one function, so they report a triple written out by
-hand beside one it counted, which is the state they exist to make unreachable.
-They cannot report a conversion that is wrong the same way everywhere: move the
-anchors below by an hour and every one of them still passes, with every image
-renamed.  What reports that is an integration test that furnishes the mission
-clock kernel and converts each epoch again, and it is excluded from the default
-run because the kernel is not there to furnish.
+Nothing here is a document or a host.  The documents are in the per-host modules
+beside it, each host's camera frames, exposure and clock in a module named for
+the host, and the package they belong to is the public surface.
 """
 
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -42,13 +34,6 @@ from spindoctor.navigate_image_files import build_metadata_from_result, build_ti
 from spindoctor.support.cmatrix import AttitudeBaseline, PointingSolution
 from spindoctor.support.types import NDArrayFloatType
 
-COISS_SUBTREE = 'COISS_2001/data/1294561143_1295221348'
-"""The Cassini volume and observation directory the Cassini images sit under."""
-
-VGISS_SUBTREE = 'VGISS_5101/data/C13854XX'
-"""The Voyager volume and image directory the Voyager images sit under."""
-
-
 # ---------------------------------------------------------------------------
 # What every document of one run shares
 # ---------------------------------------------------------------------------
@@ -56,11 +41,14 @@ VGISS_SUBTREE = 'VGISS_5101/data/C13854XX'
 _VERSION = '0.0.0'
 """Package version the run recorded."""
 
+
 _GIT_SHA = '719cde5'
 """Short git SHA the run recorded."""
 
+
 _CONFIG_HASH = '3ca76ec39b1fb875a86bed2793adc4430785242e07d705f2d65581963040a6b6'
 """Digest of the fully resolved configuration the run used."""
+
 
 _PIPELINE_RUN = '2026-08-08T16:46:29Z'
 """When the run began, in the spelling the orchestrator stamps.
@@ -68,6 +56,7 @@ _PIPELINE_RUN = '2026-08-08T16:46:29Z'
 Seconds precision and a ``Z`` designator, which is what
 ``datetime.isoformat(timespec='seconds')`` produces for a UTC moment.
 """
+
 
 _TECHNIQUE_NAMES = (
     'BodyBlobNav',
@@ -88,6 +77,7 @@ what one run recorded, and a tree that changed shape whenever a technique was
 added would move the frozen report for a reason the report is not about.
 """
 
+
 _STATIC_DATA_HASHES = {
     'config_220_body_shape.yaml': (
         'ac10e82c9c141c0e449dcfc92d8c4f341400ffa51976f53c94c98eaabac7a52a'
@@ -101,42 +91,13 @@ _STATIC_DATA_HASHES = {
 }
 """Digests of the shipped static data the run hashed."""
 
+
 _STAR_CATALOGS = {
     'tycho2': '/resources/SPICE/Stars',
     'ucac4': '/star-catalogs/UCAC4',
     'ybsc': '/star-catalogs/YBSC',
 }
 """Where the run resolved each configured star catalog."""
-
-COISS_KERNELS = (
-    '05138_05159ra.bc',
-    'cas00172.tsc',
-    'cpck15Dec2017.tpc',
-    'naif0012.tls',
-    'sat428.bsp',
-)
-"""Kernels loaded for the Cassini images."""
-
-VGISS_KERNELS = (
-    'naif0012.tls',
-    'vg100019.tsc',
-    'vg1_saturn.bsp',
-    'vg1_super.bc',
-)
-"""Kernels loaded for the Voyager images."""
-
-SIM_KERNELS: tuple[str, ...] = ()
-"""Kernels loaded for the simulated scene, of which there are none.
-
-An empty list is a statement about the run rather than an absent value, and a
-simulated scene is the run that makes it.
-"""
-
-_CASSINI_OOPS_FROM_SPICE: NDArrayFloatType = np.diag([-1.0, -1.0, 1.0])
-"""The constant rotation between the oops and SPICE Cassini ISS camera frames."""
-
-_VOYAGER_OOPS_FROM_SPICE: NDArrayFloatType = np.eye(3)
-"""The constant rotation between the oops and SPICE Voyager ISS camera frames."""
 
 
 def rotation(z_deg: float, y_deg: float, x_deg: float) -> NDArrayFloatType:
@@ -249,7 +210,7 @@ def _pointing(
     Returns:
         The solution.
     """
-    start_et, _midtime_et, stop_et = _exposure_span(midtime_et, exposure_s)
+    start_et, _midtime_et, stop_et = exposure_span(midtime_et, exposure_s)
     baseline = AttitudeBaseline(
         cmatrix_original=original,
         oops_from_spice=oops_from_spice,
@@ -329,16 +290,19 @@ def ring_edge(
     ring_key: str,
     edge_label: str,
     *,
+    planet: str,
     reliability: float,
     gated: bool,
     gate_reason: str | None,
     bbox: tuple[int, int, int, int],
 ) -> NavFeatureSummary:
-    """Return one Saturn ring-edge inventory entry.
+    """Return one ring-edge inventory entry.
 
     Parameters:
         ring_key: The catalog key of the ring feature the edge belongs to.
         edge_label: ``IEG`` or ``OEG`` for the two edges of a gap.
+        planet: The planet whose ring system the edge belongs to, as the ring
+            model names it.
         reliability: The self-assessed score.
         gated: Whether the gate dropped it.
         gate_reason: Why, when it did.
@@ -348,9 +312,9 @@ def ring_edge(
         The entry.
     """
     return NavFeatureSummary(
-        feature_id=f'ring_edge:SATURN:{ring_key}:{edge_label}',
+        feature_id=f'ring_edge:{planet}:{ring_key}:{edge_label}',
         feature_type=NavFeatureType.RING_EDGE,
-        source_model='rings:SATURN',
+        source_model=f'rings:{planet}',
         reliability=reliability,
         gated=gated,
         gate_reason=gate_reason,
@@ -362,25 +326,31 @@ def ring_edge(
     )
 
 
-_CASSINI_CAMERA_FRAME_IDS = {'NAC': -82360, 'WAC': -82361}
-"""SPICE frame id of each Cassini ISS camera frame."""
+@dataclass(frozen=True)
+class Host:
+    """What stamping an attitude solution onto a result needs to know about its host.
 
-_VOYAGER_CAMERA_FRAME_IDS = {'NAC': -31101, 'WAC': -31102}
-"""SPICE frame id of each Voyager 1 ISS camera frame."""
+    Each host with a SPICE camera frame describes itself with one of these, in a
+    module named for it, so that :func:`with_pointing` states every host's solution
+    the same way.
 
-CASSINI_EXPOSURE_S = 0.46
-"""Exposure the Cassini images were taken with."""
+    Attributes:
+        camera_frames: The SPICE name and id of each camera's frame, keyed by the
+            camera.
+        ck_frame_id: The SPICE id of the object a corrected C-kernel targets.
+        oops_from_spice: The constant rotation between the oops and SPICE camera
+            frames.
+        exposure_s: The exposure the host's images were taken with, in seconds.
+        tick_s: How long one tick of the host's spacecraft clock lasts.
+        spell: How a reading of that clock, as a count of ticks, is written.
+    """
 
-CASSINI_EXPOSURE_MS = CASSINI_EXPOSURE_S * 1000.0
-"""The same exposure, in the milliseconds a PDS3 index records it in.
-
-Derived rather than written out again beside the index row that carries it: a
-row whose exposure is one number while the clock triple beside it is counted
-over another spans two different exposures, and no reader of it holds both.
-"""
-
-_VOYAGER_EXPOSURE_S = 1.44
-"""Exposure the Voyager images were taken with."""
+    camera_frames: Mapping[str, tuple[str, int]]
+    ck_frame_id: int
+    oops_from_spice: NDArrayFloatType
+    exposure_s: float
+    tick_s: float
+    spell: Callable[[int], str]
 
 
 # ---------------------------------------------------------------------------
@@ -397,34 +367,7 @@ _VOYAGER_EXPOSURE_S = 1.44
 # between them, and each is spelled in its host's own fields.
 
 
-_CASSINI_SCLK_TICKS_PER_SECOND = 256
-"""Ticks in one second of the Cassini clock, the modulus of its second field.
-
-The clock is two fields, whole seconds and a fractional field counting ticks of
-one 256th of a second, so a reading is a count of those ticks and the fields
-are its quotient and its remainder by this.  It is the width of the field, not
-the rate the clock runs at; how long a tick lasts is measured against the
-kernel further down.
-"""
-
-_VOYAGER_SCLK_LINES_PER_MINOR = 800
-"""Lines in one minor frame, the modulus of the Voyager clock's line field."""
-
-_VOYAGER_SCLK_MINORS_PER_FRAME = 60
-"""Minor frames in one FDS frame, the modulus of the clock's minor-frame field."""
-
-_VOYAGER_SCLK_FIRST_LINE = 1
-"""The line field's offset: it counts from one rather than from zero."""
-
-_VOYAGER_SCLK_TICK_S = 0.06
-"""Seconds in one line, which is the tick the Voyager clock counts in.
-
-A minor frame is 800 lines and an FDS frame is 60 minor frames, which puts an
-FDS frame at 2880 seconds, the rate the clock kernel records for it.
-"""
-
-
-def _elapsed_ticks(seconds: float, tick_s: float) -> int:
+def elapsed_ticks(seconds: float, tick_s: float) -> int:
     """Return how many ticks of a clock a span of time covers.
 
     The count is taken to the nearest tick rather than truncated.  The epochs
@@ -444,86 +387,7 @@ def _elapsed_ticks(seconds: float, tick_s: float) -> int:
     return round(seconds / tick_s)
 
 
-def _cassini_sclk_reading(ticks: int) -> str:
-    """Spell a Cassini clock tick count the way the conversion spells it.
-
-    The two fields are written behind the clock partition and separated by a
-    period, each zero padded to the digits its own modulus needs: ten for the
-    seconds and three for the 256 ticks of the fraction.  A tick count past the
-    fraction's modulus therefore carries into the seconds field rather than
-    widening the fraction.
-
-    Parameters:
-        ticks: The reading, as a count of ticks of one 256th of a second.
-
-    Returns:
-        The clock string.
-    """
-    seconds, fraction = divmod(ticks, _CASSINI_SCLK_TICKS_PER_SECOND)
-    return f'1/{seconds:010d}.{fraction:03d}'
-
-
-def _voyager_sclk_reading(ticks: int) -> str:
-    """Spell a Voyager clock tick count the way the conversion spells it.
-
-    The three fields -- the FDS frame count, the minor frame within it and the
-    line within that -- are written behind the clock partition and separated by
-    colons, zero padded to five, two and three digits.  The line field counts
-    from one, and a count that fills a field carries into the field above it
-    rather than widening it.
-
-    Parameters:
-        ticks: The reading, as a count of line ticks.
-
-    Returns:
-        The clock string.
-    """
-    lines_per_frame = _VOYAGER_SCLK_MINORS_PER_FRAME * _VOYAGER_SCLK_LINES_PER_MINOR
-    frame, within_frame = divmod(ticks, lines_per_frame)
-    minor, line = divmod(within_frame, _VOYAGER_SCLK_LINES_PER_MINOR)
-    return f'1/{frame:05d}:{minor:02d}:{line + _VOYAGER_SCLK_FIRST_LINE:03d}'
-
-
-def cassini_sclk_open(image_number: int, tick: int) -> int:
-    """Return a Cassini image's clock reading at shutter open, as a tick count.
-
-    A Cassini image is named for the whole-second field of the reading its
-    shutter opened at: a label carrying ``IMAGE_NUMBER = "1454725799"`` carries
-    ``SPACECRAFT_CLOCK_START_COUNT = "1454725799.102"`` beside it.  So the
-    image number and the tick the shutter opened on are the two fields of that
-    reading.
-
-    Parameters:
-        image_number: The image number, which is the whole-second field.
-        tick: The fractional field, in ticks of one 256th of a second.
-
-    Returns:
-        The reading, as a count of ticks.
-    """
-    return image_number * _CASSINI_SCLK_TICKS_PER_SECOND + tick
-
-
-def voyager_sclk_open(frame: int, minor: int) -> int:
-    """Return a Voyager image's clock reading at shutter open, as a tick count.
-
-    A Voyager image is named for the frame and minor-frame fields of the
-    reading its shutter closed at: a label carrying ``IMAGE_NUMBER = "13854.55"``
-    carries ``SPACECRAFT_CLOCK_STOP_COUNT = "13854:55:001"`` beside it.  So the
-    reading at shutter open is one exposure of ticks before the first line of
-    the minor frame the image is named for.
-
-    Parameters:
-        frame: The FDS frame count the image is named for.
-        minor: The minor frame within it the image is named for.
-
-    Returns:
-        The reading, as a count of ticks.
-    """
-    close = (frame * _VOYAGER_SCLK_MINORS_PER_FRAME + minor) * _VOYAGER_SCLK_LINES_PER_MINOR
-    return close - _elapsed_ticks(_VOYAGER_EXPOSURE_S, _VOYAGER_SCLK_TICK_S)
-
-
-def _sclk_triple(
+def sclk_triple(
     open_ticks: int,
     *,
     start_et: float,
@@ -547,12 +411,12 @@ def _sclk_triple(
     """
     return (
         spell(open_ticks),
-        spell(open_ticks + _elapsed_ticks(midtime_et - start_et, tick_s)),
-        spell(open_ticks + _elapsed_ticks(stop_et - start_et, tick_s)),
+        spell(open_ticks + elapsed_ticks(midtime_et - start_et, tick_s)),
+        spell(open_ticks + elapsed_ticks(stop_et - start_et, tick_s)),
     )
 
 
-def _exposure_span(midtime_et: float, exposure_s: float) -> tuple[float, float, float]:
+def exposure_span(midtime_et: float, exposure_s: float) -> tuple[float, float, float]:
     """Return the start, midtime and stop epochs of one exposure.
 
     Parameters:
@@ -563,154 +427,6 @@ def _exposure_span(midtime_et: float, exposure_s: float) -> tuple[float, float, 
         The three epochs, in that order.
     """
     return midtime_et - exposure_s / 2.0, midtime_et, midtime_et + exposure_s / 2.0
-
-
-def cassini_exposure_span(midtime_et: float) -> tuple[float, float, float]:
-    """Return the start, midtime and stop epochs of one Cassini exposure.
-
-    Parameters:
-        midtime_et: The exposure midtime, which is the image's epoch.
-
-    Returns:
-        The three epochs, in that order.
-    """
-    return _exposure_span(midtime_et, CASSINI_EXPOSURE_S)
-
-
-# ---------------------------------------------------------------------------
-# Epochs first, everything else derived
-# ---------------------------------------------------------------------------
-#
-# An image's epoch, the clock readings recorded beside it and the number it is
-# named for are three spellings of one moment, and a document that spells them
-# from three sources is free to disagree with itself: the reading says the
-# shutter opened years from where the epoch says it did, and every reader that
-# converts one into the other reads a document no run could have written.  So a
-# document is built from its epoch alone, through the constructors below, and
-# there is nowhere in that path for a second answer to enter.
-
-
-_CASSINI_SCLK_ANCHORS = ((1454725799, 129305290.24137056), (1456120518, 130700000.15065941))
-"""Two Cassini clock readings and the epochs the mission clock kernel gives them.
-
-Both pairs are correlation points read out of ``cas00172.tsc`` rather than
-numbers chosen here, and they bracket every epoch the cohort uses.  A line
-through two of them calibrates the rate the clock runs at as well as where it
-started, which one of them cannot: the clock gains 6.5 parts per million on
-ephemeris time, so a conversion anchored at one point alone reads 0.6 s off a
-day away and 9.1 s off at the far end of the cohort's own span, and named one
-cohort image for a second the kernel puts nine seconds later.
-
-A mission clock kernel is linear in pieces, each with its own rate, so a single
-line cannot be right everywhere.  Measured against the kernel over the 16 days
-these two span, this one is never more than half a tick out, and each of the
-three cohort epochs converts to exactly the tick the kernel returns for it.
-"""
-
-_CASSINI_SCLK_ANCHOR_TICKS = _CASSINI_SCLK_ANCHORS[0][0] * _CASSINI_SCLK_TICKS_PER_SECOND
-"""The first anchor's reading, as a tick count, which the conversion counts from."""
-
-_CASSINI_SCLK_ANCHOR_ET = _CASSINI_SCLK_ANCHORS[0][1]
-"""The epoch of that reading."""
-
-_CASSINI_SCLK_TICK_S = (_CASSINI_SCLK_ANCHORS[1][1] - _CASSINI_SCLK_ANCHOR_ET) / (
-    _CASSINI_SCLK_ANCHORS[1][0] * _CASSINI_SCLK_TICKS_PER_SECOND - _CASSINI_SCLK_ANCHOR_TICKS
-)
-"""How long one tick of the Cassini clock lasts, as the two anchors measure it.
-
-Slightly less than one 256th of a second, which is the whole point of taking
-two of them.
-"""
-
-
-def cassini_sclk_at(epoch_et: float) -> int:
-    """Return the Cassini clock's reading at an epoch, as a tick count.
-
-    The conversion is the line through the two kernel correlation points above,
-    which is what a mission clock kernel is over any short enough span.
-
-    Parameters:
-        epoch_et: The epoch to read the clock at.
-
-    Returns:
-        The reading, as a count of ticks of the clock's fractional field.
-    """
-    return _CASSINI_SCLK_ANCHOR_TICKS + _elapsed_ticks(
-        epoch_et - _CASSINI_SCLK_ANCHOR_ET, _CASSINI_SCLK_TICK_S
-    )
-
-
-def cassini_image_number(midtime_et: float) -> int:
-    """Return the number a Cassini image taken at this epoch is named for.
-
-    The name is the whole-second field of the reading the shutter opened at, so
-    an image built from its epoch cannot be named for a moment its own clock
-    readings do not cover.
-
-    Parameters:
-        midtime_et: The exposure midtime, which is the image's epoch.
-
-    Returns:
-        The image number.
-    """
-    start_et, _midtime_et, _stop_et = cassini_exposure_span(midtime_et)
-    return cassini_sclk_at(start_et) // _CASSINI_SCLK_TICKS_PER_SECOND
-
-
-def cassini_sclk_triple(midtime_et: float) -> tuple[str, str, str]:
-    """Return the Cassini clock readings at the three epochs of one exposure.
-
-    Parameters:
-        midtime_et: The exposure midtime, which is the image's epoch.
-
-    Returns:
-        The readings at start, midtime and stop, spelled as the conversion
-        spells them, partition and all.
-    """
-    start_et, _midtime_et, stop_et = cassini_exposure_span(midtime_et)
-    return _sclk_triple(
-        cassini_sclk_at(start_et),
-        start_et=start_et,
-        midtime_et=midtime_et,
-        stop_et=stop_et,
-        tick_s=_CASSINI_SCLK_TICK_S,
-        spell=_cassini_sclk_reading,
-    )
-
-
-def with_pointing_from_epoch(
-    result: NavResult,
-    *,
-    camera: str,
-    midtime_et: float,
-    original: NDArrayFloatType,
-    corrected: NDArrayFloatType | None,
-) -> NavResult:
-    """Stamp a Cassini attitude solution derived from the image's epoch alone.
-
-    The clock triple comes from :func:`cassini_sclk_triple`, so the solution a
-    document carries is the one that epoch converts to.  Cassini's frames, its
-    exposure and its clock; a second host's images bring their own anchor.
-
-    Parameters:
-        result: The result to stamp.
-        camera: The camera that took the image, which names its frame.
-        midtime_et: Exposure midtime, which is also the image's epoch.
-        original: The uncorrected attitude at midtime.
-        corrected: The corrected attitude, or None for a result with no offset.
-
-    Returns:
-        The same result, carrying the solution.
-    """
-    start_et, _midtime_et, _stop_et = cassini_exposure_span(midtime_et)
-    return with_pointing(
-        result,
-        camera=camera,
-        midtime_et=midtime_et,
-        sclk_open=cassini_sclk_at(start_et),
-        original=original,
-        corrected=corrected,
-    )
 
 
 def navigated(
@@ -787,59 +503,44 @@ def pinned_timing(start: datetime, elapsed_s: float, peak_memory_bytes: int) -> 
 def with_pointing(
     result: NavResult,
     *,
+    host: Host,
     camera: str,
     midtime_et: float,
     sclk_open: int,
     original: NDArrayFloatType,
     corrected: NDArrayFloatType | None,
-    instrument: str = 'coiss',
 ) -> NavResult:
     """Stamp an attitude solution onto a result, as the orchestrator does.
 
     Parameters:
         result: The result to stamp.
+        host: The host whose camera frames, exposure and clock the solution is
+            stated in.
         camera: The camera that took the image, which names its frame.
         midtime_et: Exposure midtime, which is also the image's epoch.
         sclk_open: The host clock's reading at shutter open, as a tick count.
         original: The uncorrected attitude at midtime.
         corrected: The corrected attitude, or None for a result with no offset.
-        instrument: Which host's frames, clock and exposure to use.
 
     Returns:
         The same result, carrying the solution.
     """
-    spell: Callable[[int], str]
-    if instrument == 'coiss':
-        camera_frame = f'CASSINI_ISS_{camera}'
-        camera_frame_id = _CASSINI_CAMERA_FRAME_IDS[camera]
-        ck_frame_id = -82000
-        oops_from_spice = _CASSINI_OOPS_FROM_SPICE
-        exposure_s = CASSINI_EXPOSURE_S
-        tick_s = _CASSINI_SCLK_TICK_S
-        spell = _cassini_sclk_reading
-    else:
-        camera_frame = f'VG1_ISS{camera[0]}A'
-        camera_frame_id = _VOYAGER_CAMERA_FRAME_IDS[camera]
-        ck_frame_id = -31100
-        oops_from_spice = _VOYAGER_OOPS_FROM_SPICE
-        exposure_s = _VOYAGER_EXPOSURE_S
-        tick_s = _VOYAGER_SCLK_TICK_S
-        spell = _voyager_sclk_reading
-    start_et, _midtime_et, stop_et = _exposure_span(midtime_et, exposure_s)
+    camera_frame, camera_frame_id = host.camera_frames[camera]
+    start_et, _midtime_et, stop_et = exposure_span(midtime_et, host.exposure_s)
     solution = _pointing(
         camera_frame=camera_frame,
         camera_frame_id=camera_frame_id,
-        ck_frame_id=ck_frame_id,
-        oops_from_spice=oops_from_spice,
+        ck_frame_id=host.ck_frame_id,
+        oops_from_spice=host.oops_from_spice,
         midtime_et=midtime_et,
-        exposure_s=exposure_s,
-        sclk=_sclk_triple(
+        exposure_s=host.exposure_s,
+        sclk=sclk_triple(
             sclk_open,
             start_et=start_et,
             midtime_et=midtime_et,
             stop_et=stop_et,
-            tick_s=tick_s,
-            spell=spell,
+            tick_s=host.tick_s,
+            spell=host.spell,
         ),
         original=original,
         corrected=corrected,

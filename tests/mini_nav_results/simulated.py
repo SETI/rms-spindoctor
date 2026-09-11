@@ -22,7 +22,14 @@ from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
 
-from .shared import SIM_KERNELS, classifier, navigated, provenance
+from .shared import classifier, navigated, provenance
+
+SIM_KERNELS: tuple[str, ...] = ()
+"""Kernels loaded for the simulated scene, of which there are none.
+
+An empty list is a statement about the run rather than an absent value, and a
+simulated scene is the run that makes it.
+"""
 
 
 def simulated_scene() -> dict[str, Any]:
@@ -93,3 +100,12 @@ def simulated_scene() -> dict[str, Any]:
         elapsed_s=12.5,
         peak_memory_bytes=1073741824,
     )
+
+
+def results_tree_documents() -> dict[str, dict[str, Any]]:
+    """Return the simulated document of the fixture tree, keyed by results path stub.
+
+    Returns:
+        Stub to document; the stub names no subtree.
+    """
+    return {'sim_scene_000042': simulated_scene()}

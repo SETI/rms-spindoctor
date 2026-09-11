@@ -36,8 +36,10 @@ orchestrator produces.  Each document is given a different peak, so that the
 report's minimum, maximum, mean, median and standard deviation over them are
 five different numbers and a wrong one shows.
 
-The builders are one module per host -- ``cassini``, ``voyager`` and
-``simulated`` -- over the constants and writer wrappers in ``shared``.  Each
+The builders are one module per host, each returning its own documents of the
+tree, which ``RESULTS_TREE_HOSTS`` lists; they are built over the constants and
+writer wrappers in ``shared``, and each host's camera frames, exposure and clock
+are in a module named for the host.  Each
 bundle's cohort is a :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a
 module named for the bundle, over what every cohort shares in ``cohort``,
 ``backplanes`` and ``browse``, and one entry in ``COHORTS`` registers it.  This
@@ -80,29 +82,28 @@ What the tree covers
 Every document earns its place, and regenerating one must not cost the report a
 section or a column:
 
-- **Three instruments**: two with SPICE camera frames (``coiss``, ``vgiss``)
-  and the simulated scene, which is the one host that correctly records no
-  attitude and no exposure times.
-- **Two subtrees and a bare stub**: ``COISS_2001`` and ``VGISS_5101`` name a
+- **Three hosts**: two with SPICE camera frames and the simulated scene,
+  which is the one host that correctly records no attitude and no exposure
+  times.
+- **Two subtrees and a bare stub**: each host with camera frames names a volume
   subtree; the simulated scene's basename names none, which is the case a stub
   with no separator produces.
 - **Three outcomes**: five successes, two failed navigations, and one image
   whose load failed before an observation existed.  The last records no epoch,
   no image shape and no navigation result at all, so its date cells are empty
   and its reason is a ``status_error`` rather than a ``status_reason``.
-- **Two failure reasons over two instruments**, each consistent with its own
-  inventory: every feature gated on the Cassini failure, no feature at all on
-  the Voyager one.
+- **Two failure reasons over two hosts**, each consistent with its own
+  inventory: every feature gated on one, no feature at all on the other.
 - **Four feature sources**: a body, a second body, a ring system and a star
   catalog, with gated features under two of them.
 - **Four camera and image-size groups**, so the offset tables have more than
   one row to order.
-- **A BOTSIM pair**: ``N1294561202`` and ``W1294561202`` share a shutter,
-  a spacecraft clock and an epoch, and both carry ``shutter_mode`` of
-  ``BOTSIM``.  The other Cassini images carry ``NACONLY``; Voyager and the
-  simulated scene carry none, as their hosts read none.
-- **A suspect offset**: one Cassini image's fused offset reaches the search
-  limit for its size, and one Voyager size has no configured limit at all.
+- **A pair sharing one shutter**: two images of one host share a shutter, a
+  spacecraft clock and an epoch, and record the shutter mode that makes them a
+  pair; that host's other images record a single camera's mode, and the other
+  hosts record none, as their labels carry none.
+- **A suspect offset**: one image's fused offset reaches the search limit for
+  its size, and one image size has no configured limit at all.
 - **A spurious technique and an ensemble exclusion**, on separate techniques,
   since the ensemble drops a spurious result before consensus selection and can
   never report one as excluded.
@@ -124,19 +125,11 @@ from typing import Any
 
 from spindoctor.support.file import json_as_string
 
-from .cassini import (
-    LOAD_ERROR_STUB,
-    cassini_all_features_gated,
-    cassini_load_error,
-    cassini_ring_edges,
-    cassini_star_and_limb,
-    cassini_suspect_offset,
-)
+from .cassini import results_tree_documents as cassini_documents
 from .cohort import Cohort
 from .cohort_cassini import CassiniISSSaturnCohort
-from .shared import COISS_SUBTREE, VGISS_SUBTREE
-from .simulated import simulated_scene
-from .voyager import voyager_no_features, voyager_ring_edges
+from .simulated import results_tree_documents as simulated_documents
+from .voyager import results_tree_documents as voyager_documents
 
 __all__ = [
     'COHORTS',
@@ -160,6 +153,9 @@ RESULTS_TREE = (
 )
 """Where the stored tree lives, beside the statistics suite that reads it."""
 
+RESULTS_TREE_HOSTS = (cassini_documents, voyager_documents, simulated_documents)
+"""Each host's documents of the tree, in the order the tree is written."""
+
 
 def results_tree_documents() -> dict[str, dict[str, Any]]:
     """Return every document of the fixture tree, keyed by its results path stub.
@@ -167,16 +163,10 @@ def results_tree_documents() -> dict[str, dict[str, Any]]:
     Returns:
         Stub to document, in the order the tree is written.
     """
-    return {
-        f'{COISS_SUBTREE}/N1294561202_1_CALIB': cassini_star_and_limb(),
-        f'{COISS_SUBTREE}/N1294562000_1_CALIB': cassini_all_features_gated(),
-        LOAD_ERROR_STUB: cassini_load_error(),
-        f'{COISS_SUBTREE}/N1294564000_1_CALIB': cassini_suspect_offset(),
-        f'{COISS_SUBTREE}/W1294561202_1_CALIB': cassini_ring_edges(),
-        f'{VGISS_SUBTREE}/C1385455_GEOMED': voyager_ring_edges(),
-        f'{VGISS_SUBTREE}/C1385460_GEOMED': voyager_no_features(),
-        'sim_scene_000042': simulated_scene(),
-    }
+    documents: dict[str, dict[str, Any]] = {}
+    for host_documents in RESULTS_TREE_HOSTS:
+        documents |= host_documents()
+    return documents
 
 
 def write_results_tree(root: Path) -> list[Path]:
