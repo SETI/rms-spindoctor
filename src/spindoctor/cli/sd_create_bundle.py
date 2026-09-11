@@ -227,31 +227,44 @@ def _exit_on_unusable_units(config: Config) -> None:
     Both passes hold a backplane to the unit its configuration entry declares:
     the labels pass compares each document's statistics against it, and the
     summary pass writes each index column in the format that unit calls for.
-    A unit neither can use is unusable for every image, so the pass says so
-    once, before it has read anything, rather than failing identically for
-    thousands of images or after the collection files are on disk.
+    Both refuse every unit the index tables have no format for, the labels pass
+    included although it writes no table, so that any bundle the labels pass
+    writes is one the summary pass can index.  Such a unit is unusable for every
+    image, so the pass says so once, before it has read anything, rather than
+    failing identically for thousands of images or after the collection files
+    are on disk.
 
     Parameters:
         config: The configuration the pass runs under, whose body and ring
             backplane entries are checked.
 
     Raises:
-        SystemExit: If any entry's ``units`` is missing or is not a string, is
-            blank, or names a unit the index tables have no format for.  Every
-            such entry is reported, with the reason, before the exit.
+        SystemExit: If any entry has no ``units`` key, or a ``units`` that is not
+            a string, is blank, or names a unit the index tables have no format
+            for.  Every such entry is reported before the exit: one with no
+            ``units`` key as declaring none, every other with the reason the
+            format lookup gives.
     """
-    unusable: list[tuple[str, str]] = []
+    unusable: list[tuple[str, str | None]] = []
     for entry in [*config.backplanes.bodies, *config.backplanes.rings]:
+        if 'units' not in entry:
+            unusable.append((entry['name'], None))
+            continue
         try:
-            index_value_format(entry.get('units'))
+            index_value_format(entry['units'])
         except (TypeError, ValueError) as exc:
             unusable.append((entry['name'], str(exc)))
     if len(unusable) == 0:
         return
     for name, reason in unusable:
-        MAIN_LOGGER.error('Backplane %s declares a unit the bundle cannot use: %s', name, reason)
+        if reason is None:
+            MAIN_LOGGER.error('Backplane %s declares no units', name)
+        else:
+            MAIN_LOGGER.error(
+                'Backplane %s declares a unit the bundle cannot use: %s', name, reason
+            )
     MAIN_LOGGER.error(
-        'The configuration declares %d backplane(s) in a unit the bundle cannot use; '
+        'The configuration declares %d backplane(s) without a unit the bundle can use; '
         'nothing was written',
         len(unusable),
     )

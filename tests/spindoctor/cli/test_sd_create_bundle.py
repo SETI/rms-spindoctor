@@ -190,7 +190,10 @@ def _stub_dataset(
 
 
 def _dataset_with_unusable_units(tmp_path: Path) -> _StubDataset:
-    """Build the stub dataset declaring one plane in a unit the index cannot size and one in none.
+    """Build the stub dataset declaring planes in units neither pass can use.
+
+    One plane is in a unit the index cannot size, one in a null unit, and one
+    has no units key at all.
 
     Parameters:
         tmp_path: Base temporary directory the template directory lives under.
@@ -201,7 +204,7 @@ def _dataset_with_unusable_units(tmp_path: Path) -> _StubDataset:
     return _stub_dataset(
         tmp_path,
         bodies=[{'name': 'body_tilt', 'units': 'mrad'}],
-        rings=[{'name': 'ring_radius', 'units': None}],
+        rings=[{'name': 'ring_radius', 'units': None}, {'name': 'ring_tilt'}],
     )
 
 
@@ -658,6 +661,7 @@ def test_main_summary_refuses_a_unit_the_bundle_cannot_use(
     out = capsys.readouterr().out
     assert 'Backplane body_tilt declares a unit the bundle cannot use' in out
     assert 'Backplane ring_radius declares a unit the bundle cannot use' in out
+    assert 'Backplane ring_tilt declares no units' in out
 
 
 @pytest.mark.parametrize(
