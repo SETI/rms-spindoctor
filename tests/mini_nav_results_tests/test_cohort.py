@@ -86,11 +86,12 @@ def test_every_clock_triple_spans_the_epochs_beside_it(cohort: Cohort) -> None:
 def test_each_fits_carries_the_hdus_the_configuration_implies(cohort: Cohort) -> None:
     """A reader opens a real FITS and finds the planes the configuration declares.
 
-    Every body plane for an image with bodies, and every ring plane after them for
-    an image with rings, each source's planes in sorted order: that is the merge's
-    order, which every array's byte offset in the file is stated against, and not
-    the order the configuration lists them in, so a merge that stopped sorting is
-    reported.  The byte blob a stand-in writes has no HDUs to find.
+    The body identity map and every body plane for an image with bodies (the writer
+    leaves the map out of a frame no body claims a pixel of), and every ring plane
+    after them for an image with rings, each source's planes in sorted order: that is
+    the merge's order, which every array's byte offset in the file is stated against,
+    and not the order the configuration lists them in, so a merge that stopped
+    sorting is reported.  The byte blob a stand-in writes has no HDUs to find.
     """
     body_hdus = _hdu_names(DEFAULT_CONFIG.backplanes.bodies)
     ring_hdus = _hdu_names(DEFAULT_CONFIG.backplanes.rings)
@@ -103,8 +104,7 @@ def test_each_fits_carries_the_hdus_the_configuration_implies(cohort: Cohort) ->
             found[image.image_name] = tuple(hdu.name for hdu in hdul)
         expected[image.image_name] = (
             'PRIMARY',
-            'BODY_ID_MAP',
-            *(body_hdus if len(image.bodies) > 0 else []),
+            *(['BODY_ID_MAP', *body_hdus] if len(image.bodies) > 0 else []),
             *(ring_hdus if image.rings else []),
         )
     assert found == expected
