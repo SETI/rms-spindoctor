@@ -205,10 +205,8 @@ Backplanes are configured under ``backplanes`` in
 
 - ``backplanes.bodies``: list of body backplane entries. Each entry has
   ``name`` (the FITS HDU name), ``method`` (the ``oops.Backplane`` method to
-  call), and ``units``, all three required. ``units`` is written to the
-  ``BUNIT`` FITS header and is also what decides whether the plane's
-  statistics are converted to degrees, so it describes the array (see
-  `Outputs`_ below).
+  call), and ``units`` (written to the ``BUNIT`` FITS header). All three are
+  required.
 - ``backplanes.rings``: list of ring backplane entries with the same
   structure. The special ``distance`` entry is used only for per-pixel
   merge ordering and is not written as an HDU.
@@ -231,22 +229,11 @@ For each processed image, ``sd_backplanes`` writes two files under
   ``units`` they are in (consumed by ``sd_create_bundle`` when generating PDS4
   labels).
 
-The arrays and the statistics use different angular units, on purpose. An
-angular array is written in radians, which is what its ``BUNIT`` header says
-and what software reading it wants: the unit the geometry is already in, with
-no conversion step to get wrong. The statistics are written in degrees, because
-they become the columns of a bundle's global index tables, which a person reads
-to decide whether an image is worth opening — and a latitude range of -88 to 81
-says something that -1.54 to 1.42 does not. Every statistic records the unit it
-is in, so a bundle carrying ``rad`` on an array and ``deg`` on the table
-summarising it is describing each file correctly rather than contradicting
-itself. Non-angular planes are untouched: a ring radius stays in kilometres and
-a radial resolution in kilometres per pixel.
-
-What is compared is the unit's measure, the part before any solidus, and not
-the whole string. A plane declared ``rad`` is summarized in ``deg`` and one
-declared ``rad/pixel`` in ``deg/pixel``, while ``km`` and ``km/pixel`` are left
-as they are.
+Angular backplane arrays are in radians, as their ``BUNIT`` headers say. The
+minimum and maximum in the metadata file are converted to degrees (``rad``
+becomes ``deg``, ``rad/pixel`` becomes ``deg/pixel``), because they become
+columns of the PDS4 bundle's index tables, which people read. Each statistic
+records its unit.
 
 Logs are written under the log root rather than beside these products: the
 run's own log to ``{log_root}/sd_backplanes/main_{timestamp}.log`` and one per
@@ -307,5 +294,5 @@ Features
 Notes
 -----
 
-- Units: FITS HDUs whose ``BUNIT`` is exactly ``rad`` are converted to degrees for display and absolute scaling; a plane whose unit qualifies that measure, such as ``rad/pixel``, is displayed in the unit its array carries. Heuristics are used for common angle names if units are missing. This is the viewer's own rule and is not the one the metadata document's statistics follow.
+- Units: a backplane whose ``BUNIT`` is ``rad`` (in any letter case), or whose name contains ``longitude``, ``latitude``, ``incidence``, ``emission`` or ``phase``, is shown in degrees; every other backplane is shown in the unit it is stored in.
 - Masking: Backplane visualizations treat a pixel as valid when it is finite and is not the masked value, which is the same rule for body and ring planes.

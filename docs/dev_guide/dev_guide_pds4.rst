@@ -82,7 +82,11 @@ each document's statistics to the configured unit and the summary pass writes
 each index column in the format that unit calls for, so a unit neither can use
 -- a spelling the format table has no entry for, or an entry with no ``units``
 at all -- is refused once, with every such entry named and the reason, rather
-than once per image or after the collection files are on disk.
+than once per image or after the collection files are on disk.  Each index
+column is written in the format
+:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit: the
+backplane arrays are float32, so no format prints more than seven significant
+digits, and within that each is chosen from what one pixel resolves.
 
 Before it processes anything, ``sd_create_bundle labels`` also requires
 ``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent, and exits

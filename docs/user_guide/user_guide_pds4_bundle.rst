@@ -279,22 +279,11 @@ The summary pass generates:
     values for each configured ring backplane type
   * ``global_index_rings.lblx``: PDS4 label for the rings index
 
-Every min/max column is written in a fixed format chosen by its unit: three
-decimals for a column in degrees, one for a column in km, eight for degrees per
-pixel, and five significant figures, written positionally and never in
-exponent form, for km per pixel, whose values span eight orders of magnitude.
-The backplane arrays are float32, so a statistic carries seven significant
-digits at most, and each format is chosen within that from what one pixel
-resolves. A configured backplane in a unit the tables have no format for, or
-with no unit at all, ends either pass before it reads anything, and fails every
-cloud task before it writes anything.
-
-Both index tables are meant to be read by a person, so every angular column in
-them is in degrees — degrees per pixel where the quantity is a resolution — and
-not in the radians the backplane arrays themselves carry. Columns that are not
-angular are in the unit of the array they summarize: a ring radius in
-kilometres, a radial resolution in kilometres per pixel. :doc:`user_guide_backplanes`
-explains why the two products differ and where each states its unit.
+Each min/max column is written with a precision suited to its unit: three
+decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and five
+significant figures for ``km/pixel``. Angular columns are in degrees, although
+the backplane arrays are in radians (see :doc:`user_guide_backplanes`). The
+statistics of every configured backplane must be in one of these units.
 
 Exit Status
 ===========

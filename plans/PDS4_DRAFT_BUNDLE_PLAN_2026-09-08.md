@@ -486,44 +486,26 @@ backplane metadata.
 ### 3.8 Units: radians in the arrays, degrees in the tables
 
 The FITS arrays are radians and say so in `BUNIT`. The statistics -- and
-therefore the global index tables -- are degrees. Both per-source stages reduce
-their planes through `spindoctor/cli/backplanes/statistics.py`, which converts
-an angular plane and records the unit the resulting minimum and maximum are in
-beside them, so the document states which of the two conventions each statistic
-follows rather than leaving a reader to infer it from the plane's name.
+therefore the global index tables -- are degrees, and each statistic records
+its unit beside its minimum and maximum. Both per-source stages reduce their
+planes through `spindoctor/cli/backplanes/statistics.py`, whose
+`statistics_units` holds the rule: if the part of a unit before any `/` is
+exactly `rad`, it becomes `deg` and the rest is kept, so `rad/pixel` becomes
+`deg/pixel`; every other unit is left alone. The index tables are read by
+people, and the operator's ruling of 2026-09-09 is that everything in them is
+degrees.
 
-What is compared there is the unit's measure, everything up to the first
-solidus, and not the whole string: `rad` becomes `deg` and `rad/pixel` becomes
-`deg/pixel`, while `km` and `km/pixel` are left alone. That generality is not
-decoration. The rule was first written as an equality against the whole string,
-and `ring_longitudinal_resolution` is declared `rad/pixel`, so it was the one
-angular column of the tables published in radians per pixel while every other
-angular column was degrees -- a table mixing units without saying so, which for
-a human-readable product is worse than the precision loss #607 was opened for.
-
-The formatting half of #607 closes here too. The tables are written with a
-format per unit, from one public mapping in `collections.py`: three decimals
-for `deg`, one for `km`, eight for `deg/pixel`, and five significant figures
-for `km/pixel`, written positionally, never in exponent form, whose values
-run from 6e-4 a hundred kilometres off Enceladus to 7e4 at the grazing limb
-of a wide-angle frame (`70853` on W1629148548_1). The ceiling on all of them
-is seven significant digits, because the arrays are float32 and a statistic
-cannot carry more than the plane it was taken from; the formats are chosen
-within that from what one pixel resolves. No format fixes a column's width:
-values under one format differ in length, so Phase 7 sizes each field from
-the widest value its column holds. A plane declared in a unit the mapping
-cannot size fails either pass before it reads anything.
-
-Radians is spelled `rad` and degrees `deg`, which is both what the
-configuration writes and what the PDS4 units-of-angle vocabulary names, so the
-unit Phase 7 puts in a label is a token that vocabulary has. An angle spelled
-another way -- `mrad`, `arcsec` -- needs scaling as well as renaming and is not
-converted; a test over the shipping configuration fails if one is ever
-declared, which is the only place such an entry can appear. The operator's
-ruling of
-2026-09-09 is that the index tables are human-readable and everything in them
-is degrees; the fix landed on `rf_pds4_phase2` ahead of the phases that consume
-the statistics.
+The tables are written with a format per unit (#607), from
+`INDEX_VALUE_FORMATS` in `collections.py`: three decimals for `deg`, one for
+`km`, eight for `deg/pixel`, and five significant figures for `km/pixel`,
+written positionally, never in exponent form. The arrays are float32, so no
+format prints more than the seven significant digits a statistic carries. No
+format fixes a column's width, so Phase 7 sizes each field from the widest
+value its column holds. A plane declared in a unit the mapping has no format
+for, or in none, fails either pass before it reads anything. An angular unit
+other than `rad` (`mrad`, `arcsec`) would need a change to
+`statistics_units`; two tests over the shipped configuration fail if one is
+declared.
 
 A backplane root can hold documents written before the conversion beside
 regenerated ones -- a ring longitudinal resolution in `rad/pixel`, or a
@@ -562,19 +544,12 @@ with a message naming neither the file nor the plane. The summary pass
 renders every cell of both tables before it opens either, so no failure of
 any kind leaves a table half-written.
 
-`sd_backplane_viewer` still decides the same question the same way, and so
-displays that one plane in radians per pixel. Nothing this plan generates goes
-through it, so it is #611 rather than a phase; what it needs from here is to
+`sd_backplane_viewer` has its own rule: it converts a plane whose `BUNIT` is
+`rad` in any letter case, or whose name contains an angle's name, so it
+displays the one plane declared `rad/pixel` in radians per pixel. Nothing this
+plan generates goes through it, so it is #611 rather than a phase: it needs to
 call `statistics_units` instead of testing for a literal, and a ruling on the
-name heuristic it carries beside that test for an HDU with no `BUNIT`.
-
-**This is the design and it stays.** The two products have different
-readers. A backplane array is consumed by software, which wants the unit its
-trigonometry is already in and no conversion step it can get wrong. An index
-table is read by a person deciding whether an image is worth opening, and a
-latitude range of -88 to 81 tells them that where -1.54 to 1.42 does not.
-Making them agree would cost one of the two readers the form it wants, to
-satisfy a consistency no reader is asking for.
+name heuristic.
 
 What follows for the labels, and what a later reader must not "fix":
 
@@ -583,26 +558,16 @@ What follows for the labels, and what a later reader must not "fix":
   array, and the array is radians.
 - The `Field_Character` blocks Phase 7 generates for the global index take
   their `unit` from the same config entry the column was built from, mapped
-  through `statistics_units`, which is the function that produced the
-  column's values. An angular column is labelled `deg`, a resolution in
-  radians per pixel `deg/pixel`. Phase 7 calls it rather than reproducing
-  it, so a label and the column it describes cannot disagree.
+  through `statistics_units`, the function that produced the column's values,
+  so a label and the column it describes cannot disagree: an angular column is
+  labelled `deg`, a resolution in radians per pixel `deg/pixel`.
 - So one bundle carries `unit="rad"` on an array and `unit="deg"` on the
-  table summarizing it, deliberately. Both labels are correct about the file
-  they describe, which is the only thing a label is required to be correct
-  about.
+  table summarizing it, deliberately: each label is correct about the file it
+  describes.
 
-Two places say so in prose rather than leaving it to be rediscovered: the
-backplanes user guide and the backplanes developer guide, both of which carry
-the difference and the recorded unit. The conversion site says it too --
-`statistics.py` exists to hold the rule and its module docstring is where the
-reasoning lives -- rather than reading as an incidental unit fix. What is still
-section 3.6's operator deliverable is the user-guide PDF, which repeats it for
-the bundle's own readers.
-
-It is worth expecting the RMS Node to ask about it during review. The answer
-above is the answer; the point of writing it down here is that it should be
-given once, from the plan, rather than reconstructed under review.
+The backplanes user and developer guides and the docstring of
+`statistics.py` state the rule; section 3.6's operator deliverable, the
+user-guide PDF, repeats it for the bundle's own readers.
 
 ### 3.9 Dictionary versions
 

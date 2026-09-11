@@ -248,51 +248,24 @@ when rendering the per-image data label.
 Units: radians in the arrays, degrees in the statistics
 =======================================================
 
-An angular backplane array is written in radians and its ``BUNIT`` header
-says so. The statistics taken from that array are written in degrees, and
-each records the unit it is in beside its minimum and maximum. The two are
-read by different readers and each is stated in the unit its own reader
-wants: an array is consumed by software, which wants the unit its
-trigonometry is already in and no conversion step it can get wrong, while
-the statistics become the columns of a bundle's global index tables, which
-a person reads to decide whether an image is worth opening — and a latitude
-range of -88 to 81 tells them what -1.54 to 1.42 does not.
+An angular backplane array is written in radians, and its ``BUNIT`` header
+says so. The statistics in the metadata document are in degrees, because they
+become columns of the bundle's index tables, which people read; each statistic
+records its unit.
 
-So one bundle carries ``rad`` on an array and ``deg`` on the table
-summarising it, deliberately. Each label is correct about the file it
-describes, which is the only thing a label is required to be correct about,
-and the recorded unit means no reader has to work out which of the two
-conventions a number in front of them follows.
+:func:`~spindoctor.cli.backplanes.statistics.statistics_units` holds the rule.
+If the part of a unit before any ``/`` is exactly ``rad``, it becomes ``deg``
+and the rest is kept, so ``rad/pixel`` becomes ``deg/pixel``. Every other unit
+is left alone. An angular unit other than ``rad`` (``mrad``, ``arcsec``) would
+need a change to that function, and every unit needs a format in
+:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS`. Two tests over
+the shipped configuration catch a unit that lacks either: one allows only the
+measures ``rad``, ``deg`` and ``km``, and the other looks every unit up in that
+table.
 
-:mod:`spindoctor.cli.backplanes.statistics` holds the whole rule and both
-per-source stages reduce their planes through it. What is compared is the
-unit's measure, everything up to the first solidus, and not the whole
-string: ``rad`` and ``rad/pixel`` are both radians and both convert, to
-``deg`` and ``deg/pixel``, the qualifier carried through untouched; ``km``
-and ``km/pixel`` are not radians and are left alone. That is what the one
-plane declared ``rad/pixel`` depends on, an equality against the whole
-string recognising no compound unit and so putting radians per pixel into a
-table every other angular column of which is degrees.
-
-Radians is spelled ``rad`` and degrees ``deg``, which is what the
-configuration writes and what the PDS4 units-of-angle vocabulary a label
-draws from names. The comparison is exact, with no folding of case or
-spacing, since the vocabulary has upper-case tokens of its own. A measure
-spelled any other way — ``RAD``, or ``rad`` with a space beside it — is not
-converted and is left as typed, and one that is angular all the same —
-``mrad``, ``arcsec`` — needs scaling as well as renaming, so it is a change
-to this module rather than a config entry it already handles. Two tests over
-the shipping configuration stop such an entry reaching a table unnoticed: one
-holds each measure, compared exactly, to the ones this module converts or
-passes through, and the other holds each whole unit, measure and qualifier,
-to :data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS`, the format
-table the global index tables are written from. The bundle passes refuse a
-unit that table has no format for before reading anything.
-
-The viewer has a rule of its own. ``sd_backplane_viewer`` converts a plane
-whose ``BUNIT`` is exactly ``rad`` and falls back to a heuristic on the HDU
-name where there is no ``BUNIT`` at all, so it does not follow this one and
-displays a plane declared ``rad/pixel`` in the unit its array carries.
+``sd_backplane_viewer`` has its own rule: it converts a plane whose ``BUNIT``
+is ``rad``, in any letter case, and any plane whose name contains
+``longitude``, ``latitude``, ``incidence``, ``emission`` or ``phase``.
 
 Configuration
 =============
