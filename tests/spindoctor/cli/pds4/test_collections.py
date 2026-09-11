@@ -11,8 +11,8 @@ dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
 scans ``data/`` for ``*_supplemental.txt`` files and writes
 ``document/supplemental/global_index_bodies.tab`` (one row per image/body) and
 ``global_index_rings.tab`` (one row per image with ring backplanes), with
-min/max columns for each configured backplane type formatted to 8 decimal
-places, plus their labels.  Every template a generator renders is required: the
+min/max columns for each configured backplane type, each written in the format
+its unit calls for, plus their labels.  Every template a generator renders is required: the
 drivers check the ones their dataset declares before processing anything, so one
 that is missing raises here rather than being passed over.
 
@@ -88,21 +88,33 @@ def _run_global_index(env: BundleEnv) -> int:
     )
 
 
-def _index_env(tmp_path: Path) -> BundleEnv:
+def _index_env(
+    tmp_path: Path,
+    *,
+    bodies: list[dict[str, Any]] | None = None,
+    rings: list[dict[str, Any]] | None = None,
+) -> BundleEnv:
     """Build an environment with body/ring backplane types configured.
 
     Parameters:
         tmp_path: Base temporary directory.
+        bodies: ``config.backplanes.bodies`` entries, each with a ``name`` and
+            the ``units`` its plane is declared in.  When None, a 'latitude' in
+            radians and a 'resolution' in kilometers per pixel.
+        rings: ``config.backplanes.rings`` entries on the same terms.  When
+            None, a 'radius' in kilometers.
 
     Returns:
-        A :class:`BundleEnv` whose config lists 'latitude'/'resolution' body
-        backplanes and a 'radius' ring backplane.
+        A :class:`BundleEnv` whose config lists those backplanes.
     """
-    return make_bundle_env(
-        tmp_path,
-        bodies=[{'name': 'latitude'}, {'name': 'resolution'}],
-        rings=[{'name': 'radius'}],
-    )
+    if bodies is None:
+        bodies = [
+            {'name': 'latitude', 'units': 'rad'},
+            {'name': 'resolution', 'units': 'km/pixel'},
+        ]
+    if rings is None:
+        rings = [{'name': 'radius', 'units': 'km'}]
+    return make_bundle_env(tmp_path, bodies=bodies, rings=rings)
 
 
 # ---------------------------------------------------------------------------
@@ -352,32 +364,93 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     assert body_names == ['MIMAS', 'ENCELADUS', 'MIMAS']
 
 
-def test_bodies_index_numeric_values_formatted_to_eight_decimals(tmp_path: Path) -> None:
-    """Numeric min/max values are written with exactly eight decimal places."""
+def test_a_degrees_column_is_written_to_three_decimals(tmp_path: Path) -> None:
+    """A statistic in degrees is written to a thousandth of a degree.
+
+    One pixel is three ten-thousandths of a degree on the sky for the
+    narrow-angle camera and ten times that for the wide-angle one, so the third
+    decimal is the last one a pixel resolves.  The plane is declared in radians
+    and the column is in degrees, so the format is found by the unit the
+    statistic is in rather than the one the plane was declared in.
+    """
     env = _index_env(tmp_path)
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
-    assert rows[1][3] == '1.23456789'
-    assert rows[1][4] == '2.00000000'
+    assert rows[1][3] == '1.235'
+    assert rows[1][4] == '2.000'
 
 
-def test_index_keeps_a_value_far_smaller_than_one(tmp_path: Path) -> None:
-    """A body latitude of order a ten-thousandth of a degree survives the table.
+def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
+    """A ring radius in kilometers is written to a tenth of a kilometer.
 
-    The magnitude is what motivates the width, whatever column carries it: a
-    narrower fixed-point format rounds a value this small to one significant
-    figure or to zero, and the table then reports a measurement it did not make.
-    Both the minimum and the maximum are checked, since a format applied to one
-    and not the other is the way a table half-rounds.
+    The radii run from 7e4 to 5e5 km, where a float32 plane's spacing is
+    hundredths of a kilometer, so a second decimal would print noise.
     """
     env = _index_env(tmp_path)
-    fine = {'MIMAS': {'backplanes': {'latitude': {'min': 0.00015470, 'max': 0.00080214}}}}
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=fine)
+    radii = {'backplanes': {'radius': {'min': 74500.04, 'max': 136800.96}}}
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
+    _run_global_index(env)
+    rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
+    assert rows[1][2] == '74500.0'
+    assert rows[1][3] == '136801.0'
+
+
+def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path: Path) -> None:
+    """A longitudinal resolution of order a ten-thousandth of a degree per pixel survives.
+
+    This is the column the eight-decimal width exists for: every value in it is
+    below one, so eight decimals stays within the seven significant digits a
+    float32 plane carries, where a narrower fixed-point format rounds a value
+    this small to one significant figure or to zero and the table then reports
+    a measurement it did not make.  Both the minimum and the maximum are
+    checked, since a format applied to one and not the other is the way a table
+    half-rounds.
+    """
+    env = _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
+    fine = {'backplanes': {'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214}}}
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=fine)
+    _run_global_index(env)
+    rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
+    assert rows[1][2] == '0.00015470'
+    assert rows[1][3] == '0.00080214'
+
+
+def test_a_kilometers_per_pixel_column_keeps_five_figures_at_both_ends(tmp_path: Path) -> None:
+    """A resolution in kilometers per pixel keeps five figures at either end of its range.
+
+    The column runs from 6e-4 km per pixel a hundred kilometers off Enceladus
+    to 4e3 in a wide-angle approach frame, seven orders of magnitude that no
+    fixed decimal count fits: eight decimals would print the large end to
+    eleven digits of noise, and a width fit to the large end would print the
+    small end as zero.  Five significant figures write both, with trailing
+    zeros kept so that every value shows the same number of them.
+    """
+    env = _index_env(tmp_path)
+    extremes = {'MIMAS': {'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0}}}}
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=extremes)
     _run_global_index(env)
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
-    assert rows[1][3] == '0.00015470'
-    assert rows[1][4] == '0.00080214'
+    assert rows[1][5] == '0.00060000'
+    assert rows[1][6] == '4200.0'
+
+
+def test_a_plane_in_a_unit_the_index_cannot_size_is_refused_before_any_table(
+    tmp_path: Path,
+) -> None:
+    """A configured unit with no column format fails the run with nothing written.
+
+    The formats are looked up for every configured plane before a supplemental
+    file is read, so the refusal names the unit and leaves no half-written
+    table behind it.  The unit is on a ring plane and the supplemental file
+    holds a body row, so a lookup deferred until the rings table is written
+    would leave the bodies table on disk.
+    """
+    env = _index_env(tmp_path, rings=[{'name': 'tilt', 'units': 'mrad'}])
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    with pytest.raises(ValueError, match="'mrad'"):
+        _run_global_index(env)
+    assert not (env.bundle_dir / 'document').exists()
 
 
 def test_bodies_index_missing_backplane_values_blank(tmp_path: Path) -> None:
@@ -413,8 +486,8 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
     assert rows[0] == ['LID', 'path_to_image_file', 'radius_min', 'radius_max']
     assert len(rows) == 2
     assert rows[1][1] == 'data/shard0/2222222222w_backplanes.lblx'
-    assert rows[1][2] == '74500.00000000'
-    assert rows[1][3] == '136800.98765400'
+    assert rows[1][2] == '74500.0'
+    assert rows[1][3] == '136801.0'
 
 
 def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> None:

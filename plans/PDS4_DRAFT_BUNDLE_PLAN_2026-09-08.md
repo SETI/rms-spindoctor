@@ -68,7 +68,10 @@ declaration, which is what remains of the masked-value work), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
 6 own), #611 (the backplane viewer carries the same unit equality the
 statistics carried, on the same plane). #603, the two passes disagreeing
-about a missing template, closes in Phase 1.
+about a missing template, closes in Phase 1. #607, the index tables written
+to one precision whatever the column's unit, closes in Phase 2 with a format
+per unit (section 3.8); the missing-value sentinel it raised beside that is
+Phase 7's.
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -489,6 +492,18 @@ and `ring_longitudinal_resolution` is declared `rad/pixel`, so it was the one
 angular column of the tables published in radians per pixel while every other
 angular column was degrees -- a table mixing units without saying so, which for
 a human-readable product is worse than the precision loss #607 was opened for.
+
+The formatting half of #607 closes here too. The tables are written with a
+format per unit, from one public mapping in `collections.py`: three decimals
+for `deg`, one for `km`, eight for `deg/pixel`, and five significant figures
+for `km/pixel`, whose values run from 6e-4 a hundred kilometres off Enceladus
+to 4e3 in a wide-angle approach frame. The ceiling on all of them is seven
+significant digits, because the arrays are float32 and a statistic cannot
+carry more than the plane it was taken from; the widths are chosen within
+that from what one pixel resolves. Phase 7 sizes its `Field_Character`
+widths from those formats rather than from a width of its own. A plane
+declared in a unit the mapping cannot size fails the summary run before it
+reads a supplemental file.
 
 Radians is spelled `rad` and degrees `deg`, which is both what the
 configuration writes and what the PDS4 units-of-angle vocabulary names, so the
@@ -1183,6 +1198,14 @@ which is not the unit the arrays carry. Data types come from the reference's
 vocabulary: `ASCII_LID`, `ASCII_String`, `ASCII_Real`,
 `ASCII_NonNegative_Integer`, `ASCII_Date_Time_YMD_UTC`.
 
+The `Field_Character` widths come from the per-unit formats section 3.8
+records, looked up through the same public mapping in `collections.py` that
+wrote the column, so a field cannot be narrower than what is in it. What a
+column says where an image has no statistic for a plane -- the missing-value
+sentinel #607 raised beside the precision -- is decided here as well, since
+it is the label that has to declare it; the generator writes a blank there
+until then.
+
 Then the collection itself: a `collection_miscellaneous.lblx` template with
 `collection_type` `Miscellaneous`, and a generated
 `collection_miscellaneous.csv` listing the two products, written after them
@@ -1361,8 +1384,9 @@ turned out not to be a defect: section 3.8 records it as the design, decided
 2026-09-09, and both backplane guides now say so where a reader will meet it.
 What was a defect was the conversion recognising only the literal `rad`,
 leaving `ring_longitudinal_resolution` in radians per pixel in a table of
-degrees; that is fixed, and the formatting half of #607 stays open for Phase
-7, which sizes the columns. Nothing else there is left for someone else to
+degrees; that is fixed, and the formatting half of #607 closes on the same
+branch, with a format per unit that section 3.8 records; Phase 7 sizes its
+columns from those formats. Nothing else there is left for someone else to
 pick up.
 
 If this branch is abandoned, section 2.2 is where the findings live. That is

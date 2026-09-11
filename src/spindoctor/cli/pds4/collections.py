@@ -7,18 +7,68 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.dataset.dataset import DataSet
 
-INDEX_VALUE_FORMAT = '.8f'
-"""Fixed-point format every min and max in both global index tables is written in.
+INDEX_VALUE_FORMATS: dict[str, str] = {
+    'deg': '.3f',
+    'km': '.1f',
+    'deg/pixel': '.8f',
+    'km/pixel': '#.5g',
+}
+"""The format each min and max in the global index tables is written in, by unit.
 
-Eight decimals because an angular column is in degrees rather than the radians
-the plane carries, and a longitudinal resolution is then of order a thousandth
-of a degree per pixel: a narrower format reports it to one significant figure or
-to zero.  The bodies table and the rings table share it so that a value cannot
-mean one thing in one and something else in the other.
+The key is the unit the statistic is in, which for an angular plane is the
+degrees restatement of the unit the configuration declares; the value is a
+format specification for ``format()``.  Two constraints decide the widths.  The
+backplane arrays are float32, allocated so by both per-source stages and cast
+to it by the writer, so no statistic carries more than seven significant digits
+and a format printing more than that prints noise.  Within that ceiling the
+geometry sets what is usable.  An angle in degrees gets three decimals, since
+one pixel is 0.0003 degrees on the sky for the narrow-angle camera and 0.003 for
+the wide-angle one.  A ring radius in kilometers gets one, since the radii run
+from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km.  A resolution in
+degrees per pixel is below one everywhere, so eight decimals stays within seven
+significant digits.  A resolution in kilometers per pixel runs from 6e-4 a
+hundred kilometers off Enceladus to 4e3 in a wide-angle approach frame, seven
+orders of magnitude that no fixed decimal count fits, so it gets five
+significant figures, which writes ``0.00060000``, ``6.1343`` and ``4200.0``.
+
+The bodies table and the rings table share the mapping so that a value cannot
+mean one thing in one and something else in the other, and it is public so that
+a label describing a table can size its fields from the format the column was
+written in.
 """
+
+
+def index_value_format(units: str) -> str:
+    """Return the format a statistic of a plane in these units is written in.
+
+    Parameters:
+        units: The unit the plane's values carry, as the configuration declares
+            it.  An angular plane's statistic is in degrees whatever the plane
+            is in, so what is looked up is the statistic's unit rather than
+            this one.
+
+    Returns:
+        The format specification, for ``format()``, from
+        :data:`INDEX_VALUE_FORMATS`.
+
+    Raises:
+        ValueError: If the statistic's unit has no format in the table, or if
+            ``units`` is blank.  The message names the unit the statistic is in
+            and, where the two differ, the unit the configuration declared.
+        TypeError: If ``units`` is not a string.
+    """
+    statistic_units = statistics_units(units)
+    if statistic_units not in INDEX_VALUE_FORMATS:
+        declared = '' if statistic_units == units else f' (declared {units!r})'
+        raise ValueError(
+            f'No index column format for a statistic in {statistic_units!r}{declared}; '
+            f'the formats are sized for {", ".join(INDEX_VALUE_FORMATS)}'
+        )
+    return INDEX_VALUE_FORMATS[statistic_units]
 
 
 def generate_collection_files(
@@ -168,6 +218,8 @@ def generate_global_index_files(
     Raises:
         FileNotFoundError: If an index template is not in the dataset's template
             directory.
+        ValueError: If a configured plane's statistic is in a unit the index has
+            no column format for.  Nothing is written.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -181,6 +233,11 @@ def generate_global_index_files(
     body_backplane_types = [bp['name'] for bp in bodies_cfg]
     rings_cfg = getattr(config.backplanes, 'rings', [])
     ring_backplane_types = [bp['name'] for bp in rings_cfg]
+    # Every plane's format is looked up before any supplemental file is read,
+    # so a plane declared in a unit the table cannot size fails the run here
+    # rather than after half a table has been written.
+    body_formats = {bp['name']: index_value_format(bp['units']) for bp in bodies_cfg}
+    ring_formats = {bp['name']: index_value_format(bp['units']) for bp in rings_cfg}
 
     # Scan for all supplemental files
     supplemental_files: list[FCPath] = []
@@ -276,9 +333,9 @@ def generate_global_index_files(
                 min_val = row.get(f'{bp_type}_min', '')
                 max_val = row.get(f'{bp_type}_max', '')
                 if isinstance(min_val, (int, float)):
-                    min_val = format(min_val, INDEX_VALUE_FORMAT)
+                    min_val = format(min_val, body_formats[bp_type])
                 if isinstance(max_val, (int, float)):
-                    max_val = format(max_val, INDEX_VALUE_FORMAT)
+                    max_val = format(max_val, body_formats[bp_type])
                 row_data.append(min_val)
                 row_data.append(max_val)
             writer.writerow(row_data)
@@ -306,9 +363,9 @@ def generate_global_index_files(
                 min_val = row.get(f'{ring_type}_min', '')
                 max_val = row.get(f'{ring_type}_max', '')
                 if isinstance(min_val, (int, float)):
-                    min_val = format(min_val, INDEX_VALUE_FORMAT)
+                    min_val = format(min_val, ring_formats[ring_type])
                 if isinstance(max_val, (int, float)):
-                    max_val = format(max_val, INDEX_VALUE_FORMAT)
+                    max_val = format(max_val, ring_formats[ring_type])
                 row_data.append(min_val)
                 row_data.append(max_val)
             writer.writerow(row_data)

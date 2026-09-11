@@ -273,12 +273,19 @@ The summary pass generates:
 * **Global Index Files**:
 
   * ``global_index_bodies.tab``: CSV file with one row per image/body combination,
-    containing min/max values for each configured backplane type (formatted to 8 decimal
-    places)
+    containing min/max values for each configured backplane type
   * ``global_index_bodies.lblx``: PDS4 label for the bodies index
   * ``global_index_rings.tab``: CSV file with one row per image, containing min/max
-    values for each configured ring backplane type (formatted to 8 decimal places)
+    values for each configured ring backplane type
   * ``global_index_rings.lblx``: PDS4 label for the rings index
+
+Every min/max column is written in a fixed format chosen by its unit: three
+decimals for a column in degrees, one for a column in km, eight for degrees per
+pixel, and five significant figures for km per pixel, whose values span seven
+orders of magnitude. The backplane arrays are float32, so a statistic carries
+seven significant digits at most, and each width is chosen within that from
+what one pixel resolves. A configured backplane in a unit the tables have no
+format for ends the summary pass before it reads anything.
 
 Both index tables are meant to be read by a person, so every angular column in
 them is in degrees — degrees per pixel where the quantity is a resolution — and
