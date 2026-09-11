@@ -1,4 +1,4 @@
-"""Tests for the rule a navigation document's epochs are held to before a label states them.
+"""Tests for the rule a navigation document's epochs must meet before a label states them.
 
 Each document here differs from one that passes in one respect, and the description the
 check gives for it is asserted in full, since that description is what the log line

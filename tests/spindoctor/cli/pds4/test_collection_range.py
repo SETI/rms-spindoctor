@@ -110,7 +110,7 @@ def test_one_file_whose_epochs_cannot_be_had_leaves_no_range(tmp_path: Path) -> 
 def test_with_no_supplemental_file_the_data_collection_label_is_not_written(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """No products, no range: the label is counted as not written, and the inventory still is.
+    """No products, no range: the label counts as not written; the inventory is written.
 
     A label stating empty dates is not one PDS4 accepts, and an earlier run's label
     at the path would state a range this run did not take, so it is removed.
@@ -128,7 +128,7 @@ def test_with_no_supplemental_file_the_data_collection_label_is_not_written(
 
 
 def test_the_range_is_stated_at_the_whole_seconds_outside_it(tmp_path: Path) -> None:
-    """A start at .6 of a second is stated at the second before, a stop at .35 at the one after.
+    """A start at .6 s is stated at the second before, a stop at .35 s at the one after.
 
     Rounded to the nearer second each would fall inside the product it bounds: the
     start at 04:25:36, after the product's own start of 04:25:35.600, and the stop at
@@ -190,7 +190,7 @@ def test_the_range_contains_a_data_label_s_times_where_they_meet_its_seconds(
 def test_the_index_refuses_a_bundle_with_no_data_directory_and_writes_nothing(
     tmp_path: Path,
 ) -> None:
-    """The index runs first in the summary pass, so it refuses a bundle no labels pass wrote.
+    """Running first in the summary pass, the index refuses a bundle no labels pass wrote.
 
     Written into, such a root would hold an index beside which the labels pass then
     refuses to write, since it writes only into an empty bundle directory.

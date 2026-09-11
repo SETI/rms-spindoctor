@@ -396,7 +396,7 @@ NAVIGATED_TIMES: dict[str, float] = {
     'stop_et': 129400000.23,
     'midtime_et': 129400000.0,
 }
-"""An exposure's epochs, as a success document records them under ``navigation_result.times``.
+"""The exposure epochs a success document records under ``navigation_result.times``.
 
 The labels pass fails an image whose document records none, since its data label states
 when the exposure began and ended, so every navigated document the plumbing tests write

@@ -70,7 +70,7 @@ def test_a_directed_rounding_takes_the_millisecond_on_its_side(
 
 
 def test_whole_seconds_are_written_without_a_decimal_point() -> None:
-    """Zero decimals write the seconds bare, which is the form the reference's ranges take."""
+    """Zero decimals write the seconds bare, the form the reference's ranges take."""
     assert et_to_pds4_utc(129399999.58493078, digits=0) == '2004-02-07T04:25:35Z'
 
 
@@ -110,7 +110,7 @@ def test_the_utc_spelling_carries_no_z() -> None:
 
 
 def test_the_utc_spelling_with_no_digits_rounds_to_whole_seconds() -> None:
-    """No digits write the nearer whole second, which is what ``et2utc`` writes at zero."""
+    """No digits write the nearer whole second, as ``et2utc`` writes at zero decimals."""
     assert et_to_utc(0.0, digits=None) == '2000-01-01T11:58:56'
 
 

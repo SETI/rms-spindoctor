@@ -67,7 +67,7 @@ COLLECTION_LABELS = {
 
 
 _A_RANGE = EpochRange(start_et=129399999.77, stop_et=130700000.54)
-"""A range to hand the collection generator where what the label states is not the question.
+"""A range for the collection generator where what the label states is not the question.
 
 SPICE's ``et2utc`` writes the two epochs as ``2004-02-07T04:25:35.585`` and
 ``2004-02-22T05:32:16.355``, so a label states the range as ``2004-02-07T04:25:35Z``
@@ -214,7 +214,7 @@ def test_non_backplane_label_files_ignored(tmp_path: Path) -> None:
 
 
 def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None:
-    """Collection labels render with the CSV path, the data label with the range handed it."""
+    """The collection labels carry the CSV path, the data label the range handed it."""
     env = make_bundle_env(
         tmp_path,
         template_contents={
