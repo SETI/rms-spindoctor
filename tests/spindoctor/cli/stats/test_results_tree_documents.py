@@ -83,11 +83,15 @@ def test_every_stored_document_is_byte_for_byte_what_the_writer_emits(
 def test_every_navigated_image_with_spice_frames_records_its_attitude_and_times(
     stored: dict[str, dict[str, Any]],
 ) -> None:
-    """Both blocks are stamped for every result of such a host, failures included."""
+    """Both blocks are stamped for every result of such a host, failures included.
+
+    Only an image that never loaded, whose document records status ``error``, has
+    no result to stamp.
+    """
     missing = sorted(
         stub
         for stub, document in stored.items()
-        if 'navigation_result' in document
+        if document['status'] != 'error'
         if stub != _SIMULATED
         if not {'pointing', 'times'} <= set(document['navigation_result'])
     )
