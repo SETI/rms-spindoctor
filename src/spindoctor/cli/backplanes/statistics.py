@@ -31,10 +31,12 @@ spelled any other way, ``RAD`` or ``mrad`` alike, is not converted and is left
 as typed; one that is angular all the same -- ``mrad``, ``microrad``,
 ``arcsec`` -- would need to be scaled as well as renamed, so it is a change to
 this module rather than a config entry this module already handles.  What
-stops such a unit reaching a table unnoticed is a test over the shipped
-configuration, which is where a new declaration appears and which compares
-each spelling exactly too, and the bundle passes, which refuse a unit they
-have no format for before reading anything.
+stops such a unit reaching a table unnoticed is two tests over the shipped
+configuration, which is where a new declaration appears.  One holds each
+measure, compared exactly, to the ones this module converts or passes through;
+the other holds each whole unit, measure and qualifier, to the format table the
+global index tables are written from.  The bundle passes refuse a unit that
+table has no format for before reading anything.
 """
 
 from typing import TypedDict

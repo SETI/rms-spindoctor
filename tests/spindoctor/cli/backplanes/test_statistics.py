@@ -54,6 +54,11 @@ def test_a_radian_unit_with_a_space_beside_it_is_left_alone() -> None:
     assert statistics_units('rad ') == 'rad '
 
 
+def test_a_qualifier_is_carried_through_untouched() -> None:
+    """Only the measure is converted, so a qualifier keeps its spelling, a space included."""
+    assert statistics_units('rad/ pixel') == 'deg/ pixel'
+
+
 def test_a_unit_that_is_not_a_string_is_refused() -> None:
     """A configuration key written with no value arrives here as None.
 

@@ -281,10 +281,13 @@ spacing, since the vocabulary has upper-case tokens of its own. A measure
 spelled any other way — ``RAD``, or ``rad`` with a space beside it — is not
 converted and is left as typed, and one that is angular all the same —
 ``mrad``, ``arcsec`` — needs scaling as well as renaming, so it is a change
-to this module rather than a config entry it already handles. A test over
-the shipping configuration, comparing each spelling exactly too, is what
-stops such an entry reaching a table unnoticed, and the bundle passes refuse
-a unit they have no format for before reading anything.
+to this module rather than a config entry it already handles. Two tests over
+the shipping configuration stop such an entry reaching a table unnoticed: one
+holds each measure, compared exactly, to the ones this module converts or
+passes through, and the other holds each whole unit, measure and qualifier,
+to :data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS`, the format
+table the global index tables are written from. The bundle passes refuse a
+unit that table has no format for before reading anything.
 
 The viewer has a rule of its own. ``sd_backplane_viewer`` converts a plane
 whose ``BUNIT`` is exactly ``rad`` and falls back to a heuristic on the HDU

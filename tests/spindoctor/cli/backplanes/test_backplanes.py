@@ -29,6 +29,7 @@ from tests.cmatrix_helpers import synthetic_frame_identity
 import spindoctor.support.cmatrix as cmatrix_module
 from spindoctor.cli.backplanes import backplanes as backplanes_mod
 from spindoctor.cli.backplanes.backplanes import generate_backplanes_image_files
+from spindoctor.cli.pds4.collections import index_value_format
 from spindoctor.cli.reproj.pointing_source import FilePointingSource
 from spindoctor.config import (
     DEFAULT_CONFIG,
@@ -121,9 +122,9 @@ def test_default_config_declares_only_measures_the_statistics_know(kind: str) ->
     a change to the conversion rule, and this is where the config half of it is
     caught: a measure is allowed by name rather than refused by one, so a
     spelling nobody thought to refuse is caught too.  The measure is compared
-    exactly, as the statistics and the bundle passes compare it, so a spelling
-    that differs only in case or spacing is caught here rather than by the
-    summary pass at its end.
+    exactly, as the statistics compare it, so a measure that differs only in
+    case or spacing is caught here.  Only the measure: the whole unit, its
+    qualifier included, is the next test's.
 
     Parameters:
         kind: The config list under test ('bodies' or 'rings').
@@ -134,6 +135,29 @@ def test_default_config_declares_only_measures_the_statistics_know(kind: str) ->
         assert measure in known, (
             f'{entry["name"]} declares {entry["units"]}, a measure the statistics do not know'
         )
+
+
+@pytest.mark.parametrize('kind', ['bodies', 'rings'])
+def test_default_config_declares_only_units_the_index_tables_can_write(kind: str) -> None:
+    """Every shipping entry's whole unit has a format in the global index tables.
+
+    Both bundle passes look each configured unit up in the format table before
+    they read anything, and refuse the run over one it has no format for, so a
+    shipped unit the table lacks stops every bundle.  This makes the same lookup
+    over the shipping configuration, so a qualifier spelled another way --
+    ``km/PIXEL``, ``km/ pixel`` -- fails here, where the measure-only allow-list
+    above lets it through.
+
+    Parameters:
+        kind: The config list under test ('bodies' or 'rings').
+    """
+    refused: list[str] = []
+    for entry in _config_entries(kind):
+        try:
+            index_value_format(entry['units'])
+        except (TypeError, ValueError) as exc:
+            refused.append(f'{entry["name"]}: {exc}')
+    assert refused == []
 
 
 # ---------------------------------------------------------------------------

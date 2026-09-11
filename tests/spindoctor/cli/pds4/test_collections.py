@@ -438,7 +438,8 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
     written positionally, so a value of five or six integer digits is written
     as the integer it is rather than with a trailing point or an exponent,
     which are what a general format writes there and what a person reading
-    the table would have to decode.
+    the table would have to decode.  A zero has no magnitude to count figures
+    from, and is written with the four decimals a value of one gets.
     """
     env = _index_env(tmp_path)
     resolutions: dict[str, Any] = {
@@ -448,6 +449,7 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
         'SATURN': {
             'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0, 'units': 'km/pixel'}}
         },
+        'PAN': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
     }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
     _run_global_index(env)
@@ -456,6 +458,7 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
     assert rows[1][6] == '4200.0'
     assert rows[2][5] == '70853'
     assert rows[2][6] == '123456'
+    assert rows[3][5] == '0.0000'
 
 
 @pytest.mark.parametrize(
@@ -546,8 +549,9 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
 
     The labels pass holds every document to its configured unit, but a bundle
     tree can hold supplemental files a labels pass wrote before it did, and
-    indexing one would put a column in two units.  The error names the file
-    and both units and says what to regenerate, and no table is written.
+    indexing one would put a column in two units.  The error names the file,
+    the plane and both units and says what to regenerate, and no table is
+    written.
     """
     env = _ring_resolution_env(tmp_path)
     write_supplemental(
@@ -557,6 +561,7 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
         _run_global_index(env)
     message = str(excinfo.value)
     assert '1234567890w_supplemental.txt' in message
+    assert 'the longitudinal_resolution statistic' in message
     assert 'in rad/pixel' in message
     assert 'expects deg/pixel' in message
     assert 'regenerate the backplanes, then the bundle into an empty directory' in message
@@ -575,9 +580,26 @@ def test_a_supplemental_file_recording_no_unit_is_refused_with_nothing_written(
         _run_global_index(env)
     message = str(excinfo.value)
     assert '1234567890w_supplemental.txt' in message
+    assert 'the longitudinal_resolution statistic' in message
     assert 'in no unit at all' in message
     assert 'expects deg/pixel' in message
     assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_supplemental_file_with_a_body_statistic_in_another_unit_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A body plane is held to its unit in the summary pass, as a ring plane is.
+
+    The bodies are read from a member of their own, one entry per body, so a
+    check that read only the rings would index this file.
+    """
+    env = _index_env(tmp_path)
+    radians = {'MIMAS': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': 'rad'}}}}
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=radians)
+    with pytest.raises(ValueError) as excinfo:
+        _run_global_index(env)
+    assert 'the latitude statistic in rad where the configuration expects deg' in str(excinfo.value)
 
 
 def test_a_disagreeing_supplemental_file_anywhere_is_refused_before_the_first_table(
