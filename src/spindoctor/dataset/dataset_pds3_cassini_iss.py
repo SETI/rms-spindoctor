@@ -605,8 +605,8 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
 
         Parameters:
             image_file: The image file being processed.
-            nav_metadata: Navigation metadata dictionary: a success document, which
-                records the exposure's epochs.
+            nav_metadata: Navigation metadata dictionary: a success document recording
+                the exposure's epochs under ``navigation_result.times``.
             backplane_metadata: Backplane metadata dictionary.
 
         Returns:
@@ -614,10 +614,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             substitution.
 
         Raises:
-            KeyError: If ``nav_metadata`` records no ``navigation_result.times``
-                holding ``start_et`` and ``stop_et``.
-            ValueError: If one of those epochs is NaN or infinite.
-            TypeError: If one of them is not a number.
+            KeyError: If ``nav_metadata`` records no ``navigation_result.times``, as
+                a navigation that recorded no pointing leaves it.  The labels pass
+                fails such an image before it asks for these variables.
         """
         vars_dict: dict[str, Any] = {}
 

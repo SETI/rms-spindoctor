@@ -262,6 +262,37 @@ def test_a_cohort_data_label_states_its_exposure_s_start_and_stop(
     assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == [stop]
 
 
+def test_a_navigated_image_that_recorded_no_exposure_times_fails_with_nothing_written(
+    cassini_cohort: Cohort, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A success document with no times fails its image, and the bundle stays as it was.
+
+    A navigation that recorded no pointing recorded no exposure times either, and a data
+    label states when its exposure began and ended.  The document is the cohort's limb
+    image's as written, its times and pointing taken out, under a navigation root of the
+    test's own.
+    """
+    cohort_document = cassini_cohort.nav_results_root / f'{LIMB_STUB}_metadata.json'
+    document = json.loads(cohort_document.read_text(encoding='utf-8'))
+    del document['navigation_result']['times']
+    del document['navigation_result']['pointing']
+    written = tmp_path / 'nav' / f'{LIMB_STUB}_metadata.json'
+    written.parent.mkdir(parents=True)
+    written.write_text(json.dumps(document), encoding='utf-8')
+    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
+    outcome = generate_bundle_data_files(
+        env.dataset,
+        cassini_cohort.batch(LIMB_STUB),
+        nav_results_root=FCPath(tmp_path / 'nav'),
+        backplane_results_root=FCPath(cassini_cohort.backplane_results_root),
+        bundle_results_root=FCPath(env.bundle_results_root),
+        logger=MAIN_LOGGER,
+    )
+    assert outcome is BundleDataOutcome.FAILED
+    assert not env.bundle_dir.exists()
+    assert 'its navigation recorded no exposure times' in capsys.readouterr().out
+
+
 def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
     """The Cassini collection inventory LIDVID matches the label's DATA_LID."""
     dataset = DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings')

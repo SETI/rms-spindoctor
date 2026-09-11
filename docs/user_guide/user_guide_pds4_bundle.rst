@@ -303,10 +303,11 @@ with exit status 2 before it does anything.
 
   An image with nothing to describe (never navigated, navigation failed, or no
   backplanes) is skipped, which is not an error. An image fails if a label
-  cannot be written, its summary PNG is missing, or its backplane metadata holds
-  a statistic the index tables cannot hold (one in a unit other than the
-  configured one, or a minimum or maximum that is NaN or infinite). For such a
-  statistic, regenerate that image's backplanes.
+  cannot be written, its summary PNG is missing, its navigation recorded no
+  exposure times, or its backplane metadata holds a statistic the index tables
+  cannot hold (one in a unit other than the configured one, or a minimum or
+  maximum that is NaN or infinite). For such a statistic, regenerate that image's
+  backplanes.
 
   ``--dry-run`` writes nothing and ends with the number of images it would
   process. It exits 0 if the bundle directory is empty and every template is

@@ -104,8 +104,9 @@ an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or
-infinite), and an image whose processing raised an error -- and exits 1 when that
-count is not zero.  An image with such a statistic is failed before anything is
+infinite), an image whose navigation recorded no exposure times (see `Epochs`_),
+and an image whose processing raised an error -- and exits 1 when that count is not
+zero.  An image with such a statistic is failed before anything is
 written for it, and the log names the image, the plane and what the document
 records there.  The run closes with a line giving that count alongside the
 number of images it labeled and the number it skipped, so a selection that
@@ -406,8 +407,14 @@ midpoint of the two as written, a half millisecond rounding up, through
 :func:`~spindoctor.support.time.pds4_utc_midpoint`: an exposure an odd number of
 milliseconds long has its midtime on a half millisecond, where the recorded midtime
 epoch lands a few nanoseconds to either side, and PDS3's ``IMAGE_MID_TIME`` takes the
-half up.  A navigated image's document always records its epochs, and they are read
-as recorded, with no check of their own.
+half up.  The navigation records the epochs beside the pointing it solved, and
+records a success with no pointing when the attitude cannot be computed or the
+instrument has no SPICE camera frame mapped.
+:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails such an
+image before anything is written for it, the log naming the image; it checks only
+that ``navigation_result.times`` is there, and where it is, the epochs are read as
+recorded.  The summary pass needs no check of its own: the labels pass writes no
+supplemental file for an image it failed.
 
 The data collection label states the range of the products' epochs: the least
 start and the greatest stop over every supplemental file, written to whole seconds
