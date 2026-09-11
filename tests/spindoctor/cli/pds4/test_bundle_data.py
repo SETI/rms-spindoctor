@@ -13,40 +13,28 @@ Non-navigated images (``status`` != ``success``) are skipped with a warning.
 The per-dataset ``pds4_*`` hooks parameterize the layout, the LIDs, and the
 template variables; datasets without PDS4 support raise ``NotImplementedError``.
 
-The shipped Cassini templates are drafts: tests below assert substitution and
-layout plumbing, never PDS4-standard content correctness of the draft labels.
+The templates here are the tests' own stand-ins, so the tests assert substitution
+and layout plumbing.  What a bundle's shipped templates render is tested in a
+module named for that bundle.
 """
 
 import json
 import math
-import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 from filecache import FCPath
-from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
-from tests.mini_nav_results.cohort_cassini import (
-    GATED_STUB,
-    LIMB_IMAGE_NAME,
-    LIMB_STUB,
-    RINGS_IMAGE_NAME,
-    RINGS_STUB,
-    CassiniISSSaturnCohort,
-)
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
-from spindoctor.config import MAIN_LOGGER, Config
+from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset import ImageFiles
-from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
-from spindoctor.dataset.dataset_pds3_voyager_iss import DataSetPDS3VoyagerISS
 
 from .conftest import (
     DATA_TEMPLATE,
     BundleEnv,
     NoPds4DataSet,
     make_bundle_env,
-    make_cohort_bundle_env,
     make_image_file,
     write_nav_inputs,
 )
@@ -539,202 +527,6 @@ def test_backplane_fits_copied_into_bundle_data_tree(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Dataset pds4_* hook contract (reference Cassini implementation + walls)
-# ---------------------------------------------------------------------------
-
-
-def _cassini_dataset(
-    tmp_path: Path, *, config: Config | None = None
-) -> DataSetPDS3CassiniISSSaturn:
-    """Construct the reference Cassini Saturn dataset on a local holdings root.
-
-    Parameters:
-        tmp_path: Base temporary directory used as the (empty) holdings root.
-        config: Optional Config override; DEFAULT_CONFIG when None.
-    """
-    return DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings', config=config)
-
-
-def test_cassini_bundle_path_for_image_shards_by_image_number(tmp_path: Path) -> None:
-    """Cassini image names shard into 1234xxxxxx/123456xxxx/ directories."""
-    dataset = _cassini_dataset(tmp_path)
-    assert dataset.pds4_bundle_path_for_image('N1454725799') == '1454xxxxxx/145472xxxx/'
-
-
-def test_cassini_bundle_path_rejects_short_image_name(tmp_path: Path) -> None:
-    """A too-short Cassini image name raises instead of building a malformed path."""
-    dataset = _cassini_dataset(tmp_path)
-    with pytest.raises(ValueError, match='invalid Cassini image name'):
-        dataset.pds4_bundle_path_for_image('N123')
-
-
-def test_cassini_path_stub_appends_lid_part(tmp_path: Path) -> None:
-    """The path stub is the shard path plus the rotated lowercase image LID part."""
-    dataset = _cassini_dataset(tmp_path)
-    image_file = make_image_file('N1454725799_1')
-    assert dataset.pds4_path_stub(image_file) == '1454xxxxxx/145472xxxx/1454725799n'
-
-
-def test_cassini_default_bundle_name_from_config(tmp_path: Path) -> None:
-    """The bundle name comes from the shipped pds4.coiss_saturn config block."""
-    dataset = _cassini_dataset(tmp_path)
-    assert dataset.pds4_bundle_name() == 'cassini_iss_saturn_backplanes_rsfrench2027'
-
-
-def test_cassini_default_template_dir_is_shipped_package_data(tmp_path: Path) -> None:
-    """The default template dir resolves inside the shipped templates package data."""
-    dataset = _cassini_dataset(tmp_path)
-    template_dir = Path(dataset.pds4_bundle_template_dir())
-    assert template_dir.name == 'cassini_iss_saturn_1.0'
-    assert template_dir.parent.name == 'templates'
-    assert (template_dir / 'data.lblx').is_file()
-    assert (template_dir / 'browse.lblx').is_file()
-    assert (template_dir / 'collection_data.lblx').is_file()
-    assert (template_dir / 'global_index_bodies.lblx').is_file()
-
-
-def test_cassini_config_overrides_template_dir_and_bundle_name(tmp_path: Path) -> None:
-    """config pds4.<dataset>.template_dir/bundle_name override the defaults."""
-    override = tmp_path / 'override.yaml'
-    override.write_text(
-        'pds4:\n'
-        '  coiss_saturn:\n'
-        '    template_dir: /absolute/custom/templates\n'
-        '    bundle_name: custom_bundle_name\n',
-        encoding='utf-8',
-    )
-    config = Config()
-    config.update_config(override)
-    dataset = _cassini_dataset(tmp_path, config=config)
-    assert dataset.pds4_bundle_template_dir() == '/absolute/custom/templates'
-    assert dataset.pds4_bundle_name() == 'custom_bundle_name'
-
-
-def test_cassini_relative_template_dir_override_resolves_under_templates(
-    tmp_path: Path,
-) -> None:
-    """A bare-name template_dir override resolves under the packaged templates dir."""
-    override = tmp_path / 'override.yaml'
-    override.write_text(
-        'pds4:\n  coiss_saturn:\n    template_dir: my_custom_set\n', encoding='utf-8'
-    )
-    config = Config()
-    config.update_config(override)
-    dataset = _cassini_dataset(tmp_path, config=config)
-    template_dir = Path(dataset.pds4_bundle_template_dir())
-    assert template_dir.name == 'my_custom_set'
-    assert template_dir.parent.name == 'templates'
-
-
-def test_voyager_pds4_hooks_not_implemented(tmp_path: Path) -> None:
-    """The Voyager dataset's per-image PDS4 hooks are NotImplementedError walls.
-
-    The base-class walls raise a bare NotImplementedError, so the assertions
-    pin the empty message: a messaged NotImplementedError escaping from deeper
-    code would fail them.
-    """
-    dataset = DataSetPDS3VoyagerISS(tmp_path / 'holdings')
-    image_file = make_image_file('C1234567')
-    with pytest.raises(NotImplementedError) as stub_exc:
-        dataset.pds4_path_stub(image_file)
-    assert str(stub_exc.value) == ''
-    with pytest.raises(NotImplementedError) as lidvid_exc:
-        dataset.pds4_image_name_to_data_lidvid('C1234567')
-    assert str(lidvid_exc.value) == ''
-
-
-# ---------------------------------------------------------------------------
-# End-to-end phase 1 against the shipped (draft) Cassini templates
-# ---------------------------------------------------------------------------
-
-
-def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None:
-    """Phase 1 renders the shipped draft Cassini templates without substitution errors.
-
-    Structural only: asserts the output files exist, the LID substitution took,
-    and no pdstemplate error markers ([[[...]]]) are embedded.  PDS4-standard
-    content correctness of the draft templates is out of scope until the
-    templates are finalized.
-    """
-    dataset = _cassini_dataset(tmp_path)
-    stub = 'COISS_2001/N1454725799_1'
-    image_file = make_image_file('N1454725799_1', results_path_stub=stub, base_dir=tmp_path)
-    nav_root = tmp_path / 'nav'
-    backplane_root = tmp_path / 'backplanes'
-    bundle_results_root = tmp_path / 'bundle'
-    (nav_root / 'COISS_2001').mkdir(parents=True)
-    (backplane_root / 'COISS_2001').mkdir(parents=True)
-    bundle_results_root.mkdir()
-    nav_metadata: dict[str, Any] = {
-        'status': 'success',
-        'observation': {
-            'start_time': '2007-01-01T00:00:00Z',
-            'stop_time': '2007-01-01T00:00:10Z',
-            'mid_time': '2007-01-01T00:00:05Z',
-        },
-    }
-    (nav_root / f'{stub}_metadata.json').write_text(json.dumps(nav_metadata), encoding='utf-8')
-    (backplane_root / f'{stub}_backplane_metadata.json').write_text(
-        json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
-    )
-    (backplane_root / f'{stub}_backplanes.fits').write_bytes(b'FAKE FITS BYTES')
-    (nav_root / f'{stub}_summary.png').write_bytes(b'\x89PNG fake bytes')
-
-    generate_bundle_data_files(
-        dataset,
-        ImageFiles(image_files=[image_file]),
-        nav_results_root=FCPath(nav_root),
-        backplane_results_root=FCPath(backplane_root),
-        bundle_results_root=FCPath(bundle_results_root),
-        logger=MAIN_LOGGER,
-    )
-
-    bundle_dir = bundle_results_root / 'cassini_iss_saturn_backplanes_rsfrench2027'
-    label = bundle_dir / 'data' / '1454xxxxxx' / '145472xxxx' / '1454725799n_backplanes.lblx'
-    assert label.is_file()
-    text = label.read_text(encoding='utf-8')
-    lid = 'urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:data:1454725799n'
-    assert lid in text
-    assert '[[[' not in text
-    browse_label = bundle_dir / 'browse' / '1454xxxxxx' / '145472xxxx' / '1454725799n_summary.lblx'
-    assert browse_label.is_file()
-    browse_text = browse_label.read_text(encoding='utf-8')
-    assert '[[[' not in browse_text
-    suppl = bundle_dir / 'data' / '1454xxxxxx' / '145472xxxx' / '1454725799n_supplemental.txt'
-    assert suppl.is_file()
-
-
-def test_cassini_data_label_lid_matches_dataset_builder(tmp_path: Path) -> None:
-    """The DATA_LID template variable equals pds4_image_name_to_data_lid's output."""
-    dataset = _cassini_dataset(tmp_path)
-    image_file = make_image_file('N1454725799_1')
-    variables = dataset.pds4_template_variables(
-        image_file=image_file, nav_metadata={}, backplane_metadata={}
-    )
-    assert variables['DATA_LID'] == dataset.pds4_image_name_to_data_lid('N1454725799_1')
-    assert variables['BROWSE_LID'] == dataset.pds4_image_name_to_browse_lid('N1454725799_1')
-
-
-def test_cassini_camera_variables_from_image_name(tmp_path: Path) -> None:
-    """The camera template variables derive from the image name's leading letter."""
-    dataset = _cassini_dataset(tmp_path)
-    variables = dataset.pds4_template_variables(
-        image_file=make_image_file('W1454725799_1'), nav_metadata={}, backplane_metadata={}
-    )
-    assert variables['CAMERA_WIDTH'] == 'Wide'
-    assert variables['CAMERA_WN_UC'] == 'W'
-    assert variables['CAMERA_WN_LC'] == 'w'
-
-
-def test_cassini_lid_charset_is_pds4_legal(tmp_path: Path) -> None:
-    """Cassini LIDs are lowercase urn:nasa:pds identifiers with a legal charset."""
-    dataset = _cassini_dataset(tmp_path)
-    lid = dataset.pds4_image_name_to_data_lid('N1454725799_1.IMG')
-    assert lid == lid.lower()
-    assert re.fullmatch(r'urn:nasa:pds(:[a-z0-9_-]+)+', lid) is not None
-
-
-# ---------------------------------------------------------------------------
 # A record the enumeration already read
 # ---------------------------------------------------------------------------
 
@@ -787,101 +579,3 @@ def test_an_image_carrying_no_record_needs_the_document(tmp_path: Path) -> None:
     assert outcome is BundleDataOutcome.SKIPPED
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     assert not suppl.exists()
-
-
-@pytest.fixture
-def mini_nav_cohort(mini_nav_cohorts: WrittenCohorts) -> CassiniISSSaturnCohort:
-    """Return the Cassini ISS Saturn cohort, as the session wrote it.
-
-    Returns:
-        The written cohort.
-    """
-    return mini_nav_cohorts(CassiniISSSaturnCohort)
-
-
-def test_the_cohort_image_that_did_not_navigate_is_skipped(
-    mini_nav_cohort: Cohort, tmp_path: Path
-) -> None:
-    """An image the bundle has nothing to describe is skipped, not failed.
-
-    Over the registered dataset and the shipped templates rather than
-    stand-ins, because a selection made by volume routinely names images that
-    did not navigate, and what the bundle does with one is a property of the
-    run rather than of a fixture's ``status`` key.
-    """
-    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
-    outcome = generate_bundle_data_files(
-        env.dataset,
-        mini_nav_cohort.batch(GATED_STUB),
-        nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
-        backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
-        bundle_results_root=FCPath(env.bundle_results_root),
-        logger=MAIN_LOGGER,
-    )
-    assert outcome is BundleDataOutcome.SKIPPED
-    assert not env.bundle_dir.exists()
-
-
-def _bundle_products(image_name: str) -> set[str]:
-    """Return every bundle file the labels pass writes for one navigated image.
-
-    The sharded directories and the product stem are spelled out here rather
-    than asked of the dataset, since what they are is what this test is for: a
-    bundle is read by walking those directories, and an image that lands in the
-    wrong one is found by whoever cannot find it.
-
-    This is what the pass writes, not everything the bundle finally holds: the
-    data label names a ``_backplanes.fits`` beside it that nothing copies yet,
-    which ``test_backplane_fits_copied_into_bundle_data_tree`` pins as expected
-    to fail.  A set that included the FITS would fail here rather than there.
-
-    Parameters:
-        image_name: The calibrated image's name, camera letter and all.
-
-    Returns:
-        The paths, relative to the bundle's own directory.
-    """
-    number = image_name[1:11]
-    stem = f'{number[:4]}xxxxxx/{number[:6]}xxxx/{number}{image_name[0].lower()}'
-    return {
-        f'data/{stem}_backplanes.lblx',
-        f'data/{stem}_supplemental.txt',
-        f'browse/{stem}_summary.lblx',
-        f'browse/{stem}_summary.png',
-    }
-
-
-def test_the_cohort_s_navigated_images_are_written_into_the_bundle(
-    mini_nav_cohort: Cohort, tmp_path: Path
-) -> None:
-    """The shipped Cassini templates render over the cohort, into their shards.
-
-    This is the assertion the cohort exists to make possible and the one every
-    phase after this builds on: the registered dataset, the shipped template
-    set and a real backplane FITS, with nothing standing in for anything.  A
-    template the fixture cannot satisfy, a product written under the wrong
-    number, or a render that fails and leaves half a bundle behind is reported
-    here, in the phase that owns the fixture.
-    """
-    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
-    outcomes = {
-        stub: generate_bundle_data_files(
-            env.dataset,
-            mini_nav_cohort.batch(stub),
-            nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
-            backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
-            bundle_results_root=FCPath(env.bundle_results_root),
-            logger=MAIN_LOGGER,
-        )
-        for stub in (LIMB_STUB, RINGS_STUB)
-    }
-    assert outcomes == {
-        LIMB_STUB: BundleDataOutcome.WRITTEN,
-        RINGS_STUB: BundleDataOutcome.WRITTEN,
-    }
-    written = {
-        path.relative_to(env.bundle_dir).as_posix()
-        for path in env.bundle_dir.rglob('*')
-        if path.is_file()
-    }
-    assert written == _bundle_products(LIMB_IMAGE_NAME) | _bundle_products(RINGS_IMAGE_NAME)

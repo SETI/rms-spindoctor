@@ -1,4 +1,4 @@
-"""The bundle cohort's spacecraft clock, held against the kernel that defines it.
+"""The Cassini ISS Saturn cohort's spacecraft clock, held against the kernel defining it.
 
 The cohort converts an epoch to a Cassini clock reading with a line through two
 correlation points read out of the mission clock kernel, because a fixture that

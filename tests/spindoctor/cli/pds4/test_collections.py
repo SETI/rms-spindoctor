@@ -37,7 +37,6 @@ from spindoctor.cli.pds4.collections import (
     generate_global_index_files,
 )
 from spindoctor.config import MAIN_LOGGER
-from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
 from .conftest import (
     COLLECTION_BROWSE_TEMPLATE,
@@ -903,16 +902,3 @@ def test_inventory_lidvid_round_trips_with_canonical_builders(tmp_path: Path) ->
     rows = read_tab(env.bundle_dir / 'data' / 'collection_data.tab')
     expected = env.dataset.pds4_image_name_to_data_lid('1234567890w') + '::1.0'
     assert rows[1][1] == expected
-
-
-def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
-    """The Cassini collection inventory LIDVID matches the label's DATA_LID."""
-    dataset = DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings')
-    bundle_results_root = tmp_path / 'bundle'
-    bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
-    touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
-    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER)
-    rows = read_tab(bundle_dir / 'data' / 'collection_data.tab')
-    inventory_lid = rows[1][1].split('::')[0]
-    label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')
-    assert inventory_lid == label_lid

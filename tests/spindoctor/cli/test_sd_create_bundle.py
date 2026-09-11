@@ -73,7 +73,7 @@ REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
         'global_index_rings.lblx',
     ],
 }
-"""What the stub dataset declares each pass must find, as Cassini declares it."""
+"""What the stub dataset declares each pass must find: the templates that pass renders."""
 
 
 class _StubDataset:
@@ -239,7 +239,7 @@ def summary_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sd_create_bundle,
         'parse_args_summary',
-        lambda _: argparse.Namespace(dataset_name='coiss_saturn'),
+        lambda _: argparse.Namespace(dataset_name='stub'),
     )
     monkeypatch.setattr(sd_create_bundle, 'load_default_and_user_config', lambda *a: None)
     monkeypatch.setattr(sd_create_bundle, 'build_run_logging', lambda *a: None)
@@ -795,7 +795,7 @@ def _process_cloud_task() -> tuple[bool, Any]:
         The worker's retry flag and result.
     """
     task_data = {
-        'dataset_name': 'coiss_saturn',
+        'dataset_name': 'stub',
         'files': [
             {
                 'image_file_url': '/hermetic/1234567890w.img',
