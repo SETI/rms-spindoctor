@@ -498,9 +498,10 @@ degrees.
 The tables are written with a format per unit (#607), from
 `INDEX_VALUE_FORMATS` in `collections.py`: three decimals for `deg`, one for
 `km`, eight for `deg/pixel`, and five significant figures for `km/pixel`,
-written positionally, never in exponent form. The arrays are float32, so no
-format prints more than the seven significant digits a statistic carries. No
-format fixes a column's width, so Phase 7 sizes each field from the widest
+written positionally, never in exponent form. The arrays are float32, so a
+statistic carries about seven significant digits; each format is chosen within
+that from what one pixel resolves, the eight decimals of `deg/pixel` reaching
+its edge. No format fixes a column's width, so Phase 7 sizes each field from the widest
 value its column holds. Nothing checks the configured units when a bundle is
 written (the operator's ruling of 2026-09-11): two tests over the shipped
 configuration are the guard, one holding each measure to the ones

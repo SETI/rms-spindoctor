@@ -76,9 +76,9 @@ per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
 Each index column is written in the format
-:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit: the
-backplane arrays are float32, so no format prints more than seven significant
-digits, and within that each is chosen from what one pixel resolves.  Nothing
+:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit, each
+chosen from what one pixel resolves, within the roughly seven significant digits a
+float32 array carries.  Nothing
 checks the configured units when a bundle is written: a unit the table has no
 format for is a ``KeyError`` from the summary pass's lookup.  The guard is the
 two tests over the shipped configuration that :doc:`dev_guide_backplanes`

@@ -85,39 +85,12 @@ INDEX_VALUE_FORMATS: dict[str, IndexValueFormat] = {
 }
 """The format each min and max in the global index tables is written in, by unit.
 
-The key is the unit the statistic is in, which for an angular plane is the
-degrees restatement of the unit the configuration declares.  Two constraints
-decide the formats.  The backplane arrays are float32, allocated so by both
-per-source stages and cast to it by the writer, so no statistic carries more
-than seven significant digits and a format printing more than that prints
-noise.  Within that ceiling the geometry sets what is usable.  An angle in
-degrees gets three decimals, since one pixel spans about 0.0003 degrees on the
-sky for a narrow-field camera and 0.003 for a wide-field one; it writes
-``1.235`` and ``-89.999``.  A ring radius in kilometers gets one, since the
-radii run from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km; it
-writes ``74658.0`` and ``136780.0``.  A resolution in degrees per pixel gets
-eight decimals and writes ``0.00015470`` and ``0.80386227``.  The largest such
-value on the real frames tried was 0.80, on an edge-on wide-field ring frame,
-and at that end the eighth decimal sits at the edge of what a float32 plane
-carries, whose spacing there is 6e-8.  A resolution in kilometers per pixel runs
-from 6e-4 a hundred kilometers off a small moon to 7e4 at the grazing limb of a
-wide-field frame, eight orders of magnitude that no fixed decimal count fits, so
-it gets five significant figures, written positionally: ``0.00060000``,
-``6.1343``, ``4200.0`` and ``70853``.
-
-Every format writes a plain decimal number, never one with an exponent or a
-trailing point, since the tables are read by people.  Written positionally, a
-value never has its integer part rounded away, so from 1e7 up the significant
-figures format writes more than seven figures, past what a float32 statistic
-carries; no real statistic has come near, the largest seen being 70853.  A
-value that rounds up to the next power of ten gains a figure, so ``9.99996``
-writes ``10.0000``.  What no format fixes is a column's width: values under
-one format differ in length, so the width of a column is the widest value
-written in it and is not derivable from the format alone.
-
-The bodies table and the rings table share the mapping so that a value cannot
-mean one thing in one and something else in the other, and it is public so that
-a label describing a table can say how the column was written.
+The key is the unit the statistic is in: for a plane in radians, the degrees unit
+:func:`~spindoctor.cli.backplanes.statistics.statistics_units` gives it.  Each format
+prints about what one pixel resolves, within the roughly seven significant digits a
+float32 backplane array carries.  ``km/pixel`` values span orders of magnitude, so
+that format is five significant figures rather than a fixed number of decimals.  No
+value is written with an exponent.  The bodies and rings tables share the mapping.
 """
 
 
@@ -336,9 +309,6 @@ def generate_global_index_files(
     body_backplane_types = [bp['name'] for bp in bodies_cfg]
     rings_cfg = config.backplanes.rings
     ring_backplane_types = [bp['name'] for bp in rings_cfg]
-    # Every plane's format is looked up before any supplemental file is read,
-    # so a plane declared in a unit the table cannot size fails the run here
-    # rather than after half a table has been written.
     body_formats = {bp['name']: index_value_format(bp['units']) for bp in bodies_cfg}
     ring_formats = {bp['name']: index_value_format(bp['units']) for bp in rings_cfg}
 
