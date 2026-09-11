@@ -1,10 +1,9 @@
 """The time range the Cassini ISS Saturn bundle's data collection label states.
 
 Over the bundle's cohort and its shipped templates, the data collection label states
-the range of the cohort's navigated images; and the range, written to the whole
-seconds outside it, contains the start and stop a Cassini data label writes to the
-nearest millisecond, even where they meet its seconds.  The range itself is tested
-over stand-in templates in ``test_collection_range.py``.
+the range of the cohort's navigated images, and the range contains the start and stop
+a Cassini data label writes, even where they meet its whole seconds.  The range itself
+is tested over stand-in templates in ``test_collection_range.py``.
 """
 
 import datetime
@@ -56,15 +55,10 @@ def test_the_range_contains_a_data_label_s_times_where_they_meet_its_seconds(
 ) -> None:
     """A product's written times lie inside the range even where they meet its seconds.
 
-    A data label writes a product's start and stop at the nearest millisecond, and the
-    range is written at the whole second at or before the least start and the one at
-    or after the greatest stop.  The nearest millisecond of an epoch is never before
-    the whole second at or before the epoch, nor after the one at or after it: a whole
-    second is itself a millisecond, and rounding to the nearest carries no epoch past
-    one.  So the range contains every product's written start and stop.  These epochs
-    are where it is tightest: SPICE's ``et2utc`` writes them at nine decimals as
-    ``2004-02-07T04:25:35.000400007`` and ``2004-02-22T05:32:16.999599993``, whose
-    nearest milliseconds are the whole seconds the range starts and stops at.
+    These epochs are where it is tightest: SPICE's ``et2utc`` writes them at nine
+    decimals as ``2004-02-07T04:25:35.000400007`` and ``2004-02-22T05:32:16.999599993``,
+    whose nearest milliseconds, the times a data label writes, are the whole seconds the
+    range starts and stops at.
     """
     start_et = 129399999.18533078
     stop_et = 130700001.18485416

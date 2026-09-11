@@ -148,8 +148,7 @@ before the first supplemental file is read, the collection files by the index
 generator since it runs first.  Every supplemental file is read, and every value in
 both index tables rendered, before either table is opened, so a run refused over a
 supplemental file leaves no product of the pass, neither this run's nor an earlier
-run's.  A bundle with no ``data/`` directory is refused before anything is cleared,
-so an earlier run's products stay where it left them.  The pass reads each
+run's.  The pass reads each
 supplemental file as the labels pass wrote it and checks nothing about it but the
 statistics; anything else unexpected raises, and the run ends with exit status 1.
 
@@ -418,11 +417,8 @@ supplemental file for an image it failed.
 
 The data collection label states the range of the products' epochs: the least
 start and the greatest stop over every supplemental file, written to whole seconds
-with the start rounded down and the stop up, so the range contains every product's
-own start and stop as its data label writes them: the nearest millisecond of an epoch
-is never before the whole second at or before it, nor after the one at or after it.
-The range is taken in
-the one read of the supplemental files the summary pass makes -- the global
+with the start rounded down and the stop up.  The range is taken in the one read
+of the supplemental files the summary pass makes -- the global
 index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
 :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` returns it in
 its :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome`.  That is why the

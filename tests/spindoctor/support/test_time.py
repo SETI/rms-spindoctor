@@ -70,7 +70,7 @@ def test_a_directed_rounding_takes_the_millisecond_on_its_side(
 
 
 def test_whole_seconds_are_written_without_a_decimal_point() -> None:
-    """Zero decimals write the seconds bare, the form the reference's ranges take."""
+    """Zero decimals write the seconds bare, the form a range of products' times takes."""
     assert et_to_pds4_utc(129399999.58493078, digits=0) == '2004-02-07T04:25:35Z'
 
 

@@ -18,12 +18,7 @@ __all__ = ['RANGE_TIME_DIGITS', 'EpochRange', 'EpochRangeScan']
 RANGE_TIME_DIGITS = 0
 """The decimals of a second a range of products' epochs is written to: none.
 
-Whole seconds are what the reference bundle writes for its collection and bundle ranges.
-The start is rounded down and the stop up, so the range written contains every product's
-own start and stop as its data label writes them, at the nearest millisecond: the nearest
-millisecond of an epoch is never before the whole second at or before the epoch, nor
-after the one at or after it, since a whole second is itself a millisecond and rounding
-to the nearest never carries an epoch past one.
+A range is written to whole seconds, the start rounded down and the stop up.
 """
 
 
@@ -43,14 +38,10 @@ class EpochRange:
         """Return the range as the two template variables a label states it with.
 
         Returns:
-            ``EARLIEST_START_DATE_TIME``, the start rounded down to the whole second,
-            and ``LATEST_STOP_DATE_TIME``, the stop rounded up to it, each in the PDS4
-            UTC spelling with no decimals, as in ``2004-02-07T04:25:35Z``.  A range
-            written this way contains every product's own start and stop as a data
-            label writes them, at the nearest millisecond, which is never before the
-            whole second at or before its epoch nor after the one at or after it.  A
-            range rounded to the nearer second would not: it can begin after the
-            first exposure opened and end before the last one closed.
+            ``EARLIEST_START_DATE_TIME`` and ``LATEST_STOP_DATE_TIME``, each in the PDS4
+            UTC spelling with no decimals, as in ``2004-02-07T04:25:35Z``.  The start is
+            rounded down and the stop up, so the range contains every product's start
+            and stop.
         """
         return {
             'EARLIEST_START_DATE_TIME': et_to_pds4_utc(

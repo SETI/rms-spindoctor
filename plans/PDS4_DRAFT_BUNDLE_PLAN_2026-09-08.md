@@ -443,10 +443,7 @@ reachable.
 
 The data collection label states the cohort's earliest start and latest stop,
 at whole seconds as the reference's collection and bundle labels do, the start
-rounded down and the stop up, so the range contains every product's own start
-and stop as its data label writes them: the nearest millisecond of an epoch is
-never before the whole second at or before it, nor after the one at or after
-it. The summary pass already read
+rounded down and the stop up. The summary pass already read
 every supplemental file to build the global index, so the range is taken
 there, in that same read, by an `EpochRangeScan`. The index therefore runs
 before the collection files in `main_summary`, and returns the range in a

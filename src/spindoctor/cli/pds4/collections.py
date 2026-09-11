@@ -235,11 +235,11 @@ def generate_collection_files(
     holds, which is ``epochs``: the range :func:`generate_global_index_files` takes in
     its read of the supplemental files, which is why the summary pass runs that
     first.  The label writes it to whole seconds, the start rounded down and the stop
-    up, so the range contains every product's own start and stop.  With no range to
-    state, because the data tree holds no supplemental file, the data collection
-    label is counted as not written, with an error saying so, rather than rendered
-    with empty dates, which PDS4 does not accept; whatever an earlier run left at its
-    path is removed, so a label on disk is always one this run wrote.
+    up.  With no range to state, because the data tree holds no supplemental file,
+    the data collection label is counted as not written, with an error saying so,
+    rather than rendered with empty dates, which PDS4 does not accept; whatever an
+    earlier run left at its path is removed, so a label on disk is always one this
+    run wrote.
 
     Every collection template the dataset declares is required.  The caller is
     expected to have checked them before processing anything, so one that is
