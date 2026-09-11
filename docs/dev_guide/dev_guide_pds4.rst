@@ -451,8 +451,13 @@ two-dimensional; ``BSCALE`` or ``BZERO``, since a scaled array's stored values a
 not its values; a primary HDU holding data, or an extension that is not an image,
 either of which would leave data the label does not describe; a lower-case HDU name
 that is not an XML name or repeats another's, since a ``local_identifier`` is an
-XML ``ID`` and unique in the label; and a file astropy reads only with an error or a
-warning, which is what a truncated file draws.  On a refusal the labels pass fails
+XML ``ID`` and unique in the label; a file astropy cannot read as FITS, which a
+header cut short at the end of a record is; and a file cut short otherwise: an HDU
+whose data run past the end of the file, or a length that is not a whole number of
+2880-byte records, which a header cut short within a record leaves when astropy
+drops its HDU.  Whether a file is cut short is judged from its length and the
+offsets astropy reads.  A warning astropy emits is not a refusal, since astropy also warns of files
+the FITS standard allows, one ending in a record of zeros among them.  On a refusal the labels pass fails
 the image having created nothing, since the FITS is described before the copy is
 made, and logs the refusal; an error astropy raises while reading it, such as a
 card it cannot parse, is raised having created nothing too.  The copy is the same

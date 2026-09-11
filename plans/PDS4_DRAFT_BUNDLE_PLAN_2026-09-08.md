@@ -400,8 +400,14 @@ The builder refuses, naming the HDU, what the backplane writer does not write,
 since describing one wrongly is worse than refusing it: a `BITPIX` other than
 -32 and 32, an image that is not two-dimensional, `BSCALE` or `BZERO`, a
 primary HDU holding data, an extension that is not an image, a lower-case
-name that is not an XML `ID` or repeats another's, and a file astropy reads
-only with an error or a warning, which is what a truncated one draws. A
+name that is not an XML `ID` or repeats another's, a file astropy cannot read
+as FITS, and a file cut short, judged from its length and the offsets astropy
+reads rather than from astropy's warnings: an HDU whose data run past the end
+of the file, or a length that is not a whole number of 2880-byte records,
+which is what a header cut short within a record leaves when astropy drops its
+HDU (one cut at a record's end astropy cannot read at all). A warning is not a refusal,
+since astropy also warns of files the FITS standard allows, such as one ending
+in a record of zeros (FITS 4.0 section 3.5). A
 refused FITS fails its image with nothing created for it, neither a file nor
 a directory, because the FITS is described before anything is written.
 
