@@ -665,8 +665,8 @@ from the same `shared.py` primitives and written to a cohort root rather
 than into `RESULTS_TREE`. `results_tree_documents()` and the stats fixture
 tree are untouched by it.
 
-**The cohort is never checked in.** It is built at test time into `tmp_path`
-and torn down with it; no cohort bytes live under `tests/`, and the
+**The cohort is never checked in.** It is built once a session into a
+directory `tmp_path_factory` makes, and torn down with it; no cohort bytes live under `tests/`, and the
 `python -m tests.mini_nav_results cohort <outdir>` form writes wherever the
 operator points it. The builders are the artifact, not their output. That is
 what keeps a fifth instrument's cohort from costing the repository anything
@@ -1046,8 +1046,9 @@ SPICE.
 
 Every clock reading and every image number is derived from one epoch, through
 `shared.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
-from one correlation point the mission clock kernel gives, and stamped onto a
-result by `with_pointing_from_epoch`, which takes no clock argument at all.
+from a line through two correlation points the mission clock kernel gives --
+calibrating where the clock started and the rate it runs at -- and stamped onto
+a result by `with_pointing_from_epoch`, which takes no clock argument at all.
 Routing the four existing Cassini documents of the statistics set through the
 same constructor is #530's own work: it is a coordinated change to four
 documents, four filenames, the `filtered` variant's image-number bounds and
