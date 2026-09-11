@@ -96,6 +96,23 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
     holdings root named on the command line is the one it enumerates from.  The
     selection arguments it declares are its class's, so nothing about the parse
     needs an instance.
+
+    Sets the module globals ``DATASET`` and ``DATASET_NAME`` as a side effect,
+    because every later stage of the subcommand reads the dataset from there.
+
+    Parameters:
+        command_list: The subcommand's arguments, the dataset name first.
+
+    Returns:
+        The parsed arguments.
+
+    Raises:
+        SystemExit: With status 1, and a usage line on stdout, when no dataset
+            name was given, when the name is not a known dataset, or when
+            ``--pds3-holdings-root`` was given for a dataset that is not PDS3.
+            These end the program rather than raising to a caller because this
+            is a command line being read, and there is nothing above it to
+            recover.
     """
     global DATASET
     global DATASET_NAME
