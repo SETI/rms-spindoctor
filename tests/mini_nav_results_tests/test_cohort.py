@@ -343,6 +343,9 @@ def test_no_backplane_statistic_is_left_in_radians(mini_nav_cohort: Cohort) -> N
     assert in_radians == []
 
 
+# This pins the sidecar writing center_uv down the frame first, v before u,
+# which #253 records as a characterization of the writer rather than a decision
+# taken; the fix there updates this test.
 def test_each_body_is_placed_down_the_frame_and_sized_across_it(
     mini_nav_cohort: Cohort,
 ) -> None:

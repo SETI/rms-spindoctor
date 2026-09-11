@@ -174,6 +174,11 @@ def _index_row(stub: str, midtime_et: float, *, camera: str, shutter_mode: str) 
     was open for one interval beside readings taken over another, and every
     reader of it holds only one of the two.
 
+    The multi-valued columns take the shapes ``PdsTable.dicts_by_row`` gives
+    them when it reads the COISS index: a tuple of strings for ``FILTER_NAME``
+    and a numpy array for the numeric ones, so a template variable read off
+    the row sees what it sees on a real image.
+
     Parameters:
         stub: Where the image's results sit under a results root.
         midtime_et: The exposure midtime, which is the image's epoch.

@@ -47,5 +47,5 @@ def write_summary_png(png_file_path: FCPath) -> None:
     blue = np.full((size_v * _SCALE, size_u * _SCALE), 64, dtype=np.uint8)
     rgb = np.stack([red, green, blue], axis=-1)
     buffer = BytesIO()
-    Image.fromarray(rgb, mode='RGB').save(buffer, format='PNG')
+    Image.fromarray(rgb).save(buffer, format='PNG')
     png_file_path.write_bytes(buffer.getvalue())
