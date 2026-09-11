@@ -380,10 +380,10 @@ def main_summary() -> None:
     supplemental files is the one the pass makes, and the data collection label
     states the range of epochs taken in that read, so the collection files wait
     for it.  The index generator clears every product of the pass before that
-    read, the collection files with its own, so a run it refuses over what the
-    data tree holds leaves none of them, neither this run's nor an earlier run's.
-    A bundle with no data directory is refused before anything
-    is cleared, since it is not a tree a labels pass wrote.
+    read, the collection files with its own, so a run it refuses over a
+    supplemental file leaves none of them, neither this run's nor an earlier run's.
+    A bundle with no data directory is refused before anything is cleared, since it
+    is not a tree a labels pass wrote.
     """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
@@ -418,8 +418,8 @@ def main_summary() -> None:
     except Exception as exc:
         # The logger's exception() writes the message it is handed and the
         # frames, not the exception's own text, and a supplemental file in
-        # another unit, or one that cannot be read, is refused with a message
-        # naming the file and the reason that the frames alone do not carry.
+        # another unit is refused with a message naming the file and both
+        # units that the frames alone do not carry.
         MAIN_LOGGER.exception('Failed to generate global index files: %s', exc)
         sys.exit(1)
 

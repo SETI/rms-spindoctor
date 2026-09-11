@@ -21,12 +21,7 @@ import pdstemplate
 import pytest
 from cloud_tasks.worker import WorkerData
 from filecache import FCPath
-from tests.spindoctor.cli.pds4.conftest import (
-    make_bundle_env,
-    navigated_document,
-    touch_label,
-    write_supplemental,
-)
+from tests.spindoctor.cli.pds4.conftest import make_bundle_env, touch_label, write_supplemental
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
@@ -617,43 +612,19 @@ def _latitude_in(units: str) -> dict[str, Any]:
     return {'MIMAS': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': units}}}}
 
 
-@pytest.mark.parametrize(
-    ('bodies', 'raw_text', 'reason'),
-    [
-        (
-            _latitude_in('rad'),
-            None,
-            'records the latitude statistic in rad where the configuration expects deg',
-        ),
-        (None, 'not json', 'could not be read: Expecting value: line 1 column 1 (char 0)'),
-    ],
-    ids=['a statistic in another unit', 'a file that is not JSON'],
-)
 def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     summary_run: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    bodies: dict[str, Any] | None,
-    raw_text: str | None,
-    reason: str,
 ) -> None:
     """A run refused over a supplemental file leaves no file of the pass behind.
 
     The first run writes every file of the pass; the second is refused over a second
-    supplemental file, one recording its statistic in another unit or one that is not
-    JSON.  Both generators are the real ones, so an earlier run's inventory or
-    collection label left beside no index is reported here, as is an earlier run's
-    index; and the log gives the reason the run was refused.
-
-    Parameters:
-        summary_run: Fixture standing the subcommand up on stubs.
-        monkeypatch: Fixture the dataset and the bundle root are installed through.
-        tmp_path: Base temporary directory.
-        capsys: Fixture capturing the log.
-        bodies: The second file's body statistics, when it holds a document.
-        raw_text: What the second file holds in place of a document, or None.
-        reason: What the log says of the second file.
+    supplemental file, one recording its statistic in another unit.  Both generators
+    are the real ones, so an earlier run's inventory or collection label left beside
+    no index is reported here, as is an earlier run's index; and the log gives the
+    reason the run was refused.
     """
     env = make_bundle_env(tmp_path / 'env', bodies=[{'name': 'latitude', 'units': 'rad'}])
     dataset = env.dataset.as_dataset()
@@ -663,27 +634,17 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     )
     data_dir = env.bundle_dir / 'data'
     touch_label(data_dir, 'shard0/1111111111n')
-    write_supplemental(
-        data_dir,
-        'shard0/1111111111n',
-        bodies=_latitude_in('deg'),
-        navigation=navigated_document(),
-    )
+    write_supplemental(data_dir, 'shard0/1111111111n', bodies=_latitude_in('deg'))
     sd_create_bundle.main_summary()
     products = [env.bundle_dir / name for name in SUMMARY_PRODUCTS]
     assert [product for product in products if not product.exists()] == []
-    write_supplemental(
-        data_dir,
-        'shard0/2222222222w',
-        bodies=bodies,
-        navigation=navigated_document(),
-        raw_text=raw_text,
-    )
+    write_supplemental(data_dir, 'shard0/2222222222w', bodies=_latitude_in('rad'))
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
     assert [product for product in products if product.exists()] == []
-    assert reason in capsys.readouterr().out
+    expected = 'records the latitude statistic in rad where the configuration expects deg'
+    assert expected in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(

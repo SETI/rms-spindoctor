@@ -333,11 +333,7 @@ otherwise; the log says what went wrong.
   regenerate the backplanes, then the bundle, into an empty directory.
 
   The data collection label is not written, and the pass exits 1, when there is
-  no time range for it to state: the ``data/`` tree holds no supplemental file. A
-  supplemental file that cannot be read or does not hold a JSON object, a
-  supplemental file with no data label beside it, or a data label with no
-  supplemental file, ends the pass with exit status 1 and leaves none of its
-  tables and labels: regenerate the bundle into an empty directory.
+  no time range for it to state: the ``data/`` tree holds no supplemental file.
 
 * ``sd_create_bundle_cloud_tasks`` reports a failed task as ``status: error``,
   with ``status_error`` saying why (for example ``label_not_written``), and

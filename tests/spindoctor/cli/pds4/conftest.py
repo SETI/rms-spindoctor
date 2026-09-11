@@ -475,14 +475,8 @@ def write_supplemental(
     bodies: dict[str, Any] | None = None,
     rings: dict[str, Any] | None = None,
     navigation: dict[str, Any] | None = None,
-    raw_text: str | None = None,
-    label: bool = True,
 ) -> Path:
-    """Write a product's ``<stub>_supplemental.txt`` and, beside it, its data label.
-
-    The labels pass writes a product's supplemental file and its data label, and the
-    summary pass refuses a data tree holding one without the other, so the placeholder
-    label :func:`touch_label` writes goes beside the file unless ``label`` is False.
+    """Write a ``<stub>_supplemental.txt`` file in the bundle data tree.
 
     Parameters:
         data_dir: The bundle's ``data`` directory.
@@ -491,19 +485,12 @@ def write_supplemental(
         rings: ``backplanes.rings`` payload (``{'backplanes': {...}}``).
         navigation: The ``navigation`` document; :func:`navigated_document`'s when
             None.
-        raw_text: Literal file content overriding the JSON payload entirely.
-        label: Whether the product's data label is written beside the file.
 
     Returns:
         The path of the written supplemental file.
     """
     path = data_dir / f'{stub}_supplemental.txt'
     path.parent.mkdir(parents=True, exist_ok=True)
-    if label:
-        touch_label(data_dir, stub)
-    if raw_text is not None:
-        path.write_text(raw_text, encoding='utf-8')
-        return path
     payload = {
         'navigation': navigation if navigation is not None else navigated_document(),
         'backplanes': {

@@ -136,29 +136,23 @@ have processed.
 write, over both generators, and exits 1 the same way.  The inventory and index
 ``.tab`` tables are written either way.  The data collection label counts as not
 written when the data tree holds no supplemental file, and so no range for it to
-state (see `Epochs`_).  The global index
-is generated first, and it refuses a bundle with no ``data/`` directory, naming
-the directory, before any product of the pass is cleared or written.  The pass
-also exits 1 when a supplemental file holds a statistic no index column can --
-one in a unit other than the one the configuration gives its plane, or a
-minimum or maximum that is NaN or infinite -- the check the labels pass makes
-per image, through
+state (see `Epochs`_).  The global index is generated first, and it refuses a
+bundle with no ``data/`` directory, naming the directory, before any product of
+the pass is cleared or written.  The pass also exits 1 when a supplemental file
+holds a statistic no index column can -- one in a unit other than the one the
+configuration gives its plane, or a minimum or maximum that is NaN or infinite --
+the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
-file and the plane and saying what the file records there.  It exits 1 the same
-way on a supplemental file it cannot read, or one that does not hold a JSON
-object, naming the file and the reason or what it holds: left out of the index,
-the file's product would still be listed in the collection's inventory, with no
-epochs for the range.  It exits 1 the same way on a supplemental file with no
-data label beside it, or a data label with no supplemental file, naming both: the
-collection inventory finds a product by its data label, and the index and the
-range by its supplemental file.  The index tables and labels an earlier run wrote,
-and its collection tables and labels, are cleared before the first supplemental
-file is read, the collection files by the index generator since it runs first.
-Every supplemental file is read, and every value in both index tables rendered,
-before either table is opened, so a run refused over what the data tree holds
-leaves no product of the pass, neither this run's nor an earlier run's.  A bundle
-with no ``data/`` directory is refused before anything is cleared, so an earlier
-run's products stay where it left them.
+file and the plane and saying what the file records there.  The index tables and
+labels an earlier run wrote, and its collection tables and labels, are cleared
+before the first supplemental file is read, the collection files by the index
+generator since it runs first.  Every supplemental file is read, and every value in
+both index tables rendered, before either table is opened, so a run refused over a
+supplemental file leaves no product of the pass, neither this run's nor an earlier
+run's.  A bundle with no ``data/`` directory is refused before anything is cleared,
+so an earlier run's products stay where it left them.  The pass reads each
+supplemental file as the labels pass wrote it and checks nothing about it but the
+statistics; anything else unexpected raises, and the run ends with exit status 1.
 
 The summary pass builds both inventories from the data labels in the bundle's
 ``data/`` tree and does not check that tree for completeness, so it can exit 0
@@ -432,9 +426,7 @@ driver holds it for any other label that states the bundle's range:
 label its ``EARLIEST_START_DATE_TIME`` and ``LATEST_STOP_DATE_TIME`` without a
 second computation.  A scan that read no supplemental file yields no range, and the
 data collection label is then counted as not written rather than rendered with empty
-dates.  A supplemental file the index generator cannot read, or that does not hold
-a JSON object, never reaches the scan: the generator refuses the run on it, naming
-the file and the reason or what it holds.
+dates.
 
 Output layout
 =============

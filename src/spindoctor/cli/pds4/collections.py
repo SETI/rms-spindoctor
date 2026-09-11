@@ -162,35 +162,6 @@ def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueForma
     return [value_format.render(statistic['min']), value_format.render(statistic['max'])]
 
 
-_REGENERATE_REMEDY = (
-    "The labels pass writes each product's supplemental file and data label: regenerate the "
-    'bundle into an empty directory'
-)
-"""What a refusal over a product the index cannot take says to do about it."""
-
-
-def _json_kind(value: Any) -> str:
-    """Name the kind of JSON value a supplemental file holds in place of an object.
-
-    Parameters:
-        value: What the file's JSON parsed to, anything but an object.
-
-    Returns:
-        ``an array``, ``a string``, ``a boolean``, ``null`` or ``a number``, as a
-        message says what the file holds.
-    """
-    if isinstance(value, list):
-        return 'an array'
-    if isinstance(value, str):
-        return 'a string'
-    # Python counts a boolean as an integer, so it is named before a number is.
-    if isinstance(value, bool):
-        return 'a boolean'
-    if value is None:
-        return 'null'
-    return 'a number'
-
-
 def _data_dir(bundle_root: FCPath) -> FCPath:
     """Return the bundle's data directory, which both summary generators scan.
 
@@ -217,26 +188,11 @@ _DATA_LABEL_SUFFIX = '_backplanes.lblx'
 """What follows a product's path stub in the name of its data label."""
 
 
-def _data_labels(data_dir: FCPath) -> list[FCPath]:
-    """Return every data label in the data tree, which is how a product is found.
-
-    The collection inventory lists a product by its data label, and the global index
-    holds every supplemental file to having one beside it, so both list them here.
-
-    Parameters:
-        data_dir: The bundle's data directory.
-
-    Returns:
-        Each ``<stub>_backplanes.lblx`` under it, in the order the listing gives.
-    """
-    return list(data_dir.rglob(f'*{_DATA_LABEL_SUFFIX}'))
-
-
 def _product_stub(path: FCPath, data_dir: FCPath, suffix: str) -> str:
     """Return a product's path stub, read off one of its files.
 
     Parameters:
-        path: The product's supplemental file or data label, under ``data_dir``.
+        path: The product's supplemental file, under ``data_dir``.
         data_dir: The bundle's data directory.
         suffix: What follows the stub in the file's name.
 
@@ -342,7 +298,7 @@ def generate_collection_files(
 
     # Every product in the data directory, found by its data label
     data_dir = _data_dir(bundle_root)
-    label_files = _data_labels(data_dir)
+    label_files = list(data_dir.rglob(f'*{_DATA_LABEL_SUFFIX}'))
 
     # Sort by image name (extracted from filename)
     def get_image_name_from_label(path: FCPath) -> str:
@@ -458,20 +414,14 @@ def generate_global_index_files(
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
     :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and returned for the labels
-    that state it.  A supplemental file that cannot be read, or does not hold a JSON
-    object, refuses the run, since left out of the index it would still be listed in
-    the collection's inventory.  So does a supplemental file with no
-    data label beside it, or a data label with no supplemental file: the inventory
-    finds a product by its data label, and the index and the range by its supplemental
-    file, so the two would disagree about it.  Both are listed once, and compared
-    before any file is read.
+    that state it.
 
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
     label before it renders, and so are the two collection tables and two
     collection labels :func:`generate_collection_files` writes after the index.
-    A run refused over what the data tree holds therefore leaves no product
-    of the summary pass, neither this run's nor an earlier run's: no index still
+    A run refused over what a supplemental file holds therefore leaves no product of
+    the summary pass, neither this run's nor an earlier run's: no index still
     describing the bundle as it was, and no inventory beside no index.
 
     Both index templates the dataset declares are required.  The caller is
@@ -495,16 +445,13 @@ def generate_global_index_files(
             index template is not in the dataset's template directory.
         KeyError: If a configured plane's statistic is in a unit the index has no
             column format for.
-        ValueError: If a supplemental file cannot be read or does not hold a JSON
-            object, the message naming the file and the reason or what it holds
-            instead; if a supplemental file has no data label beside it, or a data
-            label no supplemental file, the message naming both; or if one holds a
-            statistic no column can -- one in a unit other than the one the
-            configuration gives its plane, or with a minimum or maximum that is NaN
-            or infinite -- the message naming the file and the plane, what the file
-            records there, and what to regenerate.  Every supplemental file is read,
-            and every value in both tables rendered, before either table is opened,
-            so none of these leaves a table half-written.
+        ValueError: If a supplemental file holds a statistic no column can: one in
+            a unit other than the one the configuration gives its plane, or with a
+            minimum or maximum that is NaN or infinite.  The message names the
+            file and the plane, what the file records there, and what to
+            regenerate.  Every supplemental file is read, and every value in both
+            tables rendered, before either table is opened, so none of these
+            leaves a table half-written.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -558,35 +505,6 @@ def generate_global_index_files(
     supplemental_files.sort(key=get_image_name_from_supplemental)
     logger.info('Found %d supplemental files', len(supplemental_files))
 
-    # The labels pass writes a product's supplemental file and then renders its data
-    # label, and the collection inventory finds a product by its data label, so one of
-    # the two without the other is a product the index and the inventory would disagree
-    # about: indexed and inside the range but not listed, or listed but neither.  Both
-    # lists are taken once and compared before any file is read.
-    supplemental_stubs = {
-        _product_stub(path, data_dir, _SUPPLEMENTAL_SUFFIX) for path in supplemental_files
-    }
-    label_stubs = {
-        _product_stub(path, data_dir, _DATA_LABEL_SUFFIX) for path in _data_labels(data_dir)
-    }
-    unlabeled = sorted(supplemental_stubs - label_stubs)
-    if len(unlabeled) > 0:
-        raise ValueError(
-            f'Supplemental file {data_dir / (unlabeled[0] + _SUPPLEMENTAL_SUFFIX)} has no '
-            f'data label beside it: {data_dir / (unlabeled[0] + _DATA_LABEL_SUFFIX)} is not '
-            'there, and the collection inventory, which finds products by their data '
-            f'labels, would leave out a product the index holds. {_REGENERATE_REMEDY}'
-        )
-    unindexed = sorted(label_stubs - supplemental_stubs)
-    if len(unindexed) > 0:
-        raise ValueError(
-            f'Data label {data_dir / (unindexed[0] + _DATA_LABEL_SUFFIX)} has no supplemental '
-            f'file beside it: {data_dir / (unindexed[0] + _SUPPLEMENTAL_SUFFIX)} is not '
-            'there, and the index and the range of epochs, which read the supplemental '
-            f'files, would leave out a product the collection inventory lists. '
-            f'{_REGENERATE_REMEDY}'
-        )
-
     # Collect body and ring statistics, every cell already rendered: both
     # tables are opened only once every value in them has been written out, so
     # nothing a render can raise leaves a table half-written.
@@ -596,25 +514,7 @@ def generate_global_index_files(
     epochs = EpochRangeScan()
 
     for suppl_file in supplemental_files:
-        # The labels pass writes every supplemental file, and writes it as a JSON
-        # object, so one that cannot be read, or holds anything else, is a broken tree
-        # rather than a product to pass over: left out of the index it would still be
-        # listed in the collection's inventory, with no epochs for the range.  The run
-        # is refused here, before either table exists, as it is for a statistic no
-        # column can hold.
-        try:
-            suppl_text = suppl_file.read_text()
-            metadata = json.loads(suppl_text)
-        except (OSError, ValueError) as exc:
-            raise ValueError(
-                f'Supplemental file {suppl_file} could not be read: {exc}. {_REGENERATE_REMEDY}'
-            ) from exc
-        if not isinstance(metadata, dict):
-            raise ValueError(
-                f'Supplemental file {suppl_file} holds {_json_kind(metadata)} where a '
-                f'supplemental document is a JSON object. {_REGENERATE_REMEDY}'
-            )
-
+        metadata = json.loads(suppl_file.read_text())
         epochs.include(metadata['navigation'])
         backplanes = metadata.get('backplanes', {})
         # A supplemental file holds the backplane document the labels pass

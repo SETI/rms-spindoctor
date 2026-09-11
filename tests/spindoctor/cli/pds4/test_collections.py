@@ -24,7 +24,6 @@ matching the product labels' DATA_LID (regression coverage for #139 and #256).
 """
 
 import math
-import re
 from pathlib import Path
 from typing import Any
 
@@ -726,107 +725,6 @@ def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> Non
     assert len(bodies_rows) == 1
     rings_rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
     assert len(rings_rows) == 1
-
-
-def test_an_unreadable_supplemental_file_refuses_the_run_with_no_table_written(
-    tmp_path: Path,
-) -> None:
-    """A supplemental file that is not JSON refuses the run before either table exists.
-
-    Left out of the index it would still be listed in the collection's inventory, with
-    no epochs for the range.  The refusal names the file and gives the parser's reason,
-    which the frames of a traceback do not carry, and which the driver writes to the
-    log.
-    """
-    env = _index_env(tmp_path)
-    broken = write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', raw_text='not json')
-    write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
-    refusal = f'Supplemental file {FCPath(broken)} could not be read: '
-    with pytest.raises(ValueError, match=re.escape(refusal)) as excinfo:
-        _run_global_index(env)
-    assert 'Expecting value: line 1 column 1 (char 0)' in str(excinfo.value)
-    assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
-
-
-@pytest.mark.parametrize(
-    ('raw_text', 'kind'),
-    [
-        ('[]', 'an array'),
-        ('"a supplemental file"', 'a string'),
-        ('true', 'a boolean'),
-        ('null', 'null'),
-        ('1.5', 'a number'),
-    ],
-    ids=['an array', 'a string', 'a boolean', 'null', 'a number'],
-)
-def test_a_supplemental_file_that_is_no_object_refuses_the_run_with_no_table_written(
-    tmp_path: Path, raw_text: str, kind: str
-) -> None:
-    """A supplemental file whose JSON is not an object is refused like an unreadable one.
-
-    The labels pass writes each as an object, so any other JSON is a broken file.  The
-    refusal names the file and says what it holds, before either table is written.
-
-    Parameters:
-        tmp_path: Base temporary directory.
-        raw_text: What the file holds.
-        kind: What the refusal says the file holds.
-    """
-    env = _index_env(tmp_path)
-    broken = write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', raw_text=raw_text)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
-    refusal = (
-        f'Supplemental file {FCPath(broken)} holds {kind} where a supplemental document is '
-        'a JSON object'
-    )
-    with pytest.raises(ValueError, match=re.escape(refusal)):
-        _run_global_index(env)
-    assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
-
-
-def test_a_supplemental_file_with_no_data_label_refuses_the_run_with_no_table_written(
-    tmp_path: Path,
-) -> None:
-    """A supplemental file left without its data label refuses the run, naming both.
-
-    The labels pass writes the supplemental file before it renders the data label, so a
-    render that failed leaves one without the other, and the collection inventory, which
-    finds products by their data labels, would leave out a product the index lists.
-    """
-    env = _index_env(tmp_path)
-    data_dir = env.bundle_dir / 'data'
-    write_supplemental(data_dir, 'shard0/1111111111n', bodies=BODY_STATS)
-    alone = write_supplemental(data_dir, 'shard0/2222222222w', bodies=BODY_STATS, label=False)
-    label = data_dir / 'shard0' / '2222222222w_backplanes.lblx'
-    refusal = (
-        f'Supplemental file {FCPath(alone)} has no data label beside it: {FCPath(label)} is '
-        'not there'
-    )
-    with pytest.raises(ValueError, match=re.escape(refusal)):
-        _run_global_index(env)
-    assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
-
-
-def test_a_data_label_with_no_supplemental_file_refuses_the_run_with_no_table_written(
-    tmp_path: Path,
-) -> None:
-    """A data label with no supplemental file beside it refuses the run, naming both.
-
-    The collection inventory would list a product the index does not hold and the
-    range of epochs does not contain.
-    """
-    env = _index_env(tmp_path)
-    data_dir = env.bundle_dir / 'data'
-    write_supplemental(data_dir, 'shard0/1111111111n', bodies=BODY_STATS)
-    label = touch_label(data_dir, 'shard0/2222222222w')
-    supplemental = data_dir / 'shard0' / '2222222222w_supplemental.txt'
-    refusal = (
-        f'Data label {FCPath(label)} has no supplemental file beside it: '
-        f'{FCPath(supplemental)} is not there'
-    )
-    with pytest.raises(ValueError, match=re.escape(refusal)):
-        _run_global_index(env)
-    assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
 
 
 def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
