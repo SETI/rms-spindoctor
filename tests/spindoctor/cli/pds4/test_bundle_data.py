@@ -47,6 +47,7 @@ from .conftest import (
     make_bundle_env,
     make_cohort_bundle_env,
     make_image_file,
+    navigated_document,
     write_nav_inputs,
 )
 
@@ -665,14 +666,7 @@ def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None
     (nav_root / 'COISS_2001').mkdir(parents=True)
     (backplane_root / 'COISS_2001').mkdir(parents=True)
     bundle_results_root.mkdir()
-    nav_metadata: dict[str, Any] = {
-        'status': 'success',
-        'observation': {
-            'start_time': '2007-01-01T00:00:00Z',
-            'stop_time': '2007-01-01T00:00:10Z',
-            'mid_time': '2007-01-01T00:00:05Z',
-        },
-    }
+    nav_metadata = navigated_document()
     (nav_root / f'{stub}_metadata.json').write_text(json.dumps(nav_metadata), encoding='utf-8')
     (backplane_root / f'{stub}_backplane_metadata.json').write_text(
         json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
@@ -709,7 +703,7 @@ def test_cassini_data_label_lid_matches_dataset_builder(tmp_path: Path) -> None:
     dataset = _cassini_dataset(tmp_path)
     image_file = make_image_file('N1454725799_1')
     variables = dataset.pds4_template_variables(
-        image_file=image_file, nav_metadata={}, backplane_metadata={}
+        image_file=image_file, nav_metadata=navigated_document(), backplane_metadata={}
     )
     assert variables['DATA_LID'] == dataset.pds4_image_name_to_data_lid('N1454725799_1')
     assert variables['BROWSE_LID'] == dataset.pds4_image_name_to_browse_lid('N1454725799_1')
@@ -719,7 +713,9 @@ def test_cassini_camera_variables_from_image_name(tmp_path: Path) -> None:
     """The camera template variables derive from the image name's leading letter."""
     dataset = _cassini_dataset(tmp_path)
     variables = dataset.pds4_template_variables(
-        image_file=make_image_file('W1454725799_1'), nav_metadata={}, backplane_metadata={}
+        image_file=make_image_file('W1454725799_1'),
+        nav_metadata=navigated_document(),
+        backplane_metadata={},
     )
     assert variables['CAMERA_WIDTH'] == 'Wide'
     assert variables['CAMERA_WN_UC'] == 'W'
@@ -743,7 +739,7 @@ def test_a_carried_record_is_used_in_place_of_the_document(tmp_path: Path) -> No
     """A record carried with the image is what the supplemental file records."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env, nav_extra={'marker': 'from the document'})
-    env.image_file.nav_record = {'status': 'success', 'marker': 'from the enumeration'}
+    env.image_file.nav_record = navigated_document(marker='from the enumeration')
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     combined = json.loads(suppl.read_text(encoding='utf-8'))
@@ -755,7 +751,7 @@ def test_a_carried_record_is_used_when_the_document_has_gone(tmp_path: Path) -> 
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     (env.nav_root / f'{env.results_path_stub}_metadata.json').unlink()
-    env.image_file.nav_record = {'status': 'success', 'marker': 'from the enumeration'}
+    env.image_file.nav_record = navigated_document(marker='from the enumeration')
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     combined = json.loads(suppl.read_text(encoding='utf-8'))
@@ -812,13 +808,26 @@ def test_the_cohort_image_that_did_not_navigate_is_skipped(
     assert not env.bundle_dir.exists()
 
 
-def _bundle_products(image_name: str) -> set[str]:
-    """Return every bundle file the labels pass writes for one navigated image.
+def _product_stem(image_name: str) -> str:
+    """Return where one navigated image's products sit, below a collection directory.
 
     The sharded directories and the product stem are spelled out here rather
-    than asked of the dataset, since what they are is what this test is for: a
-    bundle is read by walking those directories, and an image that lands in the
-    wrong one is found by whoever cannot find it.
+    than asked of the dataset, since what they are is what the tests over the
+    cohort are for: a bundle is read by walking those directories, and an image
+    that lands in the wrong one is found by whoever cannot find it.
+
+    Parameters:
+        image_name: The calibrated image's name, camera letter and all.
+
+    Returns:
+        The two shard directories and the product stem, without a suffix.
+    """
+    number = image_name[1:11]
+    return f'{number[:4]}xxxxxx/{number[:6]}xxxx/{number}{image_name[0].lower()}'
+
+
+def _bundle_products(image_name: str) -> set[str]:
+    """Return every bundle file the labels pass writes for one navigated image.
 
     This is what the pass writes, not everything the bundle finally holds: the
     data label names a ``_backplanes.fits`` beside it that nothing copies yet,
@@ -831,8 +840,7 @@ def _bundle_products(image_name: str) -> set[str]:
     Returns:
         The paths, relative to the bundle's own directory.
     """
-    number = image_name[1:11]
-    stem = f'{number[:4]}xxxxxx/{number[:6]}xxxx/{number}{image_name[0].lower()}'
+    stem = _product_stem(image_name)
     return {
         f'data/{stem}_backplanes.lblx',
         f'data/{stem}_supplemental.txt',
@@ -875,3 +883,72 @@ def test_the_cohort_s_navigated_images_are_written_into_the_bundle(
         if path.is_file()
     }
     assert written == _bundle_products(LIMB_IMAGE_NAME) | _bundle_products(RINGS_IMAGE_NAME)
+
+
+# ---------------------------------------------------------------------------
+# The exposure's times
+# ---------------------------------------------------------------------------
+
+
+def test_a_navigated_image_recording_no_exposure_times_fails_with_nothing_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A success document with no times block is failed before anything is written.
+
+    A data label states when its exposure began and ended, and the navigation stamps
+    a success document with both, so one that records neither is a broken input: not
+    an image to label with an empty time, and not a traceback out of the template
+    variables.  The stand-in dataset here would render labels without the times, so
+    what stops it is the check.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, nav_extra={'navigation_result': {}})
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert not env.bundle_dir.exists()
+    expected = '1234567890w.img": the navigation metadata records no navigation_result.times block'
+    assert expected in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ('stub', 'image_name', 'start', 'stop'),
+    [
+        (LIMB_STUB, LIMB_IMAGE_NAME, '2004-02-07T04:25:35.585Z', '2004-02-07T04:25:36.046Z'),
+        (RINGS_STUB, RINGS_IMAGE_NAME, '2004-02-22T05:32:15.894Z', '2004-02-22T05:32:16.355Z'),
+    ],
+    ids=['limb image', 'ring image'],
+)
+def test_a_cohort_data_label_states_the_interval_its_exposure_lies_in(
+    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str, start: str, stop: str
+) -> None:
+    """The shipped data label states the document's start and stop, to the millisecond.
+
+    The expected strings are SPICE's.  With the leapseconds kernel furnished,
+    ``et2utc`` writes the limb image's recorded start and stop as
+    ``04:25:35.585069`` and ``04:25:36.045069`` and the ring image's as
+    ``05:32:15.894746`` and ``05:32:16.354746``.  The start is cut to its
+    millisecond and the stop taken to the next, so the interval stated contains the
+    exposure; the ring image's start and the limb image's stop are each a
+    millisecond from what rounding to the nearer would write.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort.
+        tmp_path: Base temporary directory for this test's bundle.
+        stub: Which cohort image, by its results path stub.
+        image_name: That image's calibrated name.
+        start: What its data label's ``start_date_time`` has to say.
+        stop: What its data label's ``stop_date_time`` has to say.
+    """
+    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
+    generate_bundle_data_files(
+        env.dataset,
+        mini_nav_cohort.batch(stub),
+        nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
+        backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
+        bundle_results_root=FCPath(env.bundle_results_root),
+        logger=MAIN_LOGGER,
+    )
+    label = env.bundle_dir / 'data' / f'{_product_stem(image_name)}_backplanes.lblx'
+    text = label.read_text(encoding='utf-8')
+    assert re.findall(r'<start_date_time>(.*)</start_date_time>', text) == [start]
+    assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == [stop]

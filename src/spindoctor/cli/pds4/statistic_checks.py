@@ -32,7 +32,7 @@ from typing import Any
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.config import Config
 
-__all__ = ['UnindexableStatistic', 'unindexable_statistic']
+__all__ = ['UnindexableStatistic', 'described_value', 'unindexable_statistic']
 
 
 _UNIT_REASON = (
@@ -157,7 +157,7 @@ def _unindexable_part(
         if not _is_finite_as_float(value):
             return UnindexableStatistic(
                 plane=name,
-                description=f'records a {name} {word} of {_described(value)}',
+                description=f'records a {name} {word} of {described_value(value)}',
                 reason=_VALUE_REASON,
             )
     return None
@@ -189,12 +189,16 @@ def _is_finite_as_float(value: Any) -> bool:
     return isinstance(value, float) and math.isfinite(value)
 
 
-def _described(value: Any) -> str:
-    """Describe a minimum or maximum no column can hold, for a message.
+def described_value(value: Any) -> str:
+    """Describe a recorded number that is not a finite number a float can hold, for a message.
+
+    The description of a minimum or maximum no index column can hold, and of an
+    exposure epoch no label can state.
 
     Parameters:
-        value: A value :func:`_is_finite_as_float` refused, as the JSON reader
-            returned it.
+        value: A value :func:`_is_finite_as_float` or
+            :func:`~spindoctor.support.nav_record.finite_float` refused, as the JSON
+            reader returned it.  The two refuse the same values.
 
     Returns:
         What the value is and why no column can hold it.  An integer, which is

@@ -9,9 +9,18 @@ from filecache import FCPath, FileCache
 
 from spindoctor.config import Config
 from spindoctor.support.misc import safe_lstrip_zero
+from spindoctor.support.time import et_to_pds4_utc
 
 from .dataset import ImageFile, ImageFiles, Pds4Pass
 from .dataset_pds3 import DataSetPDS3
+
+_PDS4_TIME_DIGITS = 3
+"""The decimals of a second a data label writes its exposure's times to.
+
+A millisecond, the precision a Cassini image's start and stop are recorded to in its
+PDS3 label and index.  Whole seconds, which the reference bundle writes for its mosaics,
+would state an exposure of a few milliseconds as a window of one or two seconds.
+"""
 
 
 class DataSetPDS3CassiniISS(DataSetPDS3):
@@ -580,14 +589,30 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     ) -> dict[str, Any]:
         """Returns template variables for PDS4 label generation.
 
+        ``START_DATE_TIME`` and ``STOP_DATE_TIME`` are the exposure's start and stop,
+        and ``IMAGE_MID_TIME`` its midtime, read from the epochs the navigation
+        recorded under ``navigation_result.times`` and written the way a PDS4 label
+        writes a UTC time, to the millisecond, with a trailing ``Z``.  The start is
+        rounded down and the stop up, so the interval the label states contains the
+        exposure, which rounding each to the nearer millisecond would not: the
+        nearer can put a stated start after the shutter opened.  The midtime is an
+        instant rather than a bound, and is rounded to the nearer.
+
         Parameters:
             image_file: The image file being processed.
-            nav_metadata: Navigation metadata dictionary.
+            nav_metadata: Navigation metadata dictionary: a success document, which
+                records the exposure's epochs.
             backplane_metadata: Backplane metadata dictionary.
 
         Returns:
             Dictionary mapping variable names to values for template
             substitution.
+
+        Raises:
+            KeyError: If ``nav_metadata`` records no ``navigation_result.times``
+                holding ``start_et``, ``stop_et`` and ``midtime_et``.
+            ValueError: If one of those epochs is NaN or infinite.
+            TypeError: If one of them is not a number.
         """
         vars_dict: dict[str, Any] = {}
 
@@ -606,12 +631,20 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             vars_dict['CAMERA_WN_UC'] = ''
             vars_dict['CAMERA_WN_LC'] = ''
 
-        # Time information from navigation metadata
-        if 'observation' in nav_metadata:
-            obs = nav_metadata['observation']
-            vars_dict['START_DATE_TIME'] = obs.get('start_time', '')
-            vars_dict['STOP_DATE_TIME'] = obs.get('stop_time', '')
-            vars_dict['IMAGE_MID_TIME'] = obs.get('mid_time', '')
+        # The exposure's times, from the epochs its navigation recorded.  The
+        # bounds are rounded outward so the stated interval contains the exposure,
+        # the correction the reference bundle made between its review and its
+        # delivery; the midtime is an instant and goes to the nearer.
+        times = nav_metadata['navigation_result']['times']
+        vars_dict['START_DATE_TIME'] = et_to_pds4_utc(
+            times['start_et'], digits=_PDS4_TIME_DIGITS, rounding='down'
+        )
+        vars_dict['STOP_DATE_TIME'] = et_to_pds4_utc(
+            times['stop_et'], digits=_PDS4_TIME_DIGITS, rounding='up'
+        )
+        vars_dict['IMAGE_MID_TIME'] = et_to_pds4_utc(
+            times['midtime_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
+        )
 
         # Placeholder values for required template variables
         pds4_bundle_name = self.pds4_bundle_name()

@@ -8,6 +8,7 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.pds4.epochs import unrecorded_epoch
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.dataset.dataset import DataSet, ImageFiles
@@ -27,9 +28,12 @@ class BundleDataOutcome(Enum):
             label that could not be rendered, a browse product whose summary
             PNG the navigation results do not hold, or, with nothing written
             for the image at all, backplane metadata recording a statistic no
-            global index column can hold: one in a unit other than the one the
-            configuration gives its plane, or with a minimum or maximum that is
-            not a finite number within the range of a float.
+            global index column can hold -- one in a unit other than the one
+            the configuration gives its plane, or with a minimum or maximum
+            that is not a finite number within the range of a float -- or a
+            navigation document that does not record the exposure's start,
+            stop and midtime as finite numbers, the stop no earlier than the
+            start.
     """
 
     WRITTEN = 'written'
@@ -76,6 +80,16 @@ def generate_bundle_data_files(
     blank in its place would say the plane measured nothing.  A plane the
     document holds that the configuration does not declare is not checked.
 
+    So is a navigated image whose navigation document does not record its
+    exposure's epochs -- a ``start_et``, a ``stop_et`` and a ``midtime_et`` under
+    ``navigation_result.times``, each a finite number, the stop no earlier than
+    the start -- again before anything is written for it.  Its data label states
+    when the exposure began and ended, and the navigation stamps a success
+    document with both, so a success document that records neither is a broken
+    input rather than an image whose time is unknown, and a label stating an
+    empty time is not one PDS4 accepts.  The log names the image and what the
+    document lacks.
+
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
         image_files: List of images; must have exactly one image in the batch.
@@ -87,10 +101,11 @@ def generate_bundle_data_files(
     Returns:
         WRITTEN when the image's labels are on disk, SKIPPED when the image has
         nothing for the bundle to describe, and FAILED when a label could not be
-        rendered, the summary PNG is not there, or a backplane statistic is in a
+        rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
         minimum or maximum that is not a finite number within the range of a
-        float.
+        float, or the navigation document does not record the exposure's
+        epochs.
 
     Raises:
         ValueError: If the batch does not hold exactly one image, or if the
@@ -178,6 +193,21 @@ def generate_bundle_data_files(
                 image_path,
                 unindexable.description,
                 unindexable.reason,
+            )
+            return BundleDataOutcome.FAILED
+
+        # A data label states when its exposure began and ended, and a success
+        # document records both, so one that does not is a broken input.  The
+        # image is failed before anything is written for it rather than labeled
+        # with an empty time or left to raise from the template variables.
+        unrecorded = unrecorded_epoch(nav_metadata)
+        if unrecorded is not None:
+            logger.error(
+                'Failing bundle generation for "%s": the navigation metadata %s. Nothing is '
+                'written for the image, whose data label states when its exposure began '
+                'and ended',
+                image_path,
+                unrecorded,
             )
             return BundleDataOutcome.FAILED
 

@@ -391,6 +391,32 @@ def make_bundle_env(
     )
 
 
+NAVIGATED_TIMES: dict[str, float] = {
+    'start_et': 129399999.77,
+    'stop_et': 129400000.23,
+    'midtime_et': 129400000.0,
+}
+"""An exposure's epochs, as a success document records them under ``navigation_result.times``.
+
+The labels pass fails an image whose document records none, since its data label states
+when the exposure began and ended, so every navigated document the plumbing tests write
+records these.
+"""
+
+
+def navigated_document(**extra: Any) -> dict[str, Any]:
+    """Return a success navigation document recording an exposure's epochs.
+
+    Parameters:
+        **extra: Keys merged into the document, over the two it holds otherwise.
+
+    Returns:
+        A document with ``status`` ``success`` and a ``navigation_result`` whose
+        ``times`` are :data:`NAVIGATED_TIMES`, with ``extra`` merged in.
+    """
+    return {'status': 'success', 'navigation_result': {'times': dict(NAVIGATED_TIMES)}, **extra}
+
+
 def write_nav_inputs(
     env: BundleEnv,
     *,
@@ -401,18 +427,24 @@ def write_nav_inputs(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Write the navigation and backplane input files for the environment's image.
 
+    The navigation document is :func:`navigated_document`'s, recording an exposure's
+    epochs, so that a success document is one the labels pass can label.
+
     Parameters:
         env: The bundle environment to populate.
         status: Navigation ``status`` value; None omits the key entirely.
-        nav_extra: Extra keys merged into the navigation metadata dict.
+        nav_extra: Extra keys merged into the navigation metadata dict, over the
+            ``navigation_result`` it holds otherwise.
         backplane_metadata: Backplane metadata dict; a small default when None.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
 
     Returns:
         The navigation metadata dict and the backplane metadata dict as written.
     """
-    nav_metadata: dict[str, Any] = {}
-    if status is not None:
+    nav_metadata = navigated_document()
+    if status is None:
+        del nav_metadata['status']
+    else:
         nav_metadata['status'] = status
     if nav_extra:
         nav_metadata.update(nav_extra)
