@@ -428,8 +428,8 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
 ) -> None:
     """A resolution in kilometers per pixel keeps five figures at either end of its range.
 
-    The column runs from 6e-4 km per pixel a hundred kilometers off Enceladus
-    to 7e4 at the grazing limb of a wide-angle frame, eight orders of magnitude
+    The column runs from 6e-4 km per pixel a hundred kilometers off a small moon
+    to 7e4 at the grazing limb of a wide-field frame, eight orders of magnitude
     that no fixed decimal count fits: eight decimals would print the large end
     to twelve digits of noise, and a width fit to the large end would print the
     small end as zero.  Five significant figures write both, with trailing

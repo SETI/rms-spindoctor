@@ -91,18 +91,18 @@ decide the formats.  The backplane arrays are float32, allocated so by both
 per-source stages and cast to it by the writer, so no statistic carries more
 than seven significant digits and a format printing more than that prints
 noise.  Within that ceiling the geometry sets what is usable.  An angle in
-degrees gets three decimals, since one pixel is 0.0003 degrees on the sky for
-the narrow-angle camera and 0.003 for the wide-angle one; it writes ``1.235``
-and ``-89.999``.  A ring radius in kilometers gets one, since the radii run
-from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km; it writes
-``74658.0`` and ``136780.0``.  A resolution in degrees per pixel gets eight
-decimals and writes ``0.00015470`` and ``0.80386227``.  The largest such value
-on the real frames tried was 0.80, on an edge-on wide-angle ring frame, and at
-that end the eighth decimal sits at the edge of what a float32 plane carries,
-whose spacing there is 6e-8.  A resolution in kilometers per pixel runs from
-6e-4 a hundred kilometers off Enceladus to 7e4 at the grazing limb of a
-wide-angle frame, eight orders of magnitude that no fixed decimal count fits,
-so it gets five significant figures, written positionally: ``0.00060000``,
+degrees gets three decimals, since one pixel spans about 0.0003 degrees on the
+sky for a narrow-field camera and 0.003 for a wide-field one; it writes
+``1.235`` and ``-89.999``.  A ring radius in kilometers gets one, since the
+radii run from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km; it
+writes ``74658.0`` and ``136780.0``.  A resolution in degrees per pixel gets
+eight decimals and writes ``0.00015470`` and ``0.80386227``.  The largest such
+value on the real frames tried was 0.80, on an edge-on wide-field ring frame,
+and at that end the eighth decimal sits at the edge of what a float32 plane
+carries, whose spacing there is 6e-8.  A resolution in kilometers per pixel runs
+from 6e-4 a hundred kilometers off a small moon to 7e4 at the grazing limb of a
+wide-field frame, eight orders of magnitude that no fixed decimal count fits, so
+it gets five significant figures, written positionally: ``0.00060000``,
 ``6.1343``, ``4200.0`` and ``70853``.
 
 Every format writes a plain decimal number, never one with an exponent or a
