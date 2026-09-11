@@ -114,10 +114,16 @@ review comment.
 
 **Out of scope, deliberately:**
 
-- **The other three instruments.** Voyager and Galileo have partial `pds4_*`
-  hooks and New Horizons has none; `DataSetPDS4` raises throughout. Their
-  template trees and hooks are the second half of #53 and are mechanical
-  once a validated reference tree exists. This plan produces that reference.
+- **The other three instruments.** Voyager, Galileo and New Horizons each
+  implement `pds4_bundle_template_dir` and `pds4_bundle_name`, over template
+  directories that do not ship, and raise `NotImplementedError` from every
+  other `pds4_*` hook, `pds4_required_templates` among them, so both passes
+  stop on them before looking for a template; `DataSetPDS4` raises
+  throughout. Their template trees and hooks are the second half of #53 and
+  are mechanical once a validated reference tree exists. This plan produces
+  that reference. The Cassini cruise dataset has every hook but names
+  `cassini_iss_cruise_1.0`, which does not ship either, so both passes refuse
+  it at the missing-template check: as shipped, only `coiss_saturn` bundles.
 - **PDS4 input** (#34). Unrelated to output bundles despite the shared
   acronym; no such archive exists to read.
 - **The backplane set and HDU content decisions** (#55, #57, #54, #77).

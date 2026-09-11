@@ -221,9 +221,21 @@ The full extension-point set:
 Reference implementation:
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS`
 overrides every PDS4 hook above and serves as the canonical worked example.
-Voyager ISS (:class:`~spindoctor.dataset.dataset_pds3_voyager_iss.DataSetPDS3VoyagerISS`)
-mirrors the same shape for an instrument with different image-naming
-conventions.
+Of its two registered subclasses only the Saturn one bundles as the package
+ships: the cruise one names ``cassini_iss_cruise_1.0``, which does not ship, so
+both passes refuse it at the missing-template check.  Galileo SSI
+(:class:`~spindoctor.dataset.dataset_pds3_galileo_ssi.DataSetPDS3GalileoSSI`),
+New Horizons LORRI
+(:class:`~spindoctor.dataset.dataset_pds3_newhorizons_lorri.DataSetPDS3NewHorizonsLORRI`)
+and Voyager ISS
+(:class:`~spindoctor.dataset.dataset_pds3_voyager_iss.DataSetPDS3VoyagerISS`)
+implement only
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_template_dir` and
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_name`, over template
+directories that do not ship.  Every other hook raises
+:exc:`NotImplementedError`,
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` among
+them, so both passes stop on these datasets before they look for a template.
 
 The ``pds4`` config block
 -------------------------

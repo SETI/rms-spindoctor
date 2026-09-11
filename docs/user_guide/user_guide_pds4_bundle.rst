@@ -426,11 +426,25 @@ new one has to provide.
 Supported Datasets
 ==================
 
-The Cassini ISS datasets ``coiss_cruise`` and ``coiss_saturn`` can be bundled.
-A run naming any other dataset fails before it processes an image, because both
-passes ask the dataset for its template directory and bundle name first and an
-unsupported dataset supplies neither; nothing is written. Adding a dataset is a
-code change, described in :doc:`/dev_guide/dev_guide_pds4`.
+As the package ships, one dataset can be bundled: ``coiss_saturn`` (also
+registered as ``coiss_saturn_pds3``), whose template directory,
+``cassini_iss_saturn_1.0``, is the only one included. Both passes refuse every
+other dataset before they process an image, and write nothing into the bundle:
+
+* ``coiss_cruise`` (and ``coiss_cruise_pds3``) has the same PDS4 support as
+  ``coiss_saturn``, but its template directory, ``cassini_iss_cruise_1.0``, does
+  not ship, so each pass exits 1 naming every template it needs and cannot
+  find. To bundle it, point ``pds4.coiss_cruise.template_dir`` at a template
+  directory of your own, as described under `Configuration`_.
+* ``gossi``, ``nhlorri`` and ``vgiss`` (and their ``_pds3`` names) name a
+  template directory, which does not ship either, and a bundle name, but do not
+  say which templates a pass needs, nor provide the rest of what a label is
+  built from. Each pass stops on them with a traceback ending in
+  :exc:`NotImplementedError` before it looks for a template.
+* ``coiss`` (and ``coiss_pds3``) and ``sim`` have no PDS4 support at all, and
+  each pass stops on them the same way when it asks for the template directory.
+
+Adding a dataset is a code change, described in :doc:`/dev_guide/dev_guide_pds4`.
 
 Workflow
 ========
