@@ -1372,9 +1372,13 @@ variables name columns the COISS index has no such column for
 two-element `FILTER_NAME`, `GROUND_SOFTWARE_VERSION_ID` against
 `SOFTWARE_VERSION_ID`, `START_TIME_DOY` and `STOP_TIME_DOY` against
 `START_TIME` and `STOP_TIME`, and the `EXPECTED_MAXIMUM` / `VALID_MAXIMUM` /
-`INST_CMPRS_RATE` pairs against one array column each). The cohort keys its
-rows by the index's own names, so both halves are visible there rather than
-papered over.
+`INST_CMPRS_RATE` pairs against one array column each). One more reads a
+column the index has, but the wrong one: `cassini:image_mid_time` is filled
+from `IMAGE_TIME`, the shutter-close time, where the index carries an
+`IMAGE_MID_TIME`; for the cohort's limb image that is `04:25:36.045` against
+an `IMAGE_MID_TIME` of `04:25:35.815`. The cohort keys its rows by the
+index's own names, so both halves are visible there rather than papered
+over.
 
 Tests: an image with two bodies emits two `Target_Identification` blocks; an
 image with rings emits the ring geometry block and one without emits none.
