@@ -677,12 +677,17 @@ def test_the_cohort_image_that_did_not_navigate_is_skipped(
 
 
 def _bundle_products(image_name: str) -> set[str]:
-    """Return every bundle file one navigated Cassini image calls for.
+    """Return every bundle file the labels pass writes for one navigated image.
 
     The sharded directories and the product stem are spelled out here rather
     than asked of the dataset, since what they are is what this test is for: a
     bundle is read by walking those directories, and an image that lands in the
     wrong one is found by whoever cannot find it.
+
+    This is what the pass writes, not everything the bundle finally holds: the
+    data label names a ``_backplanes.fits`` beside it that nothing copies yet,
+    which ``test_backplane_fits_copied_into_bundle_data_tree`` pins as expected
+    to fail.  A set that included the FITS would fail here rather than there.
 
     Parameters:
         image_name: The calibrated image's name, camera letter and all.
