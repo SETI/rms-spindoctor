@@ -29,6 +29,7 @@ from spindoctor.annotation import Annotations
 from spindoctor.config import MAIN_LOGGER, Config, logged_section
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
+from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.reliability import FeatureReliabilityGate, GatedFeatureRecord
 from spindoctor.nav_model import NavModel
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig, ensemble
@@ -71,6 +72,7 @@ from spindoctor.support.exceptions import (
 )
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec, apply_filter
 from spindoctor.support.image_quality import cosmic_ray_mask, saturation_mask
+from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.nav_base import NavBase
 from spindoctor.support.noise_estimate import estimate_image_noise_sigma
 from spindoctor.support.status_reason import NavStatusReason
@@ -420,6 +422,7 @@ class NavOrchestrator(NavBase):
             )
         try:
             result = self._navigate_pipeline(
+                obs=obs,
                 context=context,
                 image_classifier=image_classifier,
                 provenance=provenance,
@@ -545,6 +548,7 @@ class NavOrchestrator(NavBase):
     def _navigate_pipeline(
         self,
         *,
+        obs: ObsSnapshotInst,
         context: NavContext,
         image_classifier: NavImageClassifierResult,
         provenance: Provenance,
@@ -557,6 +561,9 @@ class NavOrchestrator(NavBase):
         :meth:`navigate`, which converts it into a failed ``NavResult``.
 
         Parameters:
+            obs: The observation snapshot under navigation.  Taken here
+                rather than through ``context.obs``, which is typed as
+                ``object`` to keep the context free of an import cycle.
             context: Per-image NavContext.
             image_classifier: Image-quality classifier verdict.
             provenance: Reproducibility envelope.
@@ -576,6 +583,17 @@ class NavOrchestrator(NavBase):
         feature_inventory = self._build_inventory(kept, gated)
         model_metadata = self._collect_model_metadata(built_models)
         annotations = self._collect_annotations(context, built_models)
+        # The models are the only stage that reads a backplane, and every one
+        # of them has now been built, had its features taken and its
+        # annotations drawn.  What the backplanes cached for them would
+        # otherwise be held, unread, through every technique below -- about
+        # five gigabytes on a Voyager frame, which is most of a worker's
+        # budget, and it is held at exactly the moment the correlators want
+        # their own largest arrays.  Nothing here is stale; it is simply
+        # finished with, and each backplane rebuilds itself if it is read
+        # again.
+        obs.reset_all()
+        release_transient_memory()
         if not all_features:
             return self._fail(
                 status_reason=NavStatusReason.NO_FEATURES_EXTRACTED,
@@ -591,6 +609,7 @@ class NavOrchestrator(NavBase):
                 image_classifier=image_classifier,
                 provenance=provenance,
                 feature_inventory=feature_inventory,
+                features=all_features,
                 model_metadata=model_metadata,
                 annotations=annotations,
             )
@@ -817,6 +836,85 @@ class NavOrchestrator(NavBase):
             )
         return kept, gated
 
+    @staticmethod
+    def _hidden_star(feature: NavFeature) -> bool:
+        """Whether a feature is a star the star model flagged as behind a body or ring.
+
+        Parameters:
+            feature: Any emitted feature.
+
+        Returns:
+            True for a STAR feature carrying ``in_body_silhouette``.
+        """
+        return (
+            feature.feature_type is NavFeatureType.STAR
+            and isinstance(feature.flags, StarFlags)
+            and feature.flags.in_body_silhouette
+        )
+
+    def _reason_for_a_covering_body(
+        self,
+        status_reason: NavStatusReason,
+        model_metadata: dict[str, dict[str, Any]] | None,
+        features: list[NavFeature],
+    ) -> NavStatusReason:
+        """Substitute ``BODY_FILLS_FOV`` when nothing navigable was in view.
+
+        The reason exists so that a statistics report can set aside the images
+        that could not have been navigated, and an image cannot be when no
+        navigable feature is visible: no star, no known ring feature, no body
+        showing a limb or a terminator.  A body that covers the extended frame
+        with neither edge inside it hides every star behind it, and the star
+        model still emits those stars, flagged and at zero reliability, so
+        without this substitution the image would be filed under
+        ``ALL_FEATURES_GATED`` beside frames that had something to fit.
+
+        Anything navigable in front of the body emits a feature of its own --
+        a moon its limb or disc, the near side of the rings its edges -- so the
+        substitution applies only when every feature emitted is a star the body
+        hides, or none was emitted at all.  A reason reached after a technique
+        ran is left alone for the same reason: something was there to run on.
+
+        Parameters:
+            status_reason: The reason the failure would otherwise carry.
+            model_metadata: Per-model metadata, read for a body model that
+                declined its body as covering the frame.
+            features: Every feature the models emitted, gated or not.
+
+        Returns:
+            ``BODY_FILLS_FOV`` where it applies, and the reason unchanged
+            otherwise.
+        """
+        if status_reason not in (
+            NavStatusReason.NO_FEATURES_EXTRACTED,
+            NavStatusReason.ALL_FEATURES_GATED,
+        ):
+            return status_reason
+        covering = sorted(
+            name
+            for name, meta in (model_metadata or {}).items()
+            if isinstance(meta, dict) and meta.get('fills_extfov') and not meta.get('edge_in_frame')
+        )
+        if not covering:
+            return status_reason
+        in_view = sum(1 for feature in features if not self._hidden_star(feature))
+        if in_view:
+            self._logger.info(
+                'Keeping %s although %s covers the extended frame: %d feature(s) in '
+                'front of it were in view',
+                status_reason.value,
+                ', '.join(covering),
+                in_view,
+            )
+            return status_reason
+        self._logger.info(
+            'Reporting body_fills_fov rather than %s: %s covers the extended frame and '
+            'nothing navigable was in view',
+            status_reason.value,
+            ', '.join(covering),
+        )
+        return NavStatusReason.BODY_FILLS_FOV
+
     def _fail(
         self,
         *,
@@ -827,13 +925,22 @@ class NavOrchestrator(NavBase):
         model_metadata: dict[str, dict[str, Any]] | None = None,
         annotations: Annotations | None = None,
         internal_error: NavInternalErrorRecord | None = None,
+        features: list[NavFeature] | None = None,
     ) -> NavResult:
         """Emit the operator-readable INFO lines and return a failed NavResult.
 
         Wraps ``NavResult.failed`` so every short-circuit and gate emits
         the per-status-reason INFO log lines defined in
         :data:`STATUS_REASON_INFO_TEMPLATE`.
+
+        The feature-stage gates pass ``features``, everything the models
+        emitted, so that an image a body covers with nothing navigable in view
+        is filed under ``BODY_FILLS_FOV`` rather than under the gate it fell
+        through; see ``_reason_for_a_covering_body``.
         """
+        status_reason = self._reason_for_a_covering_body(
+            status_reason, model_metadata, features or []
+        )
         self._log_status_reason(status_reason)
         return NavResult.failed(
             status_reason=status_reason,

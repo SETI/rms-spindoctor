@@ -31,14 +31,15 @@ depends on which other pixels shared the call. That goal bounds the light time t
 3e-07 s, about 90 m of travel, and that is the bound on a striped answer: not the
 last bit, but far tighter than anything a navigation can see.
 
-Measured against whole-frame calls on a Cassini frame:
+Measured against whole-box calls on Cassini frames, the ring quantities on a Saturn
+frame and the body quantities on Dione and Rhea:
 
 .. list-table::
    :header-rows: 1
    :widths: 45 55
 
    * - Backplane
-     - Striped against whole-frame
+     - Striped against whole-box
    * - ``where_in_front``
      - bit-identical
    * - ``where_inside_shadow``
@@ -47,24 +48,35 @@ Measured against whole-frame calls on a Cassini frame:
      - agrees to 2.5e-13 of its value
    * - ``ring_radius``
      - agrees to 5.6e-12 of its value
+   * - ``incidence_angle`` of a body
+     - agrees to 1e-6 of its value; the silhouette, limb and terminator masks and
+       the polyline vertices are bit-identical
+   * - ``lambert_law`` of a body
+     - agrees to 4e-7 of its value
+   * - ``resolution`` of a body
+     - agrees to 2e-9 of its value
 
 The boolean backplanes are comparisons, so they are bit-identical only while no
 pixel sits nearer its threshold than the difference above; a frame that has one
 flips that pixel. Anything that lowers the precision goal -- a reprojection does,
-for the whole process -- widens all of this in proportion. The ring radius is the
-loosest of the four and is the one the haze model's strips read, where it is
-thresholded against the ring annulus.
+for the whole process -- widens all of this in proportion. The body's incidence
+angle is the loosest: a grazing limb ray's intercept slides far along the surface
+for a small move along the ray, so the angle at the limb moves with the solver
+where a ring radius barely does. The ring radius is the one the haze model's
+strips read, where it is thresholded against the ring annulus.
 
 The tests check the assembly against the whole-frame array through a backplane
 stand-in that answers each strip from the same dense arrays, on a frame taller
 than one strip. They test the stacking, not the solver: the agreement above is
 measured rather than asserted.
 
-Two places stripe:
-``NavModelRings._striped_backplanes`` for the ring quantities and
+Three places stripe:
+``NavModelRings._striped_backplanes`` for the ring quantities,
+``nav_model_body._striped_body_quantities`` for a body's oversampled box, and
 ``titan_geometry._striped_occlusion`` for both occlusion masks over one set of
 strips. Each caps a strip at
-:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS` and
+:data:`~spindoctor.nav_model.nav_model_rings.BACKPLANE_STRIP_ROWS`,
+:data:`~spindoctor.nav_model.nav_model_body.BODY_STRIP_ROWS` and
 :data:`~spindoctor.nav_model.titan_geometry.OCCLUDER_STRIP_ROWS` rows
 respectively, the same number for the same reason, and each strip's single
 backplane answers every quantity asked of it, so the surface intercept is solved
@@ -145,19 +157,22 @@ between strips does not register against it.
 Where it is called
 ------------------
 
-After each strip, in each of the two striped loops, and nowhere else.
+After each strip, in each of the three striped loops; and once more where the
+model stage ends, immediately after the backplane caches it filled have been
+dropped.
 
-Coarser placements were measured and rejected. Releasing at the boundary between
-whole models, and again between techniques, changed a Voyager Saturn frame's peak
-from 8.70 GB to 8.74 GB and another from 8.60 GB to 8.78 GB: no gain, inside the
-run-to-run spread. A release reclaims only what nothing refers to any more, and at
-a stage boundary the strips inside that stage have already given back what they
-can while the observation's backplane caches still hold what they hold. Neither
-part is something a release can move; see `What a release cannot reach`_.
+A release reclaims only what has stopped being referenced, so where it is called
+is a claim about what has just stopped being needed. Inside a striped loop that is
+the strip. At the end of the model stage it is the backplanes -- and only because
+they are dropped in the same breath. Releasing at that boundary without dropping
+them was measured at 0.04 GB, and releasing between whole models and again between
+techniques changed a Voyager Saturn frame's peak from 8.70 GB to 8.74 GB and
+another from 8.60 GB to 8.78 GB: no gain, inside the run-to-run spread. That is
+what a release finds when everything around it is still held.
 
 This is also deliberately not wired into a general allocation path. A collection is
 cheap against a backplane evaluation and expensive against a small one, so it
-belongs only where a large unit of work has just ended, which is what a strip is.
+belongs only where a large unit of work has just ended.
 
 What a release cannot reach
 ===========================
@@ -196,11 +211,11 @@ Settled resident size falls from 6.80 GB to 1.77 GB. The observation events alon
 are 1.88 GB, and ``oops`` builds them when a ``Backplane`` is constructed whether
 or not a derivative is ever asked for.
 
-So the two placements of
-:func:`~spindoctor.support.memory.release_transient_memory` that measured nothing
--- one after the whole-frame ring evaluations, one at each model and technique
-boundary -- were not freeing memory that was already free. They were asking a
-release to reclaim memory the observation still refers to, which no release does.
+So the placements of :func:`~spindoctor.support.memory.release_transient_memory`
+that measured nothing -- after the whole-frame ring evaluations, and at each model
+and technique boundary -- were not freeing memory that was already free. They were
+asking a release to reclaim memory the observation still refers to, which no
+release does.
 
 Pinning the C library's mmap threshold, so that large arrays are served by mappings
 that are returned on free rather than from the heap, recovers about a third of a
@@ -209,10 +224,14 @@ configured anywhere; it is recorded here so the next reader does not have to
 rediscover the result.
 
 The direction that does reach it is dropping the caches once nothing will read them
-again. The models are the only stage that reads a backplane, so the caches are dead
-weight from the end of the model stage onward, and every backplane is a property
-that rebuilds itself if anything below ever does read one. Nothing in this pipeline
-drops them, which is where the four gigabytes come from.
+again, and that is what the pipeline now does. The models are the only stage that
+reads a backplane -- no technique, and nothing in the orchestrator below them,
+touches one -- so the caches are dead weight from the end of the model stage
+onward. :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.reset_all` drops all of
+them where that stage ends, after the features have been extracted and the
+annotations drawn, and the techniques then run against an observation holding
+nothing. Every backplane is a property that rebuilds itself, so the only price is
+recomputing whatever is read next, and nothing reads one.
 
 .. warning::
 
@@ -225,32 +244,77 @@ drops them, which is where the four gigabytes come from.
 Correlation
 ===========
 
-The remaining peak on a wide-margin frame is not in a model at all. It is the
-masked normalized cross-correlation in
-:class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav`, which
-transforms the extended frame, zero-padded for linear rather than circular
-correlation. On a Voyager frame that peak stands several gigabytes above what the
-backplane caches are already holding, and is returned in full when the technique
-exits, which is why releasing between techniques does nothing for it: it is one
-allocation spike, not an accumulation.
+Once the models have given their memory back, the largest thing left in the process
+is the masked normalized cross-correlation in
+:class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav`. It
+correlates the extended frame against a template of the same size, zero-padded for
+linear rather than circular correlation, so the surfaces it works on are twice the
+extended frame on each axis: 3600 x 3600 for a Voyager frame, about a tenth of a
+gigabyte each. Six of them have to exist together for the normalization, and
+everything on the way to them is a transform of the same size. It is one allocation
+spike rather than an accumulation, which is why releasing between techniques does
+nothing for it.
 
-``_masked_ncc_bidir`` needs six spectra, but their lifetimes barely overlap: the
+Three things keep it down, none of which changes what is computed.
+
+The transforms are of real fields, so half of a full spectrum is the conjugate of
+the other half. ``_correlate_from_spectra`` works in half spectra throughout, which
+halves every transform and is also about twice as fast.
+
+A correlation surface is real by construction, and numpy's real part of a complex
+array is a strided *view* -- so a surface taken that way keeps a complex array of
+twice its size alive for as long as the surface is needed, six times over. A
+half-spectrum inverse returns the contiguous real array directly.
+
+Each spectrum is built where it is first needed and dropped at its last use: the
 mask spectrum is finished after the second shift-wise sum, the image spectrum after
-the third, the model-mask spectrum after the fourth. Each is therefore built where
-it is first needed and dropped at its last use, so three exist at once rather than
-six. The real part of each inverse transform is copied out into its own array,
-because numpy's real part is a view, and a view would keep the complex output alive
-behind each of the six shift-wise sums for the rest of the function. The live set
-is therefore at most three spectra plus the one inverse transform in flight, plus
-the product and conjugate temporaries of the statement being evaluated. Every
-product is the one it always was -- only the order of allocation changed -- and
-tests check the result against a transform-free evaluation of the same sums.
+the third, the model-mask spectrum after the fourth, so three exist at once rather
+than six. The normalization that follows writes into surfaces that have just
+stopped being needed rather than allocating one per step, because a step allocates
+as much as a whole surface and there are a dozen of them.
+
+Measured on one call at Voyager's padded size, against random ring-like fields:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 46 27 27
+
+   * - Correlation surfaces built with
+     - Resident growth
+     - Wall time
+   * - full spectra, real parts as views
+     - 2.16 GB
+     - 18.5 s
+   * - full spectra, real parts copied out
+     - 1.75 GB
+     - 17.9 s
+   * - half spectra
+     - 1.07 GB
+     - 8.6 s
+
+The middle row is bit-identical to the first. The half-spectrum row agrees with it
+to 9e-16 on the correlation surface, marks exactly the same shifts invalid, and
+puts the peak in the same place; the discarded imaginary part was rounding noise.
+Tests check the result against a transform-free evaluation of the same sums, and
+count the transforms at each step rather than trusting the paragraphs above them.
 
 Declining early
 ===============
 
-The cheapest backplane is the one never built. The ring model tries a sparse
-pre-check first: a 16 x 16 evaluation rules out the two common cases -- no
-ring-plane intersection anywhere in the frame, and a visible radial range
+The cheapest backplane is the one never built. A body whose disc reaches past all
+four corners of the extended frame leaves no sky around it, and if its terminator
+is outside the frame as well there is nothing in the image a shape-based technique
+could match. :func:`~spindoctor.nav_model.nav_model_body.body_fills_extfov` asks
+the first question of the inventory alone -- a disc against the frame corners,
+costing no backplane -- and
+:func:`~spindoctor.nav_model.nav_model_body.body_edge_in_frame` asks the second of
+four one-pixel-wide backplanes along the frame's boundary, which is where any limb
+or terminator inside the frame has to show. Only then does the model decline before
+building anything. When nothing in front of the body was in view either, the
+navigation records ``body_fills_fov`` as its reason, which is what lets a
+statistics report omit the image as one that could not have been navigated.
+
+The ring model's pre-check is the same idea: a 16 x 16 evaluation rules out the two
+common cases -- no ring-plane intersection anywhere in the frame, and a visible radial range
 entirely outside the catalogue's outermost feature -- without paying for a dense
 backplane.

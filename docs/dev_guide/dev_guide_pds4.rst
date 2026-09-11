@@ -49,8 +49,8 @@ Driver: ``sd_create_bundle``
 ``sd_create_bundle`` (``src/spindoctor/cli/sd_create_bundle.py``) is the per-image
 phase-1 entry point. Like the other CLIs it takes a ``DATASET_NAME``, the
 selection flags from the matching :class:`~spindoctor.dataset.dataset.DataSet`
-subclass, the standard environment options (``--config-file``,
-``--pds3-holdings-root``, ``--bundle-results-root``,
+subclass (``--pds3-holdings-root`` among them, for a PDS3 dataset), the standard
+environment options (``--config-file``, ``--bundle-results-root``,
 ``--nav-results-root``, ``--backplane-results-root``), and walks every
 selected image.
 

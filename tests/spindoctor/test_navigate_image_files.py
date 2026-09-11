@@ -36,6 +36,7 @@ from spindoctor.navigate_image_files import (
     navigate_image_files,
     write_summary_png,
 )
+from spindoctor.support.memory import peak_resident_bytes
 from spindoctor.support.status_reason import NavStatusReason
 from spindoctor.support.summary_png import (
     grayscale_to_rgb_with_quantile_stretch as _grayscale_to_rgb_with_quantile_stretch,
@@ -82,6 +83,16 @@ class _FakeSnapshot:
         # observation.shutter_mode when the host exposes one.
         self.shutter_mode = shutter_mode
         self._public_metadata_error = public_metadata_error
+
+    def reset_all(self) -> None:
+        """Drop cached geometry, as a real snapshot does.
+
+        The orchestrator calls this once every model is built, to give back
+        what the backplanes were holding.  This stand-in caches nothing, so
+        it has nothing to drop -- but it still has to answer, because a
+        stand-in that cannot is an incomplete stand-in rather than evidence
+        that production should not have asked.
+        """
 
     def get_public_metadata(self) -> dict[str, Any]:
         """Return the caption fields the summary PNG reads.
@@ -837,10 +848,34 @@ def test_build_timing_section_formats_utc() -> None:
     """The timing section carries UTC ISO8601 strings and float seconds."""
     start = datetime(2026, 7, 11, 12, 0, 0, tzinfo=UTC)
     end = datetime(2026, 7, 11, 12, 0, 2, 500000, tzinfo=UTC)
-    timing = build_timing_section(start, end)
+    timing = build_timing_section(start, end, peak_measured=True)
     assert timing['start_iso8601'] == '2026-07-11T12:00:00Z'
     assert timing['end_iso8601'] == '2026-07-11T12:00:02.500000Z'
     assert timing['elapsed_s'] == 2.5
+
+
+def test_build_timing_section_withholds_a_peak_it_could_not_measure() -> None:
+    """A mark that could not be reset is about the process, not this image.
+
+    The kernel can publish the high-water mark and refuse to reset it, and the
+    number it then publishes is the whole process's lifetime peak.  Recording
+    that as one image's is worse than recording nothing, because nothing about
+    the value says which it is.
+    """
+    start = datetime(2026, 7, 11, 12, 0, 0, tzinfo=UTC)
+    end = datetime(2026, 7, 11, 12, 0, 2, tzinfo=UTC)
+    assert build_timing_section(start, end, peak_measured=False)['peak_memory_bytes'] is None
+
+
+def test_build_timing_section_reports_a_peak_it_did_measure() -> None:
+    """The complement, on a platform that publishes one at all."""
+    start = datetime(2026, 7, 11, 12, 0, 0, tzinfo=UTC)
+    end = datetime(2026, 7, 11, 12, 0, 2, tzinfo=UTC)
+    measured = build_timing_section(start, end, peak_measured=True)['peak_memory_bytes']
+    if peak_resident_bytes() is None:
+        pytest.skip('this kernel publishes no peak resident size')
+    assert isinstance(measured, int)
+    assert measured > 0
 
 
 # ---------------------------------------------------------------------------

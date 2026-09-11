@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any, cast
 
 import numpy as np
@@ -27,7 +28,12 @@ import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.flags import LimbArcFlags, TerminatorArcFlags
 from spindoctor.feature.geometry import LimbPolyline
-from spindoctor.nav_model.nav_model_body import NavModelBody, occluder_mask_for_body
+from spindoctor.nav_model.nav_model_body import (
+    BODY_STRIP_ROWS,
+    NavModelBody,
+    _strip_bounds,
+    occluder_mask_for_body,
+)
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _TARGET = 'TARGET'
@@ -169,6 +175,7 @@ def _make_obs(
         'v_max_unclipped': int(np.ceil(center_v + r)),
         'u_pixel_size': 2.0 * r,
         'v_pixel_size': 2.0 * r,
+        'center_uv': np.array([center_u, center_v], dtype=np.float64),
         'range': target_range_km,
     }
     geometry_body = BodyBackplaneData(
@@ -438,3 +445,120 @@ def test_occluder_helper_fails_on_a_backplane_failure(capsys: pytest.CaptureFixt
     assert 'cannot resolve occlusion' in str(exc_info.value)
     logged = capsys.readouterr().out
     assert 'Body TARGET: occlusion by OCCLUDER could not be evaluated' in logged
+
+
+# ---------------------------------------------------------------------------
+# Strip bounds
+# ---------------------------------------------------------------------------
+
+
+def test_a_strip_is_the_largest_multiple_of_the_factor_within_the_bound() -> None:
+    """A factor that does not divide the bound gets strips just under it.
+
+    ``filter_downsample`` refuses a row count its factor does not divide, and
+    the occlusion path hands it a strip directly, so a strip is a whole number
+    of output rows and no taller than the bound.
+    """
+    bounds = list(_strip_bounds(300, 3))
+    assert bounds[0] == (0, 126)
+    assert all(stop - start <= BODY_STRIP_ROWS for start, stop in bounds)
+
+
+def test_the_strips_tile_the_box_exactly_once() -> None:
+    """No gap and no overlap, and the last strip is whatever remains.
+
+    Three hundred rows at a factor of three cut into two full strips of 126
+    and a shorter last one, so there are strip pairs to check the seams of.
+    """
+    rows = 300
+    bounds = list(_strip_bounds(rows, 3))
+    assert len(bounds) == 3
+    assert bounds[0][0] == 0
+    assert bounds[-1][1] == rows
+    assert all(a[1] == b[0] for a, b in pairwise(bounds))
+
+
+def test_a_box_shorter_than_a_strip_is_one_strip() -> None:
+    """The bound is a ceiling, not a size."""
+    assert list(_strip_bounds(30, 2)) == [(0, 30)]
+
+
+# ---------------------------------------------------------------------------
+# A body that covers the frame
+# ---------------------------------------------------------------------------
+
+
+def _fov_obs(shape: tuple[int, int] = (100, 100), margin: tuple[int, int] = (10, 10)) -> FakeObs:
+    """An observation whose extended frame the tests place a body against.
+
+    Parameters:
+        shape: ``(rows, cols)`` of the detector.
+        margin: ``(v, u)`` extfov margin, which with the shape sets the four
+            corners the frame-fill test asks about.
+
+    Returns:
+        The observation stand-in.
+    """
+    return FakeObs(data=np.zeros(shape), extfov_margin_vu=margin)
+
+
+def _entry(*, centre: tuple[float, float], size: tuple[float, float]) -> dict[str, Any]:
+    """An inventory record placing a disc of the given centre and pixel size.
+
+    Parameters:
+        centre: ``(u, v)`` centre of the disc in field-of-view coordinates.
+        size: ``(u, v)`` full pixel extent of the disc.
+
+    Returns:
+        The record, carrying the centre, the pixel sizes and the unclipped
+        bounding box the caller reads.
+    """
+    return {
+        'center_uv': np.array([centre[0], centre[1]]),
+        'u_pixel_size': size[0],
+        'v_pixel_size': size[1],
+        'u_min_unclipped': centre[0] - size[0] / 2.0,
+        'u_max_unclipped': centre[0] + size[0] / 2.0,
+        'v_min_unclipped': centre[1] - size[1] / 2.0,
+        'v_max_unclipped': centre[1] + size[1] / 2.0,
+        'range': 1.0e5,
+    }
+
+
+def test_a_body_covering_every_corner_fills_the_frame() -> None:
+    """A disc large enough to swallow the extended frame reports that it does."""
+    obs = _fov_obs()
+    entry = _entry(centre=(50.0, 50.0), size=(4000.0, 4000.0))
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is True
+
+
+def test_a_body_leaving_one_corner_uncovered_does_not_fill_the_frame() -> None:
+    """One corner outside the limb is sky, and sky is what navigation needs.
+
+    The disc's bounding box covers the frame here and the disc does not, which
+    is why the test is against the ellipse: the box would call this unnavigable
+    and it is the case that navigates.
+    """
+    obs = _fov_obs()
+    # Chosen so the box clears the frame on every side and the ellipse does
+    # not: the far corner sits at 1.02 of the ellipse's radius.
+    entry = _entry(centre=(50.0, 50.0), size=(400.0, 122.0))
+    assert entry['u_min_unclipped'] <= obs.extfov_u_min
+    assert entry['u_max_unclipped'] >= obs.extfov_u_max
+    assert entry['v_min_unclipped'] <= obs.extfov_v_min
+    assert entry['v_max_unclipped'] >= obs.extfov_v_max
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
+
+
+def test_a_body_off_to_one_side_does_not_fill_the_frame() -> None:
+    """Size alone does not decide it; where the body sits does."""
+    obs = _fov_obs()
+    entry = _entry(centre=(-2000.0, 50.0), size=(4000.0, 4000.0))
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
+
+
+def test_a_body_with_no_measurable_size_does_not_fill_the_frame() -> None:
+    """A disc of no extent covers nothing, and is looked at rather than dismissed."""
+    obs = _fov_obs()
+    entry = _entry(centre=(50.0, 50.0), size=(0.0, 0.0))
+    assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False

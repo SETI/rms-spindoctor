@@ -151,10 +151,19 @@ Top-level keys
    * - ``timing``
      - object
      - all
-     - Run timing: ``start_iso8601`` and ``end_iso8601`` (UTC ISO 8601
-       strings with a ``Z`` suffix, microsecond precision) and ``elapsed_s``
-       (float seconds). For a load-error document the window ends at error
-       time. Built by
+     - Run timing and memory usage: ``start_iso8601`` and ``end_iso8601`` (UTC
+       8601 strings with a ``Z`` suffix, microsecond precision),
+       ``elapsed_s`` (float seconds) and ``peak_memory_bytes`` (integer or
+       null).
+       For a load-error document the window ends at error time. The peak is
+       the largest resident size the navigating process reached while this
+       image was being navigated, which is the figure an out-of-memory kill is
+       decided against. A process handling one image reports that image's whole
+       memory usage; a process handling several reports what it reached while
+       each ran,
+       measured from a floor that includes what earlier images left resident.
+       It is null where the kernel publishes no peak, and where the mark
+       could not be reset ahead of this image. Built by
        :func:`~spindoctor.navigate_image_files.build_timing_section`.
    * - ``offset``
      - array
@@ -426,6 +435,13 @@ accompanies ``failed``.
      - SPICE coverage was missing for the image epoch.
    * - ``instrument_not_configured``
      - No per-instrument configuration block exists for this camera.
+   * - ``body_fills_fov``
+     - A body's disc covers the extended field of view, shows neither a limb
+       nor a terminator inside it, and nothing in front of it emitted a
+       feature; the only features, if any, were stars the body hides. The
+       image could not have been navigated, and a statistics report can omit
+       it from success statistics on that basis. ``no_features_extracted``
+       says the same of an image with nothing in it at all.
    * - ``no_features_extracted``
      - Every feature extractor returned an empty list.
    * - ``all_features_gated``
@@ -1084,7 +1100,8 @@ form. Of 79 SPICE kernels, three are shown.
       "timing": {
         "start_iso8601": "2026-08-08T16:46:25.933806Z",
         "end_iso8601": "2026-08-08T16:46:33.084108Z",
-        "elapsed_s": 7.150302
+        "elapsed_s": 7.150302,
+        "peak_memory_bytes": 2410176512
       },
       "offset": [-1.1200818816475144, -5.949490270240176],
       "confidence": 0.787797219762289
@@ -1201,7 +1218,8 @@ here.
       "timing": {
         "start_iso8601": "2026-08-08T16:47:23.974357Z",
         "end_iso8601": "2026-08-08T16:47:27.861701Z",
-        "elapsed_s": 3.887344
+        "elapsed_s": 3.887344,
+        "peak_memory_bytes": 1975517184
       },
       "confidence": 0.0
     }
@@ -1232,7 +1250,8 @@ full SPICE message and every frame of the traceback.
       "timing": {
         "start_iso8601": "2026-08-08T16:47:07.470594Z",
         "end_iso8601": "2026-08-08T16:47:11.430781Z",
-        "elapsed_s": 3.960187
+        "elapsed_s": 3.960187,
+        "peak_memory_bytes": 1883242496
       }
     }
 
@@ -1262,7 +1281,8 @@ traceback, shortened here.
       "timing": {
         "start_iso8601": "2026-09-08T15:02:41.118204Z",
         "end_iso8601": "2026-09-08T15:02:47.402317Z",
-        "elapsed_s": 6.284113
+        "elapsed_s": 6.284113,
+        "peak_memory_bytes": 2216689664
       }
     }
 
@@ -1288,6 +1308,7 @@ a two-image batch, since these documents are never stored.
       "timing": {
         "start_iso8601": "2026-08-08T20:26:26.088795Z",
         "end_iso8601": "2026-08-08T20:26:26.088888Z",
-        "elapsed_s": 9.3e-05
+        "elapsed_s": 9.3e-05,
+        "peak_memory_bytes": 271650816
       }
     }

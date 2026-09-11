@@ -43,6 +43,7 @@ The feature-by-feature emission rules:
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -80,6 +81,7 @@ from spindoctor.nav_model.nav_model_body_base import (
 from spindoctor.nav_model.stars.predicted_snr import psf_sigma_px
 from spindoctor.support.constants import HALFPI
 from spindoctor.support.image import filter_downsample, shift_array
+from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.time import now_dt
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -90,17 +92,33 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 
+BODY_STRIP_ROWS: int = 128
+"""Rows of a body's oversampled grid evaluated in one backplane call.
+
+A body larger than the frame has its box clipped to the frame, so its grid is
+the whole extended frame; oops sizes its intermediates by the grid, so that is
+what the stage costs. Striping bounds it by the strip. The same figure, for the
+same reason, as the ring and Titan strips, and the same bound on the answer: a
+strip is refined by the photon solver against its own pixels rather than the
+box's, which on Cassini frames leaves every mask and polyline bit-identical to
+a whole-box evaluation and the incidence angle within 1e-6 of it.
+"""
+
 __all__ = [
     'BODY_BLOB_MIN_DIAMETER_PX',
     'BODY_DISC_MAX_OVERFLOW_FRACTION',
     'BODY_DISC_MIN_VISIBLE_LIT_FRACTION',
     'BODY_POSITION_SLOP_FRAC',
+    'BODY_STRIP_ROWS',
     'LIMB_ARC_MAX_UNCERTAINTY_PX',
+    'LIMB_ARC_MIN_VERTICES',
     'TERMINATOR_MIN_PHASE_FACTOR',
     'TERMINATOR_MIN_VERTICES',
     'TITAN_BODY_NAME',
     'NavModelBody',
     'bodies_in_extfov',
+    'body_edge_in_frame',
+    'body_fills_extfov',
     'limb_reliability',
     'occluder_mask_for_body',
     'shape_features_suppressed',
@@ -246,6 +264,253 @@ def bodies_in_extfov(
             continue
         out.append((body_name, entry))
     return out
+
+
+def _strip_bounds(rows: int, oversample_v: int) -> Iterator[tuple[int, int]]:
+    """Yield ``(start, stop)`` row bounds covering a box, one strip at a time.
+
+    A strip is handed to the caller's downsample, which divides its rows by the
+    oversample factor and refuses a count that does not divide exactly.  The
+    whole box always divides -- it is that many output rows by construction --
+    but a fixed :data:`BODY_STRIP_ROWS` strip only does when the factor divides
+    that constant, so each strip is instead the largest multiple of the factor
+    that fits inside it.  The last strip is whatever remains, which divides for
+    the same reason the box does.
+
+    Parameters:
+        rows: Rows of the oversampled box.
+        oversample_v: Vertical oversample factor; each strip is a whole number
+            of this many rows.
+
+    Yields:
+        ``(start, stop)`` half-open row bounds, in order, covering ``rows``.
+    """
+    step = max(oversample_v, (max(1, BODY_STRIP_ROWS) // oversample_v) * oversample_v)
+    for start in range(0, rows, step):
+        yield start, min(start + step, rows)
+
+
+def _sample_count(lo: float, hi: float, oversample: int) -> int:
+    """Samples of an oversampled grid between two inclusive pixel-centre bounds.
+
+    Parameters:
+        lo: Coordinate of the first sample.
+        hi: Coordinate of the last sample.
+        oversample: Samples per pixel along the axis.
+
+    Returns:
+        The count, which for a box of whole pixels is the pixel count times the
+        factor.
+    """
+    return round((hi - lo) * oversample) + 1
+
+
+@dataclass(frozen=True)
+class _BodyStripArrays:
+    """The per-pixel quantities of a body's oversampled box, assembled from strips.
+
+    Parameters:
+        incidence: Incidence angle in radians, masked off the silhouette.
+        lambert: Lambert reflectance, zero off the silhouette; None when the
+            configuration does not ask for it.
+        resolution: Kilometres per pixel, zero off the silhouette.
+        occluder: Downsampled mask of the pixels a nearer sibling hides; None
+            when no sibling hides any.
+    """
+
+    incidence: Any
+    lambert: NDArrayFloatType | None
+    resolution: NDArrayFloatType
+    occluder: NDArrayBoolType | None
+
+
+def _striped_body_quantities(
+    obs: Observation,
+    body_name: str,
+    *,
+    u_range: tuple[float, float],
+    v_range: tuple[float, float],
+    oversample: tuple[int, int],
+    siblings: list[tuple[str, float]],
+    subject_range_km: float,
+    want_lambert: bool,
+) -> _BodyStripArrays:
+    """Evaluate a body's oversampled box a strip of rows at a time.
+
+    A body larger than the frame has its box clipped to the frame, so its grid
+    is the whole extended frame, and oops materializes its intermediates over
+    the grid it is handed: Saturn overfilling a Cassini frame measured 7.5 GB
+    here, more than every other stage of that navigation put together.  Each
+    strip is at most :data:`BODY_STRIP_ROWS` rows, every quantity is taken from
+    a strip while its backplane is the one in hand, and each is written into
+    its place in a preallocated whole-box array, so a strip's memory is given
+    back before the next strip is built and nothing is copied at the end.
+    Striping one quantity and leaving another to a whole-box backplane would
+    pay for the whole box anyway and the strips on top, which measured worse
+    than not striping.
+
+    Strip boundaries fall on whole rows, so the assembled arrays are the ones a
+    whole-box evaluation gives up to the photon solver's convergence: oops
+    refines every pixel until the largest light-time change anywhere on the
+    meshgrid is under its goal, so a strip is refined against its own pixels
+    rather than the box's.  Measured against a whole-box evaluation on Cassini
+    frames of Dione and Rhea, the silhouette, limb and terminator masks and the
+    polyline vertices come back bit-identical; the incidence agrees to 1e-6 of
+    its value, the Lambert reflectance to 4e-7 and the resolution to 2e-9,
+    looser than the ring quantities because a grazing limb ray's intercept
+    slides far along the surface for a small move along the ray.
+
+    Parameters:
+        obs: Observation snapshot.
+        body_name: SPICE name of the body.
+        u_range: ``(min, max)`` pixel-centre coordinates of the grid's
+            horizontal extent.
+        v_range: ``(min, max)`` of its vertical extent.
+        oversample: ``(u, v)`` oversample factors of the grid.
+        siblings: ``(body_name, range_km)`` for the other bodies in the FOV.
+        subject_range_km: Centre range of the body, against which a sibling
+            counts as nearer.
+        want_lambert: Whether to evaluate the Lambert reflectance at all.
+
+    Returns:
+        The assembled arrays over the whole box.
+    """
+    oversample_u, oversample_v = oversample
+    u_min, u_max = u_range
+    v_min, v_max = v_range
+    rows = _sample_count(v_min, v_max, oversample_v)
+    cols = _sample_count(u_min, u_max, oversample_u)
+    incidence = np.empty((rows, cols), dtype=np.float64)
+    incidence_mask = np.empty((rows, cols), dtype=bool)
+    lambert = np.empty((rows, cols), dtype=np.float64) if want_lambert else None
+    resolution = np.empty((rows, cols), dtype=np.float64)
+    occluder = np.zeros((rows // oversample_v, cols // oversample_u), dtype=bool)
+    any_occluder = False
+    for start, stop in _strip_bounds(rows, oversample_v):
+        strip_bp = Backplane(
+            obs,
+            meshgrid=Meshgrid.for_fov(
+                obs.fov,
+                origin=(u_min, v_min + start / oversample_v),
+                limit=(u_max, v_min + (stop - 1) / oversample_v),
+                oversample=(oversample_u, oversample_v),
+                swap=True,
+            ),
+        )
+        strip_incidence = strip_bp.incidence_angle(body_name).mvals
+        incidence[start:stop] = np.ma.getdata(strip_incidence)
+        incidence_mask[start:stop] = np.ma.getmaskarray(strip_incidence)
+        if lambert is not None:
+            lambert[start:stop] = strip_bp.lambert_law(body_name).mvals.filled(0.0)
+        resolution[start:stop] = strip_bp.resolution(body_name).mvals.filled(0.0)
+        hidden = occluder_mask_for_body(
+            strip_bp,
+            body_name,
+            siblings,
+            subject_range_km,
+            oversample_v=oversample_v,
+            oversample_u=oversample_u,
+        )
+        if hidden is not None:
+            occluder[start // oversample_v : stop // oversample_v] = hidden
+            any_occluder = True
+        del strip_bp, strip_incidence, hidden
+        release_transient_memory()
+    return _BodyStripArrays(
+        incidence=np.ma.MaskedArray(incidence, mask=incidence_mask),
+        lambert=lambert,
+        resolution=resolution,
+        occluder=occluder if any_occluder else None,
+    )
+
+
+def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
+    """Whether a body's disc covers every corner of the extended frame.
+
+    The first half of the covering-body test, asked of the inventory alone so
+    that it costs no backplane. A body whose disc reaches past all four corners
+    leaves no sky around it; whether it also keeps its terminator out of the
+    frame is :func:`body_edge_in_frame`'s question, and only both together
+    decline the model.
+
+    The disc is the one the inventory describes: oops treats every body as a
+    sphere of its outer radius, so for an oblate body the disc overstates the
+    polar extent, and a corner inside it can still see sky past the true limb.
+    That is why a True here is a reason to look along the frame's boundary
+    rather than a reason to decline. The bounding box would be worse still: a
+    corner inside the box can be outside even the sphere. The disc is convex, so
+    covering the four corners is covering the frame.
+
+    Parameters:
+        obs: Observation snapshot, for the extended frame's bounds.
+        inventory: The body's inventory record, as oops builds it: the centre
+            and both pixel sizes are always present and finite.
+
+    Returns:
+        True when every corner of the extended frame lies inside the disc, and
+        False for a disc of no extent, which covers nothing and is looked at
+        rather than dismissed.
+    """
+    centre = inventory['center_uv']
+    u_c = float(centre[0])
+    v_c = float(centre[1])
+    semi_u = float(inventory['u_pixel_size']) / 2.0
+    semi_v = float(inventory['v_pixel_size']) / 2.0
+    if not (semi_u > 0.0 and semi_v > 0.0):
+        return False
+    return all(
+        ((u - u_c) / semi_u) ** 2 + ((v - v_c) / semi_v) ** 2 <= 1.0
+        for u in (obs.extfov_u_min, obs.extfov_u_max)
+        for v in (obs.extfov_v_min, obs.extfov_v_max)
+    )
+
+
+def body_edge_in_frame(obs: Observation, body_name: str) -> bool:
+    """Whether a body's limb or terminator crosses the extended frame.
+
+    Asked of the frame's boundary, sampled at pixel spacing, which settles both
+    questions exactly for a body whose outline is convex. A boundary pixel the
+    body does not intercept is sky, so the limb is inside the frame. A
+    terminator that crosses the frame has to cross its boundary, so the boundary
+    then carries both lit and unlit pixels. Neither means the whole frame is
+    body, all of it on one side of the terminator, with nothing in it for a
+    shape-based technique to fit.
+
+    The four one-pixel-wide backplanes this costs are small enough not to
+    register against the render they can avoid, which on a Voyager frame is the
+    largest one a navigation builds.
+
+    Parameters:
+        obs: Observation snapshot.
+        body_name: SPICE name of the body.
+
+    Returns:
+        True when the boundary shows sky or both sides of the terminator.
+    """
+    u_min, u_max = obs.extfov_u_min + 0.5, obs.extfov_u_max + 0.5
+    v_min, v_max = obs.extfov_v_min + 0.5, obs.extfov_v_max + 0.5
+    edges = (
+        ((u_min, v_min), (u_max, v_min)),
+        ((u_min, v_max), (u_max, v_max)),
+        ((u_min, v_min), (u_min, v_max)),
+        ((u_max, v_min), (u_max, v_max)),
+    )
+    any_lit = False
+    any_dark = False
+    for origin, limit in edges:
+        edge_bp = Backplane(
+            obs,
+            meshgrid=Meshgrid.for_fov(
+                obs.fov, origin=origin, limit=limit, oversample=(1, 1), swap=True
+            ),
+        )
+        incidence = edge_bp.incidence_angle(body_name).mvals
+        if np.ma.getmaskarray(incidence).any():
+            return True
+        lit = np.asarray(np.ma.getdata(incidence), dtype=np.float64) < HALFPI
+        any_lit = any_lit or bool(lit.any())
+        any_dark = any_dark or bool((~lit).any())
+    return any_lit and any_dark
 
 
 def occluder_mask_for_body(
@@ -443,7 +708,17 @@ class NavModelBody(NavModelBodyBase):
         return out
 
     def create_model(self) -> None:
-        """Render the silhouette, masks, and polylines used by ``to_features``."""
+        """Render the silhouette, masks, and polylines used by ``to_features``.
+
+        A body whose disc reaches past all four corners of the extended frame
+        and whose limb and terminator both lie outside it is declined instead:
+        the metadata records ``fills_extfov`` and ``edge_in_frame`` and nothing
+        is rendered, because the backplane over such a body is the largest one
+        a navigation builds and it would be built to draw a silhouette with no
+        edge in it.  ``to_features`` then emits nothing.  A covering body that
+        does show its terminator is rendered like any other, since a terminator
+        is a feature a technique can fit.
+        """
         start_time = now_dt()
         self._metadata.clear()
         self._metadata['start_time'] = start_time.isoformat()
@@ -451,8 +726,32 @@ class NavModelBody(NavModelBodyBase):
         self._metadata['elapsed_time_sec'] = None
         self._metadata['body_name'] = self._body_name
         with self.log_section(f'CREATE BODY MODEL FOR: {self._body_name}'):
-            self._render()
-            self._log_geometry_summary()
+            # Resolved here rather than in _render, which is what used to load
+            # it: gating the decline on a caller having supplied the record
+            # meant a caller who did not skipped the decline and then built the
+            # very backplane it exists to avoid.
+            if self._inventory is None:
+                self._inventory = self.obs.inventory([self._body_name], return_type='full')[
+                    self._body_name
+                ]
+            fills = body_fills_extfov(self.obs, self._inventory)
+            if fills:
+                self._metadata['fills_extfov'] = True
+                self._metadata['edge_in_frame'] = body_edge_in_frame(self.obs, self._body_name)
+            if fills and not self._metadata['edge_in_frame']:
+                # Declined here rather than after rendering: the backplane over
+                # a body that covers the frame is the largest one a navigation
+                # builds, and it would be built to draw a silhouette with no
+                # edge in it.  The geometry summary goes with the render, since
+                # every number in it comes from the render.
+                self._logger.info(
+                    'Body %s covers the extended frame and shows neither limb nor '
+                    'terminator inside it, so no model is built',
+                    self._body_name,
+                )
+            else:
+                self._render()
+                self._log_geometry_summary()
             end_time = now_dt()
             self._metadata['end_time'] = end_time.isoformat()
             self._metadata['elapsed_time_sec'] = (end_time - start_time).total_seconds()
@@ -495,9 +794,8 @@ class NavModelBody(NavModelBodyBase):
         ext_bp = obs.ext_bp
         body_name = self._body_name
         body_config = self._config.bodies
-        if self._inventory is None:
-            self._inventory = obs.inventory([body_name], return_type='full')[body_name]
         inventory = self._inventory
+        assert inventory is not None  # resolved in create_model, ahead of the decline
 
         sub_solar_lon = float(np.degrees(ext_bp.sub_solar_longitude(body_name).vals))
         sub_solar_lat = float(np.degrees(ext_bp.sub_solar_latitude(body_name).vals))
@@ -648,16 +946,18 @@ class NavModelBody(NavModelBodyBase):
         restr_u_max = u_max + 1 - 1.0 / (2 * oversample_u)
         restr_v_min = v_min + 1.0 / (2 * oversample_v)
         restr_v_max = v_max + 1 - 1.0 / (2 * oversample_v)
-        restr_meshgrid = Meshgrid.for_fov(
-            obs.fov,
-            origin=(restr_u_min, restr_v_min),
-            limit=(restr_u_max, restr_v_max),
+        want_lambert = bool(body_config.use_lambert)
+        strips = _striped_body_quantities(
+            obs,
+            body_name,
+            u_range=(restr_u_min, restr_u_max),
+            v_range=(restr_v_min, restr_v_max),
             oversample=(oversample_u, oversample_v),
-            swap=True,
+            siblings=self._siblings,
+            subject_range_km=self._subject_range_km,
+            want_lambert=want_lambert,
         )
-        restr_bp = Backplane(obs, meshgrid=restr_meshgrid)
-
-        oversampled_incidence_mvals = restr_bp.incidence_angle(body_name).mvals
+        oversampled_incidence_mvals = strips.incidence
         downsampled_incidence_mvals = filter_downsample(
             oversampled_incidence_mvals, oversample_v, oversample_u
         )
@@ -704,9 +1004,8 @@ class NavModelBody(NavModelBodyBase):
             local_model: NDArrayFloatType = np.zeros_like(body_mask_valid, dtype=np.float64)
             local_model[body_mask_valid] = 0.01
         else:
-            if body_config.use_lambert:
-                lambert_oversampled = restr_bp.lambert_law(body_name).mvals.filled(0.0)
-                local_model = filter_downsample(lambert_oversampled, oversample_v, oversample_u)
+            if strips.lambert is not None:
+                local_model = filter_downsample(strips.lambert, oversample_v, oversample_u)
                 local_model = local_model + 0.05
                 local_model[body_mask_invalid] = 0.0
             else:
@@ -739,8 +1038,7 @@ class NavModelBody(NavModelBodyBase):
         # try to downsample an already-downsampled array, asserting on
         # the (downsampled-)shape vs oversample divisibility.
         if body_mask_valid.any():
-            km_per_pixel_arr = restr_bp.resolution(body_name).mvals.filled(0.0)
-            km_per_pixel_local = filter_downsample(km_per_pixel_arr, oversample_v, oversample_u)
+            km_per_pixel_local = filter_downsample(strips.resolution, oversample_v, oversample_u)
         else:
             km_per_pixel_local = np.zeros_like(body_mask_valid, dtype=np.float64)
 
@@ -749,14 +1047,7 @@ class NavModelBody(NavModelBodyBase):
         # never chases an arc the image does not show) and, promoted to extfov
         # coordinates, is trimmed out of the disc template (so the correlator
         # does not score against disc brightness that is not there).
-        occluder_local = occluder_mask_for_body(
-            restr_bp,
-            body_name,
-            self._siblings,
-            self._subject_range_km,
-            oversample_v=oversample_v,
-            oversample_u=oversample_u,
-        )
+        occluder_local = strips.occluder
         occluder_ext = obs.make_extfov_false()
         if occluder_local is not None:
             occluder_ext[v_slice, u_slice] = occluder_local & body_mask_valid
@@ -1296,7 +1587,7 @@ def limb_reliability(*, visible_arc_fraction: float, visible_arc_px: float) -> f
     The score answers a feature-existence question: is this limb arc a
     target a downstream technique should bother running on?  Per-vertex
     geometric softness (high incidence at the terminator-adjacent end
-    of the limb) lives in :func:`_sigma_normal_per_vertex`, where the
+    of the limb) lives in ``_sigma_normal_per_vertex``, where the
     LM fit weights individual vertices by their normal sigma; folding
     it into the reliability scalar as well would double-count the same
     physics and, because ``incidence_factor`` saturates near the cap

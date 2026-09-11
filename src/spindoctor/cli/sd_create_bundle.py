@@ -73,12 +73,6 @@ def add_common_arguments(parser: argparse.ArgumentParser, *, for_labels: bool = 
 
     if for_labels:
         environment_group.add_argument(
-            '--pds3-holdings-root',
-            type=str,
-            default=None,
-            help='Root directory of PDS3 holdings; overrides PDS3_HOLDINGS_DIR or config',
-        )
-        environment_group.add_argument(
             '--nav-results-root',
             type=str,
             default=None,

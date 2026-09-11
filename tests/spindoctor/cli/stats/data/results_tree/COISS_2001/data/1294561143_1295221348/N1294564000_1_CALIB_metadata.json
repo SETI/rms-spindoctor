@@ -431,7 +431,8 @@
   "timing": {
     "start_iso8601": "2026-08-08T16:46:48.921574Z",
     "end_iso8601": "2026-08-08T16:47:20.671574Z",
-    "elapsed_s": 31.75
+    "elapsed_s": 31.75,
+    "peak_memory_bytes": 8589934592
   },
   "offset": [
     59.5,

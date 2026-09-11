@@ -122,6 +122,17 @@ Environment failures
 Feature-stage failures
 ======================
 
+``body_fills_fov``
+    A body's disc covers the extended field of view, neither its limb nor its
+    terminator lies inside the frame, and nothing in front of it emitted a
+    feature: the only features, if any, were stars the body hides, emitted at
+    zero reliability. The image could not have been navigated, and a
+    statistics report can omit it from success statistics on that basis. The
+    body model's metadata records ``fills_extfov`` and ``edge_in_frame`` for
+    the body concerned. If the scene plainly shows a limb, a terminator, a
+    moon or the near side of the rings, the feature that should have been
+    emitted is the thing to chase, not this reason.
+
 ``no_features_extracted``
     Every extractor returned an empty list: SPICE predicts nothing usable in
     the field of view. Read ``provenance.extractor_names`` for which models

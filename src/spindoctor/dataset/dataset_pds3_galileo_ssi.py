@@ -237,8 +237,10 @@ class DataSetPDS3GalileoSSI(DataSetPDS3):
         """Initializes a Galileo SSI dataset handler.
 
         Parameters:
-            pds3_holdings_root: Path to PDS3 holdings directory. If None, uses PDS3_HOLDINGS_DIR
-                environment variable. May be a URL accepted by FCPath.
+            pds3_holdings_root: Path to the PDS3 holdings directory, which may be a URL
+                accepted by FCPath. If None, the root is resolved when it is first needed,
+                from the command line, the configuration, or the environment, in that
+                order; see DataSetPDS3.pds3_holdings_root.
             index_filecache: FileCache object to use for index files. If None, creates a new one.
             pds3_holdings_filecache: FileCache object to use for PDS3 holdings files. If None,
                 creates a new one.
