@@ -24,6 +24,7 @@ matching the product labels' DATA_LID (regression coverage for #139 and #256).
 """
 
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -790,24 +791,24 @@ def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> Non
     assert len(rings_rows) == 1
 
 
-def test_unreadable_supplemental_skipped_with_logged_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_an_unreadable_supplemental_file_refuses_the_run_with_no_table_written(
+    tmp_path: Path,
 ) -> None:
-    """A malformed supplemental file is skipped; other images are still indexed.
+    """A supplemental file that is not JSON refuses the run before either table exists.
 
-    The log gives the parser's reason, which the frames of a traceback do not
-    carry.
+    Left out of the index it would still be listed in the collection's inventory, with
+    no epochs for the range.  The refusal names the file and gives the parser's reason,
+    which the frames of a traceback do not carry, and which the driver writes to the
+    log.
     """
     env = _index_env(tmp_path)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', raw_text='not json')
+    broken = write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', raw_text='not json')
     write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
-    _run_global_index(env)
-    rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
-    assert len(rows) == 2
-    assert '2222222222w' in rows[1][0]
-    out = capsys.readouterr().out
-    assert 'Error reading supplemental file' in out
-    assert 'Expecting value: line 1 column 1 (char 0)' in out
+    refusal = f'Supplemental file {FCPath(broken)} could not be read: '
+    with pytest.raises(ValueError, match=re.escape(refusal)) as excinfo:
+        _run_global_index(env)
+    assert 'Expecting value: line 1 column 1 (char 0)' in str(excinfo.value)
+    assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
 
 
 def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:

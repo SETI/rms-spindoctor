@@ -14,8 +14,8 @@ does not before it writes anything for it.  A success document always records th
 since the navigation stamps them with the pointing it solved, so one that does not is a
 broken input rather than an image with an unknown time.  The summary pass reads the
 same documents again, out of the supplemental files the labels pass wrote, and takes
-the collection's range from them under the same rule: a file it cannot read, or one
-whose document the rule refuses, leaves the collection no range it can state.
+the collection's range from them under the same rule: one whose document the rule
+refuses leaves the collection no range it can state.
 """
 
 from dataclasses import dataclass
@@ -158,9 +158,9 @@ class NoEpochRange:
     Attributes:
         reason: Why, as a clause a message can end with: ``there are no products to
             take a range from: the data tree holds no supplemental file``, or one
-            naming the supplemental file that could not be read, or whose navigation
-            document records no epochs a label can state, and saying that no range can
-            be taken that contains every product.
+            naming the supplemental file whose navigation document records no epochs
+            a label can state, and saying that no range can be taken that contains
+            every product.
     """
 
     reason: str
@@ -171,11 +171,10 @@ class EpochRangeScan:
 
     The summary pass reads every supplemental file once, to build the global index,
     and the range is taken in that same read rather than by a second one: each file's
-    navigation document is handed to :meth:`include` as the file is read, and each
-    file that cannot be read to :meth:`exclude`.  The range is the least start and the
-    greatest stop, so the order the files are read in cannot change it.  A single file
-    whose epochs cannot be had leaves no range, since a range taken over the rest
-    could leave that file's product outside it.
+    navigation document is handed to :meth:`include` as the file is read.  The range
+    is the least start and the greatest stop, so the order the files are read in
+    cannot change it.  A single document whose epochs cannot be had leaves no range,
+    since a range taken over the rest could leave that file's product outside it.
     """
 
     def __init__(self) -> None:
@@ -191,40 +190,29 @@ class EpochRangeScan:
             source: What the document was read from, as a message names it:
                 ``supplemental file <path>``.
             navigation_document: The product's navigation document as read.  One
-                :func:`unrecorded_epoch` refuses is excluded, with its description as
-                the reason.
+                :func:`unrecorded_epoch` refuses leaves the scan no range, with its
+                description as the reason; only the first such document is kept for
+                the reason, since one is enough.
         """
         epochs = _epochs(navigation_document)
         if isinstance(epochs, str):
-            self.exclude(source, epochs)
+            if self._refusal is None:
+                self._refusal = f'{source} {epochs}'
             return
         start_et = epochs['start_et']
         stop_et = epochs['stop_et']
         self._start_et = start_et if self._start_et is None else min(self._start_et, start_et)
         self._stop_et = stop_et if self._stop_et is None else max(self._stop_et, stop_et)
 
-    def exclude(self, source: str, why: str) -> None:
-        """Record a product whose epochs could not be had, which leaves no range.
-
-        Only the first such product is kept for the reason; one is enough.
-
-        Parameters:
-            source: What could not be read, as a message names it.
-            why: What became of it, as a clause following ``source``: ``could not be
-                read``, or a description beginning with ``records``.
-        """
-        if self._refusal is None:
-            self._refusal = f'{source} {why}'
-
     def result(self) -> EpochRange | NoEpochRange:
         """Return the range over every product included, or why there is none.
 
         Returns:
-            The range, when at least one product was included and none excluded.
-            Otherwise why there is none: the first product excluded, as in
-            ``supplemental file <path> could not be read, so no range can be taken
-            that contains every product``; or, when nothing was read at all, that
-            there are no products to take a range from.
+            The range, when at least one product was included and none refused.
+            Otherwise why there is none: the first document refused, as in
+            ``supplemental file <path> records no navigation_result block, so no
+            range can be taken that contains every product``; or, when nothing was
+            read at all, that there are no products to take a range from.
         """
         if self._refusal is not None:
             return NoEpochRange(

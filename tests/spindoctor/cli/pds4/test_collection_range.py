@@ -89,36 +89,19 @@ def test_the_range_is_the_earliest_start_and_the_latest_stop_over_every_file(
     assert index.epochs == EpochRange(start_et=100.0, stop_et=900.0)
 
 
-@pytest.mark.parametrize(
-    ('navigation', 'raw_text', 'why'),
-    [
-        ({}, None, 'records no navigation_result block'),
-        (None, 'not json', 'could not be read'),
-    ],
-    ids=['a document recording no epochs', 'a file that cannot be read'],
-)
-def test_one_file_whose_epochs_cannot_be_had_leaves_no_range(
-    tmp_path: Path, navigation: dict[str, Any] | None, raw_text: str | None, why: str
-) -> None:
-    """One such file beside a good one leaves no range, and the reason names the file.
+def test_one_file_whose_epochs_cannot_be_had_leaves_no_range(tmp_path: Path) -> None:
+    """A document recording no epochs beside a good one leaves no range, naming its file.
 
-    A range taken over the others could leave that file's product outside it.
-
-    Parameters:
-        tmp_path: Base temporary directory.
-        navigation: The navigation document the file records, or None.
-        raw_text: What the file holds in place of a document, or None.
-        why: What the reason says of the file.
+    A range taken over the others could leave that file's product outside it.  A file
+    that cannot be read at all never reaches the range: the index refuses the run on it.
     """
     env = make_bundle_env(tmp_path)
     data_dir = env.bundle_dir / 'data'
     write_supplemental(data_dir, 'shard0/1111111111n', navigation=_navigation(100.0, 200.0))
-    broken = write_supplemental(
-        data_dir, 'shard0/2222222222w', navigation=navigation, raw_text=raw_text
-    )
+    broken = write_supplemental(data_dir, 'shard0/2222222222w', navigation={})
     expected = NoEpochRange(
-        f'supplemental file {FCPath(broken)} {why}, so no range can be taken that contains '
-        'every product'
+        f'supplemental file {FCPath(broken)} records no navigation_result block, so no '
+        'range can be taken that contains every product'
     )
     index, _ = _summarize(env)
     assert index.epochs == expected

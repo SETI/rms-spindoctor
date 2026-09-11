@@ -440,10 +440,14 @@ there, in that same read, by an `EpochRangeScan`. The index therefore runs
 before the collection files in `main_summary`, and returns the range in a
 `GlobalIndexOutcome`, which the driver hands to `generate_collection_files`
 and holds for `bundle.lblx`, which Phase 6 renders, without a second
-computation. With no range to state -- no supplemental file, or one that
-cannot be read or whose document the epoch check refuses -- the data
-collection label is counted as not written, with an error saying why, and the
-inventory table is still written. Running first, the index generator refuses a
+computation. With no range to state -- no supplemental file, or one whose
+document the epoch check refuses -- the data collection label is counted as
+not written, with an error saying why, and the inventory table is still
+written. A supplemental file that cannot be read, or does not hold JSON,
+refuses the run before either index table is written, naming the file and
+the reason, the way a statistic no column can hold is refused: left out of
+the index its product would still be in the inventory, with no epochs for the
+range. Running first, the index generator refuses a
 bundle with no data directory itself, as the collection generator does, rather
 than write its tables into a root the labels pass would then refuse.
 

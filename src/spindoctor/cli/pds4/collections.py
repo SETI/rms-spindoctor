@@ -442,10 +442,11 @@ def generate_global_index_files(
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
     :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and returned for the labels
-    that state it.  A supplemental file that cannot be read is logged and left out
-    of both tables; one that cannot be read, or whose navigation document records no
-    epochs a label can state, leaves no range, since a range taken over the rest
-    could leave its product outside.
+    that state it.  A supplemental file whose navigation document records no epochs
+    a label can state leaves no range, since a range taken over the rest could leave
+    its product outside, and is indexed all the same.  One that cannot be read, or
+    does not hold JSON, refuses the run, since left out of the index it would still
+    be listed in the collection's inventory.
 
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
@@ -470,8 +471,7 @@ def generate_global_index_files(
     Returns:
         The number of index labels that could not be rendered, and the range of the
         products' epochs over every supplemental file read, or why there is none:
-        there is no supplemental file, or one could not be read or records no epochs
-        a label can state.
+        there is no supplemental file, or one records no epochs a label can state.
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, which is
@@ -480,14 +480,15 @@ def generate_global_index_files(
         TypeError: If a configured plane declares no unit, or one that is not a
             string.
         ValueError: If a configured plane's statistic is in a unit the index has
-            no column format for, or if a supplemental file holds a statistic no
-            column can: one in a unit other than the one the configuration gives
-            its plane, or in none, or with a minimum or maximum that is not a
-            finite number within the range of a float.  The message names the
-            file and the plane, what the file records there, and what to
-            regenerate.  Every supplemental file is read, and every value in both
-            tables rendered, before either table is opened, so none of these
-            leaves a table half-written.
+            no column format for; if a supplemental file cannot be read or does
+            not hold JSON, the message naming the file and the reason; or if one
+            holds a statistic no column can -- one in a unit other than the one
+            the configuration gives its plane, or in none, or with a minimum or
+            maximum that is not a finite number within the range of a float --
+            the message naming the file and the plane, what the file records
+            there, and what to regenerate.  Every supplemental file is read, and
+            every value in both tables rendered, before either table is opened,
+            so none of these leaves a table half-written.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -550,16 +551,20 @@ def generate_global_index_files(
     epochs = EpochRangeScan()
 
     for suppl_file in supplemental_files:
+        # The labels pass writes every supplemental file, so one that cannot be read
+        # is a broken tree rather than a product to pass over: left out of the index
+        # it would still be listed in the collection's inventory, with no epochs for
+        # the range.  The run is refused here, before either table exists, as it is
+        # for a statistic no column can hold.
         try:
             suppl_text = suppl_file.read_text()
             metadata = json.loads(suppl_text)
-        except Exception as exc:
-            # The logger's exception() writes the frames but not the exception's
-            # own text, which says what is wrong with the file.
-            logger.exception('Error reading supplemental file %s: %s', suppl_file, exc)
-            epochs.exclude(f'supplemental file {suppl_file}', 'could not be read')
-            # TODO Should we continue here?
-            continue
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                f'Supplemental file {suppl_file} could not be read: {exc}. The labels '
+                'pass writes every supplemental file: regenerate the bundle into an '
+                'empty directory'
+            ) from exc
 
         epochs.include(f'supplemental file {suppl_file}', metadata.get('navigation'))
         backplanes = metadata.get('backplanes', {})

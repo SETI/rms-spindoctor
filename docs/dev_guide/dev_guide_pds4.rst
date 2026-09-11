@@ -142,7 +142,10 @@ a unit other than the one the configuration gives its plane, or in none, or a
 minimum or maximum that is not a finite number within the range of a float --
 the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
-file and the plane and saying what the file records there.  The index tables
+file and the plane and saying what the file records there.  It exits 1 the same
+way on a supplemental file it cannot read, or one that does not hold JSON, naming
+the file and the reason: left out of the index, the file's product would still be
+listed in the collection's inventory, with no epochs for the range.  The index tables
 and labels an earlier run wrote, and its collection tables and labels, are
 cleared before the first supplemental file is read, the collection files by the
 index generator since it runs first.  Every supplemental file is read, and every
@@ -417,11 +420,13 @@ summary pass runs the index first and hands the range to
 driver holds it for any other label that states the bundle's range:
 :meth:`~spindoctor.cli.pds4.epochs.EpochRange.template_variables` gives such a
 label its ``EARLIEST_START_DATE_TIME`` and ``LATEST_STOP_DATE_TIME`` without a
-second computation.  A scan that read no supplemental file, or read one it could
-not parse or whose document the epoch check refuses, yields a
+second computation.  A scan that read no supplemental file, or read one whose
+document the epoch check refuses, yields a
 :class:`~spindoctor.cli.pds4.epochs.NoEpochRange` saying why, and the data
 collection label is then counted as not written rather than rendered with empty
-dates.
+dates.  A supplemental file the index generator cannot read or parse never
+reaches the scan: the generator refuses the run on it, naming the file and the
+reason.
 
 Output layout
 =============
