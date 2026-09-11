@@ -725,7 +725,11 @@ def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> Non
 def test_unreadable_supplemental_skipped_with_logged_error(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A malformed supplemental file is skipped; other images are still indexed."""
+    """A malformed supplemental file is skipped; other images are still indexed.
+
+    The log gives the parser's reason, which the frames of a traceback do not
+    carry.
+    """
     env = _index_env(tmp_path)
     write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', raw_text='not json')
     write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
@@ -733,7 +737,9 @@ def test_unreadable_supplemental_skipped_with_logged_error(
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert len(rows) == 2
     assert '2222222222w' in rows[1][0]
-    assert 'Error reading supplemental file' in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert 'Error reading supplemental file' in out
+    assert 'Expecting value: line 1 column 1 (char 0)' in out
 
 
 def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:

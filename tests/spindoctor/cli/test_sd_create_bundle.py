@@ -591,7 +591,8 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
     is a defect in that document rather than an image the bundle has nothing to
     say about, so the generation raises through to the run.  The images on
     either side of it are still processed and the run still closes with a count
-    saying so.
+    saying so.  The log gives the parser's reason, which the frames of a
+    traceback do not carry.
     """
     monkeypatch.setattr(
         sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, batch_count=3, base_dir=tmp_path)
@@ -605,6 +606,7 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
     assert excinfo.value.code == 1
     out = capsys.readouterr().out
     assert 'Failed to generate bundle data files for' in out
+    assert 'Expecting value: line 1 column 1 (char 0)' in out
     expected = (
         'Label generation incomplete: 0 image(s) labeled, 2 skipped, '
         '1 whose labels were not written'
@@ -712,6 +714,23 @@ def test_main_summary_reports_why_the_index_could_not_be_generated(
     assert excinfo.value.code == 1
     out = capsys.readouterr().out
     assert 'Supplemental file X records the tilt statistic in rad' in out
+
+
+def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
+    summary_run: None, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A collection generator that raises ends the run with the reason in the log.
+
+    The bundle here has no data directory, and the generator refuses it naming
+    the directory it looked for.  The frames of a traceback show the statement
+    that raised but not the path it interpolated, so the path is what says the
+    reason reached the log.
+    """
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    missing = tmp_path / BUNDLE_NAME / 'data'
+    assert f'Data directory does not exist: {missing}' in capsys.readouterr().out
 
 
 def test_main_summary_exits_zero_when_every_label_is_written(

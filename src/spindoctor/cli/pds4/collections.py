@@ -368,8 +368,10 @@ def generate_global_index_files(
         try:
             suppl_text = suppl_file.read_text()
             metadata = json.loads(suppl_text)
-        except Exception:
-            logger.exception('Error reading supplemental file %s', suppl_file)
+        except Exception as exc:
+            # The logger's exception() writes the frames but not the exception's
+            # own text, which says what is wrong with the file.
+            logger.exception('Error reading supplemental file %s: %s', suppl_file, exc)
             # TODO Should we continue here?
             continue
 

@@ -364,14 +364,17 @@ def main_labels() -> None:
                 bundle_results_root=bundle_results_root,
                 logger=MAIN_LOGGER,
             )
-        except Exception:
+        except Exception as exc:
             # One image whose inputs cannot be read or whose template cannot be
             # found is one image without a label, not a run without a report:
             # the images after it are still processed and the run still says at
-            # the end how many labels it did not write.
+            # the end how many labels it did not write.  The logger's
+            # exception() writes the frames but not the exception's own text,
+            # which is the reason, so the text is handed to it.
             MAIN_LOGGER.exception(
-                'Failed to generate bundle data files for %s',
+                'Failed to generate bundle data files for %s: %s',
                 imagefiles.image_files[0].image_file_url.as_posix(),
+                exc,
             )
             failed_images += 1
             continue
@@ -445,8 +448,10 @@ def main_summary() -> None:
             dataset=dataset,
             logger=MAIN_LOGGER,
         )
-    except Exception:
-        MAIN_LOGGER.exception('Failed to generate collection files')
+    except Exception as exc:
+        # The logger's exception() writes the frames but not the exception's
+        # own text, which is the reason, so the text is handed to it.
+        MAIN_LOGGER.exception('Failed to generate collection files: %s', exc)
         sys.exit(1)
 
     # Generate global index files
