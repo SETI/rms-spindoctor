@@ -547,7 +547,7 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
     The labels pass holds every document to its configured unit, but a bundle
     tree can hold supplemental files a labels pass wrote before it did, and
     indexing one would put a column in two units.  The error names the file
-    and both units, and no table is written.
+    and both units and says what to regenerate, and no table is written.
     """
     env = _ring_resolution_env(tmp_path)
     write_supplemental(
@@ -559,6 +559,7 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
     assert '1234567890w_supplemental.txt' in message
     assert 'in rad/pixel' in message
     assert 'expects deg/pixel' in message
+    assert 'regenerate the backplanes, then the bundle into an empty directory' in message
     assert not (env.bundle_dir / 'document').exists()
 
 

@@ -528,9 +528,12 @@ operator's decision of 2026-09-10, and the remedy is to regenerate the
 backplanes. The summary pass makes the same comparison, from one module
 both passes share, on each supplemental file it reads, which holds that
 document, and refuses the run before writing either index table when one
-disagrees: a tree whose labels were written by more than one version of the
-labels pass is regenerated into an empty directory. A plane the document
-holds that the configuration does not declare is not compared. Beside that
+disagrees. Such a file was written from a backplane document recorded before
+the statistics carried their unit, or under another configuration -- the
+likeliest case being a whole tree from one labels run that predates the
+unit -- so the remedy is the labels pass's: regenerate the backplanes, then
+the bundle into an empty directory. A plane the document holds that the
+configuration does not declare is not compared. Beside that
 guard, both passes refuse before
 reading anything a configuration that declares a backplane in a unit the
 bundle cannot use -- a spelling the format mapping lacks, or no `units` at

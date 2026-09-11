@@ -320,10 +320,10 @@ def generate_global_index_files(
             no column format for, or if a supplemental file holds a statistic no
             column can: one in a unit other than the one the configuration gives
             its plane, or in none, or with a minimum or maximum that is not a
-            finite number.  The message names the file and the plane, and what
-            the file records there.  Every supplemental file is read, and every
-            value in both tables rendered, before either table is opened, so
-            none of these leaves a table behind.
+            finite number.  The message names the file and the plane, what the
+            file records there, and what to regenerate.  Every supplemental file
+            is read, and every value in both tables rendered, before either
+            table is opened, so none of these leaves a table behind.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -383,9 +383,10 @@ def generate_global_index_files(
         if unindexable is not None:
             raise ValueError(
                 f'Supplemental file {suppl_file} {unindexable.description}; '
-                f'{unindexable.reason}; the labels of this bundle were written by more '
-                'than one version of the labels pass, and the bundle has to be '
-                'regenerated into an empty directory'
+                f'{unindexable.reason}. The file carries a copy of the backplane document a '
+                'labels pass read: regenerate the backplanes, then the bundle into an empty '
+                'directory, where the labels pass fails any image whose document still '
+                'records such a statistic'
             )
         bodies = backplanes.get('bodies', {})
         rings = backplanes.get('rings', {})
