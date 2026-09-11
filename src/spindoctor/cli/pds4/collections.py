@@ -10,6 +10,16 @@ from pdslogger import PdsLogger
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.dataset.dataset import DataSet
 
+INDEX_VALUE_FORMAT = '.8f'
+"""Fixed-point format every min and max in both global index tables is written in.
+
+Eight decimals because an angular column is in degrees rather than the radians
+the plane carries, and a longitudinal resolution is then of order a thousandth
+of a degree per pixel: a narrower format reports it to one significant figure or
+to zero.  The bodies table and the rings table share it so that a value cannot
+mean one thing in one and something else in the other.
+"""
+
 
 def generate_collection_files(
     bundle_results_root: FCPath,
@@ -266,9 +276,9 @@ def generate_global_index_files(
                 min_val = row.get(f'{bp_type}_min', '')
                 max_val = row.get(f'{bp_type}_max', '')
                 if isinstance(min_val, (int, float)):
-                    min_val = f'{min_val:.8f}'
+                    min_val = format(min_val, INDEX_VALUE_FORMAT)
                 if isinstance(max_val, (int, float)):
-                    max_val = f'{max_val:.8f}'
+                    max_val = format(max_val, INDEX_VALUE_FORMAT)
                 row_data.append(min_val)
                 row_data.append(max_val)
             writer.writerow(row_data)
@@ -296,9 +306,9 @@ def generate_global_index_files(
                 min_val = row.get(f'{ring_type}_min', '')
                 max_val = row.get(f'{ring_type}_max', '')
                 if isinstance(min_val, (int, float)):
-                    min_val = f'{min_val:.8f}'
+                    min_val = format(min_val, INDEX_VALUE_FORMAT)
                 if isinstance(max_val, (int, float)):
-                    max_val = f'{max_val:.8f}'
+                    max_val = format(max_val, INDEX_VALUE_FORMAT)
                 row_data.append(min_val)
                 row_data.append(max_val)
             writer.writerow(row_data)
