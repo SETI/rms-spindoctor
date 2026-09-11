@@ -21,7 +21,8 @@ def retrieved_kernel(relative: str, *, what: str, tests: str) -> Path:
 
     Meant for a test module's top level, where ``pytest.skip`` skips the whole module.
     A kernel that is not there skips it (``FileNotFoundError``), and so does a root that
-    cannot be reached (``ConnectionError``).
+    cannot be reached (``ConnectionError``) or a retrieval that times out
+    (``TimeoutError``).
 
     Parameters:
         relative: The kernel's path under ``OOPS_RESOURCES``, as in
@@ -42,7 +43,7 @@ def retrieved_kernel(relative: str, *, what: str, tests: str) -> Path:
     kernel = FCPath(resources.rstrip('/')) / relative
     try:
         return cast(Path, kernel.retrieve())
-    except (FileNotFoundError, ConnectionError) as exc:
+    except (FileNotFoundError, ConnectionError, TimeoutError) as exc:
         pytest.skip(
             f'{what} {kernel.as_posix()} could not be retrieved ({exc}); skipping {tests}',
             allow_module_level=True,
