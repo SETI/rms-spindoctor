@@ -74,7 +74,20 @@ def statistics_units(units: str) -> str:
     Returns:
         The same unit with a radian measure restated in degrees, or the unit
         unchanged when its measure is not radians.
+
+    Raises:
+        TypeError: If ``units`` is not a string.  The value comes from a YAML
+            configuration rather than from a call site a type checker sees, so
+            a key written with no value arrives here as None.
+        ValueError: If ``units`` is empty or blank.  A plane has to declare a
+            measure, and an empty one would be recorded as the statistic's
+            unit rather than refused.
     """
+
+    if not isinstance(units, str):
+        raise TypeError(f'units must be a string; got {type(units).__name__}')
+    if not units.strip():
+        raise ValueError('units must name a measure; got an empty value')
 
     measure, solidus, qualifier = units.partition('/')
     if measure.strip().lower() != RADIANS:
