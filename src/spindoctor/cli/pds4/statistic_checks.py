@@ -190,7 +190,7 @@ def _is_finite_as_float(value: Any) -> bool:
 
 
 def described_value(value: Any) -> str:
-    """Describe a recorded number that is not a finite number a float can hold, for a message.
+    """Describe a recorded number that no float holds as a finite number, for a message.
 
     The description of a minimum or maximum no index column can hold, and of an
     exposure epoch no label can state.

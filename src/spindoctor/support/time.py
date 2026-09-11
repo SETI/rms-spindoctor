@@ -5,7 +5,7 @@ from typing import Literal, cast
 import julian
 
 Pds4Rounding = Literal['nearest', 'down', 'up']
-"""Which way :func:`et_to_pds4_utc` takes an instant between two values of its last digit."""
+"""How :func:`et_to_pds4_utc` takes an instant between two values of its last digit."""
 
 _PDS4_ROUNDINGS: tuple[Pds4Rounding, ...] = ('nearest', 'down', 'up')
 """Every rounding :func:`et_to_pds4_utc` accepts."""

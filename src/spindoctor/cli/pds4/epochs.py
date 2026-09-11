@@ -35,7 +35,7 @@ __all__ = [
 ]
 
 EPOCH_KEYS = ('start_et', 'stop_et', 'midtime_et')
-"""The epochs of an exposure a navigation document records, in the order they are checked."""
+"""The exposure epochs a navigation document records, in the order they are checked."""
 
 RANGE_TIME_DIGITS = 0
 """The decimals of a second a range of products' epochs is written to: none.
