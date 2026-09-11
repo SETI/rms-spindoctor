@@ -379,7 +379,8 @@ ship with the templates, and no pass writes them into a bundle.
 Epochs
 ======
 
-Every time a bundle label states is an exposure epoch the navigation recorded:
+Every exposure time a label states (``start_date_time``, ``stop_date_time``, and
+the collection's range) comes from the epochs the navigation recorded:
 ``start_et``, ``stop_et`` and ``midtime_et`` under ``navigation_result.times``, in
 TDB seconds past J2000.  They are turned into UTC by one rule, in
 :mod:`spindoctor.support.time`: :func:`~spindoctor.support.time.et_to_utc` writes
@@ -423,11 +424,8 @@ index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
 :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` returns it in
 its :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome`.  That is why the
 summary pass runs the index first and hands the range to
-:func:`~spindoctor.cli.pds4.collections.generate_collection_files`, and why the
-driver holds it for any other label that states the bundle's range:
-:meth:`~spindoctor.cli.pds4.epochs.EpochRange.template_variables` gives such a
-label its ``EARLIEST_START_DATE_TIME`` and ``LATEST_STOP_DATE_TIME`` without a
-second computation.  A scan that read no supplemental file yields no range, and the
+:func:`~spindoctor.cli.pds4.collections.generate_collection_files`.  A scan that
+read no supplemental file yields no range, and the
 data collection label is then counted as not written rather than rendered with empty
 dates.
 

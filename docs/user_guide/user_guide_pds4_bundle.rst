@@ -316,10 +316,11 @@ with exit status 2 before it does anything.
 * ``sd_create_bundle summary`` exits 1 without writing anything if a template is
   missing, or if the bundle has no ``data/`` directory: run the labels pass
   first, or check ``--bundle-results-root``. It exits 1 if ``data/`` holds no
-  products, since the data collection label then has no time range to state, or
-  if a collection or index label cannot be written. If a supplemental file holds
-  such a statistic, it exits 1 and leaves none of its tables and labels:
-  regenerate the backplanes, then the bundle, into an empty directory.
+  products (the labels pass labeled no image): check the labels pass's closing
+  count. It exits 1 if a collection or index label cannot be written. If a
+  supplemental file holds such a statistic, it exits 1 and leaves none of its
+  tables and labels: regenerate the backplanes, then the bundle, into an empty
+  directory.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose products could not be
   written as ``status: error``, with ``status_error`` saying why (for example

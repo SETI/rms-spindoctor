@@ -2,10 +2,11 @@
 
 A navigation document records an exposure's epochs under ``navigation_result.times``:
 ``start_et``, ``stop_et`` and ``midtime_et``, in TDB seconds past J2000, beside the
-spacecraft clock readings taken at them.  Every time a bundle label states comes from
-these, written through :func:`~spindoctor.support.time.et_to_pds4_utc`: a data label
-states its own exposure's start and stop, and the data collection label the earliest
-start and the latest stop of the products the collection holds.
+spacecraft clock readings taken at them.  Every exposure time a label states
+(``start_date_time``, ``stop_date_time``, and the collection's range) comes from these,
+written through :func:`~spindoctor.support.time.et_to_pds4_utc`: a data label states its
+own exposure's start and stop, and the data collection label the earliest start and the
+latest stop of the products the collection holds.
 """
 
 from dataclasses import dataclass
