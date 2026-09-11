@@ -50,9 +50,11 @@ from .conftest import (
     write_templates,
 )
 
-BODY_STATS = {'MIMAS': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2, 'units': 'deg'}}}}
+BODY_STATS = {
+    'MOON_A': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2, 'units': 'deg'}}}
+}
 """A body's statistics, in the unit the default configuration's latitude plane takes."""
-RING_STATS = {'backplanes': {'radius': {'min': 74500.0, 'max': 136800.987654, 'units': 'km'}}}
+RING_STATS = {'backplanes': {'radius': {'min': 81000.0, 'max': 125000.987654, 'units': 'km'}}}
 """Ring statistics, in the unit the default configuration's radius plane takes."""
 BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
 """A template naming a variable no caller defines, so the render errors."""
@@ -355,8 +357,8 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     """The bodies index has one row per (image, body) pair."""
     env = _index_env(tmp_path)
     two_bodies: dict[str, Any] = {
-        'MIMAS': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
-        'ENCELADUS': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
+        'MOON_A': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
+        'MOON_B': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
     }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=two_bodies)
     write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
@@ -364,17 +366,15 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert len(rows) == 4
     body_names = [row[1] for row in rows[1:]]
-    assert body_names == ['MIMAS', 'ENCELADUS', 'MIMAS']
+    assert body_names == ['MOON_A', 'MOON_B', 'MOON_A']
 
 
 def test_a_degrees_column_is_written_to_three_decimals(tmp_path: Path) -> None:
     """A statistic in degrees is written to a thousandth of a degree.
 
-    One pixel is three ten-thousandths of a degree on the sky for the
-    narrow-angle camera and ten times that for the wide-angle one, so the third
-    decimal is the last one a pixel resolves.  The plane is declared in radians
-    and the column is in degrees, so the format is found by the unit the
-    statistic is in rather than the one the plane was declared in.
+    The third decimal is about the last one a pixel resolves.  The plane is
+    declared in radians and the column is in degrees, so the format is found by
+    the unit the statistic is in rather than the one the plane was declared in.
     """
     env = _index_env(tmp_path)
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
@@ -387,16 +387,16 @@ def test_a_degrees_column_is_written_to_three_decimals(tmp_path: Path) -> None:
 def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
     """A ring radius in kilometers is written to a tenth of a kilometer.
 
-    The radii run from 7e4 to 5e5 km, where a float32 plane's spacing is
+    At radii of order a hundred thousand kilometers a float32 plane's spacing is
     hundredths of a kilometer, so a second decimal would print noise.
     """
     env = _index_env(tmp_path)
-    radii = {'backplanes': {'radius': {'min': 74500.04, 'max': 136800.96, 'units': 'km'}}}
+    radii = {'backplanes': {'radius': {'min': 81000.04, 'max': 125000.96, 'units': 'km'}}}
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
     _run_global_index(env)
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
-    assert rows[1][2] == '74500.0'
-    assert rows[1][3] == '136801.0'
+    assert rows[1][2] == '81000.0'
+    assert rows[1][3] == '125001.0'
 
 
 def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path: Path) -> None:
@@ -428,9 +428,9 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
 ) -> None:
     """A resolution in kilometers per pixel keeps five figures at either end of its range.
 
-    The column runs from 6e-4 km per pixel a hundred kilometers off a small moon
-    to 7e4 at the grazing limb of a wide-field frame, eight orders of magnitude
-    that no fixed decimal count fits: eight decimals would print the large end
+    A column can run from under a meter per pixel close to a small body to tens
+    of thousands of kilometers at a grazing limb, eight orders of magnitude that
+    no fixed decimal count fits: eight decimals would print the large end
     to twelve digits of noise, and a width fit to the large end would print the
     small end as zero.  Five significant figures write both, with trailing
     zeros kept so that every value shows the same number of them.  They are
@@ -442,13 +442,13 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
     """
     env = _index_env(tmp_path)
     resolutions: dict[str, Any] = {
-        'MIMAS': {
+        'MOON_A': {
             'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0, 'units': 'km/pixel'}}
         },
         'PLANET': {
             'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0, 'units': 'km/pixel'}}
         },
-        'PAN': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
+        'MOON_C': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
     }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
     _run_global_index(env)
@@ -553,7 +553,7 @@ def test_a_supplemental_file_with_a_body_statistic_in_another_unit_is_refused(
     check that read only the rings would index this file.
     """
     env = _index_env(tmp_path)
-    radians = {'MIMAS': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': 'rad'}}}}
+    radians = {'MOON_A': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': 'rad'}}}}
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=radians)
     with pytest.raises(ValueError) as excinfo:
         _run_global_index(env)
@@ -693,8 +693,8 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
     assert rows[0] == ['LID', 'path_to_image_file', 'radius_min', 'radius_max']
     assert len(rows) == 2
     assert rows[1][1] == 'data/shard0/2222222222w_backplanes.lblx'
-    assert rows[1][2] == '74500.0'
-    assert rows[1][3] == '136801.0'
+    assert rows[1][2] == '81000.0'
+    assert rows[1][3] == '125001.0'
 
 
 def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> None:
@@ -738,8 +738,8 @@ def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
         },
     )
     two_bodies: dict[str, Any] = {
-        'MIMAS': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
-        'ENCELADUS': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
+        'MOON_A': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
+        'MOON_B': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
     }
     write_supplemental(
         env.bundle_dir / 'data', 'shard0/1234567890w', bodies=two_bodies, rings=RING_STATS

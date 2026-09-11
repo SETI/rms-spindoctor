@@ -45,6 +45,9 @@ def documents() -> dict[str, dict[str, Any]]:
 def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
     """Return the Cassini ISS Saturn cohort, as the session wrote it.
 
+    Parameters:
+        mini_nav_cohorts: What the session's cohorts are written by.
+
     Returns:
         The written cohort.
     """

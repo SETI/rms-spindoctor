@@ -38,7 +38,7 @@ from .conftest import make_cohort_bundle_env, make_image_file, read_tab, touch_l
 
 
 def _cassini_dataset(tmp_path: Path) -> DataSetPDS3CassiniISSSaturn:
-    """Construct the registered Cassini ISS Saturn dataset on a local, empty holdings root.
+    """Construct the registered Cassini ISS Saturn dataset over an empty holdings root.
 
     Parameters:
         tmp_path: Base temporary directory the holdings root is made under.
@@ -52,6 +52,9 @@ def _cassini_dataset(tmp_path: Path) -> DataSetPDS3CassiniISSSaturn:
 @pytest.fixture
 def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
     """Return the Cassini ISS Saturn cohort, as the session wrote it.
+
+    Parameters:
+        mini_nav_cohorts: What the session's cohorts are written by.
 
     Returns:
         The written cohort.
