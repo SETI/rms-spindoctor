@@ -37,7 +37,6 @@ from spindoctor.config import (
 from spindoctor.config.program_names import SD_CREATE_BUNDLE
 from spindoctor.dataset import dataset_name_to_class, dataset_names
 from spindoctor.dataset.dataset import DataSet, Pds4Pass
-from spindoctor.dataset.dataset_pds3 import DataSetPDS3
 
 PROGRAM_NAME = SD_CREATE_BUNDLE
 """Program identity: names the main log directory and the
@@ -92,10 +91,9 @@ def add_common_arguments(parser: argparse.ArgumentParser, *, for_labels: bool = 
 def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
     """Parse arguments for the labels subcommand.
 
-    The dataset is constructed after the parse rather than before it, so that a
-    holdings root named on the command line is the one it enumerates from.  The
-    selection arguments it declares are its class's, so nothing about the parse
-    needs an instance.
+    The selection arguments are the dataset class's own, declared and read by
+    it, so the parser adds them without an instance and reads none of them
+    itself; the dataset is constructed once the command line is parsed.
 
     Sets the module globals ``DATASET`` and ``DATASET_NAME`` as a side effect,
     because every later stage of the subcommand reads the dataset from there.
@@ -108,11 +106,9 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
 
     Raises:
         SystemExit: With status 1, and a usage line on stdout, when no dataset
-            name was given, when the name is not a known dataset, or when
-            ``--pds3-holdings-root`` was given for a dataset that is not PDS3.
-            These end the program rather than raising to a caller because this
-            is a command line being read, and there is nothing above it to
-            recover.
+            name was given or when the name is not a known dataset.  These end
+            the program rather than raising to a caller because this is a
+            command line being read, and there is nothing above it to recover.
     """
     global DATASET
     global DATASET_NAME
@@ -153,17 +149,7 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
 
     arguments = cmdparser.parse_args(command_list[1:])
 
-    if arguments.pds3_holdings_root is None:
-        DATASET = dataset_class()
-    elif issubclass(dataset_class, DataSetPDS3):
-        DATASET = dataset_class(arguments.pds3_holdings_root)
-    else:
-        # Silently walking the configured archive instead is how a run against
-        # a holdings root of one's own comes back having enumerated something
-        # else entirely.
-        print(f'Dataset "{DATASET_NAME}" reads no PDS3 holdings; --pds3-holdings-root cannot')
-        print('be applied to it')
-        sys.exit(1)
+    DATASET = dataset_class()
 
     return arguments
 

@@ -22,7 +22,8 @@ independent review pass before the branch merges to `main`.
 Written 2026-09-08 from a verified end-to-end run of `main` at `0a5fe670`
 rather than from reading alone: section 2 records what that run produced and
 what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
-`main` at `bc103ffb`.
+`main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
+`7d12a974`, bringing #613.
 
 Phases 1 and 2 have run; Phases 3-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
@@ -48,7 +49,7 @@ this table first and trusts it over any recollection.
 |---|---|---|
 | Landed ahead: rings dictionary to `1F00` | **done** | `ed0b9e15`, section 3.9 |
 | Landed ahead: backplane masked value `-999` | **done** | `04b84a62`, section 3.13 |
-| 1 — Surface label-write failures | **done** | `674cd782` plus the review rulings, on `rf_pds4_phase1`, section 4 |
+| 1 — Surface label-write failures | **done** | `937e6cf4`, the squash on `rf_pds4_draft_bundle`, section 4 |
 | 2 — The synthetic cohort | **done** | `rf_pds4_phase2`, sections 3.12 and 4 |
 | Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
 | 3 — Epochs | not started | |
@@ -824,10 +825,13 @@ package docstring so it can be copied rather than remembered.
 What the `cohort` form feeds is the bundle stage's library entry points
 and the tests over them, without waiting for a navigation run. It does
 not feed `sd_create_bundle` itself, and saying that it did was wrong in
-two ways, each independently sufficient. The first is fixed here:
-`--pds3-holdings-root` was declared by the labels subcommand and read by
-nothing, so a run pointed at a cohort walked the configured archive
-instead, silently. The second is real work and is not done: PDS3
+two ways, each independently sufficient. The first is fixed, and not on
+this branch: `--pds3-holdings-root` belongs to `DataSetPDS3`, which
+declares it among its selection arguments and reads it when it
+enumerates (#613, closing #43), and it reached the integration branch
+by merging `main` in. The labels subcommand declares nothing of its own
+about holdings and reads nothing off the namespace; a dataset that is
+not PDS3 never sees the option. The second is real work and is not done: PDS3
 enumeration reads a volume's index table out of
 `<holdings>/metadata/<set>/<vol>/`, and the cohort writes no index label
 and no index table, so a selection by volume matches nothing. Growing
@@ -928,8 +932,8 @@ requires.
 
 ### Phase 1 — Surface label-write failures
 
-**Done, `674cd782`, with the review rulings that followed it applied on
-`rf_pds4_phase1`.**
+**Done, `937e6cf4` on `rf_pds4_draft_bundle`, the squash of the phase branch
+with the review rulings that followed it applied.**
 
 All six `template.write` call sites go through one helper,
 `spindoctor.cli.pds4.labels.write_label`, which takes the label's `FCPath` in
