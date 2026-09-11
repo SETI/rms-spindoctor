@@ -165,7 +165,8 @@ def describe_backplane_fits(
             otherwise -- an HDU's data run past its end, or its length is not a whole
             number of :data:`FITS_RECORD`-byte records, which a header cut short within
             a record, and dropped by astropy, leaves; its primary HDU holds data; an
-            HDU past the primary is not an image; or an image HDU is not
+            HDU past the primary is not an image, which a tile-compressed image is,
+            being a binary table on disk; or an image HDU is not
             two-dimensional, has a ``BITPIX`` that :data:`FITS_DATA_TYPES` does not
             map, carries ``BSCALE`` or ``BZERO``, or has a name that in lower case is
             not an XML name or is another image HDU's.  The message names the file, and
@@ -181,7 +182,16 @@ def describe_backplane_fits(
         file_size = fits_file.seek(0, io.SEEK_END)
         fits_file.seek(0)
         try:
-            hdul = fits.open(fits_file, do_not_scale_image_data=True, lazy_load_hdus=False)
+            # astropy decompresses a tile-compressed image and hands back an ImageHDU
+            # subclass with the image's header, where the file holds a binary table;
+            # without decompression the HDU is the table it is on disk, and is refused
+            # as an extension that is not an image.
+            hdul = fits.open(
+                fits_file,
+                do_not_scale_image_data=True,
+                lazy_load_hdus=False,
+                disable_image_compression=True,
+            )
         except OSError as exc:
             raise UndescribableFitsError(
                 f'{fcpath} is not a FITS file astropy can read: {exc}'

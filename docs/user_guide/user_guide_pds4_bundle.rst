@@ -400,7 +400,8 @@ the log names what was not.
   So is an image whose backplane FITS holds something its data label could not
   describe truthfully -- arrays of a type other than 32-bit floats or integers, an
   image that is not two-dimensional, scaled values (``BSCALE`` or ``BZERO``), a
-  primary HDU holding data, an extension that is not an image, an HDU name that
+  primary HDU holding data, an extension that is not an image (a tile-compressed
+  image is one, being a binary table on disk), an HDU name that
   cannot identify its array, or a file cut short. None of these is what the
   backplanes pass writes. The FITS is described before anything is written for the
   image, so nothing is, not even a directory, and the log names the file and the

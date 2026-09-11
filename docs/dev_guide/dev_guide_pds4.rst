@@ -448,8 +448,10 @@ What the backplane writer does not write is refused rather than described, with 
 :exc:`~spindoctor.cli.pds4.data_objects.UndescribableFitsError` naming the file and
 the HDU: a ``BITPIX`` the mapping does not hold; an image that is not
 two-dimensional; ``BSCALE`` or ``BZERO``, since a scaled array's stored values are
-not its values; a primary HDU holding data, or an extension that is not an image,
-either of which would leave data the label does not describe; a lower-case HDU name
+not its values; a primary HDU holding data, or an extension that is not an image --
+a tile-compressed image among them, which on disk is a binary table and is read with
+decompression turned off so that it is seen as one -- either of which would leave
+data the label does not describe; a lower-case HDU name
 that is not an XML name or repeats another's, since a ``local_identifier`` is an
 XML ``ID`` and unique in the label; a file astropy cannot read as FITS, which a
 header cut short at the end of a record is; and a file cut short otherwise: an HDU

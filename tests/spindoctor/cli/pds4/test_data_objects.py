@@ -368,6 +368,17 @@ def _write_not_fits(path: Path) -> None:
             marks=[pytest.mark.filterwarnings(ignored) for ignored in TABLE_DEPRECATIONS],
         ),
         pytest.param(
+            lambda path: fits.HDUList(
+                [
+                    fits.PrimaryHDU(),
+                    fits.CompImageHDU(data=np.zeros((16, 16), dtype=np.float32), name='PLANE'),
+                ]
+            ).writeto(path),
+            r'HDU 1 \(PLANE\) of .* is a BinTableHDU, not an image',
+            id='a tile-compressed image',
+            marks=[pytest.mark.filterwarnings(ignored) for ignored in TABLE_DEPRECATIONS],
+        ),
+        pytest.param(
             _with_image(np.zeros((2, 2), dtype=np.float32), name=None),
             r'HDU 1 \(unnamed\) of .* is not a local identifier',
             id='an unnamed image',

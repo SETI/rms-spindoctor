@@ -399,7 +399,9 @@ body claimed and every other value is the NAIF ID of the body that did.
 The builder refuses, naming the HDU, what the backplane writer does not write,
 since describing one wrongly is worse than refusing it: a `BITPIX` other than
 -32 and 32, an image that is not two-dimensional, `BSCALE` or `BZERO`, a
-primary HDU holding data, an extension that is not an image, a lower-case
+primary HDU holding data, an extension that is not an image (a
+tile-compressed image among them, which on disk is a binary table, and which
+the builder reads with decompression turned off so that it is seen as one), a lower-case
 name that is not an XML `ID` or repeats another's, a file astropy cannot read
 as FITS, and a file cut short, judged from its length and the offsets astropy
 reads rather than from astropy's warnings: an HDU whose data run past the end
