@@ -75,6 +75,14 @@ one directory, so a template that is missing is missing for every product, and a
 per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
+Each pass also checks, before it reads anything, that every backplane the
+configuration declares is in a unit the bundle can use.  The labels pass holds
+each document's statistics to the configured unit and the summary pass writes
+each index column in the format that unit calls for, so a unit neither can use
+-- a spelling the format table has no entry for, or an entry with no ``units``
+at all -- is refused once, with every such entry named and the reason, rather
+than once per image or after the collection files are on disk.
+
 Before it processes anything, ``sd_create_bundle labels`` also requires
 ``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent, and exits
 1 naming the directory when it is not.  A bundle is the product of one run: with
@@ -91,8 +99,9 @@ populated bundle rather than an empty one.
 
 ``sd_create_bundle labels`` counts the images whose products it did not write --
 an image whose data or browse label failed to render, an image whose summary PNG
-was not in the navigation results, and an image whose inputs it could not read --
-and exits 1 when that count is not zero.  It closes with a line giving that
+was not in the navigation results, an image whose backplane metadata records a
+statistic in a unit other than the one the configuration gives its plane, and an
+image whose inputs it could not read -- and exits 1 when that count is not zero.  It closes with a line giving that
 count alongside the number of images it labeled and the number it skipped, so a
 selection that matched nothing reads as the zero it is.  It counts a batch that
 did not hold exactly one image the same way; that is a guard on the
@@ -109,10 +118,10 @@ volume.  A document that is there but cannot be read is a different thing: the
 generation raises, the driver logs the traceback naming the image, counts the
 image against the run, and carries on to the next one.
 
-A dry run reports what it would have processed and exits 0, once both
+A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
-dry run over a missing template or a populated bundle root exits 1 naming what
-it found, like any other run.  Past them it writes nothing, so it counts nothing
+dry run over a missing template, an unusable unit or a populated bundle root
+exits 1 naming what it found, like any other run.  Past them it writes nothing, so it counts nothing
 against the run, including a batch it reports it could not have processed.
 
 ``sd_create_bundle summary`` counts the collection and index labels it did not

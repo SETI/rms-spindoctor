@@ -504,7 +504,7 @@ cannot carry more than the plane it was taken from; the formats are chosen
 within that from what one pixel resolves. No format fixes a column's width:
 values under one format differ in length, so Phase 7 sizes each field from
 the widest value its column holds. A plane declared in a unit the mapping
-cannot size fails the summary run before it reads a supplemental file.
+cannot size fails either pass before it reads anything.
 
 Radians is spelled `rad` and degrees `deg`, which is both what the
 configuration writes and what the PDS4 units-of-angle vocabulary names, so the
@@ -526,7 +526,10 @@ not in the unit the configuration gives that plane fails its image before
 anything is written for it, rather than being indexed. That is the
 operator's decision of 2026-09-10, and the remedy is to regenerate the
 backplanes. A plane the document holds that the configuration does not
-declare is not compared.
+declare is not compared. Beside that guard, both passes refuse before
+reading anything a configuration that declares a backplane in a unit the
+bundle cannot use -- a spelling the format mapping lacks, or no `units` at
+all -- naming every such entry once, as the missing-template check does.
 
 `sd_backplane_viewer` still decides the same question the same way, and so
 displays that one plane in radians per pixel. Nothing this plan generates goes

@@ -24,10 +24,12 @@ from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_d
 from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
+    index_value_format,
 )
 from spindoctor.config import (
     DEFAULT_CONFIG,
     MAIN_LOGGER,
+    Config,
     build_run_logging,
     get_backplane_results_root,
     get_nav_results_root,
@@ -219,6 +221,43 @@ def _exit_on_missing_templates(dataset: DataSet, pds4_pass: Pds4Pass) -> None:
     sys.exit(1)
 
 
+def _exit_on_unusable_units(config: Config) -> None:
+    """Report every configured backplane in a unit the bundle cannot use, and stop if any.
+
+    Both passes hold a backplane to the unit its configuration entry declares:
+    the labels pass compares each document's statistics against it, and the
+    summary pass writes each index column in the format that unit calls for.
+    A unit neither can use is unusable for every image, so the pass says so
+    once, before it has read anything, rather than failing identically for
+    thousands of images or after the collection files are on disk.
+
+    Parameters:
+        config: The configuration the pass runs under, whose body and ring
+            backplane entries are checked.
+
+    Raises:
+        SystemExit: If any entry's ``units`` is missing or is not a string, is
+            blank, or names a unit the index tables have no format for.  Every
+            such entry is reported, with the reason, before the exit.
+    """
+    unusable: list[tuple[str, str]] = []
+    for entry in [*config.backplanes.bodies, *config.backplanes.rings]:
+        try:
+            index_value_format(entry.get('units'))
+        except (TypeError, ValueError) as exc:
+            unusable.append((entry['name'], str(exc)))
+    if len(unusable) == 0:
+        return
+    for name, reason in unusable:
+        MAIN_LOGGER.error('Backplane %s declares a unit the bundle cannot use: %s', name, reason)
+    MAIN_LOGGER.error(
+        'The configuration declares %d backplane(s) in a unit the bundle cannot use; '
+        'nothing was written',
+        len(unusable),
+    )
+    sys.exit(1)
+
+
 def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
     """Report whether the bundle's own directory already holds something.
 
@@ -238,13 +277,15 @@ def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
 def main_labels() -> None:
     """Main function for labels subcommand.
 
-    Two preconditions are checked before any image is processed, and each ends
-    the run with exit status 1 having written nothing.  Every template the
+    Three preconditions are checked before any image is processed, and each
+    ends the run with exit status 1 having written nothing.  Every template the
     dataset declares for this pass must be in its template directory, since one
-    that is not would otherwise fail identically for every image.  And the
-    bundle root must be empty or absent: a bundle is written into an empty
-    directory rather than assembled out of two runs.  A dry run is refused the
-    same way, because what it reports on is a run that would be.
+    that is not would otherwise fail identically for every image.  Every
+    backplane the configuration declares must be in a unit the bundle can use,
+    for the same reason.  And the bundle root must be empty or absent: a bundle
+    is written into an empty directory rather than assembled out of two runs.
+    A dry run is refused the same way, because what it reports on is a run
+    that would be.
     """
     command_list = sys.argv[2:]  # Skip 'labels'
     arguments = parse_args_labels(command_list)
@@ -271,6 +312,7 @@ def main_labels() -> None:
     assert DATASET is not None
 
     _exit_on_missing_templates(DATASET, 'labels')
+    _exit_on_unusable_units(DATASET.config)
 
     bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
     if _bundle_root_holds_anything(bundle_root):
@@ -369,9 +411,10 @@ def main_summary() -> None:
     """Main function for summary subcommand.
 
     Every template the dataset declares for this pass must be in its template
-    directory; one that is not ends the run with exit status 1 before anything
-    is written.  The bundle root is not checked for emptiness here: this pass
-    reads the tree the labels pass wrote.
+    directory, and every backplane the configuration declares must be in a
+    unit the index tables can write; either failing ends the run with exit
+    status 1 before anything is read or written.  The bundle root is not
+    checked for emptiness here: this pass reads the tree the labels pass wrote.
     """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
@@ -393,6 +436,7 @@ def main_summary() -> None:
     dataset = dataset_name_to_class(dataset_name)()
 
     _exit_on_missing_templates(dataset, 'summary')
+    _exit_on_unusable_units(dataset.config)
 
     # Generate collection files
     try:

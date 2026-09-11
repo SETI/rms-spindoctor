@@ -285,8 +285,8 @@ pixel, and five significant figures, written positionally and never in
 exponent form, for km per pixel, whose values span eight orders of magnitude.
 The backplane arrays are float32, so a statistic carries seven significant
 digits at most, and each format is chosen within that from what one pixel
-resolves. A configured backplane in a unit the tables have no format for ends
-the summary pass before it reads anything.
+resolves. A configured backplane in a unit the tables have no format for, or
+with no unit at all, ends either pass before it reads anything.
 
 Both index tables are meant to be read by a person, so every angular column in
 them is in degrees — degrees per pixel where the quantity is a resolution — and
@@ -304,7 +304,8 @@ the log names what was not.
 
 * ``sd_create_bundle labels`` exits 1 when any image's labels could not be
   written or its inputs could not be read, and exits 1 before processing
-  anything when the bundle's directory already holds files. It closes with a
+  anything when the bundle's directory already holds files or when a
+  configured backplane declares a unit the bundle cannot use. It closes with a
   line giving the number of images it labeled, skipped and failed, so a
   selection that matched nothing reads as the zero it is.
 
@@ -325,12 +326,13 @@ the log names what was not.
   is **failed** before anything is written for it, since indexing it would put
   one column of the global index in two units. Regenerate its backplanes.
 
-  ``--dry-run`` writes nothing, and exits 0 once the templates are present and
-  the bundle directory is empty.
+  ``--dry-run`` writes nothing, and exits 0 once the templates are present,
+  every configured unit is usable, and the bundle directory is empty.
 
 * ``sd_create_bundle summary`` exits 1 when any collection or global index label
-  could not be written. The ``.tab`` tables are written whether or not the label
-  describing one is.
+  could not be written, and exits 1 before reading anything when a configured
+  backplane declares a unit the bundle cannot use. The ``.tab`` tables are
+  written whether or not the label describing one is.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
   written as ``status: error`` with ``status_error: label_not_written``, and asks

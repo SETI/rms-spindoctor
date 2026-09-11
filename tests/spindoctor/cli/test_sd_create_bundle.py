@@ -77,7 +77,12 @@ REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
 
 
 class _StubDataset:
-    """A dataset serving the pds4_* hooks the drivers call, over chosen batches."""
+    """A dataset serving the pds4_* hooks the drivers call, over chosen batches.
+
+    It carries a configuration declaring the backplanes it is given, as every
+    dataset carries one, since the drivers check the configured units before
+    they reach a hook.
+    """
 
     def __init__(
         self,
@@ -86,6 +91,8 @@ class _StubDataset:
         image_count: int = 1,
         batch_count: int = 1,
         base_dir: Path | None = None,
+        bodies: list[dict[str, Any]] | None = None,
+        rings: list[dict[str, Any]] | None = None,
     ) -> None:
         """Prepare an enumeration of batches holding that many images each.
 
@@ -95,11 +102,19 @@ class _StubDataset:
             batch_count: How many batches the enumeration yields.
             base_dir: Directory the enumerated images live in; only a run that
                 reaches the real generation needs a real one.
+            bodies: ``config.backplanes.bodies`` entries; none when None.
+            rings: ``config.backplanes.rings`` entries; none when None.
         """
         self._template_dir = template_dir
         self._image_count = image_count
         self._batch_count = batch_count
         self._base_dir = base_dir
+        self.config = SimpleNamespace(
+            backplanes=SimpleNamespace(
+                bodies=bodies if bodies is not None else [],
+                rings=rings if rings is not None else [],
+            )
+        )
 
     def pds4_bundle_name(self) -> str:
         """Return the bundle name whose directory the run writes into."""
@@ -143,6 +158,8 @@ def _stub_dataset(
     image_count: int = 1,
     batch_count: int = 1,
     base_dir: Path | None = None,
+    bodies: list[dict[str, Any]] | None = None,
+    rings: list[dict[str, Any]] | None = None,
 ) -> _StubDataset:
     """Build the stub dataset over a template directory holding every template.
 
@@ -151,6 +168,8 @@ def _stub_dataset(
         image_count: How many images each enumerated batch holds.
         batch_count: How many batches the enumeration yields.
         base_dir: Directory the enumerated images live in.
+        bodies: ``config.backplanes.bodies`` entries the dataset's configuration declares.
+        rings: ``config.backplanes.rings`` entries the dataset's configuration declares.
 
     Returns:
         The stub dataset, whose template directory is already populated.
@@ -161,7 +180,28 @@ def _stub_dataset(
         for name in names:
             (template_dir / name).write_text('<Product/>\n', encoding='utf-8')
     return _StubDataset(
-        template_dir, image_count=image_count, batch_count=batch_count, base_dir=base_dir
+        template_dir,
+        image_count=image_count,
+        batch_count=batch_count,
+        base_dir=base_dir,
+        bodies=bodies,
+        rings=rings,
+    )
+
+
+def _dataset_with_unusable_units(tmp_path: Path) -> _StubDataset:
+    """Build the stub dataset declaring one plane in a unit the index cannot size and one in none.
+
+    Parameters:
+        tmp_path: Base temporary directory the template directory lives under.
+
+    Returns:
+        The stub dataset, whose configuration both passes refuse.
+    """
+    return _stub_dataset(
+        tmp_path,
+        bodies=[{'name': 'body_tilt', 'units': 'mrad'}],
+        rings=[{'name': 'ring_radius', 'units': None}],
     )
 
 
@@ -340,6 +380,31 @@ def test_main_labels_refuses_a_template_the_dataset_does_not_have(
     assert excinfo.value.code == 1
     assert calls == []
     assert f'PDS4 template not found: {missing}' in capsys.readouterr().out
+
+
+def test_main_labels_refuses_a_unit_the_bundle_cannot_use(
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A configured backplane in a unit the bundle cannot use ends the labels run at once.
+
+    The pass holds every document to the configured unit, so a unit it cannot
+    use, one the index has no format for or none at all, fails every image
+    the same way; the run names each such entry once, before it has read an
+    image, and leaves the bundle root as it found it.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', _dataset_with_unusable_units(tmp_path))
+    calls = _record_generation(monkeypatch)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_labels()
+    assert excinfo.value.code == 1
+    assert calls == []
+    assert not (tmp_path / BUNDLE_NAME).exists()
+    out = capsys.readouterr().out
+    assert 'Backplane body_tilt declares a unit the bundle cannot use' in out
+    assert 'Backplane ring_radius declares a unit the bundle cannot use' in out
 
 
 def test_main_labels_exits_non_zero_when_a_product_fails(
@@ -566,6 +631,31 @@ def test_main_summary_refuses_a_template_the_dataset_does_not_have(
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
     assert f'PDS4 template not found: {missing}' in capsys.readouterr().out
+
+
+def test_main_summary_refuses_a_unit_the_bundle_cannot_use(
+    summary_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The summary pass refuses the same units up front, before it reads the data tree.
+
+    The collection files are written before the index tables, so a check left
+    to the index writer would leave them on disk over a run that then failed;
+    this one runs before either generator, and the bundle's data directory is
+    there so that a run past it would have written a collection file.
+    """
+    dataset = _dataset_with_unusable_units(tmp_path)
+    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
+    (tmp_path / BUNDLE_NAME / 'data').mkdir(parents=True)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    assert not (tmp_path / BUNDLE_NAME / 'data' / 'collection_data.tab').exists()
+    out = capsys.readouterr().out
+    assert 'Backplane body_tilt declares a unit the bundle cannot use' in out
+    assert 'Backplane ring_radius declares a unit the bundle cannot use' in out
 
 
 @pytest.mark.parametrize(
