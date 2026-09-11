@@ -25,13 +25,14 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
-from tests.mini_nav_results.cohort import Cohort
+from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import (
     GATED_STUB,
     LIMB_IMAGE_NAME,
     LIMB_STUB,
     RINGS_IMAGE_NAME,
     RINGS_STUB,
+    CassiniISSSaturnCohort,
 )
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
@@ -786,6 +787,16 @@ def test_an_image_carrying_no_record_needs_the_document(tmp_path: Path) -> None:
     assert outcome is BundleDataOutcome.SKIPPED
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     assert not suppl.exists()
+
+
+@pytest.fixture
+def mini_nav_cohort(mini_nav_cohorts: WrittenCohorts) -> CassiniISSSaturnCohort:
+    """Return the Cassini ISS Saturn cohort, as the session wrote it.
+
+    Returns:
+        The written cohort.
+    """
+    return mini_nav_cohorts(CassiniISSSaturnCohort)
 
 
 def test_the_cohort_image_that_did_not_navigate_is_skipped(

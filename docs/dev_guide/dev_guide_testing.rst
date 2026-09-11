@@ -251,8 +251,9 @@ navigate in-process and need no holdings.
        stored tree also holds an empty browse image beside three of them, which
        nothing reads, so an empty directory this is pointed at gets the
        documents alone.
-   * - ``python -m tests.mini_nav_results cohort <outdir>``
-     - Writes the PDS4 bundle cohort -- navigation documents, browse PNGs,
+   * - ``python -m tests.mini_nav_results cohort <bundle> <outdir>``
+     - Writes one bundle's cohort, ``<bundle>`` being a name in the package's
+       ``COHORTS`` registry -- navigation documents, browse PNGs,
        backplane FITS files and their metadata -- for calling the bundle stage
        over without navigating anything. It is not a holdings tree, so
        ``sd_create_bundle`` cannot enumerate it. Nothing it writes is checked

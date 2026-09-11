@@ -25,13 +25,11 @@ from astropy.io import fits
 from filecache import FCPath
 
 from spindoctor.dataset import DataSetPDS3CassiniISSSaturn
-from tests.mini_nav_results import cohort_documents
-from tests.mini_nav_results.cohort import Cohort
+from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import (
-    HOLDINGS_SUBTREE,
     LIMB_IMAGE_NAME,
     RINGS_IMAGE_NAME,
-    cohort_images,
+    CassiniISSSaturnCohort,
 )
 from tests.sclk_readings import triples_disagreeing_with_their_epochs
 
@@ -43,7 +41,17 @@ def documents() -> dict[str, dict[str, Any]]:
     Returns:
         Stub to the document the writer produces for it.
     """
-    return cohort_documents()
+    return CassiniISSSaturnCohort.documents()
+
+
+@pytest.fixture(scope='module')
+def mini_nav_cohort(mini_nav_cohorts: WrittenCohorts) -> CassiniISSSaturnCohort:
+    """Return the Cassini ISS Saturn cohort, as the session wrote it.
+
+    Returns:
+        The written cohort.
+    """
+    return mini_nav_cohorts(CassiniISSSaturnCohort)
 
 
 def test_every_clock_triple_spans_the_epochs_beside_it(
@@ -67,7 +75,7 @@ def test_every_image_is_named_for_the_reading_its_shutter_opened_at(
     is a number that came from somewhere else.
     """
     disagreeing: list[str] = []
-    for image in cohort_images():
+    for image in CassiniISSSaturnCohort.images():
         recorded = str(documents[image.stub]['navigation_result']['times']['sclk_start'])
         named = image.image_name[1:].split('_', 1)[0]
         if recorded.split('/', 1)[1].split('.')[0] != named:
@@ -85,7 +93,7 @@ def test_every_index_row_column_is_one_the_real_index_has() -> None:
     was never broken.
     """
     unknown: list[str] = []
-    for image in cohort_images():
+    for image in CassiniISSSaturnCohort.images():
         unknown += [
             f'{image.image_name}: {column}'
             for column in sorted(set(image.index_file_row) - _COISS_INDEX_COLUMNS)
@@ -272,7 +280,7 @@ def test_each_fits_carries_the_hdus_its_backplanes_imply(mini_nav_cohort: Cohort
     where in the file each array begins.
     """
     found: dict[str, tuple[str, ...]] = {}
-    for image in cohort_images():
+    for image in CassiniISSSaturnCohort.images():
         if not image.navigated:
             continue
         path = mini_nav_cohort.backplane_results_root / f'{image.stub}_backplanes.fits'
@@ -297,7 +305,7 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
     and a document that has to be read defensively is one no run wrote.
     """
     disagreeing: list[str] = []
-    for image in cohort_images():
+    for image in CassiniISSSaturnCohort.images():
         if not image.navigated:
             continue
         stem = mini_nav_cohort.backplane_results_root / image.stub
@@ -328,7 +336,7 @@ def test_no_backplane_statistic_is_left_in_radians(mini_nav_cohort: Cohort) -> N
     recognises.
     """
     in_radians: list[str] = []
-    for image in cohort_images():
+    for image in CassiniISSSaturnCohort.images():
         if not image.navigated:
             continue
         stem = mini_nav_cohort.backplane_results_root / image.stub
@@ -360,7 +368,7 @@ def test_each_body_is_placed_down_the_frame_and_sized_across_it(
     """
     found: dict[str, tuple[list[float], list[float]]] = {}
     expected: dict[str, tuple[list[float], list[float]]] = {}
-    for image in cohort_images():
+    for image in CassiniISSSaturnCohort.images():
         if not image.navigated:
             continue
         stem = mini_nav_cohort.backplane_results_root / image.stub
@@ -399,7 +407,9 @@ def test_a_document_and_its_image_file_name_one_file(mini_nav_cohort: Cohort) ->
     """
     found: dict[str, tuple[str, str]] = {}
     expected: dict[str, tuple[str, str]] = {}
-    for image, image_file in zip(cohort_images(), mini_nav_cohort.image_files, strict=True):
+    for image, image_file in zip(
+        CassiniISSSaturnCohort.images(), mini_nav_cohort.image_files, strict=True
+    ):
         document = json.loads(
             Path(f'{mini_nav_cohort.nav_results_root / image.stub}_metadata.json').read_text(
                 encoding='utf-8'
@@ -409,7 +419,7 @@ def test_a_document_and_its_image_file_name_one_file(mini_nav_cohort: Cohort) ->
             _below_the_holdings_root(str(document['observation']['image_path'])),
             _below_the_holdings_root(image_file.image_file_url.as_posix()),
         )
-        one_file = f'{HOLDINGS_SUBTREE}/{image.stub}.IMG'
+        one_file = f'{CassiniISSSaturnCohort.HOLDINGS_SUBTREE}/{image.stub}.IMG'
         expected[image.stub] = (one_file, one_file)
     assert found == expected
 

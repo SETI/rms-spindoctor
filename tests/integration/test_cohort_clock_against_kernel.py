@@ -38,7 +38,9 @@ if len(_RESOURCES) == 0 or not _LSK.is_file() or not _SCLK.is_file():
 import cspyce  # noqa: E402  (guarded import)
 
 from tests.kernel_pool import isolated_kernel_pool  # noqa: E402  (guarded import)
-from tests.mini_nav_results.cohort_cassini import cohort_images  # noqa: E402  (guarded import)
+from tests.mini_nav_results.cohort_cassini import (  # noqa: E402  (guarded import)
+    CassiniISSSaturnCohort,
+)
 
 _CASSINI_SCLK_ID = -82
 """The clock the kernel defines, and the one the readings are on."""
@@ -82,7 +84,7 @@ def test_every_cohort_reading_is_the_one_the_kernel_returns(clock_kernels: None)
     tick is the tolerance.
     """
     disagreeing: list[str] = []
-    for image in cohort_images():
+    for image in CassiniISSSaturnCohort.images():
         times = image.document['navigation_result']['times']
         for reading, epoch in (
             ('sclk_start', 'start_et'),
@@ -109,7 +111,7 @@ def test_every_cohort_image_is_named_for_the_second_the_kernel_gives_it(
     it writes after it.
     """
     misnamed: list[str] = []
-    for image in cohort_images():
+    for image in CassiniISSSaturnCohort.images():
         start_et = float(image.document['navigation_result']['times']['start_et'])
         from_the_kernel = str(cspyce.sce2s(_CASSINI_SCLK_ID, start_et))
         named_second = from_the_kernel.split('/', 1)[1].split('.')[0]

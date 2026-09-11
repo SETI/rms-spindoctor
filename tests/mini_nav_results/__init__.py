@@ -3,10 +3,10 @@
 Two sets of documents, both built through the production writer, selected
 against different criteria and kept apart because of it.  The eight documents
 of ``results_tree_documents`` are the statistics fixture tree, chosen for what
-they make the statistics report exercise.  The three of ``cohort_documents``
-are the bundle cohort, chosen for what PDS4 bundle generation reads; they are
-built in ``cohort_cassini`` and described there, and they are never stored.  A
-fixture chosen against two unrelated criteria stops being legible for either.
+they make the statistics report exercise.  The cohorts of ``COHORTS`` are the
+other, one per bundle, each chosen for what PDS4 bundle generation reads of that
+bundle, described in the module it is built in, and never stored.  A fixture
+chosen against two unrelated criteria stops being legible for either.
 
 The statistics ingest and the report regression both run over
 ``data/results_tree``, and the frozen report output under ``data/golden`` is
@@ -37,9 +37,11 @@ report's minimum, maximum, mean, median and standard deviation over them are
 five different numbers and a wrong one shows.
 
 The builders are one module per host -- ``cassini``, ``voyager`` and
-``simulated`` -- over the constants and writer wrappers in ``shared``, with the
-cohort's in ``cohort_cassini`` and its backplane products in ``backplanes``.
-This module is the whole public surface.
+``simulated`` -- over the constants and writer wrappers in ``shared``.  Each
+bundle's cohort is a :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a
+module named for the bundle, over what every cohort shares in ``cohort``,
+``backplanes`` and ``browse``, and one entry in ``COHORTS`` registers it.  This
+module is the whole public surface.
 
 Two roots are written.  A navigation results root holds the
 ``*_metadata.json`` documents and the ``*_summary.png`` browse images a
@@ -53,12 +55,13 @@ and where to write it::
 
     PYTHONPATH=src python -m tests.mini_nav_results results_tree \\
         tests/spindoctor/cli/stats/data/results_tree
-    PYTHONPATH=src python -m tests.mini_nav_results cohort <outdir>
+    PYTHONPATH=src python -m tests.mini_nav_results cohort <bundle> <outdir>
 
-Both arguments are required in both forms, and the statistics path is spelled
-out rather than defaulted, so that regenerating a checked-in fixture tree is
-something the operator asked for by name.  What the cohort form writes is what
-the bundle stage's library entry points read, and what its tests are run over.
+Every argument is required, the bundle being one of the names in ``COHORTS``,
+and the statistics path is spelled out rather than defaulted, so that
+regenerating a checked-in fixture tree is something the operator asked for by
+name.  What the cohort form writes is what the bundle stage's library entry
+points read, and what its tests are run over.
 It is not enough for ``sd_create_bundle`` itself, which enumerates a PDS3
 volume out of an index table the cohort does not write.
 
@@ -129,21 +132,23 @@ from .cassini import (
     cassini_star_and_limb,
     cassini_suspect_offset,
 )
-from .cohort import Cohort, write_cohort
-from .cohort_cassini import cohort_images
+from .cohort import Cohort
+from .cohort_cassini import CassiniISSSaturnCohort
 from .shared import COISS_SUBTREE, VGISS_SUBTREE
 from .simulated import simulated_scene
 from .voyager import voyager_no_features, voyager_ring_edges
 
 __all__ = [
+    'COHORTS',
     'RESULTS_TREE',
     'Cohort',
-    'cohort_documents',
     'results_tree_documents',
     'stored_documents',
-    'write_cohort',
     'write_results_tree',
 ]
+
+COHORTS: dict[str, type[Cohort]] = {cohort.NAME: cohort for cohort in (CassiniISSSaturnCohort,)}
+"""Every bundle's cohort, keyed by the name it is chosen under."""
 
 RESULTS_TREE = (
     Path(__file__).resolve().parent.parent
@@ -172,15 +177,6 @@ def results_tree_documents() -> dict[str, dict[str, Any]]:
         f'{VGISS_SUBTREE}/C1385460_GEOMED': voyager_no_features(),
         'sim_scene_000042': simulated_scene(),
     }
-
-
-def cohort_documents() -> dict[str, dict[str, Any]]:
-    """Return every document of the bundle cohort, keyed by its results path stub.
-
-    Returns:
-        Stub to document, in the order a run would have written them.
-    """
-    return {image.stub: image.document for image in cohort_images()}
 
 
 def write_results_tree(root: Path) -> list[Path]:

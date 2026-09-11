@@ -471,16 +471,17 @@ renamed. What reports that is an integration test that furnishes the mission
 clock kernel and converts every cohort epoch again, which is excluded from the
 default run because the kernels are not there to furnish.
 
-Nothing the cohort produces is checked in. A test takes it as a session-scoped
-fixture, :func:`mini_nav_cohort <tests.conftest.mini_nav_cohort>`, built into a
-temporary directory and torn down
-with the session; a test asserts that none of its products reaches the working
-tree. To build one outside the suite, to read or to call the bundle stage
-over:
+Nothing a cohort produces is checked in. A test asks the session-scoped fixture
+:func:`mini_nav_cohorts <tests.conftest.mini_nav_cohorts>` for the cohort of the
+bundle it is about, which is written into a temporary directory the first time a
+test asks for it and torn down with the session; a test asserts that none of its
+products reaches the working tree. To build one outside the suite, to read or to
+call the bundle stage over, name the bundle and where to write its cohort, the
+bundle being one of the names the package's ``COHORTS`` registry holds:
 
 .. code-block:: bash
 
-   PYTHONPATH=src python -m tests.mini_nav_results cohort /tmp/cohort
+   PYTHONPATH=src python -m tests.mini_nav_results cohort cassini_iss_saturn /tmp/cohort
 
 What that writes is what the bundle stage's library entry points read: the
 navigation and backplane roots, and the images to pass them. It is not a
