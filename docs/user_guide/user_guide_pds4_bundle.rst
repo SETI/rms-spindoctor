@@ -90,7 +90,7 @@ Basic Usage
 
    sd_create_bundle labels DATASET_NAME [options]
 
-Where ``DATASET_NAME`` is one of the supported dataset names (see Navigation User Guide).
+Where ``DATASET_NAME`` names a dataset that can be bundled (see `Supported Datasets`_).
 
 Command-Line Arguments
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -115,7 +115,7 @@ Output options:
 * ``--dry-run``: print the images that would be processed without generating bundle files.
 
 Dataset selection options are the same as in the navigation and backplane drivers (see
-Navigation User Guide).
+:doc:`user_guide_navigation`).
 
 Examples
 ^^^^^^^^
@@ -287,33 +287,38 @@ the backplane arrays are in radians (see :doc:`user_guide_backplanes`).
 Exit Status
 ===========
 
-Each pass exits 0 when it wrote everything it set out to write, and 1
-otherwise; the log says what went wrong.
+Each pass exits 0 when it wrote everything it set out to write, and 1 when it did
+not; the log says what went wrong. An option a program does not recognize ends it
+with exit status 2 before it does anything.
 
-* ``sd_create_bundle labels`` exits 1 without doing anything if the bundle
+* ``sd_create_bundle labels`` exits 1 without writing anything if the bundle
   directory already holds files or a template is missing. Otherwise it exits 1
-  if any image failed, and ends with a count of the images labeled, skipped and
-  failed.
+  if any image failed. It ends with a line giving the number of images labeled
+  and skipped, and, when any failed, the number whose labels were not written.
 
   An image with nothing to describe (never navigated, navigation failed, or no
-  backplanes) is skipped, which is not an error. An image fails if its
-  metadata cannot be read, a label cannot be written, its summary PNG is
-  missing, or its backplane metadata holds a statistic the index tables cannot
-  hold: one in a unit other than the configured one, or a minimum or maximum
-  that is NaN or infinite. For such a statistic, regenerate that image's
-  backplanes.
+  backplanes) is skipped, which is not an error. An image fails if a label
+  cannot be written, its summary PNG is missing, or its backplane metadata holds
+  a statistic the index tables cannot hold (one in a unit other than the
+  configured one, or a minimum or maximum that is NaN or infinite). For such a
+  statistic, regenerate that image's backplanes.
 
-  ``--dry-run`` writes nothing, and exits 0 if those first checks pass.
+  ``--dry-run`` writes nothing and ends with the number of images it would
+  process. It exits 0 if the bundle directory is empty and every template is
+  present.
 
-* ``sd_create_bundle summary`` exits 1 without doing anything if a template is
-  missing. It also exits 1 if a collection or index label
-  cannot be written, or if a supplemental file holds such a statistic, in which
-  case neither index table is written: regenerate the backplanes, then the
+* ``sd_create_bundle summary`` exits 1 without writing anything if a template is
+  missing, or if the bundle has no ``data/`` directory: run the labels pass
+  first, or check ``--bundle-results-root``. It exits 1 if a collection or index
+  label cannot be written. If a supplemental file holds such a statistic, it
+  exits 1 and writes neither index table: regenerate the backplanes, then the
   bundle, into an empty directory.
 
-* ``sd_create_bundle_cloud_tasks`` reports a failed task as ``status: error``,
-  with ``status_error`` saying why (for example ``label_not_written``), and
-  does not retry it.
+* ``sd_create_bundle_cloud_tasks`` reports a task whose products could not be
+  written as ``status: error``, with ``status_error`` saying why (for example
+  ``label_not_written``), and does not retry it. A task that stops on an error,
+  such as a missing template, is reported by the queue worker as an exception
+  instead, and is retried only if the worker runs with ``--retry-on-exception``.
 
 A summary pass indexes whatever is in the bundle's ``data/`` tree, so its exit
 status says nothing about the labels pass; the labels pass's closing line says
@@ -378,8 +383,9 @@ new one has to provide.
 Supported Datasets
 ==================
 
-As the package ships, only ``coiss_saturn`` can be bundled. Either pass stops
-with an error on any other dataset, before writing anything. Adding a dataset
+As the package ships, only the Cassini ISS Saturn dataset (``coiss_saturn``) can
+be bundled. Either pass stops with an error on any other dataset, before writing
+anything. Adding a dataset
 is a code change, described in :doc:`/dev_guide/dev_guide_pds4`.
 
 Workflow

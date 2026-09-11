@@ -103,7 +103,7 @@ an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or
-infinite), and an image whose inputs it could not read -- and exits 1 when that
+infinite), and an image whose processing raised an error -- and exits 1 when that
 count is not zero.  An image with such a statistic is failed before anything is
 written for it, and the log names the image, the plane and what the document
 records there.  The run closes with a line giving that count alongside the
@@ -111,16 +111,16 @@ number of images it labeled and the number it skipped, so a selection that
 matched nothing reads as the zero it is.  It counts a batch that did not hold
 exactly one image the same way; that is a guard on the one-image-per-batch
 invariant :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files`
-also asserts, and no selection argument this dataset offers can produce one.
+also asserts.
 
 An image the bundle has nothing to describe is skipped rather than failed and
 does not count against the run: an image with no navigation metadata document,
 an image whose navigation status is not ``success``, and a navigated image with
 no backplane metadata document are all cases of a selection naming more images
 than the bundle covers, which is the ordinary state of a selection made by
-volume.  A document that is there but cannot be read is a different thing: the
-generation raises, the driver logs the traceback naming the image, counts the
-image against the run, and carries on to the next one.
+volume.  An error raised while one image is processed is logged with its
+traceback naming the image, counts the image against the run, and the run
+carries on to the next one.
 
 A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
@@ -525,8 +525,7 @@ The end-to-end checklist:
    ``pds4_template_variables`` hook draws from.
 4. Add an integration smoke test that renders one image through
    ``sd_create_bundle`` and asserts the resulting ``data.lblx`` validates
-   against the PDS4 schema. The Cassini ISS test under
-   ``tests/integration/`` is the pattern to follow.
+   against the PDS4 schema.
 5. Add the bundle's cohort, as `Testing bundle generation`_ describes: a
    :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a module named for
    the bundle, its entry in ``COHORTS``, and a test module named for the bundle
