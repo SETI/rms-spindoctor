@@ -110,24 +110,26 @@ def test_default_config_angle_backplanes_declare_radians() -> None:
 
 
 @pytest.mark.parametrize('kind', ['bodies', 'rings'])
-def test_default_config_declares_no_angle_the_statistics_cannot_convert(kind: str) -> None:
-    """No shipping entry declares an angular unit that reaches a table unconverted.
+def test_default_config_declares_only_measures_the_statistics_know(kind: str) -> None:
+    """Every shipping entry's measure is one the statistics convert or pass through.
 
     The statistics are published in degrees and recognise radians spelled
-    ``rad``, alone or qualified.  An entry declaring an angle any other way --
-    milliradians, arcseconds -- would need scaling as well as renaming, so it
-    would pass through and put an angle in a table of degrees without saying so.
-    That is a change to the conversion rule, and this is where the config half
-    of it is caught.
+    ``rad``, alone or qualified; ``deg`` and ``km`` pass through as they are.
+    A measure spelled any other way -- milliradians, arcseconds, radians
+    spelled out -- would need scaling as well as renaming, so it would pass
+    through and put an angle in a table of degrees without saying so.  That is
+    a change to the conversion rule, and this is where the config half of it is
+    caught: a measure is allowed by name rather than refused by one, so a
+    spelling nobody thought to refuse is caught too.
 
     Parameters:
         kind: The config list under test ('bodies' or 'rings').
     """
-    unconvertible = {'radian', 'radians', 'mrad', 'microrad', 'arcsec', 'arcmin', 'milliarcsec'}
+    known = {'rad', 'deg', 'km'}
     for entry in _config_entries(kind):
         measure = entry['units'].partition('/')[0].strip().lower()
-        assert measure not in unconvertible, (
-            f'{entry["name"]} declares {entry["units"]}, which the statistics do not convert'
+        assert measure in known, (
+            f'{entry["name"]} declares {entry["units"]}, a measure the statistics do not know'
         )
 
 
