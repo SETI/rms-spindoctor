@@ -25,7 +25,7 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-3 have run; Phases 4-10 have not. Two changes landed ahead of
+Phases 1-4 have run; Phases 5-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -53,7 +53,7 @@ this table first and trusts it over any recollection.
 | 2 — The synthetic cohort | **done** | `rf_pds4_phase2`, sections 3.12 and 4 |
 | Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
 | 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
-| 4 — The FITS in the bundle, with its data objects | not started | |
+| 4 — The FITS in the bundle, with its data objects | **done** | `rf_pds4_phase4`, sections 3.3 and 3.13; #69 is closed by hand when its PR merges (section 8) |
 | 5 — Inventories that conform | not started | |
 | 6 — Bundle-level and static products | not started | |
 | 7 — The miscellaneous collection and its global index labels | not started | |
@@ -63,8 +63,9 @@ this table first and trusts it over any recollection.
 
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
-about images that did not navigate), #601 (the `Special_Constants`
-declaration, which is what remains of the masked-value work), #602 (a
+about images that did not navigate), #601 (the masked value, whose
+`Special_Constants` declaration Phase 4 made; what remains of it is the
+index tables' missing value, which Phase 7 settles), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
 6 own), #611 (the backplane viewer carries the same unit equality the
 statistics carried, on the same plane), #614 (a dataset without PDS4 support
@@ -74,7 +75,8 @@ disagreeing about a missing template, was closed by hand on 2026-09-11, after
 whatever the column's unit, closes in Phase 2 with a format per unit (section
 3.8); the missing-value sentinel it raised beside that is Phase 7's. #519,
 which predates this plan and found every data label's start and stop empty,
-closes with Phase 3 (section 3.4).
+closes with Phase 3 (section 3.4). #69, which predates it too and asked for
+the FITS to be described in its data label, closes with Phase 4 (section 3.3).
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -208,8 +210,9 @@ None of these gets its own tracking issue. Every row is fixed by a named
 phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
-every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Defect 1 additionally
-has an `xfail` and belongs to #265 and #69. The rows that *would* have
+every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Defect 1 belongs to
+#265 and #69, and its `xfail` became a passing test in Phase 4. The rows that
+*would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
 difference between the arrays and the tables as settled design rather than a
@@ -352,30 +355,65 @@ does not grow past its purpose. The summary pass calls it after
 The labels pass copies `<stub>_backplanes.fits` from `backplane_results_root`
 into the bundle `data/` directory beside the label, and `BACKPLANE_PATH`
 names the copy, so the `FILE_BYTES`/`FILE_MD5`/`FILE_ZULU` calls describe the
-archived file rather than the source.
+archived file rather than the source. A navigated image whose backplane
+metadata is there and whose FITS is not fails before anything is written for
+it -- supplemental file, label or copy -- since the summary pass refuses a
+supplemental file with no data label beside it.
 
-The data object block is generated from the copied file. `astropy.io.fits`
-gives everything the label needs without a second convention:
-`hdu.fileinfo()` returns `hdrLoc` and `datLoc`, and the header carries
-`NAXIS1`, `NAXIS2`, `BITPIX` and `BUNIT`. For each HDU the label gets a
-`Header` (offset `hdrLoc`, size `datLoc - hdrLoc`) and, for every HDU past
-the primary, an `Array_2D_Image` with `offset` `datLoc`, an `Element_Array`
-whose `data_type` comes from `BITPIX` (`IEEE754MSBSingle` for -32,
-`SignedMSB4` for 32 -- MSB because FITS is big-endian) and whose `unit`
-comes from `BUNIT`, and two `Axis_Array` blocks named `Line` and `Sample`
-with `elements` from `NAXIS2` and `NAXIS1`.
+The data object block is generated from the copied file, by
+`spindoctor/cli/pds4/data_objects.py`. `astropy.io.fits` gives everything the
+label needs without a second convention: `hdu.fileinfo()` returns `hdrLoc` and
+`datLoc`, and the header carries `NAXIS1`, `NAXIS2`, `BITPIX` and `BUNIT`. For
+each HDU the label gets a `Header` (offset `hdrLoc`, size `datLoc - hdrLoc`,
+parsing standard `FITS 3.0`) and, for every HDU past the primary, an
+`Array_2D_Image` with `offset` `datLoc` and `axis_index_order` `Last Index
+Fastest`, an `Element_Array` whose `data_type` comes from `BITPIX`
+(`IEEE754MSBSingle` for -32, `SignedMSB4` for 32 -- MSB because FITS is
+big-endian) and whose `unit` comes from `BUNIT`, and two `Axis_Array` blocks
+named `Line` and `Sample` with `elements` from `NAXIS2` and `NAXIS1`. Each
+array's `local_identifier` is its HDU name in lower case: `body_id_map`,
+`body_latitude`, and so on. The allowed values of `parsing_standard_id`,
+`data_type` and `axis_index_order` are the Schematron's, not the XSD's, which
+types all three as plain strings; `FITS 3.0` and `FITS 4.0` are both allowed,
+and 3.0 is stated because every construct the writer uses is in it.
+
+Every float array declares the configured masked value as the
+`missing_constant` of a `Special_Constants` block, read from
+`backplanes.masked_value` rather than written as a literal (section 3.13).
+`BODY_ID_MAP` declares none, because its `0` is the mask rather than a missing
+measurement; its `description` says instead that `0` marks a pixel no body
+claimed and every other value is the NAIF ID of the body that did.
+
+The builder refuses, naming the HDU, what the backplane writer does not write,
+since describing one wrongly is worse than refusing it: a `BITPIX` other than
+-32 and 32, an image that is not two-dimensional, `BSCALE` or `BZERO`, a
+primary HDU holding data, an extension that is not an image, a lower-case
+name that is not an XML `ID` or repeats another's, and a file astropy reads
+only with an error or a warning, which is what a truncated one draws. A
+refused FITS fails its image; the copy is removed and nothing else is
+written.
 
 `Array_2D_Image` rather than the generic `Array_2D`, and `Line`/`Sample`
 axis names, are what the F ring bundle's `data_reproj_img.lblx` uses for an
 image-shaped array; there is no reason to differ.
 
 `pdstemplate` supports `$FOR` / `$END_FOR` and `$IF` / `$ELSE` (verified in
-the installed 2.4.0), so the XML stays in `data.lblx` and Python supplies a
-list of per-HDU dictionaries as one template variable. The first
-non-primary array carries `local_identifier` `image`, which is what
-`data.lblx:104`'s display settings reference; if the operator would rather
-the display settings point at a specific plane, that is a template edit
-against a named HDU, not a code change.
+the installed 2.4.0, on a rendered label), so the XML stays in `data.lblx`
+and Python supplies the per-HDU descriptors as one template variable,
+`BACKPLANE_FITS`.
+
+**Display settings: one block per array, a deliberate change from this
+section's first draft.** The draft put `local_identifier` `image` on the first
+array for `data.lblx`'s one `disp:Display_Settings`. With the writer's order
+that first array is `BODY_ID_MAP` whenever a body is in view, and one block
+leaves every other array's orientation undeclared. So `data.lblx` generates
+one `disp:Display_Settings` per array, in a `$FOR` over the same descriptors,
+each referencing its own array's identifier, and the literal `image` is gone.
+The display dictionary allows it: `Discipline_Area` takes any number of
+dictionary elements, `disp:Display_Settings` is a global element of
+`PDS4_DISP_1O00_1510`, and that dictionary's Schematron constrains each
+block -- its display axes must name the referenced array's, its reference
+must resolve -- and not their count. #69's own sketch has several.
 
 A frame with no ring backplanes has no ring HDUs. The `$FOR` handles that
 without a special case, which is the point of generating from the file
@@ -644,7 +682,7 @@ satisfy a consistency no reader is asking for.
 
 What follows for the labels, and what a later reader must not "fix":
 
-- The `Array_2D` blocks Phase 4 generates state `unit` from the HDU's
+- The `Array_2D_Image` blocks Phase 4 generates state `unit` from the HDU's
   `BUNIT`, so an angular plane is labelled `rad`. The label describes the
   array, and the array is radians.
 - The `Field_Character` blocks Phase 7 generates for the global index take
@@ -822,7 +860,7 @@ What the cohort set holds beyond the documents:
 - **A backplane FITS per successful image.** A *real* FITS written by
   `astropy.io.fits`, 16x16 per plane, because Phase 4 reads `hdrLoc` and
   `datLoc` out of it through `fileinfo()` and the label states its size and
-  MD5. The byte blob the current `xfail` test writes cannot serve that.
+  MD5. A few bytes standing in for a FITS cannot serve that.
 - **Backplane metadata beside each FITS**, whose `bodies` and `rings`
   statistics name the same backplanes the FITS carries, since the global
   index columns come from one and the arrays from the other.
@@ -913,8 +951,7 @@ map that the writer writes. A fixture built by a second, parallel writer is a
 fixture that stops describing the product the moment the real writer changes,
 and the merge is where that first bit: it is the merge that decides the HDU
 order, by inserting the body planes sorted and then the ring planes sorted,
-and Phase 4 states every array's byte offset against that order and calls the
-first one the image.
+and Phase 4 states every array's byte offset against that order.
 
 The package sits at `tests/mini_nav_results/`, beside `tests/shims/` and
 `tests/cmatrix_helpers.py`, because a package two suites import should not
@@ -1023,8 +1060,10 @@ planes, the second of which marks empty sky valid. Both now ask the array
 whether a pixel is measured, which is one rule and the right answer for
 each.
 
-What this plan still owes is the declaration: Phase 4 gives every
-`Array_2D_Image` a `Special_Constants` block naming the configured value.
+Phase 4 made the declaration: every float `Array_2D_Image` carries a
+`Special_Constants` block whose `missing_constant` is the configured value,
+read from the configuration, and `BODY_ID_MAP`'s array carries none and says
+what its `0` means instead (section 3.3).
 
 `collections.py`'s "TODO Need an appropriate sentinel value for missing
 data" is the table-cell half of the same question. The same `-999` is the
@@ -1256,23 +1295,38 @@ Closes #519, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
 ### Phase 4 — The FITS in the bundle, with its data objects
 
-Copy the FITS into `data/`. Build the per-HDU descriptor list from the
-copied file. `data.lblx` grows the `$FOR` block described in section 3.3,
-with `local_identifier` `image` on the first array.
+Done on `rf_pds4_phase4`. The labels pass copies the FITS into `data/` beside
+its label and points `BACKPLANE_PATH` at the copy; backplane metadata with no
+FITS beside it fails the image before anything is written.
+`spindoctor/cli/pds4/data_objects.py` builds a descriptor per HDU from the
+copy, and `data.lblx` renders them in two `$FOR` blocks: a `Header` per HDU and
+an `Array_2D_Image` per image HDU in `File_Area_Observational`, and one
+`disp:Display_Settings` per array in the `Discipline_Area` (section 3.3, which
+records why one block per array replaced the single `image` reference).
 
-Each array also declares its masked value: a `Special_Constants` block whose
+Each float array declares its masked value: a `Special_Constants` block whose
 `missing_constant` is the sentinel from `config_900_backplanes.yaml`, per
-section 3.13, so a reader masks on the label rather than on a convention.
-This phase can be written before the generator emits `-999` -- it reads the
-configured value either way -- but the draft bundle should be built from
-backplanes that carry it.
+section 3.13, so a reader masks on the label rather than on a convention;
+`BODY_ID_MAP` declares none and says what its values are instead. The draft
+bundle should be built from backplanes that carry `-999`.
 
-Tests: a two-HDU fixture FITS produces two `Array_2D_Image` blocks with the
-offsets `fileinfo()` reports; each declares the configured sentinel as its
-`missing_constant`; a frame with no ring planes produces no ring arrays; the
-display settings' referenced identifier is defined in the label.
+Tests: over the cohort, the shipped data label of each navigated image has a
+`Header` per HDU and an `Array_2D_Image` per image HDU, each checked at the
+byte level -- `SIMPLE` or `XTENSION` at a header's offset, its stated length
+ending with the record that holds its `END` card, and an array read big-endian
+at its offset equal to the array astropy reads -- with its data type from
+`BITPIX`, its unit from `BUNIT`, the configured `missing_constant` on every
+float array and none on `BODY_ID_MAP`, and every masked pixel holding it. The
+ring image has ring arrays and the limb image none; every
+`local_identifier_reference` resolves; every `<file_name>` is beside its label
+(criterion 5), and the FITS's stated size and MD5 are the copy's; each data
+object's children follow the schema's order. The cohort's frames are square,
+so a plane 2 lines by 3 samples rendered through the shipped template holds
+the two axes apart. Each refusal, and the missing FITS, fails the image as it
+should.
 
-Closes #69; contributes to #30.
+Closes #69, by hand when its PR merges into `rf_pds4_draft_bundle` (section
+8); contributes to #30.
 
 ### Phase 5 — Inventories that conform
 
@@ -1532,8 +1586,8 @@ removals on a two-sided conflict.
 **No issues are filed for section 2.2.** Each row there is fixed by a named
 phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
-adds a close to reconcile and no reader. Defect 1 additionally has an
-`xfail` and belongs to #265 and #69.
+adds a close to reconcile and no reader. Defect 1 belongs to #265 and #69,
+and its `xfail` became a passing test in Phase 4.
 
 The one row that would have outlived this plan was the angular-unit
 difference between the arrays and the tables, and the difference itself
@@ -1560,9 +1614,12 @@ branch.
 - #600 — what the bundle says about images that did not navigate. Replaces
   section 3.11 when it is decided; nothing before Phase 10 depends on it.
 - #601 — masked backplane values are `-999` as of 2026-09-09, applied on
-  this branch (section 3.13), so one comparison masks every plane. What
-  remains of it here is the `Special_Constants` declaration in the data
-  label, which Phase 4 carries. The ring half of the original finding turned
+  this branch (section 3.13), so one comparison masks every plane, and Phase 4
+  declares it on every float array of the data label. What remains of it is
+  the index tables' missing value, `collections.py`'s "TODO Need an
+  appropriate sentinel value for missing data", which Phase 7 settles; it
+  stays open for that unless the operator closes it with Phase 4. The ring
+  half of the original finding turned
   out to duplicate #251, which is the `xfail`-pinned record that ring-won
   pixels get no `BODY_ID_MAP` entry; the sentinel makes that gap harmless
   for consumers without closing it.
@@ -1575,8 +1632,10 @@ branch.
   variant's image-number bounds and regenerates both goldens; that is #530's
   own work and belongs in a PR about the statistics fixtures, not on a PDS4
   branch. It can land before, after or independently of this plan.
-- #67 — cloud-aware bundle generation. This plan adds a second
-  `get_local_path()`/`shutil` copy for the FITS; both copies are #67's work.
+- #67 — cloud-aware bundle generation. Phase 4 added a second
+  `get_local_path()`/`shutil` copy, for the FITS; both copies, and the
+  label's `FILE_*` functions that read `BACKPLANE_PATH` as a local file, are
+  #67's work.
 - #424 — remove `sd_create_bundle_cloud_tasks`.
 - #53's generalization half — Voyager, Galileo and New Horizons template
   trees and `pds4_*` hooks, against this plan's validated Cassini tree as
@@ -1584,8 +1643,8 @@ branch.
 - #232 — whether the label's geometry values are *correct*, as opposed to
   present and schema-valid. This plan makes a bundle that validates; it does
   not check a single number against independent truth.
-- #30 — the backplane label design as a whole, of which Phase 4 implements
-  the part the file forces.
+- #30 — the backplane label design as a whole, of which Phase 4 implemented
+  the part the file forces: the data objects and their display settings.
 
 ---
 
