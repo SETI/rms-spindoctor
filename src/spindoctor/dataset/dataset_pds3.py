@@ -91,16 +91,14 @@ class DataSetPDS3(DataSet):
         """Initializes a PDS3 dataset with directory and cache settings.
 
         Parameters:
-            pds3_holdings_root: Path to PDS3 holdings directory. If None, uses PDS3_HOLDINGS_DIR
-                environment variable. May be a URL accepted by FCPath.
+            pds3_holdings_root: Path to the PDS3 holdings directory, which may be a URL
+                accepted by FCPath. If None, the root is resolved when it is first needed,
+                from the command line, the configuration, or the environment, in that
+                order; see the pds3_holdings_root property.
             index_filecache: FileCache object to use for index files. If None, creates a new one.
             pds3_holdings_filecache: FileCache object to use for PDS3 holdings files. If None,
                 creates a new one.
             config: Configuration object to use. If None, uses DEFAULT_CONFIG.
-
-        Raises:
-            ValueError: If pds3_holdings_root is None and PDS3_HOLDINGS_DIR environment variable
-                is not set.
         """
 
         super().__init__(config=config)
@@ -115,18 +113,58 @@ class DataSetPDS3(DataSet):
         else:
             self._pds3_holdings_filecache = pds3_holdings_filecache
 
+        self._named_pds3_holdings_root: FCPath | None = None
         if pds3_holdings_root is not None:
-            self._pds3_holdings_root: FCPath | None = self._pds3_holdings_filecache.new_path(
+            self._named_pds3_holdings_root = self._pds3_holdings_filecache.new_path(
                 pds3_holdings_root
             )
-        else:
-            self._pds3_holdings_root = None
+        self._resolved_pds3_holdings_root: FCPath | None = None
+
+    def _read_holdings_root_argument(self, arguments: argparse.Namespace) -> None:
+        """Take the PDS3 holdings root from the command line, when one names it.
+
+        The option is declared by this class rather than by any program, so a program
+        offers it exactly when it enumerates PDS3 images, and this is where what an
+        operator typed becomes the root the enumeration reads. Every entry point that
+        hands the dataset a parsed command line goes through
+        yield_image_files_from_arguments, which calls this.
+
+        A namespace carrying no such attribute names no root, which is what a caller
+        building a namespace of its own does: the configuration and the environment
+        then answer, exactly as they do for a caller that passes no arguments at all.
+
+        Parameters:
+            arguments: The parsed arguments, which need not carry the option.
+        """
+        named_root = vars(arguments).get('pds3_holdings_root')
+        if named_root is not None:
+            self._named_pds3_holdings_root = self._pds3_holdings_filecache.new_path(named_root)
 
     @property
     def pds3_holdings_root(self) -> FCPath:
-        """The PDS3 holdings directory; may be a URL."""
-        if self._pds3_holdings_root is not None:
-            return self._pds3_holdings_root
+        """The PDS3 holdings directory; may be a URL.
+
+        Answered by the first level that names a root: the command line's
+        --pds3-holdings-root, or the root this dataset was constructed with, then the
+        environment.pds3_holdings_root configuration variable, then the PDS3_HOLDINGS_DIR
+        environment variable. That order is what every program's help text promises.
+
+        What the command line named is kept apart from what the other two levels answer,
+        rather than cached over it, so a root named after something has already read this
+        property still wins. The alternative is a rule about the order a program does
+        things in that nothing states and nothing checks, which is how a value typed on a
+        command line comes to be dropped in silence.
+
+        Returns:
+            The holdings root.
+
+        Raises:
+            ValueError: If no level names a root.
+        """
+        if self._named_pds3_holdings_root is not None:
+            return self._named_pds3_holdings_root
+        if self._resolved_pds3_holdings_root is not None:
+            return self._resolved_pds3_holdings_root
 
         pds3_holdings_root = None
         try:
@@ -137,15 +175,19 @@ class DataSetPDS3(DataSet):
             pds3_holdings_root = os.getenv('PDS3_HOLDINGS_DIR')
         if pds3_holdings_root is None:
             raise ValueError(
-                'One of configuration variable "pds3_holdings_root" or '
-                'PDS3_HOLDINGS_DIR environment variable must be set'
+                'One of --pds3-holdings-root, the configuration variable '
+                '"environment.pds3_holdings_root", or the PDS3_HOLDINGS_DIR '
+                'environment variable must be set'
             )
-        self._pds3_holdings_root = self._pds3_holdings_filecache.new_path(pds3_holdings_root)
+        self._resolved_pds3_holdings_root = self._pds3_holdings_filecache.new_path(
+            pds3_holdings_root
+        )
 
-        return self._pds3_holdings_root
+        return self._resolved_pds3_holdings_root
 
     def __str__(self) -> str:
-        return f'DataSetPDS3(pds3_holdings_root={self._pds3_holdings_root})'
+        root = self._named_pds3_holdings_root or self._resolved_pds3_holdings_root
+        return f'DataSetPDS3(pds3_holdings_root={root})'
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -292,6 +334,18 @@ class DataSetPDS3(DataSet):
 
         if group is None:
             group = cmdparser.add_argument_group('Image selection (PDS3-specific)')
+        # Declared here rather than by each program, so that the option is offered
+        # exactly where a PDS3 holdings tree is what gets enumerated, and so that
+        # the value lands on the namespace the dataset itself reads.
+        group.add_argument(
+            '--pds3-holdings-root',
+            type=str,
+            default=None,
+            metavar='ROOT',
+            help="""The root directory of the PDS3 holdings, which may be a URL; overrides
+            both the pds3_holdings_root configuration variable and the PDS3_HOLDINGS_DIR
+            environment variable""",
+        )
         group.add_argument(
             'img_name',
             action='append',
@@ -434,6 +488,10 @@ class DataSetPDS3(DataSet):
             ImageFiles objects containing information about groups of selected
             image files.
         """
+
+        # Where the images are read from is one of the arguments this dataset
+        # declares, so it is read here beside the rest of them.
+        self._read_holdings_root_argument(arguments)
 
         # Start with wanting all images
         img_name_list: list[str] = []

@@ -93,13 +93,15 @@ package.
 Environment variables
 ---------------------
 
-Most runs need at least one of these (CLI flags override env vars override config
-defaults). Each accepts a local path or a URL handled transparently by ``filecache``:
+Most runs need at least one of these. Each is the last level consulted: a CLI
+flag wins over the ``environment`` block of a configuration file, which wins over
+the variable exported here. Each accepts a local path or a URL handled
+transparently by ``filecache``:
 
 - ``SPICE_PATH`` — required by every real navigation run; points at the SPICE
   kernels directory.
-- ``PDS3_HOLDINGS_DIR`` — root for PDS3 holdings (default
-  ``https://pds-rings.seti.org/holdings``).
+- ``PDS3_HOLDINGS_DIR`` — root for PDS3 holdings; also namable per run with
+  ``--pds3-holdings-root``.
 - ``PDS4_HOLDINGS_DIR`` — root for PDS4 holdings.
 - ``OOPS_RESOURCES`` — root for the ``oops`` resources bundle.
 - ``UCAC4_PATH`` / ``YBSC_PATH`` — star-catalog roots used by

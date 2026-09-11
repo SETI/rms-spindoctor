@@ -29,7 +29,10 @@ access. The stack is, in order (later files override earlier ones for the same k
    replaces the personal-defaults file rather than merging on top of it.
 3. The handful of CLI flags that map to config keys (``--pds3-holdings-root``,
    ``--nav-results-root``, etc.) override the corresponding ``environment``
-   block entry.
+   block entry. ``--pds3-holdings-root`` is declared by
+   :class:`~spindoctor.dataset.dataset_pds3.DataSetPDS3` rather than by each
+   program, so a program offers it exactly when the dataset it was asked for
+   enumerates a PDS3 holdings tree.
 
 Direct programmatic use:
 
@@ -217,9 +220,9 @@ Path resolution
 The ``environment`` block carries the PDS3 holdings read root, three downstream
 output roots, and the results index URL:
 
-- ``pds3_holdings_root`` — read root for PDS3 holdings (default
-  ``$PDS3_HOLDINGS_DIR``, falling back to
-  ``https://pds-rings.seti.org/holdings``).
+- ``pds3_holdings_root`` — read root for PDS3 holdings. No value ships, so a
+  run that sets neither this nor ``PDS3_HOLDINGS_DIR`` nor
+  ``--pds3-holdings-root`` stops and says so.
 - ``nav_results_root`` — write root for ``_metadata.json`` and ``_summary.png``
   files produced by ``sd_offset``.
 - ``backplane_results_root`` — write root for backplane FITS / NumPy products
@@ -240,10 +243,13 @@ output roots, and the results index URL:
 
 Each root may be a local path or a URL; ``filecache``-aware consumers handle
 both. ``results_index_db`` is the exception: it is a database connection URL,
-not a location ``filecache`` resolves. Environment-variable overrides
-(``PDS3_HOLDINGS_DIR``, ``NAV_RESULTS_ROOT``, ``BACKPLANE_RESULTS_ROOT``,
-``BUNDLE_RESULTS_ROOT``, ``NAV_RESULTS_INDEX_DB``) take precedence over the YAML
-defaults; CLI flags take precedence over the env vars.
+not a location ``filecache`` resolves. Every one of them resolves from the first
+level that names it: the CLI flag, then this ``environment`` block, then the
+environment variable (``PDS3_HOLDINGS_DIR``, ``NAV_RESULTS_ROOT``,
+``BACKPLANE_RESULTS_ROOT``, ``BUNDLE_RESULTS_ROOT``, ``NAV_RESULTS_INDEX_DB``).
+A key written into a configuration file therefore wins over the same value
+exported into the environment, and a flag typed on the command line wins over
+both.
 
 The whole ``environment`` block is left out of the provenance configuration
 digest recorded with each navigation result. It says where a deployment keeps

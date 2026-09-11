@@ -156,9 +156,12 @@ configuration file settings:
 Environment Options
 -------------------
 
-* ``--pds3-holdings-root PATH``: Overrides the ``PDS3_HOLDINGS_DIR``
-  environment variable and any ``environment.pds3_holdings_root`` configuration
-  setting. This specifies the root directory or URL for PDS3 holdings.
+* ``--pds3-holdings-root PATH``: Overrides the ``environment.pds3_holdings_root``
+  configuration setting and the ``PDS3_HOLDINGS_DIR`` environment variable, in
+  that order. This specifies the root directory or URL for PDS3 holdings. It is
+  offered by the dataset rather than by each program, so it appears among a
+  program's dataset-selection options and only when the dataset named on the
+  command line reads a PDS3 holdings tree.
 
 * ``--nav-results-root PATH``: Overrides the ``NAV_RESULTS_ROOT`` environment
   variable and any ``environment.nav_results_root`` configuration setting. This

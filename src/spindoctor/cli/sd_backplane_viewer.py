@@ -1425,12 +1425,6 @@ def parse_args(command_list: list[str]) -> argparse.Namespace:
         help='Configuration override file(s) (default: ./nav_default_config.yaml)',
     )
     env.add_argument(
-        '--pds3-holdings-root',
-        type=str,
-        default=None,
-        help='Root directory of PDS3 holdings; overrides env/config',
-    )
-    env.add_argument(
         '--nav-results-root',
         type=str,
         default=None,
