@@ -2,14 +2,15 @@
 
 Every registered cohort is written once for the session, and each test here runs
 over each of them.  What they check is what the bundle stage reads off a cohort
-and cannot check for itself: a real FITS whose HDUs a reader finds where a label
-says they are, a metadata document naming the planes that FITS carries, every
-statistic in the unit the index tables state, and every body placed where its
-cohort put it.  Nothing a cohort writes may reach the working tree.
+and cannot check for itself: every clock triple a document records spanning the
+epochs beside it, a real FITS whose HDUs a reader finds where a label says they
+are, a metadata document naming the planes that FITS carries, every statistic in
+the unit the index tables state, and every body placed where its cohort put it.
+Nothing a cohort writes may reach the working tree.
 
-What only one bundle's cohort can say -- its clock, the names its images take,
-its index columns, its bundle directories, its holdings layout -- is held in a
-test module named for that bundle.
+What only one bundle's cohort can say -- the names its images take, its index
+columns, its bundle directories, its holdings layout -- is held in a test module
+named for that bundle.
 """
 
 import json
@@ -25,6 +26,7 @@ from filecache import FCPath
 from spindoctor.config import DEFAULT_CONFIG
 from tests.mini_nav_results import COHORTS
 from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
+from tests.sclk_readings import triples_disagreeing_with_their_epochs
 
 
 @pytest.fixture(scope='module', params=sorted(COHORTS))
@@ -68,6 +70,17 @@ def _hdu_names(entries: list[dict[str, Any]]) -> list[str]:
         The HDU names, in the order the writer writes them.
     """
     return sorted(entry['name'].upper() for entry in entries if entry['name'] != 'distance')
+
+
+def test_every_clock_triple_spans_the_epochs_beside_it(cohort: Cohort) -> None:
+    """A reading that is not the one its epoch converts to is an invented one.
+
+    Every reader that subtracts two readings, or converts one back into an
+    epoch, reads whatever a hand-authored triple happened to say.  The readers
+    are the ones ``tests.sclk_readings`` registers, so a cohort whose host has no
+    reader there fails here as well.
+    """
+    assert triples_disagreeing_with_their_epochs(cohort.documents()) == []
 
 
 def test_each_fits_carries_the_hdus_the_configuration_implies(cohort: Cohort) -> None:

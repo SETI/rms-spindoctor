@@ -471,7 +471,7 @@ clock kernel and converts every cohort epoch again, which is excluded from the
 default run because the kernels are not there to furnish.
 
 The self-tests every cohort is held to run over each registered cohort; what
-only one bundle's cohort can state -- its clock, its image names, its index
+only one bundle's cohort can state -- its image names, its index
 columns, its bundle directories, its holdings layout -- is tested in a module
 named for that bundle.
 

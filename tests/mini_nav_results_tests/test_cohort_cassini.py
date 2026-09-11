@@ -1,11 +1,12 @@
 """Self-tests of the Cassini ISS Saturn cohort: what only its bundle's images can say.
 
 The cohort is built from each image's epoch and nothing else, so what is worth
-holding it to is that everything derived from that epoch still agrees with it:
-the clock readings a document records, and the number the image is named for.
-An image whose name and epoch disagree is the defect the epoch-first
-constructor exists to make unreachable, and it is invisible to any test that
-reads one of them alone.
+holding it to is that everything derived from that epoch still agrees with it.
+The clock readings every cohort's documents record are held to their epochs in
+``test_cohort.py``; what is Cassini's is the number each image is named for, the
+whole-second field of the reading its shutter opened at.  An image whose name and
+epoch disagree is the defect the epoch-first constructor exists to make
+unreachable, and it is invisible to any test that reads one of them alone.
 
 The rest is what the bundle stage reads off this cohort and cannot check for
 itself: the layout, which is two navigated images that shard into different
@@ -28,7 +29,6 @@ from tests.mini_nav_results.cohort_cassini import (
     RINGS_IMAGE_NAME,
     CohortCassiniISSSaturn,
 )
-from tests.sclk_readings import triples_disagreeing_with_their_epochs
 
 
 @pytest.fixture(scope='module')
@@ -49,17 +49,6 @@ def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
         The written cohort.
     """
     return mini_nav_cohorts(CohortCassiniISSSaturn)
-
-
-def test_every_clock_triple_spans_the_epochs_beside_it(
-    documents: dict[str, dict[str, Any]],
-) -> None:
-    """A reading that is not the one its epoch converts to is an invented one.
-
-    Every reader that subtracts two readings, or converts one back into an
-    epoch, reads whatever a hand-authored triple happened to say.
-    """
-    assert triples_disagreeing_with_their_epochs(documents) == []
 
 
 def test_every_image_is_named_for_the_reading_its_shutter_opened_at(
