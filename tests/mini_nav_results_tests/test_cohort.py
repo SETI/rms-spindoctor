@@ -461,29 +461,55 @@ def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> 
     assert escaped == []
 
 
-def test_the_guard_lists_a_cohort_product_that_was_committed(
-    mini_nav_cohort: Cohort, tmp_path: Path
+def _run_git(repository: Path, *arguments: str) -> None:
+    """Run one git command in a throwaway repository and nowhere else.
+
+    A git hook exports the variables locating its own repository and index to
+    whatever it runs, and with them set a write here would land in that one, so
+    every ``GIT_`` variable is dropped from the command's environment.
+
+    Parameters:
+        repository: The throwaway repository's directory.
+        *arguments: The command's arguments after ``git``.
+    """
+    environment = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+    subprocess.run(
+        ['git', *arguments], cwd=repository, env=environment, capture_output=True, check=True
+    )
+
+
+@pytest.mark.parametrize('committed', [True, False], ids=['committed', 'untracked'])
+def test_the_guard_lists_a_committed_or_untracked_cohort_product(
+    mini_nav_cohort: Cohort, tmp_path: Path, committed: bool
 ) -> None:
-    """A cohort product committed, and unchanged since, is one the guard still sees.
+    """A cohort product is one the guard sees, whether it was committed or never added.
 
     ``git status`` says nothing about a clean file, so a guard built on it passes
-    in every clean checkout of a repository that holds one.  The repository here
-    is a throwaway one, with its committer configured in it alone.
+    in every clean checkout of a repository holding a committed product; and an
+    untracked one, left by a build that escaped its temporary directory, is the
+    likeliest way a product reaches the working tree at all.  Both cases first
+    commit another file, as a real checkout has history beside the product.  The
+    repository is a throwaway one, with its committer configured in it alone.
+
+    Parameters:
+        mini_nav_cohort: The session's cohort, whose products name the file.
+        tmp_path: Directory the throwaway repository is built in.
+        committed: Whether the product is added and committed, or written after
+            the first commit and left unadded.
     """
     name = min(path.name for path in mini_nav_cohort.written)
     repository = tmp_path / 'repository'
-    (repository / 'data').mkdir(parents=True)
+    repository.mkdir()
+    _run_git(repository, 'init', '--quiet')
+    _run_git(repository, 'config', 'user.name', 'Cohort Guard')
+    _run_git(repository, 'config', 'user.email', 'cohort-guard@example.invalid')
+    _run_git(repository, 'config', 'commit.gpgsign', 'false')
+    (repository / 'README').write_text('No cohort product.\n', encoding='utf-8')
+    _run_git(repository, 'add', '--all')
+    _run_git(repository, 'commit', '--quiet', '--message', 'Commit something else')
+    (repository / 'data').mkdir()
     (repository / 'data' / name).write_bytes(b'a cohort product')
-    # A git hook exports the variables locating its own repository and index to
-    # whatever it runs, and with them set these writes would land in that one.
-    environment = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
-    for command in (
-        ['git', 'init', '--quiet'],
-        ['git', 'config', 'user.name', 'Cohort Guard'],
-        ['git', 'config', 'user.email', 'cohort-guard@example.invalid'],
-        ['git', 'config', 'commit.gpgsign', 'false'],
-        ['git', 'add', '--all'],
-        ['git', 'commit', '--quiet', '--message', 'Commit a cohort product'],
-    ):
-        subprocess.run(command, cwd=repository, env=environment, capture_output=True, check=True)
-    assert _paths_git_reports(repository) == [f'data/{name}']
+    if committed:
+        _run_git(repository, 'add', '--all')
+        _run_git(repository, 'commit', '--quiet', '--message', 'Commit a cohort product')
+    assert f'data/{name}' in _paths_git_reports(repository)
