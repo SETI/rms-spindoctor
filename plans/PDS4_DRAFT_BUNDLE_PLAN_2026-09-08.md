@@ -539,15 +539,16 @@ backplane in a unit the bundle cannot use -- a spelling the format mapping
 lacks, or no `units` at all -- naming every such entry once, as the
 missing-template check does.
 
-A minimum or maximum that is not a finite number -- NaN, an infinity, or no
-number at all -- is refused the same way, by the same module: it fails its
-image in the labels pass and the run in the summary pass, since no column can
-hold it and a blank in its place would say the plane measured nothing. That
-was decided on 2026-09-10, after a NaN kilometers-per-pixel statistic in one
-supplemental file was found to stop the index writer halfway through the
-bodies table with a message naming neither the file nor the plane. The
-summary pass renders every cell of both tables before it opens either, so no
-failure of any kind leaves a table half-written.
+A minimum or maximum that is not a finite number within the range of a
+float -- NaN, an infinity, an integer too large for a float, or no number at
+all -- is refused the same way, by the same module: it fails its image in the
+labels pass and the run in the summary pass, since no column can hold it and
+a blank in its place would say the plane measured nothing. That was decided
+on 2026-09-10, after a NaN kilometers-per-pixel statistic in one supplemental
+file was found to stop the index writer halfway through the bodies table
+with a message naming neither the file nor the plane. The summary pass
+renders every cell of both tables before it opens either, so no failure of
+any kind leaves a table half-written.
 
 `sd_backplane_viewer` still decides the same question the same way, and so
 displays that one plane in radians per pixel. Nothing this plan generates goes

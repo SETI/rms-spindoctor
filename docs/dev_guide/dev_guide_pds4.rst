@@ -131,7 +131,8 @@ write, over both generators, and exits 1 the same way.  The inventory and index
 ``.tab`` tables are written either way.  It also exits 1 when a supplemental
 file holds a statistic no index column can -- one in a unit other than the one
 the configuration gives its plane, or in none, or a minimum or maximum that is
-not a finite number -- the check the labels pass makes per image, through
+not a finite number within the range of a float -- the check the labels pass
+makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  Every supplemental
 file is read, and every value in both index tables rendered, before either

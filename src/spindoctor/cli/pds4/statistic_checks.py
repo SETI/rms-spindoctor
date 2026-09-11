@@ -8,9 +8,11 @@ in the format that unit calls for.  Two things about a statistic keep it out of
 such a column.  One in some other unit, or in none, was written before the
 statistics recorded their unit or under another configuration, and a column built
 from it beside the others would be in two units with nothing saying so.  A minimum
-or maximum that is not a finite number -- NaN, an infinity, or no number at all --
-has no decimal form a column can hold, and a blank in its place would say the plane
-measured nothing, which the document does not say either.
+or maximum that is not a finite number within the range of a float -- NaN, an
+infinity, an integer too large for a float, or no number at all -- has no decimal
+form a column can hold, since every column's format writes through a float, and a
+blank in its place would say the plane measured nothing, which the document does
+not say either.
 
 Both passes hold a document to both properties, since either can reach a table
 through either pass.  The labels pass fails the image, before writing anything for
@@ -40,10 +42,10 @@ _UNIT_REASON = (
 """Why a statistic in another unit is in it, which is all a message can say of it."""
 
 _VALUE_REASON = (
-    'an index column holds only finite numbers, and a blank in one would say the '
-    'plane measured nothing'
+    'an index column holds only finite numbers within the range of a float, and a '
+    'blank in one would say the plane measured nothing'
 )
-"""Why a minimum or maximum that is not a finite number cannot be indexed."""
+"""Why a value that is not a finite number within a float's range cannot be indexed."""
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,9 @@ class UnindexableStatistic:
             with ``records`` that a message completes by putting the document before
             it: ``records the ring_radius statistic in m where the configuration
             expects km`` (``in no unit at all`` when none is recorded), ``records a
-            ring_radius minimum of nan, which is not a finite number``, or
+            ring_radius minimum of nan, which is not a finite number``, ``records a
+            ring_radius maximum of an integer 401 digits long, which is too large for
+            a float`` (an integer is given by its length, not its digits), or
             ``records no ring_radius maximum``.
         reason: Why a column cannot take the statistic as recorded, as a clause a
             message puts after the description.  For a unit it names the two ways a
@@ -77,9 +81,10 @@ def unindexable_statistic(
     Every configured body and ring plane the document holds a statistic for is
     checked.  Its recorded unit has to be the one the configuration gives the
     plane, restated as the statistic's unit, and its minimum and maximum each
-    have to be a finite number.  A plane the document holds that the
-    configuration does not declare is not checked, and a plane the configuration
-    declares that the document lacks is no concern of this check.
+    have to be a finite number within the range of a float.  A plane the
+    document holds that the configuration does not declare is not checked, and a
+    plane the configuration declares that the document lacks is no concern of
+    this check.
 
     Parameters:
         backplane_metadata: The backplane metadata document as read, which is also
@@ -149,30 +154,57 @@ def _unindexable_part(
                 plane=name, description=f'records no {name} {word}', reason=_VALUE_REASON
             )
         value = statistic[key]
-        if not _is_finite_number(value):
+        if not _is_finite_as_float(value):
             return UnindexableStatistic(
                 plane=name,
-                description=f'records a {name} {word} of {value!r}, which is not a finite number',
+                description=f'records a {name} {word} of {_described(value)}',
                 reason=_VALUE_REASON,
             )
     return None
 
 
-def _is_finite_number(value: Any) -> bool:
-    """Report whether a value read from a document is a finite number.
+def _is_finite_as_float(value: Any) -> bool:
+    """Report whether a value read from a document is a finite number a float can hold.
 
     Parameters:
         value: The value as the JSON reader returned it.
 
     Returns:
-        True for an integer, and for a float that is neither NaN nor infinite.
-        False for anything else, a boolean included.
+        True for a float that is neither NaN nor infinite, and for an integer
+        within the range of a float.  False for anything else: an integer too
+        large for a float, a boolean, or anything that is not a number.
     """
     # A JSON true or false reads as a bool, which Python counts as an int, and is
-    # not a measurement.  An integer is finite whatever its size, so it is not
-    # handed to isfinite, which raises on one too large for a float.
+    # not a measurement.  The JSON reader returns an int for an integer literal of
+    # any length, and every index format writes through a float, so an integer
+    # beyond a float's range is no more holdable than an infinity; isfinite
+    # raises OverflowError for one rather than returning False.
     if isinstance(value, bool):
         return False
     if isinstance(value, int):
-        return True
+        try:
+            return math.isfinite(value)
+        except OverflowError:
+            return False
     return isinstance(value, float) and math.isfinite(value)
+
+
+def _described(value: Any) -> str:
+    """Describe a minimum or maximum no column can hold, for a message.
+
+    Parameters:
+        value: A value :func:`_is_finite_as_float` refused, as the JSON reader
+            returned it.
+
+    Returns:
+        What the value is and why no column can hold it.  An integer, which is
+        refused only when it is too large for a float, is given by its length,
+        since its digits run to hundreds: ``an integer 401 digits long, which is
+        too large for a float``.  Anything else is given by its representation:
+        ``nan, which is not a finite number``.
+    """
+    if isinstance(value, int) and not isinstance(value, bool):
+        # The JSON reader converts a literal under the same limit on digits that
+        # str does, so any integer it returns has a length str can measure.
+        return f'an integer {len(str(abs(value)))} digits long, which is too large for a float'
+    return f'{value!r}, which is not a finite number'

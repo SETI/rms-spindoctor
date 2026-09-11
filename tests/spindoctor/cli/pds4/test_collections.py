@@ -622,26 +622,39 @@ def test_a_disagreeing_supplemental_file_anywhere_is_refused_before_the_first_ta
     assert not (env.bundle_dir / 'document').exists()
 
 
-def test_a_supplemental_file_holding_an_infinite_statistic_is_refused_with_nothing_written(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ('maximum', 'recorded'),
+    [
+        (math.inf, 'records a resolution maximum of inf'),
+        (10**400, 'records a resolution maximum of an integer 401 digits long'),
+    ],
+    ids=['infinity', 'integer too large for a float'],
+)
+def test_a_supplemental_file_holding_a_maximum_no_column_can_is_refused_with_nothing_written(
+    tmp_path: Path, maximum: float, recorded: str
 ) -> None:
-    """A maximum of Infinity ends the run, naming the file and the plane, with no table written.
+    """A maximum no column can hold ends the run, naming file and plane, with no table.
 
     The JSON reader returns an infinity for the token the writer writes for one,
-    so a supplemental file can carry it, and no column can hold it.
+    and an integer for an integer literal of any length, so a supplemental file
+    can carry either.  Every index format writes through a float, which holds
+    neither.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+        maximum: The resolution maximum the supplemental file records.
+        recorded: What the refusal says the file records.
     """
     env = _index_env(tmp_path)
-    infinite = {
-        'SATURN': {
-            'backplanes': {'resolution': {'min': 60.0, 'max': math.inf, 'units': 'km/pixel'}}
-        }
+    unholdable = {
+        'SATURN': {'backplanes': {'resolution': {'min': 60.0, 'max': maximum, 'units': 'km/pixel'}}}
     }
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=infinite)
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=unholdable)
     with pytest.raises(ValueError) as excinfo:
         _run_global_index(env)
     message = str(excinfo.value)
     assert '1234567890w_supplemental.txt' in message
-    assert 'records a resolution maximum of inf' in message
+    assert recorded in message
     assert not (env.bundle_dir / 'document').exists()
 
 

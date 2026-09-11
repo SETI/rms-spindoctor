@@ -324,10 +324,11 @@ def generate_global_index_files(
             no column format for, or if a supplemental file holds a statistic no
             column can: one in a unit other than the one the configuration gives
             its plane, or in none, or with a minimum or maximum that is not a
-            finite number.  The message names the file and the plane, what the
-            file records there, and what to regenerate.  Every supplemental file
-            is read, and every value in both tables rendered, before either
-            table is opened, so none of these leaves a table behind.
+            finite number within the range of a float.  The message names the
+            file and the plane, what the file records there, and what to
+            regenerate.  Every supplemental file is read, and every value in both
+            tables rendered, before either table is opened, so none of these
+            leaves a table behind.
     """
 
     bundle_name = dataset.pds4_bundle_name()

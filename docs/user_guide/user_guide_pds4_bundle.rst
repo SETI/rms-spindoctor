@@ -346,8 +346,9 @@ the log names what was not.
   regenerate the backplanes, then the bundle into an empty directory. The log
   names the file, the plane and both units. A supplemental file recording a
   minimum or maximum that is not a finite number ends the run the same way,
-  and the log names the file, the plane and the value; the labels pass of a
-  regenerated bundle fails such an image rather than writing it.
+  and the log names the file and the plane and says what the file records
+  there; the labels pass of a regenerated bundle fails such an image rather
+  than writing it.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
   written as ``status: error`` with ``status_error: label_not_written``, and asks

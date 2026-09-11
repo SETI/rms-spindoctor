@@ -29,7 +29,7 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold: one in a unit other than the one the
             configuration gives its plane, or with a minimum or maximum that is
-            not a finite number.
+            not a finite number within the range of a float.
     """
 
     WRITTEN = 'written'
@@ -72,9 +72,9 @@ def generate_bundle_data_files(
     or in none, was written before the statistics recorded their unit, or under
     another configuration, and indexing it would put one column in two units
     with nothing saying so.  A minimum or maximum that is not a finite number
-    has no decimal form a column can hold, and a blank in its place would say
-    the plane measured nothing.  A plane the document holds that the
-    configuration does not declare is not checked.
+    within the range of a float has no decimal form a column can hold, and a
+    blank in its place would say the plane measured nothing.  A plane the
+    document holds that the configuration does not declare is not checked.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -89,7 +89,8 @@ def generate_bundle_data_files(
         nothing for the bundle to describe, and FAILED when a label could not be
         rendered, the summary PNG is not there, or a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
-        minimum or maximum that is not a finite number.
+        minimum or maximum that is not a finite number within the range of a
+        float.
 
     Raises:
         ValueError: If the batch does not hold exactly one image, or if the
