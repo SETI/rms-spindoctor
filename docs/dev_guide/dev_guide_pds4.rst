@@ -106,17 +106,15 @@ an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or
-infinite), an image whose navigation document records no exposure epochs a
-label can state (see `Epochs`_), and an image whose inputs it could not read --
-and exits 1 when that count is not zero.  An image with such a statistic is
-failed before anything is written for it, and the log names the image, the
-plane and what the document records there.  The run closes with a line giving
-that count alongside the number of images it labeled and the number it
-skipped, so a selection that matched nothing reads as the zero it is.  It
-counts a batch that did not hold exactly one image the same way; that is a
-guard on the one-image-per-batch invariant
-:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` also
-asserts, and no selection argument this dataset offers can produce one.
+infinite), and an image whose inputs it could not read -- and exits 1 when that
+count is not zero.  An image with such a statistic is failed before anything is
+written for it, and the log names the image, the plane and what the document
+records there.  The run closes with a line giving that count alongside the
+number of images it labeled and the number it skipped, so a selection that
+matched nothing reads as the zero it is.  It counts a batch that did not hold
+exactly one image the same way; that is a guard on the one-image-per-batch
+invariant :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files`
+also asserts, and no selection argument this dataset offers can produce one.
 
 An image the bundle has nothing to describe is skipped rather than failed and
 does not count against the run: an image with no navigation metadata document,
@@ -137,7 +135,8 @@ have processed.
 ``sd_create_bundle summary`` counts the collection and index labels it did not
 write, over both generators, and exits 1 the same way.  The inventory and index
 ``.tab`` tables are written either way.  The data collection label counts as not
-written when there is no range for it to state (see `Epochs`_).  The global index
+written when the data tree holds no supplemental file, and so no range for it to
+state (see `Epochs`_).  The global index
 is generated first, and it refuses a bundle with no ``data/`` directory, naming
 the directory, before any product of the pass is cleared or written.  The pass
 also exits 1 when a supplemental file holds a statistic no index column can --
@@ -413,13 +412,8 @@ midpoint of the two as written, a half millisecond rounding up, through
 :func:`~spindoctor.support.time.pds4_utc_midpoint`: an exposure an odd number of
 milliseconds long has its midtime on a half millisecond, where the recorded midtime
 epoch lands a few nanoseconds to either side, and PDS3's ``IMAGE_MID_TIME`` takes the
-half up.  Before the hook is called,
-:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` holds the
-navigation document to :func:`~spindoctor.cli.pds4.epochs.unrecorded_epoch`: a
-``times`` block with all three epochs, each a finite number, the stop no earlier
-than the start.  An image whose document fails the check is failed before anything
-is written for it, the image and what its document lacks in the log, the way an
-image whose backplane statistics no index column can hold is failed.
+half up.  A navigated image's document always records its epochs, and they are read
+as recorded, with no check of their own.
 
 The data collection label states the range of the products' epochs: the least
 start and the greatest stop over every supplemental file, written to whole seconds
@@ -436,10 +430,8 @@ summary pass runs the index first and hands the range to
 driver holds it for any other label that states the bundle's range:
 :meth:`~spindoctor.cli.pds4.epochs.EpochRange.template_variables` gives such a
 label its ``EARLIEST_START_DATE_TIME`` and ``LATEST_STOP_DATE_TIME`` without a
-second computation.  A scan that read no supplemental file, or read one whose
-document the epoch check refuses, yields a
-:class:`~spindoctor.cli.pds4.epochs.NoEpochRange` saying why, and the data
-collection label is then counted as not written rather than rendered with empty
+second computation.  A scan that read no supplemental file yields no range, and the
+data collection label is then counted as not written rather than rendered with empty
 dates.  A supplemental file the index generator cannot read, or that does not hold
 a JSON object, never reaches the scan: the generator refuses the run on it, naming
 the file and the reason or what it holds.
@@ -628,8 +620,6 @@ documented above.
 - :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one
   check both passes hold every statistic of a document to, its unit and its
   values.
-- :func:`~spindoctor.cli.pds4.epochs.unrecorded_epoch` — the one check a
-  navigation document's exposure epochs are held to before a label states them.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
   :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome` — the range of the
   products' epochs, taken in the global index's read of the supplemental files

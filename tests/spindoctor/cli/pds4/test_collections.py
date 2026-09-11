@@ -37,7 +37,7 @@ from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
 )
-from spindoctor.cli.pds4.epochs import EpochRange, NoEpochRange
+from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (
@@ -66,7 +66,7 @@ COLLECTION_LABELS = {
 """Each collection label's bundle subdirectory and its intact template body."""
 
 
-def _run_collections(env: BundleEnv, *, epochs: EpochRange | NoEpochRange = A_RANGE) -> int:
+def _run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> int:
     """Run generate_collection_files against the environment's bundle root.
 
     Parameters:
@@ -238,7 +238,7 @@ def test_a_data_collection_with_no_range_leaves_no_earlier_label(tmp_path: Path)
     data_dir.mkdir(parents=True)
     earlier = data_dir / 'collection_data.lblx'
     earlier.write_text('<an earlier run/>\n', encoding='utf-8')
-    _run_collections(env, epochs=NoEpochRange('no range is taken here'))
+    _run_collections(env, epochs=None)
     assert not earlier.exists()
 
 

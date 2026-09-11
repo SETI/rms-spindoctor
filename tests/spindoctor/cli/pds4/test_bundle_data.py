@@ -36,7 +36,6 @@ from .conftest import (
     NoPds4DataSet,
     make_bundle_env,
     make_image_file,
-    navigated_document,
     write_nav_inputs,
 )
 
@@ -502,7 +501,7 @@ def test_a_carried_record_is_used_in_place_of_the_document(tmp_path: Path) -> No
     """A record carried with the image is what the supplemental file records."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env, nav_extra={'marker': 'from the document'})
-    env.image_file.nav_record = navigated_document(marker='from the enumeration')
+    env.image_file.nav_record = {'status': 'success', 'marker': 'from the enumeration'}
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     combined = json.loads(suppl.read_text(encoding='utf-8'))
@@ -514,7 +513,7 @@ def test_a_carried_record_is_used_when_the_document_has_gone(tmp_path: Path) -> 
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     (env.nav_root / f'{env.results_path_stub}_metadata.json').unlink()
-    env.image_file.nav_record = navigated_document(marker='from the enumeration')
+    env.image_file.nav_record = {'status': 'success', 'marker': 'from the enumeration'}
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     combined = json.loads(suppl.read_text(encoding='utf-8'))
@@ -546,28 +545,3 @@ def test_an_image_carrying_no_record_needs_the_document(tmp_path: Path) -> None:
     assert outcome is BundleDataOutcome.SKIPPED
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     assert not suppl.exists()
-
-
-# ---------------------------------------------------------------------------
-# The exposure's times
-# ---------------------------------------------------------------------------
-
-
-def test_a_navigated_image_recording_no_exposure_times_fails_with_nothing_written(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A success document with no times block is failed before anything is written.
-
-    A data label states when its exposure began and ended, and the navigation stamps
-    a success document with both, so one that records neither is a broken input: not
-    an image to label with an empty time, and not a traceback out of the template
-    variables.  The stand-in dataset here would render labels without the times, so
-    what stops it is the check.
-    """
-    env = make_bundle_env(tmp_path)
-    write_nav_inputs(env, nav_extra={'navigation_result': {}})
-    outcome = _generate(env)
-    assert outcome is BundleDataOutcome.FAILED
-    assert not env.bundle_dir.exists()
-    expected = '1234567890w.img": the navigation metadata records no navigation_result.times block'
-    assert expected in capsys.readouterr().out

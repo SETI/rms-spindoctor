@@ -22,7 +22,7 @@ from typing import Any
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.config import Config
 
-__all__ = ['UnindexableStatistic', 'described_value', 'unindexable_statistic']
+__all__ = ['UnindexableStatistic', 'unindexable_statistic']
 
 
 _UNIT_REASON = (
@@ -128,23 +128,20 @@ def _unindexable_part(
         if not math.isfinite(value):
             return UnindexableStatistic(
                 plane=name,
-                description=f'records a {name} {word} of {described_value(value)}',
+                description=f'records a {name} {word} of {_described(value)}',
                 reason=_VALUE_REASON,
             )
     return None
 
 
-def described_value(value: Any) -> str:
-    """Describe a recorded value that is not a finite number, for a message.
-
-    The description of a minimum or maximum no index column can hold, and of an
-    exposure epoch no label can state.
+def _described(value: Any) -> str:
+    """Describe a minimum or maximum no column can hold, for a message.
 
     Parameters:
-        value: The value, as the JSON reader returned it.
+        value: A NaN or infinite value, as the JSON reader returned it.
 
     Returns:
-        The value's representation and that it is not a finite number: ``nan, which
-        is not a finite number``.
+        The value's representation and why no column can hold it: ``nan, which is
+        not a finite number``.
     """
     return f'{value!r}, which is not a finite number'

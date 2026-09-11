@@ -398,8 +398,8 @@ NAVIGATED_TIMES: dict[str, float] = {
 }
 """The exposure epochs a success document records under ``navigation_result.times``.
 
-The labels pass fails an image whose document records none, since its data label states
-when the exposure began and ended, so every navigated document the plumbing tests write
+A navigated image's document records its exposure's epochs, and the summary pass reads
+them from every supplemental file, so every supplemental file the plumbing tests write
 records these.
 """
 
@@ -436,24 +436,18 @@ def write_nav_inputs(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Write the navigation and backplane input files for the environment's image.
 
-    The navigation document is :func:`navigated_document`'s, recording an exposure's
-    epochs, so that a success document is one the labels pass can label.
-
     Parameters:
         env: The bundle environment to populate.
         status: Navigation ``status`` value; None omits the key entirely.
-        nav_extra: Extra keys merged into the navigation metadata dict, over the
-            ``navigation_result`` it holds otherwise.
+        nav_extra: Extra keys merged into the navigation metadata dict.
         backplane_metadata: Backplane metadata dict; a small default when None.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
 
     Returns:
         The navigation metadata dict and the backplane metadata dict as written.
     """
-    nav_metadata = navigated_document()
-    if status is None:
-        del nav_metadata['status']
-    else:
+    nav_metadata: dict[str, Any] = {}
+    if status is not None:
         nav_metadata['status'] = status
     if nav_extra:
         nav_metadata.update(nav_extra)
@@ -495,8 +489,8 @@ def write_supplemental(
         stub: Path stub (may include shard subdirectories) for the image.
         bodies: ``backplanes.bodies`` payload keyed by body name.
         rings: ``backplanes.rings`` payload (``{'backplanes': {...}}``).
-        navigation: The ``navigation`` document; an empty one, recording no
-            epochs, when None.
+        navigation: The ``navigation`` document; :func:`navigated_document`'s when
+            None.
         raw_text: Literal file content overriding the JSON payload entirely.
         label: Whether the product's data label is written beside the file.
 
@@ -511,7 +505,7 @@ def write_supplemental(
         path.write_text(raw_text, encoding='utf-8')
         return path
     payload = {
-        'navigation': navigation if navigation is not None else {},
+        'navigation': navigation if navigation is not None else navigated_document(),
         'backplanes': {
             'bodies': bodies if bodies is not None else {},
             'rings': rings if rings is not None else {},

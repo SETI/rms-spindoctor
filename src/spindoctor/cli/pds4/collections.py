@@ -10,7 +10,7 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
-from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan, NoEpochRange
+from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.dataset.dataset import DataSet
@@ -294,7 +294,7 @@ def generate_collection_files(
     dataset: DataSet,
     logger: PdsLogger,
     *,
-    epochs: EpochRange | NoEpochRange,
+    epochs: EpochRange | None,
 ) -> int:
     """Generate collection CSV and label files for the bundle.
 
@@ -308,10 +308,10 @@ def generate_collection_files(
     its read of the supplemental files, which is why the summary pass runs that
     first.  The label writes it to whole seconds, the start rounded down and the stop
     up, so the range contains every product's own start and stop.  With no range to
-    state -- no supplemental file at all, or one whose epochs could not be had -- the
-    data collection label is counted as not written, with an error saying why, rather
-    than rendered with empty dates, which PDS4 does not accept; whatever an earlier
-    run left at its path is removed, so a label on disk is always one this run wrote.
+    state, because the data tree holds no supplemental file, the data collection
+    label is counted as not written, with an error saying so, rather than rendered
+    with empty dates, which PDS4 does not accept; whatever an earlier run left at its
+    path is removed, so a label on disk is always one this run wrote.
 
     Every collection template the dataset declares is required.  The caller is
     expected to have checked them before processing anything, so one that is
@@ -323,7 +323,7 @@ def generate_collection_files(
         dataset: The dataset instance for bundle-specific methods.
         logger: Logger for diagnostic messages.
         epochs: The earliest start and the latest stop of the products' exposures,
-            or why there is no such range.
+            or None when the data tree holds no supplemental file.
 
     Returns:
         The number of collection labels that could not be rendered, the data
@@ -381,13 +381,12 @@ def generate_collection_files(
     collection_data_template = template_base / 'collection_data.lblx'
     template = pdstemplate.PdsTemplate(str(collection_data_template))
     collection_data_label = products.data_label
-    if isinstance(epochs, NoEpochRange):
+    if epochs is None:
         collection_data_label.unlink(missing_ok=True)
         logger.error(
-            'The data collection label %s was not written: it states the time range of '
-            'the products the collection holds, and %s',
+            'The data collection label %s was not written: the data tree holds no '
+            'supplemental file, so there is no time range for it to state',
             collection_data_label,
-            epochs.reason,
         )
         failed_labels += 1
     else:
@@ -439,11 +438,11 @@ class GlobalIndexOutcome:
         failed_labels: The number of index labels that could not be rendered.
         epochs: The earliest exposure start and the latest exposure stop over the
             supplemental files the index was built from, which the data collection
-            label states, or why there is no such range.
+            label states, or None when there were none.
     """
 
     failed_labels: int
-    epochs: EpochRange | NoEpochRange
+    epochs: EpochRange | None
 
 
 def generate_global_index_files(
@@ -459,11 +458,9 @@ def generate_global_index_files(
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
     :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and returned for the labels
-    that state it.  A supplemental file whose navigation document records no epochs
-    a label can state leaves no range, since a range taken over the rest could leave
-    its product outside, and is indexed all the same.  One that cannot be read, or
-    does not hold a JSON object, refuses the run, since left out of the index it would
-    still be listed in the collection's inventory.  So does a supplemental file with no
+    that state it.  A supplemental file that cannot be read, or does not hold a JSON
+    object, refuses the run, since left out of the index it would still be listed in
+    the collection's inventory.  So does a supplemental file with no
     data label beside it, or a data label with no supplemental file: the inventory
     finds a product by its data label, and the index and the range by its supplemental
     file, so the two would disagree about it.  Both are listed once, and compared
@@ -489,8 +486,8 @@ def generate_global_index_files(
 
     Returns:
         The number of index labels that could not be rendered, and the range of the
-        products' epochs over every supplemental file read, or why there is none:
-        there is no supplemental file, or one records no epochs a label can state.
+        products' epochs over every supplemental file read, or None when there is no
+        supplemental file.
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, which is
@@ -618,7 +615,7 @@ def generate_global_index_files(
                 f'supplemental document is a JSON object. {_REGENERATE_REMEDY}'
             )
 
-        epochs.include(f'supplemental file {suppl_file}', metadata.get('navigation'))
+        epochs.include(metadata['navigation'])
         backplanes = metadata.get('backplanes', {})
         # A supplemental file holds the backplane document the labels pass
         # read.  Every index column is in its plane's configured unit and holds

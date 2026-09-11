@@ -24,7 +24,7 @@ from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
 )
-from spindoctor.cli.pds4.epochs import EpochRange, NoEpochRange
+from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
@@ -99,24 +99,6 @@ def test_the_range_is_the_earliest_start_and_the_latest_stop_over_every_file(
     assert index.epochs == EpochRange(start_et=100.0, stop_et=900.0)
 
 
-def test_one_file_whose_epochs_cannot_be_had_leaves_no_range(tmp_path: Path) -> None:
-    """A document recording no epochs beside a good one leaves no range, naming its file.
-
-    A range taken over the others could leave that file's product outside it.  A file
-    that cannot be read at all never reaches the range: the index refuses the run on it.
-    """
-    env = make_bundle_env(tmp_path)
-    data_dir = env.bundle_dir / 'data'
-    write_supplemental(data_dir, 'shard0/1111111111n', navigation=_navigation(100.0, 200.0))
-    broken = write_supplemental(data_dir, 'shard0/2222222222w', navigation={})
-    expected = NoEpochRange(
-        f'supplemental file {FCPath(broken)} records no navigation_result block, so no '
-        'range can be taken that contains every product'
-    )
-    index, _ = _summarize(env)
-    assert index.epochs == expected
-
-
 def test_with_no_supplemental_file_the_data_collection_label_is_not_written(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -134,7 +116,8 @@ def test_with_no_supplemental_file_the_data_collection_label_is_not_written(
     assert failed == 1
     assert not earlier.exists()
     assert read_tab(data_dir / 'collection_data.tab') == [['Member Status', 'LIDVID_LID']]
-    assert 'there are no products to take a range from' in capsys.readouterr().out
+    expected = 'the data tree holds no supplemental file, so there is no time range'
+    assert expected in capsys.readouterr().out
 
 
 def test_the_range_is_stated_at_the_whole_seconds_outside_it(tmp_path: Path) -> None:

@@ -31,7 +31,7 @@ from tests.spindoctor.cli.pds4.conftest import (
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
 from spindoctor.cli.pds4.collections import GlobalIndexOutcome
-from spindoctor.cli.pds4.epochs import EpochRange, NoEpochRange
+from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 from spindoctor.dataset.dataset_sim import DataSetSim
 
@@ -252,7 +252,7 @@ def _summary_counts(monkeypatch: pytest.MonkeyPatch, collections: int, index: in
         collections: Failed collection labels to report.
         index: Failed global index labels to report.
     """
-    outcome = GlobalIndexOutcome(failed_labels=index, epochs=NoEpochRange('not taken here'))
+    outcome = GlobalIndexOutcome(failed_labels=index, epochs=None)
     monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', lambda **kwargs: collections)
     monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
 
@@ -757,7 +757,7 @@ def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
     statement that raised but not the path it interpolated, so the path is what says
     the reason reached the log.
     """
-    outcome = GlobalIndexOutcome(failed_labels=0, epochs=NoEpochRange('not taken here'))
+    outcome = GlobalIndexOutcome(failed_labels=0, epochs=None)
     monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()

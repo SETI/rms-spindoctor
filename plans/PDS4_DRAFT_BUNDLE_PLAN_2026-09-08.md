@@ -430,12 +430,10 @@ and which of its rules this bundle follows for which element.
 
 An image whose navigation never reached a solution has no `times` block;
 section 3.11 says what happens to it, and the answer is that it never reaches
-a label. A success document always has one, so the labels pass holds every
-document it labels to recording it -- `spindoctor.cli.pds4.epochs.unrecorded_epoch`:
-all three epochs, each a finite number, the stop no earlier than the start --
-and fails an image whose document does not before anything is written for it,
-the way it fails a statistic no index column can hold. The empty string is not
-reachable.
+a label. A success document always has one, written by this package's own
+navigation, so both passes read the epochs as recorded, with no check of their
+own (the operator's ruling of 2026-09-11 that nothing guards against our own
+files). The empty string is not reachable.
 
 The data collection label states the cohort's earliest start and latest stop,
 at whole seconds as the reference's collection and bundle labels do, the start
@@ -448,14 +446,14 @@ there, in that same read, by an `EpochRangeScan`. The index therefore runs
 before the collection files in `main_summary`, and returns the range in a
 `GlobalIndexOutcome`, which the driver hands to `generate_collection_files`
 and holds for `bundle.lblx`, which Phase 6 renders, without a second
-computation. With no range to state -- no supplemental file, or one whose
-document the epoch check refuses -- the data collection label is counted as
-not written, with an error saying why, and the inventory table is still
-written. A supplemental file that cannot be read, or does not hold a JSON
-object, refuses the run before either index table is written, naming the file
-and the reason or what it holds, the way a statistic no column can hold is
-refused: left out of the index its product would still be in the inventory,
-with no epochs for the range. So does a supplemental file with no data label
+computation. With no range to state -- the data tree holds no supplemental
+file -- the data collection label is counted as not written, with an error
+saying so, and the inventory table is still written. A supplemental file that
+cannot be read, or does not hold a JSON object, refuses the run before either
+index table is written, naming the file and the reason or what it holds, the
+way a statistic no column can hold is refused: left out of the index its
+product would still be in the inventory, with no epochs for the range. So does
+a supplemental file with no data label
 beside it, or a data label with no supplemental file, naming both: the
 inventory lists products by their data labels, and the index and the range
 read the supplemental files, so the two would disagree about the product. A
@@ -1197,8 +1195,7 @@ statistics report's `date_from_image_et` and `datetime_from_image_et` and by
 `pds4_template_variables`. `START_DATE_TIME` and `STOP_DATE_TIME` read
 `navigation_result.times`, each to the nearest millisecond, and
 `IMAGE_MID_TIME` is the midpoint of the two as written, a half rounding up
-(section 3.4); an image whose success document records no usable epochs is
-failed before anything is written. The data
+(section 3.4). The data
 collection range is taken in the global index's read of the supplemental files,
 which now runs first, and written at whole seconds, rounded outward; with no
 range the data collection label is counted as not written. The bundle label's
@@ -1210,12 +1207,10 @@ kernel; the shipped data label over the cohort states each navigated image's
 start and stop; W1630770594's start, computed a few nanoseconds short of its
 millisecond, is written as its PDS3 label states it, and W1629783475's
 midtime, on a half millisecond, as its `IMAGE_MID_TIME`; the range contains a
-product's written times where they meet its whole seconds; a success
-document with no `times` block fails with nothing
-written; the collection range over three supplemental files is the min and the
-max; the shipped `collection_data.lblx` over the cohort states the range of its
-two navigated images; a summary over no supplemental file writes no data
-collection label.
+product's written times where they meet its whole seconds; the collection
+range over three supplemental files is the min and the max; the shipped
+`collection_data.lblx` over the cohort states the range of its two navigated
+images; a summary over no supplemental file writes no data collection label.
 
 Closes #519, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 

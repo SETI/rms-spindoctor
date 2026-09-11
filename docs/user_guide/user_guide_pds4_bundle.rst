@@ -262,8 +262,7 @@ PDS3 label and index, and the navigation computes its epochs from those values, 
 each epoch lies within a few nanoseconds of a millisecond and the nearest one is the
 time PDS3 records; rounding a start down or a stop up would put it a millisecond
 off whenever the epoch lands on the far side. A leap second is written as second
-60. A navigated image whose document records no such times is failed rather than
-labeled, as the exit status below describes.
+60.
 
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
@@ -320,8 +319,7 @@ otherwise; the log says what went wrong.
   An image with nothing to describe (never navigated, navigation failed, or no
   backplanes) is skipped, which is not an error. An image fails if its
   metadata cannot be read, a label cannot be written, its summary PNG is
-  missing, its navigation metadata does not record when its exposure began and
-  ended, or its backplane metadata holds a statistic the index tables cannot
+  missing, or its backplane metadata holds a statistic the index tables cannot
   hold: one in a unit other than the configured one, or a minimum or maximum
   that is NaN or infinite. For such a statistic, regenerate that image's
   backplanes.
@@ -335,12 +333,11 @@ otherwise; the log says what went wrong.
   regenerate the backplanes, then the bundle, into an empty directory.
 
   The data collection label is not written, and the pass exits 1, when there is
-  no time range for it to state: the ``data/`` tree holds no supplemental file,
-  or one of them records no exposure times. A supplemental file that cannot be
-  read or does not hold a JSON object, a supplemental file with no data label
-  beside it, or a data label with no supplemental file, ends the pass with exit
-  status 1 and leaves none of its tables and labels: regenerate the bundle into
-  an empty directory.
+  no time range for it to state: the ``data/`` tree holds no supplemental file. A
+  supplemental file that cannot be read or does not hold a JSON object, a
+  supplemental file with no data label beside it, or a data label with no
+  supplemental file, ends the pass with exit status 1 and leaves none of its
+  tables and labels: regenerate the bundle into an empty directory.
 
 * ``sd_create_bundle_cloud_tasks`` reports a failed task as ``status: error``,
   with ``status_error`` saying why (for example ``label_not_written``), and
