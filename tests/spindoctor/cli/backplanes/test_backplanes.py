@@ -29,7 +29,6 @@ from tests.cmatrix_helpers import synthetic_frame_identity
 import spindoctor.support.cmatrix as cmatrix_module
 from spindoctor.cli.backplanes import backplanes as backplanes_mod
 from spindoctor.cli.backplanes.backplanes import generate_backplanes_image_files
-from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.reproj.pointing_source import FilePointingSource
 from spindoctor.config import (
     DEFAULT_CONFIG,
@@ -126,7 +125,7 @@ def test_default_config_declares_no_angle_the_statistics_cannot_convert(kind: st
     """
     unconvertible = {'radian', 'radians', 'mrad', 'microrad', 'arcsec', 'arcmin', 'milliarcsec'}
     for entry in _config_entries(kind):
-        measure = statistics_units(entry['units']).partition('/')[0].lower()
+        measure = entry['units'].partition('/')[0].strip().lower()
         assert measure not in unconvertible, (
             f'{entry["name"]} declares {entry["units"]}, which the statistics do not convert'
         )
