@@ -383,6 +383,14 @@ the log names what was not.
   object. The labels pass writes every supplemental file, so the remedy is to
   regenerate the bundle into an empty directory.
 
+  A supplemental file with no data label beside it, or a data label with no
+  supplemental file, ends the pass the same way, and the log names both. The
+  labels pass writes a product's supplemental file before it renders the data
+  label, so a data label that failed to render leaves the one without the other;
+  the collection inventory, which lists a product by its data label, and the
+  global index, which reads its supplemental file, would then disagree about it.
+  The remedy is the same.
+
   It also exits 1 when a supplemental file records a statistic in a unit other
   than the one the configuration gives its plane, or in none, and leaves none of
   the pass's products: no index table, no collection file and no label of

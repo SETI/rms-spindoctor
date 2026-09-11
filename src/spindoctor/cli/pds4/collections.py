@@ -207,10 +207,11 @@ def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueForma
     return [value_format.render(statistic['min']), value_format.render(statistic['max'])]
 
 
-_UNREADABLE_REMEDY = (
-    'The labels pass writes every supplemental file: regenerate the bundle into an empty directory'
+_REGENERATE_REMEDY = (
+    "The labels pass writes each product's supplemental file and data label: regenerate the "
+    'bundle into an empty directory'
 )
-"""What a refusal of a supplemental file the index cannot take says to do about it."""
+"""What a refusal over a product the index cannot take says to do about it."""
 
 
 def _json_kind(value: Any) -> str:
@@ -252,6 +253,43 @@ def _data_dir(bundle_root: FCPath) -> FCPath:
     if not data_dir.exists():
         raise FileNotFoundError(f'Data directory does not exist: {data_dir}')
     return data_dir
+
+
+_SUPPLEMENTAL_SUFFIX = '_supplemental.txt'
+"""What follows a product's path stub in the name of its supplemental file."""
+
+_DATA_LABEL_SUFFIX = '_backplanes.lblx'
+"""What follows a product's path stub in the name of its data label."""
+
+
+def _data_labels(data_dir: FCPath) -> list[FCPath]:
+    """Return every data label in the data tree, which is how a product is found.
+
+    The collection inventory lists a product by its data label, and the global index
+    holds every supplemental file to having one beside it, so both list them here.
+
+    Parameters:
+        data_dir: The bundle's data directory.
+
+    Returns:
+        Each ``<stub>_backplanes.lblx`` under it, in the order the listing gives.
+    """
+    return list(data_dir.rglob(f'*{_DATA_LABEL_SUFFIX}'))
+
+
+def _product_stub(path: FCPath, data_dir: FCPath, suffix: str) -> str:
+    """Return a product's path stub, read off one of its files.
+
+    Parameters:
+        path: The product's supplemental file or data label, under ``data_dir``.
+        data_dir: The bundle's data directory.
+        suffix: What follows the stub in the file's name.
+
+    Returns:
+        The file's path relative to ``data_dir``, in POSIX form, less ``suffix``: the
+        stub both of a product's files share, as in ``shard0/1234567890w``.
+    """
+    return path.relative_to(data_dir).as_posix().removesuffix(suffix)
 
 
 @dataclass(frozen=True)
@@ -347,13 +385,9 @@ def generate_collection_files(
     products = _CollectionProducts.in_bundle(bundle_root)
     failed_labels = 0
 
-    # Scan for all label files in data directory
+    # Every product in the data directory, found by its data label
     data_dir = _data_dir(bundle_root)
-    label_files: list[FCPath] = []
-
-    # Recursively scan for .lblx files
-    for label_file in data_dir.rglob('*_backplanes.lblx'):
-        label_files.append(label_file)
+    label_files = _data_labels(data_dir)
 
     # Sort by image name (extracted from filename)
     def get_image_name_from_label(path: FCPath) -> str:
@@ -474,13 +508,17 @@ def generate_global_index_files(
     a label can state leaves no range, since a range taken over the rest could leave
     its product outside, and is indexed all the same.  One that cannot be read, or
     does not hold a JSON object, refuses the run, since left out of the index it would
-    still be listed in the collection's inventory.
+    still be listed in the collection's inventory.  So does a supplemental file with no
+    data label beside it, or a data label with no supplemental file: the inventory
+    finds a product by its data label, and the index and the range by its supplemental
+    file, so the two would disagree about it.  Both are listed once, and compared
+    before any file is read.
 
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
     label before it renders, and so are the two collection tables and two
     collection labels :func:`generate_collection_files` writes after the index.
-    A run refused over what a supplemental file holds therefore leaves no product
+    A run refused over what the data tree holds therefore leaves no product
     of the summary pass, neither this run's nor an earlier run's: no index still
     describing the bundle as it was, and no inventory beside no index.  A
     configured plane whose unit the index cannot format is refused before that,
@@ -510,7 +548,9 @@ def generate_global_index_files(
         ValueError: If a configured plane's statistic is in a unit the index has
             no column format for; if a supplemental file cannot be read or does
             not hold a JSON object, the message naming the file and the reason or
-            what it holds instead; or if one
+            what it holds instead; if a supplemental file has no data label
+            beside it, or a data label no supplemental file, the message naming
+            both; or if one
             holds a statistic no column can -- one in a unit other than the one
             the configuration gives its plane, or in none, or with a minimum or
             maximum that is not a finite number within the range of a float --
@@ -559,7 +599,7 @@ def generate_global_index_files(
 
     # Scan for all supplemental files
     supplemental_files: list[FCPath] = []
-    for suppl_file in data_dir.rglob('*_supplemental.txt'):
+    for suppl_file in data_dir.rglob(f'*{_SUPPLEMENTAL_SUFFIX}'):
         supplemental_files.append(suppl_file)
 
     # Sort by image name (extracted from filename)
@@ -570,6 +610,35 @@ def generate_global_index_files(
 
     supplemental_files.sort(key=get_image_name_from_supplemental)
     logger.info('Found %d supplemental files', len(supplemental_files))
+
+    # The labels pass writes a product's supplemental file and then renders its data
+    # label, and the collection inventory finds a product by its data label, so one of
+    # the two without the other is a product the index and the inventory would disagree
+    # about: indexed and inside the range but not listed, or listed but neither.  Both
+    # lists are taken once and compared before any file is read.
+    supplemental_stubs = {
+        _product_stub(path, data_dir, _SUPPLEMENTAL_SUFFIX) for path in supplemental_files
+    }
+    label_stubs = {
+        _product_stub(path, data_dir, _DATA_LABEL_SUFFIX) for path in _data_labels(data_dir)
+    }
+    unlabeled = sorted(supplemental_stubs - label_stubs)
+    if len(unlabeled) > 0:
+        raise ValueError(
+            f'Supplemental file {data_dir / (unlabeled[0] + _SUPPLEMENTAL_SUFFIX)} has no '
+            f'data label beside it: {data_dir / (unlabeled[0] + _DATA_LABEL_SUFFIX)} is not '
+            'there, and the collection inventory, which finds products by their data '
+            f'labels, would leave out a product the index holds. {_REGENERATE_REMEDY}'
+        )
+    unindexed = sorted(label_stubs - supplemental_stubs)
+    if len(unindexed) > 0:
+        raise ValueError(
+            f'Data label {data_dir / (unindexed[0] + _DATA_LABEL_SUFFIX)} has no supplemental '
+            f'file beside it: {data_dir / (unindexed[0] + _SUPPLEMENTAL_SUFFIX)} is not '
+            'there, and the index and the range of epochs, which read the supplemental '
+            f'files, would leave out a product the collection inventory lists. '
+            f'{_REGENERATE_REMEDY}'
+        )
 
     # Collect body and ring statistics, every cell already rendered: both
     # tables are opened only once every value in them has been written out, so
@@ -591,12 +660,12 @@ def generate_global_index_files(
             metadata = json.loads(suppl_text)
         except (OSError, ValueError) as exc:
             raise ValueError(
-                f'Supplemental file {suppl_file} could not be read: {exc}. {_UNREADABLE_REMEDY}'
+                f'Supplemental file {suppl_file} could not be read: {exc}. {_REGENERATE_REMEDY}'
             ) from exc
         if not isinstance(metadata, dict):
             raise ValueError(
                 f'Supplemental file {suppl_file} holds {_json_kind(metadata)} where a '
-                f'supplemental document is a JSON object. {_UNREADABLE_REMEDY}'
+                f'supplemental document is a JSON object. {_REGENERATE_REMEDY}'
             )
 
         epochs.include(f'supplemental file {suppl_file}', metadata.get('navigation'))
@@ -620,9 +689,7 @@ def generate_global_index_files(
 
         # Derive pds4_path_stub from supplemental file path
         # Supplemental file is at: bundle_root/data/<pds4_path_stub>_supplemental.txt
-        suppl_relative = suppl_file.relative_to(data_dir)
-        pds4_path_stub = str(suppl_relative).replace('_supplemental.txt', '')
-        pds4_path_stub = pds4_path_stub.replace('\\', '/')
+        pds4_path_stub = _product_stub(suppl_file, data_dir, _SUPPLEMENTAL_SUFFIX)
 
         lid_part = suppl_file.stem.replace('_supplemental', '')
         image_name = dataset.pds4_lid_part_to_image_name(lid_part)

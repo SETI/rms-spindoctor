@@ -455,7 +455,12 @@ written. A supplemental file that cannot be read, or does not hold a JSON
 object, refuses the run before either index table is written, naming the file
 and the reason or what it holds, the way a statistic no column can hold is
 refused: left out of the index its product would still be in the inventory,
-with no epochs for the range. Running first, the index generator refuses a
+with no epochs for the range. So does a supplemental file with no data label
+beside it, or a data label with no supplemental file, naming both: the
+inventory lists products by their data labels, and the index and the range
+read the supplemental files, so the two would disagree about the product. A
+labels pass whose data label failed to render leaves the first. Running
+first, the index generator refuses a
 bundle with no data directory itself, as the collection generator does, rather
 than write its tables into a root the labels pass would then refuse.
 

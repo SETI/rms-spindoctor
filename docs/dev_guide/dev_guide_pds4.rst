@@ -146,11 +146,14 @@ file and the plane and saying what the file records there.  It exits 1 the same
 way on a supplemental file it cannot read, or one that does not hold a JSON
 object, naming the file and the reason or what it holds: left out of the index,
 the file's product would still be listed in the collection's inventory, with no
-epochs for the range.  The index tables and labels an earlier run wrote, and its
-collection tables and labels, are cleared before the first supplemental file is
-read, the collection files by the index generator since it runs first.  Every
-supplemental file is read, and every value in both index tables rendered, before
-either table is opened, so a run refused over what a supplemental file holds
+epochs for the range.  It exits 1 the same way on a supplemental file with no
+data label beside it, or a data label with no supplemental file, naming both: the
+collection inventory finds a product by its data label, and the index and the
+range by its supplemental file.  The index tables and labels an earlier run wrote,
+and its collection tables and labels, are cleared before the first supplemental
+file is read, the collection files by the index generator since it runs first.
+Every supplemental file is read, and every value in both index tables rendered,
+before either table is opened, so a run refused over what the data tree holds
 leaves no product of the pass, neither this run's nor an earlier run's.  A bundle
 with no ``data/`` directory is refused before anything is cleared, so an earlier
 run's products stay where it left them.

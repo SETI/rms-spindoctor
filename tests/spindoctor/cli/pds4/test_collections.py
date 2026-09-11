@@ -847,6 +847,51 @@ def test_a_supplemental_file_that_is_no_object_refuses_the_run_with_no_table_wri
     assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
 
 
+def test_a_supplemental_file_with_no_data_label_refuses_the_run_with_no_table_written(
+    tmp_path: Path,
+) -> None:
+    """A supplemental file left without its data label refuses the run, naming both.
+
+    The labels pass writes the supplemental file before it renders the data label, so a
+    render that failed leaves one without the other, and the collection inventory, which
+    finds products by their data labels, would leave out a product the index lists.
+    """
+    env = _index_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    write_supplemental(data_dir, 'shard0/1111111111n', bodies=BODY_STATS)
+    alone = write_supplemental(data_dir, 'shard0/2222222222w', bodies=BODY_STATS, label=False)
+    label = data_dir / 'shard0' / '2222222222w_backplanes.lblx'
+    refusal = (
+        f'Supplemental file {FCPath(alone)} has no data label beside it: {FCPath(label)} is '
+        'not there'
+    )
+    with pytest.raises(ValueError, match=re.escape(refusal)):
+        _run_global_index(env)
+    assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
+
+
+def test_a_data_label_with_no_supplemental_file_refuses_the_run_with_no_table_written(
+    tmp_path: Path,
+) -> None:
+    """A data label with no supplemental file beside it refuses the run, naming both.
+
+    The collection inventory would list a product the index does not hold and the
+    range of epochs does not contain.
+    """
+    env = _index_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    write_supplemental(data_dir, 'shard0/1111111111n', bodies=BODY_STATS)
+    label = touch_label(data_dir, 'shard0/2222222222w')
+    supplemental = data_dir / 'shard0' / '2222222222w_supplemental.txt'
+    refusal = (
+        f'Data label {FCPath(label)} has no supplemental file beside it: '
+        f'{FCPath(supplemental)} is not there'
+    )
+    with pytest.raises(ValueError, match=re.escape(refusal)):
+        _run_global_index(env)
+    assert not (env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab').exists()
+
+
 def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
     """Global index labels render with FILE_RECORDS set to the row counts."""
     env = _index_env(tmp_path)
