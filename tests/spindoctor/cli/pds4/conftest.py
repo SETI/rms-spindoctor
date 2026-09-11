@@ -471,6 +471,7 @@ def write_supplemental(
     *,
     bodies: dict[str, Any] | None = None,
     rings: dict[str, Any] | None = None,
+    navigation: dict[str, Any] | None = None,
     raw_text: str | None = None,
 ) -> Path:
     """Write a ``<stub>_supplemental.txt`` file in the bundle data tree.
@@ -480,6 +481,8 @@ def write_supplemental(
         stub: Path stub (may include shard subdirectories) for the image.
         bodies: ``backplanes.bodies`` payload keyed by body name.
         rings: ``backplanes.rings`` payload (``{'backplanes': {...}}``).
+        navigation: The ``navigation`` document; an empty one, recording no
+            epochs, when None.
         raw_text: Literal file content overriding the JSON payload entirely.
 
     Returns:
@@ -491,7 +494,7 @@ def write_supplemental(
         path.write_text(raw_text, encoding='utf-8')
         return path
     payload = {
-        'navigation': {},
+        'navigation': navigation if navigation is not None else {},
         'backplanes': {
             'bodies': bodies if bodies is not None else {},
             'rings': rings if rings is not None else {},

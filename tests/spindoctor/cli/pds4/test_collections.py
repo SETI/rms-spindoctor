@@ -24,18 +24,24 @@ matching the product labels' DATA_LID (regression coverage for #139 and #256).
 """
 
 import math
+import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 from filecache import FCPath
+from tests.mini_nav_results.cohort import Cohort
+from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB
 
 from spindoctor.cli.pds4 import collections as collections_module
+from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.collections import (
+    GlobalIndexOutcome,
     IndexValueFormat,
     generate_collection_files,
     generate_global_index_files,
 )
+from spindoctor.cli.pds4.epochs import EpochRange, NoEpochRange
 from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
@@ -45,6 +51,7 @@ from .conftest import (
     GLOBAL_INDEX_TEMPLATE,
     BundleEnv,
     make_bundle_env,
+    make_cohort_bundle_env,
     read_tab,
     touch_label,
     write_supplemental,
@@ -64,16 +71,40 @@ COLLECTION_LABELS = {
 """Each collection label's bundle subdirectory and its intact template body."""
 
 
-def _run_collections(env: BundleEnv) -> int:
+_A_RANGE = EpochRange(start_et=129399999.77, stop_et=130700000.54)
+"""A range to hand the collection generator where what the label states is not the question.
+
+SPICE's ``et2utc`` writes the two epochs as ``2004-02-07T04:25:35.585`` and
+``2004-02-22T05:32:16.355``, so a label states the range as ``2004-02-07T04:25:35Z``
+to ``2004-02-22T05:32:17Z``.
+"""
+
+
+def _run_collections(env: BundleEnv, *, epochs: EpochRange | NoEpochRange = _A_RANGE) -> int:
     """Run generate_collection_files against the environment's bundle root.
 
     Parameters:
         env: The hermetic bundle environment to process.
+        epochs: The range of the products' epochs to hand the generator.
 
     Returns:
         The number of collection labels that could not be rendered.
     """
     return generate_collection_files(
+        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER, epochs=epochs
+    )
+
+
+def _index_outcome(env: BundleEnv) -> GlobalIndexOutcome:
+    """Run generate_global_index_files against the environment's bundle root.
+
+    Parameters:
+        env: The hermetic bundle environment to process.
+
+    Returns:
+        Everything the generation came to: the failed index labels and the range.
+    """
+    return generate_global_index_files(
         FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
     )
 
@@ -87,9 +118,7 @@ def _run_global_index(env: BundleEnv) -> int:
     Returns:
         The number of index labels that could not be rendered.
     """
-    return generate_global_index_files(
-        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
-    )
+    return _index_outcome(env).failed_labels
 
 
 def _index_env(
@@ -202,7 +231,7 @@ def test_non_backplane_label_files_ignored(tmp_path: Path) -> None:
 
 
 def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None:
-    """Collection labels render with the CSV path and (empty) date-range variables."""
+    """Collection labels render with the CSV path, the data label with the range handed it."""
     env = make_bundle_env(
         tmp_path,
         template_contents={
@@ -216,8 +245,8 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
     data_label = env.bundle_dir / 'data' / 'collection_data.lblx'
     text = data_label.read_text(encoding='utf-8')
     assert str(FCPath(env.bundle_dir) / 'data' / 'collection_data.tab') in text
-    assert '<start></start>' in text
-    assert '<stop></stop>' in text
+    assert '<start>2004-02-07T04:25:35Z</start>' in text
+    assert '<stop>2004-02-22T05:32:17Z</stop>' in text
     browse_label = env.bundle_dir / 'browse' / 'collection_browse.lblx'
     browse_text = browse_label.read_text(encoding='utf-8')
     assert str(FCPath(env.bundle_dir) / 'browse' / 'collection_browse.tab') in browse_text
@@ -753,8 +782,9 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
 
 
 def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> None:
-    """With no supplemental files (even no data dir), header-only tables are written."""
+    """With no supplemental file in the data directory, header-only tables are written."""
     env = _index_env(tmp_path)
+    (env.bundle_dir / 'data').mkdir(parents=True)
     _run_global_index(env)
     bodies_rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert len(bodies_rows) == 1
@@ -914,8 +944,163 @@ def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
     bundle_results_root = tmp_path / 'bundle'
     bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
     touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
-    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER)
+    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=_A_RANGE)
     rows = read_tab(bundle_dir / 'data' / 'collection_data.tab')
     inventory_lid = rows[1][1].split('::')[0]
     label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')
     assert inventory_lid == label_lid
+
+
+# ---------------------------------------------------------------------------
+# The range of the products' epochs
+# ---------------------------------------------------------------------------
+
+
+def _navigation(start_et: float, stop_et: float) -> dict[str, Any]:
+    """Return a success navigation document recording an exposure between two epochs.
+
+    Parameters:
+        start_et: When the exposure began.
+        stop_et: When it ended.
+
+    Returns:
+        The document, its midtime halfway between the two.
+    """
+    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
+    return {'status': 'success', 'navigation_result': {'times': times}}
+
+
+def test_the_range_is_the_earliest_start_and_the_latest_stop_over_every_file(
+    tmp_path: Path,
+) -> None:
+    """Over three supplemental files, the range is the least start and the greatest stop.
+
+    The least start is in the second file read and the greatest stop in the first,
+    so a range taken from any one file, or from the first file's start and the last
+    file's stop, is reported.
+    """
+    env = _index_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    write_supplemental(data_dir, 'shard0/1111111111n', navigation=_navigation(200.0, 900.0))
+    write_supplemental(data_dir, 'shard0/2222222222w', navigation=_navigation(100.0, 300.0))
+    write_supplemental(data_dir, 'shard0/3333333333n', navigation=_navigation(500.0, 600.0))
+    assert _index_outcome(env).epochs == EpochRange(start_et=100.0, stop_et=900.0)
+
+
+@pytest.mark.parametrize(
+    ('navigation', 'raw_text', 'why'),
+    [
+        ({}, None, 'records no navigation_result block'),
+        (None, 'not json', 'could not be read'),
+    ],
+    ids=['a document recording no epochs', 'a file that cannot be read'],
+)
+def test_one_file_whose_epochs_cannot_be_had_leaves_no_range(
+    tmp_path: Path, navigation: dict[str, Any] | None, raw_text: str | None, why: str
+) -> None:
+    """One such file beside a good one leaves no range, and the reason names the file.
+
+    A range taken over the others could leave that file's product outside it.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+        navigation: The navigation document the file records, or None.
+        raw_text: What the file holds in place of a document, or None.
+        why: What the reason says of the file.
+    """
+    env = _index_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    write_supplemental(data_dir, 'shard0/1111111111n', navigation=_navigation(100.0, 200.0))
+    broken = write_supplemental(
+        data_dir, 'shard0/2222222222w', navigation=navigation, raw_text=raw_text
+    )
+    expected = NoEpochRange(
+        f'supplemental file {FCPath(broken)} {why}, so no range can be taken that contains '
+        'every product'
+    )
+    assert _index_outcome(env).epochs == expected
+
+
+def test_with_no_supplemental_file_the_data_collection_label_is_not_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """No products, no range: the label is counted as not written, and the inventory still is.
+
+    A label stating empty dates is not one PDS4 accepts, and an earlier run's label
+    at the path would state a range this run did not take, so it is removed.
+    """
+    env = _index_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    data_dir.mkdir(parents=True)
+    earlier = data_dir / 'collection_data.lblx'
+    earlier.write_text('<an earlier run/>\n', encoding='utf-8')
+    failed = _run_collections(env, epochs=_index_outcome(env).epochs)
+    assert failed == 1
+    assert not earlier.exists()
+    assert read_tab(data_dir / 'collection_data.tab') == [['Member Status', 'LIDVID_LID']]
+    assert 'there are no products to take a range from' in capsys.readouterr().out
+
+
+def test_the_range_is_stated_at_the_whole_seconds_outside_it(tmp_path: Path) -> None:
+    """A start at .6 of a second is stated at the second before, a stop at .35 at the one after.
+
+    Rounded to the nearer second each would fall inside the product it bounds: the
+    start at 04:25:36, after the product's own start of 04:25:35.600, and the stop at
+    05:32:16, before its stop of 05:32:16.355.  The expected strings are SPICE's
+    ``et2utc`` for the two epochs, ``2004-02-07T04:25:35.599999994`` and
+    ``2004-02-22T05:32:16.354745835``, taken to the whole second outside each.
+    """
+    env = make_bundle_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    write_supplemental(
+        data_dir, 'shard0/1234567890w', navigation=_navigation(129399999.78493077, 130700000.54)
+    )
+    _run_collections(env, epochs=_index_outcome(env).epochs)
+    text = (data_dir / 'collection_data.lblx').read_text(encoding='utf-8')
+    assert '<start>2004-02-07T04:25:35Z</start>' in text
+    assert '<stop>2004-02-22T05:32:17Z</stop>' in text
+
+
+def test_the_index_refuses_a_bundle_with_no_data_directory_and_writes_nothing(
+    tmp_path: Path,
+) -> None:
+    """The index runs first in the summary pass, so it refuses a bundle no labels pass wrote.
+
+    Written into, such a root would hold an index beside which the labels pass then
+    refuses to write, since it writes only into an empty bundle directory.
+    """
+    env = _index_env(tmp_path)
+    refusal = r'Data directory does not exist: .*/fake_bundle/data'
+    with pytest.raises(FileNotFoundError, match=refusal):
+        _run_global_index(env)
+    assert not env.bundle_dir.exists()
+
+
+def test_the_cohort_s_data_collection_label_states_the_range_of_its_images(
+    mini_nav_cohort: Cohort, tmp_path: Path
+) -> None:
+    """The shipped label over the cohort's two navigated images states their range.
+
+    SPICE's ``et2utc`` writes the limb image's recorded start as
+    ``2004-02-07T04:25:35.585069`` and the ring image's recorded stop, fifteen days
+    later, as ``2004-02-22T05:32:16.354746``, and the range states each at the whole
+    second outside it.  The two generators run in the order the summary pass runs
+    them, the global index first.
+    """
+    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
+    for stub in (LIMB_STUB, RINGS_STUB):
+        generate_bundle_data_files(
+            env.dataset,
+            mini_nav_cohort.batch(stub),
+            nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
+            backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
+            bundle_results_root=FCPath(env.bundle_results_root),
+            logger=MAIN_LOGGER,
+        )
+    index = generate_global_index_files(FCPath(env.bundle_results_root), env.dataset, MAIN_LOGGER)
+    generate_collection_files(
+        FCPath(env.bundle_results_root), env.dataset, MAIN_LOGGER, epochs=index.epochs
+    )
+    text = (env.bundle_dir / 'data' / 'collection_data.lblx').read_text(encoding='utf-8')
+    assert re.findall(r'<start_date_time>(.*)</start_date_time>', text) == ['2004-02-07T04:25:35Z']
+    assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == ['2004-02-22T05:32:17Z']

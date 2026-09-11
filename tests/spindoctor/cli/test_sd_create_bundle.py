@@ -24,6 +24,8 @@ from filecache import FCPath
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
+from spindoctor.cli.pds4.collections import GlobalIndexOutcome
+from spindoctor.cli.pds4.epochs import EpochRange, NoEpochRange
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 from spindoctor.dataset.dataset_sim import DataSetSim
 
@@ -267,8 +269,9 @@ def _summary_counts(monkeypatch: pytest.MonkeyPatch, collections: int, index: in
         collections: Failed collection labels to report.
         index: Failed global index labels to report.
     """
+    outcome = GlobalIndexOutcome(failed_labels=index, epochs=NoEpochRange('not taken here'))
     monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', lambda **kwargs: collections)
-    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: index)
+    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
 
 
 def _dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -650,10 +653,9 @@ def test_main_summary_refuses_a_unit_the_bundle_cannot_use(
 ) -> None:
     """The summary pass refuses the same units up front, before it reads the data tree.
 
-    The collection files are written before the index tables, so a check left
-    to the index writer would leave them on disk over a run that then failed;
-    this one runs before either generator, and the bundle's data directory is
-    there so that a run past it would have written a collection file.
+    Every unusable backplane is named, where the index writer, left to it, would
+    stop on the first plane it could not format; and nothing is written, the check
+    coming before either generator.
     """
     dataset = _dataset_with_unusable_units(tmp_path)
     monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
@@ -725,20 +727,72 @@ def test_main_summary_reports_why_the_index_could_not_be_generated(
 
 
 def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
-    summary_run: None, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    summary_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A collection generator that raises ends the run with the reason in the log.
 
-    The bundle here has no data directory, and the generator refuses it naming
-    the directory it looked for.  The frames of a traceback show the statement
-    that raised but not the path it interpolated, so the path is what says the
-    reason reached the log.
+    The bundle here has no data directory, and the collection generator refuses it
+    naming the directory it looked for.  The index generator, which runs first and
+    refuses such a bundle the same way, is stood in for, so that the refusal the log
+    reports is the collection generator's.  The frames of a traceback show the
+    statement that raised but not the path it interpolated, so the path is what says
+    the reason reached the log.
     """
+    outcome = GlobalIndexOutcome(failed_labels=0, epochs=NoEpochRange('not taken here'))
+    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
     missing = tmp_path / BUNDLE_NAME / 'data'
-    assert f'Data directory does not exist: {missing}' in capsys.readouterr().out
+    expected = f'Failed to generate collection files: Data directory does not exist: {missing}'
+    assert expected in capsys.readouterr().out
+
+
+def test_main_summary_hands_the_index_s_range_to_the_collection_files(
+    summary_run: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The index runs first, and the collection files are handed the range its scan took.
+
+    The scan of the supplemental files is the pass's one read of them, so the range
+    the data collection label states can come from nowhere else.
+    """
+    calls: list[str] = []
+    handed: list[Any] = []
+    epochs = EpochRange(start_et=100.0, stop_et=900.0)
+
+    def _index(**kwargs: Any) -> GlobalIndexOutcome:
+        """Record the call, and report the range.
+
+        Parameters:
+            **kwargs: What the driver passed, unused.
+
+        Returns:
+            An outcome carrying the range and no failed label.
+        """
+        calls.append('index')
+        return GlobalIndexOutcome(failed_labels=0, epochs=epochs)
+
+    def _collections(**kwargs: Any) -> int:
+        """Record the call and the range it is handed, and report no failed label.
+
+        Parameters:
+            **kwargs: What the driver passed; ``epochs`` is recorded.
+
+        Returns:
+            Zero.
+        """
+        calls.append('collections')
+        handed.append(kwargs['epochs'])
+        return 0
+
+    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', _index)
+    monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', _collections)
+    sd_create_bundle.main_summary()
+    assert calls == ['index', 'collections']
+    assert handed == [epochs]
 
 
 def test_main_summary_exits_zero_when_every_label_is_written(
