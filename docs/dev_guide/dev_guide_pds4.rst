@@ -265,7 +265,8 @@ A typical render looks like:
 
 The ``pdstemplate`` library handles the XML escaping, the expression syntax,
 and the per-template error reporting; consumers only supply the variable
-dictionary and the destination path.  The destination is an ``FCPath`` naming
+dictionary and the destination path.  The destination is an
+:class:`~filecache.FCPath` naming
 the label's place in the bundle, never a local cache path standing in for it:
 on a cloud bundle root those are two different files, and the label belongs in
 the bundle.
@@ -409,7 +410,7 @@ answers the other's question: a label rendered from a template the test wrote
 says whatever the test put there, and a plumbing failure inside the shipped
 template set is a needle in three hundred lines of XML.
 
-The inputs for the second come from ``tests/mini_nav_results``, a package that
+The inputs for the second come from :mod:`tests.mini_nav_results`, a package that
 builds a miniature of what a navigation run leaves on disk -- three Cassini
 images, of which two navigated and one did not; a real backplane FITS and its
 metadata document per navigated image, written by the backplane stage's own
@@ -441,7 +442,8 @@ clock kernel and converts every cohort epoch again, which is excluded from the
 default run because the kernels are not there to furnish.
 
 Nothing the cohort produces is checked in. A test takes it as a session-scoped
-fixture, ``mini_nav_cohort``, built into a temporary directory and torn down
+fixture, :func:`mini_nav_cohort <tests.conftest.mini_nav_cohort>`, built into a
+temporary directory and torn down
 with the session; a test asserts that none of its products reaches the working
 tree. To build one outside the suite, to read or to call the bundle stage
 over:
@@ -455,7 +457,8 @@ navigation and backplane roots, and the images to pass them. It is not a
 holdings tree, so ``sd_create_bundle`` cannot enumerate it -- a PDS3 selection
 by volume reads that volume's index table, and the cohort writes none.
 
-Adding an instrument to the cohort is a module beside ``cohort_cassini``. The
+Adding an instrument to the cohort is a module beside
+:mod:`~tests.mini_nav_results.cohort_cassini`. The
 FITS files, the browse images and the documents it implies exist only while a
 test is running, so it costs the repository nothing.
 
