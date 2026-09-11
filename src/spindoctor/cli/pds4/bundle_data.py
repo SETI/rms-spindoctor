@@ -353,7 +353,11 @@ def generate_bundle_data_files(
         template_vars['BROWSE_FULL_PATH'] = str(browse_image_path)
 
         # Generate supplemental file (JSON format) - must be written before template
-        suppl_file_path.write_text(json_as_string(combined_metadata))
+        # The label declares the file 7-Bit ASCII Text with Line-Feed records.
+        # json.dumps escapes every character outside ASCII and ends lines in a
+        # line feed, and writing its bytes keeps them line feeds on a platform
+        # whose text files end lines otherwise.
+        suppl_file_path.write_bytes(json_as_string(combined_metadata).encode('ascii'))
         logger.info('Generated supplemental file: %s', suppl_file_path)
 
         # Generate PDS4 label file

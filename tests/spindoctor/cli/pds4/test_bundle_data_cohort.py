@@ -8,6 +8,7 @@ tested over stand-ins in ``test_bundle_data.py``.
 """
 
 import hashlib
+import json
 import re
 from pathlib import Path
 from xml.etree import ElementTree
@@ -249,6 +250,30 @@ def test_the_files_a_cohort_data_label_names_are_the_ones_beside_it(
     assert int(_text(root, f'{fits_file}/pds:file_size')) == fits_copy.stat().st_size
     md5 = hashlib.md5(fits_copy.read_bytes(), usedforsecurity=False).hexdigest()
     assert _text(root, f'{fits_file}/pds:md5_checksum') == md5
+
+
+@pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
+def test_a_cohort_data_label_describes_its_supplemental_file_as_the_text_it_is(
+    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+) -> None:
+    """The supplemental file is one text stream, as its bytes say it is.
+
+    The label's Stream_Text starts at the file's first byte and runs its whole length;
+    every byte is 7-bit ASCII, as its parsing standard says; each line ends in a line
+    feed alone, as its record delimiter says; and the text is one JSON object.
+    """
+    label = _label_cohort_image(mini_nav_cohort, tmp_path, stub, image_name)
+    root = ElementTree.parse(label).getroot()
+    area = 'pds:File_Area_Observational_Supplemental'
+    raw = (label.parent / _text(root, f'{area}/pds:File/pds:file_name')).read_bytes()
+    stream = f'{area}/pds:Stream_Text'
+    assert int(_text(root, f'{stream}/pds:offset')) == 0
+    assert int(_text(root, f'{stream}/pds:object_length')) == len(raw)
+    assert _text(root, f'{stream}/pds:parsing_standard_id') == '7-Bit ASCII Text'
+    assert max(raw) < 128
+    assert _text(root, f'{stream}/pds:record_delimiter') == 'Line-Feed'
+    assert b'\r' not in raw
+    assert isinstance(json.loads(raw), dict)
 
 
 # ---------------------------------------------------------------------------
@@ -537,3 +562,15 @@ def test_each_data_object_of_a_cohort_data_label_is_in_the_schema_s_shape(
         )
     }
     assert units == {'byte'}
+    supplemental = root.find('pds:File_Area_Observational_Supplemental', PDS4_NAMESPACES)
+    assert supplemental is not None
+    assert _children(supplemental) == ['File', 'Stream_Text']
+    stream = supplemental.find('pds:Stream_Text', PDS4_NAMESPACES)
+    assert stream is not None
+    assert _children(stream) == [
+        'offset',
+        'object_length',
+        'parsing_standard_id',
+        'description',
+        'record_delimiter',
+    ]

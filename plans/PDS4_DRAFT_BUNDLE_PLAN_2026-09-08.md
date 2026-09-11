@@ -205,6 +205,7 @@ plan).
 | 16 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
 | 17 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
 | 18 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 19 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label, since Phase 4, declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
 None of these gets its own tracking issue. Every row is fixed by a named
 phase of this plan, which carries the evidence and the disposition together;
@@ -441,6 +442,18 @@ must resolve -- and not their count. #69's own sketch has several.
 A frame with no ring backplanes has no ring HDUs. The `$FOR` handles that
 without a special case, which is the point of generating from the file
 rather than from the config.
+
+The label describes the supplemental file as well, which it named without a
+data object -- one of the two schema errors every data label carried. It is a
+`Stream_Text` over the whole file, from offset 0 for the length the label
+states: `7-Bit ASCII Text` with `Line-Feed` records, holding one JSON object.
+The Schematron allows both values. The file is written as the ASCII bytes
+`json_as_string` produces, which escapes every character outside ASCII and ends
+lines in a line feed, so the line feeds stay line feeds on any platform. The
+reference describes its supplemental text files as a `Header` of `UTF-8 Text`
+over their heading, followed by a table; ours is JSON with no heading. It ends
+without a line feed after its last line, which section 2.2 row 19 leaves to
+Phase 10's `validate` run.
 
 ### 3.4 Epochs
 

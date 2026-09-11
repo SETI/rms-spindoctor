@@ -248,6 +248,9 @@ For each image, the labels pass generates:
   * Navigation metadata (offset, uncertainty, confidence, etc.)
   * Backplane metadata (min/max statistics per body and ring, inventory information)
 
+  The data label describes it as one stream of 7-bit ASCII text with line-feed
+  line endings, which is how it is written.
+
 * **Browse Label File** (``<image_name>_summary.lblx``): XML label file describing the
   browse image, generated from dataset-specific templates.
 

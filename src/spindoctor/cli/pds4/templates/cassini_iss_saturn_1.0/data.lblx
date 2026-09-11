@@ -234,7 +234,18 @@
             <comment>
                 This file contains image navigation and SPICE kernel pointing parameters.
             </comment>
-            <!-- TODO How do we describe this file? -->
         </File>
+        <Stream_Text>
+            <offset unit="byte">0</offset>
+            <object_length unit="byte">$FILE_BYTES(BACKPLANE_SUPPL_PATH)$</object_length>
+            <parsing_standard_id>7-Bit ASCII Text</parsing_standard_id>
+            <description>
+                One JSON object (RFC 8259) holding the image's navigation metadata
+                under "navigation" and its backplane metadata under "backplanes",
+                written with a two-space indent, every character outside ASCII
+                escaped, and a line feed between lines.
+            </description>
+            <record_delimiter>Line-Feed</record_delimiter>
+        </Stream_Text>
     </File_Area_Observational_Supplemental>
 </Product_Observational>

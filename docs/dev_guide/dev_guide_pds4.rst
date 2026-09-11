@@ -442,7 +442,11 @@ over its ``arrays`` writes one ``disp:Display_Settings`` per array into the
 values -- the ``FITS 3.0`` parsing standard, ``Last Index Fastest``, two axes named
 ``Line`` and ``Sample`` -- are literals in the template; everything that depends on
 the file comes from the descriptor, so a plane the writer dropped is not described
-and a frame with no ring backplanes has no ring arrays.
+and a frame with no ring backplanes has no ring arrays.  The same label describes
+the supplemental file as a ``Stream_Text`` over its whole length, ``7-Bit ASCII
+Text`` with ``Line-Feed`` records: the pass writes it as the ASCII bytes of the
+one JSON object :func:`~spindoctor.support.file.json_as_string` produces, which
+escapes every character outside ASCII.
 
 What the backplane writer does not write is refused rather than described, with an
 :exc:`~spindoctor.cli.pds4.data_objects.UndescribableFitsError` naming the file and
