@@ -10,7 +10,7 @@ from filecache import FCPath, FileCache
 from spindoctor.config import Config
 from spindoctor.support.misc import safe_lstrip_zero
 
-from .dataset import ImageFile, ImageFiles
+from .dataset import ImageFile, ImageFiles, Pds4Pass
 from .dataset_pds3 import DataSetPDS3
 
 
@@ -435,6 +435,25 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             return str(dataset_config['bundle_name'])
         # Default
         return self._default_pds4_bundle_name()
+
+    def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
+        """Returns the template filenames one bundle pass must find for this dataset.
+
+        Parameters:
+            pds4_pass: Which pass's templates to name: ``labels`` for the
+                per-image pass, ``summary`` for the collection and index pass.
+
+        Returns:
+            The filenames, relative to the template directory.
+        """
+        if pds4_pass == 'labels':
+            return ['data.lblx', 'browse.lblx']
+        return [
+            'collection_data.lblx',
+            'collection_browse.lblx',
+            'global_index_bodies.lblx',
+            'global_index_rings.lblx',
+        ]
 
     @staticmethod
     def pds4_bundle_path_for_image(image_name: str) -> str:

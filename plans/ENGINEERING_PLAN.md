@@ -328,21 +328,17 @@ plus hook implementations, mechanical but voluminous.
 
 Work items, in dependency order:
 
-1. **#265 — swallowed label-write errors and the output-layout mismatch**
-   — every `template.write` ignores pdstemplate's error/warning counts
-   (an unresolved variable silently drops the label while the run reports
-   success), and the dev-guide "Output layout" section describes a layout
-   neither the code nor the user guide matches:
-   `src/spindoctor/cli/pds4/collections.py` and the surrounding writer
-   path. Fix the write path to fail loudly on a dropped label and
-   reconcile the layout documentation.
+1. **#265 — the output-layout mismatch** — the dev-guide "Output
+   layout" section describes a layout that neither the code nor the user
+   guide matches. Reconcile the documentation with the tree the generator
+   actually writes. Its swallowed-label-write part is fixed: every label
+   goes through one helper that reports what `pdstemplate` returned and fails
+   the run when a label was not written. Its inventory-filename part, the
+   `.csv`/`.tab` mismatch, is still open.
 2. **#519 — labels carry empty `START_DATE_TIME`, `STOP_DATE_TIME` and
    `IMAGE_MID_TIME`.** An archive-quality label with empty time fields is
-   not archive-quality, and it is exactly the class of defect #265's
-   swallowed write errors let through, so fix #265 first and this becomes
-   visible rather than silent. Also worth knowing when picking this up:
-   `sd_create_bundle` crashes inelegantly on a missing metadata file, which
-   is the same area.
+   not archive-quality. This is the same area as the per-image metadata
+   `sd_create_bundle` reads.
 3. **Template finalization acceptance list** — the items recorded
    on #53: schema validation, the unreferenced `cassini:*` variables and
    hardcoded placeholders, TITLE/DESCRIPTION wording, collection date

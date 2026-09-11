@@ -12,7 +12,7 @@ import os
 import sys
 
 import pdstemplate
-from filecache import FileCache
+from filecache import FCPath, FileCache
 
 # Make CLI runnable from source tree with
 #    python src/package
@@ -20,7 +20,7 @@ package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, package_source_path)
 
 from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
-from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
@@ -36,7 +36,7 @@ from spindoctor.config import (
 )
 from spindoctor.config.program_names import SD_CREATE_BUNDLE
 from spindoctor.dataset import dataset_name_to_class, dataset_names
-from spindoctor.dataset.dataset import DataSet
+from spindoctor.dataset.dataset import DataSet, Pds4Pass
 
 PROGRAM_NAME = SD_CREATE_BUNDLE
 """Program identity: names the main log directory and the
@@ -164,8 +164,71 @@ def parse_args_summary(command_list: list[str]) -> argparse.Namespace:
     return arguments
 
 
+def _exit_on_missing_templates(dataset: DataSet, pds4_pass: Pds4Pass) -> None:
+    """Report every template the pass needs and cannot find, and stop if any.
+
+    Every product of a pass renders from the same template directory, so a
+    template that is not there is not there for every image; the pass says so
+    once, before it has written anything, rather than failing identically for
+    thousands of images.
+
+    Parameters:
+        dataset: The dataset whose template directory the pass renders from.
+        pds4_pass: Which pass's declared templates to look for.
+
+    Raises:
+        SystemExit: If any declared template is not a file in the template
+            directory.  A directory at that name satisfies ``exists`` and is
+            not a template, so the check is that the path is a file: the point
+            of the preflight is that nothing is written before a render that
+            cannot happen.
+    """
+    template_dir = FCPath(dataset.pds4_bundle_template_dir())
+    missing = [
+        template_dir / name
+        for name in dataset.pds4_required_templates(pds4_pass)
+        if not (template_dir / name).is_file()
+    ]
+    if len(missing) == 0:
+        return
+    for template_path in missing:
+        MAIN_LOGGER.error('PDS4 template not found: %s', template_path)
+    MAIN_LOGGER.error(
+        'The %s pass needs %d template(s) that are not in %s; nothing was written',
+        pds4_pass,
+        len(missing),
+        template_dir,
+    )
+    sys.exit(1)
+
+
+def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
+    """Report whether the bundle's own directory already holds something.
+
+    Parameters:
+        bundle_root: The bundle's directory under the bundle results root.
+
+    Returns:
+        True if anything at all is in that directory, False if it is empty or
+        is not there at all.
+    """
+    try:
+        return next(iter(bundle_root.iterdir()), None) is not None
+    except FileNotFoundError:
+        return False
+
+
 def main_labels() -> None:
-    """Main function for labels subcommand."""
+    """Main function for labels subcommand.
+
+    Two preconditions are checked before any image is processed, and each ends
+    the run with exit status 1 having written nothing.  Every template the
+    dataset declares for this pass must be in its template directory, since one
+    that is not would otherwise fail identically for every image.  And the
+    bundle root must be empty or absent: a bundle is written into an empty
+    directory rather than assembled out of two runs.  A dry run is refused the
+    same way, because what it reports on is a run that would be.
+    """
     command_list = sys.argv[2:]  # Skip 'labels'
     arguments = parse_args_labels(command_list)
 
@@ -190,32 +253,109 @@ def main_labels() -> None:
 
     assert DATASET is not None
 
+    _exit_on_missing_templates(DATASET, 'labels')
+
+    bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
+    if _bundle_root_holds_anything(bundle_root):
+        MAIN_LOGGER.error(
+            'The bundle root %s already holds files; a bundle is written into an empty '
+            'directory. Clear it, or name another bundle results root, and run again',
+            bundle_root,
+        )
+        sys.exit(1)
+
+    written_images = 0
+    skipped_images = 0
+    failed_images = 0
+    listed_images = 0
+    malformed_empty_batches = 0
+
     for imagefiles in DATASET.yield_image_files_from_arguments(arguments):
         if len(imagefiles.image_files) != 1:
+            # A batch of any other size is images the run did not write labels
+            # for, so they count against the run the same way a broken label
+            # does -- every one of them, since a batch of two is two images
+            # without labels.  An empty batch is no images and still a run that
+            # failed, so it is counted apart from them rather than passing for
+            # a run that wrote everything it meant to.  A dry run writes
+            # nothing, so it reports the batch it cannot process without
+            # counting a label it never set out to write.
             MAIN_LOGGER.error(
                 'Expected 1 image file, got %d for %s',
                 len(imagefiles.image_files),
                 imagefiles,
             )
+            if not arguments.dry_run:
+                failed_images += len(imagefiles.image_files)
+                malformed_empty_batches += len(imagefiles.image_files) == 0
             continue
         if arguments.dry_run:
             MAIN_LOGGER.info(
                 'Would process: %s', imagefiles.image_files[0].label_file_url.as_posix()
             )
+            listed_images += 1
             continue
 
-        generate_bundle_data_files(
-            dataset=DATASET,
-            image_files=imagefiles,
-            nav_results_root=nav_results_root,
-            backplane_results_root=backplane_results_root,
-            bundle_results_root=bundle_results_root,
-            logger=MAIN_LOGGER,
+        try:
+            outcome = generate_bundle_data_files(
+                dataset=DATASET,
+                image_files=imagefiles,
+                nav_results_root=nav_results_root,
+                backplane_results_root=backplane_results_root,
+                bundle_results_root=bundle_results_root,
+                logger=MAIN_LOGGER,
+            )
+        except Exception:
+            # One image whose inputs cannot be read or whose template cannot be
+            # found is one image without a label, not a run without a report:
+            # the images after it are still processed and the run still says at
+            # the end how many labels it did not write.
+            MAIN_LOGGER.exception(
+                'Failed to generate bundle data files for %s',
+                imagefiles.image_files[0].image_file_url.as_posix(),
+            )
+            failed_images += 1
+            continue
+
+        if outcome is BundleDataOutcome.FAILED:
+            failed_images += 1
+        elif outcome is BundleDataOutcome.SKIPPED:
+            skipped_images += 1
+        else:
+            written_images += 1
+
+    if failed_images > 0 or malformed_empty_batches > 0:
+        MAIN_LOGGER.error(
+            'Label generation incomplete: %d image(s) labeled, %d skipped, '
+            '%d whose labels were not written, %d empty batch(es)',
+            written_images,
+            skipped_images,
+            failed_images,
+            malformed_empty_batches,
         )
+        sys.exit(1)
+
+    if arguments.dry_run:
+        # A dry run counts nothing against itself, so it never reaches the
+        # report above; what it has to say is what it would have processed.
+        MAIN_LOGGER.info('Dry run complete: %d image(s) would be processed', listed_images)
+        return
+
+    MAIN_LOGGER.info(
+        'Label generation complete: %d image(s) labeled, %d skipped',
+        written_images,
+        skipped_images,
+    )
 
 
 def main_summary() -> None:
-    """Main function for summary subcommand."""
+    """Main function for summary subcommand.
+
+    Every template the dataset declares for this pass must be in its template
+    directory; one that is not ends the run with exit status 1 before anything
+    is written.  The bundle root is not checked for emptiness here: this pass
+    reads the tree the labels pass wrote.
+    """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
 
@@ -235,9 +375,11 @@ def main_summary() -> None:
     dataset_name = arguments.dataset_name
     dataset = dataset_name_to_class(dataset_name)()
 
+    _exit_on_missing_templates(dataset, 'summary')
+
     # Generate collection files
     try:
-        generate_collection_files(
+        failed_labels = generate_collection_files(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
@@ -248,13 +390,19 @@ def main_summary() -> None:
 
     # Generate global index files
     try:
-        generate_global_index_files(
+        failed_labels += generate_global_index_files(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
         )
     except Exception:
         MAIN_LOGGER.exception('Failed to generate global index files')
+        sys.exit(1)
+
+    if failed_labels > 0:
+        MAIN_LOGGER.error(
+            'Summary generation incomplete: %d label(s) were not written', failed_labels
+        )
         sys.exit(1)
 
     MAIN_LOGGER.info('Summary generation complete')

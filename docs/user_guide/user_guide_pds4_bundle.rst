@@ -74,6 +74,15 @@ Labels Pass
 
 The labels pass processes individual images to generate per-image PDS4 products.
 
+The bundle's own directory -- ``<bundle results root>/<bundle name>/`` -- must be
+empty or absent when the pass starts, so that a bundle is the product of one run
+rather than a mixture of two. ``sd_create_bundle labels`` checks this and, if it
+finds anything there, writes nothing and exits 1, ``--dry-run`` included. It
+will not clear the directory for you: to run again after a partial failure,
+clear it yourself or name a different bundle results root. The queue-driven
+variant below cannot make the check -- each of its workers holds one image, not
+the run -- so a queue-driven bundle is yours to start from an empty root.
+
 Basic Usage
 ^^^^^^^^^^^
 
@@ -201,7 +210,8 @@ The labels pass requires:
 * Navigation metadata files (``*_metadata.json``) from the navigation pass
 * Backplane FITS files (``*_backplanes.fits``) from the backplanes pass
 * Backplane metadata files (``*_backplane_metadata.json``) from the backplanes pass
-* Summary PNG files (``*_summary.png``) from the navigation pass
+* Summary PNG files (``*_summary.png``) from the navigation pass, one for every
+  image whose navigation succeeded
 
 A run that also names an error filter (``--has-offset-error``,
 ``--has-no-offset-error``, ``--has-offset-spice-error``,
@@ -233,10 +243,14 @@ For each image, the labels pass generates:
   * Backplane metadata (min/max statistics per body and ring, inventory information)
 
 * **Browse Label File** (``<image_name>_summary.lblx``): XML label file describing the
-  browse image, generated from dataset-specific templates (if summary PNG exists).
+  browse image, generated from dataset-specific templates.
 
 * **Browse Image** (``<image_name>_summary.png``): Copy of the summary PNG from the
-  navigation pass (if available).
+  navigation pass.
+
+Browse products are not optional. Both are written for every image the pass
+labels, and an image whose summary PNG is missing from the navigation results is
+failed rather than bundled without them.
 
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
@@ -265,6 +279,49 @@ The summary pass generates:
   * ``global_index_rings.tab``: CSV file with one row per image, containing min/max
     values for each configured ring backplane type (formatted to 5 decimal places)
   * ``global_index_rings.lblx``: PDS4 label for the rings index
+
+Exit Status
+===========
+
+A pass exits 0 only when every file it set out to write is on disk. A non-zero
+exit means the bundle is incomplete: whatever was written is still in place, and
+the log names what was not.
+
+* ``sd_create_bundle labels`` exits 1 when any image's labels could not be
+  written or its inputs could not be read, and exits 1 before processing
+  anything when the bundle's directory already holds files. It closes with a
+  line giving the number of images it labeled, skipped and failed, so a
+  selection that matched nothing reads as the zero it is.
+
+  An image the bundle has nothing to describe is **skipped**, not failed, and
+  does not affect the exit status: an image with no navigation metadata
+  document, one whose navigation did not succeed, and a navigated image with no
+  backplane metadata document. A selection made by volume ordinarily names far
+  more images than have been navigated and backplaned, so such a run is mostly
+  skips.
+
+  A navigated image whose summary PNG is missing is **failed**, not skipped. It
+  loses its browse products and nothing else; its data label is written or not
+  on its own account.
+
+  ``--dry-run`` writes nothing, and exits 0 once the templates are present and
+  the bundle directory is empty.
+
+* ``sd_create_bundle summary`` exits 1 when any collection or global index label
+  could not be written. The ``.tab`` tables are written whether or not the label
+  describing one is.
+
+* ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
+  written as ``status: error`` with ``status_error: label_not_written``, and asks
+  for no retry.
+
+The summary pass builds its tables from what is in the bundle's ``data/`` tree
+without checking that tree for completeness, so it can exit 0 over a bundle the
+labels pass already failed images in -- and an image that got a data label but
+no browse label leaves ``collection_browse.tab`` listing a browse product that is
+not on disk. A summary pass exiting 0 says its own labels were written, and
+nothing about what the labels pass did; take the labels pass's closing line as
+the account of what the bundle covers.
 
 Configuration
 =============
@@ -318,28 +375,18 @@ Each dataset has its own template directory containing:
 * ``global_index_bodies.lblx``: Template for bodies global index label
 * ``global_index_rings.lblx``: Template for rings global index label
 
-Templates use the PdsTemplate system (from ``rms-pdstemplate``) for variable
-substitution. Template variables are provided by dataset-specific implementations of
-``pds4_template_variables()``, which map PDS3 index columns and computed metadata to
-PDS4 template variables.
+Each dataset supplies its own values for the variables its templates use.
+:doc:`/dev_guide/dev_guide_pds4` describes how a dataset does that, and what a
+new one has to provide.
 
-Dataset-Specific Behavior
-=========================
+Supported Datasets
+==================
 
-Each dataset class implements PDS4 bundle generation methods:
-
-* ``pds4_bundle_template_dir()``: Returns the template directory path
-* ``pds4_bundle_name()``: Returns the bundle name
-* ``pds4_bundle_path_for_image()``: Maps image name to bundle directory path
-* ``pds4_path_stub()``: Returns the full path stub (directory + filename prefix)
-* ``pds4_template_variables()``: Returns template variable dictionary
-* ``pds4_image_name_to_data_lidvid()``: Converts image name to data product LIDVID
-* ``pds4_image_name_to_browse_lidvid()``: Converts image name to browse product LIDVID
-
-Cassini ISS datasets (``coiss_cruise``, ``coiss_saturn``) provide complete
-implementations that map PDS3 index columns to PDS4 ``cassini:`` namespace variables.
-Other datasets may raise ``NotImplementedError`` for methods that are not yet
-implemented.
+The Cassini ISS datasets ``coiss_cruise`` and ``coiss_saturn`` can be bundled.
+A run naming any other dataset fails before it processes an image, because both
+passes ask the dataset for its template directory and bundle name first and an
+unsupported dataset supplies neither; nothing is written. Adding a dataset is a
+code change, described in :doc:`/dev_guide/dev_guide_pds4`.
 
 Workflow
 ========
@@ -398,14 +445,27 @@ Common Issues
 * **Missing backplane files**: Ensure the backplanes pass has completed successfully and
   both FITS and metadata files exist in the backplane results root.
 
-* **Template not found**: Verify that the template directory exists and matches the
-  ``template_dir`` configuration setting.
+* **Template not found**: the pass exits before writing anything, naming each
+  file it could not find. Check that ``template_dir`` names a directory holding
+  every template listed above.
 
-* **Summary PNG not found**: Browse products are optional. If summary PNGs are missing,
-  browse labels will not be generated, but data products will still be created.
+* **Summary PNG not found**: that image is failed. A successfully navigated
+  image always has one, so either it was removed from the navigation results or
+  the document beside it did not come from the navigation pass. Re-navigate the
+  image, or drop it from the selection.
 
 * **Collection files incomplete**: Ensure all images have been processed in the labels
   pass before running the summary pass.
+
+* **Bundle root already holds files**: clear the bundle's directory under the
+  bundle results root, or point ``--bundle-results-root`` somewhere else, and
+  run the pass again from the start.
+
+* **Label not written**: the run names the label it could not write and exits
+  non-zero. The ``pdstemplate`` lines just above it name the template expression
+  that failed. This is a fault in the dataset's templates or in the metadata
+  they are given rather than anything a run can be asked to do differently; see
+  :doc:`/dev_guide/dev_guide_pds4`.
 
 Getting Help
 ------------

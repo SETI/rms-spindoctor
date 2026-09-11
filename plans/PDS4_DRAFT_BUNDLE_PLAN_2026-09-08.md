@@ -24,11 +24,11 @@ rather than from reading alone: section 2 records what that run produced and
 what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`.
 
-No phase has run. Two changes have landed ahead of them, both because they
-must precede anything generated against them: the rings dictionary bump
-recorded in section 3.9, and the masked-value change recorded in section
-3.13, which alters what the backplane arrays contain and so has to be
-settled before a label describes one.
+Phase 1 has run; Phases 2-10 have not. Two changes landed ahead of the
+phases, both because they must precede anything generated against them: the
+rings dictionary bump recorded in section 3.9, and the masked-value change
+recorded in section 3.13, which alters what the backplane arrays contain and
+so has to be settled before a label describes one.
 
 This plan is the "finish and validate the Cassini path" half of #53, which
 `plans/ENGINEERING_PLAN.md` (Track D, "PDS4 output bundles") lists as the
@@ -45,7 +45,7 @@ this table first and trusts it over any recollection.
 |---|---|---|
 | Landed ahead: rings dictionary to `1F00` | **done** | `ed0b9e15`, section 3.9 |
 | Landed ahead: backplane masked value `-999` | **done** | `04b84a62`, section 3.13 |
-| 1 — Surface label-write failures | not started | |
+| 1 — Surface label-write failures | **done** | `6c089447` plus the review rulings applied on `rf_pds4_phase1`, section 4 |
 | 2 — The synthetic cohort | not started | |
 | 3 — Epochs | not started | |
 | 4 — The FITS in the bundle, with its data objects | not started | |
@@ -59,7 +59,10 @@ this table first and trusts it over any recollection.
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the `Special_Constants`
-declaration, which is what remains of the masked-value work).
+declaration, which is what remains of the masked-value work), #602 (a
+skipped or failed product leaves the bundle inconsistent, which Phases 5 and
+6 own). #603, the two passes disagreeing about a missing template, closes in
+Phase 1.
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -179,8 +182,7 @@ plan).
 | 15 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
 | 16 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
 | 17 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 18 | Every `template.write` discards its `(errors, warnings)` return. An unresolved variable is reported through that return, not raised, so a bad label is written and the run reports success. | `bundle_data.py:121,138`, `collections.py:83,111,287,298` | #265 |
-| 19 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 18 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
 
 None of these gets its own tracking issue. Every row is fixed by a named
 phase of this plan, which carries the evidence and the disposition together;
@@ -194,10 +196,14 @@ settled design rather than a defect.
 
 ### 2.3 What this implies about order
 
-Defect 18 hides the rest. Until `template.write` failures are surfaced,
-every subsequent phase is working blind: a template edit that mistypes a
-variable produces a label with an embedded `[[[ ]]]` error marker and a run
-that says it succeeded. It is Phase 1 for that reason and no other.
+Label-write failures hid the rest, which is why surfacing them is Phase 1 and
+why nothing else could honestly precede it. `pdstemplate` reports an
+unresolved variable through the `(errors, warnings)` pair `write` returns
+rather than by raising, so a template edit that mistyped a variable produced
+a product with no label -- or, for the error classes `pdstemplate` counts as
+recoverable, a label carrying an embedded `[[[ ]]]` marker -- and a run that
+said it succeeded either way. With that surfaced, every phase after it can
+tell a label it rendered from one it did not.
 
 ---
 
@@ -813,22 +819,97 @@ requires.
 
 ### Phase 1 — Surface label-write failures
 
-Capture `(errors, warnings)` from all six `template.write` call sites.
-Warnings log at warning level; `errors > 0` fails that product — the label
-is not left on disk, the image is counted as failed, and the run's exit
-status reflects it. `pdstemplate` offers `mode='repair'`, which saves only
-when there are no errors; prefer it to a post-hoc unlink.
+**Done, `6c089447`, with the review rulings that followed it applied on
+`rf_pds4_phase1`.**
 
-The two `main_*` functions gain a failed-product count and exit non-zero
-when it is not zero.
+All six `template.write` call sites go through one helper,
+`spindoctor.cli.pds4.labels.write_label`, which takes the label's `FCPath` in
+the bundle -- never a local cache path standing in for it -- renders in
+`pdstemplate`'s `mode='repair'` -- which saves a label that drew warnings but
+never one that drew errors -- logs warnings at warning level and errors at
+error level naming the label path, and returns whether the label is on disk.
+That is the whole function, apart from clearing the label path first: repair
+mode saves nothing when a render errors, so a summary pass run a second time
+would otherwise leave the first run's label beside the inventory table this run
+has already rewritten. `main_labels` establishes an empty directory for its own
+pass, but it cannot establish one for a summary re-run.
 
-Tests: `test_undefined_template_variable_error_is_swallowed`
-(`test_bundle_data.py:283`) currently asserts the silent behavior as
-characterization; it is inverted here rather than added to, and renamed.
-Plus: a clean template still writes, and a run with one failed product
-exits non-zero.
+A bundle is written into an empty directory. Before it processes any image,
+`main_labels` requires `bundle_results_root / DATASET.pds4_bundle_name()` to
+be empty or absent, and otherwise logs an error naming the directory and exits
+1 having written nothing; a dry run is refused the same way. The program will
+not clear the directory itself, so an operator re-running after a partial
+failure clears it deliberately, and a bundle assembled out of two runs is
+impossible rather than detected. The check is the local driver's alone:
+`sd_create_bundle_cloud_tasks` runs many workers into one bundle root, so a
+per-image check there would refuse every task after the first, and
+`main_summary` reads the tree `main_labels` wrote, so it requires a populated
+bundle. There is no `--force`: it would reintroduce exactly the state the
+precondition removes.
 
-Closes the first half of #265.
+`generate_bundle_data_files` returns a `BundleDataOutcome` of written,
+skipped or failed rather than `None`. An image the bundle has nothing to
+describe is skipped, which is not a failure and does not affect the exit
+status: no navigation metadata document, a navigation status that is not
+`success`, or no backplane metadata document. That is the ordinary state of a
+selection made by volume; what a bundle should say about such images stays
+open on #600. A document that is there and cannot be read still raises.
+
+Treating absence as a skip is **provisional**, not ratified: it was reviewed
+with the rest of Phase 1 and kept as it stands, and #600 is where it is
+decided for good. A later session reading this should not take the skip rule
+as settled.
+
+A navigated image whose summary PNG is not in the navigation results is
+failed rather than skipped. `navigate_image_files` writes that PNG before the
+document that records the success and under the same condition, so a success
+document with no PNG beside it is a broken input rather than an image without
+a browse product; its data label is written and stays, its browse products are
+not, and the run exits 1.
+
+Both per-image labels are attempted before failed is returned, and so is
+every collection and index label, so one run reports every label it could not
+write rather than one per run. `generate_collection_files` and
+`generate_global_index_files` each return the number of labels that failed;
+the inventory and index `.tab` tables are written either way.
+
+`main_labels` counts the images whose labels it did not write -- including an
+image whose generation raised and a batch that did not hold exactly one image
+-- carries on to the next image either way, and closes with a line giving
+that count beside the images it labeled and the images it skipped, so a
+selection that matched nothing reads as zero. A dry run reports what it would
+have processed and counts nothing. `main_summary` sums the two returned
+counts; each exits 1 when its count is not zero.
+`sd_create_bundle_cloud_tasks` maps a failed product onto a `status: error`
+result carrying `status_error: label_not_written`, with no retry.
+
+A missing template is fatal, and both passes check for one up front. A
+`pds4_required_templates()` hook on `DataSet`, beside the other `pds4_*`
+hooks, names the templates that dataset's tree must carry for a given pass;
+`main_labels` checks the per-image pass's, `main_summary` checks the summary
+pass's, and either exits 1 naming each file that is not there before it has
+written anything. Every product of a pass renders from the same directory, so
+a missing `data.lblx` would otherwise fail identically for thousands of
+images. The four `if <template>.exists():` guards in `collections.py` go with
+it: they are what made a missing template invisible on that side, where the
+other side already raised. `DataSetPDS3CassiniISS` is the reference
+implementation, as it is for the rest of the `pds4_*` surface.
+
+Two things this phase does not reach. `global_index_bodies.lblx` and
+`global_index_rings.lblx` ship as zero-byte templates, so a healthy run
+writes two zero-byte labels and the guarantee "the label is on disk" is
+satisfied by a file that is not a label; Phase 7 is where those labels get
+their content. And an image that got a data label and no browse label still
+leaves the bundle internally inconsistent, because the browse inventory is
+built from the data labels and so lists a product that is not on disk; the
+labels pass counts that image, but the summary pass that follows inspects
+nothing. That is #602, and Phases 5 and 6 own it. A skipped image is not that
+case: it has no data label, so it is in none of the inventories, and what it
+leaves is a bundle covering fewer images than the selection named.
+
+Closes #603, and the swallowed-label-write part of #265.  #265's
+inventory-filename part closes in Phase 5 and its dev-guide output-layout part
+in Phase 10.
 
 ### Phase 2 — The synthetic cohort
 
@@ -936,7 +1017,7 @@ the global index tables.
 Tests: the generated inventory has no header, ends every line with `\n`, and
 `FILE_RECORDS` equals the member count.
 
-Closes the inventory half of #265 and the new format issue.
+Closes the inventory-filename part of #265 and the new format issue.
 
 ### Phase 6 — Bundle-level and static products
 
@@ -1072,7 +1153,8 @@ Finally, reconcile `docs/dev_guide/dev_guide_pds4.rst` and
 `docs/user_guide/user_guide_pds4_bundle.rst` to section 3.1, and the four
 plan files as if this branch had merged.
 
-Closes the second half of #265 and #66; contributes to #53.
+Closes the dev-guide output-layout part of #265, the last of its three
+parts, and #66; contributes to #53.
 
 ---
 
@@ -1131,11 +1213,6 @@ the cohort is written by the production writers, so it drifts when they do
 rather than silently disagreeing, and criterion 2 is asserted on a real
 cohort, not the synthetic one. Whether the values in the label are
 *correct* is #232 and is not settled by anything in this plan.
-
-**`sd_create_bundle` crashes inelegantly on a missing metadata file**, noted
-on #519 and true of the backplane metadata read at `bundle_data.py:73` as
-well. `--check-only` makes it avoidable rather than fixing it; the exception
-policy merged as #580 is the pattern if it is fixed here instead.
 
 **Two guides and four plan files change.** Every PR in this branch edits
 `plans/PROGRAM_PLAN.md`, so each merge re-conflicts the rest. Take both

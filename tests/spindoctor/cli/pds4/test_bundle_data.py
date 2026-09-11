@@ -25,13 +25,14 @@ from typing import Any
 import pytest
 from filecache import FCPath
 
-from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.config import MAIN_LOGGER, Config
 from spindoctor.dataset.dataset import ImageFiles
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 from spindoctor.dataset.dataset_pds3_voyager_iss import DataSetPDS3VoyagerISS
 
 from .conftest import (
+    DATA_TEMPLATE,
     BundleEnv,
     NoPds4DataSet,
     make_bundle_env,
@@ -39,14 +40,20 @@ from .conftest import (
     write_nav_inputs,
 )
 
+BROKEN_TEMPLATE_BODY = '$COMPLETELY_UNSET_VARIABLE$'
+"""An expression naming a variable no caller defines, so the render errors."""
 
-def _generate(env: BundleEnv) -> None:
+
+def _generate(env: BundleEnv) -> BundleDataOutcome:
     """Run generate_bundle_data_files over the environment's one-image batch.
 
     Parameters:
         env: The hermetic bundle environment to process.
+
+    Returns:
+        What the generation came to for the environment's one image.
     """
-    generate_bundle_data_files(
+    return generate_bundle_data_files(
         env.dataset.as_dataset(),
         env.image_files,
         nav_results_root=FCPath(env.nav_root),
@@ -120,10 +127,11 @@ def test_supplemental_combines_navigation_and_backplane_metadata(tmp_path: Path)
 
 
 def test_data_label_rendered_with_substituted_variables(tmp_path: Path) -> None:
-    """The data label is rendered from data.lblx with all variables substituted."""
+    """The data label renders with all variables substituted, and the image is written."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
-    _generate(env)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.WRITTEN
     label = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.lblx'
     text = label.read_text(encoding='utf-8')
     assert 'urn:nasa:pds:fake_bundle:data:1234567890w' in text
@@ -180,20 +188,28 @@ def test_browse_label_rendered(tmp_path: Path) -> None:
     assert '1234567890w_summary.png' in text
 
 
-def test_missing_summary_png_skips_browse_products(
+def test_missing_summary_png_fails_the_image_and_keeps_the_data_label(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Browse products are optional: no PNG means no browse output, data still written."""
+    """A success document with no summary PNG beside it fails the image.
+
+    The navigation stage writes the PNG before the document that records the
+    success, and both under one condition, so there is no run in which a
+    success document legitimately has no PNG beside it.  One that has none is a
+    broken input and the bundle stage says so.  The data half succeeded, so its
+    label stays, exactly as when a browse template will not render.
+    """
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env, summary_png=None)
-    _generate(env)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
     data_label = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.lblx'
     assert data_label.is_file()
     browse_label = env.bundle_dir / 'browse' / f'{env.pds4_path_stub}_summary.lblx'
     assert not browse_label.exists()
     browse_png = env.bundle_dir / 'browse' / f'{env.pds4_path_stub}_summary.png'
     assert not browse_png.exists()
-    assert 'Summary PNG not found' in capsys.readouterr().out
+    assert 'ERROR | No summary PNG at' in capsys.readouterr().out
 
 
 def test_unicode_template_variables_round_trip(tmp_path: Path) -> None:
@@ -221,10 +237,11 @@ def test_unicode_template_variables_round_trip(tmp_path: Path) -> None:
 def test_non_success_status_skips_generation(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A non-success navigation status skips the image with a warning."""
+    """A non-success navigation status skips the image with a warning, and is not a failure."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env, status='failure', nav_extra={'status_error': 'no offset found'})
-    _generate(env)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.SKIPPED
     assert not env.bundle_dir.exists()
     out = capsys.readouterr().out
     assert 'Skipping bundle generation' in out
@@ -242,25 +259,40 @@ def test_missing_status_key_skips_generation(
     assert 'status=None' in capsys.readouterr().out
 
 
-def test_missing_nav_metadata_raises(tmp_path: Path) -> None:
-    """A missing _metadata.json propagates FileNotFoundError."""
+def test_missing_nav_metadata_skips_generation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An image with no _metadata.json was never navigated, so it is skipped.
+
+    Absence of a navigation document says the same thing the status field says
+    when it is not success, in the other spelling, and a selection made by
+    volume names far more images than have been navigated.
+    """
     env = make_bundle_env(tmp_path)
-    with pytest.raises(FileNotFoundError, match=r'_metadata\.json'):
-        _generate(env)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.SKIPPED
+    assert 'no navigation metadata at' in capsys.readouterr().out
 
 
-def test_missing_backplane_metadata_raises(tmp_path: Path) -> None:
-    """A missing _backplane_metadata.json propagates FileNotFoundError."""
+def test_missing_backplane_metadata_skips_generation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A navigated image with no backplanes has nothing for the bundle to describe."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     bp_file = env.backplane_root / f'{env.results_path_stub}_backplane_metadata.json'
     bp_file.unlink()
-    with pytest.raises(FileNotFoundError, match=r'_backplane_metadata\.json'):
-        _generate(env)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.SKIPPED
+    assert 'no backplane metadata at' in capsys.readouterr().out
 
 
 def test_malformed_nav_metadata_raises(tmp_path: Path) -> None:
-    """Unparseable navigation metadata propagates a JSON decode error."""
+    """Unparseable navigation metadata propagates a JSON decode error.
+
+    A document that is there but will not parse is a defect in that document,
+    not an image the bundle has nothing to say about, so it is not a skip.
+    """
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     nav_file = env.nav_root / f'{env.results_path_stub}_metadata.json'
@@ -280,25 +312,52 @@ def test_missing_template_dir_raises_after_supplemental(tmp_path: Path) -> None:
     assert suppl.is_file()
 
 
-def test_undefined_template_variable_error_is_swallowed(tmp_path: Path) -> None:
-    """A template referencing an unset variable logs errors and writes no label.
+def test_undefined_template_variable_fails_the_product(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A data template referencing an unset variable writes no label and fails the image.
 
-    Characterization: pdstemplate reports the NameError through its logger and
-    aborts the save; generate_bundle_data_files ignores the (errors, warnings)
-    return, so the failure is silent apart from the log (see report).
+    pdstemplate reports the NameError through its return value rather than by
+    raising, so the returned outcome is the only thing that can tell a caller the
+    product is not there.  The log must not say otherwise either.
     """
     env = make_bundle_env(
         tmp_path,
         template_contents={
-            'data.lblx': '<Product>$COMPLETELY_UNSET_VARIABLE$</Product>\n',
+            'data.lblx': f'<Product>{BROKEN_TEMPLATE_BODY}</Product>\n',
             'browse.lblx': '<Browse>ok</Browse>\n',
         },
         template_variables={},
     )
     write_nav_inputs(env)
-    _generate(env)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
     label = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.lblx'
     assert not label.exists()
+    assert 'Generated PDS4 label' not in capsys.readouterr().out
+
+
+def test_broken_browse_template_fails_the_product_and_keeps_the_data_label(
+    tmp_path: Path,
+) -> None:
+    """A browse template that cannot render is its own failure; the data label stays.
+
+    Both labels are attempted, so one run reports every label it could not write.
+    """
+    env = make_bundle_env(
+        tmp_path,
+        template_contents={
+            'data.lblx': DATA_TEMPLATE,
+            'browse.lblx': f'<Browse>{BROKEN_TEMPLATE_BODY}</Browse>\n',
+        },
+    )
+    write_nav_inputs(env)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    data_label = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.lblx'
+    assert data_label.is_file()
+    browse_label = env.bundle_dir / 'browse' / f'{env.pds4_path_stub}_summary.lblx'
+    assert not browse_label.exists()
 
 
 def test_dataset_without_pds4_support_raises(tmp_path: Path) -> None:
@@ -570,9 +629,16 @@ def test_an_image_carrying_no_record_reads_the_document(tmp_path: Path) -> None:
 
 
 def test_an_image_carrying_no_record_needs_the_document(tmp_path: Path) -> None:
-    """With nothing carried and no document, the read fails rather than proceeding."""
+    """With nothing carried and no document, no products are written at all.
+
+    Nothing stands in for the record: an image the enumeration handed over
+    without one and whose document is not under the results root is an image
+    the run has read no navigation for, so it writes none of its products.
+    """
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     (env.nav_root / f'{env.results_path_stub}_metadata.json').unlink()
-    with pytest.raises(FileNotFoundError, match=r'_metadata\.json'):
-        _generate(env)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.SKIPPED
+    suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
+    assert not suppl.exists()

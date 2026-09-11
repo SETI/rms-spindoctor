@@ -1,5 +1,6 @@
 import json
 import shutil
+from enum import Enum
 from pathlib import Path
 from typing import Any, cast
 
@@ -7,8 +8,28 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.pds4.labels import write_label
 from spindoctor.dataset.dataset import DataSet, ImageFiles
 from spindoctor.support.file import json_as_string
+
+
+class BundleDataOutcome(Enum):
+    """What generating one image's bundle data products came to.
+
+    Attributes:
+        WRITTEN: Every label the image calls for is on disk.
+        SKIPPED: The image has no products for the bundle to describe, because
+            it was not navigated or because its backplanes were never
+            generated.  A skip is an image the bundle has nothing to say about,
+            not a failure of the run.
+        FAILED: At least one of the image's products is not in the bundle: a
+            label that could not be rendered, or a browse product whose summary
+            PNG the navigation results do not hold.
+    """
+
+    WRITTEN = 'written'
+    SKIPPED = 'skipped'
+    FAILED = 'failed'
 
 
 def generate_bundle_data_files(
@@ -19,8 +40,26 @@ def generate_bundle_data_files(
     backplane_results_root: FCPath,
     bundle_results_root: FCPath,
     logger: PdsLogger,
-) -> None:
+) -> BundleDataOutcome:
     """Generate PDS4 bundle data files for a single image batch.
+
+    Both the data label and the browse label are attempted even when the first
+    of them fails, so one run reports every label it could not render rather
+    than one per run.  Whichever label did render stays on disk.
+
+    An image the bundle has nothing to describe is skipped rather than failed:
+    a navigation document that is not there, a navigation that did not succeed,
+    and backplane metadata that is not there are all cases of a selection
+    naming more images than the bundle covers, which is the ordinary state of a
+    selection made by volume.  A document that is there but cannot be read is
+    not one of them, and still raises.
+
+    A navigated image whose summary PNG is not in the navigation results is not
+    one of them either.  The navigation stage writes that PNG before, and under
+    the same condition as, the document that records the success, so a success
+    document with no PNG beside it is a broken input rather than an image
+    without a browse product; the image is failed, and its data label stays on
+    disk.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -29,6 +68,14 @@ def generate_bundle_data_files(
         backplane_results_root: Root containing backplane FITS files and metadata JSONs.
         bundle_results_root: Destination root for bundle files.
         logger: Logger for diagnostic messages.
+
+    Returns:
+        WRITTEN when the image's labels are on disk, SKIPPED when the image has
+        nothing for the bundle to describe, and FAILED when a label could not be
+        rendered.
+
+    Raises:
+        ValueError: If the batch does not hold exactly one image.
     """
 
     if len(image_files.image_files) != 1:
@@ -55,7 +102,19 @@ def generate_bundle_data_files(
         # already local.
         nav_metadata = image_file.nav_record
         if nav_metadata is None:
-            metadata_text = metadata_file.read_text()
+            try:
+                metadata_text = metadata_file.read_text()
+            except FileNotFoundError:
+                # An image with no navigation document was never navigated,
+                # which is what the status branch below reports in the other
+                # spelling: no record of a navigation, rather than a record of a
+                # navigation that did not succeed.
+                logger.warning(
+                    'Skipping bundle generation for "%s": no navigation metadata at %s',
+                    image_path,
+                    metadata_file,
+                )
+                return BundleDataOutcome.SKIPPED
             nav_metadata = cast(dict[str, Any], json.loads(metadata_text))
 
         status = nav_metadata.get('status', None)
@@ -67,10 +126,20 @@ def generate_bundle_data_files(
                 status,
                 nav_metadata.get('status_error', 'unknown'),
             )
-            return
+            return BundleDataOutcome.SKIPPED
 
         # Read backplane metadata
-        backplane_metadata_text = backplane_metadata_file.read_text()
+        try:
+            backplane_metadata_text = backplane_metadata_file.read_text()
+        except FileNotFoundError:
+            # A navigated image whose backplanes were never generated has
+            # nothing a backplanes bundle can describe.
+            logger.warning(
+                'Skipping bundle generation for "%s": no backplane metadata at %s',
+                image_path,
+                backplane_metadata_file,
+            )
+            return BundleDataOutcome.SKIPPED
         bp_stats = cast(dict[str, Any], json.loads(backplane_metadata_text))
 
         pds4_path_stub = dataset.pds4_path_stub(image_file)
@@ -118,10 +187,16 @@ def generate_bundle_data_files(
         # Generate PDS4 label file
         template_path = Path(template_dir) / 'data.lblx'
         template = pdstemplate.PdsTemplate(str(template_path))
-        template.write(template_vars, label_file_path)
-        logger.info('Generated PDS4 label: %s', label_file_path)
+        data_written = write_label(template, template_vars, label_file_path, logger=logger)
+        if data_written:
+            logger.info('Generated PDS4 label: %s', label_file_path)
 
-        # Copy summary PNG to browse directory and generate browse label
+        # Copy summary PNG to browse directory and generate browse label.
+        # navigate_image_files writes the summary PNG before the navigation
+        # document and under the same condition, so a success document always
+        # has a PNG beside it.  One that does not is a broken input, not an
+        # image with no browse product, and is failed rather than passed over.
+        browse_written = False
         if summary_png_source.exists():
             # Copy the summary PNG file
             summary_png_local = cast(Path, summary_png_source.get_local_path())
@@ -135,8 +210,19 @@ def generate_bundle_data_files(
             # Generate browse label
             browse_template_path = Path(template_dir) / 'browse.lblx'
             browse_template = pdstemplate.PdsTemplate(str(browse_template_path))
-            browse_template.write(template_vars, browse_label_path)
-            browse_label_path.upload()
-            logger.info('Generated browse label: %s', browse_label_path)
+            browse_written = write_label(
+                browse_template, template_vars, browse_label_path, logger=logger
+            )
+            if browse_written:
+                logger.info('Generated browse label: %s', browse_label_path)
         else:
-            logger.warning('Summary PNG not found: %s', summary_png_source)
+            logger.error(
+                'No summary PNG at %s for "%s", whose navigation succeeded; the browse '
+                'products for this image were not written',
+                summary_png_source,
+                image_path,
+            )
+
+        if data_written and browse_written:
+            return BundleDataOutcome.WRITTEN
+        return BundleDataOutcome.FAILED
