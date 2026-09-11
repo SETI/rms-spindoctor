@@ -661,7 +661,7 @@ def test_a_supplemental_file_holding_a_maximum_no_column_can_is_refused_with_not
 def test_a_render_that_fails_leaves_no_table(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Every cell is rendered before either table is opened, so a render that raises leaves none.
+    """Every cell is rendered before either table opens, so a failed render leaves none.
 
     The checks refuse every value they know no column can hold, but they are not
     the only way a render can fail, and a table opened before its cells exist is
