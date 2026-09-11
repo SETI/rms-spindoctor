@@ -281,11 +281,12 @@ The summary pass generates:
 
 Every min/max column is written in a fixed format chosen by its unit: three
 decimals for a column in degrees, one for a column in km, eight for degrees per
-pixel, and five significant figures for km per pixel, whose values span seven
-orders of magnitude. The backplane arrays are float32, so a statistic carries
-seven significant digits at most, and each width is chosen within that from
-what one pixel resolves. A configured backplane in a unit the tables have no
-format for ends the summary pass before it reads anything.
+pixel, and five significant figures, written positionally and never in
+exponent form, for km per pixel, whose values span eight orders of magnitude.
+The backplane arrays are float32, so a statistic carries seven significant
+digits at most, and each format is chosen within that from what one pixel
+resolves. A configured backplane in a unit the tables have no format for ends
+the summary pass before it reads anything.
 
 Both index tables are meant to be read by a person, so every angular column in
 them is in degrees — degrees per pixel where the quantity is a resolution — and

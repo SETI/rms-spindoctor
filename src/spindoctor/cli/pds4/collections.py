@@ -1,5 +1,7 @@
 import csv
 import json
+import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -11,38 +13,104 @@ from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.dataset.dataset import DataSet
 
-INDEX_VALUE_FORMATS: dict[str, str] = {
-    'deg': '.3f',
-    'km': '.1f',
-    'deg/pixel': '.8f',
-    'km/pixel': '#.5g',
+
+@dataclass(frozen=True)
+class IndexValueFormat:
+    """How a minimum or maximum is written into a global index table.
+
+    Exactly one of the two fields is set.  ``decimals`` writes every value to
+    that many decimals, so three decimals write ``1.235`` and ``-89.999``.
+    ``significant`` writes every value to that many significant figures,
+    positionally: the number of decimals is chosen per value from its
+    magnitude, so five figures write ``0.00060000``, ``6.1343``, ``4200.0``,
+    ``70853`` and ``123456``.  A value is never written with an exponent or a
+    trailing point, and its integer part is never rounded away, so a value with
+    more integer digits than figures is written to all of them.  Neither field
+    fixes a column's width: values under one format differ in length, so the
+    width of a column is the widest value written in it, known only once the
+    column is.
+
+    Attributes:
+        decimals: The number of decimals every value is written to, or None
+            when ``significant`` is set.
+        significant: The number of significant figures every value is written
+            to, or None when ``decimals`` is set.
+    """
+
+    decimals: int | None = None
+    significant: int | None = None
+
+    def __post_init__(self) -> None:
+        """Refuse a format that sets both fields or neither.
+
+        Raises:
+            ValueError: If ``decimals`` and ``significant`` are both set or both
+                None.
+        """
+        if (self.decimals is None) == (self.significant is None):
+            raise ValueError(
+                'An index value format sets exactly one of decimals and significant; '
+                f'got decimals={self.decimals!r}, significant={self.significant!r}'
+            )
+
+    def render(self, value: float) -> str:
+        """Write one value the way this format says.
+
+        Parameters:
+            value: The statistic to write.
+
+        Returns:
+            The value as a plain decimal number to a fixed number of decimals,
+            with no exponent and no trailing point.
+        """
+        if self.significant is None:
+            return format(value, f'.{self.decimals}f')
+        magnitude = 0 if value == 0 else math.floor(math.log10(abs(value)))
+        decimals = max(0, self.significant - 1 - magnitude)
+        return format(value, f'.{decimals}f')
+
+
+INDEX_VALUE_FORMATS: dict[str, IndexValueFormat] = {
+    'deg': IndexValueFormat(decimals=3),
+    'km': IndexValueFormat(decimals=1),
+    'deg/pixel': IndexValueFormat(decimals=8),
+    'km/pixel': IndexValueFormat(significant=5),
 }
 """The format each min and max in the global index tables is written in, by unit.
 
 The key is the unit the statistic is in, which for an angular plane is the
-degrees restatement of the unit the configuration declares; the value is a
-format specification for ``format()``.  Two constraints decide the widths.  The
-backplane arrays are float32, allocated so by both per-source stages and cast
-to it by the writer, so no statistic carries more than seven significant digits
-and a format printing more than that prints noise.  Within that ceiling the
-geometry sets what is usable.  An angle in degrees gets three decimals, since
-one pixel is 0.0003 degrees on the sky for the narrow-angle camera and 0.003 for
-the wide-angle one.  A ring radius in kilometers gets one, since the radii run
-from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km.  A resolution in
-degrees per pixel is below one everywhere, so eight decimals stays within seven
-significant digits.  A resolution in kilometers per pixel runs from 6e-4 a
-hundred kilometers off Enceladus to 4e3 in a wide-angle approach frame, seven
-orders of magnitude that no fixed decimal count fits, so it gets five
-significant figures, which writes ``0.00060000``, ``6.1343`` and ``4200.0``.
+degrees restatement of the unit the configuration declares.  Two constraints
+decide the formats.  The backplane arrays are float32, allocated so by both
+per-source stages and cast to it by the writer, so no statistic carries more
+than seven significant digits and a format printing more than that prints
+noise.  Within that ceiling the geometry sets what is usable.  An angle in
+degrees gets three decimals, since one pixel is 0.0003 degrees on the sky for
+the narrow-angle camera and 0.003 for the wide-angle one; it writes ``1.235``
+and ``-89.999``.  A ring radius in kilometers gets one, since the radii run
+from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km; it writes
+``74658.0`` and ``136780.0``.  A resolution in degrees per pixel gets eight
+decimals and writes ``0.00015470`` and ``0.80386227``.  The largest such value
+on the real frames tried was 0.80, on an edge-on wide-angle ring frame, and at
+that end the eighth decimal sits at the edge of what a float32 plane carries,
+whose spacing there is 6e-8.  A resolution in kilometers per pixel runs from
+6e-4 a hundred kilometers off Enceladus to 7e4 at the grazing limb of a
+wide-angle frame, eight orders of magnitude that no fixed decimal count fits,
+so it gets five significant figures, written positionally: ``0.00060000``,
+``6.1343``, ``4200.0`` and ``70853``.
+
+Every format writes a plain decimal number, never one with an exponent or a
+trailing point, since the tables are read by people.  What no format fixes is
+a column's width: values under one format differ in length, so the width of a
+column is the widest value written in it and is not derivable from the format
+alone.
 
 The bodies table and the rings table share the mapping so that a value cannot
 mean one thing in one and something else in the other, and it is public so that
-a label describing a table can size its fields from the format the column was
-written in.
+a label describing a table can say how the column was written.
 """
 
 
-def index_value_format(units: str) -> str:
+def index_value_format(units: str) -> IndexValueFormat:
     """Return the format a statistic of a plane in these units is written in.
 
     Parameters:
@@ -52,8 +120,7 @@ def index_value_format(units: str) -> str:
             this one.
 
     Returns:
-        The format specification, for ``format()``, from
-        :data:`INDEX_VALUE_FORMATS`.
+        The format, from :data:`INDEX_VALUE_FORMATS`.
 
     Raises:
         ValueError: If the statistic's unit has no format in the table, or if
@@ -333,9 +400,9 @@ def generate_global_index_files(
                 min_val = row.get(f'{bp_type}_min', '')
                 max_val = row.get(f'{bp_type}_max', '')
                 if isinstance(min_val, (int, float)):
-                    min_val = format(min_val, body_formats[bp_type])
+                    min_val = body_formats[bp_type].render(min_val)
                 if isinstance(max_val, (int, float)):
-                    max_val = format(max_val, body_formats[bp_type])
+                    max_val = body_formats[bp_type].render(max_val)
                 row_data.append(min_val)
                 row_data.append(max_val)
             writer.writerow(row_data)
@@ -363,9 +430,9 @@ def generate_global_index_files(
                 min_val = row.get(f'{ring_type}_min', '')
                 max_val = row.get(f'{ring_type}_max', '')
                 if isinstance(min_val, (int, float)):
-                    min_val = format(min_val, ring_formats[ring_type])
+                    min_val = ring_formats[ring_type].render(min_val)
                 if isinstance(max_val, (int, float)):
-                    max_val = format(max_val, ring_formats[ring_type])
+                    max_val = ring_formats[ring_type].render(max_val)
                 row_data.append(min_val)
                 row_data.append(max_val)
             writer.writerow(row_data)

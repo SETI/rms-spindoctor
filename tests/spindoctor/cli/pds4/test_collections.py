@@ -31,6 +31,7 @@ from filecache import FCPath
 
 from spindoctor.cli.pds4 import collections as collections_module
 from spindoctor.cli.pds4.collections import (
+    IndexValueFormat,
     generate_collection_files,
     generate_global_index_files,
 )
@@ -416,23 +417,50 @@ def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path:
     assert rows[1][3] == '0.00080214'
 
 
-def test_a_kilometers_per_pixel_column_keeps_five_figures_at_both_ends(tmp_path: Path) -> None:
+def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
+    tmp_path: Path,
+) -> None:
     """A resolution in kilometers per pixel keeps five figures at either end of its range.
 
     The column runs from 6e-4 km per pixel a hundred kilometers off Enceladus
-    to 4e3 in a wide-angle approach frame, seven orders of magnitude that no
-    fixed decimal count fits: eight decimals would print the large end to
-    eleven digits of noise, and a width fit to the large end would print the
+    to 7e4 at the grazing limb of a wide-angle frame, eight orders of magnitude
+    that no fixed decimal count fits: eight decimals would print the large end
+    to twelve digits of noise, and a width fit to the large end would print the
     small end as zero.  Five significant figures write both, with trailing
-    zeros kept so that every value shows the same number of them.
+    zeros kept so that every value shows the same number of them.  They are
+    written positionally, so a value of five or six integer digits is written
+    as the integer it is rather than with a trailing point or an exponent,
+    which are what a general format writes there and what a person reading
+    the table would have to decode.
     """
     env = _index_env(tmp_path)
-    extremes = {'MIMAS': {'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0}}}}
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=extremes)
+    resolutions: dict[str, Any] = {
+        'MIMAS': {'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0}}},
+        'SATURN': {'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0}}},
+    }
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
     _run_global_index(env)
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert rows[1][5] == '0.00060000'
     assert rows[1][6] == '4200.0'
+    assert rows[2][5] == '70853'
+    assert rows[2][6] == '123456'
+
+
+@pytest.mark.parametrize(
+    ('decimals', 'significant'), [(3, 5), (None, None)], ids=['both set', 'neither set']
+)
+def test_an_index_value_format_sets_exactly_one_of_its_fields(
+    decimals: int | None, significant: int | None
+) -> None:
+    """A format is a number of decimals or of significant figures, never both or neither.
+
+    Parameters:
+        decimals: The decimals field for this case.
+        significant: The significant-figures field for this case.
+    """
+    with pytest.raises(ValueError, match='exactly one of decimals and significant'):
+        IndexValueFormat(decimals=decimals, significant=significant)
 
 
 def test_a_plane_in_a_unit_the_index_cannot_size_is_refused_before_any_table(

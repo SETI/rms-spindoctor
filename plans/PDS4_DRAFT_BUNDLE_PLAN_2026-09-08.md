@@ -496,14 +496,15 @@ a human-readable product is worse than the precision loss #607 was opened for.
 The formatting half of #607 closes here too. The tables are written with a
 format per unit, from one public mapping in `collections.py`: three decimals
 for `deg`, one for `km`, eight for `deg/pixel`, and five significant figures
-for `km/pixel`, whose values run from 6e-4 a hundred kilometres off Enceladus
-to 4e3 in a wide-angle approach frame. The ceiling on all of them is seven
-significant digits, because the arrays are float32 and a statistic cannot
-carry more than the plane it was taken from; the widths are chosen within
-that from what one pixel resolves. Phase 7 sizes its `Field_Character`
-widths from those formats rather than from a width of its own. A plane
-declared in a unit the mapping cannot size fails the summary run before it
-reads a supplemental file.
+for `km/pixel`, written positionally, never in exponent form, whose values
+run from 6e-4 a hundred kilometres off Enceladus to 7e4 at the grazing limb
+of a wide-angle frame (`70853` on W1629148548_1). The ceiling on all of them
+is seven significant digits, because the arrays are float32 and a statistic
+cannot carry more than the plane it was taken from; the formats are chosen
+within that from what one pixel resolves. No format fixes a column's width:
+values under one format differ in length, so Phase 7 sizes each field from
+the widest value its column holds. A plane declared in a unit the mapping
+cannot size fails the summary run before it reads a supplemental file.
 
 Radians is spelled `rad` and degrees `deg`, which is both what the
 configuration writes and what the PDS4 units-of-angle vocabulary names, so the
@@ -1209,9 +1210,14 @@ which is not the unit the arrays carry. Data types come from the reference's
 vocabulary: `ASCII_LID`, `ASCII_String`, `ASCII_Real`,
 `ASCII_NonNegative_Integer`, `ASCII_Date_Time_YMD_UTC`.
 
-The `Field_Character` widths come from the per-unit formats section 3.8
-records, looked up through the same public mapping in `collections.py` that
-wrote the column, so a field cannot be narrower than what is in it. What a
+A field's width comes from the widest value written in its column, not from
+the format: the per-unit formats section 3.8 records fix a column's decimals
+or significant figures, and values under one format differ in length
+(`1.235` and `-89.999`; `0.00060000` and `70853`), so the generator sizes
+each field by scanning the column it wrote. The column's unit and its number
+of decimals come from the same public mapping in `collections.py` that wrote
+it, so a field cannot describe the column in a form other than the one it
+was written in. What a
 column says where an image has no statistic for a plane -- the missing-value
 sentinel #607 raised beside the precision -- is decided here as well, since
 it is the label that has to declare it; the generator writes a blank there
