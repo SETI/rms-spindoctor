@@ -108,12 +108,14 @@ was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is not a finite
 number), and an image whose inputs it could not read -- and exits 1 when that
-count is not zero.  It closes with a line giving that count alongside the number
-of images it labeled and the number it skipped, so a selection that matched
-nothing reads as the zero it is.  It counts a batch that did not hold exactly
-one image the same way; that is a guard on the one-image-per-batch invariant
-:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` also
-asserts, and no selection argument this dataset offers can produce one.
+count is not zero.  An image with such a statistic is failed before anything is
+written for it, and the log names the image, the plane and what the document
+records there.  The run closes with a line giving that count alongside the
+number of images it labeled and the number it skipped, so a selection that
+matched nothing reads as the zero it is.  It counts a batch that did not hold
+exactly one image the same way; that is a guard on the one-image-per-batch
+invariant :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files`
+also asserts, and no selection argument this dataset offers can produce one.
 
 An image the bundle has nothing to describe is skipped rather than failed and
 does not count against the run: an image with no navigation metadata document,
@@ -144,6 +146,12 @@ and labels an earlier run wrote are cleared before the first supplemental file
 is read.  Every supplemental file is read, and every value in both index tables
 rendered, before either table is opened, so neither exists; the collection
 files, written first, do.
+
+The summary pass builds both inventories from the data labels in the bundle's
+``data/`` tree and does not check that tree for completeness, so it can exit 0
+over a bundle the labels pass failed images in.  An image that got a data label
+but no browse label, its summary PNG missing, leaves ``collection_browse.tab``
+listing a browse product that is not on disk.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks

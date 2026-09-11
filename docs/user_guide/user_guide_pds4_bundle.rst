@@ -288,73 +288,38 @@ statistics of every configured backplane must be in one of these units.
 Exit Status
 ===========
 
-A pass exits 0 only when every file it set out to write is on disk. A non-zero
-exit means the bundle is incomplete: whatever was written is still in place, and
-the log names what was not.
+Each pass exits 0 when it wrote everything it set out to write, and 1
+otherwise; the log says what went wrong.
 
-* ``sd_create_bundle labels`` exits 1 when any image's labels could not be
-  written or its inputs could not be read, and exits 1 before processing
-  anything when the bundle's directory already holds files or when a
-  configured backplane declares a unit the bundle cannot use. It closes with a
-  line giving the number of images it labeled, skipped and failed, so a
-  selection that matched nothing reads as the zero it is.
+* ``sd_create_bundle labels`` exits 1 without doing anything if the bundle
+  directory already holds files, a template is missing, or a configured
+  backplane uses a unit the bundle cannot use. Otherwise it exits 1 if any
+  image failed, and ends with a count of the images labeled, skipped and
+  failed.
 
-  An image the bundle has nothing to describe is **skipped**, not failed, and
-  does not affect the exit status: an image with no navigation metadata
-  document, one whose navigation did not succeed, and a navigated image with no
-  backplane metadata document. A selection made by volume ordinarily names far
-  more images than have been navigated and backplaned, so such a run is mostly
-  skips.
+  An image with nothing to describe (never navigated, navigation failed, or no
+  backplanes) is skipped, which is not an error. An image fails if its
+  metadata cannot be read, a label cannot be written, its summary PNG is
+  missing, or its backplane metadata holds a statistic the index tables cannot
+  hold: one in a unit other than the configured one, or a minimum or maximum
+  that is not a finite number. For such a statistic, regenerate that image's
+  backplanes.
 
-  A navigated image whose summary PNG is missing is **failed**, not skipped. It
-  loses its browse products and nothing else; its data label is written or not
-  on its own account.
+  ``--dry-run`` writes nothing, and exits 0 if those first checks pass.
 
-  A navigated image whose backplane metadata records a statistic in a unit
-  other than the one the configuration gives its plane — a document written
-  before the statistics recorded their unit, or under another configuration —
-  is **failed** before anything is written for it, since indexing it would put
-  one column of the global index in two units. Regenerate its backplanes. So
-  is an image whose backplane metadata records a minimum or maximum that is
-  not a finite number, NaN or an infinity among them: no column can hold one,
-  and a blank in its place would say the plane measured nothing. The log names
-  the plane and what the document records for it.
+* ``sd_create_bundle summary`` exits 1 without doing anything for the same
+  template and unit problems. It also exits 1 if a collection or index label
+  cannot be written, or if a supplemental file holds such a statistic, in which
+  case neither index table is written: regenerate the backplanes, then the
+  bundle, into an empty directory.
 
-  ``--dry-run`` writes nothing, and exits 0 once the templates are present,
-  every configured unit is usable, and the bundle directory is empty.
+* ``sd_create_bundle_cloud_tasks`` reports a failed task as ``status: error``,
+  with ``status_error`` saying why (for example ``label_not_written`` or
+  ``unusable_unit``), and does not retry it.
 
-* ``sd_create_bundle summary`` exits 1 when any collection or global index label
-  could not be written, and exits 1 before reading anything when a configured
-  backplane declares a unit the bundle cannot use. The ``.tab`` tables are
-  written whether or not the label describing one is.
-
-  It also exits 1, with neither index table written, when a supplemental file
-  records a statistic in a unit other than the one the configuration gives
-  its plane, or in none. A supplemental file carries a copy of the backplane
-  document the labels pass read, so the file was written from one recorded
-  before the statistics carried their unit, or under another configuration:
-  regenerate the backplanes, then the bundle into an empty directory. The log
-  names the file, the plane and both units. A supplemental file recording a
-  minimum or maximum that is not a finite number ends the run the same way,
-  and the log names the file and the plane and says what the file records
-  there; the labels pass of a regenerated bundle fails such an image rather
-  than writing it.
-
-* ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
-  written as ``status: error`` with ``status_error: label_not_written``, and asks
-  for no retry. A task run under a configuration that declares a backplane in a
-  unit the bundle cannot use, or with no unit, writes nothing and is reported as
-  ``status: error`` with ``status_error: unusable_unit``, every such backplane
-  and the reason in ``status_exception``. It asks for no retry either, since
-  every task under that configuration fails the same way.
-
-The summary pass builds its tables from what is in the bundle's ``data/`` tree
-without checking that tree for completeness, so it can exit 0 over a bundle the
-labels pass already failed images in -- and an image that got a data label but
-no browse label leaves ``collection_browse.tab`` listing a browse product that is
-not on disk. A summary pass exiting 0 says its own labels were written, and
-nothing about what the labels pass did; take the labels pass's closing line as
-the account of what the bundle covers.
+A summary pass indexes whatever is in the bundle's ``data/`` tree, so its exit
+status says nothing about the labels pass; the labels pass's closing line says
+what the bundle covers.
 
 Configuration
 =============
