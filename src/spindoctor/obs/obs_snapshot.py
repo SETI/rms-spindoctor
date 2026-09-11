@@ -337,9 +337,21 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
         return self._closest_planet
 
     def reset_all(self) -> None:
-        """Resets all cached Backplanes and Meshgrids to their initial state.
+        """Reset every cached Backplane and Meshgrid to its initial state.
 
-        Clears all cached computations, forcing them to be regenerated on next access.
+        Two callers want this, for unrelated reasons.
+
+        Anything that mutates the observation -- an applied pointing offset,
+        a replaced C-matrix -- has to call it, or geometry computed against
+        the old attitude survives into the answer.
+
+        Anything that has finished with the geometry can call it to give the
+        memory back.  A ``Backplane`` caches every event, intercept and
+        computed surface it was ever asked for, and on an extended-FOV grid
+        that reaches gigabytes: on a Voyager frame with a 400-pixel margin,
+        about five.  Dropping them costs only the recomputation of whatever
+        is asked for next, because every one of these is a property that
+        rebuilds itself on the following read.
         """
 
         # Standard FOV

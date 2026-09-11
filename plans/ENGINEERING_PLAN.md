@@ -543,38 +543,37 @@ asserts the generated half matches the registries.
 
 ### Cloud and scale
 
-- **Navigation memory, and #573** -- a navigation's resident size is bounded
+- **Navigation memory** -- a navigation's resident size is bounded
   by the extended frame, which is the detector plus twice the instrument's
   search margin, and `oops` sizes its intermediates by the meshgrid it is
   handed. The wide-margin instruments are therefore the expensive ones: a
   Voyager frame extends to 3.24 Mpx against a 1000x1000 image. Bounding
   Titan's two backplane boxes, striping the ring, body and Titan backplanes,
-  collecting each strip's transient memory and returning the freed arenas to
-  the operating system where the C library can, and holding fewer correlation
-  spectra at once bring Voyager Saturn frames from 16.7-26.0 GB to
-  7.47-7.72 GB with unchanged offsets and shorter runtimes, which clears the
-  8 GB working target a cloud worker's instance size implies. Striping alone
-  bought nothing measurable until the release was added, because oops
-  intermediates live in reference cycles and glibc retains freed arenas, so a
-  striped pass grew by the sum of its strips rather than the largest. What
-  remains is about four gigabytes of a ring render's resident size, and #573's
-  premise that this is fragmentation does not hold: the C library reports
-  0.23 GB free and retained against six-plus gigabytes handed out, and the
-  holder is the observation's own backplane caches, which return 5.03 GB when
-  emptied. Releasing more often cannot reach it, because a release reclaims
-  only what nothing refers to; dropping the caches at the end of the model
-  stage does, and no program here does that yet, so the headroom above the
-  target is roughly 0.3 GB against a run-to-run spread of about 0.1 GB. Each
-  navigation now records the peak it reached, in the metadata document and
-  in the results index, and the statistics report summarizes it per
-  instrument with a histogram and the hungriest images, so the next
-  regression is read off a pass's own numbers rather than found by a cloud
-  pool dying. The record is null where the kernel publishes no peak or will
-  not let the mark be reset ahead of the image, `/proc` being Linux-only.
-  Six Voyager frames still sit above the 8 GB target, the worst
-  at 9.82, enumerated with what is known and what is not in
-  `critiques/NAV_MEMORY_AFTER_THE_FIXES_2026-09-05.md`; none has been
-  traced. The two placements measured to be worth nothing are recorded in
+  and collecting each strip's transient memory and returning the freed arenas
+  to the operating system where the C library can, brought Voyager Saturn
+  frames from 16.7-26.0 GB to 7.47-7.72 GB; dropping the observation's
+  backplanes where the model stage ends and correlating through half spectra
+  then brought the six frames that still exceeded the 8 GB working target a
+  cloud worker's instance size implies from 8.02-9.82 GB to 6.39-7.66 GB,
+  with every offset and status unchanged and roughly half the runtime on the
+  heaviest. Two of those findings cost more to reach than they should have.
+  Striping alone bought nothing measurable until the release was added,
+  because oops intermediates live in reference cycles and glibc retains freed
+  arenas, so a striped pass grew by the sum of its strips rather than the
+  largest. And the residue a ring render leaves was recorded as unreturnable
+  fragmentation on a probe that cleared one cache on one of the three live
+  backplanes; it is held, by the observation's own backplane caches, and
+  dropping them takes settled resident size from 6.80 GB to 1.77 GB. The
+  model stage now sets the peak, at 7.66 GB on the heaviest frame, 0.34 GB
+  of headroom against a run-to-run spread of about 0.1 GB; #584 is the
+  measured way to widen it and #585 is the question the padding raises. Each
+  navigation records the peak it reached, in the metadata document and in the
+  results index, and the statistics report summarizes it per instrument with
+  a histogram and the hungriest images, so the next regression is read off a
+  pass's own numbers rather than found by a cloud pool dying. The record is
+  null where the kernel publishes no peak or will not let the mark be reset
+  ahead of the image, `/proc` being Linux-only. The release placements
+  measured to be worth nothing are recorded in
   `docs/dev_guide/dev_guide_memory.rst` so they are not tried again. The ring
   radius, radial resolution, `border_atop` and `radial_mode` backplanes
   remain whole-frame through the extended backplane and set the ring model's

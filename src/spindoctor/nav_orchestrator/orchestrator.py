@@ -72,6 +72,7 @@ from spindoctor.support.exceptions import (
 )
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec, apply_filter
 from spindoctor.support.image_quality import cosmic_ray_mask, saturation_mask
+from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.nav_base import NavBase
 from spindoctor.support.noise_estimate import estimate_image_noise_sigma
 from spindoctor.support.status_reason import NavStatusReason
@@ -421,6 +422,7 @@ class NavOrchestrator(NavBase):
             )
         try:
             result = self._navigate_pipeline(
+                obs=obs,
                 context=context,
                 image_classifier=image_classifier,
                 provenance=provenance,
@@ -546,6 +548,7 @@ class NavOrchestrator(NavBase):
     def _navigate_pipeline(
         self,
         *,
+        obs: ObsSnapshotInst,
         context: NavContext,
         image_classifier: NavImageClassifierResult,
         provenance: Provenance,
@@ -558,6 +561,9 @@ class NavOrchestrator(NavBase):
         :meth:`navigate`, which converts it into a failed ``NavResult``.
 
         Parameters:
+            obs: The observation snapshot under navigation.  Taken here
+                rather than through ``context.obs``, which is typed as
+                ``object`` to keep the context free of an import cycle.
             context: Per-image NavContext.
             image_classifier: Image-quality classifier verdict.
             provenance: Reproducibility envelope.
@@ -577,6 +583,17 @@ class NavOrchestrator(NavBase):
         feature_inventory = self._build_inventory(kept, gated)
         model_metadata = self._collect_model_metadata(built_models)
         annotations = self._collect_annotations(context, built_models)
+        # The models are the only stage that reads a backplane, and every one
+        # of them has now been built, had its features taken and its
+        # annotations drawn.  What the backplanes cached for them would
+        # otherwise be held, unread, through every technique below -- about
+        # five gigabytes on a Voyager frame, which is most of a worker's
+        # budget, and it is held at exactly the moment the correlators want
+        # their own largest arrays.  Nothing here is stale; it is simply
+        # finished with, and each backplane rebuilds itself if it is read
+        # again.
+        obs.reset_all()
+        release_transient_memory()
         if not all_features:
             return self._fail(
                 status_reason=NavStatusReason.NO_FEATURES_EXTRACTED,
