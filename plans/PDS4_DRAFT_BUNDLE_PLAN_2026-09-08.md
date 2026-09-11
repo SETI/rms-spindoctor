@@ -30,8 +30,8 @@ the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
 so has to be settled before a label describes one. A third, the statistics'
-units recorded in section 3.8, landed with Phase 2 rather than ahead of it,
-and for the same reason: it alters what the metadata documents contain and
+conversion to degrees, each statistic recording its unit (section 3.8), landed
+with Phase 2 rather than ahead of it, and for the same reason: it alters what the metadata documents contain and
 therefore what Phase 7's tables and labels are sized and written against.
 
 This plan is the "finish and validate the Cassini path" half of #53, which
@@ -66,8 +66,9 @@ guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the `Special_Constants`
 declaration, which is what remains of the masked-value work), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
-6 own), #611 (the backplane viewer converts only a `BUNIT` of `rad`, so it
-shows the `rad/pixel` plane in radians per pixel), #614 (a dataset without PDS4 support
+6 own), #611 (the backplane viewer decides degrees from `BUNIT` and the plane's
+name rather than through `statistics_units`, so it shows the `rad/pixel` plane
+in radians per pixel), #614 (a dataset without PDS4 support
 ends both passes in a traceback rather than a refusal). #603, the two passes
 disagreeing about a missing template, closes in Phase 1. #607, the index
 tables written to one precision whatever the column's unit, closes in Phase
