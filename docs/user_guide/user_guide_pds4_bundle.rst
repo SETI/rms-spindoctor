@@ -252,6 +252,17 @@ Browse products are not optional. Both are written for every image the pass
 labels, and an image whose summary PNG is missing from the navigation results is
 failed rather than bundled without them.
 
+Each data label states when its image's exposure began and ended, in its
+``Time_Coordinates``. The two times are the ``start_et`` and ``stop_et`` the
+navigation metadata document records under ``navigation_result.times``, converted
+to UTC and written the way PDS4 writes a date and time: to the millisecond, with a
+trailing ``Z``, as in ``2004-02-07T04:25:35.585Z``. The start is rounded down to its
+millisecond and the stop up to the next one, so the interval a label states always
+contains the exposure, which rounding each to the nearer millisecond would not: it
+could state a start after the shutter opened. A leap second is written as second
+60. A navigated image whose document records no such times is failed rather than
+labeled, as the exit status below describes.
+
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
 
@@ -278,6 +289,15 @@ The summary pass generates:
   * ``global_index_rings.tab``: CSV file with one row per image, containing min/max
     values for each configured ring backplane type
   * ``global_index_rings.lblx``: PDS4 label for the rings index
+
+The data collection label states the time range of the products the collection
+holds: the earliest exposure start and the latest exposure stop over every
+supplemental file in the bundle's ``data/`` tree, written to whole seconds with the
+start rounded down and the stop rounded up, as in ``2004-02-07T04:25:35Z`` to
+``2004-02-22T05:32:17Z``. Rounded outward, the range contains every product's own
+start and stop as its data label states them. The pass writes the global index
+files first, because the range is taken in the same read of the supplemental files
+that builds the index, and the collection files after them.
 
 Every min/max column is written in a fixed format chosen by its unit: three
 decimals for a column in degrees, one for a column in km, eight for degrees per
@@ -331,25 +351,41 @@ the log names what was not.
   and a blank in its place would say the plane measured nothing. The log names
   the plane and what the document records for it.
 
+  A navigated image whose navigation metadata document does not record the
+  exposure's start, stop and midtime -- no ``navigation_result.times`` block, an
+  epoch missing, one that is not a finite number, or a stop earlier than its
+  start -- is **failed** before anything is written for it. Its data label states
+  when the exposure began and ended, and a successful navigation always records
+  both, so such a document is a broken input rather than an image whose time is
+  unknown. The log names the image and what its document lacks.
+
   ``--dry-run`` writes nothing, and exits 0 once the templates are present,
   every configured unit is usable, and the bundle directory is empty.
 
 * ``sd_create_bundle summary`` exits 1 when any collection or global index label
   could not be written, and exits 1 before reading anything when a configured
   backplane declares a unit the bundle cannot use. The ``.tab`` tables are
-  written whether or not the label describing one is.
+  written whether or not the label describing one is. A bundle with no ``data/``
+  directory ends the pass with exit status 1 and nothing written.
 
-  It also exits 1, with neither index table written, when a supplemental file
-  records a statistic in a unit other than the one the configuration gives
-  its plane, or in none. A supplemental file carries a copy of the backplane
-  document the labels pass read, so the file was written from one recorded
-  before the statistics carried their unit, or under another configuration:
-  regenerate the backplanes, then the bundle into an empty directory. The log
-  names the file, the plane and both units. A supplemental file recording a
-  minimum or maximum that is not a finite number ends the run the same way,
-  and the log names the file and the plane and says what the file records
-  there; the labels pass of a regenerated bundle fails such an image rather
-  than writing it.
+  When there is no time range for the data collection label to state -- the
+  ``data/`` tree holds no supplemental file, or one of them cannot be read or
+  records no exposure times a label can state -- that label is not written and
+  counts as a label not written, so the pass exits 1; the log says why and names
+  the file. Every other product of the pass is written as usual, the inventory
+  tables among them.
+
+  It also exits 1, with neither index table nor any collection file written,
+  when a supplemental file records a statistic in a unit other than the one the
+  configuration gives its plane, or in none. A supplemental file carries a copy
+  of the backplane document the labels pass read, so the file was written from
+  one recorded before the statistics carried their unit, or under another
+  configuration: regenerate the backplanes, then the bundle into an empty
+  directory. The log names the file, the plane and both units. A supplemental
+  file recording a minimum or maximum that is not a finite number ends the run
+  the same way, and the log names the file and the plane and says what the file
+  records there; the labels pass of a regenerated bundle fails such an image
+  rather than writing it.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
   written as ``status: error`` with ``status_error: label_not_written``, and asks

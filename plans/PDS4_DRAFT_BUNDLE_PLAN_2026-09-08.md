@@ -25,7 +25,7 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1 and 2 have run; Phases 3-10 have not. Two changes landed ahead of
+Phases 1-3 have run; Phases 4-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -52,7 +52,7 @@ this table first and trusts it over any recollection.
 | 1 — Surface label-write failures | **done** | `937e6cf4`, the squash on `rf_pds4_draft_bundle`, section 4 |
 | 2 — The synthetic cohort | **done** | `rf_pds4_phase2`, sections 3.12 and 4 |
 | Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
-| 3 — Epochs | not started | |
+| 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
 | 4 — The FITS in the bundle, with its data objects | not started | |
 | 5 — Inventories that conform | not started | |
 | 6 — Bundle-level and static products | not started | |
@@ -69,10 +69,12 @@ skipped or failed product leaves the bundle inconsistent, which Phases 5 and
 6 own), #611 (the backplane viewer carries the same unit equality the
 statistics carried, on the same plane), #614 (a dataset without PDS4 support
 ends both passes in a traceback rather than a refusal). #603, the two passes
-disagreeing about a missing template, closes in Phase 1. #607, the index
-tables written to one precision whatever the column's unit, closes in Phase
-2 with a format per unit (section 3.8); the missing-value sentinel it raised
-beside that is Phase 7's.
+disagreeing about a missing template, was closed by hand on 2026-09-11, after
+#605, Phase 1's PR, merged. #607, the index tables written to one precision
+whatever the column's unit, closes in Phase 2 with a format per unit (section
+3.8); the missing-value sentinel it raised beside that is Phase 7's. #519,
+which predates this plan and found every data label's start and stop empty,
+closes with Phase 3 (section 3.4).
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -382,21 +384,59 @@ rather than from the config.
 ### 3.4 Epochs
 
 `navigation_result.times` holds `start_et`, `stop_et` and `midtime_et` as
-TDB seconds past J2000. `spindoctor/cli/stats/classify.py` already converts
-with `julian.iso_from_tai(julian.tai_from_tdb(...))`. That conversion moves
-to one shared function — `spindoctor/support/` is the right home, since two
-CLI packages now need it — and both callers use it. #519 asks for exactly
-this and says so.
+TDB seconds past J2000. `spindoctor/support/time.py` is the one rule that
+turns one into UTC: `et_to_utc` writes the plain ISO spelling the observation
+metadata and the statistics report use, and `et_to_pds4_utc` the spelling a
+PDS4 label takes, `ASCII_Date_Time_YMD_UTC` with its trailing `Z`, to a given
+number of decimals, rounded to the nearer or down or up. The module this plan
+first named, `spindoctor/cli/stats/classify.py`, no longer exists; the
+statistics report's two derived values, `date_from_image_et` and
+`datetime_from_image_et` in `spindoctor/nav_records/derived.py`, carried the
+second and third copies of `julian.iso_from_tai(julian.tai_from_tdb(...))`,
+and now go through `et_to_utc` with the same digits, which leaves the report
+byte-identical: regenerating the statistics fixture tree and its golden output
+changes nothing. `julian` agrees with SPICE's `et2utc` to the millisecond over
+the Cassini mission, both leap seconds included, and an integration test holds
+the cohort's epochs to the leapseconds kernel. #519 asked for exactly this and
+said so. The C-kernel report converts through `cspyce.et2utc` against the
+kernel its generator furnishes, and is the one conversion outside the rule.
 
-An image whose navigation never reached a solution has no `times` block.
-Section 3.10 says what happens to it, and the answer is that it never
-reaches a label, so the empty string stops being reachable rather than being
-made deliberate.
+A data label states its exposure's start and stop to the millisecond, the
+start rounded down and the stop up, so the interval stated contains the
+exposure; `IMAGE_MID_TIME`, an instant, goes to the nearer millisecond. This
+departs from the reference, which writes a product's times at whole seconds.
+The reference's own delivery changelog (`CHANGELOG-review-to-final.md`, item 13)
+says why it floors the start and ceils the stop: its review copy rounded to
+the nearer second, and the intervals it stated missed their exposures. The
+same rule is applied here at a millisecond, because a Cassini exposure is
+often shorter than a second, and whole seconds would state a 5 ms exposure as
+a window of one or two; a millisecond is also the precision the PDS3 label and
+index record an image's start and stop to.
 
-The collection and bundle labels need the cohort's earliest start and latest
-stop. The summary pass already reads every supplemental file to build the
-global index; it takes the min and max there, in the same pass, and hands
-them to both labels. `collections.py:80-81` stops being a TODO.
+An image whose navigation never reached a solution has no `times` block;
+section 3.11 says what happens to it, and the answer is that it never reaches
+a label. A success document always has one, so the labels pass holds every
+document it labels to recording it -- `spindoctor.cli.pds4.epochs.unrecorded_epoch`:
+all three epochs, each a finite number, the stop no earlier than the start --
+and fails an image whose document does not before anything is written for it,
+the way it fails a statistic no index column can hold. The empty string is not
+reachable.
+
+The data collection label states the cohort's earliest start and latest stop,
+at whole seconds as the reference's collection and bundle labels do, the start
+rounded down and the stop up, so the range contains every product's own
+interval at the millisecond it is written to. The summary pass already read
+every supplemental file to build the global index, so the range is taken
+there, in that same read, by an `EpochRangeScan`. The index therefore runs
+before the collection files in `main_summary`, and returns the range in a
+`GlobalIndexOutcome`, which the driver hands to `generate_collection_files`
+and holds for `bundle.lblx`, which Phase 6 renders, without a second
+computation. With no range to state -- no supplemental file, or one that
+cannot be read or whose document the epoch check refuses -- the data
+collection label is counted as not written, with an error saying why, and the
+inventory table is still written. Running first, the index generator refuses a
+bundle with no data directory itself, as the collection generator does, rather
+than write its tables into a root the labels pass would then refuse.
 
 ### 3.5 Inventories
 
@@ -974,7 +1014,7 @@ discovered at delivery.
 carries an `AUTHORS` string and an `EDITORS` string naming the node staff
 who reviewed the bundle. Ours has a single hardcoded `List_Author` block.
 
-Two places where this plan deliberately does **not** follow the reference:
+Three places where this plan deliberately does **not** follow the reference:
 
 - `populate_template` there discards `template.write`'s `(errors, warnings)`
   return exactly as ours does. Phase 1 fixes that here; it is a defect the
@@ -982,6 +1022,11 @@ Two places where this plan deliberately does **not** follow the reference:
 - The reference declares `PDS4_RINGS_1O00_1E00`. Section 3.9 moved us to
   `1F00`, so on this one point we are ahead of it, and the F ring bundle may
   want the same bump.
+- The reference writes a product's start and stop at whole seconds, floored
+  and ceiled. A data label here writes them to the millisecond, floored and
+  ceiled there (section 3.4): the containment the reference chose for its
+  delivery, at the precision a Cassini exposure needs. The collection range is
+  written at whole seconds, as the reference writes its ranges.
 
 ---
 
@@ -1141,16 +1186,28 @@ untestable without it.
 
 ### Phase 3 — Epochs
 
-Shared ET-to-ISO conversion in `spindoctor/support/`, used by
-`classify.py` and by `pds4_template_variables`. `START_DATE_TIME`,
-`STOP_DATE_TIME` and `IMAGE_MID_TIME` read `navigation_result.times`.
-Collection and bundle date ranges computed in the summary pass from the
-supplemental files.
+Done on `rf_pds4_phase3`. One ET-to-UTC rule in `spindoctor/support/time.py`
+(`et_to_utc`, and `et_to_pds4_utc` for the PDS4 spelling), used by the
+statistics report's `date_from_image_et` and `datetime_from_image_et` and by
+`pds4_template_variables`. `START_DATE_TIME` and `STOP_DATE_TIME` read
+`navigation_result.times` to the millisecond, floored and ceiled, and
+`IMAGE_MID_TIME` to the nearer millisecond; an image whose success document
+records no usable epochs is failed before anything is written. The data
+collection range is taken in the global index's read of the supplemental files,
+which now runs first, and written at whole seconds, rounded outward; with no
+range the data collection label is counted as not written. The bundle label's
+range is Phase 6's, from the same `GlobalIndexOutcome`.
 
-Tests: a document with `times` yields the expected ISO strings; the
-collection range over three supplemental files is the min and max.
+Tests: known epochs to the strings `et2utc` writes for them, leap seconds
+included, and an integration test converting every cohort epoch through the
+kernel; the shipped data label over the cohort states each navigated image's
+start and stop; a success document with no `times` block fails with nothing
+written; the collection range over three supplemental files is the min and the
+max; the shipped `collection_data.lblx` over the cohort states the range of its
+two navigated images; a summary over no supplemental file writes no data
+collection label.
 
-Closes #519.
+Closes #519, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
 ### Phase 4 — The FITS in the bundle, with its data objects
 
@@ -1492,7 +1549,10 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 NUMEXPR_NUM_THREADS=1`, set nowhere in the repository), open the PR, wait
 for CodeRabbit to settle and reply on every comment with a disposition, then
 merge. Update `docs/` and the four plan files in the same PR as the change
-they describe, not afterwards. Update section 0.1 as each phase lands.
+they describe, not afterwards. Update section 0.1 as each phase lands. The
+issues a phase closes are closed by hand when its PR merges into
+`rf_pds4_draft_bundle`, as the operator ruled on 2026-09-11, since GitHub's
+closing keywords fire only on a merge into the default branch.
 
 **How each phase is built.** A subagent implements it against the phase
 text. Then **two** adversarial reviewers, neither of which wrote the code,
