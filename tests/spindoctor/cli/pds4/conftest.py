@@ -35,6 +35,7 @@ from astropy.io import fits
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
@@ -130,6 +131,7 @@ class FakePds4DataSet:
             backplanes=SimpleNamespace(
                 bodies=bodies if bodies is not None else [],
                 rings=rings if rings is not None else [],
+                masked_value=DEFAULT_CONFIG.backplanes.masked_value,
             )
         )
 

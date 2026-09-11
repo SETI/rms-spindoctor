@@ -99,9 +99,11 @@
             </cassini:Cassini>
         </Mission_Area>
         <Discipline_Area>
+            <!-- How each array of the backplane FITS is displayed -->
+            $FOR(array=BACKPLANE_FITS.arrays)
             <disp:Display_Settings>
                 <Local_Internal_Reference>
-                    <local_identifier_reference>image</local_identifier_reference>
+                    <local_identifier_reference>$array.local_identifier$</local_identifier_reference>
                     <local_reference_type>display_settings_to_array</local_reference_type>
                 </Local_Internal_Reference>
                 <disp:Display_Direction>
@@ -111,6 +113,7 @@
                     <disp:vertical_display_direction>Top to Bottom</disp:vertical_display_direction>
                 </disp:Display_Direction>
             </disp:Display_Settings>
+            $END_FOR
             <geom:Geometry>
                 <geom:SPICE_Kernel_Files>
                     <geom:SPICE_Kernel_Identification>
@@ -178,8 +181,47 @@
             <file_size unit="byte">$FILE_BYTES(BACKPLANE_PATH)$</file_size>
             <md5_checksum>$FILE_MD5(BACKPLANE_PATH)$</md5_checksum>
         </File>
-        <!-- The backplane for the navigated image -->
-        <!-- TODO Need to add backplane FITS file here -->
+        <!-- Each HDU of the backplane FITS: its header and, past the primary, its array -->
+        $FOR(hdu=BACKPLANE_FITS.hdus)
+        <Header>
+            <name>$hdu.name$</name>
+            <offset unit="byte">$hdu.header_offset$</offset>
+            <object_length unit="byte">$hdu.header_length$</object_length>
+            <parsing_standard_id>FITS 3.0</parsing_standard_id>
+        </Header>
+        $IF(hdu.array is not None)
+        <Array_2D_Image>
+            <local_identifier>$hdu.array.local_identifier$</local_identifier>
+            <offset unit="byte">$hdu.array.offset$</offset>
+            <axes>2</axes>
+            <axis_index_order>Last Index Fastest</axis_index_order>
+            $IF(hdu.array.description is not None)
+            <description>$hdu.array.description$</description>
+            $END_IF
+            <Element_Array>
+                <data_type>$hdu.array.data_type$</data_type>
+                $IF(hdu.array.unit is not None)
+                <unit>$hdu.array.unit$</unit>
+                $END_IF
+            </Element_Array>
+            <Axis_Array>
+                <axis_name>Line</axis_name>
+                <elements>$hdu.array.lines$</elements>
+                <sequence_number>1</sequence_number>
+            </Axis_Array>
+            <Axis_Array>
+                <axis_name>Sample</axis_name>
+                <elements>$hdu.array.samples$</elements>
+                <sequence_number>2</sequence_number>
+            </Axis_Array>
+            $IF(hdu.array.missing_constant is not None)
+            <Special_Constants>
+                <missing_constant>$hdu.array.missing_constant$</missing_constant>
+            </Special_Constants>
+            $END_IF
+        </Array_2D_Image>
+        $END_IF
+        $END_FOR
     </File_Area_Observational>
     <File_Area_Observational_Supplemental>
         <!-- Supplemental file containing image navigation and SPICE kernel pointing parameters -->

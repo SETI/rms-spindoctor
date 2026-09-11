@@ -8,6 +8,7 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.pds4.data_objects import UndescribableFitsError, describe_backplane_fits
 from spindoctor.cli.pds4.epochs import unrecorded_epoch
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
@@ -33,7 +34,8 @@ class BundleDataOutcome(Enum):
             that is not a finite number within the range of a float -- a
             navigation document that does not record the exposure's start,
             stop and midtime as finite numbers, the stop no earlier than the
-            start, or backplane metadata with no backplane FITS beside it.
+            start, backplane metadata with no backplane FITS beside it, or a
+            backplane FITS holding something its data label cannot describe.
     """
 
     WRITTEN = 'written'
@@ -98,6 +100,12 @@ def generate_bundle_data_files(
     document with no FITS beside it is a broken input rather than an image without
     backplanes.
 
+    The data label describes every HDU of the copy, through
+    :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`.  A FITS
+    holding something that function refuses to describe fails the image as well: the
+    copy is removed and nothing else is written, the file and the HDU named in the
+    log.
+
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
         image_files: List of images; must have exactly one image in the batch.
@@ -113,12 +121,14 @@ def generate_bundle_data_files(
         unit other than the one the configuration gives its plane or has a
         minimum or maximum that is not a finite number within the range of a
         float, the navigation document does not record the exposure's epochs,
-        or the backplane FITS is not beside the backplane metadata.
+        the backplane FITS is not beside the backplane metadata, or the FITS
+        holds something its data label cannot describe.
 
     Raises:
-        ValueError: If the batch does not hold exactly one image, or if the
+        ValueError: If the batch does not hold exactly one image, if the
             configuration entry of a plane the backplane metadata holds declares
-            a blank unit.
+            a blank unit, or if the configuration's masked value is not a finite
+            number a 32-bit float holds exactly.
         TypeError: If that entry declares no unit, or one that is not a string.
     """
 
@@ -277,10 +287,29 @@ def generate_bundle_data_files(
         fits_file_path.upload()
         logger.info('Copied backplane FITS: %s', fits_file_path)
 
+        # The label's data objects are read from the copy, the file the label is
+        # for.  A FITS holding something the label could not state truthfully fails
+        # the image, and the copy is removed with it, so that nothing is left in the
+        # bundle for an image that gets no label.
+        try:
+            fits_objects = describe_backplane_fits(
+                fits_file_local, masked_value=float(dataset.config.backplanes.masked_value)
+            )
+        except UndescribableFitsError as exc:
+            fits_file_path.unlink(missing_ok=True)
+            logger.error(
+                'Failing bundle generation for "%s": %s. Nothing is written for the '
+                'image, whose data label describes every array its backplane FITS holds',
+                image_path,
+                exc,
+            )
+            return BundleDataOutcome.FAILED
+
         # Add file path variables to template_vars
         summary_png_source = nav_results_root / (results_path_stub + '_summary.png')
         template_vars['BACKPLANE_FILENAME'] = fits_file_path.name
         template_vars['BACKPLANE_PATH'] = str(fits_file_path)
+        template_vars['BACKPLANE_FITS'] = fits_objects
         template_vars['BACKPLANE_SUPPL_FILENAME'] = suppl_file_path.name
         template_vars['BACKPLANE_SUPPL_PATH'] = str(suppl_file_path)
         template_vars['BROWSE_FULL_FILENAME'] = browse_image_path.name

@@ -24,7 +24,9 @@ from pathlib import Path
 from typing import Any
 
 import julian
+import numpy as np
 import pytest
+from astropy.io import fits
 from filecache import FCPath
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
@@ -40,6 +42,7 @@ from .conftest import (
     make_bundle_env,
     make_image_file,
     navigated_document,
+    write_backplane_fits,
     write_nav_inputs,
 )
 
@@ -543,6 +546,27 @@ def test_a_navigated_image_with_no_backplane_fits_fails_with_nothing_written(
     assert expected in capsys.readouterr().out
 
 
+def test_a_backplane_fits_its_label_cannot_describe_fails_with_no_file_left(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A FITS the data label could not describe fails its image, leaving no file behind.
+
+    The label describes the copy in the bundle, so the copy is made before the FITS is
+    described; a refused FITS takes its copy with it, and nothing else is written.  The
+    log names the copy and the HDU it refused.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, backplane_fits=False)
+    plane = fits.ImageHDU(data=np.zeros((2, 2), dtype=np.int16), name='PLANE')
+    fits_source = env.backplane_root / f'{env.results_path_stub}_backplanes.fits'
+    fits.HDUList([fits.PrimaryHDU(), plane]).writeto(fits_source)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert [path for path in env.bundle_dir.rglob('*') if path.is_file()] == []
+    copy = FCPath(env.bundle_dir) / 'data' / f'{env.pds4_path_stub}_backplanes.fits'
+    assert f'HDU 1 (PLANE) of {copy} has BITPIX = 16' in capsys.readouterr().out
+
+
 # ---------------------------------------------------------------------------
 # Dataset pds4_* hook contract (reference Cassini implementation + walls)
 # ---------------------------------------------------------------------------
@@ -675,7 +699,7 @@ def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None
     (backplane_root / f'{stub}_backplane_metadata.json').write_text(
         json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
     )
-    (backplane_root / f'{stub}_backplanes.fits').write_bytes(b'FAKE FITS BYTES')
+    write_backplane_fits(backplane_root / f'{stub}_backplanes.fits')
     (nav_root / f'{stub}_summary.png').write_bytes(b'\x89PNG fake bytes')
 
     generate_bundle_data_files(
