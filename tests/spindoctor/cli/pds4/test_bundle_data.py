@@ -967,9 +967,10 @@ def test_a_start_nanoseconds_short_of_its_millisecond_is_written_as_pds3_states_
     builds them, the stop from ``IMAGE_TIME``, the start as the stop less the
     exposure and the midtime halfway between, and are the ones the image's
     navigation document records.  SPICE's ``et2utc`` writes the start at nine
-    decimals as ``15:07:30.761999965`` and the midtime as ``15:07:30.786999941``, so
-    rounded down each would be written a millisecond before the time PDS3 states.
-    The expected strings are the PDS3 label's three times, in the PDS4 spelling.
+    decimals as ``15:07:30.761999965``, so rounded down it would be written a
+    millisecond before the time PDS3 states; the midtime is the midpoint of the start
+    and stop as written.  The expected strings are the PDS3 label's three times, in
+    the PDS4 spelling.
     """
     stop_et = float(julian.tdb_from_tai(julian.tai_from_iso('2009-247T15:07:30.812')))
     start_et = stop_et - 50.0 / 1000.0
@@ -982,3 +983,29 @@ def test_a_start_nanoseconds_short_of_its_millisecond_is_written_as_pds3_states_
     assert variables['START_DATE_TIME'] == '2009-09-04T15:07:30.762Z'
     assert variables['STOP_DATE_TIME'] == '2009-09-04T15:07:30.812Z'
     assert variables['IMAGE_MID_TIME'] == '2009-09-04T15:07:30.787Z'
+
+
+def test_an_odd_millisecond_exposure_s_midtime_is_its_half_millisecond_taken_up(
+    tmp_path: Path,
+) -> None:
+    """An exposure an odd number of milliseconds long has its midtime rounded up.
+
+    W1629783475's PDS3 label records an ``IMAGE_TIME`` of ``2009-236T04:55:38.829``
+    and an ``EXPOSURE_DURATION`` of 5 ms, with a ``START_TIME`` of
+    ``2009-236T04:55:38.824`` and an ``IMAGE_MID_TIME`` of ``2009-236T04:55:38.827``:
+    the midtime is half a millisecond past ``.826``, taken up.  The epochs are built as
+    oops builds them, the stop from ``IMAGE_TIME``, the start as the stop less the
+    exposure and the midtime halfway between; SPICE's ``et2utc`` writes that midtime
+    epoch at nine decimals as ``04:55:38.826499999``, whose nearest millisecond is
+    ``.826``.  The expected string is the PDS3 label's ``IMAGE_MID_TIME``, in the PDS4
+    spelling.
+    """
+    stop_et = float(julian.tdb_from_tai(julian.tai_from_iso('2009-236T04:55:38.829')))
+    start_et = stop_et - 5.0 / 1000.0
+    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
+    variables = _cassini_dataset(tmp_path).pds4_template_variables(
+        image_file=make_image_file('W1629783475_1'),
+        nav_metadata={'status': 'success', 'navigation_result': {'times': times}},
+        backplane_metadata={},
+    )
+    assert variables['IMAGE_MID_TIME'] == '2009-08-24T04:55:38.827Z'

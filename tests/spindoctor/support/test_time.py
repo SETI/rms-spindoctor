@@ -13,7 +13,7 @@ from typing import Any, cast
 
 import pytest
 
-from spindoctor.support.time import Pds4Rounding, et_to_pds4_utc, et_to_utc
+from spindoctor.support.time import Pds4Rounding, et_to_pds4_utc, et_to_utc, pds4_utc_midpoint
 
 
 @pytest.mark.parametrize(
@@ -135,3 +135,37 @@ def test_a_rounding_that_is_not_one_of_the_three_is_refused() -> None:
     """A spelling mistake is refused rather than read as rounding to the nearer."""
     with pytest.raises(ValueError, match=r"nearest, down, up; got 'sideways'"):
         et_to_pds4_utc(0.0, rounding=cast(Any, 'sideways'))
+
+
+@pytest.mark.parametrize(
+    ('start', 'stop', 'expected'),
+    [
+        ('2009-08-24T04:55:38.824Z', '2009-08-24T04:55:38.829Z', '2009-08-24T04:55:38.827Z'),
+        ('2004-02-07T04:25:35Z', '2004-02-07T04:25:36Z', '2004-02-07T04:25:36Z'),
+        ('2005-12-31T23:59:60.400Z', '2006-01-01T00:00:00.101Z', '2005-12-31T23:59:60.751Z'),
+    ],
+    ids=['a half millisecond', 'a half second', 'across a leap second'],
+)
+def test_the_midpoint_of_two_written_times_takes_a_half_up(
+    start: str, stop: str, expected: str
+) -> None:
+    """The midpoint of two written times, in their spelling, a half going to the later.
+
+    Each expected string is SPICE's midpoint taken up: ``et2utc`` writes the mean of the
+    two epochs ``utc2et`` gives for the pair, at four decimals where the pair has three
+    and at one where it has none, as ``04:55:38.8265``, ``04:25:35.5`` and
+    ``23:59:60.7505``.  The first pair is W1629783475's PDS3 ``START_TIME`` and
+    ``STOP_TIME``, whose ``IMAGE_MID_TIME`` is ``.827``.
+
+    Parameters:
+        start: The earlier time.
+        stop: The later time.
+        expected: Their midpoint, as it has to be written.
+    """
+    assert pds4_utc_midpoint(start, stop) == expected
+
+
+def test_two_times_written_to_different_decimals_have_no_midpoint() -> None:
+    """A midpoint is written to the precision of its two times, so they must share one."""
+    with pytest.raises(ValueError, match=r'same number of decimals; got '):
+        pds4_utc_midpoint('2004-02-07T04:25:35Z', '2004-02-07T04:25:36.500Z')

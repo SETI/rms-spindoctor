@@ -393,12 +393,16 @@ one conversion outside the rule.
 A data label's times come from the dataset's
 :meth:`~spindoctor.dataset.dataset.DataSet.pds4_template_variables`.
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS` writes
-``START_DATE_TIME``, ``STOP_DATE_TIME`` and ``IMAGE_MID_TIME`` each to the nearest
-millisecond.  A Cassini image's times are recorded to the millisecond and its epochs
-are computed from them, so each epoch lies within a few nanoseconds of a millisecond
-and the nearest is the recorded time, where a start rounded down or a stop rounded up
-would lose a millisecond whenever the epoch lands on the far side.  Before the hook
-is called,
+``START_DATE_TIME`` and ``STOP_DATE_TIME`` each to the nearest millisecond.  A Cassini
+image's times are recorded to the millisecond and its epochs are computed from them,
+so each epoch lies within a few nanoseconds of a millisecond and the nearest is the
+recorded time, where a start rounded down or a stop rounded up would lose a
+millisecond whenever the epoch lands on the far side.  ``IMAGE_MID_TIME`` is the
+midpoint of the two as written, a half millisecond rounding up, through
+:func:`~spindoctor.support.time.pds4_utc_midpoint`: an exposure an odd number of
+milliseconds long has its midtime on a half millisecond, where the recorded midtime
+epoch lands a few nanoseconds to either side, and PDS3's ``IMAGE_MID_TIME`` takes the
+half up.  Before the hook is called,
 :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` holds the
 navigation document to :func:`~spindoctor.cli.pds4.epochs.unrecorded_epoch`: a
 ``times`` block with all three epochs, each a finite number, the stop no earlier
@@ -601,4 +605,6 @@ documented above.
   products' epochs, taken in the global index's read of the supplemental files
   and handed to the collection generator.
 - :func:`~spindoctor.support.time.et_to_pds4_utc` — the PDS4 spelling of an epoch,
-  beside :func:`~spindoctor.support.time.et_to_utc`, in the one conversion.
+  beside :func:`~spindoctor.support.time.et_to_utc`, in the one conversion, and
+  :func:`~spindoctor.support.time.pds4_utc_midpoint`, the midpoint of two times so
+  written, which is what a data label's ``IMAGE_MID_TIME`` states.

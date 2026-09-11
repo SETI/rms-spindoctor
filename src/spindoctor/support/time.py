@@ -76,6 +76,48 @@ def _utc_from_tai(tai: float, *, digits: int | None, suffix: str) -> str:
     return cast(str, julian.iso_from_tai(tai, digits=digits, suffix=suffix))
 
 
+def _pds4_utc_from_tai(tai: float, digits: int) -> str:
+    """Returns a TAI time in the PDS4 spelling, to the decimals given.
+
+    Parameters:
+        tai: The instant, in TAI seconds, rounded to the nearer value of the last digit
+            written.
+        digits: The number of decimals of a second, 0 for whole seconds.
+
+    Returns:
+        ``YYYY-MM-DDThh:mm:ss`` with the decimals asked for and a trailing ``Z``.
+    """
+    # julian writes zero decimals with a trailing point, which the PDS4 type does not
+    # allow; None writes the same whole seconds without it.
+    return _utc_from_tai(tai, digits=None if digits == 0 else digits, suffix='Z')
+
+
+def _pds4_decimals(pds4_utc: str) -> int:
+    """Returns the number of decimals of a second a PDS4 UTC time is written to.
+
+    Parameters:
+        pds4_utc: The time, as in ``2004-02-07T04:25:35.585Z`` or
+            ``2004-02-07T04:25:35Z``.
+
+    Returns:
+        The digits after the seconds' decimal point, 0 when there is none.
+    """
+    seconds = pds4_utc.removesuffix('Z').rpartition(':')[2]
+    return len(seconds.partition('.')[2])
+
+
+def _tai_from_pds4_utc(pds4_utc: str) -> float:
+    """Returns a time in the PDS4 spelling as TAI seconds, through ``julian``.
+
+    Parameters:
+        pds4_utc: The time, with its trailing ``Z``; a leap second is read as one.
+
+    Returns:
+        The instant, in TAI seconds.
+    """
+    return cast(float, julian.tai_from_iso(pds4_utc.removesuffix('Z')))
+
+
 def et_to_utc(et: float, digits: int | None = 3) -> str:
     """Returns the UTC time for a given ET time.
 
@@ -151,9 +193,45 @@ def et_to_pds4_utc(et: float, *, digits: int = 3, rounding: Pds4Rounding = 'near
     if rounding != 'nearest':
         scaled = tai * 10**digits
         tai = (math.floor(scaled) if rounding == 'down' else math.ceil(scaled)) / 10**digits
-    # julian writes zero decimals with a trailing point, which the PDS4 type does not
-    # allow; None writes the same whole seconds without it.
-    return _utc_from_tai(tai, digits=None if digits == 0 else digits, suffix='Z')
+    return _pds4_utc_from_tai(tai, digits)
+
+
+def pds4_utc_midpoint(start: str, stop: str) -> str:
+    """Returns the midpoint of two times a PDS4 label writes, in the same spelling.
+
+    ``start`` and ``stop`` are two times :func:`et_to_pds4_utc` wrote, to the same number
+    of decimals.  Each is a whole value of its last digit, so their midpoint is exact: a
+    value of that digit, or halfway between two.  It is written to the same decimals,
+    a half rounding up, to the later of the two.  That is how Cassini's PDS3 labels
+    write an image's ``IMAGE_MID_TIME``, halfway through an exposure an odd number of
+    milliseconds long, where rounding the midpoint of the two epochs instead would go
+    whichever way the float of the half value happened to fall.
+
+    Parameters:
+        start: One time, in the PDS4 spelling, as in ``2009-08-24T04:55:38.824Z``.
+        stop: The other, in the same spelling and to the same number of decimals.
+
+    Returns:
+        The midpoint, in the same spelling: ``2009-08-24T04:55:38.827Z`` for a start of
+        ``.824`` and a stop of ``.829``.  A leap second between the two counts as one
+        of the seconds between them.
+
+    Raises:
+        ValueError: If the two are written to different numbers of decimals.  The
+            message gives both.
+    """
+    digits = _pds4_decimals(start)
+    if _pds4_decimals(stop) != digits:
+        raise ValueError(
+            f'The two times have to be written to the same number of decimals; got '
+            f'{start!r} and {stop!r}'
+        )
+    units = 10**digits
+    start_units = round(_tai_from_pds4_utc(start) * units)
+    stop_units = round(_tai_from_pds4_utc(stop) * units)
+    # Twice the midpoint is a whole number of units, so adding one before halving takes
+    # a half up and leaves a whole value as it is.
+    return _pds4_utc_from_tai((start_units + stop_units + 1) // 2 / units, digits)
 
 
 def utc_to_et(utc: str) -> float:
