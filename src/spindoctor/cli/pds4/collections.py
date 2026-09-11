@@ -161,19 +161,18 @@ _DATA_LABEL_SUFFIX = '_backplanes.lblx'
 """What follows a product's path stub in the name of its data label."""
 
 
-def _product_stub(path: FCPath, data_dir: FCPath, suffix: str) -> str:
-    """Return a product's path stub, read off one of its files.
+def _product_stub(path: FCPath, data_dir: FCPath) -> str:
+    """Return a product's path stub, read off its supplemental file.
 
     Parameters:
         path: The product's supplemental file, under ``data_dir``.
         data_dir: The bundle's data directory.
-        suffix: What follows the stub in the file's name.
 
     Returns:
-        The file's path relative to ``data_dir``, in POSIX form, less ``suffix``: the
-        stub both of a product's files share, as in ``shard0/1234567890w``.
+        The file's path relative to ``data_dir``, in POSIX form, less
+        ``_supplemental.txt``, as in ``shard0/1234567890w``.
     """
-    return path.relative_to(data_dir).as_posix().removesuffix(suffix)
+    return path.relative_to(data_dir).as_posix().removesuffix(_SUPPLEMENTAL_SUFFIX)
 
 
 @dataclass(frozen=True)
@@ -505,7 +504,7 @@ def generate_global_index_files(
 
         # Derive pds4_path_stub from supplemental file path
         # Supplemental file is at: bundle_root/data/<pds4_path_stub>_supplemental.txt
-        pds4_path_stub = _product_stub(suppl_file, data_dir, _SUPPLEMENTAL_SUFFIX)
+        pds4_path_stub = _product_stub(suppl_file, data_dir)
 
         lid_part = suppl_file.stem.replace('_supplemental', '')
         image_name = dataset.pds4_lid_part_to_image_name(lid_part)
