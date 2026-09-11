@@ -264,20 +264,26 @@ def main_labels() -> None:
     skipped_images = 0
     failed_images = 0
     listed_images = 0
+    malformed_empty_batches = 0
 
     for imagefiles in DATASET.yield_image_files_from_arguments(arguments):
         if len(imagefiles.image_files) != 1:
-            # A batch of any other size is an image the run did not write a
-            # label for, so it counts against the run the same way a broken
-            # label does.  A dry run writes nothing, so it reports the batch it
-            # cannot process without counting a label it never set out to write.
+            # A batch of any other size is images the run did not write labels
+            # for, so they count against the run the same way a broken label
+            # does -- every one of them, since a batch of two is two images
+            # without labels.  An empty batch is no images and still a run that
+            # failed, so it is counted apart from them rather than passing for
+            # a run that wrote everything it meant to.  A dry run writes
+            # nothing, so it reports the batch it cannot process without
+            # counting a label it never set out to write.
             MAIN_LOGGER.error(
                 'Expected 1 image file, got %d for %s',
                 len(imagefiles.image_files),
                 imagefiles,
             )
             if not arguments.dry_run:
-                failed_images += 1
+                failed_images += len(imagefiles.image_files)
+                malformed_empty_batches += len(imagefiles.image_files) == 0
             continue
         if arguments.dry_run:
             MAIN_LOGGER.info(
@@ -314,13 +320,14 @@ def main_labels() -> None:
         else:
             written_images += 1
 
-    if failed_images > 0:
+    if failed_images > 0 or malformed_empty_batches > 0:
         MAIN_LOGGER.error(
             'Label generation incomplete: %d image(s) labeled, %d skipped, '
-            '%d whose labels were not written',
+            '%d whose labels were not written, %d empty batch(es)',
             written_images,
             skipped_images,
             failed_images,
+            malformed_empty_batches,
         )
         sys.exit(1)
 

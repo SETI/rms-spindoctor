@@ -378,6 +378,55 @@ def test_main_labels_exits_non_zero_when_a_batch_is_not_one_image(
     assert excinfo.value.code == 1
 
 
+def test_a_malformed_batch_counts_every_image_it_holds(
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Two images in one batch are two images the run did not label.
+
+    The closing line is the account of what the bundle covers, so a batch of
+    two counted as one image would understate what is missing from it.
+
+    Parameters:
+        labels_run: Fixture standing the subcommand up on stubs.
+        monkeypatch: Fixture the two-image enumeration is installed through.
+        tmp_path: Base temporary directory the stub dataset is built under.
+        capsys: Fixture the closing line is read from.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, image_count=2))
+    _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
+    with pytest.raises(SystemExit):
+        sd_create_bundle.main_labels()
+    assert '2 whose labels were not written' in capsys.readouterr().out
+
+
+def test_an_empty_batch_fails_the_run_it_adds_no_images_to(
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A batch holding nothing is still a run that did not do what it was asked.
+
+    It contributes no images, so counting it among them would be a wrong
+    number; leaving it out of the exit status would be a wrong answer.
+
+    Parameters:
+        labels_run: Fixture standing the subcommand up on stubs.
+        monkeypatch: Fixture the empty enumeration is installed through.
+        tmp_path: Base temporary directory the stub dataset is built under.
+        capsys: Fixture the closing line is read from.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, image_count=0))
+    _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_labels()
+    assert excinfo.value.code == 1
+    assert '0 whose labels were not written, 1 empty batch(es)' in capsys.readouterr().out
+
+
 def test_main_labels_exits_zero_when_every_product_is_written(
     labels_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
