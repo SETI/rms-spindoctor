@@ -321,9 +321,8 @@ def _ring_resolution_document(units: str | None) -> dict[str, Any]:
 def test_a_statistic_in_another_unit_fails_the_image(tmp_path: Path) -> None:
     """A document recording a plane in a unit the configuration does not give it is failed.
 
-    A backplane root can hold documents written before the statistics were
-    converted beside regenerated ones, and indexing one would put a column of
-    the global index in two units with nothing saying so.
+    Every index column is in its plane's configured unit, so indexing the
+    statistic would put its column in two units with nothing saying so.
     """
     env = make_bundle_env(tmp_path, rings=RING_RESOLUTION_PLANE)
     write_nav_inputs(env, backplane_metadata=_ring_resolution_document('rad/pixel'))
@@ -342,7 +341,7 @@ def test_a_statistic_in_another_unit_writes_nothing(tmp_path: Path) -> None:
 def test_a_statistic_recording_no_unit_fails_the_image(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A statistic with no units key predates the unit being recorded, and is failed.
+    """A statistic that records no unit is failed.
 
     The plane is a body one, so the bodies are read as the rings are; the log
     says that no unit was recorded rather than naming one.

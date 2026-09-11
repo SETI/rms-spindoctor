@@ -547,11 +547,8 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
 ) -> None:
     """A supplemental file recording a plane in a unit its configuration does not give ends the run.
 
-    The labels pass holds every document to its configured unit, but a bundle
-    tree can hold supplemental files a labels pass wrote before it did, and
-    indexing one would put a column in two units.  The error names the file,
-    the plane and both units and says what to regenerate, and no table is
-    written.
+    Indexing it would put a column in two units.  The error names the file, the
+    plane and both units and says what to regenerate, and no table is written.
     """
     env = _ring_resolution_env(tmp_path)
     write_supplemental(
@@ -571,7 +568,7 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
 def test_a_supplemental_file_recording_no_unit_is_refused_with_nothing_written(
     tmp_path: Path,
 ) -> None:
-    """A statistic with no units key predates the unit being recorded, and ends the run too."""
+    """A statistic that records no unit ends the run too."""
     env = _ring_resolution_env(tmp_path)
     write_supplemental(
         env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats(None)

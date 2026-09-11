@@ -507,42 +507,29 @@ other than `rad` (`mrad`, `arcsec`) would need a change to
 `statistics_units`; two tests over the shipped configuration fail if one is
 declared.
 
-A backplane root can hold documents written before the conversion beside
-regenerated ones -- a ring longitudinal resolution in `rad/pixel`, or a
-statistic with no `units` key at all -- and one index column would then be
-in two units with nothing saying so. The bundle stage reads the unit every
-statistic now records: a document whose statistic for a configured plane is
-not in the unit the configuration gives that plane fails its image before
-anything is written for it, rather than being indexed. That is the
-operator's decision of 2026-09-10, and the remedy is to regenerate the
-backplanes. The summary pass makes the same comparison, from one module
-both passes share, on each supplemental file it reads, which holds that
-document, and refuses the run before writing either index table when one
-disagrees. Such a file was written from a backplane document recorded before
-the statistics carried their unit, or under another configuration -- the
-likeliest case being a whole tree from one labels run that predates the
-unit -- so the remedy is the labels pass's: regenerate the backplanes, then
-the bundle into an empty directory. A plane the document holds that the
-configuration does not declare is not compared. Beside that guard, both
-passes refuse before reading anything a configuration that declares a
-backplane in a unit the bundle cannot use -- a spelling the format mapping
-lacks, or no `units` at all -- naming every such entry once, as the
-missing-template check does. `sd_create_bundle_cloud_tasks` makes the same
+Both passes hold every statistic to what an index column can hold, through
+`spindoctor/cli/pds4/statistic_checks.py`, since every column is in one unit
+and holds only finite numbers: the unit a statistic records has to be its
+plane's configured unit restated through `statistics_units`, and its minimum
+and maximum finite numbers within the range of a float. A statistic in another
+unit, or in none, or with a value that is not a finite number -- NaN, an
+infinity, an integer too large for a float, or no number at all -- fails its
+image in the labels pass, before anything is written for it, and fails the run
+in the summary pass, before either index table is written. The remedy is to
+regenerate the backplanes, and for the summary pass then the bundle into an
+empty directory. A plane the document holds that the configuration does not
+declare is not checked. Both are the operator's rulings of 2026-09-10. The
+summary pass renders every cell of both tables before it opens either, so no
+failure of any kind leaves a table half-written.
+
+Beside that check, both passes refuse before reading anything a configuration
+that declares a backplane in a unit the bundle cannot use -- a spelling the
+format mapping lacks, or no `units` at all -- naming every such entry once, as
+the missing-template check does. `sd_create_bundle_cloud_tasks` makes the same
 check per task, through the same `unusable_units`, and returns the task as an
-`unusable_unit` error having generated nothing: the per-document guard sees
+`unusable_unit` error having generated nothing: the per-document check sees
 only the planes a document holds, so without it every task would write labels
 the summary pass then refuses.
-
-A minimum or maximum that is not a finite number within the range of a
-float -- NaN, an infinity, an integer too large for a float, or no number at
-all -- is refused the same way, by the same module: it fails its image in the
-labels pass and the run in the summary pass, since no column can hold it and
-a blank in its place would say the plane measured nothing. That was decided
-on 2026-09-10, after a NaN kilometers-per-pixel statistic in one supplemental
-file was found to stop the index writer halfway through the bodies table
-with a message naming neither the file nor the plane. The summary pass
-renders every cell of both tables before it opens either, so no failure of
-any kind leaves a table half-written.
 
 `sd_backplane_viewer` has its own rule: it converts a plane whose `BUNIT` is
 `rad` in any letter case, or whose name contains an angle's name, so it

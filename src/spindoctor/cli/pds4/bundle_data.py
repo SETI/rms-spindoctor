@@ -67,14 +67,13 @@ def generate_bundle_data_files(
     disk.
 
     A navigated image whose backplane metadata records a statistic no global
-    index column can hold is failed as well, before anything is written for it.
-    A statistic in a unit other than the one the configuration gives its plane,
-    or in none, was written before the statistics recorded their unit, or under
-    another configuration, and indexing it would put one column in two units
-    with nothing saying so.  A minimum or maximum that is not a finite number
-    within the range of a float has no decimal form a column can hold, and a
-    blank in its place would say the plane measured nothing.  A plane the
-    document holds that the configuration does not declare is not checked.
+    index column can hold is failed as well, before anything is written for it:
+    one in a unit other than the one the configuration gives its plane, or in
+    none, or with a minimum or maximum that is not a finite number within the
+    range of a float, as
+    :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` checks.
+    A plane the document holds that the configuration does not declare is not
+    checked.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -163,12 +162,9 @@ def generate_bundle_data_files(
             return BundleDataOutcome.SKIPPED
         bp_stats = cast(dict[str, Any], json.loads(backplane_metadata_text))
 
-        # A backplane root can hold documents written before the statistics
-        # recorded their unit, or under a configuration declaring another,
-        # beside regenerated ones, and a statistic can be a value that has no
-        # decimal form.  Indexing either would put something in a column of the
-        # global index that the column cannot say, so the image is failed
-        # before anything is written for it.
+        # Every index column is in its plane's configured unit and holds only
+        # finite numbers, so an image with a statistic the index cannot hold is
+        # failed before anything is written for it.
         unindexable = unindexable_statistic(bp_stats, dataset.config)
         if unindexable is not None:
             logger.error(

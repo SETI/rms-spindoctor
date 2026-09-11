@@ -1,28 +1,18 @@
-"""Why both bundle passes hold every statistic to what an index column can hold.
+"""What both bundle passes require of every statistic they index.
 
-Every statistic in a backplane metadata document records the unit it is in beside
-its minimum and maximum, and each column of the global index tables is the
-configured unit of its plane restated through
-:func:`~spindoctor.cli.backplanes.statistics.statistics_units`, each value written
-in the format that unit calls for.  Two things about a statistic keep it out of
-such a column.  One in some other unit, or in none, was written before the
-statistics recorded their unit or under another configuration, and a column built
-from it beside the others would be in two units with nothing saying so.  A minimum
-or maximum that is not a finite number within the range of a float -- NaN, an
-infinity, an integer too large for a float, or no number at all -- has no decimal
-form a column can hold, since every column's format writes through a float, and a
-blank in its place would say the plane measured nothing, which the document does
-not say either.
+Each column of the global index tables is in one unit, the configured unit of its
+plane restated through :func:`~spindoctor.cli.backplanes.statistics.statistics_units`,
+and holds only finite numbers, each written in the format that unit calls for.  So a
+statistic of a configured plane can be indexed only when the unit it records is that
+unit and its minimum and maximum are finite numbers within the range of a float.  A
+statistic in another unit, or in none, would put its column in two units with nothing
+saying so; a value that is not a finite number has no decimal form, and a blank in
+its place would say the plane measured nothing.
 
-Both passes hold a document to both properties, since either can reach a table
-through either pass.  The labels pass fails the image, before writing anything for
-it, since the backplane root it reads can hold such a document beside regenerated
-ones.  The summary pass fails the run, before writing either table, since the
-bundle tree it reads can hold supplemental files a labels pass wrote before it
-held a document to them: the labels pass refuses a bundle root that is not empty,
-so it never mixes a tree itself, but it is not the only writer of one.  The check
-is the same in both passes and lives here so that neither can drift from the
-other.
+The labels pass fails an image whose backplane metadata holds such a statistic,
+before writing anything for it, and the summary pass fails the run over a
+supplemental file that holds one, before writing either index table.  Both use the
+check here, so the two cannot differ.
 """
 
 import math
@@ -36,10 +26,9 @@ __all__ = ['UnindexableStatistic', 'unindexable_statistic']
 
 
 _UNIT_REASON = (
-    'a backplane document says that when it was recorded before the statistics '
-    'carried their unit, or under another configuration'
+    'every column of an index table is in one unit, the one the configuration gives its plane'
 )
-"""Why a statistic in another unit is in it, which is all a message can say of it."""
+"""Why a statistic in another unit, or in none, cannot be indexed."""
 
 _VALUE_REASON = (
     'an index column holds only finite numbers within the range of a float, and a '
@@ -63,8 +52,8 @@ class UnindexableStatistic:
             a float`` (an integer is given by its length, not its digits), or
             ``records no ring_radius maximum``.
         reason: Why a column cannot take the statistic as recorded, as a clause a
-            message puts after the description.  For a unit it names the two ways a
-            document comes to record another one; for a value it says what a
+            message puts after the description: for a unit, that every column is in
+            the one unit the configuration gives its plane; for a value, what a
             column holds instead.
     """
 

@@ -435,10 +435,9 @@ def generate_global_index_files(
 
         backplanes = metadata.get('backplanes', {})
         # A supplemental file holds the backplane document the labels pass
-        # read, and a tree can hold ones a labels pass wrote before it held a
-        # document to its unit and its values.  Indexing one would put a column
-        # in two units, or a value in it that no column can hold, so the run is
-        # refused here, before either table exists.
+        # read.  Every index column is in its plane's configured unit and holds
+        # only finite numbers, so a file with a statistic the index cannot hold
+        # refuses the run here, before either table exists.
         unindexable = unindexable_statistic(backplanes, config)
         if unindexable is not None:
             raise ValueError(
