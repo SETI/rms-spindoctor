@@ -122,8 +122,9 @@ image against the run, and carries on to the next one.
 A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
 dry run over a missing template, an unusable unit or a populated bundle root
-exits 1 naming what it found, like any other run.  Past them it writes nothing, so it counts nothing
-against the run, including a batch it reports it could not have processed.
+exits 1 naming what it found, like any other run.  Past them it writes nothing,
+so it counts nothing against the run, including a batch it reports it could not
+have processed.
 
 ``sd_create_bundle summary`` counts the collection and index labels it did not
 write, over both generators, and exits 1 the same way.  The inventory and index
@@ -139,9 +140,14 @@ table is opened, so neither exists; the collection files, written first, do.
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
 for no retry: a template that could not be rendered will not render on a second
-attempt.  It makes neither up-front check, because it holds one task rather
-than the run: a template it cannot find raises out of that task, and the empty
-bundle root is the queue-driven run's own precondition to establish.
+attempt.  It makes none of the three up-front checks, because it holds one task
+rather than the run.  A template it cannot find raises out of every task, and so
+does a configured unit that is missing, blank or not a string, out of every
+task whose backplane metadata holds a statistic for that plane.  A unit spelled
+out but with no format in the index tables is not refused per task at all,
+since a document written under the same configuration agrees with it; the
+summary pass refuses it before it reads anything.  The empty bundle root is the
+queue-driven run's own precondition to establish.
 
 Per-dataset extension points
 ============================

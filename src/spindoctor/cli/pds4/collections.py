@@ -106,10 +106,14 @@ so it gets five significant figures, written positionally: ``0.00060000``,
 ``6.1343``, ``4200.0`` and ``70853``.
 
 Every format writes a plain decimal number, never one with an exponent or a
-trailing point, since the tables are read by people.  What no format fixes is
-a column's width: values under one format differ in length, so the width of a
-column is the widest value written in it and is not derivable from the format
-alone.
+trailing point, since the tables are read by people.  Written positionally, a
+value never has its integer part rounded away, so from 1e7 up the significant
+figures format writes more than seven figures, past what a float32 statistic
+carries; no real statistic has come near, the largest seen being 70853.  A
+value that rounds up to the next power of ten gains a figure, so ``9.99996``
+writes ``10.0000``.  What no format fixes is a column's width: values under
+one format differ in length, so the width of a column is the widest value
+written in it and is not derivable from the format alone.
 
 The bodies table and the rings table share the mapping so that a value cannot
 mean one thing in one and something else in the other, and it is public so that

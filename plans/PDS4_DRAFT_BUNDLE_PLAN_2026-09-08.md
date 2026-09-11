@@ -533,11 +533,11 @@ the statistics carried their unit, or under another configuration -- the
 likeliest case being a whole tree from one labels run that predates the
 unit -- so the remedy is the labels pass's: regenerate the backplanes, then
 the bundle into an empty directory. A plane the document holds that the
-configuration does not declare is not compared. Beside that
-guard, both passes refuse before
-reading anything a configuration that declares a backplane in a unit the
-bundle cannot use -- a spelling the format mapping lacks, or no `units` at
-all -- naming every such entry once, as the missing-template check does.
+configuration does not declare is not compared. Beside that guard, both
+passes refuse before reading anything a configuration that declares a
+backplane in a unit the bundle cannot use -- a spelling the format mapping
+lacks, or no `units` at all -- naming every such entry once, as the
+missing-template check does.
 
 A minimum or maximum that is not a finite number -- NaN, an infinity, or no
 number at all -- is refused the same way, by the same module: it fails its
@@ -1235,14 +1235,14 @@ A field's width comes from the widest value written in its column, not from
 the format: the per-unit formats section 3.8 records fix a column's decimals
 or significant figures, and values under one format differ in length
 (`1.235` and `-89.999`; `0.00060000` and `70853`), so the generator sizes
-each field by scanning the column it wrote. The column's unit and its number
-of decimals come from the same public mapping in `collections.py` that wrote
-it, so a field cannot describe the column in a form other than the one it
-was written in. What a
-column says where an image has no statistic for a plane -- the missing-value
-sentinel #607 raised beside the precision -- is decided here as well, since
-it is the label that has to declare it; the generator writes a blank there
-until then.
+each field by scanning the column it wrote. The column's unit and its format
+-- a number of decimals, or a number of significant figures written
+positionally -- come from the same public mapping in `collections.py` that
+wrote it, so a field cannot describe the column in a form other than the one
+it was written in. What a column says where an image has no statistic for a
+plane -- the missing-value sentinel #607 raised beside the precision -- is
+decided here as well, since it is the label that has to declare it; the
+generator writes a blank there until then.
 
 Then the collection itself: a `collection_miscellaneous.lblx` template with
 `collection_type` `Miscellaneous`, and a generated
