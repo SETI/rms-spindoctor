@@ -166,8 +166,7 @@ def et_to_pds4_utc(et: float, *, digits: int = 3, rounding: Pds4Rounding = 'near
     Parameters:
         et: The epoch, as SPICE ET (TDB seconds past J2000).
         digits: The number of decimals of a second to write, 0 for whole seconds.
-            The default of three is a millisecond, the precision a Cassini image's
-            start and stop are recorded to in its PDS3 label and index.
+            The default of three writes milliseconds, as :func:`et_to_utc` does.
         rounding: Which way an instant between two values of the last digit goes.
 
     Returns:
@@ -202,10 +201,10 @@ def pds4_utc_midpoint(start: str, stop: str) -> str:
     ``start`` and ``stop`` are two times :func:`et_to_pds4_utc` wrote, to the same number
     of decimals.  Each is a whole value of its last digit, so their midpoint is exact: a
     value of that digit, or halfway between two.  It is written to the same decimals,
-    a half rounding up, to the later of the two.  That is how Cassini's PDS3 labels
-    write an image's ``IMAGE_MID_TIME``, halfway through an exposure an odd number of
-    milliseconds long, where rounding the midpoint of the two epochs instead would go
-    whichever way the float of the half value happened to fall.
+    a half rounding up, to the later of the two.  So an exposure an odd number of
+    milliseconds long has its midpoint taken up from the half millisecond, where
+    rounding the midpoint of the two epochs instead would go whichever way the float
+    of the half value happened to fall.
 
     Parameters:
         start: One time, in the PDS4 spelling, as in ``2009-08-24T04:55:38.824Z``.

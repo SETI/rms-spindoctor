@@ -3,8 +3,8 @@
 Every expected string here was written by SPICE's ``et2utc`` for the same epoch, with
 the leapseconds kernel ``naif0012.tls`` furnished, and not by the function under test:
 a nearer millisecond is ``et2utc``'s own three-decimal answer, and a floor or a ceiling
-is read off its nine-decimal answer.  The epochs include the two leap seconds inserted
-while Cassini was at Saturn.
+is read off its nine-decimal answer.  The epochs include the leap seconds that ended
+2005 and 2008.
 """
 
 import math
@@ -154,8 +154,8 @@ def test_the_midpoint_of_two_written_times_takes_a_half_up(
     Each expected string is SPICE's midpoint taken up: ``et2utc`` writes the mean of the
     two epochs ``utc2et`` gives for the pair, at four decimals where the pair has three
     and at one where it has none, as ``04:55:38.8265``, ``04:25:35.5`` and
-    ``23:59:60.7505``.  The first pair is W1629783475's PDS3 ``START_TIME`` and
-    ``STOP_TIME``, whose ``IMAGE_MID_TIME`` is ``.827``.
+    ``23:59:60.7505``.  The first pair is five milliseconds apart, so its midpoint
+    falls on a half millisecond.
 
     Parameters:
         start: The earlier time.
