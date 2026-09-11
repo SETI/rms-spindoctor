@@ -334,10 +334,10 @@ files. Each dataset can have its own configuration:
        template_dir: cassini_iss_saturn_1.0
        bundle_name: cassini_iss_saturn_backplanes_rsfrench2027
 
-The ``cassini_iss_saturn_1.0`` template directory ships with the package; to
-configure another dataset, add an entry whose ``template_dir`` points at a
-template directory you create yourself (by name inside the package template
-root, or as an absolute path).
+The ``cassini_iss_saturn_1.0`` template directory ships with the package. The
+``coiss_cruise`` dataset's does not; to bundle it, add an entry whose
+``template_dir`` points at a template directory you create yourself (by name
+inside the package template root, or as an absolute path).
 
 Configuration Options
 ---------------------
@@ -380,25 +380,9 @@ new one has to provide.
 Supported Datasets
 ==================
 
-As the package ships, one dataset can be bundled: ``coiss_saturn`` (also
-registered as ``coiss_saturn_pds3``), whose template directory,
-``cassini_iss_saturn_1.0``, is the only one included. Both passes refuse every
-other dataset before they process an image, and write nothing into the bundle:
-
-* ``coiss_cruise`` (and ``coiss_cruise_pds3``) has the same PDS4 support as
-  ``coiss_saturn``, but its template directory, ``cassini_iss_cruise_1.0``, does
-  not ship, so each pass exits 1 naming every template it needs and cannot
-  find. To bundle it, point ``pds4.coiss_cruise.template_dir`` at a template
-  directory of your own, as described under `Configuration`_.
-* ``gossi``, ``nhlorri`` and ``vgiss`` (and their ``_pds3`` names) name a
-  template directory, which does not ship either, and a bundle name, but do not
-  say which templates a pass needs, nor provide the rest of what a label is
-  built from. Each pass stops on them with a traceback ending in
-  :exc:`NotImplementedError` before it looks for a template.
-* ``coiss`` (and ``coiss_pds3``) and ``sim`` have no PDS4 support at all, and
-  each pass stops on them the same way when it asks for the template directory.
-
-Adding a dataset is a code change, described in :doc:`/dev_guide/dev_guide_pds4`.
+As the package ships, only ``coiss_saturn`` can be bundled. Either pass stops
+with an error on any other dataset, before writing anything. Adding a dataset
+is a code change, described in :doc:`/dev_guide/dev_guide_pds4`.
 
 Workflow
 ========

@@ -248,6 +248,12 @@ directories that do not ship.  Every other hook raises
 :exc:`NotImplementedError`,
 :meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` among
 them, so both passes stop on these datasets before they look for a template.
+The Cassini ISS class itself, registered as ``coiss``, leaves its configuration
+name, template directory and bundle name to its subclasses and raises
+:exc:`NotImplementedError` for them, so both passes stop on it when they ask for
+the template directory, as they do on ``sim``, whose hooks all raise it.  Every
+registered name but ``sim`` has a ``_pds3`` alias naming the same class, which
+bundles, or does not, the same way.
 
 The ``pds4`` config block
 -------------------------
