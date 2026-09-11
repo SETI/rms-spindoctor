@@ -40,6 +40,20 @@ def test_a_compound_non_radian_unit_is_left_alone() -> None:
     assert statistics_units('km/pixel') == 'km/pixel'
 
 
+def test_a_radian_unit_in_another_case_is_left_alone() -> None:
+    """RAD is not the vocabulary's spelling, so it is not radians here and is kept as typed.
+
+    Folding case would recognise it, and would corrupt the vocabulary's own
+    upper-case tokens; the spelling is refused by the passes instead.
+    """
+    assert statistics_units('RAD') == 'RAD'
+
+
+def test_a_radian_unit_with_a_space_beside_it_is_left_alone() -> None:
+    """A space beside the measure makes a spelling the vocabulary lacks, kept as typed."""
+    assert statistics_units('rad ') == 'rad '
+
+
 def test_a_unit_that_is_not_a_string_is_refused() -> None:
     """A configuration key written with no value arrives here as None.
 

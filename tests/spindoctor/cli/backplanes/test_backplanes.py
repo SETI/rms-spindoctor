@@ -120,14 +120,17 @@ def test_default_config_declares_only_measures_the_statistics_know(kind: str) ->
     through and put an angle in a table of degrees without saying so.  That is
     a change to the conversion rule, and this is where the config half of it is
     caught: a measure is allowed by name rather than refused by one, so a
-    spelling nobody thought to refuse is caught too.
+    spelling nobody thought to refuse is caught too.  The measure is compared
+    exactly, as the statistics and the bundle passes compare it, so a spelling
+    that differs only in case or spacing is caught here rather than by the
+    summary pass at its end.
 
     Parameters:
         kind: The config list under test ('bodies' or 'rings').
     """
     known = {'rad', 'deg', 'km'}
     for entry in _config_entries(kind):
-        measure = entry['units'].partition('/')[0].strip().lower()
+        measure = entry['units'].partition('/')[0]
         assert measure in known, (
             f'{entry["name"]} declares {entry["units"]}, a measure the statistics do not know'
         )

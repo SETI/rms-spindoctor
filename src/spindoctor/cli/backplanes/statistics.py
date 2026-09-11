@@ -24,12 +24,17 @@ their values and their units untouched.
 
 Radians is spelled ``rad`` and degrees ``deg``, which is what the configuration
 writes and what the PDS4 units-of-angle vocabulary a label must draw from
-names.  A measure spelled any other way is not converted, and one that is
-angular all the same -- ``mrad``, ``microrad``, ``arcsec`` -- would need to be
-scaled as well as renamed, so it is a change to this module rather than a
-config entry this module already handles.  What stops such a unit reaching a
-table unnoticed is a test over the shipped configuration, which is where a new
-declaration appears.
+names.  The comparison is exact, with no folding of case or spacing: the
+vocabulary has upper-case tokens of its own, ``K`` and ``DN`` among them, so a
+rule that folded case would corrupt a unit rather than recognise it.  A measure
+spelled any other way, ``RAD`` or ``mrad`` alike, is not converted and is left
+as typed; one that is angular all the same -- ``mrad``, ``microrad``,
+``arcsec`` -- would need to be scaled as well as renamed, so it is a change to
+this module rather than a config entry this module already handles.  What
+stops such a unit reaching a table unnoticed is a test over the shipped
+configuration, which is where a new declaration appears and which compares
+each spelling exactly too, and the bundle passes, which refuse a unit they
+have no format for before reading anything.
 """
 
 from typing import TypedDict
@@ -73,7 +78,11 @@ def statistics_units(units: str) -> str:
 
     Returns:
         The same unit with a radian measure restated in degrees, or the unit
-        unchanged when its measure is not radians.
+        unchanged when its measure is not radians.  The measure is compared to
+        ``rad`` exactly, and the qualifier is carried through untouched: a
+        spelling other than the vocabulary's, ``RAD`` or ``rad`` with a space
+        beside it, is not radians here and is returned as typed, and the
+        bundle passes refuse it before reading anything.
 
     Raises:
         TypeError: If ``units`` is not a string.  The value comes from a YAML
@@ -90,9 +99,9 @@ def statistics_units(units: str) -> str:
         raise ValueError('units must name a measure; got an empty value')
 
     measure, solidus, qualifier = units.partition('/')
-    if measure.strip().lower() != RADIANS:
+    if measure != RADIANS:
         return units
-    return f'{DEGREES}{solidus}{qualifier.strip()}'
+    return f'{DEGREES}{solidus}{qualifier}'
 
 
 def plane_statistics(values: NDArrayFloatType, *, units: str) -> PlaneStatistics:

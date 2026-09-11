@@ -276,11 +276,15 @@ table every other angular column of which is degrees.
 
 Radians is spelled ``rad`` and degrees ``deg``, which is what the
 configuration writes and what the PDS4 units-of-angle vocabulary a label
-draws from names. A measure spelled any other way is not converted, and one
-that is angular all the same — ``mrad``, ``arcsec`` — needs scaling as well
-as renaming, so it is a change to this module rather than a config entry it
-already handles. A test over the shipping configuration is what stops such
-an entry reaching a table unnoticed.
+draws from names. The comparison is exact, with no folding of case or
+spacing, since the vocabulary has upper-case tokens of its own. A measure
+spelled any other way — ``RAD``, or ``rad`` with a space beside it — is not
+converted and is left as typed, and one that is angular all the same —
+``mrad``, ``arcsec`` — needs scaling as well as renaming, so it is a change
+to this module rather than a config entry it already handles. A test over
+the shipping configuration, comparing each spelling exactly too, is what
+stops such an entry reaching a table unnoticed, and the bundle passes refuse
+a unit they have no format for before reading anything.
 
 The viewer has a rule of its own. ``sd_backplane_viewer`` converts a plane
 whose ``BUNIT`` is exactly ``rad`` and falls back to a heuristic on the HDU
