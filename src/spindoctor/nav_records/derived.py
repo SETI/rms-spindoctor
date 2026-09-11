@@ -9,7 +9,7 @@ filters are ordinary column comparisons on any backend.
 
 import re
 
-import julian
+from spindoctor.support.time import et_to_utc
 
 __all__ = ['date_from_image_et', 'datetime_from_image_et', 'image_number_from_name']
 
@@ -44,6 +44,10 @@ def image_number_from_name(image_name: str | None) -> int | None:
 def date_from_image_et(image_et: float | None) -> str | None:
     """UTC calendar date (``YYYY-MM-DD``) for a SPICE ET epoch.
 
+    The date of the instant rounded to the nearer whole second, so an epoch in
+    the last half second of a day is dated the day after, as
+    :func:`datetime_from_image_et` writes it.
+
     Parameters:
         image_et: TDB seconds past J2000 -- the epoch the document recorded for
             the image -- or None.
@@ -53,16 +57,15 @@ def date_from_image_et(image_et: float | None) -> str | None:
     """
     if image_et is None:
         return None
-    iso = str(julian.iso_from_tai(julian.tai_from_tdb(image_et), digits=0))
-    return iso[:10]
+    return et_to_utc(image_et, digits=0)[:10]
 
 
 def datetime_from_image_et(image_et: float | None) -> str | None:
     """UTC calendar date and time (``YYYY-MM-DDTHH:MM:SS``) for a SPICE ET epoch.
 
-    The same instant as :func:`date_from_image_et`, to the second.  The
-    report shows this where a bare date would collapse many images taken
-    the same day into one indistinguishable bound.
+    The same instant as :func:`date_from_image_et`, rounded to the nearer whole
+    second.  The report shows this where a bare date would collapse many
+    images taken the same day into one indistinguishable bound.
 
     Parameters:
         image_et: TDB seconds past J2000 -- the epoch the document recorded for
@@ -73,6 +76,6 @@ def datetime_from_image_et(image_et: float | None) -> str | None:
     """
     if image_et is None:
         return None
-    # digits=None truncates to whole seconds; digits=0 would leave a
-    # trailing '.' with no fractional part behind it.
-    return str(julian.iso_from_tai(julian.tai_from_tdb(image_et), digits=None))
+    # No digits write whole seconds with no decimal point; zero digits round
+    # the same way and leave a trailing '.' behind.
+    return et_to_utc(image_et, digits=None)
