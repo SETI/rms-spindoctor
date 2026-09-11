@@ -8,9 +8,8 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
-from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.labels import write_label
-from spindoctor.config import Config
+from spindoctor.cli.pds4.statistic_units import statistic_in_another_unit
 from spindoctor.dataset.dataset import DataSet, ImageFiles
 from spindoctor.support.file import json_as_string
 
@@ -34,46 +33,6 @@ class BundleDataOutcome(Enum):
     WRITTEN = 'written'
     SKIPPED = 'skipped'
     FAILED = 'failed'
-
-
-def _statistic_in_another_unit(
-    backplane_metadata: dict[str, Any], config: Config
-) -> tuple[str, str | None, str] | None:
-    """Find a statistic the document records in a unit other than its configured one.
-
-    Every configured body and ring plane the document holds a statistic for is
-    compared.  A plane the document holds that the configuration does not
-    declare is ignored, and a plane the configuration declares that the
-    document lacks is no concern of this check.
-
-    Parameters:
-        backplane_metadata: The backplane metadata document as read.
-        config: The configuration the run is under, whose declared planes and
-            units the document is held to.
-
-    Returns:
-        For the first disagreeing statistic, in document order over the bodies
-        and then the rings: the plane's name, the unit the document records for
-        it (None when it records none), and the unit a statistic of that plane
-        takes under the configuration.  None when every statistic agrees.
-    """
-    bodies = backplane_metadata.get('bodies', {})
-    rings = backplane_metadata.get('rings', {})
-    recorded: list[tuple[dict[str, Any], list[dict[str, Any]]]] = [
-        (body.get('backplanes', {}), getattr(config.backplanes, 'bodies', []))
-        for body in bodies.values()
-    ]
-    recorded.append((rings.get('backplanes', {}), getattr(config.backplanes, 'rings', [])))
-    for planes, entries in recorded:
-        for entry in entries:
-            name = entry['name']
-            if name not in planes:
-                continue
-            expected = statistics_units(entry['units'])
-            found = planes[name].get('units')
-            if found != expected:
-                return name, found, expected
-    return None
 
 
 def generate_bundle_data_files(
@@ -107,10 +66,11 @@ def generate_bundle_data_files(
 
     A navigated image whose backplane metadata records a statistic in a unit
     other than the one the configuration gives that plane is failed as well,
-    before anything is written for it.  The document was written under another
-    configuration, and indexing it would put one column of the global index in
-    two units with nothing saying so.  A plane the document holds that the
-    configuration does not declare is not compared.
+    before anything is written for it.  The document was written before the
+    statistics recorded their unit, or under another configuration, and
+    indexing it would put one column of the global index in two units with
+    nothing saying so.  A plane the document holds that the configuration does
+    not declare is not compared.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -199,14 +159,15 @@ def generate_bundle_data_files(
         # beside regenerated ones.  Indexing one would put a column of the
         # global index in two units with nothing saying so, so the image is
         # failed before anything is written for it.
-        disagreement = _statistic_in_another_unit(bp_stats, dataset.config)
+        disagreement = statistic_in_another_unit(bp_stats, dataset.config)
         if disagreement is not None:
             plane, recorded, expected = disagreement
             logger.error(
                 'Failing bundle generation for "%s": the backplane metadata records the '
                 '%s statistic in %s where the configuration expects %s; the document was '
-                'written under another configuration and would put one index column in '
-                'two units. Regenerate the backplanes and run again',
+                'written before the statistics recorded their unit, or under another '
+                'configuration, and would put one index column in two units. Regenerate '
+                'the backplanes and run again',
                 image_path,
                 plane,
                 'no unit at all' if recorded is None else recorded,

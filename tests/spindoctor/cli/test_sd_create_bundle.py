@@ -682,6 +682,38 @@ def test_main_summary_exits_non_zero_when_a_label_is_not_written(
     assert excinfo.value.code == 1
 
 
+def test_main_summary_reports_why_the_index_could_not_be_generated(
+    summary_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An index generator that raises ends the run with the reason in the log.
+
+    A supplemental file in another unit is refused with a message naming the
+    file and both units, and the frames of a traceback do not carry it.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', lambda **kwargs: 0)
+
+    def _refuse(**kwargs: Any) -> int:
+        """Refuse the index the way a supplemental file in another unit is refused.
+
+        Parameters:
+            **kwargs: What the driver passed, unused.
+
+        Raises:
+            ValueError: Always, naming a file and both units.
+        """
+        raise ValueError(
+            'Supplemental file X records the tilt statistic in rad where the '
+            'configuration expects deg'
+        )
+
+    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', _refuse)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    out = capsys.readouterr().out
+    assert 'Supplemental file X records the tilt statistic in rad' in out
+
+
 def test_main_summary_exits_zero_when_every_label_is_written(
     summary_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

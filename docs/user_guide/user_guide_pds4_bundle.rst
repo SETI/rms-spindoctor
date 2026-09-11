@@ -334,6 +334,12 @@ the log names what was not.
   backplane declares a unit the bundle cannot use. The ``.tab`` tables are
   written whether or not the label describing one is.
 
+  It also exits 1, with neither index table written, when a supplemental file
+  records a statistic in a unit other than the one the configuration gives
+  its plane, or in none: the bundle's labels were written by more than one
+  version of the labels pass, and the bundle is regenerated into an empty
+  directory. The log names the file, the plane and both units.
+
 * ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
   written as ``status: error`` with ``status_error: label_not_written``, and asks
   for no retry.

@@ -11,6 +11,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.labels import write_label
+from spindoctor.cli.pds4.statistic_units import statistic_in_another_unit
 from spindoctor.dataset.dataset import DataSet
 
 
@@ -286,7 +287,11 @@ def generate_global_index_files(
         FileNotFoundError: If an index template is not in the dataset's template
             directory.
         ValueError: If a configured plane's statistic is in a unit the index has
-            no column format for.  Nothing is written.
+            no column format for, or if a supplemental file records a statistic
+            in a unit other than the one the configuration gives its plane, or
+            in none.  The message names the file, the plane and both units.
+            Every supplemental file is read and its rows accumulated before
+            either table is written, so in both cases nothing is written.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -335,6 +340,20 @@ def generate_global_index_files(
             continue
 
         backplanes = metadata.get('backplanes', {})
+        # A supplemental file holds the backplane document the labels pass
+        # read, and a tree can hold ones a labels pass wrote before the unit
+        # was recorded or held to.  Indexing one would put a column in two
+        # units, so the run is refused here, before either table exists.
+        disagreement = statistic_in_another_unit(backplanes, config)
+        if disagreement is not None:
+            plane, recorded, expected = disagreement
+            recorded_text = 'no unit at all' if recorded is None else recorded
+            raise ValueError(
+                f'Supplemental file {suppl_file} records the {plane} statistic in '
+                f'{recorded_text} where the configuration expects {expected}; the labels '
+                'of this bundle were written by more than one version of the labels '
+                'pass, and the bundle has to be regenerated into an empty directory'
+            )
         bodies = backplanes.get('bodies', {})
         rings = backplanes.get('rings', {})
 

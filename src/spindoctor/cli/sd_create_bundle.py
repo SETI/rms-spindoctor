@@ -456,8 +456,12 @@ def main_summary() -> None:
             dataset=dataset,
             logger=MAIN_LOGGER,
         )
-    except Exception:
-        MAIN_LOGGER.exception('Failed to generate global index files')
+    except Exception as exc:
+        # The logger's exception() writes the message it is handed and the
+        # frames, not the exception's own text, and a supplemental file in
+        # another unit is refused with a message naming the file and both
+        # units that the frames alone do not carry.
+        MAIN_LOGGER.exception('Failed to generate global index files: %s', exc)
         sys.exit(1)
 
     if failed_labels > 0:

@@ -525,8 +525,13 @@ statistic now records: a document whose statistic for a configured plane is
 not in the unit the configuration gives that plane fails its image before
 anything is written for it, rather than being indexed. That is the
 operator's decision of 2026-09-10, and the remedy is to regenerate the
-backplanes. A plane the document holds that the configuration does not
-declare is not compared. Beside that guard, both passes refuse before
+backplanes. The summary pass makes the same comparison, from one module
+both passes share, on each supplemental file it reads, which holds that
+document, and refuses the run before writing either index table when one
+disagrees: a tree whose labels were written by more than one version of the
+labels pass is regenerated into an empty directory. A plane the document
+holds that the configuration does not declare is not compared. Beside that
+guard, both passes refuse before
 reading anything a configuration that declares a backplane in a unit the
 bundle cannot use -- a spelling the format mapping lacks, or no `units` at
 all -- naming every such entry once, as the missing-template check does.

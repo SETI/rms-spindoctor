@@ -50,8 +50,10 @@ from .conftest import (
     write_templates,
 )
 
-BODY_STATS = {'MIMAS': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2}}}}
-RING_STATS = {'backplanes': {'radius': {'min': 74500.0, 'max': 136800.987654}}}
+BODY_STATS = {'MIMAS': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2, 'units': 'deg'}}}}
+"""A body's statistics, in the unit the default configuration's latitude plane takes."""
+RING_STATS = {'backplanes': {'radius': {'min': 74500.0, 'max': 136800.987654, 'units': 'km'}}}
+"""Ring statistics, in the unit the default configuration's radius plane takes."""
 BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
 """A template naming a variable no caller defines, so the render errors."""
 COLLECTION_LABELS = {
@@ -353,8 +355,8 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     """The bodies index has one row per (image, body) pair."""
     env = _index_env(tmp_path)
     two_bodies: dict[str, Any] = {
-        'MIMAS': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0}}},
-        'ENCELADUS': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0}}},
+        'MIMAS': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
+        'ENCELADUS': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
     }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=two_bodies)
     write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
@@ -389,7 +391,7 @@ def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
     hundredths of a kilometer, so a second decimal would print noise.
     """
     env = _index_env(tmp_path)
-    radii = {'backplanes': {'radius': {'min': 74500.04, 'max': 136800.96}}}
+    radii = {'backplanes': {'radius': {'min': 74500.04, 'max': 136800.96, 'units': 'km'}}}
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
     _run_global_index(env)
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
@@ -409,7 +411,11 @@ def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path:
     half-rounds.
     """
     env = _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
-    fine = {'backplanes': {'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214}}}
+    fine = {
+        'backplanes': {
+            'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}
+        }
+    }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=fine)
     _run_global_index(env)
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
@@ -435,8 +441,12 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
     """
     env = _index_env(tmp_path)
     resolutions: dict[str, Any] = {
-        'MIMAS': {'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0}}},
-        'SATURN': {'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0}}},
+        'MIMAS': {
+            'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0, 'units': 'km/pixel'}}
+        },
+        'SATURN': {
+            'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0, 'units': 'km/pixel'}}
+        },
     }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
     _run_global_index(env)
@@ -477,6 +487,93 @@ def test_a_plane_in_a_unit_the_index_cannot_size_is_refused_before_any_table(
     env = _index_env(tmp_path, rings=[{'name': 'tilt', 'units': 'mrad'}])
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     with pytest.raises(ValueError, match="'mrad'"):
+        _run_global_index(env)
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def _ring_resolution_env(tmp_path: Path) -> BundleEnv:
+    """Build an environment declaring, beside the default bodies, one ring plane in rad/pixel.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+
+    Returns:
+        The environment, whose ring statistic is expected in degrees per pixel.
+    """
+    return _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
+
+
+def _ring_resolution_stats(units: str | None) -> dict[str, Any]:
+    """Build ring statistics holding one longitudinal resolution in the given unit.
+
+    Parameters:
+        units: The unit the statistic records; None records no unit at all.
+
+    Returns:
+        The ``backplanes.rings`` payload of a supplemental file.
+    """
+    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05}
+    if units is not None:
+        statistic['units'] = units
+    return {'backplanes': {'longitudinal_resolution': statistic}}
+
+
+def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
+    tmp_path: Path,
+) -> None:
+    """A supplemental file recording a plane in a unit its configuration does not give ends the run.
+
+    The labels pass holds every document to its configured unit, but a bundle
+    tree can hold supplemental files a labels pass wrote before it did, and
+    indexing one would put a column in two units.  The error names the file
+    and both units, and no table is written.
+    """
+    env = _ring_resolution_env(tmp_path)
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats('rad/pixel')
+    )
+    with pytest.raises(ValueError) as excinfo:
+        _run_global_index(env)
+    message = str(excinfo.value)
+    assert '1234567890w_supplemental.txt' in message
+    assert 'in rad/pixel' in message
+    assert 'expects deg/pixel' in message
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_supplemental_file_recording_no_unit_is_refused_with_nothing_written(
+    tmp_path: Path,
+) -> None:
+    """A statistic with no units key predates the unit being recorded, and ends the run too."""
+    env = _ring_resolution_env(tmp_path)
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats(None)
+    )
+    with pytest.raises(ValueError) as excinfo:
+        _run_global_index(env)
+    message = str(excinfo.value)
+    assert '1234567890w_supplemental.txt' in message
+    assert 'in no unit at all' in message
+    assert 'expects deg/pixel' in message
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_disagreeing_supplemental_file_anywhere_is_refused_before_the_first_table(
+    tmp_path: Path,
+) -> None:
+    """A disagreement in any supplemental file stops the run before the bodies table exists.
+
+    Every file is read and its rows accumulated before either table is
+    written, so a file that disagrees after others that agree still leaves
+    nothing behind: the first file here holds a body row the bodies table
+    would carry, and the second is the one refused.
+    """
+    env = _ring_resolution_env(tmp_path)
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=BODY_STATS)
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/2222222222w', rings=_ring_resolution_stats('rad/pixel')
+    )
+    with pytest.raises(ValueError, match='2222222222w_supplemental'):
         _run_global_index(env)
     assert not (env.bundle_dir / 'document').exists()
 
@@ -553,8 +650,8 @@ def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
         },
     )
     two_bodies: dict[str, Any] = {
-        'MIMAS': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0}}},
-        'ENCELADUS': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0}}},
+        'MIMAS': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
+        'ENCELADUS': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
     }
     write_supplemental(
         env.bundle_dir / 'data', 'shard0/1234567890w', bodies=two_bodies, rings=RING_STATS
