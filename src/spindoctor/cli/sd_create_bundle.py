@@ -24,12 +24,10 @@ from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_d
 from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
-    unusable_units,
 )
 from spindoctor.config import (
     DEFAULT_CONFIG,
     MAIN_LOGGER,
-    Config,
     build_run_logging,
     get_backplane_results_root,
     get_nav_results_root,
@@ -221,49 +219,6 @@ def _exit_on_missing_templates(dataset: DataSet, pds4_pass: Pds4Pass) -> None:
     sys.exit(1)
 
 
-def _exit_on_unusable_units(config: Config) -> None:
-    """Report every configured backplane in a unit the bundle cannot use, and stop if any.
-
-    Both passes hold a backplane to the unit its configuration entry declares:
-    the labels pass compares each document's statistics against it, and the
-    summary pass writes each index column in the format that unit calls for.
-    Both refuse every unit the index tables have no format for, the labels pass
-    included although it writes no table, so that any bundle the labels pass
-    writes is one the summary pass can index.  Such a unit is unusable for every
-    image, so the pass says so once, before it has read anything, rather than
-    failing identically for thousands of images or after the collection files
-    are on disk.
-
-    Parameters:
-        config: The configuration the pass runs under, whose body and ring
-            backplane entries are checked.
-
-    Raises:
-        SystemExit: If :func:`~spindoctor.cli.pds4.collections.unusable_units`
-            finds any entry with no ``units`` key, or a ``units`` that is not a
-            string, is blank, or names a unit the index tables have no format
-            for.  Every such entry is reported before the exit: one with no
-            ``units`` key as declaring none, every other with the reason the
-            format lookup gives.
-    """
-    unusable = unusable_units(config)
-    if len(unusable) == 0:
-        return
-    for name, reason in unusable:
-        if reason is None:
-            MAIN_LOGGER.error('Backplane %s declares no units', name)
-        else:
-            MAIN_LOGGER.error(
-                'Backplane %s declares a unit the bundle cannot use: %s', name, reason
-            )
-    MAIN_LOGGER.error(
-        'The configuration declares %d backplane(s) without a unit the bundle can use; '
-        'nothing was written',
-        len(unusable),
-    )
-    sys.exit(1)
-
-
 def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
     """Report whether the bundle's own directory already holds something.
 
@@ -283,15 +238,13 @@ def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
 def main_labels() -> None:
     """Main function for labels subcommand.
 
-    Three preconditions are checked before any image is processed, and each
-    ends the run with exit status 1 having written nothing.  Every template the
+    Two preconditions are checked before any image is processed, and each ends
+    the run with exit status 1 having written nothing.  Every template the
     dataset declares for this pass must be in its template directory, since one
-    that is not would otherwise fail identically for every image.  Every
-    backplane the configuration declares must be in a unit the bundle can use,
-    for the same reason.  And the bundle root must be empty or absent: a bundle
-    is written into an empty directory rather than assembled out of two runs.
-    A dry run is refused the same way, because what it reports on is a run
-    that would be.
+    that is not would otherwise fail identically for every image.  And the
+    bundle root must be empty or absent: a bundle is written into an empty
+    directory rather than assembled out of two runs.  A dry run is refused the
+    same way, because what it reports on is a run that would be.
     """
     command_list = sys.argv[2:]  # Skip 'labels'
     arguments = parse_args_labels(command_list)
@@ -318,7 +271,6 @@ def main_labels() -> None:
     assert DATASET is not None
 
     _exit_on_missing_templates(DATASET, 'labels')
-    _exit_on_unusable_units(DATASET.config)
 
     bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
     if _bundle_root_holds_anything(bundle_root):
@@ -420,19 +372,18 @@ def main_summary() -> None:
     """Main function for summary subcommand.
 
     Every template the dataset declares for this pass must be in its template
-    directory, and every backplane the configuration declares must be in a
-    unit the index tables can write; either failing ends the run with exit
-    status 1 before anything is read or written.  The bundle root is not
-    checked for emptiness here: this pass reads the tree the labels pass wrote.
+    directory; one that is not ends the run with exit status 1 before anything
+    is written.  The bundle root is not checked for emptiness here: this pass
+    reads the tree the labels pass wrote.
 
     The global index is generated before the collection files.  Its read of the
     supplemental files is the one the pass makes, and the data collection label
     states the range of epochs taken in that read, so the collection files wait
     for it.  The index generator clears every product of the pass before that
-    read, the collection files with its own, so a run it refuses over what the
-    data tree holds leaves none of them, neither this run's nor an earlier run's.
-    A bundle with no data directory is refused before anything
-    is cleared, since it is not a tree a labels pass wrote.
+    read, the collection files with its own, so a run it refuses over a
+    supplemental file leaves none of them, neither this run's nor an earlier run's.
+    A bundle with no data directory is refused before anything is cleared, since it
+    is not a tree a labels pass wrote.
     """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
@@ -454,7 +405,6 @@ def main_summary() -> None:
     dataset = dataset_name_to_class(dataset_name)()
 
     _exit_on_missing_templates(dataset, 'summary')
-    _exit_on_unusable_units(dataset.config)
 
     # Generate global index files first: their scan of the supplemental files is
     # the pass's one read of them, and takes the range of epochs the data
@@ -468,8 +418,8 @@ def main_summary() -> None:
     except Exception as exc:
         # The logger's exception() writes the message it is handed and the
         # frames, not the exception's own text, and a supplemental file in
-        # another unit, or one that cannot be read, is refused with a message
-        # naming the file and the reason that the frames alone do not carry.
+        # another unit is refused with a message naming the file and both
+        # units that the frames alone do not carry.
         MAIN_LOGGER.exception('Failed to generate global index files: %s', exc)
         sys.exit(1)
 

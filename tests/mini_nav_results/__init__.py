@@ -3,10 +3,10 @@
 Two sets of documents, both built through the production writer, selected
 against different criteria and kept apart because of it.  The eight documents
 of ``results_tree_documents`` are the statistics fixture tree, chosen for what
-they make the statistics report exercise.  The three of ``cohort_documents``
-are the bundle cohort, chosen for what PDS4 bundle generation reads; they are
-built in ``cohort_cassini`` and described there, and they are never stored.  A
-fixture chosen against two unrelated criteria stops being legible for either.
+they make the statistics report exercise.  The cohorts of ``COHORTS`` are the
+other, one per bundle, each chosen for what PDS4 bundle generation reads of that
+bundle, described in the module it is built in, and never stored.  A fixture
+chosen against two unrelated criteria stops being legible for either.
 
 The statistics ingest and the report regression both run over
 ``data/results_tree``, and the frozen report output under ``data/golden`` is
@@ -36,10 +36,14 @@ orchestrator produces.  Each document is given a different peak, so that the
 report's minimum, maximum, mean, median and standard deviation over them are
 five different numbers and a wrong one shows.
 
-The builders are one module per host -- ``cassini``, ``voyager`` and
-``simulated`` -- over the constants and writer wrappers in ``shared``, with the
-cohort's in ``cohort_cassini`` and its backplane products in ``backplanes``.
-This module is the whole public surface.
+The builders are one module per host, each returning its own documents of the
+tree, which ``RESULTS_TREE_HOSTS`` lists; they are built over the constants and
+writer wrappers in ``shared``, and each host's camera frames, exposure and clock
+are in a module named for the host.  Each
+bundle's cohort is a :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a
+module named for the bundle, over what every cohort shares in ``cohort``,
+``backplanes`` and ``browse``, and one entry in ``COHORTS`` registers it.  This
+module is the whole public surface.
 
 Two roots are written.  A navigation results root holds the
 ``*_metadata.json`` documents and the ``*_summary.png`` browse images a
@@ -53,12 +57,13 @@ and where to write it::
 
     PYTHONPATH=src python -m tests.mini_nav_results results_tree \\
         tests/spindoctor/cli/stats/data/results_tree
-    PYTHONPATH=src python -m tests.mini_nav_results cohort <outdir>
+    PYTHONPATH=src python -m tests.mini_nav_results cohort <bundle> <outdir>
 
-Both arguments are required in both forms, and the statistics path is spelled
-out rather than defaulted, so that regenerating a checked-in fixture tree is
-something the operator asked for by name.  What the cohort form writes is what
-the bundle stage's library entry points read, and what its tests are run over.
+Every argument is required, the bundle being one of the names in ``COHORTS``,
+and the statistics path is spelled out rather than defaulted, so that
+regenerating a checked-in fixture tree is something the operator asked for by
+name.  What the cohort form writes is what the bundle stage's library entry
+points read, and what its tests are run over.
 It is not enough for ``sd_create_bundle`` itself, which enumerates a PDS3
 volume out of an index table the cohort does not write.
 
@@ -77,29 +82,28 @@ What the tree covers
 Every document earns its place, and regenerating one must not cost the report a
 section or a column:
 
-- **Three instruments**: two with SPICE camera frames (``coiss``, ``vgiss``)
-  and the simulated scene, which is the one host that correctly records no
-  attitude and no exposure times.
-- **Two subtrees and a bare stub**: ``COISS_2001`` and ``VGISS_5101`` name a
+- **Three hosts**: two with SPICE camera frames and the simulated scene,
+  which is the one host that correctly records no attitude and no exposure
+  times.
+- **Two subtrees and a bare stub**: each host with camera frames names a volume
   subtree; the simulated scene's basename names none, which is the case a stub
   with no separator produces.
 - **Three outcomes**: five successes, two failed navigations, and one image
   whose load failed before an observation existed.  The last records no epoch,
   no image shape and no navigation result at all, so its date cells are empty
   and its reason is a ``status_error`` rather than a ``status_reason``.
-- **Two failure reasons over two instruments**, each consistent with its own
-  inventory: every feature gated on the Cassini failure, no feature at all on
-  the Voyager one.
+- **Two failure reasons over two hosts**, each consistent with its own
+  inventory: every feature gated on one, no feature at all on the other.
 - **Four feature sources**: a body, a second body, a ring system and a star
   catalog, with gated features under two of them.
 - **Four camera and image-size groups**, so the offset tables have more than
   one row to order.
-- **A BOTSIM pair**: ``N1294561202`` and ``W1294561202`` share a shutter,
-  a spacecraft clock and an epoch, and both carry ``shutter_mode`` of
-  ``BOTSIM``.  The other Cassini images carry ``NACONLY``; Voyager and the
-  simulated scene carry none, as their hosts read none.
-- **A suspect offset**: one Cassini image's fused offset reaches the search
-  limit for its size, and one Voyager size has no configured limit at all.
+- **A pair sharing one shutter**: two images of one host share a shutter, a
+  spacecraft clock and an epoch, and record the shutter mode that makes them a
+  pair; that host's other images record a single camera's mode, and the other
+  hosts record none, as their labels carry none.
+- **A suspect offset**: one image's fused offset reaches the search limit for
+  its size, and one image size has no configured limit at all.
 - **A spurious technique and an ensemble exclusion**, on separate techniques,
   since the ensemble drops a spurious result before consensus selection and can
   never report one as excluded.
@@ -121,29 +125,23 @@ from typing import Any
 
 from spindoctor.support.file import json_as_string
 
-from .cassini import (
-    LOAD_ERROR_STUB,
-    cassini_all_features_gated,
-    cassini_load_error,
-    cassini_ring_edges,
-    cassini_star_and_limb,
-    cassini_suspect_offset,
-)
-from .cohort import Cohort, write_cohort
-from .cohort_cassini import cohort_images
-from .shared import COISS_SUBTREE, VGISS_SUBTREE
-from .simulated import simulated_scene
-from .voyager import voyager_no_features, voyager_ring_edges
+from .cassini import results_tree_documents as cassini_documents
+from .cohort import Cohort
+from .cohort_cassini import CohortCassiniISSSaturn
+from .simulated import results_tree_documents as simulated_documents
+from .voyager import results_tree_documents as voyager_documents
 
 __all__ = [
+    'COHORTS',
     'RESULTS_TREE',
     'Cohort',
-    'cohort_documents',
     'results_tree_documents',
     'stored_documents',
-    'write_cohort',
     'write_results_tree',
 ]
+
+COHORTS: dict[str, type[Cohort]] = {cohort.NAME: cohort for cohort in (CohortCassiniISSSaturn,)}
+"""Every bundle's cohort, keyed by the name it is chosen under."""
 
 RESULTS_TREE = (
     Path(__file__).resolve().parent.parent
@@ -155,6 +153,9 @@ RESULTS_TREE = (
 )
 """Where the stored tree lives, beside the statistics suite that reads it."""
 
+RESULTS_TREE_HOSTS = (cassini_documents, voyager_documents, simulated_documents)
+"""Each host's documents of the tree, in the order the tree is written."""
+
 
 def results_tree_documents() -> dict[str, dict[str, Any]]:
     """Return every document of the fixture tree, keyed by its results path stub.
@@ -162,25 +163,10 @@ def results_tree_documents() -> dict[str, dict[str, Any]]:
     Returns:
         Stub to document, in the order the tree is written.
     """
-    return {
-        f'{COISS_SUBTREE}/N1294561202_1_CALIB': cassini_star_and_limb(),
-        f'{COISS_SUBTREE}/N1294562000_1_CALIB': cassini_all_features_gated(),
-        LOAD_ERROR_STUB: cassini_load_error(),
-        f'{COISS_SUBTREE}/N1294564000_1_CALIB': cassini_suspect_offset(),
-        f'{COISS_SUBTREE}/W1294561202_1_CALIB': cassini_ring_edges(),
-        f'{VGISS_SUBTREE}/C1385455_GEOMED': voyager_ring_edges(),
-        f'{VGISS_SUBTREE}/C1385460_GEOMED': voyager_no_features(),
-        'sim_scene_000042': simulated_scene(),
-    }
-
-
-def cohort_documents() -> dict[str, dict[str, Any]]:
-    """Return every document of the bundle cohort, keyed by its results path stub.
-
-    Returns:
-        Stub to document, in the order a run would have written them.
-    """
-    return {image.stub: image.document for image in cohort_images()}
+    documents: dict[str, dict[str, Any]] = {}
+    for host_documents in RESULTS_TREE_HOSTS:
+        documents |= host_documents()
+    return documents
 
 
 def write_results_tree(root: Path) -> list[Path]:

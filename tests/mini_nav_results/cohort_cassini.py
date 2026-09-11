@@ -1,4 +1,4 @@
-"""The three Cassini images the bundle cohort is built from.
+"""The Cassini ISS Saturn bundle's cohort, and the three images it is built from.
 
 Selected for what bundle generation reads and the statistics report has no use
 for: two successes whose numbers shard into different bundle directories, one
@@ -8,8 +8,9 @@ did not succeed, which is what the bundle stage skips.  The documents in
 a fixture chosen against two unrelated criteria stops being legible for either.
 
 Each image is built from its epoch and nothing else.  The clock readings come
-from :func:`~tests.mini_nav_results.shared.cassini_sclk_triple` and the image
-number from :func:`~tests.mini_nav_results.shared.cassini_image_number`, so the
+from :func:`~tests.mini_nav_results.host_cassini.cassini_sclk_triple` and the
+image number from :func:`~tests.mini_nav_results.host_cassini.cassini_image_number`,
+so the
 name, the readings, the index row and the document cannot disagree about when
 the shutter was open.
 
@@ -21,18 +22,36 @@ Its values are a real COISS index row's, except for the identity, time and
 clock columns, which are this image's own.  The column names are the index
 file's own names, so a label variable read from a column that index has no
 such name for renders empty here exactly as it does on a real image.
+
+The frames are the package's miniature,
+:data:`~tests.mini_nav_results.backplanes.COHORT_SHAPE_VU`, smaller than any real
+Cassini readout, which leaves one thing about the product untrue: the index row
+records an instrument mode of ``FULL``, and no Cassini mode names a 16 pixel
+frame, so there is no value it could record instead.  A reader holding a frame's
+size against the mode beside it therefore finds a frame this size claiming to be
+a full one.
+
+:class:`CohortCassiniISSSaturn` is the cohort itself, registered with the package
+under its ``NAME``: these images, the holdings layout they sit in, how the
+Cassini dataset reads a camera from an index row, the range each plane spans, and
+the registered Saturn dataset the bundle is built with.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import julian
 import numpy as np
 
+from spindoctor.dataset.dataset_pds3_cassini_iss import (
+    DataSetPDS3CassiniISS,
+    DataSetPDS3CassiniISSSaturn,
+)
 from spindoctor.feature.feature import NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_orchestrator.ensemble import derive_confidence_rank
@@ -43,19 +62,16 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
 
 from .backplanes import COHORT_SHAPE_VU, CohortBody
-from .shared import (
+from .cohort import Cohort, CohortImage
+from .host_cassini import (
     CASSINI_EXPOSURE_MS,
     COISS_KERNELS,
     cassini_exposure_span,
     cassini_image_number,
     cassini_sclk_triple,
-    classifier,
-    navigated,
-    provenance,
-    ring_edge,
-    rotation,
     with_pointing_from_epoch,
 )
+from .shared import classifier, navigated, provenance, ring_edge, rotation
 
 LIMB_MIDTIME_ET = 129400000.0
 """The epoch of the image navigated on a satellite's limb."""
@@ -119,13 +135,19 @@ GATED_STUB = f'{_LIMB_SUBTREE}/{GATED_IMAGE_NAME}'
 """Where the gated image's results sit under a results root."""
 
 
-HOLDINGS_SUBTREE = 'calibrated/COISS_2xxx'
+_HOLDINGS_SUBTREE = 'calibrated/COISS_2xxx'
 """Where a Cassini volume's calibrated images sit under a holdings root.
 
 An enumeration finds an image under the directory its products were calibrated
 into and the volume set its volume belongs to, so a path that names neither
 tells a reader who parses one nothing at all.
 """
+
+_IMAGE_SUFFIX = '.IMG'
+"""The extension of a Cassini calibrated image file."""
+
+_LABEL_SUFFIX = '.LBL'
+"""The extension of the PDS3 label beside a Cassini calibrated image file."""
 
 _RECORDED_HOLDINGS_ROOT = '/holdings'
 """The holdings root the run that wrote these documents was given.
@@ -148,7 +170,7 @@ def _image_path(stub: str) -> Path:
     Returns:
         The full path, holdings root and all.
     """
-    return Path(f'{_RECORDED_HOLDINGS_ROOT}/{HOLDINGS_SUBTREE}/{stub}.IMG')
+    return Path(f'{_RECORDED_HOLDINGS_ROOT}/{_HOLDINGS_SUBTREE}/{stub}{_IMAGE_SUFFIX}')
 
 
 def _doy(epoch_et: float) -> str:
@@ -383,6 +405,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         ring_edge(
             'encke_gap',
             'IEG',
+            planet='SATURN',
             reliability=0.79,
             gated=False,
             gate_reason=None,
@@ -502,92 +525,117 @@ def cassini_all_features_gated() -> dict[str, Any]:
     )
 
 
-@dataclass(frozen=True)
-class CohortImage:
-    """One image of the cohort, and everything a run leaves on disk for it.
+class CohortCassiniISSSaturn(Cohort):
+    """The Cassini ISS Saturn bundle's cohort, over the registered Saturn dataset.
 
-    Attributes:
-        stub: Where its results sit under a results root.
-        image_name: The calibrated image's name, without its extension.
-        camera: The camera that took it.
-        midtime_et: The exposure midtime, which is its epoch and the one input
-            every other value here is derived from.
-        document: The navigation document a run wrote for it.
-        index_file_row: The index row an enumeration hands on with it.
-        bodies: The bodies its backplanes cover, empty when it has none.
-        rings: Whether its backplanes cover the ring system.
+    Three images: two successes whose numbers shard into different bundle
+    directories, one of them with ring backplanes and one without, and one whose
+    navigation did not succeed.
     """
 
-    stub: str
-    image_name: str
-    camera: str
-    midtime_et: float
-    document: dict[str, Any]
-    index_file_row: dict[str, Any]
-    bodies: tuple[CohortBody, ...]
-    rings: bool
+    NAME: ClassVar[str] = 'cassini_iss_saturn'
+    HOLDINGS_SUBTREE: ClassVar[str] = _HOLDINGS_SUBTREE
+    IMAGE_SUFFIX: ClassVar[str] = _IMAGE_SUFFIX
+    LABEL_SUFFIX: ClassVar[str] = _LABEL_SUFFIX
+    PLANE_BOUNDS: ClassVar[Mapping[str, tuple[float, float]]] = {
+        'body_longitude': (0.0, 2.0 * math.pi),
+        'body_latitude': (-math.pi / 2.0, math.pi / 2.0),
+        'body_incidence_angle': (0.0, math.pi),
+        'body_emission_angle': (0.0, math.pi / 2.0),
+        'body_phase_angle': (0.0, math.pi),
+        'body_finest_resolution': (1.24, 2.35),
+        'body_coarsest_resolution': (2.35, 8.06),
+        'ring_radius': (74658.0, 136780.0),
+        'ring_longitude': (0.0, 2.0 * math.pi),
+        'ring_emission_angle': (0.0, math.pi / 2.0),
+        'ring_phase_angle': (0.0, math.pi),
+        'ring_radial_resolution': (2.11, 9.04),
+        'ring_longitudinal_resolution': (1.4e-05, 3.9e-05),
+    }
+    """What one plane of each name spans, in the units the configuration declares.
 
-    @property
-    def navigated(self) -> bool:
-        """Whether the navigation succeeded, which is what the bundle stage reads."""
-        return bool(self.document.get('status') == 'success')
-
-
-def cohort_images() -> tuple[CohortImage, ...]:
-    """Return every cohort image, in the order a run would have processed them.
-
-    Returns:
-        The images, each with its document, its index row and its backplanes.
+    Radians for the angles and the longitudes, kilometres for the ring radii, and
+    km or radians per pixel for the resolutions -- the units the arrays carry.  The
+    ring radii span Saturn's main rings; the resolutions are what a Cassini frame
+    of a body a few hundred thousand kilometres away resolves.
     """
-    return (
-        CohortImage(
-            stub=LIMB_STUB,
-            image_name=LIMB_IMAGE_NAME,
-            camera='NAC',
-            midtime_et=LIMB_MIDTIME_ET,
-            document=cassini_body_limb(),
-            index_file_row=_index_row(
-                LIMB_STUB, LIMB_MIDTIME_ET, camera='NAC', shutter_mode='NACONLY'
-            ),
-            bodies=(
-                CohortBody(
-                    name='ENCELADUS',
-                    center_vu=(6.0, 9.0),
-                    radii_vu=(4.0, 5.0),
-                    range_km=284913.0,
+
+    @classmethod
+    def images(cls) -> tuple[CohortImage, ...]:
+        """Return every cohort image, in the order a run would have processed them.
+
+        Returns:
+            The images, each with its document, its index row and its backplanes.
+        """
+        return (
+            CohortImage(
+                stub=LIMB_STUB,
+                image_name=LIMB_IMAGE_NAME,
+                camera='NAC',
+                midtime_et=LIMB_MIDTIME_ET,
+                document=cassini_body_limb(),
+                index_file_row=_index_row(
+                    LIMB_STUB, LIMB_MIDTIME_ET, camera='NAC', shutter_mode='NACONLY'
                 ),
-            ),
-            rings=False,
-        ),
-        CohortImage(
-            stub=RINGS_STUB,
-            image_name=RINGS_IMAGE_NAME,
-            camera='WAC',
-            midtime_et=RINGS_MIDTIME_ET,
-            document=cassini_ring_edges(),
-            index_file_row=_index_row(
-                RINGS_STUB, RINGS_MIDTIME_ET, camera='WAC', shutter_mode='WACONLY'
-            ),
-            bodies=(
-                CohortBody(
-                    name='SATURN',
-                    center_vu=(8.5, 5.0),
-                    radii_vu=(5.5, 3.5),
-                    range_km=1904772.0,
+                bodies=(
+                    CohortBody(
+                        name='ENCELADUS',
+                        center_vu=(6.0, 9.0),
+                        radii_vu=(4.0, 5.0),
+                        range_km=284913.0,
+                    ),
                 ),
+                rings=False,
             ),
-            rings=True,
-        ),
-        CohortImage(
-            stub=GATED_STUB,
-            image_name=GATED_IMAGE_NAME,
-            camera='NAC',
-            midtime_et=GATED_MIDTIME_ET,
-            document=cassini_all_features_gated(),
-            index_file_row=_index_row(
-                GATED_STUB, GATED_MIDTIME_ET, camera='NAC', shutter_mode='NACONLY'
+            CohortImage(
+                stub=RINGS_STUB,
+                image_name=RINGS_IMAGE_NAME,
+                camera='WAC',
+                midtime_et=RINGS_MIDTIME_ET,
+                document=cassini_ring_edges(),
+                index_file_row=_index_row(
+                    RINGS_STUB, RINGS_MIDTIME_ET, camera='WAC', shutter_mode='WACONLY'
+                ),
+                bodies=(
+                    CohortBody(
+                        name='SATURN',
+                        center_vu=(8.5, 5.0),
+                        radii_vu=(5.5, 3.5),
+                        range_km=1904772.0,
+                    ),
+                ),
+                rings=True,
             ),
-            bodies=(),
-            rings=False,
-        ),
-    )
+            CohortImage(
+                stub=GATED_STUB,
+                image_name=GATED_IMAGE_NAME,
+                camera='NAC',
+                midtime_et=GATED_MIDTIME_ET,
+                document=cassini_all_features_gated(),
+                index_file_row=_index_row(
+                    GATED_STUB, GATED_MIDTIME_ET, camera='NAC', shutter_mode='NACONLY'
+                ),
+                bodies=(),
+                rings=False,
+            ),
+        )
+
+    @classmethod
+    def camera_of(cls, index_file_row: dict[str, Any]) -> str | None:
+        """Return the camera the Cassini dataset reads from an image's index row.
+
+        Parameters:
+            index_file_row: The index row an enumeration hands on with the image.
+
+        Returns:
+            ``NAC`` or ``WAC``, or None when the row names no camera.
+        """
+        return DataSetPDS3CassiniISS.camera_from_index_row(index_file_row)
+
+    def dataset(self) -> DataSetPDS3CassiniISSSaturn:
+        """Return the registered Saturn dataset, over this cohort's holdings.
+
+        Returns:
+            The dataset the bundle is built with.
+        """
+        return DataSetPDS3CassiniISSSaturn(self.holdings_root)

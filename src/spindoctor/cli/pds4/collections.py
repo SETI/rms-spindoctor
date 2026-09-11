@@ -10,10 +10,9 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
-from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan, NoEpochRange
+from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
-from spindoctor.config import Config
 from spindoctor.dataset.dataset import DataSet
 
 
@@ -87,39 +86,12 @@ INDEX_VALUE_FORMATS: dict[str, IndexValueFormat] = {
 }
 """The format each min and max in the global index tables is written in, by unit.
 
-The key is the unit the statistic is in, which for an angular plane is the
-degrees restatement of the unit the configuration declares.  Two constraints
-decide the formats.  The backplane arrays are float32, allocated so by both
-per-source stages and cast to it by the writer, so no statistic carries more
-than seven significant digits and a format printing more than that prints
-noise.  Within that ceiling the geometry sets what is usable.  An angle in
-degrees gets three decimals, since one pixel is 0.0003 degrees on the sky for
-the narrow-angle camera and 0.003 for the wide-angle one; it writes ``1.235``
-and ``-89.999``.  A ring radius in kilometers gets one, since the radii run
-from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km; it writes
-``74658.0`` and ``136780.0``.  A resolution in degrees per pixel gets eight
-decimals and writes ``0.00015470`` and ``0.80386227``.  The largest such value
-on the real frames tried was 0.80, on an edge-on wide-angle ring frame, and at
-that end the eighth decimal sits at the edge of what a float32 plane carries,
-whose spacing there is 6e-8.  A resolution in kilometers per pixel runs from
-6e-4 a hundred kilometers off Enceladus to 7e4 at the grazing limb of a
-wide-angle frame, eight orders of magnitude that no fixed decimal count fits,
-so it gets five significant figures, written positionally: ``0.00060000``,
-``6.1343``, ``4200.0`` and ``70853``.
-
-Every format writes a plain decimal number, never one with an exponent or a
-trailing point, since the tables are read by people.  Written positionally, a
-value never has its integer part rounded away, so from 1e7 up the significant
-figures format writes more than seven figures, past what a float32 statistic
-carries; no real statistic has come near, the largest seen being 70853.  A
-value that rounds up to the next power of ten gains a figure, so ``9.99996``
-writes ``10.0000``.  What no format fixes is a column's width: values under
-one format differ in length, so the width of a column is the widest value
-written in it and is not derivable from the format alone.
-
-The bodies table and the rings table share the mapping so that a value cannot
-mean one thing in one and something else in the other, and it is public so that
-a label describing a table can say how the column was written.
+The key is the unit the statistic is in: for a plane in radians, the degrees unit
+:func:`~spindoctor.cli.backplanes.statistics.statistics_units` gives it.  Each format
+prints about what one pixel resolves, within the roughly seven significant digits a
+float32 backplane array carries.  ``km/pixel`` values span orders of magnitude, so
+that format is five significant figures rather than a fixed number of decimals.  No
+value is written with an exponent.  The bodies and rings tables share the mapping.
 """
 
 
@@ -136,53 +108,9 @@ def index_value_format(units: str) -> IndexValueFormat:
         The format, from :data:`INDEX_VALUE_FORMATS`.
 
     Raises:
-        ValueError: If the statistic's unit has no format in the table, or if
-            ``units`` is blank.  The message names the unit the statistic is in
-            and, where the two differ, the unit the configuration declared.
-        TypeError: If ``units`` is not a string.
+        KeyError: If the statistic's unit has no format in the table.
     """
-    statistic_units = statistics_units(units)
-    if statistic_units not in INDEX_VALUE_FORMATS:
-        declared = '' if statistic_units == units else f' (declared {units!r})'
-        raise ValueError(
-            f'No index column format for a statistic in {statistic_units!r}{declared}; '
-            f'the formats are sized for {", ".join(INDEX_VALUE_FORMATS)}'
-        )
-    return INDEX_VALUE_FORMATS[statistic_units]
-
-
-def unusable_units(config: Config) -> list[tuple[str, str | None]]:
-    """Find every configured backplane whose unit no index column has a format for.
-
-    Each body and ring backplane entry is looked up through
-    :func:`index_value_format`, the lookup the global index tables are written
-    with.  An entry it refuses is unusable for every image the configuration
-    covers, since every document is held to its plane's configured unit, so
-    whatever writes bundle products refuses such a configuration before it reads
-    a document rather than once per image or after products are on disk.
-
-    Parameters:
-        config: The configuration whose ``backplanes.bodies`` and
-            ``backplanes.rings`` entries are checked.
-
-    Returns:
-        One ``(name, reason)`` pair per unusable entry, the bodies first and then
-        the rings, each in configuration order, or an empty list when every entry
-        is usable.  ``name`` is the entry's ``name``.  ``reason`` is None for an
-        entry with no ``units`` key, and otherwise the message the format lookup
-        refuses its ``units`` with: one that is not a string, is blank, or names
-        a unit the tables have no format for.
-    """
-    unusable: list[tuple[str, str | None]] = []
-    for entry in [*config.backplanes.bodies, *config.backplanes.rings]:
-        if 'units' not in entry:
-            unusable.append((entry['name'], None))
-            continue
-        try:
-            index_value_format(entry['units'])
-        except (TypeError, ValueError) as exc:
-            unusable.append((entry['name'], str(exc)))
-    return unusable
+    return INDEX_VALUE_FORMATS[statistics_units(units)]
 
 
 def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueFormat) -> list[str]:
@@ -205,35 +133,6 @@ def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueForma
         # TODO Need an appropriate sentinel value for missing data
         return ['', '']
     return [value_format.render(statistic['min']), value_format.render(statistic['max'])]
-
-
-_REGENERATE_REMEDY = (
-    "The labels pass writes each product's supplemental file and data label: regenerate the "
-    'bundle into an empty directory'
-)
-"""What a refusal over a product the index cannot take says to do about it."""
-
-
-def _json_kind(value: Any) -> str:
-    """Name the kind of JSON value a supplemental file holds in place of an object.
-
-    Parameters:
-        value: What the file's JSON parsed to, anything but an object.
-
-    Returns:
-        ``an array``, ``a string``, ``a boolean``, ``null`` or ``a number``, as a
-        message says what the file holds.
-    """
-    if isinstance(value, list):
-        return 'an array'
-    if isinstance(value, str):
-        return 'a string'
-    # Python counts a boolean as an integer, so it is named before a number is.
-    if isinstance(value, bool):
-        return 'a boolean'
-    if value is None:
-        return 'null'
-    return 'a number'
 
 
 def _data_dir(bundle_root: FCPath) -> FCPath:
@@ -262,34 +161,18 @@ _DATA_LABEL_SUFFIX = '_backplanes.lblx'
 """What follows a product's path stub in the name of its data label."""
 
 
-def _data_labels(data_dir: FCPath) -> list[FCPath]:
-    """Return every data label in the data tree, which is how a product is found.
-
-    The collection inventory lists a product by its data label, and the global index
-    holds every supplemental file to having one beside it, so both list them here.
+def _product_stub(path: FCPath, data_dir: FCPath) -> str:
+    """Return a product's path stub, read off its supplemental file.
 
     Parameters:
+        path: The product's supplemental file, under ``data_dir``.
         data_dir: The bundle's data directory.
 
     Returns:
-        Each ``<stub>_backplanes.lblx`` under it, in the order the listing gives.
+        The file's path relative to ``data_dir``, in POSIX form, less
+        ``_supplemental.txt``, as in ``shard0/1234567890w``.
     """
-    return list(data_dir.rglob(f'*{_DATA_LABEL_SUFFIX}'))
-
-
-def _product_stub(path: FCPath, data_dir: FCPath, suffix: str) -> str:
-    """Return a product's path stub, read off one of its files.
-
-    Parameters:
-        path: The product's supplemental file or data label, under ``data_dir``.
-        data_dir: The bundle's data directory.
-        suffix: What follows the stub in the file's name.
-
-    Returns:
-        The file's path relative to ``data_dir``, in POSIX form, less ``suffix``: the
-        stub both of a product's files share, as in ``shard0/1234567890w``.
-    """
-    return path.relative_to(data_dir).as_posix().removesuffix(suffix)
+    return path.relative_to(data_dir).as_posix().removesuffix(_SUPPLEMENTAL_SUFFIX)
 
 
 @dataclass(frozen=True)
@@ -339,7 +222,7 @@ def generate_collection_files(
     dataset: DataSet,
     logger: PdsLogger,
     *,
-    epochs: EpochRange | NoEpochRange,
+    epochs: EpochRange | None,
 ) -> int:
     """Generate collection CSV and label files for the bundle.
 
@@ -352,11 +235,11 @@ def generate_collection_files(
     holds, which is ``epochs``: the range :func:`generate_global_index_files` takes in
     its read of the supplemental files, which is why the summary pass runs that
     first.  The label writes it to whole seconds, the start rounded down and the stop
-    up, so the range contains every product's own start and stop.  With no range to
-    state -- no supplemental file at all, or one whose epochs could not be had -- the
-    data collection label is counted as not written, with an error saying why, rather
-    than rendered with empty dates, which PDS4 does not accept; whatever an earlier
-    run left at its path is removed, so a label on disk is always one this run wrote.
+    up.  With no range to state, because the data tree holds no supplemental file,
+    the data collection label is counted as not written, with an error saying so,
+    rather than rendered with empty dates, which PDS4 does not accept; whatever an
+    earlier run left at its path is removed, so a label on disk is always one this
+    run wrote.
 
     Every collection template the dataset declares is required.  The caller is
     expected to have checked them before processing anything, so one that is
@@ -368,7 +251,7 @@ def generate_collection_files(
         dataset: The dataset instance for bundle-specific methods.
         logger: Logger for diagnostic messages.
         epochs: The earliest start and the latest stop of the products' exposures,
-            or why there is no such range.
+            or None when the data tree holds no supplemental file.
 
     Returns:
         The number of collection labels that could not be rendered, the data
@@ -387,7 +270,7 @@ def generate_collection_files(
 
     # Every product in the data directory, found by its data label
     data_dir = _data_dir(bundle_root)
-    label_files = _data_labels(data_dir)
+    label_files = list(data_dir.rglob(f'*{_DATA_LABEL_SUFFIX}'))
 
     # Sort by image name (extracted from filename)
     def get_image_name_from_label(path: FCPath) -> str:
@@ -426,13 +309,12 @@ def generate_collection_files(
     collection_data_template = template_base / 'collection_data.lblx'
     template = pdstemplate.PdsTemplate(str(collection_data_template))
     collection_data_label = products.data_label
-    if isinstance(epochs, NoEpochRange):
+    if epochs is None:
         collection_data_label.unlink(missing_ok=True)
         logger.error(
-            'The data collection label %s was not written: it states the time range of '
-            'the products the collection holds, and %s',
+            'The data collection label %s was not written: the data tree holds no '
+            'supplemental file, so there is no time range for it to state',
             collection_data_label,
-            epochs.reason,
         )
         failed_labels += 1
     else:
@@ -484,11 +366,11 @@ class GlobalIndexOutcome:
         failed_labels: The number of index labels that could not be rendered.
         epochs: The earliest exposure start and the latest exposure stop over the
             supplemental files the index was built from, which the data collection
-            label states, or why there is no such range.
+            label states, or None when there were none.
     """
 
     failed_labels: int
-    epochs: EpochRange | NoEpochRange
+    epochs: EpochRange | None
 
 
 def generate_global_index_files(
@@ -504,25 +386,15 @@ def generate_global_index_files(
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
     :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and returned for the labels
-    that state it.  A supplemental file whose navigation document records no epochs
-    a label can state leaves no range, since a range taken over the rest could leave
-    its product outside, and is indexed all the same.  One that cannot be read, or
-    does not hold a JSON object, refuses the run, since left out of the index it would
-    still be listed in the collection's inventory.  So does a supplemental file with no
-    data label beside it, or a data label with no supplemental file: the inventory
-    finds a product by its data label, and the index and the range by its supplemental
-    file, so the two would disagree about it.  Both are listed once, and compared
-    before any file is read.
+    that state it.
 
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
     label before it renders, and so are the two collection tables and two
     collection labels :func:`generate_collection_files` writes after the index.
-    A run refused over what the data tree holds therefore leaves no product
-    of the summary pass, neither this run's nor an earlier run's: no index still
-    describing the bundle as it was, and no inventory beside no index.  A
-    configured plane whose unit the index cannot format is refused before that,
-    with nothing in the bundle touched.
+    A run refused over what a supplemental file holds therefore leaves no product of
+    the summary pass, neither this run's nor an earlier run's: no index still
+    describing the bundle as it was, and no inventory beside no index.
 
     Both index templates the dataset declares are required.  The caller is
     expected to have checked them before processing anything, so one that is
@@ -536,28 +408,22 @@ def generate_global_index_files(
 
     Returns:
         The number of index labels that could not be rendered, and the range of the
-        products' epochs over every supplemental file read, or why there is none:
-        there is no supplemental file, or one records no epochs a label can state.
+        products' epochs over every supplemental file read, or None when there is no
+        supplemental file.
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, which is
             checked before any product of the pass is cleared or written, or an
             index template is not in the dataset's template directory.
-        TypeError: If a configured plane declares no unit, or one that is not a
-            string.
-        ValueError: If a configured plane's statistic is in a unit the index has
-            no column format for; if a supplemental file cannot be read or does
-            not hold a JSON object, the message naming the file and the reason or
-            what it holds instead; if a supplemental file has no data label
-            beside it, or a data label no supplemental file, the message naming
-            both; or if one
-            holds a statistic no column can -- one in a unit other than the one
-            the configuration gives its plane, or in none, or with a minimum or
-            maximum that is not a finite number within the range of a float --
-            the message naming the file and the plane, what the file records
-            there, and what to regenerate.  Every supplemental file is read, and
-            every value in both tables rendered, before either table is opened,
-            so none of these leaves a table half-written.
+        KeyError: If a configured plane's statistic is in a unit the index has no
+            column format for.
+        ValueError: If a supplemental file holds a statistic no column can: one in
+            a unit other than the one the configuration gives its plane, or with a
+            minimum or maximum that is NaN or infinite.  The message names the
+            file and the plane, what the file records there, and what to
+            regenerate.  Every supplemental file is read, and every value in both
+            tables rendered, before either table is opened, so none of these
+            leaves a table half-written.
     """
 
     bundle_name = dataset.pds4_bundle_name()
@@ -571,11 +437,8 @@ def generate_global_index_files(
     body_backplane_types = [bp['name'] for bp in bodies_cfg]
     rings_cfg = config.backplanes.rings
     ring_backplane_types = [bp['name'] for bp in rings_cfg]
-    # Every plane's format is looked up before any supplemental file is read,
-    # so a plane declared in a unit the table cannot size fails the run here
-    # rather than after half a table has been written.
-    body_formats = {bp['name']: index_value_format(bp.get('units')) for bp in bodies_cfg}
-    ring_formats = {bp['name']: index_value_format(bp.get('units')) for bp in rings_cfg}
+    body_formats = {bp['name']: index_value_format(bp['units']) for bp in bodies_cfg}
+    ring_formats = {bp['name']: index_value_format(bp['units']) for bp in rings_cfg}
 
     # A bundle with no data directory is not one a labels pass wrote.  The summary
     # pass runs this generator first, so the check is made here, before any product
@@ -611,35 +474,6 @@ def generate_global_index_files(
     supplemental_files.sort(key=get_image_name_from_supplemental)
     logger.info('Found %d supplemental files', len(supplemental_files))
 
-    # The labels pass writes a product's supplemental file and then renders its data
-    # label, and the collection inventory finds a product by its data label, so one of
-    # the two without the other is a product the index and the inventory would disagree
-    # about: indexed and inside the range but not listed, or listed but neither.  Both
-    # lists are taken once and compared before any file is read.
-    supplemental_stubs = {
-        _product_stub(path, data_dir, _SUPPLEMENTAL_SUFFIX) for path in supplemental_files
-    }
-    label_stubs = {
-        _product_stub(path, data_dir, _DATA_LABEL_SUFFIX) for path in _data_labels(data_dir)
-    }
-    unlabeled = sorted(supplemental_stubs - label_stubs)
-    if len(unlabeled) > 0:
-        raise ValueError(
-            f'Supplemental file {data_dir / (unlabeled[0] + _SUPPLEMENTAL_SUFFIX)} has no '
-            f'data label beside it: {data_dir / (unlabeled[0] + _DATA_LABEL_SUFFIX)} is not '
-            'there, and the collection inventory, which finds products by their data '
-            f'labels, would leave out a product the index holds. {_REGENERATE_REMEDY}'
-        )
-    unindexed = sorted(label_stubs - supplemental_stubs)
-    if len(unindexed) > 0:
-        raise ValueError(
-            f'Data label {data_dir / (unindexed[0] + _DATA_LABEL_SUFFIX)} has no supplemental '
-            f'file beside it: {data_dir / (unindexed[0] + _SUPPLEMENTAL_SUFFIX)} is not '
-            'there, and the index and the range of epochs, which read the supplemental '
-            f'files, would leave out a product the collection inventory lists. '
-            f'{_REGENERATE_REMEDY}'
-        )
-
     # Collect body and ring statistics, every cell already rendered: both
     # tables are opened only once every value in them has been written out, so
     # nothing a render can raise leaves a table half-written.
@@ -649,32 +483,13 @@ def generate_global_index_files(
     epochs = EpochRangeScan()
 
     for suppl_file in supplemental_files:
-        # The labels pass writes every supplemental file, and writes it as a JSON
-        # object, so one that cannot be read, or holds anything else, is a broken tree
-        # rather than a product to pass over: left out of the index it would still be
-        # listed in the collection's inventory, with no epochs for the range.  The run
-        # is refused here, before either table exists, as it is for a statistic no
-        # column can hold.
-        try:
-            suppl_text = suppl_file.read_text()
-            metadata = json.loads(suppl_text)
-        except (OSError, ValueError) as exc:
-            raise ValueError(
-                f'Supplemental file {suppl_file} could not be read: {exc}. {_REGENERATE_REMEDY}'
-            ) from exc
-        if not isinstance(metadata, dict):
-            raise ValueError(
-                f'Supplemental file {suppl_file} holds {_json_kind(metadata)} where a '
-                f'supplemental document is a JSON object. {_REGENERATE_REMEDY}'
-            )
-
-        epochs.include(f'supplemental file {suppl_file}', metadata.get('navigation'))
+        metadata = json.loads(suppl_file.read_text())
+        epochs.include(metadata['navigation'])
         backplanes = metadata.get('backplanes', {})
         # A supplemental file holds the backplane document the labels pass
-        # read, and a tree can hold ones a labels pass wrote before it held a
-        # document to its unit and its values.  Indexing one would put a column
-        # in two units, or a value in it that no column can hold, so the run is
-        # refused here, before either table exists.
+        # read.  Every index column is in its plane's configured unit and holds
+        # only finite numbers, so a file with a statistic the index cannot hold
+        # refuses the run here, before either table exists.
         unindexable = unindexable_statistic(backplanes, config)
         if unindexable is not None:
             raise ValueError(
@@ -689,7 +504,7 @@ def generate_global_index_files(
 
         # Derive pds4_path_stub from supplemental file path
         # Supplemental file is at: bundle_root/data/<pds4_path_stub>_supplemental.txt
-        pds4_path_stub = _product_stub(suppl_file, data_dir, _SUPPLEMENTAL_SUFFIX)
+        pds4_path_stub = _product_stub(suppl_file, data_dir)
 
         lid_part = suppl_file.stem.replace('_supplemental', '')
         image_name = dataset.pds4_lid_part_to_image_name(lid_part)

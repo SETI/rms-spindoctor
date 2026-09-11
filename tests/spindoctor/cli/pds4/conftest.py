@@ -11,10 +11,10 @@ stage consumes.  That is :class:`BundleEnv`, and it is how the plumbing is
 tested: which file goes where, which variable reaches which template, what a
 render that errors leaves behind.
 
-:class:`CohortBundleEnv` is the other half.  It runs the registered Cassini
-dataset over the shipped Cassini templates, on the products the miniature
-navigation results package writes, and it is how a question about what a label
-*says* is asked -- an epoch, a target, a described data object.  Neither
+:class:`CohortBundleEnv` is the other half.  It runs the registered dataset a
+cohort's bundle is built with over the templates that dataset ships, on the
+products the cohort writes, and it is how a question about what a label *says*
+is asked -- an epoch, a target, a described data object.  Neither
 answers the other's question: a label rendered from a template the test wrote
 says whatever the test put there, and a plumbing failure inside the shipped
 template set is a needle in three hundred lines of XML.
@@ -35,9 +35,9 @@ from astropy.io import fits
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
+from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
-from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
 # Minimal pdstemplate templates.  Each references only variables the module under
 # test injects itself (BACKPLANE_*/BROWSE_FULL_*/COLLECTION_*/FILE_RECORDS) plus
@@ -409,9 +409,10 @@ NAVIGATED_TIMES: dict[str, float] = {
 }
 """The exposure epochs a success document records under ``navigation_result.times``.
 
-The labels pass fails an image whose document records none, since its data label states
-when the exposure began and ended, so every navigated document the plumbing tests write
-records these.
+A navigated image's document records its exposure's epochs beside its pointing, the
+labels pass fails an image whose document records none, and the summary pass reads them
+from every supplemental file, so every navigated document and every supplemental file
+the plumbing tests write records these.
 """
 
 
@@ -426,6 +427,15 @@ def navigated_document(**extra: Any) -> dict[str, Any]:
         ``times`` are :data:`NAVIGATED_TIMES`, with ``extra`` merged in.
     """
     return {'status': 'success', 'navigation_result': {'times': dict(NAVIGATED_TIMES)}, **extra}
+
+
+A_RANGE = EpochRange(start_et=129399999.77, stop_et=130700000.54)
+"""A range for the collection generator where what the label states is not the question.
+
+SPICE's ``et2utc`` writes the two epochs as ``2004-02-07T04:25:35.585`` and
+``2004-02-22T05:32:16.355``, so a label states the range as ``2004-02-07T04:25:35Z``
+to ``2004-02-22T05:32:17Z``.
+"""
 
 
 def write_nav_inputs(
@@ -502,37 +512,24 @@ def write_supplemental(
     bodies: dict[str, Any] | None = None,
     rings: dict[str, Any] | None = None,
     navigation: dict[str, Any] | None = None,
-    raw_text: str | None = None,
-    label: bool = True,
 ) -> Path:
-    """Write a product's ``<stub>_supplemental.txt`` and, beside it, its data label.
-
-    The labels pass writes a product's supplemental file and its data label, and the
-    summary pass refuses a data tree holding one without the other, so the placeholder
-    label :func:`touch_label` writes goes beside the file unless ``label`` is False.
+    """Write a ``<stub>_supplemental.txt`` file in the bundle data tree.
 
     Parameters:
         data_dir: The bundle's ``data`` directory.
         stub: Path stub (may include shard subdirectories) for the image.
         bodies: ``backplanes.bodies`` payload keyed by body name.
         rings: ``backplanes.rings`` payload (``{'backplanes': {...}}``).
-        navigation: The ``navigation`` document; an empty one, recording no
-            epochs, when None.
-        raw_text: Literal file content overriding the JSON payload entirely.
-        label: Whether the product's data label is written beside the file.
+        navigation: The ``navigation`` document; :func:`navigated_document`'s when
+            None.
 
     Returns:
         The path of the written supplemental file.
     """
     path = data_dir / f'{stub}_supplemental.txt'
     path.parent.mkdir(parents=True, exist_ok=True)
-    if label:
-        touch_label(data_dir, stub)
-    if raw_text is not None:
-        path.write_text(raw_text, encoding='utf-8')
-        return path
     payload = {
-        'navigation': navigation if navigation is not None else {},
+        'navigation': navigation if navigation is not None else navigated_document(),
         'backplanes': {
             'bodies': bodies if bodies is not None else {},
             'rings': rings if rings is not None else {},
@@ -573,24 +570,25 @@ def read_tab(path: Path) -> list[list[str]]:
 
 @dataclass
 class CohortBundleEnv:
-    """A bundle-generation environment over the cohort and the shipped templates.
+    """A bundle-generation environment over a cohort and its bundle's shipped templates.
 
     Where :class:`BundleEnv` controls every variable so that the substitution
     plumbing can be asserted on, this one controls none of them: the dataset is
-    the registered Cassini one, the templates are the shipped Cassini set, and
-    the inputs are the documents and products a navigation run and the
-    backplane stage leave behind.  What it is for is asserting what a label
-    says, which nothing built out of stand-ins can answer.
+    the registered one the cohort's bundle is built with, the templates are the
+    ones that dataset ships, and the inputs are the documents and products a
+    navigation run and the backplane stage leave behind.  What it is for is
+    asserting what a label says, which nothing built out of stand-ins can
+    answer.
 
     Attributes:
-        dataset: The registered Cassini ISS Saturn dataset, serving its own
-            ``pds4_*`` hooks and its own template directory.
+        dataset: The registered dataset the cohort's bundle is built with,
+            serving its own ``pds4_*`` hooks and its own template directory.
         cohort: The written cohort, holding both input roots and every image.
         bundle_results_root: Where this test's bundle goes.
         bundle_dir: ``bundle_results_root / <the dataset's bundle name>``.
     """
 
-    dataset: DataSetPDS3CassiniISSSaturn
+    dataset: DataSet
     cohort: Cohort
     bundle_results_root: Path
     bundle_dir: Path
@@ -610,7 +608,7 @@ def make_cohort_bundle_env(cohort: Cohort, tmp_path: Path) -> CohortBundleEnv:
     Returns:
         The populated :class:`CohortBundleEnv`.
     """
-    dataset = DataSetPDS3CassiniISSSaturn(cohort.holdings_root)
+    dataset = cohort.dataset()
     bundle_results_root = tmp_path / 'bundle'
     bundle_results_root.mkdir(parents=True, exist_ok=True)
     return CohortBundleEnv(

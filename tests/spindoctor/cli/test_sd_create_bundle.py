@@ -21,17 +21,12 @@ import pdstemplate
 import pytest
 from cloud_tasks.worker import WorkerData
 from filecache import FCPath
-from tests.spindoctor.cli.pds4.conftest import (
-    make_bundle_env,
-    navigated_document,
-    touch_label,
-    write_supplemental,
-)
+from tests.spindoctor.cli.pds4.conftest import make_bundle_env, touch_label, write_supplemental
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
 from spindoctor.cli.pds4.collections import GlobalIndexOutcome
-from spindoctor.cli.pds4.epochs import EpochRange, NoEpochRange
+from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 from spindoctor.dataset.dataset_sim import DataSetSim
 
@@ -81,7 +76,7 @@ REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
         'global_index_rings.lblx',
     ],
 }
-"""What the stub dataset declares each pass must find, as Cassini declares it."""
+"""What the stub dataset declares each pass must find: the templates that pass renders."""
 
 SUMMARY_PRODUCTS = (
     'data/collection_data.tab',
@@ -99,9 +94,8 @@ SUMMARY_PRODUCTS = (
 class _StubDataset:
     """A dataset serving the pds4_* hooks the drivers call, over chosen batches.
 
-    It carries a configuration declaring the backplanes it is given, as every
-    dataset carries one, since the drivers check the configured units before
-    they reach a hook.
+    It carries a configuration declaring no backplanes, as every dataset carries
+    one, for the summary pass's index generator to read.
     """
 
     def __init__(
@@ -111,8 +105,6 @@ class _StubDataset:
         image_count: int = 1,
         batch_count: int = 1,
         base_dir: Path | None = None,
-        bodies: list[dict[str, Any]] | None = None,
-        rings: list[dict[str, Any]] | None = None,
     ) -> None:
         """Prepare an enumeration of batches holding that many images each.
 
@@ -122,19 +114,12 @@ class _StubDataset:
             batch_count: How many batches the enumeration yields.
             base_dir: Directory the enumerated images live in; only a run that
                 reaches the real generation needs a real one.
-            bodies: ``config.backplanes.bodies`` entries; none when None.
-            rings: ``config.backplanes.rings`` entries; none when None.
         """
         self._template_dir = template_dir
         self._image_count = image_count
         self._batch_count = batch_count
         self._base_dir = base_dir
-        self.config = SimpleNamespace(
-            backplanes=SimpleNamespace(
-                bodies=bodies if bodies is not None else [],
-                rings=rings if rings is not None else [],
-            )
-        )
+        self.config = SimpleNamespace(backplanes=SimpleNamespace(bodies=[], rings=[]))
 
     def pds4_bundle_name(self) -> str:
         """Return the bundle name whose directory the run writes into."""
@@ -178,8 +163,6 @@ def _stub_dataset(
     image_count: int = 1,
     batch_count: int = 1,
     base_dir: Path | None = None,
-    bodies: list[dict[str, Any]] | None = None,
-    rings: list[dict[str, Any]] | None = None,
 ) -> _StubDataset:
     """Build the stub dataset over a template directory holding every template.
 
@@ -188,8 +171,6 @@ def _stub_dataset(
         image_count: How many images each enumerated batch holds.
         batch_count: How many batches the enumeration yields.
         base_dir: Directory the enumerated images live in.
-        bodies: ``config.backplanes.bodies`` entries the dataset's configuration declares.
-        rings: ``config.backplanes.rings`` entries the dataset's configuration declares.
 
     Returns:
         The stub dataset, whose template directory is already populated.
@@ -204,27 +185,6 @@ def _stub_dataset(
         image_count=image_count,
         batch_count=batch_count,
         base_dir=base_dir,
-        bodies=bodies,
-        rings=rings,
-    )
-
-
-def _dataset_with_unusable_units(tmp_path: Path) -> _StubDataset:
-    """Build the stub dataset declaring planes in units neither pass can use.
-
-    One plane is in a unit the index cannot size, one in a null unit, and one
-    has no units key at all.
-
-    Parameters:
-        tmp_path: Base temporary directory the template directory lives under.
-
-    Returns:
-        The stub dataset, whose configuration both passes refuse.
-    """
-    return _stub_dataset(
-        tmp_path,
-        bodies=[{'name': 'body_tilt', 'units': 'mrad'}],
-        rings=[{'name': 'ring_radius', 'units': None}, {'name': 'ring_tilt'}],
     )
 
 
@@ -259,7 +219,7 @@ def summary_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sd_create_bundle,
         'parse_args_summary',
-        lambda _: argparse.Namespace(dataset_name='coiss_saturn'),
+        lambda _: argparse.Namespace(dataset_name='stub'),
     )
     monkeypatch.setattr(sd_create_bundle, 'load_default_and_user_config', lambda *a: None)
     monkeypatch.setattr(sd_create_bundle, 'build_run_logging', lambda *a: None)
@@ -287,7 +247,7 @@ def _summary_counts(monkeypatch: pytest.MonkeyPatch, collections: int, index: in
         collections: Failed collection labels to report.
         index: Failed global index labels to report.
     """
-    outcome = GlobalIndexOutcome(failed_labels=index, epochs=NoEpochRange('not taken here'))
+    outcome = GlobalIndexOutcome(failed_labels=index, epochs=None)
     monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', lambda **kwargs: collections)
     monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
 
@@ -408,31 +368,6 @@ def test_main_labels_refuses_a_template_the_dataset_does_not_have(
     assert excinfo.value.code == 1
     assert calls == []
     assert f'PDS4 template not found: {missing}' in capsys.readouterr().out
-
-
-def test_main_labels_refuses_a_unit_the_bundle_cannot_use(
-    labels_run: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A configured backplane in a unit the bundle cannot use ends the labels run at once.
-
-    The pass holds every document to the configured unit, so a unit it cannot
-    use, one the index has no format for or none at all, fails every image
-    the same way; the run names each such entry once, before it has read an
-    image, and leaves the bundle root as it found it.
-    """
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _dataset_with_unusable_units(tmp_path))
-    calls = _record_generation(monkeypatch)
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_labels()
-    assert excinfo.value.code == 1
-    assert calls == []
-    assert not (tmp_path / BUNDLE_NAME).exists()
-    out = capsys.readouterr().out
-    assert 'Backplane body_tilt declares a unit the bundle cannot use' in out
-    assert 'Backplane ring_radius declares a unit the bundle cannot use' in out
 
 
 def test_main_labels_exits_non_zero_when_a_product_fails(
@@ -663,39 +598,6 @@ def test_main_summary_refuses_a_template_the_dataset_does_not_have(
     assert f'PDS4 template not found: {missing}' in capsys.readouterr().out
 
 
-def test_main_summary_refuses_a_unit_the_bundle_cannot_use(
-    summary_run: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The summary pass refuses the same units up front, before it reads the data tree.
-
-    Every unusable backplane is named, where the index writer, left to it, would
-    stop on the first plane it could not format; and neither generator is called,
-    the check coming before both, so nothing in the bundle is written or cleared.
-    """
-    dataset = _dataset_with_unusable_units(tmp_path)
-    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
-    called: list[str] = []
-    monkeypatch.setattr(
-        sd_create_bundle, 'generate_global_index_files', lambda **kwargs: called.append('index')
-    )
-    monkeypatch.setattr(
-        sd_create_bundle,
-        'generate_collection_files',
-        lambda **kwargs: called.append('collections'),
-    )
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-    assert called == []
-    out = capsys.readouterr().out
-    assert 'Backplane body_tilt declares a unit the bundle cannot use' in out
-    assert 'Backplane ring_radius declares a unit the bundle cannot use' in out
-    assert 'Backplane ring_tilt declares no units' in out
-
-
 def _latitude_in(units: str) -> dict[str, Any]:
     """Return one body's latitude statistic, recorded in the given unit.
 
@@ -707,46 +609,22 @@ def _latitude_in(units: str) -> dict[str, Any]:
     Returns:
         The ``backplanes.bodies`` payload of a supplemental file.
     """
-    return {'MIMAS': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': units}}}}
+    return {'MOON': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': units}}}}
 
 
-@pytest.mark.parametrize(
-    ('bodies', 'raw_text', 'reason'),
-    [
-        (
-            _latitude_in('rad'),
-            None,
-            'records the latitude statistic in rad where the configuration expects deg',
-        ),
-        (None, 'not json', 'could not be read: Expecting value: line 1 column 1 (char 0)'),
-    ],
-    ids=['a statistic in another unit', 'a file that is not JSON'],
-)
 def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     summary_run: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    bodies: dict[str, Any] | None,
-    raw_text: str | None,
-    reason: str,
 ) -> None:
     """A run refused over a supplemental file leaves no file of the pass behind.
 
     The first run writes every file of the pass; the second is refused over a second
-    supplemental file, one recording its statistic in another unit or one that is not
-    JSON.  Both generators are the real ones, so an earlier run's inventory or
-    collection label left beside no index is reported here, as is an earlier run's
-    index; and the log gives the reason the run was refused.
-
-    Parameters:
-        summary_run: Fixture standing the subcommand up on stubs.
-        monkeypatch: Fixture the dataset and the bundle root are installed through.
-        tmp_path: Base temporary directory.
-        capsys: Fixture capturing the log.
-        bodies: The second file's body statistics, when it holds a document.
-        raw_text: What the second file holds in place of a document, or None.
-        reason: What the log says of the second file.
+    supplemental file, one recording its statistic in another unit.  Both generators
+    are the real ones, so an earlier run's inventory or collection label left beside
+    no index is reported here, as is an earlier run's index; and the log gives the
+    reason the run was refused.
     """
     env = make_bundle_env(tmp_path / 'env', bodies=[{'name': 'latitude', 'units': 'rad'}])
     dataset = env.dataset.as_dataset()
@@ -756,27 +634,17 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     )
     data_dir = env.bundle_dir / 'data'
     touch_label(data_dir, 'shard0/1111111111n')
-    write_supplemental(
-        data_dir,
-        'shard0/1111111111n',
-        bodies=_latitude_in('deg'),
-        navigation=navigated_document(),
-    )
+    write_supplemental(data_dir, 'shard0/1111111111n', bodies=_latitude_in('deg'))
     sd_create_bundle.main_summary()
     products = [env.bundle_dir / name for name in SUMMARY_PRODUCTS]
     assert [product for product in products if not product.exists()] == []
-    write_supplemental(
-        data_dir,
-        'shard0/2222222222w',
-        bodies=bodies,
-        navigation=navigated_document(),
-        raw_text=raw_text,
-    )
+    write_supplemental(data_dir, 'shard0/2222222222w', bodies=_latitude_in('rad'))
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
     assert [product for product in products if product.exists()] == []
-    assert reason in capsys.readouterr().out
+    expected = 'records the latitude statistic in rad where the configuration expects deg'
+    assert expected in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -850,7 +718,7 @@ def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
     statement that raised but not the path it interpolated, so the path is what says
     the reason reached the log.
     """
-    outcome = GlobalIndexOutcome(failed_labels=0, epochs=NoEpochRange('not taken here'))
+    outcome = GlobalIndexOutcome(failed_labels=0, epochs=None)
     monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
@@ -958,7 +826,7 @@ def _process_cloud_task() -> tuple[bool, Any]:
         The worker's retry flag and result.
     """
     task_data = {
-        'dataset_name': 'coiss_saturn',
+        'dataset_name': 'stub',
         'files': [
             {
                 'image_file_url': '/hermetic/1234567890w.img',
@@ -986,32 +854,6 @@ def test_a_cloud_task_reports_a_product_it_wrote(
     """A product whose labels are on disk still comes back a success."""
     _, result = _run_cloud_task(monkeypatch, BundleDataOutcome.WRITTEN)
     assert result == {'status': 'success'}
-
-
-def test_a_cloud_task_refuses_a_unit_the_bundle_cannot_use(
-    cloud_task_run: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A task under a configuration no index column can format generates nothing.
-
-    The check each document gets covers only the planes that document holds, so
-    a task over images whose documents hold none of these planes would otherwise
-    write labels the summary pass then refuses to index.  Every unusable entry is
-    named in the one result, as the two passes name each in their log.
-    """
-    dataset = _dataset_with_unusable_units(tmp_path)
-    monkeypatch.setattr(
-        sd_create_bundle_cloud_tasks, 'dataset_name_to_class', lambda _: lambda: dataset
-    )
-    calls = _record_generation(monkeypatch, module=sd_create_bundle_cloud_tasks)
-    retry, result = _process_cloud_task()
-    assert calls == []
-    assert retry is False
-    status = {key: value for key, value in result.items() if key != 'status_exception'}
-    assert status == {'status': 'error', 'status_error': 'unusable_unit'}
-    reported = result['status_exception']
-    assert 'Backplane body_tilt declares a unit the bundle cannot use' in reported
-    assert 'Backplane ring_radius declares a unit the bundle cannot use' in reported
-    assert 'Backplane ring_tilt declares no units' in reported
 
 
 def test_the_labels_parser_builds_a_dataset_that_reads_no_holdings(

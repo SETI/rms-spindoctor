@@ -29,9 +29,9 @@ Phases 1-4 have run; Phases 5-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
-so has to be settled before a label describes one. A third, the statistics
-units fix recorded in section 3.8, landed with Phase 2 rather than ahead of it,
-and for the same reason: it alters what the metadata documents contain and
+so has to be settled before a label describes one. A third, the statistics'
+conversion to degrees, each statistic recording its unit (section 3.8), landed
+with Phase 2 rather than ahead of it, and for the same reason: it alters what the metadata documents contain and
 therefore what Phase 7's tables and labels are sized and written against.
 
 This plan is the "finish and validate the Cassini path" half of #53, which
@@ -67,16 +67,17 @@ about images that did not navigate), #601 (the masked value, whose
 `Special_Constants` declaration Phase 4 made; what remains of it is the
 index tables' missing value, which Phase 7 settles), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
-6 own), #611 (the backplane viewer carries the same unit equality the
-statistics carried, on the same plane), #614 (a dataset without PDS4 support
+6 own), #611 (the backplane viewer decides degrees from `BUNIT` and the plane's
+name rather than through `statistics_units`, so it shows the `rad/pixel` plane
+in radians per pixel), #614 (a dataset without PDS4 support
 ends both passes in a traceback rather than a refusal). #603, the two passes
 disagreeing about a missing template, was closed by hand on 2026-09-11, after
 #605, Phase 1's PR, merged. #607, the index tables written to one precision
 whatever the column's unit, closes in Phase 2 with a format per unit (section
 3.8); the missing-value sentinel it raised beside that is Phase 7's. #519,
-which predates this plan and found every data label's start and stop empty,
-closes with Phase 3 (section 3.4). #69, which predates it too and asked for
-the FITS to be described in its data label, closes with Phase 4 (section 3.3).
+which found every data label's start and stop empty, closes with Phase 3
+(section 3.4). #69, which asked for the FITS to be described in its data label,
+closes with Phase 4 (section 3.3).
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -191,29 +192,29 @@ plan).
 | 2 | `bundle.lblx` is never written. The template exists and nothing references it: `grep -rn "bundle.lblx" src/ --include=*.py` is empty. | — | #265 area |
 | 3 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. Two more, `miscellaneous` and `spice_kernels`, are neither declared nor generated; section 3.1 adds both, moving the global index tables into the first and the metakernel into the second. | — | #72, #74 |
 | 4 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
-| 5 | `<start_date_time>` and `<stop_date_time>` are empty in every data label and in `collection_data.lblx`. The code reads `observation.start_time`; the document holds `navigation_result.times.{start_et,stop_et,midtime_et}`. `collections.py:80-81` separately hardcodes the collection range to `''`. | `dataset_pds3_cassini_iss.py:589-593`, `collections.py:80-81` | #519 |
-| 6 | `File_Area_Observational` has a `<File>` and no data object. The FITS carries a `PrimaryHDU` plus one `ImageHDU` per surviving backplane (9 HDUs on the verified frame); `writer.py:58-60` drops any plane with no valid pixels, so the set is per-image dynamic. | `data.lblx:174-183` | #69, #30 |
-| 7 | `data.lblx:104` references `<local_identifier_reference>image</local_identifier_reference>`; no object in the label defines that identifier. Falls out of 6. |  `data.lblx:104` | **new** |
-| 8 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
-| 9 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
-| 10 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
-| 11 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
-| 12 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
-| 13 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
-| 14 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 15 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
-| 16 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
-| 17 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 18 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 19 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label, since Phase 4, declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
+| 5 | `File_Area_Observational` has a `<File>` and no data object. The FITS carries a `PrimaryHDU` plus one `ImageHDU` per surviving backplane (9 HDUs on the verified frame); `writer.py:58-60` drops any plane with no valid pixels, so the set is per-image dynamic. | `data.lblx:174-183` | #69, #30 |
+| 6 | `data.lblx:104` references `<local_identifier_reference>image</local_identifier_reference>`; no object in the label defines that identifier. Falls out of 5. |  `data.lblx:104` | **new** |
+| 7 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
+| 8 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
+| 9 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
+| 10 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
+| 11 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
+| 12 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
+| 13 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
+| 14 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
+| 15 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
+| 16 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 17 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 18 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619; no phase (navigation) |
+| 19 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
-None of these gets its own tracking issue. Every row is fixed by a named
-phase of this plan, which carries the evidence and the disposition together;
+No row but 18 gets its own tracking issue. Each of the others is fixed by a
+named phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
 every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Defect 1 belongs to
-#265 and #69, and its `xfail` became a passing test in Phase 4. The rows that
-*would* have
+#265 and #69, and its `xfail` became a passing test in Phase 4. Row 18 is the
+navigation's, owned by no phase, and is tracked as #619. The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
 difference between the arrays and the tables as settled design rather than a
@@ -442,19 +443,15 @@ Phase 10's `validate` run.
 `navigation_result.times` holds `start_et`, `stop_et` and `midtime_et` as
 TDB seconds past J2000. `spindoctor/support/time.py` is the one rule that
 turns one into UTC: `et_to_utc` writes the plain ISO spelling the observation
-metadata and the statistics report use, and `et_to_pds4_utc` the spelling a
-PDS4 label takes, `ASCII_Date_Time_YMD_UTC` with its trailing `Z`, to a given
-number of decimals, rounded to the nearer or down or up. The module this plan
-first named, `spindoctor/cli/stats/classify.py`, no longer exists; the
-statistics report's two derived values, `date_from_image_et` and
-`datetime_from_image_et` in `spindoctor/nav_records/derived.py`, carried the
-second and third copies of `julian.iso_from_tai(julian.tai_from_tdb(...))`,
-and now go through `et_to_utc` with the same digits, which leaves the report
-byte-identical: regenerating the statistics fixture tree and its golden output
-changes nothing. `julian` agrees with SPICE's `et2utc` to the millisecond over
-the Cassini mission, both leap seconds included, and an integration test holds
-the cohort's epochs to the leapseconds kernel. #519 asked for exactly this and
-said so. The C-kernel report converts through `cspyce.et2utc` against the
+metadata and the statistics report use (the report's `date_from_image_et` and
+`datetime_from_image_et` in `spindoctor/nav_records/derived.py`), and
+`et_to_pds4_utc` the spelling a PDS4 label takes, `ASCII_Date_Time_YMD_UTC`
+with its trailing `Z`, to a given number of decimals, rounded to the nearer or
+down or up. `julian` agrees with SPICE's `et2utc` to the millisecond over the
+Cassini mission, both leap seconds included, and an integration test,
+`tests/integration/test_cohort_cassini_epochs_against_kernel.py`, holds the
+Cassini cohort's epochs to the leapseconds kernel. #519 asked for exactly this
+and said so. The C-kernel report converts through `cspyce.et2utc` against the
 kernel its generator furnishes, and is the one conversion outside the rule.
 
 A data label states its exposure's start and stop to the millisecond, each
@@ -486,39 +483,36 @@ and which of its rules this bundle follows for which element.
 
 An image whose navigation never reached a solution has no `times` block;
 section 3.11 says what happens to it, and the answer is that it never reaches
-a label. A success document always has one, so the labels pass holds every
-document it labels to recording it -- `spindoctor.cli.pds4.epochs.unrecorded_epoch`:
-all three epochs, each a finite number, the stop no earlier than the start --
-and fails an image whose document does not before anything is written for it,
-the way it fails a statistic no index column can hold. The empty string is not
+a label. A success document has one only beside a pointing: `build_metadata_dict`
+writes `times` with the pointing, and the navigation records a success with no
+pointing when `compute_pointing` raises `NavPointingError` or the instrument has
+no SPICE camera frame mapped (#619 proposes recording the times for every
+result; section 2.2 row 18). That is a document this package's navigation
+writes, so the labels pass fails such an image before anything is written for
+it, its log saying the navigation recorded no exposure times. It checks only
+that the block is there, since the block always holds all three epochs, and
+nothing else about them (the operator's ruling of 2026-09-11 that nothing
+guards against our own files). The summary pass needs no check: the labels pass
+writes no supplemental file for an image it failed. The empty string is not
 reachable.
 
 The data collection label states the cohort's earliest start and latest stop,
 at whole seconds as the reference's collection and bundle labels do, the start
-rounded down and the stop up, so the range contains every product's own start
-and stop as its data label writes them: the nearest millisecond of an epoch is
-never before the whole second at or before it, nor after the one at or after
-it. The summary pass already read
+rounded down and the stop up. The summary pass already read
 every supplemental file to build the global index, so the range is taken
 there, in that same read, by an `EpochRangeScan`. The index therefore runs
 before the collection files in `main_summary`, and returns the range in a
 `GlobalIndexOutcome`, which the driver hands to `generate_collection_files`
 and holds for `bundle.lblx`, which Phase 6 renders, without a second
-computation. With no range to state -- no supplemental file, or one whose
-document the epoch check refuses -- the data collection label is counted as
-not written, with an error saying why, and the inventory table is still
-written. A supplemental file that cannot be read, or does not hold a JSON
-object, refuses the run before either index table is written, naming the file
-and the reason or what it holds, the way a statistic no column can hold is
-refused: left out of the index its product would still be in the inventory,
-with no epochs for the range. So does a supplemental file with no data label
-beside it, or a data label with no supplemental file, naming both: the
-inventory lists products by their data labels, and the index and the range
-read the supplemental files, so the two would disagree about the product. A
-labels pass whose data label failed to render leaves the first. Running
-first, the index generator refuses a
-bundle with no data directory itself, as the collection generator does, rather
-than write its tables into a root the labels pass would then refuse.
+computation. With no range to state -- the data tree holds no supplemental
+file -- the data collection label is counted as not written, with an error
+saying so, and the inventory table is still written. The supplemental files
+are read as the labels pass wrote them, with nothing checked but the
+statistics (the same ruling); a data label that failed to render is reported
+by the labels pass, and the bundle is regenerated before the summary pass
+runs. Running first, the index generator refuses a bundle with no data
+directory itself, as the collection generator does, rather than write its
+tables into a root the labels pass would then refuse.
 
 ### 3.5 Inventories
 
@@ -577,7 +571,7 @@ The draft is acceptable either way; a bundle delivered to the Node is not.
 Acceptance criterion 8 records that distinction.
 
 Whichever way it goes, the LID gets its `:document:` segment back in all
-three places that drop it (defect 13).
+three places that drop it (defect 12).
 
 ### 3.7 Targets and the mission area
 
@@ -608,95 +602,51 @@ backplane metadata.
 ### 3.8 Units: radians in the arrays, degrees in the tables
 
 The FITS arrays are radians and say so in `BUNIT`. The statistics -- and
-therefore the global index tables -- are degrees. Both per-source stages reduce
-their planes through `spindoctor/cli/backplanes/statistics.py`, which converts
-an angular plane and records the unit the resulting minimum and maximum are in
-beside them, so the document states which of the two conventions each statistic
-follows rather than leaving a reader to infer it from the plane's name.
+therefore the global index tables -- are degrees, and each statistic records
+its unit beside its minimum and maximum. Both per-source stages reduce their
+planes through `spindoctor/cli/backplanes/statistics.py`, whose
+`statistics_units` holds the rule: if the part of a unit before any `/` is
+exactly `rad`, it becomes `deg` and the rest is kept, so `rad/pixel` becomes
+`deg/pixel`; every other unit is left alone. The index tables are read by
+people, and the operator's ruling of 2026-09-09 is that everything in them is
+degrees.
 
-What is compared there is the unit's measure, everything up to the first
-solidus, and not the whole string: `rad` becomes `deg` and `rad/pixel` becomes
-`deg/pixel`, while `km` and `km/pixel` are left alone. That generality is not
-decoration. The rule was first written as an equality against the whole string,
-and `ring_longitudinal_resolution` is declared `rad/pixel`, so it was the one
-angular column of the tables published in radians per pixel while every other
-angular column was degrees -- a table mixing units without saying so, which for
-a human-readable product is worse than the precision loss #607 was opened for.
+The tables are written with a format per unit (#607), from
+`INDEX_VALUE_FORMATS` in `collections.py`: three decimals for `deg`, one for
+`km`, eight for `deg/pixel`, and five significant figures for `km/pixel`,
+written positionally, never in exponent form. The arrays are float32, so a
+statistic carries about seven significant digits; each format is chosen within
+that from what one pixel resolves, the eight decimals of `deg/pixel` reaching
+its edge. No format fixes a column's width, so Phase 7 sizes each field from the widest
+value its column holds. Nothing checks the configured units when a bundle is
+written (the operator's ruling of 2026-09-11): two tests over the shipped
+configuration are the guard, one holding each measure to the ones
+`statistics_units` converts or passes through and the other each unit to
+`INDEX_VALUE_FORMATS`, so an angular unit other than `rad` (`mrad`, `arcsec`)
+fails them until `statistics_units` handles it.
 
-The formatting half of #607 closes here too. The tables are written with a
-format per unit, from one public mapping in `collections.py`: three decimals
-for `deg`, one for `km`, eight for `deg/pixel`, and five significant figures
-for `km/pixel`, written positionally, never in exponent form, whose values
-run from 6e-4 a hundred kilometres off Enceladus to 7e4 at the grazing limb
-of a wide-angle frame (`70853` on W1629148548_1). The ceiling on all of them
-is seven significant digits, because the arrays are float32 and a statistic
-cannot carry more than the plane it was taken from; the formats are chosen
-within that from what one pixel resolves. No format fixes a column's width:
-values under one format differ in length, so Phase 7 sizes each field from
-the widest value its column holds. A plane declared in a unit the mapping
-cannot size fails either pass before it reads anything.
+Both passes hold every statistic to what an index column can hold, through
+`spindoctor/cli/pds4/statistic_checks.py`, since every column is in one unit
+and holds only finite numbers: the unit a statistic records has to be its
+plane's configured unit restated through `statistics_units`, and neither its
+minimum nor its maximum may be NaN or infinite. A statistic in another unit, or
+with a NaN or infinite minimum or maximum, fails its image in the labels pass,
+before anything is written for it, and fails the run in the summary pass,
+before either index table is written. The remedy is to regenerate the
+backplanes, and for the summary pass then the bundle into an empty directory.
+A plane the document holds that the configuration does not declare is not
+checked. Both are the operator's rulings of 2026-09-10. The documents are
+written by this package's own software, so nothing else about them is checked:
+no value a writer of ours cannot produce is guarded against (the operator's
+ruling of 2026-09-11). The summary pass renders every cell of both tables
+before it opens either, so no failure of any kind leaves a table half-written.
 
-Radians is spelled `rad` and degrees `deg`, which is both what the
-configuration writes and what the PDS4 units-of-angle vocabulary names, so the
-unit Phase 7 puts in a label is a token that vocabulary has. An angle spelled
-another way -- `mrad`, `arcsec` -- needs scaling as well as renaming and is not
-converted; a test over the shipping configuration fails if one is ever
-declared, which is the only place such an entry can appear. The operator's
-ruling of
-2026-09-09 is that the index tables are human-readable and everything in them
-is degrees; the fix landed on `rf_pds4_phase2` ahead of the phases that consume
-the statistics.
-
-A backplane root can hold documents written before the conversion beside
-regenerated ones -- a ring longitudinal resolution in `rad/pixel`, or a
-statistic with no `units` key at all -- and one index column would then be
-in two units with nothing saying so. The bundle stage reads the unit every
-statistic now records: a document whose statistic for a configured plane is
-not in the unit the configuration gives that plane fails its image before
-anything is written for it, rather than being indexed. That is the
-operator's decision of 2026-09-10, and the remedy is to regenerate the
-backplanes. The summary pass makes the same comparison, from one module
-both passes share, on each supplemental file it reads, which holds that
-document, and refuses the run before writing either index table when one
-disagrees. Such a file was written from a backplane document recorded before
-the statistics carried their unit, or under another configuration -- the
-likeliest case being a whole tree from one labels run that predates the
-unit -- so the remedy is the labels pass's: regenerate the backplanes, then
-the bundle into an empty directory. A plane the document holds that the
-configuration does not declare is not compared. Beside that guard, both
-passes refuse before reading anything a configuration that declares a
-backplane in a unit the bundle cannot use -- a spelling the format mapping
-lacks, or no `units` at all -- naming every such entry once, as the
-missing-template check does. `sd_create_bundle_cloud_tasks` makes the same
-check per task, through the same `unusable_units`, and returns the task as an
-`unusable_unit` error having generated nothing: the per-document guard sees
-only the planes a document holds, so without it every task would write labels
-the summary pass then refuses.
-
-A minimum or maximum that is not a finite number within the range of a
-float -- NaN, an infinity, an integer too large for a float, or no number at
-all -- is refused the same way, by the same module: it fails its image in the
-labels pass and the run in the summary pass, since no column can hold it and
-a blank in its place would say the plane measured nothing. That was decided
-on 2026-09-10, after a NaN kilometers-per-pixel statistic in one supplemental
-file was found to stop the index writer halfway through the bodies table
-with a message naming neither the file nor the plane. The summary pass
-renders every cell of both tables before it opens either, so no failure of
-any kind leaves a table half-written.
-
-`sd_backplane_viewer` still decides the same question the same way, and so
-displays that one plane in radians per pixel. Nothing this plan generates goes
-through it, so it is #611 rather than a phase; what it needs from here is to
+`sd_backplane_viewer` has its own rule: it converts a plane whose `BUNIT` is
+`rad` in any letter case, or whose name contains an angle's name, so it
+displays the one plane declared `rad/pixel` in radians per pixel. Nothing this
+plan generates goes through it, so it is #611 rather than a phase: it needs to
 call `statistics_units` instead of testing for a literal, and a ruling on the
-name heuristic it carries beside that test for an HDU with no `BUNIT`.
-
-**This is the design and it stays.** The two products have different
-readers. A backplane array is consumed by software, which wants the unit its
-trigonometry is already in and no conversion step it can get wrong. An index
-table is read by a person deciding whether an image is worth opening, and a
-latitude range of -88 to 81 tells them that where -1.54 to 1.42 does not.
-Making them agree would cost one of the two readers the form it wants, to
-satisfy a consistency no reader is asking for.
+name heuristic.
 
 What follows for the labels, and what a later reader must not "fix":
 
@@ -705,26 +655,16 @@ What follows for the labels, and what a later reader must not "fix":
   array, and the array is radians.
 - The `Field_Character` blocks Phase 7 generates for the global index take
   their `unit` from the same config entry the column was built from, mapped
-  through `statistics_units`, which is the function that produced the
-  column's values. An angular column is labelled `deg`, a resolution in
-  radians per pixel `deg/pixel`. Phase 7 calls it rather than reproducing
-  it, so a label and the column it describes cannot disagree.
+  through `statistics_units`, the function that produced the column's values,
+  so a label and the column it describes cannot disagree: an angular column is
+  labelled `deg`, a resolution in radians per pixel `deg/pixel`.
 - So one bundle carries `unit="rad"` on an array and `unit="deg"` on the
-  table summarizing it, deliberately. Both labels are correct about the file
-  they describe, which is the only thing a label is required to be correct
-  about.
+  table summarizing it, deliberately: each label is correct about the file it
+  describes.
 
-Two places say so in prose rather than leaving it to be rediscovered: the
-backplanes user guide and the backplanes developer guide, both of which carry
-the difference and the recorded unit. The conversion site says it too --
-`statistics.py` exists to hold the rule and its module docstring is where the
-reasoning lives -- rather than reading as an incidental unit fix. What is still
-section 3.6's operator deliverable is the user-guide PDF, which repeats it for
-the bundle's own readers.
-
-It is worth expecting the RMS Node to ask about it during review. The answer
-above is the answer; the point of writing it down here is that it should be
-given once, from the plan, rather than reconstructed under review.
+The backplanes user and developer guides and the docstring of
+`statistics.py` state the rule; section 3.6's operator deliverable, the
+user-guide PDF, repeats it for the bundle's own readers.
 
 ### 3.9 Dictionary versions
 
@@ -830,8 +770,8 @@ touches no SPICE and no holdings, it covers three instruments, three
 outcomes, BOTSIM pairs and gated features, and it derives every spacecraft
 clock reading from the epoch beside it rather than inventing one.
 
-That package is the nav half of the cohort, and it holds the cohort in a set
-of its own rather than by extending the set it already held. The two sets are
+That package is the nav half of every cohort, and it holds the cohorts in sets
+of their own rather than by extending the set it already held. The two sets are
 selected for different things. The eight documents in
 `results_tree_documents()` are chosen for what they make the *statistics
 report* exercise -- three outcomes, four feature sources, a BOTSIM pair, a
@@ -844,18 +784,22 @@ The stored golden output is cheap to regenerate and no one has signed it
 off, so the cost of touching it is not the argument. The argument is that a
 fixture selected for two unrelated criteria stops being legible for either.
 
-So the package holds a **second document set**, `cohort_documents()`, built
-from the same `shared.py` primitives and written to a cohort root rather
-than into `RESULTS_TREE`. `results_tree_documents()` and the stats fixture
-tree are untouched by it.
+So the package holds a **cohort per bundle**, each a `Cohort` subclass in a
+module named for the bundle and registered in `COHORTS`, built from the same
+`shared.py` primitives and written to a cohort root rather than into
+`RESULTS_TREE`. The Cassini ISS Saturn cohort, `CohortCassiniISSSaturn` in
+`cohort_cassini.py`, is the one that exists. `results_tree_documents()` and the
+stats fixture tree are untouched by it.
 
-**The cohort is never checked in.** It is built once a session into a
-directory `tmp_path_factory` makes, and torn down with it; no cohort bytes live under `tests/`, and the
-`python -m tests.mini_nav_results cohort <outdir>` form writes wherever the
-operator points it. The builders are the artifact, not their output. That is
-what keeps a fifth instrument's cohort from costing the repository anything
--- adding one is a module beside `cohort_cassini.py`, and the FITS, the PNGs
-and the tables it implies exist only while a test is running.
+**No cohort is checked in.** Each is built once a session into a directory
+`tmp_path_factory` makes, and torn down with it; no cohort bytes live under
+`tests/`, and the `python -m tests.mini_nav_results cohort <bundle> <outdir>`
+form writes wherever the operator points it. The builders are the artifact, not
+their output. That is what keeps a second bundle's cohort from costing the
+repository anything -- adding one is one module, a `Cohort` subclass supplying
+the bundle's images, holdings layout, camera reading, plane bounds and
+registered dataset, and one entry in `COHORTS` -- and the FITS, the PNGs and
+the tables it implies exist only while a test is running.
 
 The two sets differ on this deliberately, and it is worth saying why rather
 than leaving it to look like an inconsistency. The stats tree stays stored
@@ -867,11 +811,14 @@ cohort has no such frozen counterpart -- what it feeds is a schema
 validator, which is an external judge -- so storing it would buy nothing and
 cost the repository a growing pile of binary fixtures.
 
-Build it once per session rather than once per test: a session-scoped
-fixture that writes the cohort into a temporary directory, since a dozen
-label tests should not each rewrite a FITS.
+Build each once per session rather than once per test: the session-scoped
+`mini_nav_cohorts` fixture writes a cohort class into a temporary directory the
+first time a test asks for it, since a dozen label tests should not each
+rewrite a FITS. The self-tests every cohort is held to run over each registered
+cohort; what only one bundle's cohort can state is tested in a module named for
+the bundle.
 
-What the cohort set holds beyond the documents:
+What the Cassini ISS Saturn cohort holds beyond the documents:
 
 - **A summary PNG per successful image.** A real PNG, small; the browse
   label states its byte size and checksum.
@@ -891,7 +838,7 @@ What the cohort set holds beyond the documents:
   `1234xxxxxx/123456xxxx` directories, one image with ring backplanes and one
   without, and one image whose navigation did not succeed.
 
-Three things about the cohort's products are known not to hold, and are
+Three things about the Cassini cohort's products are known not to hold, and are
 recorded here rather than only in a docstring, because each is a
 property of the product a later phase describes rather than of the code
 that writes it.
@@ -928,10 +875,11 @@ Two rules bind the additions.
 happens otherwise: four Cassini documents in the statistics set carry clock
 seconds taken from the image number rather than converted from the epoch
 beside them. The response here is not a test that exempts those four. It is
-a `shared.py` constructor that takes an epoch and returns the clock triple,
-so a document built through it cannot carry an invented one, and a second
-beside it derives the image number from the same epoch. The cohort set is
-built entirely through both. Routing the existing four through it as well
+a constructor in `host_cassini.py`, the Cassini host's module, that takes an
+epoch and returns the clock triple, so a document built through it cannot
+carry an invented one, and a second beside it derives the image number from
+the same epoch. The Cassini cohort is built entirely through both; another
+host's cohort brings its own. Routing the existing four through it as well
 is #530's own work -- a coordinated change to four documents, four
 filenames, the `filtered` variant's image-number bounds and both goldens,
 which belongs in a PR about the statistics fixtures rather than on a PDS4
@@ -950,8 +898,9 @@ reaching much further has to measure that again or take a third point;
 the arithmetic is a line either way and no SPICE is called at build
 time.
 
-What holds it there is an `integration`-marked test that furnishes the
-kernel and converts every cohort epoch again. It has to be that test and
+What holds it there is an `integration`-marked test,
+`tests/integration/test_cohort_cassini_clock_against_kernel.py`, that furnishes
+the kernel and converts every cohort epoch again. It has to be that test and
 cannot be one of the cohort's own: those compare a reading to a reading
 and a name to the reading it came from, both derived here from one
 function, so they report a hand-authored triple added later -- their
@@ -987,19 +936,20 @@ mistake a package under `tests/` for the naming of the roots themselves.
 Its docstring says which roots it writes so the point does not have to be
 re-derived.
 
-The cohort builder lives in the same package rather than beside it, so there
-is one name and one entry point. That entry point takes the set to write and
-where to write it, in that order, for both sets alike -- an argument that
-changes *which* files are written depending on whether a later argument is
-present is exactly the surprise a fixture tool should not hold:
+The cohort builders live in the same package rather than beside it, so there
+is one name and one entry point. That entry point takes the set to write, for a
+cohort the bundle whose cohort it is, and where to write it, in that order --
+an argument that changes *which* files are written depending on whether a later
+argument is present is exactly the surprise a fixture tool should not hold:
 
 ```bash
 PYTHONPATH=src python -m tests.mini_nav_results results_tree \
     tests/spindoctor/cli/stats/data/results_tree
-PYTHONPATH=src python -m tests.mini_nav_results cohort <outdir>
+PYTHONPATH=src python -m tests.mini_nav_results cohort cassini_iss_saturn <outdir>
 ```
 
-Both arguments are required in both forms. The stats path is spelled out
+Every argument is required, a cohort's bundle being one of the names in
+`COHORTS`. The stats path is spelled out
 rather than defaulted so that regenerating a checked-in fixture tree is
 something the operator asked for by name; it is written here and in the
 package docstring so it can be copied rather than remembered.
@@ -1263,11 +1213,13 @@ in Phase 10.
 `tests/mini_nav_results/` is the fixture cohort section 3.12 describes: the
 package moved out of the statistics suite that held it, with two document sets
 built through the production writers. `results_tree_documents()` is the statistics fixture
-tree, unchanged and still stored under `tests/spindoctor/cli/stats/data/`;
-`cohort_documents()` is the three Cassini images bundle generation is asserted
-against, and is never stored.
+tree, unchanged and still stored under `tests/spindoctor/cli/stats/data/`,
+composed from each host's own documents; the cohorts, one `Cohort` subclass per
+bundle registered in `COHORTS`, are what bundle generation is asserted against,
+and are never stored. The one that exists, `CohortCassiniISSSaturn`, is three
+Cassini images.
 
-The cohort is two navigated images and one that is not. The two shard into
+The Cassini cohort is two navigated images and one that is not. The two shard into
 different `1234xxxxxx/123456xxxx` pairs at both levels, one carries ring
 backplanes and one carries none, and each navigated image has a real
 `astropy`-written FITS of 16x16 planes, the backplane metadata document beside
@@ -1281,7 +1233,7 @@ inventory dict, which is all the writer reads before it stops asking about
 SPICE.
 
 Every clock reading and every image number is derived from one epoch, through
-`shared.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
+`host_cassini.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
 from a line through two correlation points the mission clock kernel gives --
 calibrating where the clock started and the rate it runs at -- and stamped onto
 a result by `with_pointing_from_epoch`, which takes no clock argument at all.
@@ -1290,14 +1242,22 @@ same constructor is #530's own work: it is a coordinated change to four
 documents, four filenames, the `filtered` variant's image-number bounds and
 both goldens, and it belongs in a PR about the statistics fixtures.
 
-`cohort.py` assembles the two roots and the `ImageFiles` list, and
-`tests/conftest.py` serves the result as the session-scoped `mini_nav_cohort`
-fixture. `python -m tests.mini_nav_results` takes the set to write and where to
-write it, both required for both sets.
+`cohort.py` holds what every cohort shares: `CohortImage`, and the `Cohort`
+base, which writes the two roots and the holdings directory and builds the
+`ImageFiles` list from what a bundle's subclass supplies -- its images, holdings
+layout, camera reading, plane bounds and registered dataset.
+`tests/conftest.py` serves the cohorts through the session-scoped
+`mini_nav_cohorts` fixture, which writes each cohort class the first time a
+test asks for it. `python -m tests.mini_nav_results` takes the set to write,
+for a cohort the bundle, and where to write it, all required.
 `tests/spindoctor/cli/pds4/conftest.py` keeps `FakePds4DataSet` for the
 plumbing questions and gains `CohortBundleEnv`, which runs the registered
-Cassini dataset over the shipped templates and is what the phases after this
-one assert against.
+dataset a cohort's bundle is built with over the templates it ships, and is
+what the phases after this one assert against. Each host's camera frames,
+exposure and clock are in a module named for the host (`host_cassini.py`,
+`host_voyager.py`), described to `with_pointing` by a `Host`; each host's clock
+reader is in a module named for it under `tests/sclk_readings/`; and the tests
+only one bundle's cohort can state are in modules named for the bundle.
 
 Two things the phase does not reach. An enumeration reads only the index
 columns it declares -- `FILE_SPECIFICATION_NAME` and `INSTRUMENT_ID` for
@@ -1319,25 +1279,27 @@ statistics report's `date_from_image_et` and `datetime_from_image_et` and by
 `pds4_template_variables`. `START_DATE_TIME` and `STOP_DATE_TIME` read
 `navigation_result.times`, each to the nearest millisecond, and
 `IMAGE_MID_TIME` is the midpoint of the two as written, a half rounding up
-(section 3.4); an image whose success document records no usable epochs is
-failed before anything is written. The data
+(section 3.4); a navigated image whose navigation recorded no exposure times is
+failed before anything is written for it. The data
 collection range is taken in the global index's read of the supplemental files,
-which now runs first, and written at whole seconds, rounded outward; with no
+which runs first, and written at whole seconds, rounded outward; with no
 range the data collection label is counted as not written. The bundle label's
 range is Phase 6's, from the same `GlobalIndexOutcome`.
 
 Tests: known epochs to the strings `et2utc` writes for them, leap seconds
-included, and an integration test converting every cohort epoch through the
-kernel; the shipped data label over the cohort states each navigated image's
+included, and an integration test converting every Cassini cohort epoch
+through the kernel (`test_cohort_cassini_epochs_against_kernel.py`); the
+shipped data label over the cohort states each navigated image's
 start and stop; W1630770594's start, computed a few nanoseconds short of its
 millisecond, is written as its PDS3 label states it, and W1629783475's
 midtime, on a half millisecond, as its `IMAGE_MID_TIME`; the range contains a
-product's written times where they meet its whole seconds; a success
-document with no `times` block fails with nothing
-written; the collection range over three supplemental files is the min and the
-max; the shipped `collection_data.lblx` over the cohort states the range of its
-two navigated images; a summary over no supplemental file writes no data
-collection label.
+product's written times where they meet its whole seconds; a cohort success
+document with no `times` fails its image with nothing written; the collection
+range over three supplemental files is the min and the max; the shipped
+`collection_data.lblx` over the cohort states the range of its two navigated
+images; a summary over no supplemental file writes no data collection label.
+The tests only the Cassini ISS Saturn bundle can state are in modules named
+for it.
 
 Closes #519, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
@@ -1630,11 +1592,12 @@ removals on a two-sided conflict.
 
 ## 7. Follow-ups
 
-**No issues are filed for section 2.2.** Each row there is fixed by a named
+**No issues are filed for section 2.2's rows other than 18.** Each is fixed by a named
 phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
 adds a close to reconcile and no reader. Defect 1 belongs to #265 and #69,
-and its `xfail` became a passing test in Phase 4.
+and its `xfail` became a passing test in Phase 4. Row 18 is the navigation's,
+not a phase's, and is tracked as #619.
 
 The one row that would have outlived this plan was the angular-unit
 difference between the arrays and the tables, and the difference itself

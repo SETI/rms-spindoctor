@@ -1,4 +1,4 @@
-"""The bundle cohort's epochs as a PDS4 label writes them, held against the kernel.
+"""The Cassini cohort's epochs as a PDS4 label writes them, held against the kernel.
 
 The unit tests of :func:`~spindoctor.support.time.et_to_pds4_utc` compare it with
 strings SPICE wrote once, for epochs chosen when they were written.  This converts
@@ -25,14 +25,16 @@ pytestmark = pytest.mark.integration
 _LSK = retrieved_kernel(
     'SPICE/General/LSK/naif0012.tls',
     what='the leapseconds kernel',
-    tests='the cohort epoch kernel tests',
+    tests='the Cassini cohort epoch kernel tests',
 )
 
 import cspyce  # noqa: E402  (guarded import)
 
 from spindoctor.support.time import Pds4Rounding, et_to_pds4_utc  # noqa: E402  (guarded import)
 from tests.kernel_pool import isolated_kernel_pool  # noqa: E402  (guarded import)
-from tests.mini_nav_results.cohort_cassini import cohort_images  # noqa: E402  (guarded import)
+from tests.mini_nav_results.cohort_cassini import (  # noqa: E402  (guarded import)
+    CohortCassiniISSSaturn,
+)
 
 _EPOCH_KEYS = ('start_et', 'midtime_et', 'stop_et')
 """The epochs a navigation document records for an exposure."""
@@ -87,7 +89,7 @@ def test_every_cohort_epoch_is_written_as_the_kernel_rounds_it(
         rounding: Which way the epochs are rounded.
     """
     disagreeing: list[str] = []
-    for image in cohort_images():
+    for image in CohortCassiniISSSaturn.images():
         times = image.document['navigation_result']['times']
         for key in _EPOCH_KEYS:
             et = float(times[key])

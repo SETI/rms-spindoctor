@@ -1,28 +1,18 @@
-"""Why both bundle passes hold every statistic to what an index column can hold.
+"""What both bundle passes require of every statistic they index.
 
-Every statistic in a backplane metadata document records the unit it is in beside
-its minimum and maximum, and each column of the global index tables is the
-configured unit of its plane restated through
-:func:`~spindoctor.cli.backplanes.statistics.statistics_units`, each value written
-in the format that unit calls for.  Two things about a statistic keep it out of
-such a column.  One in some other unit, or in none, was written before the
-statistics recorded their unit or under another configuration, and a column built
-from it beside the others would be in two units with nothing saying so.  A minimum
-or maximum that is not a finite number within the range of a float -- NaN, an
-infinity, an integer too large for a float, or no number at all -- has no decimal
-form a column can hold, since every column's format writes through a float, and a
-blank in its place would say the plane measured nothing, which the document does
-not say either.
+Each column of the global index tables is in one unit, the configured unit of its
+plane restated through :func:`~spindoctor.cli.backplanes.statistics.statistics_units`,
+and holds only finite numbers, each written in the format that unit calls for.  So a
+statistic of a configured plane can be indexed only when the unit it records is that
+unit and neither its minimum nor its maximum is NaN or infinite.  A statistic in
+another unit would put its column in two units with nothing saying so; a NaN or an
+infinity has no decimal form, and a blank in its place would say the plane measured
+nothing.
 
-Both passes hold a document to both properties, since either can reach a table
-through either pass.  The labels pass fails the image, before writing anything for
-it, since the backplane root it reads can hold such a document beside regenerated
-ones.  The summary pass fails the run, before writing either table, since the
-bundle tree it reads can hold supplemental files a labels pass wrote before it
-held a document to them: the labels pass refuses a bundle root that is not empty,
-so it never mixes a tree itself, but it is not the only writer of one.  The check
-is the same in both passes and lives here so that neither can drift from the
-other.
+The labels pass fails an image whose backplane metadata holds such a statistic,
+before writing anything for it, and the summary pass fails the run over a
+supplemental file that holds one, before writing either index table.  Both use the
+check here, so the two cannot differ.
 """
 
 import math
@@ -32,20 +22,19 @@ from typing import Any
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.config import Config
 
-__all__ = ['UnindexableStatistic', 'described_value', 'unindexable_statistic']
+__all__ = ['UnindexableStatistic', 'unindexable_statistic']
 
 
 _UNIT_REASON = (
-    'a backplane document says that when it was recorded before the statistics '
-    'carried their unit, or under another configuration'
+    'every column of an index table is in one unit, the one the configuration gives its plane'
 )
-"""Why a statistic in another unit is in it, which is all a message can say of it."""
+"""Why a statistic in another unit cannot be indexed."""
 
 _VALUE_REASON = (
-    'an index column holds only finite numbers within the range of a float, and a '
-    'blank in one would say the plane measured nothing'
+    'an index column holds only finite numbers, and a blank in one would say the plane '
+    'measured nothing'
 )
-"""Why a value that is not a finite number within a float's range cannot be indexed."""
+"""Why a NaN or infinite minimum or maximum cannot be indexed."""
 
 
 @dataclass(frozen=True)
@@ -57,14 +46,11 @@ class UnindexableStatistic:
         description: What the document records for the plane, as a clause beginning
             with ``records`` that a message completes by putting the document before
             it: ``records the ring_radius statistic in m where the configuration
-            expects km`` (``in no unit at all`` when none is recorded), ``records a
-            ring_radius minimum of nan, which is not a finite number``, ``records a
-            ring_radius maximum of an integer 401 digits long, which is too large for
-            a float`` (an integer is given by its length, not its digits), or
-            ``records no ring_radius maximum``.
+            expects km``, or ``records a ring_radius minimum of nan, which is not a
+            finite number``.
         reason: Why a column cannot take the statistic as recorded, as a clause a
-            message puts after the description.  For a unit it names the two ways a
-            document comes to record another one; for a value it says what a
+            message puts after the description: for a unit, that every column is in
+            the one unit the configuration gives its plane; for a value, what a
             column holds instead.
     """
 
@@ -80,11 +66,10 @@ def unindexable_statistic(
 
     Every configured body and ring plane the document holds a statistic for is
     checked.  Its recorded unit has to be the one the configuration gives the
-    plane, restated as the statistic's unit, and its minimum and maximum each
-    have to be a finite number within the range of a float.  A plane the
-    document holds that the configuration does not declare is not checked, and a
-    plane the configuration declares that the document lacks is no concern of
-    this check.
+    plane, restated as the statistic's unit, and neither its minimum nor its
+    maximum may be NaN or infinite.  A plane the document holds that the
+    configuration does not declare is not checked, and a plane the configuration
+    declares that the document lacks is no concern of this check.
 
     Parameters:
         backplane_metadata: The backplane metadata document as read, which is also
@@ -97,11 +82,6 @@ def unindexable_statistic(
         with the rings after them, the planes of each in configuration order, and
         within a plane its unit before its minimum and its minimum before its
         maximum.  None when every statistic can be indexed.
-
-    Raises:
-        TypeError: If the configuration entry of a plane the document holds has no
-            ``units``, or a ``units`` that is not a string.
-        ValueError: If that entry's ``units`` is blank.
     """
     bodies = backplane_metadata.get('bodies', {})
     rings = backplane_metadata.get('rings', {})
@@ -114,11 +94,7 @@ def unindexable_statistic(
             name = entry['name']
             if name not in planes:
                 continue
-            # The entry is read from YAML, so its units can be anything, a
-            # missing key included, and statistics_units refuses whatever is not
-            # a string with a TypeError rather than this raising a KeyError.
-            units: Any = entry.get('units')
-            finding = _unindexable_part(name, planes[name], statistics_units(units))
+            finding = _unindexable_part(name, planes[name], statistics_units(entry['units']))
             if finding is not None:
                 return finding
     return None
@@ -139,76 +115,33 @@ def _unindexable_part(
     """
     found = statistic.get('units')
     if found != expected:
-        recorded = 'no unit at all' if found is None else found
         return UnindexableStatistic(
             plane=name,
             description=(
-                f'records the {name} statistic in {recorded} where the configuration '
+                f'records the {name} statistic in {found} where the configuration '
                 f'expects {expected}'
             ),
             reason=_UNIT_REASON,
         )
     for key, word in (('min', 'minimum'), ('max', 'maximum')):
-        if key not in statistic:
-            return UnindexableStatistic(
-                plane=name, description=f'records no {name} {word}', reason=_VALUE_REASON
-            )
         value = statistic[key]
-        if not _is_finite_as_float(value):
+        if not math.isfinite(value):
             return UnindexableStatistic(
                 plane=name,
-                description=f'records a {name} {word} of {described_value(value)}',
+                description=f'records a {name} {word} of {_described(value)}',
                 reason=_VALUE_REASON,
             )
     return None
 
 
-def _is_finite_as_float(value: Any) -> bool:
-    """Report whether a value read from a document is a finite number a float can hold.
+def _described(value: Any) -> str:
+    """Describe a minimum or maximum no column can hold, for a message.
 
     Parameters:
-        value: The value as the JSON reader returned it.
+        value: A NaN or infinite value, as the JSON reader returned it.
 
     Returns:
-        True for a float that is neither NaN nor infinite, and for an integer
-        within the range of a float.  False for anything else: an integer too
-        large for a float, a boolean, or anything that is not a number.
+        The value's representation and why no column can hold it: ``nan, which is
+        not a finite number``.
     """
-    # A JSON true or false reads as a bool, which Python counts as an int, and is
-    # not a measurement.  The JSON reader returns an int for an integer literal of
-    # any length, and every index format writes through a float, so an integer
-    # beyond a float's range is no more holdable than an infinity; isfinite
-    # raises OverflowError for one rather than returning False.
-    if isinstance(value, bool):
-        return False
-    if isinstance(value, int):
-        try:
-            return math.isfinite(value)
-        except OverflowError:
-            return False
-    return isinstance(value, float) and math.isfinite(value)
-
-
-def described_value(value: Any) -> str:
-    """Describe a recorded number that no float holds as a finite number, for a message.
-
-    The description of a minimum or maximum no index column can hold, and of an
-    exposure epoch no label can state.
-
-    Parameters:
-        value: A value :func:`_is_finite_as_float` or
-            :func:`~spindoctor.support.nav_record.finite_float` refused, as the JSON
-            reader returned it.  The two refuse the same values.
-
-    Returns:
-        What the value is and why no column can hold it.  An integer, which is
-        refused only when it is too large for a float, is given by its length,
-        since its digits run to hundreds: ``an integer 401 digits long, which is
-        too large for a float``.  Anything else is given by its representation:
-        ``nan, which is not a finite number``.
-    """
-    if isinstance(value, int) and not isinstance(value, bool):
-        # The JSON reader converts a literal under the same limit on digits that
-        # str does, so any integer it returns has a length str can measure.
-        return f'an integer {len(str(abs(value)))} digits long, which is too large for a float'
     return f'{value!r}, which is not a finite number'

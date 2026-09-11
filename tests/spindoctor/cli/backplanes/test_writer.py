@@ -300,10 +300,10 @@ def test_write_fits_sidecar_path_naming(tmp_path: Path) -> None:
     assert sidecar.exists()
 
 
-def _mimas_setup() -> tuple[HermeticObs, dict[str, Any]]:
-    """Build a simulated snapshot with a MIMAS inventory and its bodies_result."""
+def _moon_a_setup() -> tuple[HermeticObs, dict[str, Any]]:
+    """Build a simulated snapshot with a MOON_A inventory and its bodies_result."""
     inventory = {
-        'MIMAS': inventory_entry(
+        'MOON_A': inventory_entry(
             u_min=2,
             u_max=5,
             v_min=1,
@@ -316,7 +316,7 @@ def _mimas_setup() -> tuple[HermeticObs, dict[str, Any]]:
     }
     snap = make_snapshot(shape_vu=SHAPE_VU, simulated=True, sim_inventory=inventory)
     bodies_result = {
-        'MIMAS': {
+        'MOON_A': {
             'arrays': {},
             'masks': {},
             'distance': 500000.0,
@@ -332,7 +332,7 @@ def test_write_fits_sidecar_body_statistics(tmp_path: Path) -> None:
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _mimas_setup()
+    snap, bodies_result = _moon_a_setup()
     _, sidecar = _write(
         tmp_path,
         master=_master_with(1.0),
@@ -341,7 +341,7 @@ def test_write_fits_sidecar_body_statistics(tmp_path: Path) -> None:
         bodies_result=bodies_result,
     )
     metadata = json.loads(sidecar.read_text())
-    assert metadata['bodies']['MIMAS']['backplanes'] == {
+    assert metadata['bodies']['MOON_A']['backplanes'] == {
         'body_latitude': {'min': -10.0, 'max': 25.0, 'units': 'deg'}
     }
 
@@ -356,7 +356,7 @@ def test_write_fits_sidecar_center_uv_is_swapped_to_vu(tmp_path: Path) -> None:
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _mimas_setup()
+    snap, bodies_result = _moon_a_setup()
     _, sidecar = _write(
         tmp_path,
         master=_master_with(1.0),
@@ -365,7 +365,7 @@ def test_write_fits_sidecar_center_uv_is_swapped_to_vu(tmp_path: Path) -> None:
         bodies_result=bodies_result,
     )
     metadata = json.loads(sidecar.read_text())
-    assert metadata['bodies']['MIMAS']['center_uv'] == [2.0, 3.5]
+    assert metadata['bodies']['MOON_A']['center_uv'] == [2.0, 3.5]
 
 
 def test_write_fits_sidecar_center_range_and_size(tmp_path: Path) -> None:
@@ -374,7 +374,7 @@ def test_write_fits_sidecar_center_range_and_size(tmp_path: Path) -> None:
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _mimas_setup()
+    snap, bodies_result = _moon_a_setup()
     _, sidecar = _write(
         tmp_path,
         master=_master_with(1.0),
@@ -383,8 +383,8 @@ def test_write_fits_sidecar_center_range_and_size(tmp_path: Path) -> None:
         bodies_result=bodies_result,
     )
     metadata = json.loads(sidecar.read_text())
-    assert metadata['bodies']['MIMAS']['center_range'] == 500000.0
-    assert metadata['bodies']['MIMAS']['size_uv'] == [4.0, 3.0]
+    assert metadata['bodies']['MOON_A']['center_range'] == 500000.0
+    assert metadata['bodies']['MOON_A']['size_uv'] == [4.0, 3.0]
 
 
 def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
@@ -394,8 +394,8 @@ def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
         tmp_path: pytest-provided temporary directory.
     """
     rings_result = {
-        'planet': 'SATURN',
-        'target_key': 'SATURN_MAIN_RINGS',
+        'planet': 'PLANET',
+        'target_key': 'PLANET_RING_SYSTEM',
         'arrays': {},
         'masks': {},
         'distance': None,
@@ -432,17 +432,17 @@ def test_write_fits_non_simulated_uses_config_satellites(tmp_path: Path) -> None
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    inventory = {'MIMAS': inventory_entry(u_min=2, u_max=5, v_min=1, v_max=3, body_range=500000.0)}
+    inventory = {'MOON_A': inventory_entry(u_min=2, u_max=5, v_min=1, v_max=3, body_range=500000.0)}
     snap = make_snapshot(
         shape_vu=SHAPE_VU,
         simulated=False,
-        closest_planet='SATURN',
+        closest_planet='PLANET',
         canned_inventory=inventory,
     )
     config = FakeBackplanesConfig(
         bodies=[{'name': 'body_latitude', 'method': 'latitude', 'units': 'rad'}],
         rings=[],
-        satellites={'SATURN': ['MIMAS', 'ENCELADUS']},
+        satellites={'PLANET': ['MOON_A', 'MOON_B']},
     )
     _write(
         tmp_path,
@@ -450,10 +450,10 @@ def test_write_fits_non_simulated_uses_config_satellites(tmp_path: Path) -> None
         id_map=_id_map(),
         snapshot=snap,
         config=config,
-        bodies_result={'MIMAS': {'statistics': {}}},
+        bodies_result={'MOON_A': {'statistics': {}}},
     )
-    assert config.satellites_calls == ['SATURN']
-    assert snap.inventory_calls == [['SATURN', 'MIMAS', 'ENCELADUS']]
+    assert config.satellites_calls == ['PLANET']
+    assert snap.inventory_calls == [['PLANET', 'MOON_A', 'MOON_B']]
 
 
 @pytest.mark.xfail(
@@ -467,7 +467,7 @@ def test_write_fits_sidecar_includes_mean_and_valid_count(tmp_path: Path) -> Non
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _mimas_setup()
+    snap, bodies_result = _moon_a_setup()
     _, sidecar = _write(
         tmp_path,
         master=_master_with(1.0),
@@ -476,7 +476,7 @@ def test_write_fits_sidecar_includes_mean_and_valid_count(tmp_path: Path) -> Non
         bodies_result=bodies_result,
     )
     metadata = json.loads(sidecar.read_text())
-    assert 'mean' in metadata['bodies']['MIMAS']['backplanes']['body_latitude']
+    assert 'mean' in metadata['bodies']['MOON_A']['backplanes']['body_latitude']
 
 
 @pytest.mark.xfail(
@@ -490,7 +490,7 @@ def test_write_fits_sidecar_includes_naif_id(tmp_path: Path) -> None:
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _mimas_setup()
+    snap, bodies_result = _moon_a_setup()
     _, sidecar = _write(
         tmp_path,
         master=_master_with(1.0),
@@ -499,7 +499,7 @@ def test_write_fits_sidecar_includes_naif_id(tmp_path: Path) -> None:
         bodies_result=bodies_result,
     )
     metadata = json.loads(sidecar.read_text())
-    body_keys = set(metadata['bodies']['MIMAS'])
+    body_keys = set(metadata['bodies']['MOON_A'])
     assert 'naif_id' in body_keys
 
 
@@ -515,7 +515,7 @@ def test_write_fits_sidecar_includes_observation_metadata(tmp_path: Path) -> Non
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _mimas_setup()
+    snap, bodies_result = _moon_a_setup()
     _, sidecar = _write(
         tmp_path,
         master=_master_with(1.0),

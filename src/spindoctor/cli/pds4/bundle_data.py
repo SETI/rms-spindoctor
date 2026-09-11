@@ -9,7 +9,6 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.pds4.data_objects import configured_methods, describe_backplane_fits
-from spindoctor.cli.pds4.epochs import unrecorded_epoch
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.dataset.dataset import DataSet, ImageFiles
@@ -29,12 +28,9 @@ class BundleDataOutcome(Enum):
             label that could not be rendered, a browse product whose summary
             PNG the navigation results do not hold, or, with nothing written
             for the image at all, backplane metadata recording a statistic no
-            global index column can hold -- one in a unit other than the one
-            the configuration gives its plane, or with a minimum or maximum
-            that is not a finite number within the range of a float -- or a
-            navigation document that does not record the exposure's start,
-            stop and midtime as finite numbers, the stop no earlier than the
-            start.
+            global index column can hold (one in a unit other than the one the
+            configuration gives its plane, or with a minimum or maximum that is
+            NaN or infinite) or a navigation that recorded no exposure times.
     """
 
     WRITTEN = 'written'
@@ -72,24 +68,19 @@ def generate_bundle_data_files(
     disk.
 
     A navigated image whose backplane metadata records a statistic no global
-    index column can hold is failed as well, before anything is written for it.
-    A statistic in a unit other than the one the configuration gives its plane,
-    or in none, was written before the statistics recorded their unit, or under
-    another configuration, and indexing it would put one column in two units
-    with nothing saying so.  A minimum or maximum that is not a finite number
-    within the range of a float has no decimal form a column can hold, and a
-    blank in its place would say the plane measured nothing.  A plane the
-    document holds that the configuration does not declare is not checked.
+    index column can hold is failed as well, before anything is written for it:
+    one in a unit other than the one the configuration gives its plane, or with
+    a minimum or maximum that is NaN or infinite, as
+    :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` checks.
+    A plane the document holds that the configuration does not declare is not
+    checked.
 
-    So is a navigated image whose navigation document does not record its
-    exposure's epochs -- a ``start_et``, a ``stop_et`` and a ``midtime_et`` under
-    ``navigation_result.times``, each a finite number, the stop no earlier than
-    the start -- again before anything is written for it.  Its data label states
-    when the exposure began and ended, and the navigation stamps a success
-    document with both, so a success document that records neither is a broken
-    input rather than an image whose time is unknown, and a label stating an
-    empty time is not one PDS4 accepts.  The log names the image and what the
-    document lacks.
+    So is a navigated image whose navigation recorded no exposure times, again before
+    anything is written for it, the log naming the image: a data label states when its
+    exposure began and ended, and the navigation records the times beside the pointing
+    it solved, so a success it recorded no pointing for has none.  Only the presence of
+    ``navigation_result.times`` is checked; where it is there, it holds all three
+    epochs.
 
     The backplane FITS is copied into the bundle, beside its data label, which names
     it with no directory part, and the label's size, checksum and time are the
@@ -113,14 +104,11 @@ def generate_bundle_data_files(
         nothing for the bundle to describe, and FAILED when a label could not be
         rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
-        minimum or maximum that is not a finite number within the range of a
-        float, or the navigation document does not record the exposure's epochs.
+        minimum or maximum that is NaN or infinite, or the navigation recorded
+        no exposure times.
 
     Raises:
-        ValueError: If the batch does not hold exactly one image, or if the
-            configuration entry of a plane the backplane metadata holds declares
-            a blank unit.
-        TypeError: If that entry declares no unit, or one that is not a string.
+        ValueError: If the batch does not hold exactly one image.
         OSError: If the backplane FITS cannot be read or copied.
     """
 
@@ -188,12 +176,9 @@ def generate_bundle_data_files(
             return BundleDataOutcome.SKIPPED
         bp_stats = cast(dict[str, Any], json.loads(backplane_metadata_text))
 
-        # A backplane root can hold documents written before the statistics
-        # recorded their unit, or under a configuration declaring another,
-        # beside regenerated ones, and a statistic can be a value that has no
-        # decimal form.  Indexing either would put something in a column of the
-        # global index that the column cannot say, so the image is failed
-        # before anything is written for it.
+        # Every index column is in its plane's configured unit and holds only
+        # finite numbers, so an image with a statistic the index cannot hold is
+        # failed before anything is written for it.
         unindexable = unindexable_statistic(bp_stats, dataset.config)
         if unindexable is not None:
             logger.error(
@@ -206,18 +191,17 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.FAILED
 
-        # A data label states when its exposure began and ended, and a success
-        # document records both, so one that does not is a broken input.  The
-        # image is failed before anything is written for it rather than labeled
-        # with an empty time or left to raise from the template variables.
-        unrecorded = unrecorded_epoch(nav_metadata)
-        if unrecorded is not None:
+        # The navigation records the exposure's times beside the pointing it solved, and
+        # records a success with no pointing when the attitude cannot be computed or the
+        # instrument has no SPICE camera frame mapped (#619).  A data label states when
+        # its exposure began and ended, so such an image is failed before anything is
+        # written for it.  Where the times are there, all three epochs are.
+        if 'times' not in nav_metadata['navigation_result']:
             logger.error(
-                'Failing bundle generation for "%s": the navigation metadata %s. Nothing is '
-                'written for the image, whose data label states when its exposure began '
-                'and ended',
+                'Failing bundle generation for "%s": its navigation recorded no exposure '
+                'times (a pointing was not recorded), and its data label states when its '
+                'exposure began and ended. Nothing is written for the image',
                 image_path,
-                unrecorded,
             )
             return BundleDataOutcome.FAILED
 

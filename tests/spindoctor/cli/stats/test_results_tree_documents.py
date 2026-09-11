@@ -14,12 +14,14 @@ construction.  A writer change is then reported here, and the fix is to run
 that package and re-ratify the frozen report output against what it wrote.
 
 The rest are the properties the tree is relied on for that the frozen report
-cannot see: the shutter modes that make a BOTSIM pair a pair, the attitude and
-exposure blocks a host with SPICE frames always records, and the internal
+cannot see: the attitude and exposure blocks a host with SPICE frames always
+records, and the internal
 agreements a hand-authored document is free to break -- a technique citing a
 feature the inventory does not hold, a spurious result reported as excluded
 from consensus, a recorded midtime that is not the recorded epoch, a spacecraft
-clock triple that spans a fraction of the exposure it was read over.
+clock triple that spans a fraction of the exposure it was read over.  What
+only one host's documents can say, such as the shutter modes a host's labels
+record, is held in a test module named for the host.
 """
 
 from typing import Any
@@ -33,21 +35,6 @@ from tests.mini_nav_results import (
 from tests.sclk_readings import triples_disagreeing_with_their_epochs
 
 from spindoctor.support.file import json_as_string
-
-_BOTSIM_PAIR = (
-    'COISS_2001/data/1294561143_1295221348/N1294561202_1_CALIB',
-    'COISS_2001/data/1294561143_1295221348/W1294561202_1_CALIB',
-)
-"""The two stubs of the pair whose cameras were shuttered together."""
-
-_SINGLE_CAMERA = {
-    'COISS_2001/data/1294561143_1295221348/N1294562000_1_CALIB': 'NACONLY',
-    'COISS_2001/data/1294561143_1295221348/N1294564000_1_CALIB': 'NACONLY',
-}
-"""The Cassini stubs whose labels record one camera, and which mode they record."""
-
-_LOAD_ERROR = 'COISS_2001/data/1294561143_1295221348/N1294563000_1_CALIB'
-"""The stub of the image whose load failed before an observation existed."""
 
 _SIMULATED = 'sim_scene_000042'
 """The stub of the simulated scene, the one host with no SPICE camera frame."""
@@ -93,51 +80,19 @@ def test_every_stored_document_is_byte_for_byte_what_the_writer_emits(
     assert differing == []
 
 
-def test_the_botsim_pair_records_the_mode_that_makes_it_a_pair(
-    stored: dict[str, dict[str, Any]],
-) -> None:
-    """Without the shutter mode the pair is only two images sharing a number."""
-    modes = [stored[stub]['observation']['shutter_mode'] for stub in _BOTSIM_PAIR]
-    assert modes == ['BOTSIM', 'BOTSIM']
-
-
-def test_the_botsim_pair_shares_one_shutter(stored: dict[str, dict[str, Any]]) -> None:
-    """One shutter is one epoch and one clock reading, on both cameras."""
-    times = [stored[stub]['navigation_result']['times'] for stub in _BOTSIM_PAIR]
-    assert times[0]['midtime_et'] == times[1]['midtime_et']
-    assert times[0]['sclk_midtime'] == times[1]['sclk_midtime']
-
-
-def test_the_single_camera_images_record_their_own_shutter_mode(
-    stored: dict[str, dict[str, Any]],
-) -> None:
-    """A column that only ever held one value would not tell the modes apart."""
-    found = {stub: stored[stub]['observation']['shutter_mode'] for stub in _SINGLE_CAMERA}
-    assert found == _SINGLE_CAMERA
-
-
-def test_the_hosts_whose_labels_carry_no_shutter_mode_record_none(
-    stored: dict[str, dict[str, Any]],
-) -> None:
-    """Voyager, the simulated scene, and an image that never loaded record none."""
-    carrying = sorted(
-        stub
-        for stub, document in stored.items()
-        if str(document['observation']['instrument']) != 'coiss'
-        and 'shutter_mode' in document['observation']
-    )
-    assert carrying == []
-    assert 'shutter_mode' not in stored[_LOAD_ERROR]['observation']
-
-
 def test_every_navigated_image_with_spice_frames_records_its_attitude_and_times(
     stored: dict[str, dict[str, Any]],
 ) -> None:
-    """Both blocks are stamped for every result of such a host, failures included."""
+    """Both blocks are stamped for every result of such a host, failures included.
+
+    Only an image that never loaded, whose document records status ``error``, has
+    no result to stamp.
+    """
     missing = sorted(
         stub
         for stub, document in stored.items()
-        if stub not in (_LOAD_ERROR, _SIMULATED)
+        if document['status'] != 'error'
+        if stub != _SIMULATED
         if not {'pointing', 'times'} <= set(document['navigation_result'])
     )
     assert missing == []

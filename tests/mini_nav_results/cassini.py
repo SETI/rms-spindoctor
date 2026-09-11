@@ -39,10 +39,8 @@ from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
 from spindoctor.support.status_reason import NavStatusReason
 
+from .host_cassini import CASSINI_ISS, COISS_KERNELS, cassini_sclk_open
 from .shared import (
-    COISS_KERNELS,
-    COISS_SUBTREE,
-    cassini_sclk_open,
     classifier,
     faint_star,
     navigated,
@@ -53,6 +51,9 @@ from .shared import (
     star,
     with_pointing,
 )
+
+COISS_SUBTREE = 'COISS_2001/data/1294561143_1295221348'
+"""The Cassini volume and observation directory the Cassini images sit under."""
 
 
 def cassini_star_and_limb() -> dict[str, Any]:
@@ -160,6 +161,7 @@ def cassini_star_and_limb() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=CASSINI_ISS,
         camera='NAC',
         midtime_et=170000000.0,
         sclk_open=cassini_sclk_open(1294561202, 77),
@@ -227,6 +229,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=CASSINI_ISS,
         camera='NAC',
         midtime_et=170000800.0,
         sclk_open=cassini_sclk_open(1294562000, 55),
@@ -491,6 +494,7 @@ def cassini_suspect_offset() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=CASSINI_ISS,
         camera='NAC',
         midtime_et=170002800.0,
         sclk_open=cassini_sclk_open(1294564000, 11),
@@ -524,6 +528,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         ring_edge(
             'encke_gap',
             'IEG',
+            planet='SATURN',
             reliability=0.72,
             gated=False,
             gate_reason=None,
@@ -532,6 +537,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         ring_edge(
             'encke_gap',
             'OEG',
+            planet='SATURN',
             reliability=0.18,
             gated=True,
             gate_reason='reliability_0.180_below_threshold_0.300',
@@ -578,6 +584,7 @@ def cassini_ring_edges() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=CASSINI_ISS,
         camera='WAC',
         midtime_et=170000000.0,
         sclk_open=cassini_sclk_open(1294561202, 77),
@@ -595,3 +602,18 @@ def cassini_ring_edges() -> dict[str, Any]:
         elapsed_s=12.5,
         peak_memory_bytes=2147483648,
     )
+
+
+def results_tree_documents() -> dict[str, dict[str, Any]]:
+    """Return the Cassini documents of the fixture tree, keyed by results path stub.
+
+    Returns:
+        Stub to document, in the order the tree is written.
+    """
+    return {
+        f'{COISS_SUBTREE}/N1294561202_1_CALIB': cassini_star_and_limb(),
+        f'{COISS_SUBTREE}/N1294562000_1_CALIB': cassini_all_features_gated(),
+        LOAD_ERROR_STUB: cassini_load_error(),
+        f'{COISS_SUBTREE}/N1294564000_1_CALIB': cassini_suspect_offset(),
+        f'{COISS_SUBTREE}/W1294561202_1_CALIB': cassini_ring_edges(),
+    }

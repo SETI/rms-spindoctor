@@ -9,7 +9,6 @@ tested over stand-ins in ``test_bundle_data.py``.
 
 import hashlib
 import json
-import re
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -17,42 +16,32 @@ import numpy as np
 import pytest
 from astropy.io import fits
 from filecache import FCPath
-from tests.mini_nav_results.cohort import Cohort
+from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import (
-    GATED_STUB,
     LIMB_IMAGE_NAME,
     LIMB_STUB,
     RINGS_IMAGE_NAME,
     RINGS_STUB,
+    CohortCassiniISSSaturn,
 )
 
-from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
 from .conftest import make_cohort_bundle_env
 
 
-def test_the_cohort_image_that_did_not_navigate_is_skipped(
-    mini_nav_cohort: Cohort, tmp_path: Path
-) -> None:
-    """An image the bundle has nothing to describe is skipped, not failed.
+@pytest.fixture
+def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
+    """Return the Cassini ISS Saturn cohort, as the session wrote it.
 
-    Over the registered dataset and the shipped templates rather than
-    stand-ins, because a selection made by volume routinely names images that
-    did not navigate, and what the bundle does with one is a property of the
-    run rather than of a fixture's ``status`` key.
+    Parameters:
+        mini_nav_cohorts: What the session's cohorts are written by.
+
+    Returns:
+        The written cohort.
     """
-    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
-    outcome = generate_bundle_data_files(
-        env.dataset,
-        mini_nav_cohort.batch(GATED_STUB),
-        nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
-        backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
-        bundle_results_root=FCPath(env.bundle_results_root),
-        logger=MAIN_LOGGER,
-    )
-    assert outcome is BundleDataOutcome.SKIPPED
-    assert not env.bundle_dir.exists()
+    return mini_nav_cohorts(CohortCassiniISSSaturn)
 
 
 def _product_stem(image_name: str) -> str:
@@ -71,105 +60,6 @@ def _product_stem(image_name: str) -> str:
     """
     number = image_name[1:11]
     return f'{number[:4]}xxxxxx/{number[:6]}xxxx/{number}{image_name[0].lower()}'
-
-
-def _bundle_products(image_name: str) -> set[str]:
-    """Return every bundle file the labels pass writes for one navigated image.
-
-    Parameters:
-        image_name: The calibrated image's name, camera letter and all.
-
-    Returns:
-        The paths, relative to the bundle's own directory.
-    """
-    stem = _product_stem(image_name)
-    return {
-        f'data/{stem}_backplanes.lblx',
-        f'data/{stem}_backplanes.fits',
-        f'data/{stem}_supplemental.txt',
-        f'browse/{stem}_summary.lblx',
-        f'browse/{stem}_summary.png',
-    }
-
-
-def test_the_cohort_s_navigated_images_are_written_into_the_bundle(
-    mini_nav_cohort: Cohort, tmp_path: Path
-) -> None:
-    """The shipped Cassini templates render over the cohort, into their shards.
-
-    This is the assertion the cohort exists to make possible and the one every
-    phase after this builds on: the registered dataset, the shipped template
-    set and a real backplane FITS, with nothing standing in for anything.  A
-    template the fixture cannot satisfy, a product written under the wrong
-    number, or a render that fails and leaves half a bundle behind is reported
-    here, in the phase that owns the fixture.
-    """
-    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
-    outcomes = {
-        stub: generate_bundle_data_files(
-            env.dataset,
-            mini_nav_cohort.batch(stub),
-            nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
-            backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
-            bundle_results_root=FCPath(env.bundle_results_root),
-            logger=MAIN_LOGGER,
-        )
-        for stub in (LIMB_STUB, RINGS_STUB)
-    }
-    assert outcomes == {
-        LIMB_STUB: BundleDataOutcome.WRITTEN,
-        RINGS_STUB: BundleDataOutcome.WRITTEN,
-    }
-    written = {
-        path.relative_to(env.bundle_dir).as_posix()
-        for path in env.bundle_dir.rglob('*')
-        if path.is_file()
-    }
-    assert written == _bundle_products(LIMB_IMAGE_NAME) | _bundle_products(RINGS_IMAGE_NAME)
-
-
-@pytest.mark.parametrize(
-    ('stub', 'image_name', 'start', 'stop'),
-    [
-        (LIMB_STUB, LIMB_IMAGE_NAME, '2004-02-07T04:25:35.585Z', '2004-02-07T04:25:36.045Z'),
-        (RINGS_STUB, RINGS_IMAGE_NAME, '2004-02-22T05:32:15.895Z', '2004-02-22T05:32:16.355Z'),
-    ],
-    ids=['limb image', 'ring image'],
-)
-def test_a_cohort_data_label_states_its_exposure_s_start_and_stop(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str, start: str, stop: str
-) -> None:
-    """The shipped data label states the document's start and stop, to the millisecond.
-
-    The expected strings are SPICE's.  With the leapseconds kernel furnished,
-    ``et2utc`` writes the limb image's recorded start and stop at three decimals as
-    ``04:25:35.585`` and ``04:25:36.045``, and the ring image's as ``05:32:15.895``
-    and ``05:32:16.355``: each at the nearest millisecond.  At nine decimals the
-    ring image's start is ``05:32:15.894745827`` and the limb image's stop
-    ``04:25:36.045069233``, so the first is a millisecond from what rounding down
-    would write and the second a millisecond from what rounding up would.
-
-    Parameters:
-        mini_nav_cohort: The session's cohort.
-        tmp_path: Base temporary directory for this test's bundle.
-        stub: Which cohort image, by its results path stub.
-        image_name: That image's calibrated name.
-        start: What its data label's ``start_date_time`` has to say.
-        stop: What its data label's ``stop_date_time`` has to say.
-    """
-    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
-    generate_bundle_data_files(
-        env.dataset,
-        mini_nav_cohort.batch(stub),
-        nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
-        backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
-        bundle_results_root=FCPath(env.bundle_results_root),
-        logger=MAIN_LOGGER,
-    )
-    label = env.bundle_dir / 'data' / f'{_product_stem(image_name)}_backplanes.lblx'
-    text = label.read_text(encoding='utf-8')
-    assert re.findall(r'<start_date_time>(.*)</start_date_time>', text) == [start]
-    assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == [stop]
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +121,7 @@ def _text(element: ElementTree.Element, path: str) -> str:
 
 @pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
 def test_the_files_a_cohort_data_label_names_are_the_ones_beside_it(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
 ) -> None:
     """A data label names its FITS and supplemental file beside it, and states the copy.
 
@@ -239,7 +129,7 @@ def test_the_files_a_cohort_data_label_names_are_the_ones_beside_it(
     be in the label's own directory; and the size and checksum it states for the FITS
     are the ones the copy in the bundle has, read from the copy here.
     """
-    label = _label_cohort_image(mini_nav_cohort, tmp_path, stub, image_name)
+    label = _label_cohort_image(cassini_cohort, tmp_path, stub, image_name)
     root = ElementTree.parse(label).getroot()
     names = [element.text for element in root.iterfind('.//pds:file_name', PDS4_NAMESPACES)]
     product = _product_stem(image_name).rsplit('/', 1)[1]
@@ -254,7 +144,7 @@ def test_the_files_a_cohort_data_label_names_are_the_ones_beside_it(
 
 @pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
 def test_a_cohort_data_label_describes_its_supplemental_file_as_the_text_it_is(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
 ) -> None:
     """The supplemental file is one text stream, as its bytes say it is.
 
@@ -262,7 +152,7 @@ def test_a_cohort_data_label_describes_its_supplemental_file_as_the_text_it_is(
     every byte is 7-bit ASCII, as its parsing standard says; each line ends in a line
     feed alone, as its record delimiter says; and the text is one JSON object.
     """
-    label = _label_cohort_image(mini_nav_cohort, tmp_path, stub, image_name)
+    label = _label_cohort_image(cassini_cohort, tmp_path, stub, image_name)
     root = ElementTree.parse(label).getroot()
     area = 'pds:File_Area_Observational_Supplemental'
     raw = (label.parent / _text(root, f'{area}/pds:File/pds:file_name')).read_bytes()
@@ -365,7 +255,7 @@ def _end_card_record(header: bytes) -> int:
 
 @pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
 def test_a_cohort_data_label_describes_each_hdu_where_the_fits_holds_it(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
 ) -> None:
     """One header per HDU and one array per image HDU, each where its bytes are.
 
@@ -374,7 +264,7 @@ def test_a_cohort_data_label_describes_each_hdu_where_the_fits_holds_it(
     the file's bytes at each array's offset, as its stated lines, samples and type, each
     array is the one astropy reads for its HDU, and its type and unit are the HDU's.
     """
-    root, fits_copy = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    root, fits_copy = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
     raw = fits_copy.read_bytes()
     with fits.open(fits_copy) as hdul:
         hdu_count = len(hdul)
@@ -405,7 +295,7 @@ def test_a_cohort_data_label_describes_each_hdu_where_the_fits_holds_it(
 
 @pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
 def test_a_cohort_data_label_declares_the_masked_value_its_float_arrays_hold(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
 ) -> None:
     """Every float array declares the configured masked value, and holds it where masked.
 
@@ -415,7 +305,7 @@ def test_a_cohort_data_label_declares_the_masked_value_its_float_arrays_hold(
     body claimed the pixel and a ring plane where one did.  Every masked pixel holds the
     declared value, and no measured one does.
     """
-    root, fits_copy = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    root, fits_copy = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
     raw = fits_copy.read_bytes()
     masked_value = float(DEFAULT_CONFIG.backplanes.masked_value)
     arrays = {
@@ -452,18 +342,18 @@ def test_a_cohort_data_label_declares_the_masked_value_its_float_arrays_hold(
     ids=NAVIGATED_IDS,
 )
 def test_only_the_ring_image_s_data_label_describes_ring_arrays(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str, has_rings: bool
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str, has_rings: bool
 ) -> None:
     """The ring image's label has an array per configured ring plane, the limb image's none.
 
     Parameters:
-        mini_nav_cohort: The session's cohort.
+        cassini_cohort: The session's Cassini ISS Saturn cohort.
         tmp_path: Base temporary directory for this test's bundle.
         stub: Which cohort image, by its results path stub.
         image_name: That image's calibrated name.
         has_rings: Whether the cohort gives the image ring backplanes.
     """
-    root, _ = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    root, _ = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
     identifiers = [
         _text(array, 'pds:local_identifier') for array in _data_objects(root, 'Array_2D_Image')
     ]
@@ -477,7 +367,7 @@ def test_only_the_ring_image_s_data_label_describes_ring_arrays(
 
 @pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
 def test_each_array_of_a_cohort_data_label_has_display_settings_that_resolve(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
 ) -> None:
     """One display settings block per array, each naming an identifier the label defines.
 
@@ -485,7 +375,7 @@ def test_each_array_of_a_cohort_data_label_has_display_settings_that_resolve(
     ``local_identifier_reference`` names one of them, and the references are the
     arrays', one each, in the order the arrays are described.
     """
-    root, _ = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    root, _ = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
     identifiers = [
         element.text for element in root.iterfind('.//pds:local_identifier', PDS4_NAMESPACES)
     ]
@@ -515,7 +405,7 @@ def _children(element: ElementTree.Element) -> list[str]:
 
 @pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
 def test_each_data_object_of_a_cohort_data_label_is_in_the_schema_s_shape(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
 ) -> None:
     """Each header and array holds the children PDS4_PDS_1O00 allows, in its order.
 
@@ -525,7 +415,7 @@ def test_each_data_object_of_a_cohort_data_label_is_in_the_schema_s_shape(
     constants where it has them; the parsing standard is one the Schematron names for
     FITS and the index order the one it allows.  The ``File`` comes first.
     """
-    root, _ = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    root, _ = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
     file_area = root.find('pds:File_Area_Observational', PDS4_NAMESPACES)
     assert file_area is not None
     assert _children(file_area)[0] == 'File'
@@ -577,14 +467,14 @@ def test_each_data_object_of_a_cohort_data_label_is_in_the_schema_s_shape(
 
 @pytest.mark.parametrize(('stub', 'image_name'), NAVIGATED_IMAGES, ids=NAVIGATED_IDS)
 def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
-    mini_nav_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str
 ) -> None:
     """Each float array's description names its method and unit, and the missing constant.
 
     The method is the one the shipped configuration names for the plane, the unit the
     HDU's ``BUNIT`` as astropy reads it, and the constant the configured masked value.
     """
-    root, fits_copy = _labelled_fits(mini_nav_cohort, tmp_path, stub, image_name)
+    root, fits_copy = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
     methods = {
         entry['name']: entry['method']
         for entry in [*DEFAULT_CONFIG.backplanes.bodies, *DEFAULT_CONFIG.backplanes.rings]
