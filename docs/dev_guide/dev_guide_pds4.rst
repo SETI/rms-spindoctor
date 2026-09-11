@@ -419,28 +419,39 @@ dataset over tiny templates the test itself wrote, so every variable in play is
 one the test controls and a failure names the wiring that broke.
 
 The second is content: what a label actually says. Those tests run the
-registered
+registered dataset a bundle is built with over the templates it ships, on the
+products a navigation run and the backplane stage leave behind -- for the one
+bundle that ships,
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISSSaturn`
-over the shipped ``cassini_iss_saturn_1.0`` templates, on the products a
-navigation run and the backplane stage leave behind. Neither environment
-answers the other's question: a label rendered from a template the test wrote
-says whatever the test put there, and a plumbing failure inside the shipped
-template set is a needle in three hundred lines of XML.
+over ``cassini_iss_saturn_1.0``. Neither environment answers the other's
+question: a label rendered from a template the test wrote says whatever the test
+put there, and a plumbing failure inside the shipped template set is a needle in
+three hundred lines of XML.
 
-The inputs for the second come from :mod:`tests.mini_nav_results`, a package that
-builds a miniature of what a navigation run leaves on disk -- three Cassini
-images, of which two navigated and one did not; a real backplane FITS and its
-metadata document per navigated image, written by the backplane stage's own
+The inputs for the second come from :mod:`tests.mini_nav_results`, a package
+that builds a miniature of what a navigation run leaves on disk, one cohort per
+bundle. A cohort holds a few of the bundle's images, some navigated and some
+not; a real backplane FITS and its metadata document per navigated image,
+written by the backplane stage's own
 :func:`~spindoctor.cli.backplanes.writer.write_fits`; a real summary PNG,
 because the browse label states its size and its checksum; and the index row an
-enumeration hands on with each image. The two navigated images shard into
-different bundle directories and only one of them has ring backplanes, so a
-run over the cohort exercises both layouts.
+enumeration hands on with each image. Each cohort is a subclass of
+:class:`~tests.mini_nav_results.cohort.Cohort`, which writes all of that from
+what the subclass supplies: the images, the holdings layout they sit in, how an
+image's camera is read from its index row, the range each backplane plane spans,
+and the registered dataset the bundle is built with. The package's ``COHORTS``
+registry lists them.
 
-Every image is built from its epoch and nothing else. The spacecraft clock
-readings a document records and the number the image is named for are both
-derived from it, so no document of the cohort can carry a reading it counted
-one of the others from a different moment.
+The Cassini ISS Saturn cohort,
+:class:`~tests.mini_nav_results.cohort_cassini.CassiniISSSaturnCohort`, is the
+one that exists: three images, two navigated and one not, the two navigated ones
+sharding into different bundle directories and only one of them with ring
+backplanes, so a run over it exercises both layouts.
+
+Every image of that cohort is built from its epoch and nothing else. The
+spacecraft clock readings a document records and the number the image is named
+for are both derived from it, so no document of the cohort can carry a reading
+it counted one of the others from a different moment.
 
 The conversion those readings come from is a line through two correlation
 points read out of the Cassini mission clock kernel, calibrating both where the
@@ -457,6 +468,11 @@ itself; an anchor moved by an hour leaves them all green with every image
 renamed. What reports that is an integration test that furnishes the mission
 clock kernel and converts every cohort epoch again, which is excluded from the
 default run because the kernels are not there to furnish.
+
+The self-tests every cohort is held to run over each registered cohort; what
+only one bundle's cohort can state -- its clock, its image names, its index
+columns, its bundle directories, its holdings layout -- is tested in a module
+named for that bundle.
 
 Nothing a cohort produces is checked in. A test asks the session-scoped fixture
 :func:`mini_nav_cohorts <tests.conftest.mini_nav_cohorts>` for the cohort of the
@@ -475,10 +491,11 @@ navigation and backplane roots, and the images to pass them. It is not a
 holdings tree, so ``sd_create_bundle`` cannot enumerate it -- a PDS3 selection
 by volume reads that volume's index table, and the cohort writes none.
 
-Adding an instrument to the cohort is a module beside
-:mod:`~tests.mini_nav_results.cohort_cassini`. The
-FITS files, the browse images and the documents it implies exist only while a
-test is running, so it costs the repository nothing.
+Adding a bundle's cohort is one module holding a
+:class:`~tests.mini_nav_results.cohort.Cohort` subclass, named for the bundle,
+and one entry in ``COHORTS``. The FITS files, the browse images and the
+documents it implies exist only while a test is running, so it costs the
+repository nothing.
 
 Adding PDS4 support to a new dataset
 ====================================
@@ -509,6 +526,10 @@ The end-to-end checklist:
    ``sd_create_bundle`` and asserts the resulting ``data.lblx`` validates
    against the PDS4 schema. The Cassini ISS test under
    ``tests/integration/`` is the pattern to follow.
+5. Add the bundle's cohort, as `Testing bundle generation`_ describes: a
+   :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a module named for
+   the bundle, its entry in ``COHORTS``, and a test module named for the bundle
+   for what only its cohort can state.
 
 API reference
 =============

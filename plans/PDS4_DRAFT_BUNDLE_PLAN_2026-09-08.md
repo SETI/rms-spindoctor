@@ -29,8 +29,8 @@ Phases 1 and 2 have run; Phases 3-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
-so has to be settled before a label describes one. A third, the statistics
-units fix recorded in section 3.8, landed with Phase 2 rather than ahead of it,
+so has to be settled before a label describes one. A third, the statistics'
+units recorded in section 3.8, landed with Phase 2 rather than ahead of it,
 and for the same reason: it alters what the metadata documents contain and
 therefore what Phase 7's tables and labels are sized and written against.
 
@@ -66,8 +66,8 @@ guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the `Special_Constants`
 declaration, which is what remains of the masked-value work), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
-6 own), #611 (the backplane viewer carries the same unit equality the
-statistics carried, on the same plane), #614 (a dataset without PDS4 support
+6 own), #611 (the backplane viewer converts only a `BUNIT` of `rad`, so it
+shows the `rad/pixel` plane in radians per pixel), #614 (a dataset without PDS4 support
 ends both passes in a traceback rather than a refusal). #603, the two passes
 disagreeing about a missing template, closes in Phase 1. #607, the index
 tables written to one precision whatever the column's unit, closes in Phase
@@ -653,8 +653,8 @@ touches no SPICE and no holdings, it covers three instruments, three
 outcomes, BOTSIM pairs and gated features, and it derives every spacecraft
 clock reading from the epoch beside it rather than inventing one.
 
-That package is the nav half of the cohort, and it holds the cohort in a set
-of its own rather than by extending the set it already held. The two sets are
+That package is the nav half of every cohort, and it holds the cohorts in sets
+of their own rather than by extending the set it already held. The two sets are
 selected for different things. The eight documents in
 `results_tree_documents()` are chosen for what they make the *statistics
 report* exercise -- three outcomes, four feature sources, a BOTSIM pair, a
@@ -667,18 +667,22 @@ The stored golden output is cheap to regenerate and no one has signed it
 off, so the cost of touching it is not the argument. The argument is that a
 fixture selected for two unrelated criteria stops being legible for either.
 
-So the package holds a **second document set**, `cohort_documents()`, built
-from the same `shared.py` primitives and written to a cohort root rather
-than into `RESULTS_TREE`. `results_tree_documents()` and the stats fixture
-tree are untouched by it.
+So the package holds a **cohort per bundle**, each a `Cohort` subclass in a
+module named for the bundle and registered in `COHORTS`, built from the same
+`shared.py` primitives and written to a cohort root rather than into
+`RESULTS_TREE`. The Cassini ISS Saturn cohort, `CassiniISSSaturnCohort` in
+`cohort_cassini.py`, is the one that exists. `results_tree_documents()` and the
+stats fixture tree are untouched by it.
 
-**The cohort is never checked in.** It is built once a session into a
-directory `tmp_path_factory` makes, and torn down with it; no cohort bytes live under `tests/`, and the
-`python -m tests.mini_nav_results cohort <outdir>` form writes wherever the
-operator points it. The builders are the artifact, not their output. That is
-what keeps a fifth instrument's cohort from costing the repository anything
--- adding one is a module beside `cohort_cassini.py`, and the FITS, the PNGs
-and the tables it implies exist only while a test is running.
+**No cohort is checked in.** Each is built once a session into a directory
+`tmp_path_factory` makes, and torn down with it; no cohort bytes live under
+`tests/`, and the `python -m tests.mini_nav_results cohort <bundle> <outdir>`
+form writes wherever the operator points it. The builders are the artifact, not
+their output. That is what keeps a second bundle's cohort from costing the
+repository anything -- adding one is one module, a `Cohort` subclass supplying
+the bundle's images, holdings layout, camera reading, plane bounds and
+registered dataset, and one entry in `COHORTS` -- and the FITS, the PNGs and
+the tables it implies exist only while a test is running.
 
 The two sets differ on this deliberately, and it is worth saying why rather
 than leaving it to look like an inconsistency. The stats tree stays stored
@@ -690,11 +694,14 @@ cohort has no such frozen counterpart -- what it feeds is a schema
 validator, which is an external judge -- so storing it would buy nothing and
 cost the repository a growing pile of binary fixtures.
 
-Build it once per session rather than once per test: a session-scoped
-fixture that writes the cohort into a temporary directory, since a dozen
-label tests should not each rewrite a FITS.
+Build each once per session rather than once per test: the session-scoped
+`mini_nav_cohorts` fixture writes a cohort class into a temporary directory the
+first time a test asks for it, since a dozen label tests should not each
+rewrite a FITS. The self-tests every cohort is held to run over each registered
+cohort; what only one bundle's cohort can state is tested in a module named for
+the bundle.
 
-What the cohort set holds beyond the documents:
+What the Cassini ISS Saturn cohort holds beyond the documents:
 
 - **A summary PNG per successful image.** A real PNG, small; the browse
   label states its byte size and checksum.
@@ -714,7 +721,7 @@ What the cohort set holds beyond the documents:
   `1234xxxxxx/123456xxxx` directories, one image with ring backplanes and one
   without, and one image whose navigation did not succeed.
 
-Three things about the cohort's products are known not to hold, and are
+Three things about the Cassini cohort's products are known not to hold, and are
 recorded here rather than only in a docstring, because each is a
 property of the product a later phase describes rather than of the code
 that writes it.
@@ -751,10 +758,11 @@ Two rules bind the additions.
 happens otherwise: four Cassini documents in the statistics set carry clock
 seconds taken from the image number rather than converted from the epoch
 beside them. The response here is not a test that exempts those four. It is
-a `shared.py` constructor that takes an epoch and returns the clock triple,
-so a document built through it cannot carry an invented one, and a second
-beside it derives the image number from the same epoch. The cohort set is
-built entirely through both. Routing the existing four through it as well
+a constructor in `cassini_host.py`, the Cassini host's module, that takes an
+epoch and returns the clock triple, so a document built through it cannot
+carry an invented one, and a second beside it derives the image number from
+the same epoch. The Cassini cohort is built entirely through both; another
+host's cohort brings its own. Routing the existing four through it as well
 is #530's own work -- a coordinated change to four documents, four
 filenames, the `filtered` variant's image-number bounds and both goldens,
 which belongs in a PR about the statistics fixtures rather than on a PDS4
@@ -773,8 +781,9 @@ reaching much further has to measure that again or take a third point;
 the arithmetic is a line either way and no SPICE is called at build
 time.
 
-What holds it there is an `integration`-marked test that furnishes the
-kernel and converts every cohort epoch again. It has to be that test and
+What holds it there is an `integration`-marked test,
+`tests/integration/test_cohort_cassini_clock_against_kernel.py`, that furnishes
+the kernel and converts every cohort epoch again. It has to be that test and
 cannot be one of the cohort's own: those compare a reading to a reading
 and a name to the reading it came from, both derived here from one
 function, so they report a hand-authored triple added later -- their
@@ -811,19 +820,20 @@ mistake a package under `tests/` for the naming of the roots themselves.
 Its docstring says which roots it writes so the point does not have to be
 re-derived.
 
-The cohort builder lives in the same package rather than beside it, so there
-is one name and one entry point. That entry point takes the set to write and
-where to write it, in that order, for both sets alike -- an argument that
-changes *which* files are written depending on whether a later argument is
-present is exactly the surprise a fixture tool should not hold:
+The cohort builders live in the same package rather than beside it, so there
+is one name and one entry point. That entry point takes the set to write, for a
+cohort the bundle whose cohort it is, and where to write it, in that order --
+an argument that changes *which* files are written depending on whether a later
+argument is present is exactly the surprise a fixture tool should not hold:
 
 ```bash
 PYTHONPATH=src python -m tests.mini_nav_results results_tree \
     tests/spindoctor/cli/stats/data/results_tree
-PYTHONPATH=src python -m tests.mini_nav_results cohort <outdir>
+PYTHONPATH=src python -m tests.mini_nav_results cohort cassini_iss_saturn <outdir>
 ```
 
-Both arguments are required in both forms. The stats path is spelled out
+Every argument is required, a cohort's bundle being one of the names in
+`COHORTS`. The stats path is spelled out
 rather than defaulted so that regenerating a checked-in fixture tree is
 something the operator asked for by name; it is written here and in the
 package docstring so it can be copied rather than remembered.
@@ -1037,11 +1047,13 @@ in Phase 10.
 `tests/mini_nav_results/` is the fixture cohort section 3.12 describes: the
 package moved out of the statistics suite that held it, with two document sets
 built through the production writers. `results_tree_documents()` is the statistics fixture
-tree, unchanged and still stored under `tests/spindoctor/cli/stats/data/`;
-`cohort_documents()` is the three Cassini images bundle generation is asserted
-against, and is never stored.
+tree, unchanged and still stored under `tests/spindoctor/cli/stats/data/`,
+composed from each host's own documents; the cohorts, one `Cohort` subclass per
+bundle registered in `COHORTS`, are what bundle generation is asserted against,
+and are never stored. The one that exists, `CassiniISSSaturnCohort`, is three
+Cassini images.
 
-The cohort is two navigated images and one that is not. The two shard into
+The Cassini cohort is two navigated images and one that is not. The two shard into
 different `1234xxxxxx/123456xxxx` pairs at both levels, one carries ring
 backplanes and one carries none, and each navigated image has a real
 `astropy`-written FITS of 16x16 planes, the backplane metadata document beside
@@ -1055,7 +1067,7 @@ inventory dict, which is all the writer reads before it stops asking about
 SPICE.
 
 Every clock reading and every image number is derived from one epoch, through
-`shared.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
+`cassini_host.py`'s `cassini_sclk_triple` and `cassini_image_number`, both counted
 from a line through two correlation points the mission clock kernel gives --
 calibrating where the clock started and the rate it runs at -- and stamped onto
 a result by `with_pointing_from_epoch`, which takes no clock argument at all.
@@ -1064,14 +1076,22 @@ same constructor is #530's own work: it is a coordinated change to four
 documents, four filenames, the `filtered` variant's image-number bounds and
 both goldens, and it belongs in a PR about the statistics fixtures.
 
-`cohort.py` assembles the two roots and the `ImageFiles` list, and
-`tests/conftest.py` serves the result as the session-scoped `mini_nav_cohort`
-fixture. `python -m tests.mini_nav_results` takes the set to write and where to
-write it, both required for both sets.
+`cohort.py` holds what every cohort shares: `CohortImage`, and the `Cohort`
+base, which writes the two roots and the holdings directory and builds the
+`ImageFiles` list from what a bundle's subclass supplies -- its images, holdings
+layout, camera reading, plane bounds and registered dataset.
+`tests/conftest.py` serves the cohorts through the session-scoped
+`mini_nav_cohorts` fixture, which writes each cohort class the first time a
+test asks for it. `python -m tests.mini_nav_results` takes the set to write,
+for a cohort the bundle, and where to write it, all required.
 `tests/spindoctor/cli/pds4/conftest.py` keeps `FakePds4DataSet` for the
 plumbing questions and gains `CohortBundleEnv`, which runs the registered
-Cassini dataset over the shipped templates and is what the phases after this
-one assert against.
+dataset a cohort's bundle is built with over the templates it ships, and is
+what the phases after this one assert against. Each host's camera frames,
+exposure and clock are in a module named for the host (`cassini_host.py`,
+`voyager_host.py`), described to `with_pointing` by a `Host`; each host's clock
+reader is in a module named for it under `tests/sclk_readings/`; and the tests
+only one bundle's cohort can state are in modules named for the bundle.
 
 Two things the phase does not reach. An enumeration reads only the index
 columns it declares -- `FILE_SPECIFICATION_NAME` and `INSTRUMENT_ID` for
