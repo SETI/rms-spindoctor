@@ -95,11 +95,6 @@ def test_a_stop_equal_to_its_start_passes() -> None:
             'records a navigation_result.times.start_et of True, which is not a finite number',
         ),
         (
-            _document(start_et=10**400),
-            'records a navigation_result.times.start_et of an integer 401 digits long, which '
-            'is too large for a float',
-        ),
-        (
             _document(stop_et=129399999.0),
             'records a navigation_result.times.stop_et of 129399999.0, earlier than its '
             'start_et of 129399999.77',
@@ -116,7 +111,6 @@ def test_a_stop_equal_to_its_start_passes() -> None:
         'a stop recorded as a string',
         'a null midtime',
         'a boolean start',
-        'an integer start too large for a float',
         'a stop before its start',
     ],
 )

@@ -284,11 +284,11 @@ def test_no_closest_planet_returns_no_bodies() -> None:
 def test_inventory_queried_for_planet_and_satellites() -> None:
     """The inventory is built for the closest planet plus its config satellites."""
     snap = make_snapshot(
-        shape_vu=SHAPE_VU, simulated=False, closest_planet='SATURN', canned_inventory={}
+        shape_vu=SHAPE_VU, simulated=False, closest_planet='PLANET', canned_inventory={}
     )
-    config = FakeBackplanesConfig(bodies=[LAT_CFG], satellites={'SATURN': ['MIMAS', 'ENCELADUS']})
+    config = FakeBackplanesConfig(bodies=[LAT_CFG], satellites={'PLANET': ['MIMAS', 'ENCELADUS']})
     create_body_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-    assert snap.inventory_calls == [['SATURN', 'MIMAS', 'ENCELADUS']]
+    assert snap.inventory_calls == [['PLANET', 'MIMAS', 'ENCELADUS']]
 
 
 def _real_snapshot_with_mimas() -> HermeticObs:
@@ -297,7 +297,7 @@ def _real_snapshot_with_mimas() -> HermeticObs:
     return make_snapshot(
         shape_vu=SHAPE_VU,
         simulated=False,
-        closest_planet='SATURN',
+        closest_planet='PLANET',
         canned_inventory=inventory,
     )
 

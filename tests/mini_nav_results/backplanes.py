@@ -25,8 +25,8 @@ observation that reports itself simulated and carries an inventory dict reaches
 no SPICE and no image.  That is what stands in for a snapshot here.
 
 The planes are the ones the shipped configuration declares, and their values
-are ramps between the bounds one plane of that name spans.  A plane the
-configuration declares and this module has no bounds for stops the build: a
+are ramps between the bounds the cohort gives a plane of that name.  A plane the
+configuration declares and the cohort gives no bounds for stops the build: a
 plane written with invented bounds would put a global index column outside the
 range its own arrays cover, which is the disagreement these products exist to
 be checked for.
@@ -34,7 +34,7 @@ be checked for.
 
 from __future__ import annotations
 
-import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -51,38 +51,9 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 COHORT_SHAPE_VU = (16, 16)
 """The pixel dimensions of a cohort frame.
 
-A miniature of the 1024 by 1024 frame the camera reads out.  Every plane, every
-mask and every browse image is sized from this, so the whole cohort is built
-and torn down inside one test session.
-
-It is smaller than any real Cassini readout, which leaves one thing about the
-product untrue: the index row records an instrument mode of ``FULL``, and no
-Cassini mode names a 16 pixel frame, so there is no value it could record
-instead.  A reader holding a frame's size against the mode beside it therefore
-finds a frame this size claiming to be a full one.
-"""
-
-_PLANE_BOUNDS = {
-    'body_longitude': (0.0, 2.0 * math.pi),
-    'body_latitude': (-math.pi / 2.0, math.pi / 2.0),
-    'body_incidence_angle': (0.0, math.pi),
-    'body_emission_angle': (0.0, math.pi / 2.0),
-    'body_phase_angle': (0.0, math.pi),
-    'body_finest_resolution': (1.24, 2.35),
-    'body_coarsest_resolution': (2.35, 8.06),
-    'ring_radius': (74658.0, 136780.0),
-    'ring_longitude': (0.0, 2.0 * math.pi),
-    'ring_emission_angle': (0.0, math.pi / 2.0),
-    'ring_phase_angle': (0.0, math.pi),
-    'ring_radial_resolution': (2.11, 9.04),
-    'ring_longitudinal_resolution': (1.4e-05, 3.9e-05),
-}
-"""What one plane of each name spans, in the units the configuration declares.
-
-Radians for the angles and the longitudes, kilometres for the ring radii, and
-km or radians per pixel for the resolutions -- the units the arrays carry.  The
-ring radii span Saturn's main rings; the resolutions are what a Cassini frame
-of a body a few hundred thousand kilometres away resolves.
+A miniature of a real frame.  Every plane, every mask and every browse image is
+sized from this, so the whole cohort is built and torn down inside one test
+session.
 """
 
 
@@ -166,25 +137,25 @@ def _ramp(
     return cast(NDArrayFloatType, plane)
 
 
-def _bounds_for(name: str) -> tuple[float, float]:
+def _bounds_for(name: str, plane_bounds: Mapping[str, tuple[float, float]]) -> tuple[float, float]:
     """Return what a plane of this name spans.
 
     Parameters:
         name: The plane's configured name.
+        plane_bounds: What the cohort gives a plane of each name to span.
 
     Returns:
         Its lowest and highest value.
 
     Raises:
-        KeyError: If the configuration declares a plane this module has no
+        KeyError: If the configuration declares a plane the cohort gives no
             bounds for.
     """
-    try:
-        return _PLANE_BOUNDS[name]
-    except KeyError:
+    if name not in plane_bounds:
         raise KeyError(
-            f'the cohort has no bounds for backplane {name!r}; add them beside the others'
-        ) from None
+            f'the cohort has no bounds for backplane {name!r}; add them to its PLANE_BOUNDS'
+        )
+    return plane_bounds[name]
 
 
 def _statistics(
@@ -255,6 +226,7 @@ def write_backplanes(
     *,
     bodies: tuple[CohortBody, ...],
     rings: bool,
+    plane_bounds: Mapping[str, tuple[float, float]],
     config: Config,
 ) -> None:
     """Write one image's backplane FITS and the metadata document beside it.
@@ -277,6 +249,8 @@ def write_backplanes(
             no body does.  A frame with none still carries a ring result with
             nothing in it, as a real frame whose rings are out of the field
             does.
+        plane_bounds: What the cohort gives a plane of each configured name to
+            span, in the units the configuration declares.
         config: The configuration whose declared planes, units and masked value
             the products are built from.
     """
@@ -300,7 +274,9 @@ def write_backplanes(
         # nearer body happens to be declared first.
         mask = _disc_mask(body)
         claimed |= mask
-        planes = {name: _ramp(_bounds_for(name), mask, masked_value) for name in body_units}
+        planes = {
+            name: _ramp(_bounds_for(name, plane_bounds), mask, masked_value) for name in body_units
+        }
         masks = dict.fromkeys(planes, mask)
         bodies_result[body.name] = {
             'arrays': planes,
@@ -323,7 +299,10 @@ def write_backplanes(
     # "backplanes" rather than being empty itself -- that the collections read.
     ring_mask = ~claimed
     ring_planes = (
-        {name: _ramp(_bounds_for(name), ring_mask, masked_value) for name in ring_units}
+        {
+            name: _ramp(_bounds_for(name, plane_bounds), ring_mask, masked_value)
+            for name in ring_units
+        }
         if rings
         else {}
     )

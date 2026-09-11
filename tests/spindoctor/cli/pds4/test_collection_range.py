@@ -15,8 +15,8 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
-from tests.mini_nav_results.cohort import Cohort
-from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB
+from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
+from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CassiniISSSaturnCohort
 
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.collections import (
@@ -36,6 +36,16 @@ from .conftest import (
     read_tab,
     write_supplemental,
 )
+
+
+@pytest.fixture
+def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CassiniISSSaturnCohort:
+    """Return the Cassini ISS Saturn cohort, as the session wrote it.
+
+    Returns:
+        The written cohort.
+    """
+    return mini_nav_cohorts(CassiniISSSaturnCohort)
 
 
 def _navigation(start_et: float, stop_et: float) -> dict[str, Any]:
@@ -203,7 +213,7 @@ def test_the_index_refuses_a_bundle_with_no_data_directory_and_writes_nothing(
 
 
 def test_the_cohort_s_data_collection_label_states_the_range_of_its_images(
-    mini_nav_cohort: Cohort, tmp_path: Path
+    cassini_cohort: Cohort, tmp_path: Path
 ) -> None:
     """The shipped label over the cohort's two navigated images states their range.
 
@@ -213,13 +223,13 @@ def test_the_cohort_s_data_collection_label_states_the_range_of_its_images(
     second outside it.  The two generators run in the order the summary pass runs
     them, the global index first.
     """
-    env = make_cohort_bundle_env(mini_nav_cohort, tmp_path)
+    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
     for stub in (LIMB_STUB, RINGS_STUB):
         generate_bundle_data_files(
             env.dataset,
-            mini_nav_cohort.batch(stub),
-            nav_results_root=FCPath(mini_nav_cohort.nav_results_root),
-            backplane_results_root=FCPath(mini_nav_cohort.backplane_results_root),
+            cassini_cohort.batch(stub),
+            nav_results_root=FCPath(cassini_cohort.nav_results_root),
+            backplane_results_root=FCPath(cassini_cohort.backplane_results_root),
             bundle_results_root=FCPath(env.bundle_results_root),
             logger=MAIN_LOGGER,
         )

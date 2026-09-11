@@ -78,14 +78,14 @@ one directory, so a template that is missing is missing for every product, and a
 per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
-Each pass also checks, before it reads anything, that every backplane the
-configuration declares is in a unit the bundle can use, through
-:func:`~spindoctor.cli.pds4.collections.unusable_units`.  The labels pass holds
-each document's statistics to the configured unit and the summary pass writes
-each index column in the format that unit calls for, so a unit neither can use
--- a spelling the format table has no entry for, or an entry with no ``units``
-at all -- is refused once, with every such entry named and the reason, rather
-than once per image or after the collection files are on disk.
+Each index column is written in the format
+:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit: the
+backplane arrays are float32, so no format prints more than seven significant
+digits, and within that each is chosen from what one pixel resolves.  Nothing
+checks the configured units when a bundle is written: a unit the table has no
+format for is a ``KeyError`` from the summary pass's lookup.  The guard is the
+two tests over the shipped configuration that :doc:`dev_guide_backplanes`
+describes.
 
 Before it processes anything, ``sd_create_bundle labels`` also requires
 ``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent, and exits
@@ -105,13 +105,16 @@ populated bundle rather than an empty one.
 an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
-configuration gives its plane, or a minimum or maximum that is not a finite
-number), an image whose navigation document records no exposure epochs a label
-can state (see `Epochs`_), and an image whose inputs it could not read -- and
-exits 1 when that count is not zero.  It closes with a line giving that count alongside the number
-of images it labeled and the number it skipped, so a selection that matched
-nothing reads as the zero it is.  It counts a batch that did not hold exactly
-one image the same way; that is a guard on the one-image-per-batch invariant
+configuration gives its plane, or a minimum or maximum that is NaN or
+infinite), an image whose navigation document records no exposure epochs a
+label can state (see `Epochs`_), and an image whose inputs it could not read --
+and exits 1 when that count is not zero.  An image with such a statistic is
+failed before anything is written for it, and the log names the image, the
+plane and what the document records there.  The run closes with a line giving
+that count alongside the number of images it labeled and the number it
+skipped, so a selection that matched nothing reads as the zero it is.  It
+counts a batch that did not hold exactly one image the same way; that is a
+guard on the one-image-per-batch invariant
 :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` also
 asserts, and no selection argument this dataset offers can produce one.
 
@@ -126,7 +129,7 @@ image against the run, and carries on to the next one.
 
 A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
-dry run over a missing template, an unusable unit or a populated bundle root
+dry run over a missing template or a populated bundle root
 exits 1 naming what it found, like any other run.  Past them it writes nothing,
 so it counts nothing against the run, including a batch it reports it could not
 have processed.
@@ -136,11 +139,11 @@ write, over both generators, and exits 1 the same way.  The inventory and index
 ``.tab`` tables are written either way.  The data collection label counts as not
 written when there is no range for it to state (see `Epochs`_).  The global index
 is generated first, and it refuses a bundle with no ``data/`` directory, naming
-the directory, before any product of the pass is cleared or written.  The pass also
-exits 1 when a supplemental file holds a statistic no index column can -- one in
-a unit other than the one the configuration gives its plane, or in none, or a
-minimum or maximum that is not a finite number within the range of a float --
-the check the labels pass makes per image, through
+the directory, before any product of the pass is cleared or written.  The pass
+also exits 1 when a supplemental file holds a statistic no index column can --
+one in a unit other than the one the configuration gives its plane, or a
+minimum or maximum that is NaN or infinite -- the check the labels pass makes
+per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  It exits 1 the same
 way on a supplemental file it cannot read, or one that does not hold a JSON
@@ -158,22 +161,19 @@ leaves no product of the pass, neither this run's nor an earlier run's.  A bundl
 with no ``data/`` directory is refused before anything is cleared, so an earlier
 run's products stay where it left them.
 
+The summary pass builds both inventories from the data labels in the bundle's
+``data/`` tree and does not check that tree for completeness, so it can exit 0
+over a bundle the labels pass failed images in.  An image that got a data label
+but no browse label, its summary PNG missing, leaves ``collection_browse.tab``
+listing a browse product that is not on disk.
+
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
 for no retry: a template that could not be rendered will not render on a second
-attempt.  Of the three up-front checks it makes the unit check alone, and makes
-it per task: once the dataset is constructed, and before any document is read,
-a task under a configuration in which
-:func:`~spindoctor.cli.pds4.collections.unusable_units` finds a backplane comes
-back as ``status_error: unusable_unit``, every such backplane and its reason in
-``status_exception``, having generated nothing, and again asks for no retry,
-since the configuration will not change on a second attempt.  The check each
-document gets covers only the planes that document holds, so a task that did
-not make this one would write labels the summary pass then refuses to index.
-It makes neither the template check nor the empty-root check, because it holds
-one task rather than the run: a template it cannot find raises out of every
-task, and the empty bundle root is the queue-driven run's own precondition to
-establish.
+attempt.  It makes neither of the local driver's up-front checks, the template
+check and the empty-root check, because it holds one task rather than the run:
+a template it cannot find raises out of every task, and the empty bundle root is
+the queue-driven run's own precondition to establish.
 
 Per-dataset extension points
 ============================
@@ -253,6 +253,12 @@ directories that do not ship.  Every other hook raises
 :exc:`NotImplementedError`,
 :meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` among
 them, so both passes stop on these datasets before they look for a template.
+The Cassini ISS class itself, registered as ``coiss``, leaves its configuration
+name, template directory and bundle name to its subclasses and raises
+:exc:`NotImplementedError` for them, so both passes stop on it when they ask for
+the template directory, as they do on ``sim``, whose hooks all raise it.  Every
+registered name but ``sim`` has a ``_pds3`` alias naming the same class, which
+bundles, or does not, the same way.
 
 The ``pds4`` config block
 -------------------------
@@ -491,28 +497,39 @@ dataset over tiny templates the test itself wrote, so every variable in play is
 one the test controls and a failure names the wiring that broke.
 
 The second is content: what a label actually says. Those tests run the
-registered
+registered dataset a bundle is built with over the templates it ships, on the
+products a navigation run and the backplane stage leave behind -- for the one
+bundle that ships,
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISSSaturn`
-over the shipped ``cassini_iss_saturn_1.0`` templates, on the products a
-navigation run and the backplane stage leave behind. Neither environment
-answers the other's question: a label rendered from a template the test wrote
-says whatever the test put there, and a plumbing failure inside the shipped
-template set is a needle in three hundred lines of XML.
+over ``cassini_iss_saturn_1.0``. Neither environment answers the other's
+question: a label rendered from a template the test wrote says whatever the test
+put there, and a plumbing failure inside the shipped template set is a needle in
+three hundred lines of XML.
 
-The inputs for the second come from :mod:`tests.mini_nav_results`, a package that
-builds a miniature of what a navigation run leaves on disk -- three Cassini
-images, of which two navigated and one did not; a real backplane FITS and its
-metadata document per navigated image, written by the backplane stage's own
+The inputs for the second come from :mod:`tests.mini_nav_results`, a package
+that builds a miniature of what a navigation run leaves on disk, one cohort per
+bundle. A cohort holds a few of the bundle's images, some navigated and some
+not; a real backplane FITS and its metadata document per navigated image,
+written by the backplane stage's own
 :func:`~spindoctor.cli.backplanes.writer.write_fits`; a real summary PNG,
 because the browse label states its size and its checksum; and the index row an
-enumeration hands on with each image. The two navigated images shard into
-different bundle directories and only one of them has ring backplanes, so a
-run over the cohort exercises both layouts.
+enumeration hands on with each image. Each cohort is a subclass of
+:class:`~tests.mini_nav_results.cohort.Cohort`, which writes all of that from
+what the subclass supplies: the images, the holdings layout they sit in, how an
+image's camera is read from its index row, the range each backplane plane spans,
+and the registered dataset the bundle is built with. The package's ``COHORTS``
+registry lists them.
 
-Every image is built from its epoch and nothing else. The spacecraft clock
-readings a document records and the number the image is named for are both
-derived from it, so no document of the cohort can carry a reading it counted
-one of the others from a different moment.
+The Cassini ISS Saturn cohort,
+:class:`~tests.mini_nav_results.cohort_cassini.CassiniISSSaturnCohort`, is the
+one that exists: three images, two navigated and one not, the two navigated ones
+sharding into different bundle directories and only one of them with ring
+backplanes, so a run over it exercises both layouts.
+
+Every image of that cohort is built from its epoch and nothing else. The
+spacecraft clock readings a document records and the number the image is named
+for are both derived from it, so no document of the cohort can carry a reading
+it counted one of the others from a different moment.
 
 The conversion those readings come from is a line through two correlation
 points read out of the Cassini mission clock kernel, calibrating both where the
@@ -530,26 +547,33 @@ renamed. What reports that is an integration test that furnishes the mission
 clock kernel and converts every cohort epoch again, which is excluded from the
 default run because the kernels are not there to furnish.
 
-Nothing the cohort produces is checked in. A test takes it as a session-scoped
-fixture, :func:`mini_nav_cohort <tests.conftest.mini_nav_cohort>`, built into a
-temporary directory and torn down
-with the session; a test asserts that none of its products reaches the working
-tree. To build one outside the suite, to read or to call the bundle stage
-over:
+The self-tests every cohort is held to run over each registered cohort; what
+only one bundle's cohort can state -- its clock, its image names, its index
+columns, its bundle directories, its holdings layout -- is tested in a module
+named for that bundle.
+
+Nothing a cohort produces is checked in. A test asks the session-scoped fixture
+:func:`mini_nav_cohorts <tests.conftest.mini_nav_cohorts>` for the cohort of the
+bundle it is about, which is written into a temporary directory the first time a
+test asks for it and torn down with the session; a test asserts that none of its
+products reaches the working tree. To build one outside the suite, to read or to
+call the bundle stage over, name the bundle and where to write its cohort, the
+bundle being one of the names the package's ``COHORTS`` registry holds:
 
 .. code-block:: bash
 
-   PYTHONPATH=src python -m tests.mini_nav_results cohort /tmp/cohort
+   PYTHONPATH=src python -m tests.mini_nav_results cohort cassini_iss_saturn /tmp/cohort
 
 What that writes is what the bundle stage's library entry points read: the
 navigation and backplane roots, and the images to pass them. It is not a
 holdings tree, so ``sd_create_bundle`` cannot enumerate it -- a PDS3 selection
 by volume reads that volume's index table, and the cohort writes none.
 
-Adding an instrument to the cohort is a module beside
-:mod:`~tests.mini_nav_results.cohort_cassini`. The
-FITS files, the browse images and the documents it implies exist only while a
-test is running, so it costs the repository nothing.
+Adding a bundle's cohort is one module holding a
+:class:`~tests.mini_nav_results.cohort.Cohort` subclass, named for the bundle,
+and one entry in ``COHORTS``. The FITS files, the browse images and the
+documents it implies exist only while a test is running, so it costs the
+repository nothing.
 
 Adding PDS4 support to a new dataset
 ====================================
@@ -580,6 +604,10 @@ The end-to-end checklist:
    ``sd_create_bundle`` and asserts the resulting ``data.lblx`` validates
    against the PDS4 schema. The Cassini ISS test under
    ``tests/integration/`` is the pattern to follow.
+5. Add the bundle's cohort, as `Testing bundle generation`_ describes: a
+   :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a module named for
+   the bundle, its entry in ``COHORTS``, and a test module named for the bundle
+   for what only its cohort can state.
 
 API reference
 =============
@@ -600,9 +628,6 @@ documented above.
 - :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one
   check both passes hold every statistic of a document to, its unit and its
   values.
-- :func:`~spindoctor.cli.pds4.collections.unusable_units` — the configured
-  backplanes no index column has a format for, which both passes and the
-  cloud-task worker refuse before reading a document.
 - :func:`~spindoctor.cli.pds4.epochs.unrecorded_epoch` — the one check a
   navigation document's exposure epochs are held to before a label states them.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and

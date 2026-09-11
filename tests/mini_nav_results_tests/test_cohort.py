@@ -1,17 +1,15 @@
-"""Self-tests for the bundle cohort the PDS4 phases are asserted against.
+"""Self-tests every bundle's cohort is held to.
 
-The cohort is built from each image's epoch and nothing else, so what is worth
-holding it to is that everything derived from that epoch still agrees with it:
-the clock readings a document records, and the number the image is named for.
-An image whose name and epoch disagree is the defect the epoch-first
-constructor exists to make unreachable, and it is invisible to any test that
-reads one of them alone.
+Every registered cohort is written once for the session, and each test here runs
+over each of them.  What they check is what the bundle stage reads off a cohort
+and cannot check for itself: a real FITS whose HDUs a reader finds where a label
+says they are, a metadata document naming the planes that FITS carries, every
+statistic in the unit the index tables state, and every body placed where its
+cohort put it.  Nothing a cohort writes may reach the working tree.
 
-The rest is what the bundle stage reads off the cohort and cannot check for
-itself: the layout, which is two images that shard into different bundle
-directories and one with ring backplanes and one without; the products, which
-are a real FITS whose HDUs a reader finds where a label says they are; and the
-index row, whose column names are the one thing a label variable is read by.
+What only one bundle's cohort can say -- its clock, the names its images take,
+its index columns, its bundle directories, its holdings layout -- is held in a
+test module named for that bundle.
 """
 
 import json
@@ -24,268 +22,83 @@ import pytest
 from astropy.io import fits
 from filecache import FCPath
 
-from spindoctor.dataset import DataSetPDS3CassiniISSSaturn
-from tests.mini_nav_results import cohort_documents
-from tests.mini_nav_results.cohort import Cohort
-from tests.mini_nav_results.cohort_cassini import (
-    HOLDINGS_SUBTREE,
-    LIMB_IMAGE_NAME,
-    RINGS_IMAGE_NAME,
-    cohort_images,
-)
-from tests.sclk_readings import triples_disagreeing_with_their_epochs
+from spindoctor.config import DEFAULT_CONFIG
+from tests.mini_nav_results import COHORTS
+from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
+
+
+@pytest.fixture(scope='module', params=sorted(COHORTS))
+def cohort(request: pytest.FixtureRequest, mini_nav_cohorts: WrittenCohorts) -> Cohort:
+    """Return one registered cohort, as the session wrote it, so a test runs over each.
+
+    Parameters:
+        request: Names, as its parameter, the cohort this run of a test is over.
+        mini_nav_cohorts: What the session's cohorts are written by.
+
+    Returns:
+        The written cohort.
+    """
+    return mini_nav_cohorts(COHORTS[request.param])
 
 
 @pytest.fixture(scope='module')
-def documents() -> dict[str, dict[str, Any]]:
-    """Build every cohort document once for the whole module.
+def first_cohort(mini_nav_cohorts: WrittenCohorts) -> Cohort:
+    """Return the first registered cohort by name, for a test that needs one and no more.
+
+    Parameters:
+        mini_nav_cohorts: What the session's cohorts are written by.
 
     Returns:
-        Stub to the document the writer produces for it.
+        The written cohort.
     """
-    return cohort_documents()
+    return mini_nav_cohorts(COHORTS[min(COHORTS)])
 
 
-def test_every_clock_triple_spans_the_epochs_beside_it(
-    documents: dict[str, dict[str, Any]],
-) -> None:
-    """A reading that is not the one its epoch converts to is an invented one.
+def _hdu_names(entries: list[dict[str, Any]]) -> list[str]:
+    """Return the HDU names one source's configured planes are written under, in order.
 
-    Every reader that subtracts two readings, or converts one back into an
-    epoch, reads whatever a hand-authored triple happened to say.
+    The merge inserts each source's planes in sorted order and the writer names each
+    HDU for its plane in upper case; the ring source's ``distance`` entry orders the
+    merge and is not written.
+
+    Parameters:
+        entries: One source's configured backplane entries.
+
+    Returns:
+        The HDU names, in the order the writer writes them.
     """
-    assert triples_disagreeing_with_their_epochs(documents) == []
+    return sorted(entry['name'].upper() for entry in entries if entry['name'] != 'distance')
 
 
-def test_every_image_is_named_for_the_reading_its_shutter_opened_at(
-    documents: dict[str, dict[str, Any]],
-) -> None:
-    """The name and the epoch are two spellings of one moment, or the document lies.
+def test_each_fits_carries_the_hdus_the_configuration_implies(cohort: Cohort) -> None:
+    """A reader opens a real FITS and finds the planes the configuration declares.
 
-    A Cassini image is named for the whole-second field of the clock reading at
-    shutter open, so the name is derivable from the epoch and any disagreement
-    is a number that came from somewhere else.
+    Every body plane for an image with bodies, and every ring plane after them for
+    an image with rings, each source's planes in sorted order: that is the merge's
+    order, which every array's byte offset in the file is stated against, and not
+    the order the configuration lists them in, so a merge that stopped sorting is
+    reported.  The byte blob a stand-in writes has no HDUs to find.
     """
-    disagreeing: list[str] = []
-    for image in cohort_images():
-        recorded = str(documents[image.stub]['navigation_result']['times']['sclk_start'])
-        named = image.image_name[1:].split('_', 1)[0]
-        if recorded.split('/', 1)[1].split('.')[0] != named:
-            disagreeing.append(f'{image.image_name} carries sclk_start {recorded}')
-    assert disagreeing == []
-
-
-def test_every_index_row_column_is_one_the_real_index_has() -> None:
-    """A column name the index does not have populates nothing, silently.
-
-    The label stage reads sixty-six of its variables out of the row by name,
-    and pdstemplate renders a name it cannot resolve as an empty value; a
-    misspelling here would therefore look exactly like the defect that made the
-    row worth carrying, and a later phase would set out to fix a variable that
-    was never broken.
-    """
-    unknown: list[str] = []
-    for image in cohort_images():
-        unknown += [
-            f'{image.image_name}: {column}'
-            for column in sorted(set(image.index_file_row) - _COISS_INDEX_COLUMNS)
-        ]
-    assert unknown == []
-
-
-def test_the_two_navigated_images_shard_into_different_bundle_directories() -> None:
-    """A cohort that shards into one directory cannot show a per-directory defect."""
-    shards = [
-        DataSetPDS3CassiniISSSaturn.pds4_bundle_path_for_image(name.split('_', 1)[0])
-        for name in (LIMB_IMAGE_NAME, RINGS_IMAGE_NAME)
-    ]
-    assert shards[0] != shards[1]
-
-
-_COISS_INDEX_COLUMNS = frozenset(
-    (
-        'ANTIBLOOMING_STATE_FLAG',
-        'BIAS_STRIP_MEAN',
-        'CALIBRATION_LAMP_STATE_FLAG',
-        'CENTER_LATITUDE',
-        'CENTER_LONGITUDE',
-        'CENTRAL_BODY_DISTANCE',
-        'COMMAND_FILE_NAME',
-        'COMMAND_SEQUENCE_NUMBER',
-        'COORDINATE_SYSTEM_NAME',
-        'DARK_STRIP_MEAN',
-        'DATA_CONVERSION_TYPE',
-        'DATA_SET_ID',
-        'DATA_SET_NAME',
-        'DECLINATION',
-        'DELAYED_READOUT_FLAG',
-        'DESCRIPTION',
-        'DETECTOR_TEMPERATURE',
-        'EARTH_RECEIVED_START_TIME',
-        'EARTH_RECEIVED_STOP_TIME',
-        'ELECTRONICS_BIAS',
-        'EMISSION_ANGLE',
-        'EXPECTED_MAXIMUM',
-        'EXPECTED_PACKETS',
-        'EXPOSURE_DURATION',
-        'FILE_NAME',
-        'FILE_SPECIFICATION_NAME',
-        'FILTER_NAME',
-        'FILTER_TEMPERATURE',
-        'FLIGHT_SOFTWARE_VERSION_ID',
-        'GAIN_MODE_ID',
-        'IMAGE_MID_TIME',
-        'IMAGE_NUMBER',
-        'IMAGE_OBSERVATION_TYPE',
-        'IMAGE_TIME',
-        'INCIDENCE_ANGLE',
-        'INST_CMPRS_PARAM',
-        'INST_CMPRS_RATE',
-        'INST_CMPRS_RATIO',
-        'INST_CMPRS_TYPE',
-        'INSTRUMENT_DATA_RATE',
-        'INSTRUMENT_HOST_ID',
-        'INSTRUMENT_HOST_NAME',
-        'INSTRUMENT_ID',
-        'INSTRUMENT_MODE_ID',
-        'INSTRUMENT_NAME',
-        'LIGHT_FLOOD_STATE_FLAG',
-        'LOWER_LEFT_LATITUDE',
-        'LOWER_LEFT_LONGITUDE',
-        'LOWER_RIGHT_LATITUDE',
-        'LOWER_RIGHT_LONGITUDE',
-        'MAXIMUM_RING_RADIUS',
-        'METHOD_DESC',
-        'MINIMUM_RING_RADIUS',
-        'MISSING_LINES',
-        'MISSING_PACKET_FLAG',
-        'MISSION_NAME',
-        'MISSION_PHASE_NAME',
-        'NORTH_AZIMUTH_CLOCK_ANGLE',
-        'OBSERVATION_ID',
-        'OPTICS_TEMPERATURE',
-        'ORDER_NUMBER',
-        'PARALLEL_CLOCK_VOLTAGE_INDEX',
-        'PHASE_ANGLE',
-        'PIXEL_SCALE',
-        'PLANET_CENTER',
-        'PREPARE_CYCLE_INDEX',
-        'PRODUCT_CREATION_TIME',
-        'PRODUCT_ID',
-        'PRODUCT_TYPE',
-        'PRODUCT_VERSION_TYPE',
-        'READOUT_CYCLE_INDEX',
-        'RECEIVED_PACKETS',
-        'RIGHT_ASCENSION',
-        'RING_CENTER_LATITUDE',
-        'RING_CENTER_LONGITUDE',
-        'RING_EMISSION_ANGLE',
-        'RING_INCIDENCE_ANGLE',
-        'RINGS_FLAG',
-        'SC_PLANET_POSITION_VECTOR',
-        'SC_PLANET_VELOCITY_VECTOR',
-        'SC_SUN_POSITION_VECTOR',
-        'SC_SUN_VELOCITY_VECTOR',
-        'SC_TARGET_POSITION_VECTOR',
-        'SC_TARGET_VELOCITY_VECTOR',
-        'SENSOR_HEAD_ELEC_TEMPERATURE',
-        'SEQUENCE_ID',
-        'SEQUENCE_NUMBER',
-        'SEQUENCE_TITLE',
-        'SHUTTER_MODE_ID',
-        'SHUTTER_STATE_ID',
-        'SOFTWARE_VERSION_ID',
-        'SPACECRAFT_CLOCK_CNT_PARTITION',
-        'SPACECRAFT_CLOCK_START_COUNT',
-        'SPACECRAFT_CLOCK_STOP_COUNT',
-        'SPICE_PRODUCT_ID',
-        'STANDARD_DATA_PRODUCT_ID',
-        'START_TIME',
-        'STOP_TIME',
-        'SUB_SOLAR_LATITUDE',
-        'SUB_SOLAR_LONGITUDE',
-        'SUB_SPACECRAFT_LATITUDE',
-        'SUB_SPACECRAFT_LONGITUDE',
-        'TARGET_DESC',
-        'TARGET_DISTANCE',
-        'TARGET_EASTERNMOST_LONGITUDE',
-        'TARGET_LIST',
-        'TARGET_NAME',
-        'TARGET_NORTH_CLOCK_ANGLE',
-        'TARGET_NORTHERNMOST_LATITUDE',
-        'TARGET_SOUTHERNMOST_LATITUDE',
-        'TARGET_WESTERNMOST_LONGITUDE',
-        'TELEMETRY_FORMAT_ID',
-        'TWIST_ANGLE',
-        'UPPER_LEFT_LATITUDE',
-        'UPPER_LEFT_LONGITUDE',
-        'UPPER_RIGHT_LATITUDE',
-        'UPPER_RIGHT_LONGITUDE',
-        'VALID_MAXIMUM',
-        'VOLUME_ID',
-    )
-)
-"""Every column the Cassini index tables name, transcribed from a real label.
-
-The 119 COLUMN NAME values of COISS_2001_index.lbl, which is the
-index of the volume the cohort's rows say they came from.  Sixty-six of the
-seventy cassini:* label variables are read out of a row of that table by
-name, and a name the table does not have reads as an absent value rather than
-as an error -- indistinguishable, in a rendered label, from a variable that is
-genuinely empty.  So the row is held against the table here rather than against
-itself.
-"""
-
-
-_BODY_HDU_NAMES = (
-    'BODY_COARSEST_RESOLUTION',
-    'BODY_EMISSION_ANGLE',
-    'BODY_FINEST_RESOLUTION',
-    'BODY_INCIDENCE_ANGLE',
-    'BODY_LATITUDE',
-    'BODY_LONGITUDE',
-    'BODY_PHASE_ANGLE',
-)
-"""The image HDUs a frame with body backplanes carries, in the order written.
-
-Written out rather than sorted here: the order is what every array's byte
-offset in the file is stated against, and a test that sorts the names it
-expects agrees with a merge that stopped sorting.  This is the order both real
-products on this machine carry.
-"""
-
-_RING_HDU_NAMES = (
-    'RING_EMISSION_ANGLE',
-    'RING_LONGITUDE',
-    'RING_LONGITUDINAL_RESOLUTION',
-    'RING_PHASE_ANGLE',
-    'RING_RADIAL_RESOLUTION',
-    'RING_RADIUS',
-)
-"""The image HDUs a frame with ring backplanes carries as well, after them all."""
-
-
-def test_each_fits_carries_the_hdus_its_backplanes_imply(mini_nav_cohort: Cohort) -> None:
-    """A reader opens a real FITS and finds the planes the image was navigated on.
-
-    The byte blob a stand-in writes has no HDUs to find, and the label states
-    where in the file each array begins.
-    """
+    body_hdus = _hdu_names(DEFAULT_CONFIG.backplanes.bodies)
+    ring_hdus = _hdu_names(DEFAULT_CONFIG.backplanes.rings)
     found: dict[str, tuple[str, ...]] = {}
-    for image in cohort_images():
+    expected: dict[str, tuple[str, ...]] = {}
+    for image in cohort.images():
         if not image.navigated:
             continue
-        path = mini_nav_cohort.backplane_results_root / f'{image.stub}_backplanes.fits'
-        with fits.open(path) as hdul:
+        with fits.open(cohort.backplane_results_root / f'{image.stub}_backplanes.fits') as hdul:
             found[image.image_name] = tuple(hdu.name for hdu in hdul)
-    assert found == {
-        LIMB_IMAGE_NAME: ('PRIMARY', 'BODY_ID_MAP', *_BODY_HDU_NAMES),
-        RINGS_IMAGE_NAME: ('PRIMARY', 'BODY_ID_MAP', *_BODY_HDU_NAMES, *_RING_HDU_NAMES),
-    }
+        expected[image.image_name] = (
+            'PRIMARY',
+            'BODY_ID_MAP',
+            *(body_hdus if len(image.bodies) > 0 else []),
+            *(ring_hdus if image.rings else []),
+        )
+    assert found == expected
 
 
 def test_each_backplane_document_names_the_planes_its_fits_carries(
-    mini_nav_cohort: Cohort,
+    cohort: Cohort,
 ) -> None:
     """The index columns come from one and the arrays from the other.
 
@@ -297,10 +110,10 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
     and a document that has to be read defensively is one no run wrote.
     """
     disagreeing: list[str] = []
-    for image in cohort_images():
+    for image in cohort.images():
         if not image.navigated:
             continue
-        stem = mini_nav_cohort.backplane_results_root / image.stub
+        stem = cohort.backplane_results_root / image.stub
         with fits.open(Path(f'{stem}_backplanes.fits')) as hdul:
             in_the_fits = {hdu.name for hdu in hdul} - {'PRIMARY', 'BODY_ID_MAP'}
         metadata_path = FCPath(f'{stem}_backplane_metadata.json')
@@ -317,7 +130,7 @@ def test_each_backplane_document_names_the_planes_its_fits_carries(
     assert disagreeing == []
 
 
-def test_no_backplane_statistic_is_left_in_radians(mini_nav_cohort: Cohort) -> None:
+def test_no_backplane_statistic_is_left_in_radians(cohort: Cohort) -> None:
     """Every statistic a document records is in the unit the index tables state.
 
     The tables are read by a person, and everything angular in them is degrees.
@@ -328,10 +141,10 @@ def test_no_backplane_statistic_is_left_in_radians(mini_nav_cohort: Cohort) -> N
     recognises.
     """
     in_radians: list[str] = []
-    for image in cohort_images():
+    for image in cohort.images():
         if not image.navigated:
             continue
-        stem = mini_nav_cohort.backplane_results_root / image.stub
+        stem = cohort.backplane_results_root / image.stub
         metadata_path = FCPath(f'{stem}_backplane_metadata.json')
         document = json.loads(metadata_path.read_text(encoding='utf-8'))
         planes = dict(document['rings']['backplanes'])
@@ -348,7 +161,7 @@ def test_no_backplane_statistic_is_left_in_radians(mini_nav_cohort: Cohort) -> N
 # which #253 records as a characterization of the writer rather than a decision
 # taken; the fix there updates this test.
 def test_each_body_is_placed_down_the_frame_and_sized_across_it(
-    mini_nav_cohort: Cohort,
+    cohort: Cohort,
 ) -> None:
     """The writer states a body's center and its extent in opposite axis orders.
 
@@ -360,10 +173,10 @@ def test_each_body_is_placed_down_the_frame_and_sized_across_it(
     """
     found: dict[str, tuple[list[float], list[float]]] = {}
     expected: dict[str, tuple[list[float], list[float]]] = {}
-    for image in cohort_images():
+    for image in cohort.images():
         if not image.navigated:
             continue
-        stem = mini_nav_cohort.backplane_results_root / image.stub
+        stem = cohort.backplane_results_root / image.stub
         metadata_path = FCPath(f'{stem}_backplane_metadata.json')
         document = json.loads(metadata_path.read_text(encoding='utf-8'))
         for body in image.bodies:
@@ -372,45 +185,6 @@ def test_each_body_is_placed_down_the_frame_and_sized_across_it(
             center_v, center_u = body.center_vu
             radius_v, radius_u = body.radii_vu
             expected[body.name] = ([center_v, center_u], [2.0 * radius_u, 2.0 * radius_v])
-    assert found == expected
-
-
-def _below_the_holdings_root(path: str) -> str:
-    """Return the part of an image's path a holdings root is not.
-
-    Parameters:
-        path: The path, holdings root and all.
-
-    Returns:
-        Everything below the last ``holdings`` directory in it.
-    """
-    return path.rsplit('/holdings/', 1)[-1]
-
-
-def test_a_document_and_its_image_file_name_one_file(mini_nav_cohort: Cohort) -> None:
-    """The path a run recorded and the URL an enumeration hands on are one file.
-
-    Two roots, deliberately -- a document records the machine that navigated
-    the image and a bundle run is given holdings of its own -- but one layout
-    below them, since a phase deriving a volume or a collection out of either
-    has only the layout to derive it from.  The index row is the odd one out on
-    purpose: it names the raw product on its own volume, which is what a real
-    index names and a different file.
-    """
-    found: dict[str, tuple[str, str]] = {}
-    expected: dict[str, tuple[str, str]] = {}
-    for image, image_file in zip(cohort_images(), mini_nav_cohort.image_files, strict=True):
-        document = json.loads(
-            Path(f'{mini_nav_cohort.nav_results_root / image.stub}_metadata.json').read_text(
-                encoding='utf-8'
-            )
-        )
-        found[image.stub] = (
-            _below_the_holdings_root(str(document['observation']['image_path'])),
-            _below_the_holdings_root(image_file.image_file_url.as_posix()),
-        )
-        one_file = f'{HOLDINGS_SUBTREE}/{image.stub}.IMG'
-        expected[image.stub] = (one_file, one_file)
     assert found == expected
 
 
@@ -446,7 +220,7 @@ def _paths_git_reports(repository: Path) -> list[str]:
     return [path for path in reported.split('\0') if path]
 
 
-def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> None:
+def test_no_cohort_product_reaches_the_working_tree(cohort: Cohort) -> None:
     """The cohort is built where it is torn down, and nothing it writes is committed.
 
     Its products are named for their images, so a file of one of those names
@@ -456,7 +230,7 @@ def test_no_cohort_product_reaches_the_working_tree(mini_nav_cohort: Cohort) -> 
     repository = Path(__file__).resolve().parents[2]
     if not (repository / '.git').exists():
         pytest.skip('not a git checkout')
-    product_names = {path.name for path in mini_nav_cohort.written}
+    product_names = {path.name for path in cohort.written}
     escaped = [path for path in _paths_git_reports(repository) if Path(path).name in product_names]
     assert escaped == []
 
@@ -480,7 +254,7 @@ def _run_git(repository: Path, *arguments: str) -> None:
 
 @pytest.mark.parametrize('committed', [True, False], ids=['committed', 'untracked'])
 def test_the_guard_lists_a_committed_or_untracked_cohort_product(
-    mini_nav_cohort: Cohort, tmp_path: Path, committed: bool
+    first_cohort: Cohort, tmp_path: Path, committed: bool
 ) -> None:
     """A cohort product is one the guard sees, whether it was committed or never added.
 
@@ -492,12 +266,12 @@ def test_the_guard_lists_a_committed_or_untracked_cohort_product(
     repository is a throwaway one, with its committer configured in it alone.
 
     Parameters:
-        mini_nav_cohort: The session's cohort, whose products name the file.
+        first_cohort: A registered cohort, whose products name the file.
         tmp_path: Directory the throwaway repository is built in.
         committed: Whether the product is added and committed, or written after
             the first commit and left unadded.
     """
-    name = min(path.name for path in mini_nav_cohort.written)
+    name = min(path.name for path in first_cohort.written)
     repository = tmp_path / 'repository'
     repository.mkdir()
     _run_git(repository, 'init', '--quiet')

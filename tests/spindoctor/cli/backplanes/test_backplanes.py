@@ -29,7 +29,8 @@ from tests.cmatrix_helpers import synthetic_frame_identity
 import spindoctor.support.cmatrix as cmatrix_module
 from spindoctor.cli.backplanes import backplanes as backplanes_mod
 from spindoctor.cli.backplanes.backplanes import generate_backplanes_image_files
-from spindoctor.cli.pds4.collections import index_value_format
+from spindoctor.cli.backplanes.statistics import statistics_units
+from spindoctor.cli.pds4.collections import INDEX_VALUE_FORMATS
 from spindoctor.cli.reproj.pointing_source import FilePointingSource
 from spindoctor.config import (
     DEFAULT_CONFIG,
@@ -118,13 +119,14 @@ def test_default_config_declares_only_measures_the_statistics_know(kind: str) ->
     ``rad``, alone or qualified; ``deg`` and ``km`` pass through as they are.
     A measure spelled any other way -- milliradians, arcseconds, radians
     spelled out -- would need scaling as well as renaming, so it would pass
-    through and put an angle in a table of degrees without saying so.  That is
-    a change to the conversion rule, and this is where the config half of it is
-    caught: a measure is allowed by name rather than refused by one, so a
-    spelling nobody thought to refuse is caught too.  The measure is compared
-    exactly, as the statistics compare it, so a measure that differs only in
-    case or spacing is caught here.  Only the measure: the whole unit, its
-    qualifier included, is the next test's.
+    through and put an angle in a table of degrees without saying so.  Nothing
+    checks the configured units when a bundle is written, so this test and the
+    next, over the shipped configuration where a new plane is declared, are the
+    guard.  A measure is allowed by name rather than refused by one, so a
+    spelling nobody thought to refuse is caught too, and it is compared exactly,
+    as the statistics compare it, so a measure that differs only in case or
+    spacing is caught here.  Only the measure: the whole unit, its qualifier
+    included, is the next test's.
 
     Parameters:
         kind: The config list under test ('bodies' or 'rings').
@@ -139,25 +141,24 @@ def test_default_config_declares_only_measures_the_statistics_know(kind: str) ->
 
 @pytest.mark.parametrize('kind', ['bodies', 'rings'])
 def test_default_config_declares_only_units_the_index_tables_can_write(kind: str) -> None:
-    """Every shipping entry's whole unit has a format in the global index tables.
+    """Every shipping entry's statistic is in a unit the global index tables can write.
 
-    Both bundle passes look each configured unit up in the format table before
-    they read anything, and refuse the run over one it has no format for, so a
-    shipped unit the table lacks stops every bundle.  This makes the same lookup
-    over the shipping configuration, so a qualifier spelled another way --
-    ``km/PIXEL``, ``km/ pixel`` -- fails here, where the measure-only allow-list
-    above lets it through.
+    Nothing checks the configured units when a bundle is written: the summary pass
+    looks each plane's format up, and a unit the table has no format for is a
+    KeyError there.  This test and the one above, over the shipped configuration
+    where a new plane is declared, are the guard.  It makes the lookup the index
+    tables make, so a qualifier spelled another way -- ``km/PIXEL``, ``km/ pixel``
+    -- fails here, where the measure-only allow-list above lets it through.
 
     Parameters:
         kind: The config list under test ('bodies' or 'rings').
     """
-    refused: list[str] = []
-    for entry in _config_entries(kind):
-        try:
-            index_value_format(entry['units'])
-        except (TypeError, ValueError) as exc:
-            refused.append(f'{entry["name"]}: {exc}')
-    assert refused == []
+    unformatted = [
+        f'{entry["name"]}: {entry["units"]}'
+        for entry in _config_entries(kind)
+        if statistics_units(entry['units']) not in INDEX_VALUE_FORMATS
+    ]
+    assert unformatted == []
 
 
 # ---------------------------------------------------------------------------

@@ -13,7 +13,6 @@ from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan, NoEpochRange
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
-from spindoctor.config import Config
 from spindoctor.dataset.dataset import DataSet
 
 
@@ -93,18 +92,18 @@ decide the formats.  The backplane arrays are float32, allocated so by both
 per-source stages and cast to it by the writer, so no statistic carries more
 than seven significant digits and a format printing more than that prints
 noise.  Within that ceiling the geometry sets what is usable.  An angle in
-degrees gets three decimals, since one pixel is 0.0003 degrees on the sky for
-the narrow-angle camera and 0.003 for the wide-angle one; it writes ``1.235``
-and ``-89.999``.  A ring radius in kilometers gets one, since the radii run
-from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km; it writes
-``74658.0`` and ``136780.0``.  A resolution in degrees per pixel gets eight
-decimals and writes ``0.00015470`` and ``0.80386227``.  The largest such value
-on the real frames tried was 0.80, on an edge-on wide-angle ring frame, and at
-that end the eighth decimal sits at the edge of what a float32 plane carries,
-whose spacing there is 6e-8.  A resolution in kilometers per pixel runs from
-6e-4 a hundred kilometers off Enceladus to 7e4 at the grazing limb of a
-wide-angle frame, eight orders of magnitude that no fixed decimal count fits,
-so it gets five significant figures, written positionally: ``0.00060000``,
+degrees gets three decimals, since one pixel spans about 0.0003 degrees on the
+sky for a narrow-field camera and 0.003 for a wide-field one; it writes
+``1.235`` and ``-89.999``.  A ring radius in kilometers gets one, since the
+radii run from 7e4 to 5e5 km, where float32 spacing is 0.008 to 0.03 km; it
+writes ``74658.0`` and ``136780.0``.  A resolution in degrees per pixel gets
+eight decimals and writes ``0.00015470`` and ``0.80386227``.  The largest such
+value on the real frames tried was 0.80, on an edge-on wide-field ring frame,
+and at that end the eighth decimal sits at the edge of what a float32 plane
+carries, whose spacing there is 6e-8.  A resolution in kilometers per pixel runs
+from 6e-4 a hundred kilometers off a small moon to 7e4 at the grazing limb of a
+wide-field frame, eight orders of magnitude that no fixed decimal count fits, so
+it gets five significant figures, written positionally: ``0.00060000``,
 ``6.1343``, ``4200.0`` and ``70853``.
 
 Every format writes a plain decimal number, never one with an exponent or a
@@ -136,53 +135,9 @@ def index_value_format(units: str) -> IndexValueFormat:
         The format, from :data:`INDEX_VALUE_FORMATS`.
 
     Raises:
-        ValueError: If the statistic's unit has no format in the table, or if
-            ``units`` is blank.  The message names the unit the statistic is in
-            and, where the two differ, the unit the configuration declared.
-        TypeError: If ``units`` is not a string.
+        KeyError: If the statistic's unit has no format in the table.
     """
-    statistic_units = statistics_units(units)
-    if statistic_units not in INDEX_VALUE_FORMATS:
-        declared = '' if statistic_units == units else f' (declared {units!r})'
-        raise ValueError(
-            f'No index column format for a statistic in {statistic_units!r}{declared}; '
-            f'the formats are sized for {", ".join(INDEX_VALUE_FORMATS)}'
-        )
-    return INDEX_VALUE_FORMATS[statistic_units]
-
-
-def unusable_units(config: Config) -> list[tuple[str, str | None]]:
-    """Find every configured backplane whose unit no index column has a format for.
-
-    Each body and ring backplane entry is looked up through
-    :func:`index_value_format`, the lookup the global index tables are written
-    with.  An entry it refuses is unusable for every image the configuration
-    covers, since every document is held to its plane's configured unit, so
-    whatever writes bundle products refuses such a configuration before it reads
-    a document rather than once per image or after products are on disk.
-
-    Parameters:
-        config: The configuration whose ``backplanes.bodies`` and
-            ``backplanes.rings`` entries are checked.
-
-    Returns:
-        One ``(name, reason)`` pair per unusable entry, the bodies first and then
-        the rings, each in configuration order, or an empty list when every entry
-        is usable.  ``name`` is the entry's ``name``.  ``reason`` is None for an
-        entry with no ``units`` key, and otherwise the message the format lookup
-        refuses its ``units`` with: one that is not a string, is blank, or names
-        a unit the tables have no format for.
-    """
-    unusable: list[tuple[str, str | None]] = []
-    for entry in [*config.backplanes.bodies, *config.backplanes.rings]:
-        if 'units' not in entry:
-            unusable.append((entry['name'], None))
-            continue
-        try:
-            index_value_format(entry['units'])
-        except (TypeError, ValueError) as exc:
-            unusable.append((entry['name'], str(exc)))
-    return unusable
+    return INDEX_VALUE_FORMATS[statistics_units(units)]
 
 
 def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueFormat) -> list[str]:
@@ -520,9 +475,7 @@ def generate_global_index_files(
     collection labels :func:`generate_collection_files` writes after the index.
     A run refused over what the data tree holds therefore leaves no product
     of the summary pass, neither this run's nor an earlier run's: no index still
-    describing the bundle as it was, and no inventory beside no index.  A
-    configured plane whose unit the index cannot format is refused before that,
-    with nothing in the bundle touched.
+    describing the bundle as it was, and no inventory beside no index.
 
     Both index templates the dataset declares are required.  The caller is
     expected to have checked them before processing anything, so one that is
@@ -543,20 +496,17 @@ def generate_global_index_files(
         FileNotFoundError: If the bundle has no data directory to scan, which is
             checked before any product of the pass is cleared or written, or an
             index template is not in the dataset's template directory.
-        TypeError: If a configured plane declares no unit, or one that is not a
-            string.
-        ValueError: If a configured plane's statistic is in a unit the index has
-            no column format for; if a supplemental file cannot be read or does
-            not hold a JSON object, the message naming the file and the reason or
-            what it holds instead; if a supplemental file has no data label
-            beside it, or a data label no supplemental file, the message naming
-            both; or if one
-            holds a statistic no column can -- one in a unit other than the one
-            the configuration gives its plane, or in none, or with a minimum or
-            maximum that is not a finite number within the range of a float --
-            the message naming the file and the plane, what the file records
-            there, and what to regenerate.  Every supplemental file is read, and
-            every value in both tables rendered, before either table is opened,
+        KeyError: If a configured plane's statistic is in a unit the index has no
+            column format for.
+        ValueError: If a supplemental file cannot be read or does not hold a JSON
+            object, the message naming the file and the reason or what it holds
+            instead; if a supplemental file has no data label beside it, or a data
+            label no supplemental file, the message naming both; or if one holds a
+            statistic no column can -- one in a unit other than the one the
+            configuration gives its plane, or with a minimum or maximum that is NaN
+            or infinite -- the message naming the file and the plane, what the file
+            records there, and what to regenerate.  Every supplemental file is read,
+            and every value in both tables rendered, before either table is opened,
             so none of these leaves a table half-written.
     """
 
@@ -574,8 +524,8 @@ def generate_global_index_files(
     # Every plane's format is looked up before any supplemental file is read,
     # so a plane declared in a unit the table cannot size fails the run here
     # rather than after half a table has been written.
-    body_formats = {bp['name']: index_value_format(bp.get('units')) for bp in bodies_cfg}
-    ring_formats = {bp['name']: index_value_format(bp.get('units')) for bp in rings_cfg}
+    body_formats = {bp['name']: index_value_format(bp['units']) for bp in bodies_cfg}
+    ring_formats = {bp['name']: index_value_format(bp['units']) for bp in rings_cfg}
 
     # A bundle with no data directory is not one a labels pass wrote.  The summary
     # pass runs this generator first, so the check is made here, before any product
@@ -671,10 +621,9 @@ def generate_global_index_files(
         epochs.include(f'supplemental file {suppl_file}', metadata.get('navigation'))
         backplanes = metadata.get('backplanes', {})
         # A supplemental file holds the backplane document the labels pass
-        # read, and a tree can hold ones a labels pass wrote before it held a
-        # document to its unit and its values.  Indexing one would put a column
-        # in two units, or a value in it that no column can hold, so the run is
-        # refused here, before either table exists.
+        # read.  Every index column is in its plane's configured unit and holds
+        # only finite numbers, so a file with a statistic the index cannot hold
+        # refuses the run here, before either table exists.
         unindexable = unindexable_statistic(backplanes, config)
         if unindexable is not None:
             raise ValueError(

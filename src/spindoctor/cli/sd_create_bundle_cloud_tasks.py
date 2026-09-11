@@ -20,7 +20,6 @@ package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, package_source_path)
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
-from spindoctor.cli.pds4.collections import unusable_units
 from spindoctor.config import (
     DEFAULT_CONFIG,
     IMAGE_LOGGER,
@@ -38,12 +37,6 @@ def process_task(
 ) -> tuple[bool, Any]:
     """Generate bundle files for a single batch of image files.
 
-    The configured backplane units are checked once the dataset is constructed,
-    before any image is read.  A unit no global index column has a format for is
-    unusable for every image, and the check each document gets covers only the
-    planes that document holds, so a task that did not make this one would write
-    labels the summary pass then refuses to index.
-
     Parameters:
         _task_id: The queue's identifier for the task, unused.
         task_data: The task: ``dataset_name`` and ``files``, each file carrying
@@ -57,10 +50,8 @@ def process_task(
         ``{'status': 'success'}`` when the image's products were written or the
         image was skipped as one the bundle has nothing to describe, and
         otherwise ``{'status': 'error', 'status_error': ...}``:
-        ``unusable_unit`` when a configured backplane declares no unit or one no
-        index column has a format for, with every such backplane and its reason
-        in ``status_exception`` and nothing generated; ``label_not_written`` when
-        a product could not be written; and ``no_nav_root``,
+        ``label_not_written`` when a product could not be written; and
+        ``no_nav_root``,
         ``no_backplane_root``, ``no_bundle_root``, ``no_dataset_name``,
         ``unknown_dataset`` (with ``status_exception``), ``no_files``,
         ``no_image_file_url``, ``no_label_file_url`` or ``no_results_path_stub``
@@ -103,22 +94,6 @@ def process_task(
             'status': 'error',
             'status_error': 'unknown_dataset',
             'status_exception': f'Unknown dataset "{dataset_name}"',
-        }
-
-    # The two sd_create_bundle passes refuse such a configuration before the
-    # run reads anything; a task is the whole of what this worker holds, so it
-    # refuses it per task, and no retry, since the configuration will not change.
-    unusable = unusable_units(dataset.config)
-    if len(unusable) > 0:
-        return False, {
-            'status': 'error',
-            'status_error': 'unusable_unit',
-            'status_exception': '; '.join(
-                f'Backplane {name} declares no units'
-                if reason is None
-                else f'Backplane {name} declares a unit the bundle cannot use: {reason}'
-                for name, reason in unusable
-            ),
         }
 
     files = task_data.get('files')

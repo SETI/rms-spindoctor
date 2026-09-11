@@ -30,10 +30,9 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold -- one in a unit other than the one
             the configuration gives its plane, or with a minimum or maximum
-            that is not a finite number within the range of a float -- or a
-            navigation document that does not record the exposure's start,
-            stop and midtime as finite numbers, the stop no earlier than the
-            start.
+            that is NaN or infinite -- or a navigation document that does not
+            record the exposure's start, stop and midtime as finite numbers,
+            the stop no earlier than the start.
     """
 
     WRITTEN = 'written'
@@ -71,14 +70,12 @@ def generate_bundle_data_files(
     disk.
 
     A navigated image whose backplane metadata records a statistic no global
-    index column can hold is failed as well, before anything is written for it.
-    A statistic in a unit other than the one the configuration gives its plane,
-    or in none, was written before the statistics recorded their unit, or under
-    another configuration, and indexing it would put one column in two units
-    with nothing saying so.  A minimum or maximum that is not a finite number
-    within the range of a float has no decimal form a column can hold, and a
-    blank in its place would say the plane measured nothing.  A plane the
-    document holds that the configuration does not declare is not checked.
+    index column can hold is failed as well, before anything is written for it:
+    one in a unit other than the one the configuration gives its plane, or with
+    a minimum or maximum that is NaN or infinite, as
+    :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` checks.
+    A plane the document holds that the configuration does not declare is not
+    checked.
 
     So is a navigated image whose navigation document does not record its
     exposure's epochs -- a ``start_et``, a ``stop_et`` and a ``midtime_et`` under
@@ -103,15 +100,11 @@ def generate_bundle_data_files(
         nothing for the bundle to describe, and FAILED when a label could not be
         rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
-        minimum or maximum that is not a finite number within the range of a
-        float, or the navigation document does not record the exposure's
-        epochs.
+        minimum or maximum that is NaN or infinite, or the navigation document
+        does not record the exposure's epochs.
 
     Raises:
-        ValueError: If the batch does not hold exactly one image, or if the
-            configuration entry of a plane the backplane metadata holds declares
-            a blank unit.
-        TypeError: If that entry declares no unit, or one that is not a string.
+        ValueError: If the batch does not hold exactly one image.
     """
 
     if len(image_files.image_files) != 1:
@@ -178,12 +171,9 @@ def generate_bundle_data_files(
             return BundleDataOutcome.SKIPPED
         bp_stats = cast(dict[str, Any], json.loads(backplane_metadata_text))
 
-        # A backplane root can hold documents written before the statistics
-        # recorded their unit, or under a configuration declaring another,
-        # beside regenerated ones, and a statistic can be a value that has no
-        # decimal form.  Indexing either would put something in a column of the
-        # global index that the column cannot say, so the image is failed
-        # before anything is written for it.
+        # Every index column is in its plane's configured unit and holds only
+        # finite numbers, so an image with a statistic the index cannot hold is
+        # failed before anything is written for it.
         unindexable = unindexable_statistic(bp_stats, dataset.config)
         if unindexable is not None:
             logger.error(

@@ -301,124 +301,54 @@ start and stop as its data label states them. The pass writes the global index
 files first, because the range is taken in the same read of the supplemental files
 that builds the index, and the collection files after them.
 
-Every min/max column is written in a fixed format chosen by its unit: three
-decimals for a column in degrees, one for a column in km, eight for degrees per
-pixel, and five significant figures, written positionally and never in
-exponent form, for km per pixel, whose values span eight orders of magnitude.
-The backplane arrays are float32, so a statistic carries seven significant
-digits at most, and each format is chosen within that from what one pixel
-resolves. A configured backplane in a unit the tables have no format for, or
-with no unit at all, ends either pass before it reads anything, and fails every
-cloud task before it writes anything.
-
-Both index tables are meant to be read by a person, so every angular column in
-them is in degrees — degrees per pixel where the quantity is a resolution — and
-not in the radians the backplane arrays themselves carry. Columns that are not
-angular are in the unit of the array they summarize: a ring radius in
-kilometres, a radial resolution in kilometres per pixel. :doc:`user_guide_backplanes`
-explains why the two products differ and where each states its unit.
+Each min/max column is written with a precision suited to its unit: three
+decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and five
+significant figures for ``km/pixel``. Angular columns are in degrees, although
+the backplane arrays are in radians (see :doc:`user_guide_backplanes`).
 
 Exit Status
 ===========
 
-A pass exits 0 only when every file it set out to write is on disk. A non-zero
-exit means the bundle is incomplete: whatever was written is still in place, and
-the log names what was not.
+Each pass exits 0 when it wrote everything it set out to write, and 1
+otherwise; the log says what went wrong.
 
-* ``sd_create_bundle labels`` exits 1 when any image's labels could not be
-  written or its inputs could not be read, and exits 1 before processing
-  anything when the bundle's directory already holds files or when a
-  configured backplane declares a unit the bundle cannot use. It closes with a
-  line giving the number of images it labeled, skipped and failed, so a
-  selection that matched nothing reads as the zero it is.
+* ``sd_create_bundle labels`` exits 1 without doing anything if the bundle
+  directory already holds files or a template is missing. Otherwise it exits 1
+  if any image failed, and ends with a count of the images labeled, skipped and
+  failed.
 
-  An image the bundle has nothing to describe is **skipped**, not failed, and
-  does not affect the exit status: an image with no navigation metadata
-  document, one whose navigation did not succeed, and a navigated image with no
-  backplane metadata document. A selection made by volume ordinarily names far
-  more images than have been navigated and backplaned, so such a run is mostly
-  skips.
+  An image with nothing to describe (never navigated, navigation failed, or no
+  backplanes) is skipped, which is not an error. An image fails if its
+  metadata cannot be read, a label cannot be written, its summary PNG is
+  missing, its navigation metadata does not record when its exposure began and
+  ended, or its backplane metadata holds a statistic the index tables cannot
+  hold: one in a unit other than the configured one, or a minimum or maximum
+  that is NaN or infinite. For such a statistic, regenerate that image's
+  backplanes.
 
-  A navigated image whose summary PNG is missing is **failed**, not skipped. It
-  loses its browse products and nothing else; its data label is written or not
-  on its own account.
+  ``--dry-run`` writes nothing, and exits 0 if those first checks pass.
 
-  A navigated image whose backplane metadata records a statistic in a unit
-  other than the one the configuration gives its plane — a document written
-  before the statistics recorded their unit, or under another configuration —
-  is **failed** before anything is written for it, since indexing it would put
-  one column of the global index in two units. Regenerate its backplanes. So
-  is an image whose backplane metadata records a minimum or maximum that is
-  not a finite number, NaN or an infinity among them: no column can hold one,
-  and a blank in its place would say the plane measured nothing. The log names
-  the plane and what the document records for it.
+* ``sd_create_bundle summary`` exits 1 without doing anything if a template is
+  missing or the bundle has no ``data/`` directory. It also exits 1 if a
+  collection or index label cannot be written, or if a supplemental file holds
+  such a statistic, in which case it leaves none of its tables and labels:
+  regenerate the backplanes, then the bundle, into an empty directory.
 
-  A navigated image whose navigation metadata document does not record the
-  exposure's start, stop and midtime -- no ``navigation_result.times`` block, an
-  epoch missing, one that is not a finite number, or a stop earlier than its
-  start -- is **failed** before anything is written for it. Its data label states
-  when the exposure began and ended, and a successful navigation always records
-  both, so such a document is a broken input rather than an image whose time is
-  unknown. The log names the image and what its document lacks.
+  The data collection label is not written, and the pass exits 1, when there is
+  no time range for it to state: the ``data/`` tree holds no supplemental file,
+  or one of them records no exposure times. A supplemental file that cannot be
+  read or does not hold a JSON object, a supplemental file with no data label
+  beside it, or a data label with no supplemental file, ends the pass with exit
+  status 1 and leaves none of its tables and labels: regenerate the bundle into
+  an empty directory.
 
-  ``--dry-run`` writes nothing, and exits 0 once the templates are present,
-  every configured unit is usable, and the bundle directory is empty.
+* ``sd_create_bundle_cloud_tasks`` reports a failed task as ``status: error``,
+  with ``status_error`` saying why (for example ``label_not_written``), and
+  does not retry it.
 
-* ``sd_create_bundle summary`` exits 1 when any collection or global index label
-  could not be written, and exits 1 before reading anything when a configured
-  backplane declares a unit the bundle cannot use. The ``.tab`` tables are
-  written whether or not the label describing one is. A bundle with no ``data/``
-  directory ends the pass with exit status 1 and nothing written.
-
-  When there is no time range for the data collection label to state -- the
-  ``data/`` tree holds no supplemental file, or one of them records no exposure
-  times a label can state -- that label is not written and counts as a label not
-  written, so the pass exits 1; the log says why and names the file. Every other
-  product of the pass is written as usual, the inventory tables among them.
-
-  A supplemental file that cannot be read, or does not hold a JSON object, ends
-  the pass with exit status 1 before either index table is written, and leaves no
-  product of the pass, neither this run's nor any an earlier run wrote; the log
-  names the file and why it could not be read, or what it holds in place of an
-  object. The labels pass writes every supplemental file, so the remedy is to
-  regenerate the bundle into an empty directory.
-
-  A supplemental file with no data label beside it, or a data label with no
-  supplemental file, ends the pass the same way, and the log names both. The
-  labels pass writes a product's supplemental file before it renders the data
-  label, so a data label that failed to render leaves the one without the other;
-  the collection inventory, which lists a product by its data label, and the
-  global index, which reads its supplemental file, would then disagree about it.
-  The remedy is the same.
-
-  It also exits 1 when a supplemental file records a statistic in a unit other
-  than the one the configuration gives its plane, or in none, and leaves none of
-  the pass's products: no index table, no collection file and no label of
-  either, neither this run's nor any an earlier run wrote. A supplemental file
-  carries a copy of the backplane document the labels pass read, so the file
-  was written from one recorded before the statistics carried their unit, or
-  under another configuration: regenerate the backplanes, then the bundle into
-  an empty directory. The log names the file, the plane and both units. A
-  supplemental file recording a minimum or maximum that is not a finite number
-  ends the run the same way, and the log names the file and the plane and says
-  what the file records there; the labels pass of a regenerated bundle fails
-  such an image rather than writing it.
-
-* ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
-  written as ``status: error`` with ``status_error: label_not_written``, and asks
-  for no retry. A task run under a configuration that declares a backplane in a
-  unit the bundle cannot use, or with no unit, writes nothing and is reported as
-  ``status: error`` with ``status_error: unusable_unit``, every such backplane
-  and the reason in ``status_exception``. It asks for no retry either, since
-  every task under that configuration fails the same way.
-
-The summary pass builds its tables from what is in the bundle's ``data/`` tree
-without checking that tree for completeness, so it can exit 0 over a bundle the
-labels pass already failed images in -- and an image that got a data label but
-no browse label leaves ``collection_browse.tab`` listing a browse product that is
-not on disk. A summary pass exiting 0 says its own labels were written, and
-nothing about what the labels pass did; take the labels pass's closing line as
-the account of what the bundle covers.
+A summary pass indexes whatever is in the bundle's ``data/`` tree, so its exit
+status says nothing about the labels pass; the labels pass's closing line says
+what the bundle covers.
 
 Configuration
 =============
@@ -433,10 +363,10 @@ files. Each dataset can have its own configuration:
        template_dir: cassini_iss_saturn_1.0
        bundle_name: cassini_iss_saturn_backplanes_rsfrench2027
 
-The ``cassini_iss_saturn_1.0`` template directory ships with the package; to
-configure another dataset, add an entry whose ``template_dir`` points at a
-template directory you create yourself (by name inside the package template
-root, or as an absolute path).
+The ``cassini_iss_saturn_1.0`` template directory ships with the package. The
+``coiss_cruise`` dataset's does not; to bundle it, add an entry whose
+``template_dir`` points at a template directory you create yourself (by name
+inside the package template root, or as an absolute path).
 
 Configuration Options
 ---------------------
@@ -479,25 +409,9 @@ new one has to provide.
 Supported Datasets
 ==================
 
-As the package ships, one dataset can be bundled: ``coiss_saturn`` (also
-registered as ``coiss_saturn_pds3``), whose template directory,
-``cassini_iss_saturn_1.0``, is the only one included. Both passes refuse every
-other dataset before they process an image, and write nothing into the bundle:
-
-* ``coiss_cruise`` (and ``coiss_cruise_pds3``) has the same PDS4 support as
-  ``coiss_saturn``, but its template directory, ``cassini_iss_cruise_1.0``, does
-  not ship, so each pass exits 1 naming every template it needs and cannot
-  find. To bundle it, point ``pds4.coiss_cruise.template_dir`` at a template
-  directory of your own, as described under `Configuration`_.
-* ``gossi``, ``nhlorri`` and ``vgiss`` (and their ``_pds3`` names) name a
-  template directory, which does not ship either, and a bundle name, but do not
-  say which templates a pass needs, nor provide the rest of what a label is
-  built from. Each pass stops on them with a traceback ending in
-  :exc:`NotImplementedError` before it looks for a template.
-* ``coiss`` (and ``coiss_pds3``) and ``sim`` have no PDS4 support at all, and
-  each pass stops on them the same way when it asks for the template directory.
-
-Adding a dataset is a code change, described in :doc:`/dev_guide/dev_guide_pds4`.
+As the package ships, only ``coiss_saturn`` can be bundled. Either pass stops
+with an error on any other dataset, before writing anything. Adding a dataset
+is a code change, described in :doc:`/dev_guide/dev_guide_pds4`.
 
 Workflow
 ========

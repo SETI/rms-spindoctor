@@ -39,9 +39,9 @@ from spindoctor.cli.pds4.collections import (
 )
 from spindoctor.cli.pds4.epochs import EpochRange, NoEpochRange
 from spindoctor.config import MAIN_LOGGER
-from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
 from .conftest import (
+    A_RANGE,
     COLLECTION_BROWSE_TEMPLATE,
     COLLECTION_DATA_TEMPLATE,
     GLOBAL_INDEX_TEMPLATE,
@@ -66,16 +66,7 @@ COLLECTION_LABELS = {
 """Each collection label's bundle subdirectory and its intact template body."""
 
 
-_A_RANGE = EpochRange(start_et=129399999.77, stop_et=130700000.54)
-"""A range for the collection generator where what the label states is not the question.
-
-SPICE's ``et2utc`` writes the two epochs as ``2004-02-07T04:25:35.585`` and
-``2004-02-22T05:32:16.355``, so a label states the range as ``2004-02-07T04:25:35Z``
-to ``2004-02-22T05:32:17Z``.
-"""
-
-
-def _run_collections(env: BundleEnv, *, epochs: EpochRange | NoEpochRange = _A_RANGE) -> int:
+def _run_collections(env: BundleEnv, *, epochs: EpochRange | NoEpochRange = A_RANGE) -> int:
     """Run generate_collection_files against the environment's bundle root.
 
     Parameters:
@@ -457,8 +448,8 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
 ) -> None:
     """A resolution in kilometers per pixel keeps five figures at either end of its range.
 
-    The column runs from 6e-4 km per pixel a hundred kilometers off Enceladus
-    to 7e4 at the grazing limb of a wide-angle frame, eight orders of magnitude
+    The column runs from 6e-4 km per pixel a hundred kilometers off a small moon
+    to 7e4 at the grazing limb of a wide-field frame, eight orders of magnitude
     that no fixed decimal count fits: eight decimals would print the large end
     to twelve digits of noise, and a width fit to the large end would print the
     small end as zero.  Five significant figures write both, with trailing
@@ -474,7 +465,7 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
         'MIMAS': {
             'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0, 'units': 'km/pixel'}}
         },
-        'SATURN': {
+        'PLANET': {
             'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0, 'units': 'km/pixel'}}
         },
         'PAN': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
@@ -525,24 +516,6 @@ def test_an_index_value_format_refuses_a_value_that_is_not_a_finite_number(
         value_format.render(math.nan)
 
 
-def test_a_plane_in_a_unit_the_index_cannot_size_is_refused_before_any_table(
-    tmp_path: Path,
-) -> None:
-    """A configured unit with no column format fails the run with nothing written.
-
-    The formats are looked up for every configured plane before a supplemental
-    file is read, so the refusal names the unit and leaves no half-written
-    table behind it.  The unit is on a ring plane and the supplemental file
-    holds a body row, so a lookup deferred until the rings table is written
-    would leave the bodies table on disk.
-    """
-    env = _index_env(tmp_path, rings=[{'name': 'tilt', 'units': 'mrad'}])
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
-    with pytest.raises(ValueError, match="'mrad'"):
-        _run_global_index(env)
-    assert not (env.bundle_dir / 'document').exists()
-
-
 def _ring_resolution_env(tmp_path: Path) -> BundleEnv:
     """Build an environment declaring, beside the default bodies, one ring plane in rad/pixel.
 
@@ -555,18 +528,16 @@ def _ring_resolution_env(tmp_path: Path) -> BundleEnv:
     return _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
 
 
-def _ring_resolution_stats(units: str | None) -> dict[str, Any]:
+def _ring_resolution_stats(units: str) -> dict[str, Any]:
     """Build ring statistics holding one longitudinal resolution in the given unit.
 
     Parameters:
-        units: The unit the statistic records; None records no unit at all.
+        units: The unit the statistic records.
 
     Returns:
         The ``backplanes.rings`` payload of a supplemental file.
     """
-    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05}
-    if units is not None:
-        statistic['units'] = units
+    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
     return {'backplanes': {'longitudinal_resolution': statistic}}
 
 
@@ -575,11 +546,8 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
 ) -> None:
     """A supplemental file recording a plane in a unit its configuration does not give ends the run.
 
-    The labels pass holds every document to its configured unit, but a bundle
-    tree can hold supplemental files a labels pass wrote before it did, and
-    indexing one would put a column in two units.  The error names the file,
-    the plane and both units and says what to regenerate, and no table is
-    written.
+    Indexing it would put a column in two units.  The error names the file, the
+    plane and both units and says what to regenerate, and no table is written.
     """
     env = _ring_resolution_env(tmp_path)
     write_supplemental(
@@ -593,24 +561,6 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
     assert 'in rad/pixel' in message
     assert 'expects deg/pixel' in message
     assert 'regenerate the backplanes, then the bundle into an empty directory' in message
-    assert not (env.bundle_dir / 'document').exists()
-
-
-def test_a_supplemental_file_recording_no_unit_is_refused_with_nothing_written(
-    tmp_path: Path,
-) -> None:
-    """A statistic with no units key predates the unit being recorded, and ends the run too."""
-    env = _ring_resolution_env(tmp_path)
-    write_supplemental(
-        env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats(None)
-    )
-    with pytest.raises(ValueError) as excinfo:
-        _run_global_index(env)
-    message = str(excinfo.value)
-    assert '1234567890w_supplemental.txt' in message
-    assert 'the longitudinal_resolution statistic' in message
-    assert 'in no unit at all' in message
-    assert 'expects deg/pixel' in message
     assert not (env.bundle_dir / 'document').exists()
 
 
@@ -650,39 +600,26 @@ def test_a_disagreeing_supplemental_file_anywhere_is_refused_before_the_first_ta
     assert not (env.bundle_dir / 'document').exists()
 
 
-@pytest.mark.parametrize(
-    ('maximum', 'recorded'),
-    [
-        (math.inf, 'records a resolution maximum of inf'),
-        (10**400, 'records a resolution maximum of an integer 401 digits long'),
-    ],
-    ids=['infinity', 'integer too large for a float'],
-)
-def test_a_supplemental_file_holding_a_maximum_no_column_can_is_refused_with_nothing_written(
-    tmp_path: Path, maximum: float, recorded: str
+def test_a_supplemental_file_holding_an_infinite_maximum_is_refused_with_nothing_written(
+    tmp_path: Path,
 ) -> None:
-    """A maximum no column can hold ends the run, naming file and plane, with no table.
+    """An infinite maximum ends the run, naming the file and the plane, with no table.
 
-    The JSON reader returns an infinity for the token the writer writes for one,
-    and an integer for an integer literal of any length, so a supplemental file
-    can carry either.  Every index format writes through a float, which holds
-    neither.
-
-    Parameters:
-        tmp_path: Base temporary directory.
-        maximum: The resolution maximum the supplemental file records.
-        recorded: What the refusal says the file records.
+    The JSON reader returns an infinity for the token the writer writes for one, and
+    no index column can hold it.
     """
     env = _index_env(tmp_path)
     unholdable = {
-        'SATURN': {'backplanes': {'resolution': {'min': 60.0, 'max': maximum, 'units': 'km/pixel'}}}
+        'PLANET': {
+            'backplanes': {'resolution': {'min': 60.0, 'max': math.inf, 'units': 'km/pixel'}}
+        }
     }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=unholdable)
     with pytest.raises(ValueError) as excinfo:
         _run_global_index(env)
     message = str(excinfo.value)
     assert '1234567890w_supplemental.txt' in message
-    assert recorded in message
+    assert 'records a resolution maximum of inf' in message
     assert not (env.bundle_dir / 'document').exists()
 
 
@@ -1016,16 +953,3 @@ def test_inventory_lidvid_round_trips_with_canonical_builders(tmp_path: Path) ->
     rows = read_tab(env.bundle_dir / 'data' / 'collection_data.tab')
     expected = env.dataset.pds4_image_name_to_data_lid('1234567890w') + '::1.0'
     assert rows[1][1] == expected
-
-
-def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
-    """The Cassini collection inventory LIDVID matches the label's DATA_LID."""
-    dataset = DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings')
-    bundle_results_root = tmp_path / 'bundle'
-    bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
-    touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
-    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=_A_RANGE)
-    rows = read_tab(bundle_dir / 'data' / 'collection_data.tab')
-    inventory_lid = rows[1][1].split('::')[0]
-    label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')
-    assert inventory_lid == label_lid
