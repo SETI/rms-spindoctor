@@ -177,13 +177,17 @@ def _exit_on_missing_templates(dataset: DataSet, pds4_pass: Pds4Pass) -> None:
         pds4_pass: Which pass's declared templates to look for.
 
     Raises:
-        SystemExit: If any declared template is not in the template directory.
+        SystemExit: If any declared template is not a file in the template
+            directory.  A directory at that name satisfies ``exists`` and is
+            not a template, so the check is that the path is a file: the point
+            of the preflight is that nothing is written before a render that
+            cannot happen.
     """
     template_dir = FCPath(dataset.pds4_bundle_template_dir())
     missing = [
         template_dir / name
         for name in dataset.pds4_required_templates(pds4_pass)
-        if not (template_dir / name).exists()
+        if not (template_dir / name).is_file()
     ]
     if len(missing) == 0:
         return
