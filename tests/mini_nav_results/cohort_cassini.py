@@ -349,6 +349,7 @@ def cassini_body_limb() -> dict[str, Any]:
         image_shape=COHORT_SHAPE_VU,
         start=datetime(2026, 9, 8, 11, 2, 14, 118304, tzinfo=UTC),
         elapsed_s=9.5,
+        peak_memory_bytes=2147483648,
     )
 
 
@@ -438,6 +439,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         image_shape=COHORT_SHAPE_VU,
         start=datetime(2026, 9, 8, 11, 2, 23, 840117, tzinfo=UTC),
         elapsed_s=7.25,
+        peak_memory_bytes=3221225472,
     )
 
 
@@ -491,6 +493,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
         image_shape=COHORT_SHAPE_VU,
         start=datetime(2026, 9, 8, 11, 2, 31, 502776, tzinfo=UTC),
         elapsed_s=5.75,
+        peak_memory_bytes=805306368,
     )
 
 
