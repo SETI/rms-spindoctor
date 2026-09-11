@@ -67,10 +67,9 @@ def unindexable_statistic(
     Every configured body and ring plane the document holds a statistic for is
     checked.  Its recorded unit has to be the one the configuration gives the
     plane, restated as the statistic's unit, and neither its minimum nor its
-    maximum may be NaN or infinite.  A plane the
-    document holds that the configuration does not declare is not checked, and a
-    plane the configuration declares that the document lacks is no concern of
-    this check.
+    maximum may be NaN or infinite.  A plane the document holds that the
+    configuration does not declare is not checked, and a plane the configuration
+    declares that the document lacks is no concern of this check.
 
     Parameters:
         backplane_metadata: The backplane metadata document as read, which is also
@@ -83,11 +82,6 @@ def unindexable_statistic(
         with the rings after them, the planes of each in configuration order, and
         within a plane its unit before its minimum and its minimum before its
         maximum.  None when every statistic can be indexed.
-
-    Raises:
-        TypeError: If the configuration entry of a plane the document holds has no
-            ``units``, or a ``units`` that is not a string.
-        ValueError: If that entry's ``units`` is blank.
     """
     bodies = backplane_metadata.get('bodies', {})
     rings = backplane_metadata.get('rings', {})
@@ -100,11 +94,7 @@ def unindexable_statistic(
             name = entry['name']
             if name not in planes:
                 continue
-            # The entry is read from YAML, so its units can be anything, a
-            # missing key included, and statistics_units refuses whatever is not
-            # a string with a TypeError rather than this raising a KeyError.
-            units: Any = entry.get('units')
-            finding = _unindexable_part(name, planes[name], statistics_units(units))
+            finding = _unindexable_part(name, planes[name], statistics_units(entry['units']))
             if finding is not None:
                 return finding
     return None

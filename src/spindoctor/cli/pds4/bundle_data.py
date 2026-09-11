@@ -90,10 +90,7 @@ def generate_bundle_data_files(
         minimum or maximum that is NaN or infinite.
 
     Raises:
-        ValueError: If the batch does not hold exactly one image, or if the
-            configuration entry of a plane the backplane metadata holds declares
-            a blank unit.
-        TypeError: If that entry declares no unit, or one that is not a string.
+        ValueError: If the batch does not hold exactly one image.
     """
 
     if len(image_files.image_files) != 1:

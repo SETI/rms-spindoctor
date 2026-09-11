@@ -386,19 +386,6 @@ def test_a_statistic_that_is_not_a_finite_number_writes_nothing(tmp_path: Path) 
     assert not env.bundle_dir.exists()
 
 
-def test_a_plane_declaring_no_unit_is_refused_as_a_null_unit_is(tmp_path: Path) -> None:
-    """A configuration entry with no units key raises the TypeError a null unit raises.
-
-    The local driver refuses such a configuration before it reads anything, but
-    the queue-driven one reaches this with it, and a KeyError naming the key says
-    less than a message naming what a unit has to be.
-    """
-    env = make_bundle_env(tmp_path, rings=[{'name': 'longitudinal_resolution'}])
-    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('deg/pixel'))
-    with pytest.raises(TypeError, match='units must be a string'):
-        _generate(env)
-
-
 def test_malformed_nav_metadata_raises(tmp_path: Path) -> None:
     """Unparseable navigation metadata propagates a JSON decode error.
 

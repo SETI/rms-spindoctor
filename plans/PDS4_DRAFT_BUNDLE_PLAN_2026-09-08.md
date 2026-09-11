@@ -501,11 +501,12 @@ The tables are written with a format per unit (#607), from
 written positionally, never in exponent form. The arrays are float32, so no
 format prints more than the seven significant digits a statistic carries. No
 format fixes a column's width, so Phase 7 sizes each field from the widest
-value its column holds. A plane declared in a unit the mapping has no format
-for, or in none, fails either pass before it reads anything. An angular unit
-other than `rad` (`mrad`, `arcsec`) would need a change to
-`statistics_units`; two tests over the shipped configuration fail if one is
-declared.
+value its column holds. Nothing checks the configured units when a bundle is
+written (the operator's ruling of 2026-09-11): two tests over the shipped
+configuration are the guard, one holding each measure to the ones
+`statistics_units` converts or passes through and the other each unit to
+`INDEX_VALUE_FORMATS`, so an angular unit other than `rad` (`mrad`, `arcsec`)
+fails them until `statistics_units` handles it.
 
 Both passes hold every statistic to what an index column can hold, through
 `spindoctor/cli/pds4/statistic_checks.py`, since every column is in one unit
@@ -522,15 +523,6 @@ written by this package's own software, so nothing else about them is checked:
 no value a writer of ours cannot produce is guarded against (the operator's
 ruling of 2026-09-11). The summary pass renders every cell of both tables
 before it opens either, so no failure of any kind leaves a table half-written.
-
-Beside that check, both passes refuse before reading anything a configuration
-that declares a backplane in a unit the bundle cannot use -- a spelling the
-format mapping lacks, or no `units` at all -- naming every such entry once, as
-the missing-template check does. `sd_create_bundle_cloud_tasks` makes the same
-check per task, through the same `unusable_units`, and returns the task as an
-`unusable_unit` error having generated nothing: the per-document check sees
-only the planes a document holds, so without it every task would write labels
-the summary pass then refuses.
 
 `sd_backplane_viewer` has its own rule: it converts a plane whose `BUNIT` is
 `rad` in any letter case, or whose name contains an angle's name, so it

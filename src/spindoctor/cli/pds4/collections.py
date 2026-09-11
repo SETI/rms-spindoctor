@@ -12,7 +12,6 @@ from pdslogger import PdsLogger
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
-from spindoctor.config import Config
 from spindoctor.dataset.dataset import DataSet
 
 
@@ -135,53 +134,9 @@ def index_value_format(units: str) -> IndexValueFormat:
         The format, from :data:`INDEX_VALUE_FORMATS`.
 
     Raises:
-        ValueError: If the statistic's unit has no format in the table, or if
-            ``units`` is blank.  The message names the unit the statistic is in
-            and, where the two differ, the unit the configuration declared.
-        TypeError: If ``units`` is not a string.
+        KeyError: If the statistic's unit has no format in the table.
     """
-    statistic_units = statistics_units(units)
-    if statistic_units not in INDEX_VALUE_FORMATS:
-        declared = '' if statistic_units == units else f' (declared {units!r})'
-        raise ValueError(
-            f'No index column format for a statistic in {statistic_units!r}{declared}; '
-            f'the formats are sized for {", ".join(INDEX_VALUE_FORMATS)}'
-        )
-    return INDEX_VALUE_FORMATS[statistic_units]
-
-
-def unusable_units(config: Config) -> list[tuple[str, str | None]]:
-    """Find every configured backplane whose unit no index column has a format for.
-
-    Each body and ring backplane entry is looked up through
-    :func:`index_value_format`, the lookup the global index tables are written
-    with.  An entry it refuses is unusable for every image the configuration
-    covers, since every document is held to its plane's configured unit, so
-    whatever writes bundle products refuses such a configuration before it reads
-    a document rather than once per image or after products are on disk.
-
-    Parameters:
-        config: The configuration whose ``backplanes.bodies`` and
-            ``backplanes.rings`` entries are checked.
-
-    Returns:
-        One ``(name, reason)`` pair per unusable entry, the bodies first and then
-        the rings, each in configuration order, or an empty list when every entry
-        is usable.  ``name`` is the entry's ``name``.  ``reason`` is None for an
-        entry with no ``units`` key, and otherwise the message the format lookup
-        refuses its ``units`` with: one that is not a string, is blank, or names
-        a unit the tables have no format for.
-    """
-    unusable: list[tuple[str, str | None]] = []
-    for entry in [*config.backplanes.bodies, *config.backplanes.rings]:
-        if 'units' not in entry:
-            unusable.append((entry['name'], None))
-            continue
-        try:
-            index_value_format(entry['units'])
-        except (TypeError, ValueError) as exc:
-            unusable.append((entry['name'], str(exc)))
-    return unusable
+    return INDEX_VALUE_FORMATS[statistics_units(units)]
 
 
 def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueFormat) -> list[str]:
@@ -341,8 +296,7 @@ def generate_global_index_files(
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
     label before it renders, so a run refused over what a supplemental file
     holds leaves none of them, rather than an earlier run's still indexing the
-    bundle as it was.  A configured plane whose unit the index cannot format is
-    refused before that, with nothing in the bundle touched.
+    bundle as it was.
 
     Both index templates the dataset declares are required.  The caller is
     expected to have checked them before processing anything, so one that is
@@ -360,13 +314,11 @@ def generate_global_index_files(
     Raises:
         FileNotFoundError: If an index template is not in the dataset's template
             directory.
-        TypeError: If a configured plane declares no unit, or one that is not a
-            string.
-        ValueError: If a configured plane's statistic is in a unit the index has
-            no column format for, or if a supplemental file holds a statistic no
-            column can: one in a unit other than the one the configuration gives
-            its plane, or with a minimum or maximum that is NaN or infinite.  The
-            message names the
+        KeyError: If a configured plane's statistic is in a unit the index has no
+            column format for.
+        ValueError: If a supplemental file holds a statistic no column can: one in
+            a unit other than the one the configuration gives its plane, or with a
+            minimum or maximum that is NaN or infinite.  The message names the
             file and the plane, what the file records there, and what to
             regenerate.  Every supplemental file is read, and every value in both
             tables rendered, before either table is opened, so none of these
@@ -387,8 +339,8 @@ def generate_global_index_files(
     # Every plane's format is looked up before any supplemental file is read,
     # so a plane declared in a unit the table cannot size fails the run here
     # rather than after half a table has been written.
-    body_formats = {bp['name']: index_value_format(bp.get('units')) for bp in bodies_cfg}
-    ring_formats = {bp['name']: index_value_format(bp.get('units')) for bp in rings_cfg}
+    body_formats = {bp['name']: index_value_format(bp['units']) for bp in bodies_cfg}
+    ring_formats = {bp['name']: index_value_format(bp['units']) for bp in rings_cfg}
 
     # Cleared before any supplemental file is read, by the rule write_label keeps
     # for a label that what is on disk is what this run wrote, so a refusal over

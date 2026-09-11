@@ -75,18 +75,14 @@ one directory, so a template that is missing is missing for every product, and a
 per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
-Each pass also checks, before it reads anything, that every backplane the
-configuration declares is in a unit the bundle can use, through
-:func:`~spindoctor.cli.pds4.collections.unusable_units`.  The labels pass holds
-each document's statistics to the configured unit and the summary pass writes
-each index column in the format that unit calls for, so a unit neither can use
--- a spelling the format table has no entry for, or an entry with no ``units``
-at all -- is refused once, with every such entry named and the reason, rather
-than once per image or after the collection files are on disk.  Each index
-column is written in the format
+Each index column is written in the format
 :data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit: the
 backplane arrays are float32, so no format prints more than seven significant
-digits, and within that each is chosen from what one pixel resolves.
+digits, and within that each is chosen from what one pixel resolves.  Nothing
+checks the configured units when a bundle is written: a unit the table has no
+format for is a ``KeyError`` from the summary pass's lookup.  The guard is the
+two tests over the shipped configuration that :doc:`dev_guide_backplanes`
+describes.
 
 Before it processes anything, ``sd_create_bundle labels`` also requires
 ``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent, and exits
@@ -128,7 +124,7 @@ image against the run, and carries on to the next one.
 
 A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
-dry run over a missing template, an unusable unit or a populated bundle root
+dry run over a missing template or a populated bundle root
 exits 1 naming what it found, like any other run.  Past them it writes nothing,
 so it counts nothing against the run, including a batch it reports it could not
 have processed.
@@ -156,19 +152,10 @@ listing a browse product that is not on disk.
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
 for no retry: a template that could not be rendered will not render on a second
-attempt.  Of the three up-front checks it makes the unit check alone, and makes
-it per task: once the dataset is constructed, and before any document is read,
-a task under a configuration in which
-:func:`~spindoctor.cli.pds4.collections.unusable_units` finds a backplane comes
-back as ``status_error: unusable_unit``, every such backplane and its reason in
-``status_exception``, having generated nothing, and again asks for no retry,
-since the configuration will not change on a second attempt.  The check each
-document gets covers only the planes that document holds, so a task that did
-not make this one would write labels the summary pass then refuses to index.
-It makes neither the template check nor the empty-root check, because it holds
-one task rather than the run: a template it cannot find raises out of every
-task, and the empty bundle root is the queue-driven run's own precondition to
-establish.
+attempt.  It makes neither of the local driver's up-front checks, the template
+check and the empty-root check, because it holds one task rather than the run:
+a template it cannot find raises out of every task, and the empty bundle root is
+the queue-driven run's own precondition to establish.
 
 Per-dataset extension points
 ============================
@@ -542,6 +529,3 @@ documented above.
 - :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one
   check both passes hold every statistic of a document to, its unit and its
   values.
-- :func:`~spindoctor.cli.pds4.collections.unusable_units` — the configured
-  backplanes no index column has a format for, which both passes and the
-  cloud-task worker refuse before reading a document.

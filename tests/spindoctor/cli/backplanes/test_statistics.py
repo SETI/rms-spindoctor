@@ -44,7 +44,8 @@ def test_a_radian_unit_in_another_case_is_left_alone() -> None:
     """RAD is not the vocabulary's spelling, so it is not radians here and is kept as typed.
 
     Folding case would recognise it, and would corrupt the vocabulary's own
-    upper-case tokens; the spelling is refused by the passes instead.
+    upper-case tokens; the tests over the shipped configuration refuse the
+    spelling instead.
     """
     assert statistics_units('RAD') == 'RAD'
 
@@ -57,25 +58,6 @@ def test_a_radian_unit_with_a_space_beside_it_is_left_alone() -> None:
 def test_a_qualifier_is_carried_through_untouched() -> None:
     """Only the measure is converted: a qualifier keeps its spelling, a space included."""
     assert statistics_units('rad/ pixel') == 'deg/ pixel'
-
-
-def test_a_unit_that_is_not_a_string_is_refused() -> None:
-    """A configuration key written with no value arrives here as None.
-
-    The unit is read from YAML rather than passed by a call site a type checker
-    sees, so the annotation is not the guard here; without this the failure is
-    an AttributeError from inside a string method.
-    """
-    with pytest.raises(TypeError) as excinfo:
-        statistics_units(None)  # type: ignore[arg-type]
-    assert 'units must be a string' in str(excinfo.value)
-
-
-def test_a_blank_unit_is_refused() -> None:
-    """An empty unit would otherwise be recorded as the statistic's own unit."""
-    with pytest.raises(ValueError) as excinfo:
-        statistics_units('   ')
-    assert 'units must name a measure' in str(excinfo.value)
 
 
 def test_statistics_of_an_angular_plane_are_converted_and_say_so() -> None:

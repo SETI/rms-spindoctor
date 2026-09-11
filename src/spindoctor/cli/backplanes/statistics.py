@@ -53,18 +53,7 @@ def statistics_units(units: str) -> str:
 
     Returns:
         The unit the plane's statistic is in.
-
-    Raises:
-        TypeError: If ``units`` is not a string, as a configuration key written
-            with no value is not.
-        ValueError: If ``units`` is empty or blank.
     """
-
-    if not isinstance(units, str):
-        raise TypeError(f'units must be a string; got {type(units).__name__}')
-    if not units.strip():
-        raise ValueError('units must name a measure; got an empty value')
-
     measure, slash, qualifier = units.partition('/')
     if measure != RADIANS:
         return units

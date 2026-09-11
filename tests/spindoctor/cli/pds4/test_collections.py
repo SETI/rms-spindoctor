@@ -496,24 +496,6 @@ def test_an_index_value_format_refuses_a_value_that_is_not_a_finite_number(
         value_format.render(math.nan)
 
 
-def test_a_plane_in_a_unit_the_index_cannot_size_is_refused_before_any_table(
-    tmp_path: Path,
-) -> None:
-    """A configured unit with no column format fails the run with nothing written.
-
-    The formats are looked up for every configured plane before a supplemental
-    file is read, so the refusal names the unit and leaves no half-written
-    table behind it.  The unit is on a ring plane and the supplemental file
-    holds a body row, so a lookup deferred until the rings table is written
-    would leave the bodies table on disk.
-    """
-    env = _index_env(tmp_path, rings=[{'name': 'tilt', 'units': 'mrad'}])
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
-    with pytest.raises(ValueError, match="'mrad'"):
-        _run_global_index(env)
-    assert not (env.bundle_dir / 'document').exists()
-
-
 def _ring_resolution_env(tmp_path: Path) -> BundleEnv:
     """Build an environment declaring, beside the default bodies, one ring plane in rad/pixel.
 

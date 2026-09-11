@@ -282,8 +282,7 @@ The summary pass generates:
 Each min/max column is written with a precision suited to its unit: three
 decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and five
 significant figures for ``km/pixel``. Angular columns are in degrees, although
-the backplane arrays are in radians (see :doc:`user_guide_backplanes`). The
-statistics of every configured backplane must be in one of these units.
+the backplane arrays are in radians (see :doc:`user_guide_backplanes`).
 
 Exit Status
 ===========
@@ -292,9 +291,8 @@ Each pass exits 0 when it wrote everything it set out to write, and 1
 otherwise; the log says what went wrong.
 
 * ``sd_create_bundle labels`` exits 1 without doing anything if the bundle
-  directory already holds files, a template is missing, or a configured
-  backplane uses a unit the bundle cannot use. Otherwise it exits 1 if any
-  image failed, and ends with a count of the images labeled, skipped and
+  directory already holds files or a template is missing. Otherwise it exits 1
+  if any image failed, and ends with a count of the images labeled, skipped and
   failed.
 
   An image with nothing to describe (never navigated, navigation failed, or no
@@ -307,15 +305,15 @@ otherwise; the log says what went wrong.
 
   ``--dry-run`` writes nothing, and exits 0 if those first checks pass.
 
-* ``sd_create_bundle summary`` exits 1 without doing anything for the same
-  template and unit problems. It also exits 1 if a collection or index label
+* ``sd_create_bundle summary`` exits 1 without doing anything if a template is
+  missing. It also exits 1 if a collection or index label
   cannot be written, or if a supplemental file holds such a statistic, in which
   case neither index table is written: regenerate the backplanes, then the
   bundle, into an empty directory.
 
 * ``sd_create_bundle_cloud_tasks`` reports a failed task as ``status: error``,
-  with ``status_error`` saying why (for example ``label_not_written`` or
-  ``unusable_unit``), and does not retry it.
+  with ``status_error`` saying why (for example ``label_not_written``), and
+  does not retry it.
 
 A summary pass indexes whatever is in the bundle's ``data/`` tree, so its exit
 status says nothing about the labels pass; the labels pass's closing line says
