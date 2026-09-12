@@ -88,13 +88,16 @@ Label and index dependencies
   entry.
 * ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT`` -- from
   the PDS3 label beside the image, since the VICAR label the observation keeps
-  does not carry them. ``from_file`` reads them once with
-  :func:`~spindoctor.support.sclk.pds3_label_clock_counts` and keeps them for
-  ``get_public_metadata``. A count is ``LEADING:FRAME:LINE``: the leading field
-  counts 48-minute units, the frame field the 60 frames of 48 seconds in one,
-  and the line field, counted from 1, the 800 lines of 60 milliseconds in a
-  frame. ``_sclk_count`` converts it to an exact number of leading units
-  through :func:`~spindoctor.support.sclk.fractional_count`, with the moduli
+  does not carry them.
+  :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.from_file` reads
+  them once with :func:`~spindoctor.support.sclk.pds3_label_clock_counts` and
+  keeps them for
+  :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.get_public_metadata`.
+  A count is ``LEADING:FRAME:LINE``: the leading field counts 48-minute units,
+  the frame field the 60 frames of 48 seconds in one, and the line field,
+  counted from 1, the 800 lines of 60 milliseconds in a frame. ``_sclk_count``
+  converts it to an exact number of leading units through
+  :func:`~spindoctor.support.sclk.fractional_count`, with the moduli
   ``(65536, 60, 800)`` and offsets ``(0, 0, 1)`` that the two spacecraft's
   clock kernels, ``vg100042.tsc`` and ``vg200041.tsc``, both give, so
   ``34461:39:672`` is ``34461 + 39 / 60 + (672 - 1) / (60 * 800)``. The start
@@ -106,11 +109,11 @@ Label and index dependencies
   always ``None``. Where the label carries no such count, or there is no label
   beside the image, the count is published as ``None``.
 
-``get_public_metadata`` refuses a detector that is neither ``NAC`` nor ``WAC``,
-because the instrument LID encodes the camera and a malformed LID must never
-reach a PDS4 label. The ``spacecraft_digit`` property re-reads ``LAB02`` rather
-than caching it, so any consumer that needs the spacecraft gets the same
-validation.
+:meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.get_public_metadata`
+refuses a detector that is neither ``NAC`` nor ``WAC``, because the instrument
+LID encodes the camera and a malformed LID must never reach a PDS4 label. The
+``spacecraft_digit`` property re-reads ``LAB02`` rather than caching it, so any
+consumer that needs the spacecraft gets the same validation.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 

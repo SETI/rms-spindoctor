@@ -58,9 +58,11 @@ Label and index dependencies
 **Label fields read.** ``filter``, through the base class's property, for the
 single ``filters`` entry in the metadata; and the four VICAR label items
 ``RIM``, ``MOD91``, ``MOD10`` and ``MOD8``, which together are the image's
-frame count. ``get_public_metadata`` publishes that count as
-``start_time_sclk``: ``_sclk_count`` converts it to an exact number of RIM
-counts through :func:`~spindoctor.support.sclk.fractional_count`, with the
+frame count.
+:meth:`~spindoctor.obs.obs_inst_galileo_ssi.ObsGalileoSSI.get_public_metadata`
+publishes that count as ``start_time_sclk``: ``_sclk_count`` converts it to an
+exact number of RIM counts through
+:func:`~spindoctor.support.sclk.fractional_count`, with the
 moduli ``(16777215, 91, 10, 8)`` and offsets ``(0, 0, 0, 0)`` that the clock
 kernel ``mk00062a.tsc`` gives, so the count is
 ``RIM + MOD91 / 91 + MOD10 / 910 + MOD8 / 7280``. The frame count comes a few

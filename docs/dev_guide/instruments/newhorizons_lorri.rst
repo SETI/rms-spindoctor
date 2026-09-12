@@ -57,21 +57,25 @@ Label and index dependencies
 reads for the exposure times and the image shape. From the PDS3 label beside
 the image, ``SPACECRAFT_CLOCK_START_COUNT`` and
 ``SPACECRAFT_CLOCK_STOP_COUNT``: the FITS header the observation is read from
-carries the start count only, so ``from_file`` reads both from the label once
-with :func:`~spindoctor.support.sclk.pds3_label_clock_counts` and keeps them
-for ``get_public_metadata``. A count is ``SECONDS:TICKS``: whole seconds, then
-the 1/50000-second ticks past them. ``_sclk_count`` converts it to an exact
-number of seconds through :func:`~spindoctor.support.sclk.fractional_count`,
-with the moduli ``(4294967296, 50000)`` and offsets ``(0, 0)`` that the clock
-kernel ``new_horizons_2132.tsc`` gives, so ``0031650238:48850`` is
+carries the start count only, so
+:meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.from_file`
+reads both from the label once with
+:func:`~spindoctor.support.sclk.pds3_label_clock_counts` and keeps them for
+:meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.get_public_metadata`.
+A count is ``SECONDS:TICKS``: whole seconds, then the 1/50000-second ticks
+past them. ``_sclk_count`` converts it to an exact number of seconds through
+:func:`~spindoctor.support.sclk.fractional_count`, with the moduli
+``(4294967296, 50000)`` and offsets ``(0, 0)`` that the clock kernel
+``new_horizons_2132.tsc`` gives, so ``0031650238:48850`` is
 ``31650238 + 48850 / 50000``. The two counts mark the start and the end of the
 exposure, so ``_published_sclk`` passes ``bracketed=True`` to
 :func:`~spindoctor.support.sclk.exposure_counts` and ``midtime_sclk`` is their
 exact mean. Where the label carries no such count, or there is no label beside
 the image, the count is published as ``None``, and so is the mean.
 
-``get_public_metadata`` writes ``filters`` as an empty list: the camera is
-panchromatic with no filter wheel, so there is no filter name to record.
+:meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.get_public_metadata`
+writes ``filters`` as an empty list: the camera is panchromatic with no filter
+wheel, so there is no filter name to record.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 ``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_ID',)`` and ``_INDEX_CAMERA_MAP``

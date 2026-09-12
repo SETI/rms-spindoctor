@@ -66,18 +66,20 @@ Label and index dependencies
 **Label fields read.**
 
 * ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT``, read
-  from the image's VICAR label in ``get_public_metadata``. A count is
-  ``SECONDS.TICKS``: whole seconds, then the 1/256-second ticks past them
-  written as three digits. ``_sclk_count`` converts it to an exact number of
-  seconds through :func:`~spindoctor.support.sclk.fractional_count`, with the
-  moduli ``(4294967296, 256)`` and offsets ``(0, 0)`` that the clock kernel
-  ``cas00172.tsc`` gives, so ``1459229915.075`` is ``1459229915 + 75 / 256``. A
-  tick field of fewer than three digits has lost its trailing zeros and is
-  padded back on the right: ``1347929382.11`` is ``1347929382.110``. The two
-  counts mark the start and the end of the exposure, so ``_published_sclk``
-  passes ``bracketed=True`` to :func:`~spindoctor.support.sclk.exposure_counts`
-  and ``midtime_sclk`` is their exact mean. A count the label does not carry is
-  published as ``None``, and so is the mean.
+  from the image's VICAR label in
+  :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`.
+  A count is ``SECONDS.TICKS``: whole seconds, then the 1/256-second ticks
+  past them written as three digits. ``_sclk_count`` converts it to an exact
+  number of seconds through :func:`~spindoctor.support.sclk.fractional_count`,
+  with the moduli ``(4294967296, 256)`` and offsets ``(0, 0)`` that the clock
+  kernel ``cas00172.tsc`` gives, so ``1459229915.075`` is
+  ``1459229915 + 75 / 256``. A tick field of fewer than three digits has lost
+  its trailing zeros and is padded back on the right: ``1347929382.11`` is
+  ``1347929382.110``. The two counts mark the start and the end of the
+  exposure, so ``_published_sclk`` passes ``bracketed=True`` to
+  :func:`~spindoctor.support.sclk.exposure_counts` and ``midtime_sclk`` is
+  their exact mean. A count the label does not carry is published as ``None``,
+  and so is the mean.
 * ``SHUTTER_MODE_ID``, read by the ``shutter_mode`` property. A missing key or
   a null yields ``None``; a non-string value raises, because ``str()`` would
   serialize any object without complaint and the result would pass downstream
@@ -85,9 +87,10 @@ Label and index dependencies
 * ``DESCRIPTION`` and ``OBSERVATION_ID``, both optional and recorded as
   ``None`` when absent.
 
-``get_public_metadata`` also refuses a detector that is neither ``NAC`` nor
-``WAC``, because the instrument LID encodes the camera as ``issna`` or
-``isswa`` and a malformed LID must never reach a PDS4 label.
+:meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
+also refuses a detector that is neither ``NAC`` nor ``WAC``, because the
+instrument LID encodes the camera as ``issna`` or ``isswa`` and a malformed LID
+must never reach a PDS4 label.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 ``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_ID',)`` and ``_INDEX_CAMERA_MAP``
