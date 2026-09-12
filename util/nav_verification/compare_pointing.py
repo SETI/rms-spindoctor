@@ -46,6 +46,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / 'src'))
 
 import numpy as np  # noqa: E402
+from filecache import FCPath  # noqa: E402
 from util.nav_verification.boresight import (  # noqa: E402
     boresight_from_cmatrix,
     offset_in_camera_px,
@@ -183,7 +184,7 @@ def compare_record(
     record: NavRecord,
     *,
     observation_id: str,
-    bundle_dir: Path,
+    bundle_dir: str | Path | FCPath,
 ) -> FrameComparison:
     """Compare one record against the bundle's answer for the same frame.
 
@@ -232,9 +233,10 @@ def compare_record(
         )
 
     path = suppl_path(image, observation_id=observation_id, bundle_dir=bundle_dir)
-    if not path.exists():
+    try:
+        independent = read_bundle_pointing(path)
+    except FileNotFoundError:
         return row
-    independent = read_bundle_pointing(path)
     if independent is None:
         return row
     row.bundle_navigation_type = independent.navigation_type
@@ -252,7 +254,7 @@ def compare_record(
     return row
 
 
-def _bundle_holds(image: str, *, observation_id: str, bundle_dir: Path) -> bool:
+def _bundle_holds(image: str, *, observation_id: str, bundle_dir: str | Path | FCPath) -> bool:
     """Whether the bundle carries a frame this record could be checked against.
 
     Parameters:
@@ -269,14 +271,14 @@ def _bundle_holds(image: str, *, observation_id: str, bundle_dir: Path) -> bool:
         path = suppl_path(image, observation_id=observation_id, bundle_dir=bundle_dir)
     except ValueError:
         return False
-    return path.exists()
+    return bool(path.exists())
 
 
 def compare(
-    nav_results_root: str,
+    nav_results_root: str | Path | FCPath,
     *,
     observation_id: str,
-    bundle_dir: Path,
+    bundle_dir: str | Path | FCPath,
     images: list[str] | None,
 ) -> tuple[list[FrameComparison], list[str], list[str]]:
     """Compare every selected record under a results root.
@@ -286,22 +288,25 @@ def compare(
         observation_id: The observation the frames belong to.
         bundle_dir: The bundle's reprojected-image collection.
         images: The image names to keep, or None to keep every record under the
-            root that the bundle also holds a frame for.  A results root that
-            holds more than one observation is the ordinary case, and counting
-            another observation's frames as this one's failures would make
-            every proportion in the report wrong, so the default narrows to
-            what there is something to compare against.
+            root that the bundle also holds a frame for.  An empty list keeps
+            nothing.  A results root that holds more than one observation is
+            the ordinary case, and counting another observation's frames as
+            this one's failures would make every proportion in the report
+            wrong, so the default narrows to what there is something to compare
+            against.
 
     Returns:
-        One comparison per image kept, the names of images a second record was
-        found for, and the names of files that were not records.  A second
-        record for one image is reported rather than compared, because the two
-        would be checked against one bundle answer and counted twice.
+        One comparison per image exactly one record was found for, sorted by
+        image; the names of images more than one record was found for; and the
+        names of files that were not records.  An image with more than one
+        record is excluded rather than compared: the records would be checked
+        against a single bundle answer, and since the stream promises no order
+        there is no basis for preferring either, so keeping one would make
+        every number in the report depend on the order of the walk.
     """
-    wanted = set(images) if images else None
-    rows: list[FrameComparison] = []
-    seen: set[str] = set()
-    duplicates: list[str] = []
+    wanted = set(images) if images is not None else None
+    compared: dict[str, FrameComparison] = {}
+    duplicated: set[str] = set()
     unreadable: list[str] = []
     with TreeRecordSource([nav_results_root]) as source:
         for found in source.records(Selection()):
@@ -314,12 +319,14 @@ def compare(
                     continue
             elif not _bundle_holds(image, observation_id=observation_id, bundle_dir=bundle_dir):
                 continue
-            if image in seen:
-                duplicates.append(str(found.stub))
+            if image in compared or image in duplicated:
+                duplicated.add(image)
+                compared.pop(image, None)
                 continue
-            seen.add(image)
-            rows.append(compare_record(found, observation_id=observation_id, bundle_dir=bundle_dir))
-    return rows, duplicates, unreadable
+            compared[image] = compare_record(
+                found, observation_id=observation_id, bundle_dir=bundle_dir
+            )
+    return [compared[image] for image in sorted(compared)], sorted(duplicated), unreadable
 
 
 def remove_common_offset(
@@ -339,7 +346,14 @@ def remove_common_offset(
         The constant along the camera's two axes, or None when too few frames
         agree for a median to mean anything, in which case each residual is
         just its own error.
+
+    Raises:
+        ValueError: If the tolerance is not a distance, since a negative or
+            NaN one is a tolerance no frame is inside and every statistic
+            drawn from it would be nonsense rather than empty.
     """
+    if not math.isfinite(tolerance_px) or tolerance_px < 0.0:
+        raise ValueError(f'a tolerance is a distance in pixels, not {tolerance_px}')
     agreeing = [
         r
         for r in rows
@@ -384,7 +398,7 @@ def report(
     common: tuple[float, float] | None,
     tolerance_px: float = TOLERANCE_PX,
     bundle_frames: int | None = None,
-    duplicates: list[str] | None = None,
+    duplicated: list[str] | None = None,
     unreadable: list[str] | None = None,
 ) -> None:
     """Print what the comparison found.
@@ -398,7 +412,9 @@ def report(
         bundle_frames: How many frames the bundle holds for this observation,
             so that frames the pass never attempted are counted rather than
             silently improving the rate.
-        duplicates: Records skipped because another record named the same image.
+        duplicated: Images excluded because more than one record named them.
+            They are counted as having a record, which they do; what they have
+            not got is one record to compare.
         unreadable: Files under the root that were not records at all.
     """
     navigated = [r for r in rows if r.status == 'success']
@@ -411,17 +427,19 @@ def report(
     residuals = np.array([r.residual_px for r in compared], dtype=float)
     raw = np.array([r.error_px for r in compared], dtype=float)
 
+    excluded = duplicated or []
     if bundle_frames is not None:
+        with_record = len(rows) + len(excluded)
         print(f'bundle frames     {bundle_frames}')
-        print(f'  with a record   {len(rows)}')
-        print(f'  no record       {bundle_frames - len(rows)}')
+        print(f'  with a record   {with_record}')
+        print(f'  no record       {bundle_frames - with_record}')
     print(f'records compared  {len(rows)}')
     print(f'  navigated       {len(navigated)} ({100 * len(navigated) / max(1, len(rows)):.1f}%)')
     print(f'  failed          {len(failed)}')
-    if duplicates:
+    if excluded:
         print(
-            f'  second record   {len(duplicates)} (skipped: {", ".join(duplicates[:3])}'
-            f'{" ..." if len(duplicates) > 3 else ""})'
+            f'  more than one   {len(excluded)} (excluded, no basis for either: '
+            f'{", ".join(excluded[:3])}{" ..." if len(excluded) > 3 else ""})'
         )
     if unreadable:
         print(f'  not a record    {len(unreadable)} (outside this observation as well as in it)')
@@ -491,15 +509,16 @@ def main() -> None:
         '--images',
         type=Path,
         default=None,
-        help='a file of whitespace-separated image names to keep; '
+        help='a local file of whitespace-separated image names to keep; '
         'the default keeps every record the bundle also holds '
         'a frame for',
     )
     parser.add_argument(
         '--bundle-dir',
-        type=Path,
+        type=FCPath,
         default=DEFAULT_BUNDLE_DIR,
-        help=f'the bundle collection to compare against (default {DEFAULT_BUNDLE_DIR})',
+        help='the bundle collection to compare against, local or remote '
+        f'(default {DEFAULT_BUNDLE_DIR})',
     )
     parser.add_argument(
         '--tolerance-px',
@@ -509,7 +528,10 @@ def main() -> None:
         f'called wrong (default {TOLERANCE_PX})',
     )
     parser.add_argument(
-        '--output', type=Path, default=None, help='where to write the per-frame detail as JSON'
+        '--output',
+        type=Path,
+        default=None,
+        help='a local file to write the per-frame detail to, as JSON',
     )
     args = parser.parse_args()
 
@@ -517,7 +539,7 @@ def main() -> None:
     if args.images is not None:
         images = [n.split('_')[0] for n in args.images.read_text().split()]
 
-    rows, duplicates, unreadable = compare(
+    rows, duplicated, unreadable = compare(
         args.nav_results_root,
         observation_id=args.observation,
         bundle_dir=args.bundle_dir,
@@ -532,7 +554,7 @@ def main() -> None:
         common=common,
         tolerance_px=args.tolerance_px,
         bundle_frames=len(held) if images is None else None,
-        duplicates=duplicates,
+        duplicated=duplicated,
         unreadable=unreadable,
     )
 

@@ -20,7 +20,7 @@ produce, and there are two kinds available.
 
 The F ring bundle records, beside every reprojected product, the attitude that
 project navigated the frame to and how it navigated it. It is an answer rather
-than truth, and its own file says which kind: a frame labelled `Stars` was fixed
+than truth, and its own file says which kind: a frame labeled `Stars` was fixed
 against a catalog and is worth believing to well under a pixel, while
 `Ring and/or Satellite Models` and `Manual` are weaker, so a disagreement with one
 of those is a disagreement rather than an error.
@@ -57,7 +57,7 @@ Both are printed. On ISS_006RI the raw median is 0.70 px and the median after th
 constant is **0.07 px**, with 243 of 417 frames inside a tenth of a pixel.
 
 The constant itself is worth chasing rather than discarding: a half-pixel in both
-axes is what a pixel-centre-versus-corner convention difference looks like, and only
+axes is what a pixel-center-versus-corner convention difference looks like, and only
 one of the two pipelines can be right.
 
 ## Measuring the mosaic instead
@@ -71,7 +71,7 @@ python util/nav_verification/measure_core_radius.py mosaic.fits
 
 A displacement that is the same all the way round is the navigation, the orbit
 model, or the epoch being off together. A displacement that steps between adjacent
-longitudes is two neighbouring frames navigated differently from each other, because
+longitudes is two neighboring frames navigated differently from each other, because
 real ring structure varies smoothly with longitude and a pointing error does not.
 The step's longitude says which frame to look at, and the check works on
 observations nobody else has navigated.
@@ -81,6 +81,13 @@ it holds data for, so two columns side by side in the file can be tens of degree
 apart on the ring -- ISS_241RF has sixteen such gaps, the widest 74.9 degrees -- and
 over that distance the ring really does change. Pairs straddling a gap are counted
 and reported as gaps, never as steps.
+
+The median filter that removes single-column spikes before the steps are counted
+keeps to the same boundary: it runs within each stretch of columns one bin apart, so
+a column beside a gap is never smoothed against columns tens of degrees away. On
+ISS_241RF that is the difference between 132 reported steps and 146; the fourteen it
+adds are real changes at the ends of stretches that the values across the gap had
+been averaging away.
 
 ## Running the tests
 

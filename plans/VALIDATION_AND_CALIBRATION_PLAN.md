@@ -1158,7 +1158,7 @@ seam through a downstream bug; none of that is tested for accuracy today.
  `util/nav_verification/measure_core_radius.py`, which reads the ring core's
  radial placement out of the assembled product against the orbit model it was
  built on: a displacement common to every column is a systematic to chase, and
- one that steps between adjacent columns is two neighbouring frames navigated
+ one that steps between adjacent columns is two neighboring frames navigated
  differently from each other, with the step's longitude naming the frame. It
  needs nothing outside the mosaic, so it reaches observations no other project
  has navigated, but it reads one known feature rather than matching surface

@@ -14,7 +14,7 @@ produce, and this package holds the two kinds that are available.
   co-rotating frame puts a known ring feature at a known radius, so where that
   feature actually lands measures the navigation of every frame that
   contributed, and a radius that steps between adjacent columns says two
-  neighbouring frames were navigated differently from each other.
+  neighboring frames were navigated differently from each other.
 
 ``boresight`` is the arithmetic both of them share, and carries no mission
 constants of its own.

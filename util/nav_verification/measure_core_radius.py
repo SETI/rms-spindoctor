@@ -9,7 +9,7 @@ observations no other project has navigated.
 Two different things are worth reading out of the result.  A displacement that
 is the same all the way round is the navigation, the orbit model, or the epoch
 being off together, and is a single number to chase.  A displacement that steps
-between adjacent longitudes is two neighbouring frames navigated differently
+between adjacent longitudes is two neighboring frames navigated differently
 from each other, because real ring structure varies smoothly with longitude and
 a pointing error does not -- so a step is the signature of one bad frame, and
 its longitude says which.
@@ -23,9 +23,13 @@ and reported on their own.
 
 The core is taken as the brightness-weighted centroid of the peak, with the
 search restricted to a band around a robust first estimate so that a cosmic ray
-or a field star cannot pull one column hundreds of kilometres away.  Single
+or a field star cannot pull one column hundreds of kilometers away.  Single
 column spikes are then removed with a median filter before steps are counted, so
-what is reported is a discontinuity rather than one bad pixel.
+what is reported is a discontinuity rather than one bad pixel.  That filter runs
+within each stretch of columns one longitude bin apart and never across a gap,
+for the same reason the step test does not: a median taken over storage order
+would smooth a column against columns tens of degrees away and then the step
+test would read a value that was never about that part of the ring.
 
 Run after ``source /seti/newnav/setup.sh``, from the repository root::
 
@@ -35,12 +39,15 @@ Run after ``source /seti/newnav/setup.sh``, from the repository root::
 from __future__ import annotations
 
 import argparse
+import itertools
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from astropy.io import fits
+from filecache import FCPath
 
 WINDOW_KM = 150.0
 SEARCH_KM = 400.0
@@ -83,7 +90,7 @@ def _centroid(
 
     Parameters:
         column: The column's brightness against radius, with gaps left as NaN.
-        radii: The radius each row stands for, in kilometres.
+        radii: The radius each row stands for, in kilometers.
         low_km: The innermost radius the peak may be found at.
         high_km: The outermost radius the peak may be found at.
         half_window: How many rows either side of the peak the centroid runs
@@ -129,7 +136,7 @@ def _column_bins(header: fits.Header, antimask: np.ndarray, n_columns: int) -> n
         ValueError: If the columns match none of the three shapes, so that no
             longitude can be assigned to them.
     """
-    if not header.get('LONGITUDE_RANGE_NONE', False):
+    if 'LONGITUDE_RANGE_0' in header:
         start = round(float(header['LONGITUDE_RANGE_0']) / float(header['LONGITUDE_RESOLUTION']))
         return np.arange(start, start + n_columns)
     if n_columns == int(antimask.sum()):
@@ -143,12 +150,12 @@ def _column_bins(header: fits.Header, antimask: np.ndarray, n_columns: int) -> n
 
 
 def core_offsets(
-    path: Path, *, window_km: float = WINDOW_KM, search_km: float = SEARCH_KM
+    path: str | Path | FCPath, *, window_km: float = WINDOW_KM, search_km: float = SEARCH_KM
 ) -> CoreProfile:
     """Where the ring core sits in every column of a mosaic.
 
     Parameters:
-        path: The mosaic.
+        path: The mosaic, wherever it is kept.
         window_km: How far either side of the peak the centroid runs.
         search_km: How far from the first estimate the core may be looked for.
 
@@ -156,7 +163,8 @@ def core_offsets(
         The profile, whose radial values are an offset from the orbit model when
         the mosaic was built on one and an absolute radius when it was not.
     """
-    with fits.open(path) as mosaic:
+    local_path = cast(Path, FCPath(path).retrieve())
+    with fits.open(local_path) as mosaic:
         header = mosaic[0].header
         image = np.where(
             mosaic['IMG_MASK'].data.astype(bool), np.nan, mosaic['IMG'].data.astype(float)
@@ -181,14 +189,14 @@ def core_offsets(
             for c in range(image.shape[1])
         ]
     )
-    centre = float(np.nanmedian(rough))
+    center = float(np.nanmedian(rough))
     core = np.array(
         [
             _centroid(
                 image[:, c],
                 radii,
-                low_km=centre - search_km,
-                high_km=centre + search_km,
+                low_km=center - search_km,
+                high_km=center + search_km,
                 half_window=half_window,
             )
             for c in range(image.shape[1])
@@ -218,10 +226,52 @@ def median_filter(values: np.ndarray, *, width: int = 5) -> np.ndarray:
     return np.array([np.nanmedian(padded[i : i + width]) for i in range(values.size)])
 
 
+def contiguous_runs(bins: np.ndarray) -> list[tuple[int, int]]:
+    """The stretches of columns that stand one longitude bin apart.
+
+    Parameters:
+        bins: The longitude bin of each column, ascending.
+
+    Returns:
+        The half-open index range of each stretch, in order, together covering
+        every column.  A column with a gap on each side is a stretch of one.
+    """
+    if bins.size == 0:
+        return []
+    breaks = np.flatnonzero(np.diff(bins) != 1) + 1
+    edges = [0, *(int(b) for b in breaks), int(bins.size)]
+    return list(itertools.pairwise(edges))
+
+
+def despike_within_runs(bins: np.ndarray, values: np.ndarray, *, width: int = 5) -> np.ndarray:
+    """A running median that never reaches across a longitude gap.
+
+    A sparse mosaic's columns sit side by side in the file whatever longitudes
+    they stand for, so a median taken over storage order mixes a column with
+    columns tens of degrees away, and what the step test then reads is a value
+    that was never about that part of the ring: a real step beside a gap is
+    smoothed away, or a step is reported where the ring merely changed across
+    the gap.  Each stretch of columns one bin apart is therefore filtered on
+    its own.
+
+    Parameters:
+        bins: The longitude bin of each column, ascending.
+        values: The measured value in each column.
+        width: How many samples the median runs over.
+
+    Returns:
+        The filtered series, the same length as the input.
+    """
+    smoothed = np.empty(values.size, dtype=float)
+    for start, stop in contiguous_runs(bins):
+        smoothed[start:stop] = median_filter(values[start:stop], width=width)
+    return smoothed
+
+
 def steps_between_adjacent(
     bins: np.ndarray, values: np.ndarray, *, step_km: float = STEP_KM
 ) -> np.ndarray:
-    """Which neighbouring pairs jump, counting only pairs that really neighbour.
+    """Which neighboring pairs jump, counting only pairs that really neighbor.
 
     Two columns that sit side by side in a sparse mosaic can be tens of degrees
     apart on the ring, and the ring changes over tens of degrees, so a pair
@@ -273,7 +323,7 @@ def report(profile: CoreProfile, *, step_km: float = STEP_KM) -> None:
     )
     print(f'  full range: {found.min():+.1f} to {found.max():+.1f} km')
 
-    smoothed = median_filter(found)
+    smoothed = despike_within_runs(bins, found)
     spacing = np.diff(bins)
     adjacent = spacing == 1
     change = np.abs(np.diff(smoothed))
@@ -287,11 +337,11 @@ def report(profile: CoreProfile, *, step_km: float = STEP_KM) -> None:
         print('  no two measured columns are one longitude bin apart; nothing to compare')
         return
 
-    neighbouring = change[adjacent]
+    neighboring = change[adjacent]
     print(
         f'  change between adjacent longitudes (despiked): '
-        f'median {np.median(neighbouring):.2f} km, '
-        f'95th {np.percentile(neighbouring, 95):.2f}, max {neighbouring.max():.1f} km'
+        f'median {np.median(neighboring):.2f} km, '
+        f'95th {np.percentile(neighboring, 95):.2f}, max {neighboring.max():.1f} km'
     )
     jumps = steps_between_adjacent(bins, smoothed, step_km=step_km)
     runs = int(np.sum(np.diff(jumps) > 1)) + 1 if jumps.size else 0
@@ -308,7 +358,7 @@ def report(profile: CoreProfile, *, step_km: float = STEP_KM) -> None:
 def main() -> None:
     """Measure one mosaic's core placement and report it."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mosaic', type=Path, help='the ring mosaic to measure')
+    parser.add_argument('mosaic', type=FCPath, help='the ring mosaic to measure, local or remote')
     parser.add_argument(
         '--step-km',
         type=float,
