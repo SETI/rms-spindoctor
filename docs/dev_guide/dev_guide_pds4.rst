@@ -29,13 +29,16 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    names the backplane FITS; the pass does not copy the FITS into the bundle.
 
 2. **Collections and indexes.**  After every per-image data label is in place,
+   :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` reads
+   every ``_supplemental.txt`` in the bundle's ``data/`` tree once, writes the
+   ``global_index_bodies`` and ``global_index_rings`` tables and their labels
+   under ``document/supplemental/``, and takes the range of the products'
+   exposure epochs in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
-   bundle's ``data/`` tree, collects every ``_backplanes.lblx`` it finds, sorts
-   them by image name, and writes the ``collection_data.tab`` and
-   ``collection_browse.tab`` inventories and their labels.
-   :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` writes
-   the ``global_index_bodies`` and ``global_index_rings`` tables and their labels
-   under ``document/supplemental/``.
+   ``data/`` tree, collects every ``_backplanes.lblx`` it finds, sorts them by
+   image name, and writes the ``collection_data.tab`` and
+   ``collection_browse.tab`` inventories and their labels, the data collection
+   label stating the range it is handed.
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
@@ -101,8 +104,9 @@ an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or
-infinite), and an image whose processing raised an error -- and exits 1 when that
-count is not zero.  An image with such a statistic is failed before anything is
+infinite), an image whose navigation recorded no exposure times (see `Epochs`_),
+and an image whose processing raised an error -- and exits 1 when that count is not
+zero.  An image with such a statistic is failed before anything is
 written for it, and the log names the image, the plane and what the document
 records there.  The run closes with a line giving that count alongside the
 number of images it labeled and the number it skipped, so a selection that
@@ -129,17 +133,24 @@ have processed.
 
 ``sd_create_bundle summary`` counts the collection and index labels it did not
 write, over both generators, and exits 1 the same way.  The inventory and index
-``.tab`` tables are written either way.  It also exits 1 when a supplemental
-file holds a statistic no index column can -- one in a unit other than the one
-the configuration gives its plane, or a minimum or maximum that is NaN or
-infinite -- the check the labels pass
-makes per image, through
+``.tab`` tables are written either way.  The data collection label counts as not
+written when the data tree holds no supplemental file, and so no range for it to
+state (see `Epochs`_).  The global index is generated first, and it refuses a
+bundle with no ``data/`` directory, naming the directory, before any product of
+the pass is cleared or written.  The pass also exits 1 when a supplemental file
+holds a statistic no index column can -- one in a unit other than the one the
+configuration gives its plane, or a minimum or maximum that is NaN or infinite --
+the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
-file and the plane and saying what the file records there.  The index tables
-and labels an earlier run wrote are cleared before the first supplemental file
-is read.  Every supplemental file is read, and every value in both index tables
-rendered, before either table is opened, so neither exists; the collection
-files, written first, do.
+file and the plane and saying what the file records there.  The index tables and
+labels an earlier run wrote, and its collection tables and labels, are cleared
+before the first supplemental file is read, the collection files by the index
+generator since it runs first.  Every supplemental file is read, and every value in
+both index tables rendered, before either table is opened, so a run refused over a
+supplemental file leaves no product of the pass, neither this run's nor an earlier
+run's.  The pass reads each
+supplemental file as the labels pass wrote it and checks nothing about it but the
+statistics; anything else unexpected raises, and the run ends with exit status 1.
 
 The summary pass builds both inventories from the data labels in the bundle's
 ``data/`` tree and does not check that tree for completeness, so it can exit 0
@@ -365,6 +376,59 @@ The two passes render ``data.lblx`` and ``browse.lblx`` for each image and the
 collection and global index labels for the bundle, on every run; the other files
 ship with the templates, and no pass writes them into a bundle.
 
+Epochs
+======
+
+Every exposure time a label states (``start_date_time``, ``stop_date_time``, and
+the collection's range) comes from the epochs the navigation recorded:
+``start_et``, ``stop_et`` and ``midtime_et`` under ``navigation_result.times``, in
+TDB seconds past J2000.  They are turned into UTC by one rule, in
+:mod:`spindoctor.support.time`: :func:`~spindoctor.support.time.et_to_utc` writes
+the plain ISO spelling the observation metadata and the statistics report use,
+and :func:`~spindoctor.support.time.et_to_pds4_utc` the spelling a PDS4 label
+takes, ``ASCII_Date_Time_YMD_UTC`` (``2004-02-07T04:25:35.585Z``), to a given
+number of decimals, rounded to the nearer value of the last digit, or down, or up;
+a leap second is written as second 60.
+Both go from TDB to TAI to the calendar through ``julian``, whose leap-second table
+gives the answer SPICE's ``et2utc`` gives; an integration test holds every cohort
+epoch to the leapseconds kernel.  The C-kernel report converts through
+``cspyce.et2utc`` instead, against the kernel its generator furnishes, and is the
+one conversion outside the rule.
+
+A data label's times come from the dataset's
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_template_variables`.
+:class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS` writes
+``START_DATE_TIME`` and ``STOP_DATE_TIME`` each to the nearest millisecond.  A Cassini
+image's times are recorded to the millisecond and its epochs are computed from them,
+so each epoch lies within a few nanoseconds of a millisecond and the nearest is the
+recorded time, where a start rounded down or a stop rounded up would lose a
+millisecond whenever the epoch lands on the far side.  ``IMAGE_MID_TIME`` is the
+midpoint of the two as written, a half millisecond rounding up, through
+:func:`~spindoctor.support.time.pds4_utc_midpoint`: an exposure an odd number of
+milliseconds long has its midtime on a half millisecond, where the recorded midtime
+epoch lands a few nanoseconds to either side, and PDS3's ``IMAGE_MID_TIME`` takes the
+half up.  The navigation records the epochs beside the pointing it solved, and
+records a success with no pointing when the attitude cannot be computed or the
+instrument has no SPICE camera frame mapped.
+:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails such an
+image before anything is written for it, the log naming the image; it checks only
+that ``navigation_result.times`` is there, and where it is, the epochs are read as
+recorded.  The summary pass needs no check of its own: the labels pass writes no
+supplemental file for an image it failed.
+
+The data collection label states the range of the products' epochs: the least
+start and the greatest stop over every supplemental file, written to whole seconds
+with the start rounded down and the stop up.  The range is taken in the one read
+of the supplemental files the summary pass makes -- the global
+index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
+:func:`~spindoctor.cli.pds4.collections.generate_global_index_files` returns it in
+its :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome`.  That is why the
+summary pass runs the index first and hands the range to
+:func:`~spindoctor.cli.pds4.collections.generate_collection_files`.  A scan that
+read no supplemental file yields no range, and the
+data collection label is then counted as not written rather than rendered with empty
+dates.
+
 Output layout
 =============
 
@@ -535,3 +599,11 @@ documented above.
 - :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one
   check both passes hold every statistic of a document to, its unit and its
   values.
+- :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
+  :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome` — the range of the
+  products' epochs, taken in the global index's read of the supplemental files
+  and handed to the collection generator.
+- :func:`~spindoctor.support.time.et_to_pds4_utc` — the PDS4 spelling of an epoch,
+  beside :func:`~spindoctor.support.time.et_to_utc`, in the one conversion, and
+  :func:`~spindoctor.support.time.pds4_utc_midpoint`, the midpoint of two times so
+  written, which is what a data label's ``IMAGE_MID_TIME`` states.

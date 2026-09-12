@@ -153,10 +153,9 @@ reduces the family's exposure to the sub-25 km/px regime.
   data-independent simulator suites and the stale committed render, none of
   which run in Actions today. #391 pins the lint tools so a release cannot
   turn `main` red on its own.
-- **Products:** #519 (the empty `START_DATE_TIME` / `STOP_DATE_TIME` /
-  `IMAGE_MID_TIME` in every label) and what is left of #265 (the dev-guide
-  output-layout mismatch and the inventory-filename mismatch; its
-  swallowed-label-write part is fixed); #520
+- **Products:** what is left of #265 (the dev-guide output-layout mismatch
+  and the inventory-filename mismatch; its swallowed-label-write part is
+  fixed); #520
   (move the pointing selection out of the reprojection CLI package); #495
   (raw-product dataset names for Cassini ISS).
 - **Docs and cleanup:** #545, #549, #470, #471, #494, #518.

@@ -9,9 +9,18 @@ from filecache import FCPath, FileCache
 
 from spindoctor.config import Config
 from spindoctor.support.misc import safe_lstrip_zero
+from spindoctor.support.time import et_to_pds4_utc, pds4_utc_midpoint
 
 from .dataset import ImageFile, ImageFiles, Pds4Pass
 from .dataset_pds3 import DataSetPDS3
+
+_PDS4_TIME_DIGITS = 3
+"""The decimals of a second a data label writes its exposure's times to.
+
+A millisecond, the precision a Cassini image's start and stop are recorded to in its
+PDS3 label and index.  Whole seconds, which the reference bundle writes for its mosaics,
+would state an exposure of a few milliseconds as a window of one or two seconds.
+"""
 
 
 class DataSetPDS3CassiniISS(DataSetPDS3):
@@ -580,14 +589,34 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     ) -> dict[str, Any]:
         """Returns template variables for PDS4 label generation.
 
+        ``START_DATE_TIME`` and ``STOP_DATE_TIME`` are the exposure's start and stop,
+        read from the epochs the navigation recorded under ``navigation_result.times``
+        and written the way a PDS4 label writes a UTC time, to the millisecond, with a
+        trailing ``Z``, each rounded to the nearest millisecond.  An image's start and
+        stop are recorded to the millisecond in its PDS3 label and index, and the
+        epochs are computed from those values, so each epoch lies within a few
+        nanoseconds of a millisecond, on one side of it or the other: the nearest
+        millisecond is the time recorded, where rounding a start down or a stop up
+        would move it a whole millisecond whenever the epoch lands on the far side.
+        ``IMAGE_MID_TIME`` is the midpoint of the two as written, a half millisecond
+        rounding up, which is PDS3's ``IMAGE_MID_TIME``: an exposure an odd number of
+        milliseconds long has its midtime on a half millisecond, where the recorded
+        midtime epoch lands a few nanoseconds to either side of it.
+
         Parameters:
             image_file: The image file being processed.
-            nav_metadata: Navigation metadata dictionary.
+            nav_metadata: Navigation metadata dictionary: a success document recording
+                the exposure's epochs under ``navigation_result.times``.
             backplane_metadata: Backplane metadata dictionary.
 
         Returns:
             Dictionary mapping variable names to values for template
             substitution.
+
+        Raises:
+            KeyError: If ``nav_metadata`` records no ``navigation_result.times``, as
+                a navigation that recorded no pointing leaves it.  The labels pass
+                fails such an image before it asks for these variables.
         """
         vars_dict: dict[str, Any] = {}
 
@@ -606,12 +635,22 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             vars_dict['CAMERA_WN_UC'] = ''
             vars_dict['CAMERA_WN_LC'] = ''
 
-        # Time information from navigation metadata
-        if 'observation' in nav_metadata:
-            obs = nav_metadata['observation']
-            vars_dict['START_DATE_TIME'] = obs.get('start_time', '')
-            vars_dict['STOP_DATE_TIME'] = obs.get('stop_time', '')
-            vars_dict['IMAGE_MID_TIME'] = obs.get('mid_time', '')
+        # The exposure's start and stop, from the epochs its navigation recorded, each
+        # at the nearest millisecond: the epochs are computed from times recorded to the
+        # millisecond, so the nearest is the one recorded, where a floor or a ceiling
+        # would lose it whenever the float lands a few nanoseconds on its far side.  The
+        # midtime is their midpoint as written, a half rounding up as PDS3's does; the
+        # midtime epoch of an odd-millisecond exposure sits on the half, either side.
+        times = nav_metadata['navigation_result']['times']
+        vars_dict['START_DATE_TIME'] = et_to_pds4_utc(
+            times['start_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
+        )
+        vars_dict['STOP_DATE_TIME'] = et_to_pds4_utc(
+            times['stop_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
+        )
+        vars_dict['IMAGE_MID_TIME'] = pds4_utc_midpoint(
+            vars_dict['START_DATE_TIME'], vars_dict['STOP_DATE_TIME']
+        )
 
         # Placeholder values for required template variables
         pds4_bundle_name = self.pds4_bundle_name()

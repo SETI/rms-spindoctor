@@ -25,7 +25,7 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1 and 2 have run; Phases 3-10 have not. Two changes landed ahead of
+Phases 1-3 have run; Phases 4-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -52,7 +52,7 @@ this table first and trusts it over any recollection.
 | 1 — Surface label-write failures | **done** | `937e6cf4`, the squash on `rf_pds4_draft_bundle`, section 4 |
 | 2 — The synthetic cohort | **done** | `rf_pds4_phase2`, sections 3.12 and 4 |
 | Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
-| 3 — Epochs | not started | |
+| 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
 | 4 — The FITS in the bundle, with its data objects | not started | |
 | 5 — Inventories that conform | not started | |
 | 6 — Bundle-level and static products | not started | |
@@ -70,10 +70,12 @@ skipped or failed product leaves the bundle inconsistent, which Phases 5 and
 name rather than through `statistics_units`, so it shows the `rad/pixel` plane
 in radians per pixel), #614 (a dataset without PDS4 support
 ends both passes in a traceback rather than a refusal). #603, the two passes
-disagreeing about a missing template, closes in Phase 1. #607, the index
-tables written to one precision whatever the column's unit, closes in Phase
-2 with a format per unit (section 3.8); the missing-value sentinel it raised
-beside that is Phase 7's.
+disagreeing about a missing template, was closed by hand on 2026-09-11, after
+#605, Phase 1's PR, merged. #607, the index tables written to one precision
+whatever the column's unit, closes in Phase 2 with a format per unit (section
+3.8); the missing-value sentinel it raised beside that is Phase 7's. #519,
+which found every data label's start and stop empty, closes with Phase 3
+(section 3.4).
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -188,27 +190,28 @@ plan).
 | 2 | `bundle.lblx` is never written. The template exists and nothing references it: `grep -rn "bundle.lblx" src/ --include=*.py` is empty. | — | #265 area |
 | 3 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. Two more, `miscellaneous` and `spice_kernels`, are neither declared nor generated; section 3.1 adds both, moving the global index tables into the first and the metakernel into the second. | — | #72, #74 |
 | 4 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
-| 5 | `<start_date_time>` and `<stop_date_time>` are empty in every data label and in `collection_data.lblx`. The code reads `observation.start_time`; the document holds `navigation_result.times.{start_et,stop_et,midtime_et}`. `collections.py:80-81` separately hardcodes the collection range to `''`. | `dataset_pds3_cassini_iss.py:589-593`, `collections.py:80-81` | #519 |
-| 6 | `File_Area_Observational` has a `<File>` and no data object. The FITS carries a `PrimaryHDU` plus one `ImageHDU` per surviving backplane (9 HDUs on the verified frame); `writer.py:58-60` drops any plane with no valid pixels, so the set is per-image dynamic. | `data.lblx:174-183` | #69, #30 |
-| 7 | `data.lblx:104` references `<local_identifier_reference>image</local_identifier_reference>`; no object in the label defines that identifier. Falls out of 6. |  `data.lblx:104` | **new** |
-| 8 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
-| 9 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
-| 10 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
-| 11 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
-| 12 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
-| 13 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
-| 14 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 15 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
-| 16 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
-| 17 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 18 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 5 | `File_Area_Observational` has a `<File>` and no data object. The FITS carries a `PrimaryHDU` plus one `ImageHDU` per surviving backplane (9 HDUs on the verified frame); `writer.py:58-60` drops any plane with no valid pixels, so the set is per-image dynamic. | `data.lblx:174-183` | #69, #30 |
+| 6 | `data.lblx:104` references `<local_identifier_reference>image</local_identifier_reference>`; no object in the label defines that identifier. Falls out of 5. |  `data.lblx:104` | **new** |
+| 7 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
+| 8 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
+| 9 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
+| 10 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
+| 11 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
+| 12 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
+| 13 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
+| 14 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
+| 15 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
+| 16 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 17 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 18 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619; no phase (navigation) |
 
-None of these gets its own tracking issue. Every row is fixed by a named
+None of rows 1-17 gets its own tracking issue. Each is fixed by a named
 phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
 every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Defect 1 additionally
-has an `xfail` and belongs to #265 and #69. The rows that *would* have
+has an `xfail` and belongs to #265 and #69. Row 18 is the navigation's, owned
+by no phase, and is tracked as #619. The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
 difference between the arrays and the tables as settled design rather than a
@@ -383,21 +386,78 @@ rather than from the config.
 ### 3.4 Epochs
 
 `navigation_result.times` holds `start_et`, `stop_et` and `midtime_et` as
-TDB seconds past J2000. `spindoctor/cli/stats/classify.py` already converts
-with `julian.iso_from_tai(julian.tai_from_tdb(...))`. That conversion moves
-to one shared function — `spindoctor/support/` is the right home, since two
-CLI packages now need it — and both callers use it. #519 asks for exactly
-this and says so.
+TDB seconds past J2000. `spindoctor/support/time.py` is the one rule that
+turns one into UTC: `et_to_utc` writes the plain ISO spelling the observation
+metadata and the statistics report use (the report's `date_from_image_et` and
+`datetime_from_image_et` in `spindoctor/nav_records/derived.py`), and
+`et_to_pds4_utc` the spelling a PDS4 label takes, `ASCII_Date_Time_YMD_UTC`
+with its trailing `Z`, to a given number of decimals, rounded to the nearer or
+down or up. `julian` agrees with SPICE's `et2utc` to the millisecond over the
+Cassini mission, both leap seconds included, and an integration test,
+`tests/integration/test_cohort_cassini_epochs_against_kernel.py`, holds the
+Cassini cohort's epochs to the leapseconds kernel. #519 asked for exactly this
+and said so. The C-kernel report converts through `cspyce.et2utc` against the
+kernel its generator furnishes, and is the one conversion outside the rule.
 
-An image whose navigation never reached a solution has no `times` block.
-Section 3.10 says what happens to it, and the answer is that it never
-reaches a label, so the empty string stops being reachable rather than being
-made deliberate.
+A data label states its exposure's start and stop to the millisecond, each
+rounded to the nearest, and its midtime as their midpoint. A millisecond is
+the precision the PDS3 label and index record an image's times to, and a
+Cassini exposure is often shorter than a second, so whole seconds would state
+a 5 ms exposure as a window of one or two. The nearest, rather than the start
+rounded down and the stop up, because the epochs are computed from those
+millisecond values -- oops takes the stop from `IMAGE_TIME` and the start as
+the stop less the exposure (`oops/hosts/cassini/iss.py` 64-66) -- and the
+float lands a few nanoseconds to one side of the millisecond or the other,
+often enough that a floor or a ceiling moves it by one. Over the 10,194 rows
+of the COISS_2001, 2057 and 2086 index tables, the floor puts 1,124 starts a
+millisecond before the PDS3 `START_TIME`, and the ceiling 339 stops a
+millisecond after `STOP_TIME`; W1630770594's start floors to `.761` where
+PDS3 says `.762`. The nearest reproduces PDS3 on every stop and on every
+start but 17, which are PDS3 rows whose `START_TIME` is not `IMAGE_TIME` less
+the exposure. The midtime is the midpoint of the start and stop as written
+(`pds4_utc_midpoint`), a half millisecond rounding up, and not the midtime
+epoch rounded: an exposure an odd number of milliseconds long has its
+midtime on a half millisecond, where the epoch's float lands to either side
+and PDS3's `IMAGE_MID_TIME` takes the half up. Rounded from the epoch, 303
+of the 10,177 rows whose `START_TIME` is `IMAGE_TIME` less the exposure came
+out a millisecond before `IMAGE_MID_TIME` (W1629783475's `.826` against
+`.827`); taken from the written start and stop, all 10,177 match. The
+nearest is also the rule the reference applies to its millisecond start and
+stop; section 3.13 says what it does at whole seconds and for the midtime,
+and which of its rules this bundle follows for which element.
 
-The collection and bundle labels need the cohort's earliest start and latest
-stop. The summary pass already reads every supplemental file to build the
-global index; it takes the min and max there, in the same pass, and hands
-them to both labels. `collections.py:80-81` stops being a TODO.
+An image whose navigation never reached a solution has no `times` block;
+section 3.11 says what happens to it, and the answer is that it never reaches
+a label. A success document has one only beside a pointing: `build_metadata_dict`
+writes `times` with the pointing, and the navigation records a success with no
+pointing when `compute_pointing` raises `NavPointingError` or the instrument has
+no SPICE camera frame mapped (#619 proposes recording the times for every
+result; section 2.2 row 18). That is a document this package's navigation
+writes, so the labels pass fails such an image before anything is written for
+it, its log saying the navigation recorded no exposure times. It checks only
+that the block is there, since the block always holds all three epochs, and
+nothing else about them (the operator's ruling of 2026-09-11 that nothing
+guards against our own files). The summary pass needs no check: the labels pass
+writes no supplemental file for an image it failed. The empty string is not
+reachable.
+
+The data collection label states the cohort's earliest start and latest stop,
+at whole seconds as the reference's collection and bundle labels do, the start
+rounded down and the stop up. The summary pass already read
+every supplemental file to build the global index, so the range is taken
+there, in that same read, by an `EpochRangeScan`. The index therefore runs
+before the collection files in `main_summary`, and returns the range in a
+`GlobalIndexOutcome`, which the driver hands to `generate_collection_files`
+and holds for `bundle.lblx`, which Phase 6 renders, without a second
+computation. With no range to state -- the data tree holds no supplemental
+file -- the data collection label is counted as not written, with an error
+saying so, and the inventory table is still written. The supplemental files
+are read as the labels pass wrote them, with nothing checked but the
+statistics (the same ruling); a data label that failed to render is reported
+by the labels pass, and the bundle is regenerated before the summary pass
+runs. Running first, the index generator refuses a bundle with no data
+directory itself, as the collection generator does, rather than write its
+tables into a root the labels pass would then refuse.
 
 ### 3.5 Inventories
 
@@ -456,7 +516,7 @@ The draft is acceptable either way; a bundle delivered to the Node is not.
 Acceptance criterion 8 records that distinction.
 
 Whichever way it goes, the LID gets its `:document:` segment back in all
-three places that drop it (defect 13).
+three places that drop it (defect 12).
 
 ### 3.7 Targets and the mission area
 
@@ -931,7 +991,7 @@ discovered at delivery.
 carries an `AUTHORS` string and an `EDITORS` string naming the node staff
 who reviewed the bundle. Ours has a single hardcoded `List_Author` block.
 
-Two places where this plan deliberately does **not** follow the reference:
+Three places where this plan deliberately does **not** follow the reference:
 
 - `populate_template` there discards `template.write`'s `(errors, warnings)`
   return exactly as ours does. Phase 1 fixes that here; it is a defect the
@@ -939,6 +999,24 @@ Two places where this plan deliberately does **not** follow the reference:
 - The reference declares `PDS4_RINGS_1O00_1E00`. Section 3.9 moved us to
   `1F00`, so on this one point we are ahead of it, and the F ring bundle may
   want the same bump.
+- The reference writes a product's times twice. Its label's
+  `START_DATE_TIME` and `STOP_DATE_TIME` are whole seconds, the start floored
+  and the stop ceiled (`generate_pds4_files.py` 2127-2129), which its delivery
+  changelog (item 13) explains: its review copy rounded to the nearer second,
+  and the intervals it stated missed their exposures. Its `START_DATE_TIME_3`,
+  `STOP_DATE_TIME_3` and `MIDTIME_DATE_TIME_3` are the same times rounded to
+  the nearest millisecond (2128-2133), which it writes into every product's
+  supplemental file header (1827-1842). A data label here follows the second
+  for its start and stop: the millisecond is the precision a Cassini exposure
+  needs, and the nearest gives back the PDS3 value where a floor or a ceiling
+  moves it (section 3.4). For the midtime it follows neither: the reference
+  rounds the midpoint of its two epochs to the nearest millisecond, which on
+  an exposure an odd number of milliseconds long goes whichever way the float
+  falls, and a data label here takes the midpoint of the start and stop it
+  writes, a half millisecond rounding up, as PDS3's `IMAGE_MID_TIME` does.
+  The collection range follows the first, whole seconds with the start
+  floored and the stop ceiled, which contains every product's written start
+  and stop.
 
 ---
 
@@ -1108,16 +1186,36 @@ untestable without it.
 
 ### Phase 3 — Epochs
 
-Shared ET-to-ISO conversion in `spindoctor/support/`, used by
-`classify.py` and by `pds4_template_variables`. `START_DATE_TIME`,
-`STOP_DATE_TIME` and `IMAGE_MID_TIME` read `navigation_result.times`.
-Collection and bundle date ranges computed in the summary pass from the
-supplemental files.
+Done on `rf_pds4_phase3`. One ET-to-UTC rule in `spindoctor/support/time.py`
+(`et_to_utc`, `et_to_pds4_utc` for the PDS4 spelling and `pds4_utc_midpoint`
+for the midpoint of two times so written), used by the
+statistics report's `date_from_image_et` and `datetime_from_image_et` and by
+`pds4_template_variables`. `START_DATE_TIME` and `STOP_DATE_TIME` read
+`navigation_result.times`, each to the nearest millisecond, and
+`IMAGE_MID_TIME` is the midpoint of the two as written, a half rounding up
+(section 3.4); a navigated image whose navigation recorded no exposure times is
+failed before anything is written for it. The data
+collection range is taken in the global index's read of the supplemental files,
+which runs first, and written at whole seconds, rounded outward; with no
+range the data collection label is counted as not written. The bundle label's
+range is Phase 6's, from the same `GlobalIndexOutcome`.
 
-Tests: a document with `times` yields the expected ISO strings; the
-collection range over three supplemental files is the min and max.
+Tests: known epochs to the strings `et2utc` writes for them, leap seconds
+included, and an integration test converting every Cassini cohort epoch
+through the kernel (`test_cohort_cassini_epochs_against_kernel.py`); the
+shipped data label over the cohort states each navigated image's
+start and stop; W1630770594's start, computed a few nanoseconds short of its
+millisecond, is written as its PDS3 label states it, and W1629783475's
+midtime, on a half millisecond, as its `IMAGE_MID_TIME`; the range contains a
+product's written times where they meet its whole seconds; a cohort success
+document with no `times` fails its image with nothing written; the collection
+range over three supplemental files is the min and the max; the shipped
+`collection_data.lblx` over the cohort states the range of its two navigated
+images; a summary over no supplemental file writes no data collection label.
+The tests only the Cassini ISS Saturn bundle can state are in modules named
+for it.
 
-Closes #519.
+Closes #519, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
 ### Phase 4 — The FITS in the bundle, with its data objects
 
@@ -1258,9 +1356,13 @@ variables name columns the COISS index has no such column for
 two-element `FILTER_NAME`, `GROUND_SOFTWARE_VERSION_ID` against
 `SOFTWARE_VERSION_ID`, `START_TIME_DOY` and `STOP_TIME_DOY` against
 `START_TIME` and `STOP_TIME`, and the `EXPECTED_MAXIMUM` / `VALID_MAXIMUM` /
-`INST_CMPRS_RATE` pairs against one array column each). The cohort keys its
-rows by the index's own names, so both halves are visible there rather than
-papered over.
+`INST_CMPRS_RATE` pairs against one array column each). One more reads a
+column the index has, but the wrong one: `cassini:image_mid_time` is filled
+from `IMAGE_TIME`, the shutter-close time, where the index carries an
+`IMAGE_MID_TIME`; for the cohort's limb image that is `04:25:36.045` against
+an `IMAGE_MID_TIME` of `04:25:35.815`. The cohort keys its rows by the
+index's own names, so both halves are visible there rather than papered
+over.
 
 Tests: an image with two bodies emits two `Target_Identification` blocks; an
 image with rings emits the ring geometry block and one without emits none.
@@ -1390,11 +1492,12 @@ removals on a two-sided conflict.
 
 ## 7. Follow-ups
 
-**No issues are filed for section 2.2.** Each row there is fixed by a named
+**No issues are filed for section 2.2's rows 1-17.** Each is fixed by a named
 phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
 adds a close to reconcile and no reader. Defect 1 additionally has an
-`xfail` and belongs to #265 and #69.
+`xfail` and belongs to #265 and #69. Row 18 is the navigation's, not a
+phase's, and is tracked as #619.
 
 The one row that would have outlived this plan was the angular-unit
 difference between the arrays and the tables, and the difference itself
@@ -1459,7 +1562,10 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 NUMEXPR_NUM_THREADS=1`, set nowhere in the repository), open the PR, wait
 for CodeRabbit to settle and reply on every comment with a disposition, then
 merge. Update `docs/` and the four plan files in the same PR as the change
-they describe, not afterwards. Update section 0.1 as each phase lands.
+they describe, not afterwards. Update section 0.1 as each phase lands. The
+issues a phase closes are closed by hand when its PR merges into
+`rf_pds4_draft_bundle`, as the operator ruled on 2026-09-11, since GitHub's
+closing keywords fire only on a merge into the default branch.
 
 **How each phase is built.** A subagent implements it against the phase
 text. Then **two** adversarial reviewers, neither of which wrote the code,

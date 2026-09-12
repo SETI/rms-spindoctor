@@ -33,6 +33,7 @@ from typing import Any, cast
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
+from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 # Minimal pdstemplate templates.  Each references only variables the module under
@@ -390,6 +391,42 @@ def make_bundle_env(
     )
 
 
+NAVIGATED_TIMES: dict[str, float] = {
+    'start_et': 129399999.77,
+    'stop_et': 129400000.23,
+    'midtime_et': 129400000.0,
+}
+"""The exposure epochs a success document records under ``navigation_result.times``.
+
+A navigated image's document records its exposure's epochs beside its pointing, the
+labels pass fails an image whose document records none, and the summary pass reads them
+from every supplemental file, so every navigated document and every supplemental file
+the plumbing tests write records these.
+"""
+
+
+def navigated_document(**extra: Any) -> dict[str, Any]:
+    """Return a success navigation document recording an exposure's epochs.
+
+    Parameters:
+        **extra: Keys merged into the document, over the two it holds otherwise.
+
+    Returns:
+        A document with ``status`` ``success`` and a ``navigation_result`` whose
+        ``times`` are :data:`NAVIGATED_TIMES`, with ``extra`` merged in.
+    """
+    return {'status': 'success', 'navigation_result': {'times': dict(NAVIGATED_TIMES)}, **extra}
+
+
+A_RANGE = EpochRange(start_et=129399999.77, stop_et=130700000.54)
+"""A range for the collection generator where what the label states is not the question.
+
+SPICE's ``et2utc`` writes the two epochs as ``2004-02-07T04:25:35.585`` and
+``2004-02-22T05:32:16.355``, so a label states the range as ``2004-02-07T04:25:35Z``
+to ``2004-02-22T05:32:17Z``.
+"""
+
+
 def write_nav_inputs(
     env: BundleEnv,
     *,
@@ -400,18 +437,24 @@ def write_nav_inputs(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Write the navigation and backplane input files for the environment's image.
 
+    The navigation document is :func:`navigated_document`'s, recording an exposure's
+    epochs, so that a success document is one the labels pass can label.
+
     Parameters:
         env: The bundle environment to populate.
         status: Navigation ``status`` value; None omits the key entirely.
-        nav_extra: Extra keys merged into the navigation metadata dict.
+        nav_extra: Extra keys merged into the navigation metadata dict, over the
+            ``navigation_result`` it holds otherwise.
         backplane_metadata: Backplane metadata dict; a small default when None.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
 
     Returns:
         The navigation metadata dict and the backplane metadata dict as written.
     """
-    nav_metadata: dict[str, Any] = {}
-    if status is not None:
+    nav_metadata = navigated_document()
+    if status is None:
+        del nav_metadata['status']
+    else:
         nav_metadata['status'] = status
     if nav_extra:
         nav_metadata.update(nav_extra)
@@ -438,7 +481,7 @@ def write_supplemental(
     *,
     bodies: dict[str, Any] | None = None,
     rings: dict[str, Any] | None = None,
-    raw_text: str | None = None,
+    navigation: dict[str, Any] | None = None,
 ) -> Path:
     """Write a ``<stub>_supplemental.txt`` file in the bundle data tree.
 
@@ -447,18 +490,16 @@ def write_supplemental(
         stub: Path stub (may include shard subdirectories) for the image.
         bodies: ``backplanes.bodies`` payload keyed by body name.
         rings: ``backplanes.rings`` payload (``{'backplanes': {...}}``).
-        raw_text: Literal file content overriding the JSON payload entirely.
+        navigation: The ``navigation`` document; :func:`navigated_document`'s when
+            None.
 
     Returns:
         The path of the written supplemental file.
     """
     path = data_dir / f'{stub}_supplemental.txt'
     path.parent.mkdir(parents=True, exist_ok=True)
-    if raw_text is not None:
-        path.write_text(raw_text, encoding='utf-8')
-        return path
     payload = {
-        'navigation': {},
+        'navigation': navigation if navigation is not None else navigated_document(),
         'backplanes': {
             'bodies': bodies if bodies is not None else {},
             'rings': rings if rings is not None else {},

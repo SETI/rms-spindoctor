@@ -36,6 +36,7 @@ from .conftest import (
     NoPds4DataSet,
     make_bundle_env,
     make_image_file,
+    navigated_document,
     write_nav_inputs,
 )
 
@@ -501,7 +502,7 @@ def test_a_carried_record_is_used_in_place_of_the_document(tmp_path: Path) -> No
     """A record carried with the image is what the supplemental file records."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env, nav_extra={'marker': 'from the document'})
-    env.image_file.nav_record = {'status': 'success', 'marker': 'from the enumeration'}
+    env.image_file.nav_record = navigated_document(marker='from the enumeration')
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     combined = json.loads(suppl.read_text(encoding='utf-8'))
@@ -513,7 +514,7 @@ def test_a_carried_record_is_used_when_the_document_has_gone(tmp_path: Path) -> 
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     (env.nav_root / f'{env.results_path_stub}_metadata.json').unlink()
-    env.image_file.nav_record = {'status': 'success', 'marker': 'from the enumeration'}
+    env.image_file.nav_record = navigated_document(marker='from the enumeration')
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
     combined = json.loads(suppl.read_text(encoding='utf-8'))

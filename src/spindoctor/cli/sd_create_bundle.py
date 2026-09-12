@@ -375,6 +375,15 @@ def main_summary() -> None:
     directory; one that is not ends the run with exit status 1 before anything
     is written.  The bundle root is not checked for emptiness here: this pass
     reads the tree the labels pass wrote.
+
+    The global index is generated before the collection files.  Its read of the
+    supplemental files is the one the pass makes, and the data collection label
+    states the range of epochs taken in that read, so the collection files wait
+    for it.  The index generator clears every product of the pass before that
+    read, the collection files with its own, so a run it refuses over a
+    supplemental file leaves none of them, neither this run's nor an earlier run's.
+    A bundle with no data directory is refused before anything is cleared, since it
+    is not a tree a labels pass wrote.
     """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
@@ -397,22 +406,11 @@ def main_summary() -> None:
 
     _exit_on_missing_templates(dataset, 'summary')
 
-    # Generate collection files
+    # Generate global index files first: their scan of the supplemental files is
+    # the pass's one read of them, and takes the range of epochs the data
+    # collection label states.
     try:
-        failed_labels = generate_collection_files(
-            bundle_results_root=bundle_results_root,
-            dataset=dataset,
-            logger=MAIN_LOGGER,
-        )
-    except Exception as exc:
-        # The logger's exception() writes the frames but not the exception's
-        # own text, which is the reason, so the text is handed to it.
-        MAIN_LOGGER.exception('Failed to generate collection files: %s', exc)
-        sys.exit(1)
-
-    # Generate global index files
-    try:
-        failed_labels += generate_global_index_files(
+        index = generate_global_index_files(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
@@ -423,6 +421,20 @@ def main_summary() -> None:
         # another unit is refused with a message naming the file and both
         # units that the frames alone do not carry.
         MAIN_LOGGER.exception('Failed to generate global index files: %s', exc)
+        sys.exit(1)
+
+    # Generate collection files
+    try:
+        failed_labels = index.failed_labels + generate_collection_files(
+            bundle_results_root=bundle_results_root,
+            dataset=dataset,
+            logger=MAIN_LOGGER,
+            epochs=index.epochs,
+        )
+    except Exception as exc:
+        # The logger's exception() writes the frames but not the exception's
+        # own text, which is the reason, so the text is handed to it.
+        MAIN_LOGGER.exception('Failed to generate collection files: %s', exc)
         sys.exit(1)
 
     if failed_labels > 0:

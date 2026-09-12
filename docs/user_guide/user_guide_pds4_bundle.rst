@@ -248,6 +248,10 @@ Browse products are not optional. Both are written for every image the pass
 labels, and an image whose summary PNG is missing from the navigation results is
 failed rather than bundled without them.
 
+Each data label states when its image's exposure began and ended, in its
+``Time_Coordinates``: the start and stop in UTC, to the millisecond, as in
+``2004-02-07T04:25:35.585Z``.
+
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
 
@@ -275,6 +279,11 @@ The summary pass generates:
     values for each configured ring backplane type
   * ``global_index_rings.lblx``: PDS4 label for the rings index
 
+The data collection label states the time range of the products the collection
+holds, in whole seconds: from the earliest exposure start, rounded down, to the
+latest exposure stop, rounded up, as in ``2004-02-07T04:25:35Z`` to
+``2004-02-22T05:32:17Z``.
+
 Each min/max column is written with a precision suited to its unit: three
 decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and five
 significant figures for ``km/pixel``. Angular columns are in degrees, although
@@ -294,10 +303,11 @@ with exit status 2 before it does anything.
 
   An image with nothing to describe (never navigated, navigation failed, or no
   backplanes) is skipped, which is not an error. An image fails if a label
-  cannot be written, its summary PNG is missing, or its backplane metadata holds
-  a statistic the index tables cannot hold (one in a unit other than the
-  configured one, or a minimum or maximum that is NaN or infinite). For such a
-  statistic, regenerate that image's backplanes.
+  cannot be written, its summary PNG is missing, its navigation recorded no
+  exposure times, or its backplane metadata holds a statistic the index tables
+  cannot hold (one in a unit other than the configured one, or a minimum or
+  maximum that is NaN or infinite). For such a statistic, regenerate that image's
+  backplanes.
 
   ``--dry-run`` writes nothing and ends with the number of images it would
   process. It exits 0 if the bundle directory is empty and every template is
@@ -305,10 +315,12 @@ with exit status 2 before it does anything.
 
 * ``sd_create_bundle summary`` exits 1 without writing anything if a template is
   missing, or if the bundle has no ``data/`` directory: run the labels pass
-  first, or check ``--bundle-results-root``. It exits 1 if a collection or index
-  label cannot be written. If a supplemental file holds such a statistic, it
-  exits 1 and writes neither index table: regenerate the backplanes, then the
-  bundle, into an empty directory.
+  first, or check ``--bundle-results-root``. It exits 1 if ``data/`` holds no
+  products (the labels pass labeled no image): check the labels pass's closing
+  count. It exits 1 if a collection or index label cannot be written. If a
+  supplemental file holds such a statistic, it exits 1 and leaves none of its
+  tables and labels: regenerate the backplanes, then the bundle, into an empty
+  directory.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose products could not be
   written as ``status: error``, with ``status_error`` saying why (for example
@@ -336,8 +348,9 @@ files. Each dataset can have its own configuration:
 
 The ``cassini_iss_saturn_1.0`` template directory ships with the package. The
 ``coiss_cruise`` dataset's does not; to bundle it, add an entry whose
-``template_dir`` points at a template directory you create yourself (by name
-inside the package template root, or as an absolute path).
+``template_dir`` points at a template directory you create yourself, holding
+the six templates listed under `Templates`_ (by name inside the package
+template root, or as an absolute path).
 
 Configuration Options
 ---------------------

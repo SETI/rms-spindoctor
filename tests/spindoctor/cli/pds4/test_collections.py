@@ -36,9 +36,11 @@ from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
 )
+from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (
+    A_RANGE,
     COLLECTION_BROWSE_TEMPLATE,
     COLLECTION_DATA_TEMPLATE,
     GLOBAL_INDEX_TEMPLATE,
@@ -65,17 +67,18 @@ COLLECTION_LABELS = {
 """Each collection label's bundle subdirectory and its intact template body."""
 
 
-def _run_collections(env: BundleEnv) -> int:
+def _run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> int:
     """Run generate_collection_files against the environment's bundle root.
 
     Parameters:
         env: The hermetic bundle environment to process.
+        epochs: The range of the products' epochs to hand the generator.
 
     Returns:
         The number of collection labels that could not be rendered.
     """
     return generate_collection_files(
-        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
+        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER, epochs=epochs
     )
 
 
@@ -90,7 +93,7 @@ def _run_global_index(env: BundleEnv) -> int:
     """
     return generate_global_index_files(
         FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
-    )
+    ).failed_labels
 
 
 def _index_env(
@@ -203,7 +206,7 @@ def test_non_backplane_label_files_ignored(tmp_path: Path) -> None:
 
 
 def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None:
-    """Collection labels render with the CSV path and (empty) date-range variables."""
+    """The collection labels carry the CSV path, the data label the range handed it."""
     env = make_bundle_env(
         tmp_path,
         template_contents={
@@ -217,11 +220,27 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
     data_label = env.bundle_dir / 'data' / 'collection_data.lblx'
     text = data_label.read_text(encoding='utf-8')
     assert str(FCPath(env.bundle_dir) / 'data' / 'collection_data.tab') in text
-    assert '<start></start>' in text
-    assert '<stop></stop>' in text
+    assert '<start>2004-02-07T04:25:35Z</start>' in text
+    assert '<stop>2004-02-22T05:32:17Z</stop>' in text
     browse_label = env.bundle_dir / 'browse' / 'collection_browse.lblx'
     browse_text = browse_label.read_text(encoding='utf-8')
     assert str(FCPath(env.bundle_dir) / 'browse' / 'collection_browse.tab') in browse_text
+
+
+def test_a_data_collection_with_no_range_leaves_no_earlier_label(tmp_path: Path) -> None:
+    """With no range to state, the label an earlier run left at the path is removed.
+
+    The generator keeps the rule write_label keeps, that a label on disk is one this
+    run wrote, on its own account and not only through the index generator, which
+    clears the label first in the summary pass.
+    """
+    env = make_bundle_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    data_dir.mkdir(parents=True)
+    earlier = data_dir / 'collection_data.lblx'
+    earlier.write_text('<an earlier run/>\n', encoding='utf-8')
+    _run_collections(env, epochs=None)
+    assert not earlier.exists()
 
 
 @pytest.mark.parametrize(
@@ -698,33 +717,14 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
 
 
 def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> None:
-    """With no supplemental files (even no data dir), header-only tables are written."""
+    """With no supplemental file in the data directory, header-only tables are written."""
     env = _index_env(tmp_path)
+    (env.bundle_dir / 'data').mkdir(parents=True)
     _run_global_index(env)
     bodies_rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert len(bodies_rows) == 1
     rings_rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
     assert len(rings_rows) == 1
-
-
-def test_unreadable_supplemental_skipped_with_logged_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A malformed supplemental file is skipped; other images are still indexed.
-
-    The log gives the parser's reason, which the frames of a traceback do not
-    carry.
-    """
-    env = _index_env(tmp_path)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', raw_text='not json')
-    write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
-    _run_global_index(env)
-    rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
-    assert len(rows) == 2
-    assert '2222222222w' in rows[1][0]
-    out = capsys.readouterr().out
-    assert 'Error reading supplemental file' in out
-    assert 'Expecting value: line 1 column 1 (char 0)' in out
 
 
 def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
@@ -825,8 +825,8 @@ def _cross_reference_env(tmp_path: Path) -> BundleEnv:
 def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) -> None:
     """#139 round trip: the bodies-index LID equals the collection inventory LID."""
     env = _cross_reference_env(tmp_path)
-    _run_collections(env)
     _run_global_index(env)
+    _run_collections(env)
     inventory_rows = read_tab(env.bundle_dir / 'data' / 'collection_data.tab')
     inventory_lid = inventory_rows[1][1].split('::')[0]
     bodies_rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
@@ -836,8 +836,8 @@ def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) ->
 def test_global_index_rings_lid_matches_collection_inventory(tmp_path: Path) -> None:
     """#139 round trip: the rings-index LID equals the collection inventory LID."""
     env = _cross_reference_env(tmp_path)
-    _run_collections(env)
     _run_global_index(env)
+    _run_collections(env)
     inventory_rows = read_tab(env.bundle_dir / 'data' / 'collection_data.tab')
     inventory_lid = inventory_rows[1][1].split('::')[0]
     rings_rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')

@@ -13,8 +13,8 @@ lands, never PDS4-standard content correctness of the draft labels.
 """
 
 import json
+import re
 from pathlib import Path
-from typing import Any
 
 import pytest
 from filecache import FCPath
@@ -34,7 +34,14 @@ from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset import ImageFiles
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
-from .conftest import make_cohort_bundle_env, make_image_file, read_tab, touch_label
+from .conftest import (
+    A_RANGE,
+    make_cohort_bundle_env,
+    make_image_file,
+    navigated_document,
+    read_tab,
+    touch_label,
+)
 
 
 def _cassini_dataset(tmp_path: Path) -> DataSetPDS3CassiniISSSaturn:
@@ -79,14 +86,7 @@ def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None
     (nav_root / 'COISS_2001').mkdir(parents=True)
     (backplane_root / 'COISS_2001').mkdir(parents=True)
     bundle_results_root.mkdir()
-    nav_metadata: dict[str, Any] = {
-        'status': 'success',
-        'observation': {
-            'start_time': '2007-01-01T00:00:00Z',
-            'stop_time': '2007-01-01T00:00:10Z',
-            'mid_time': '2007-01-01T00:00:05Z',
-        },
-    }
+    nav_metadata = navigated_document()
     (nav_root / f'{stub}_metadata.json').write_text(json.dumps(nav_metadata), encoding='utf-8')
     (backplane_root / f'{stub}_backplane_metadata.json').write_text(
         json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
@@ -141,13 +141,26 @@ def test_the_cohort_image_that_did_not_navigate_is_skipped(
     assert not env.bundle_dir.exists()
 
 
-def _bundle_products(image_name: str) -> set[str]:
-    """Return every bundle file the labels pass writes for one navigated image.
+def _product_stem(image_name: str) -> str:
+    """Return where one navigated image's products sit, below a collection directory.
 
     The sharded directories and the product stem are spelled out here rather
-    than asked of the dataset, since what they are is what this test is for: a
-    bundle is read by walking those directories, and an image that lands in the
-    wrong one is found by whoever cannot find it.
+    than asked of the dataset, since what they are is what the tests over the
+    cohort are for: a bundle is read by walking those directories, and an image
+    that lands in the wrong one is found by whoever cannot find it.
+
+    Parameters:
+        image_name: The calibrated image's name, camera letter and all.
+
+    Returns:
+        The two shard directories and the product stem, without a suffix.
+    """
+    number = image_name[1:11]
+    return f'{number[:4]}xxxxxx/{number[:6]}xxxx/{number}{image_name[0].lower()}'
+
+
+def _bundle_products(image_name: str) -> set[str]:
+    """Return every bundle file the labels pass writes for one navigated image.
 
     This is what the pass writes, not everything the bundle finally holds: the
     data label names a ``_backplanes.fits`` beside it that nothing copies yet,
@@ -160,8 +173,7 @@ def _bundle_products(image_name: str) -> set[str]:
     Returns:
         The paths, relative to the bundle's own directory.
     """
-    number = image_name[1:11]
-    stem = f'{number[:4]}xxxxxx/{number[:6]}xxxx/{number}{image_name[0].lower()}'
+    stem = _product_stem(image_name)
     return {
         f'data/{stem}_backplanes.lblx',
         f'data/{stem}_supplemental.txt',
@@ -206,13 +218,88 @@ def test_the_cohort_s_navigated_images_are_written_into_the_bundle(
     assert written == _bundle_products(LIMB_IMAGE_NAME) | _bundle_products(RINGS_IMAGE_NAME)
 
 
+@pytest.mark.parametrize(
+    ('stub', 'image_name', 'start', 'stop'),
+    [
+        (LIMB_STUB, LIMB_IMAGE_NAME, '2004-02-07T04:25:35.585Z', '2004-02-07T04:25:36.045Z'),
+        (RINGS_STUB, RINGS_IMAGE_NAME, '2004-02-22T05:32:15.895Z', '2004-02-22T05:32:16.355Z'),
+    ],
+    ids=['limb image', 'ring image'],
+)
+def test_a_cohort_data_label_states_its_exposure_s_start_and_stop(
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str, start: str, stop: str
+) -> None:
+    """The shipped data label states the document's start and stop, to the millisecond.
+
+    The expected strings are SPICE's.  With the leapseconds kernel furnished,
+    ``et2utc`` writes the limb image's recorded start and stop at three decimals as
+    ``04:25:35.585`` and ``04:25:36.045``, and the ring image's as ``05:32:15.895``
+    and ``05:32:16.355``: each at the nearest millisecond.  At nine decimals the
+    ring image's start is ``05:32:15.894745827`` and the limb image's stop
+    ``04:25:36.045069233``, so the first is a millisecond from what rounding down
+    would write and the second a millisecond from what rounding up would.
+
+    Parameters:
+        cassini_cohort: The session's Cassini ISS Saturn cohort.
+        tmp_path: Base temporary directory for this test's bundle.
+        stub: Which cohort image, by its results path stub.
+        image_name: That image's calibrated name.
+        start: What its data label's ``start_date_time`` has to say.
+        stop: What its data label's ``stop_date_time`` has to say.
+    """
+    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
+    generate_bundle_data_files(
+        env.dataset,
+        cassini_cohort.batch(stub),
+        nav_results_root=FCPath(cassini_cohort.nav_results_root),
+        backplane_results_root=FCPath(cassini_cohort.backplane_results_root),
+        bundle_results_root=FCPath(env.bundle_results_root),
+        logger=MAIN_LOGGER,
+    )
+    label = env.bundle_dir / 'data' / f'{_product_stem(image_name)}_backplanes.lblx'
+    text = label.read_text(encoding='utf-8')
+    assert re.findall(r'<start_date_time>(.*)</start_date_time>', text) == [start]
+    assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == [stop]
+
+
+def test_a_navigated_image_that_recorded_no_exposure_times_fails_with_nothing_written(
+    cassini_cohort: Cohort, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A success document with no times fails its image, and the bundle stays as it was.
+
+    A navigation that recorded no pointing recorded no exposure times either, and a data
+    label states when its exposure began and ended.  The document is the cohort's limb
+    image's as written, its times and pointing taken out, under a navigation root of the
+    test's own.
+    """
+    cohort_document = cassini_cohort.nav_results_root / f'{LIMB_STUB}_metadata.json'
+    document = json.loads(cohort_document.read_text(encoding='utf-8'))
+    del document['navigation_result']['times']
+    del document['navigation_result']['pointing']
+    written = tmp_path / 'nav' / f'{LIMB_STUB}_metadata.json'
+    written.parent.mkdir(parents=True)
+    written.write_text(json.dumps(document), encoding='utf-8')
+    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
+    outcome = generate_bundle_data_files(
+        env.dataset,
+        cassini_cohort.batch(LIMB_STUB),
+        nav_results_root=FCPath(tmp_path / 'nav'),
+        backplane_results_root=FCPath(cassini_cohort.backplane_results_root),
+        bundle_results_root=FCPath(env.bundle_results_root),
+        logger=MAIN_LOGGER,
+    )
+    assert outcome is BundleDataOutcome.FAILED
+    assert not env.bundle_dir.exists()
+    assert 'its navigation recorded no exposure times' in capsys.readouterr().out
+
+
 def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
     """The Cassini collection inventory LIDVID matches the label's DATA_LID."""
     dataset = DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings')
     bundle_results_root = tmp_path / 'bundle'
     bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
     touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
-    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER)
+    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=A_RANGE)
     rows = read_tab(bundle_dir / 'data' / 'collection_data.tab')
     inventory_lid = rows[1][1].split('::')[0]
     label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')

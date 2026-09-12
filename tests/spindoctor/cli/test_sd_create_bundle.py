@@ -21,9 +21,12 @@ import pdstemplate
 import pytest
 from cloud_tasks.worker import WorkerData
 from filecache import FCPath
+from tests.spindoctor.cli.pds4.conftest import make_bundle_env, touch_label, write_supplemental
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
+from spindoctor.cli.pds4.collections import GlobalIndexOutcome
+from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 from spindoctor.dataset.dataset_sim import DataSetSim
 
@@ -74,6 +77,18 @@ REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
     ],
 }
 """What the stub dataset declares each pass must find: the templates that pass renders."""
+
+SUMMARY_PRODUCTS = (
+    'data/collection_data.tab',
+    'data/collection_data.lblx',
+    'browse/collection_browse.tab',
+    'browse/collection_browse.lblx',
+    'document/supplemental/global_index_bodies.tab',
+    'document/supplemental/global_index_bodies.lblx',
+    'document/supplemental/global_index_rings.tab',
+    'document/supplemental/global_index_rings.lblx',
+)
+"""Every file the summary pass writes, relative to the bundle's directory."""
 
 
 class _StubDataset:
@@ -232,8 +247,9 @@ def _summary_counts(monkeypatch: pytest.MonkeyPatch, collections: int, index: in
         collections: Failed collection labels to report.
         index: Failed global index labels to report.
     """
+    outcome = GlobalIndexOutcome(failed_labels=index, epochs=None)
     monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', lambda **kwargs: collections)
-    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: index)
+    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
 
 
 def _dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -582,6 +598,55 @@ def test_main_summary_refuses_a_template_the_dataset_does_not_have(
     assert f'PDS4 template not found: {missing}' in capsys.readouterr().out
 
 
+def _latitude_in(units: str) -> dict[str, Any]:
+    """Return one body's latitude statistic, recorded in the given unit.
+
+    Parameters:
+        units: The unit the statistic records.  The configuration the test gives its
+            dataset declares the latitude plane in radians, whose statistics are
+            taken in degrees.
+
+    Returns:
+        The ``backplanes.bodies`` payload of a supplemental file.
+    """
+    return {'MOON': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': units}}}}
+
+
+def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
+    summary_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run refused over a supplemental file leaves no file of the pass behind.
+
+    The first run writes every file of the pass; the second is refused over a second
+    supplemental file, one recording its statistic in another unit.  Both generators
+    are the real ones, so an earlier run's inventory or collection label left beside
+    no index is reported here, as is an earlier run's index; and the log gives the
+    reason the run was refused.
+    """
+    env = make_bundle_env(tmp_path / 'env', bodies=[{'name': 'latitude', 'units': 'rad'}])
+    dataset = env.dataset.as_dataset()
+    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
+    monkeypatch.setattr(
+        sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(env.bundle_results_root)
+    )
+    data_dir = env.bundle_dir / 'data'
+    touch_label(data_dir, 'shard0/1111111111n')
+    write_supplemental(data_dir, 'shard0/1111111111n', bodies=_latitude_in('deg'))
+    sd_create_bundle.main_summary()
+    products = [env.bundle_dir / name for name in SUMMARY_PRODUCTS]
+    assert [product for product in products if not product.exists()] == []
+    write_supplemental(data_dir, 'shard0/2222222222w', bodies=_latitude_in('rad'))
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    assert [product for product in products if product.exists()] == []
+    expected = 'records the latitude statistic in rad where the configuration expects deg'
+    assert expected in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(
     ('collections', 'index'), [(1, 0), (0, 1)], ids=['collection label', 'index label']
 )
@@ -639,20 +704,72 @@ def test_main_summary_reports_why_the_index_could_not_be_generated(
 
 
 def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
-    summary_run: None, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    summary_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A collection generator that raises ends the run with the reason in the log.
 
-    The bundle here has no data directory, and the generator refuses it naming
-    the directory it looked for.  The frames of a traceback show the statement
-    that raised but not the path it interpolated, so the path is what says the
-    reason reached the log.
+    The bundle here has no data directory, and the collection generator refuses it
+    naming the directory it looked for.  The index generator, which runs first and
+    refuses such a bundle the same way, is stood in for, so that the refusal the log
+    reports is the collection generator's.  The frames of a traceback show the
+    statement that raised but not the path it interpolated, so the path is what says
+    the reason reached the log.
     """
+    outcome = GlobalIndexOutcome(failed_labels=0, epochs=None)
+    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
     missing = tmp_path / BUNDLE_NAME / 'data'
-    assert f'Data directory does not exist: {missing}' in capsys.readouterr().out
+    expected = f'Failed to generate collection files: Data directory does not exist: {missing}'
+    assert expected in capsys.readouterr().out
+
+
+def test_main_summary_hands_the_index_s_range_to_the_collection_files(
+    summary_run: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The index runs first, and the collection files are handed the range its scan took.
+
+    The scan of the supplemental files is the pass's one read of them, so the range
+    the data collection label states can come from nowhere else.
+    """
+    calls: list[str] = []
+    handed: list[Any] = []
+    epochs = EpochRange(start_et=100.0, stop_et=900.0)
+
+    def _index(**kwargs: Any) -> GlobalIndexOutcome:
+        """Record the call, and report the range.
+
+        Parameters:
+            **kwargs: What the driver passed, unused.
+
+        Returns:
+            An outcome carrying the range and no failed label.
+        """
+        calls.append('index')
+        return GlobalIndexOutcome(failed_labels=0, epochs=epochs)
+
+    def _collections(**kwargs: Any) -> int:
+        """Record the call and the range it is handed, and report no failed label.
+
+        Parameters:
+            **kwargs: What the driver passed; ``epochs`` is recorded.
+
+        Returns:
+            Zero.
+        """
+        calls.append('collections')
+        handed.append(kwargs['epochs'])
+        return 0
+
+    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', _index)
+    monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', _collections)
+    sd_create_bundle.main_summary()
+    assert calls == ['index', 'collections']
+    assert handed == [epochs]
 
 
 def test_main_summary_exits_zero_when_every_label_is_written(

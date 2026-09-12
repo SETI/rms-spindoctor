@@ -335,29 +335,24 @@ Work items, in dependency order:
    goes through one helper that reports what `pdstemplate` returned and fails
    the run when a label was not written. Its inventory-filename part, the
    `.csv`/`.tab` mismatch, is still open.
-2. **#519 — labels carry empty `START_DATE_TIME`, `STOP_DATE_TIME` and
-   `IMAGE_MID_TIME`.** An archive-quality label with empty time fields is
-   not archive-quality. This is the same area as the per-image metadata
-   `sd_create_bundle` reads.
-3. **Template finalization acceptance list** — the items recorded
+2. **Template finalization acceptance list** — the items recorded
    on #53: schema validation, the unreferenced `cassini:*` variables and
-   hardcoded placeholders, TITLE/DESCRIPTION wording, collection date
-   ranges, unrendered bundle-level products, variable-less global-index
-   labels, FITS placement (#69/#30), missing-value sentinels,
-   non-navigated-image handling, and the `.tab`/`.csv` + directory-layout
-   decision. These are the acceptance criteria for "final templates" in
-   the paragraph above.
-4. **#69, #30** — backplane FITS description in data labels; backplane
+   hardcoded placeholders, TITLE/DESCRIPTION wording, unrendered
+   bundle-level products, variable-less global-index labels, FITS
+   placement (#69/#30), missing-value sentinels, non-navigated-image
+   handling, and the `.tab`/`.csv` + directory-layout decision. These are
+   the acceptance criteria for "final templates" in the paragraph above.
+3. **#69, #30** — backplane FITS description in data labels; backplane
    label design (couples to the #55 backplane-set decision).
-5. **#79** — scrape PDS4 context products for targets (feeds #73).
-6. **#71-#76, #47** — label/collection completeness items, each small:
+4. **#79** — scrape PDS4 context products for targets (feeds #73).
+5. **#71-#76, #47** — label/collection completeness items, each small:
    parameterized bundle name/version, target handling, ring geometry
    class fields, global-index labels, collection CSVs, ring incidence
    angle.
-7. **#66** — integrity-checking pass over a generated bundle.
-8. **#67** — cloud-aware bundle generation (with the Track D cloud
+6. **#66** — integrity-checking pass over a generated bundle.
+7. **#67** — cloud-aware bundle generation (with the Track D cloud
    audit).
-9. Schema-validate generated `.lblx` against the PDS4 schemas in CI for
+8. Schema-validate generated `.lblx` against the PDS4 schemas in CI for
    all four instruments (acceptance for the whole family).
 
 ### Backplane family (decision: #28 scope)
