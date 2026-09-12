@@ -357,8 +357,9 @@ files. Each dataset can have its own configuration:
 
 The ``cassini_iss_saturn_1.0`` template directory ships with the package. The
 ``coiss_cruise`` dataset's does not; to bundle it, add an entry whose
-``template_dir`` points at a template directory you create yourself (by name
-inside the package template root, or as an absolute path).
+``template_dir`` points at a template directory you create yourself, holding
+the six templates listed under `Templates`_ (by name inside the package
+template root, or as an absolute path).
 
 Configuration Options
 ---------------------
