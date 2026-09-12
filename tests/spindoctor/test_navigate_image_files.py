@@ -432,9 +432,8 @@ def test_navigate_image_files_public_metadata_fault_is_the_image_error_document(
 ) -> None:
     """A fault reading the observation's published metadata is that image's failure.
 
-    The metadata is read for the document before either product is written, so
-    the image carries an error document and no PNG rather than a success
-    document beside no PNG.
+    The image carries an error document that names the fault, and no summary PNG
+    beside it.
     """
     obs_class = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
     image_files = _make_image_files(tmp_path)

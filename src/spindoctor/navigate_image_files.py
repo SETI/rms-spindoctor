@@ -78,7 +78,8 @@ _RESTATED_PUBLIC_METADATA = frozenset({'image_shape_xy'})
 """Keys a host publishes that the ``observation`` block already states in another form.
 
 ``image_shape_xy`` is ``image_shape`` in the other axis order.  A published key the block
-itself holds -- the image's path, its name, its camera -- is skipped by name instead.
+itself holds -- the image's path, its name, its camera -- is skipped because the block
+already holds it.
 """
 
 _SPICE_DATA_HINTS = (
@@ -608,14 +609,14 @@ def build_metadata_from_result(
         image_shape: ``(v, u)`` pixel dimensions of the loaded image data;
             written to the ``observation.image_shape`` field.  None omits
             the field.
-        public_metadata: What the observation's instrument host publishes about the
-            image (``ObsInst.get_public_metadata``): its start, midtime and end times,
-            its exposure time, its filters, and whatever else that host states.  Each
-            fact is written to the ``observation`` block under the host's own key and
-            as the host states it, after the fields above, unless the block already
-            states it: a key the block already holds keeps the block's value, and
-            ``image_shape_xy`` is omitted because it is ``image_shape`` in the other
-            axis order.  None records no published fact.
+        public_metadata: What the observation's host publishes about the image
+            (:meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata`): its start,
+            midtime and end times, its exposure time, its filters, and whatever else
+            that host states.  Each fact is written to the ``observation`` block under
+            the host's own key and as the host states it, after the fields above,
+            unless the block already states it: a key the block already holds keeps the
+            block's value, and ``image_shape_xy`` is omitted because it is
+            ``image_shape`` in the other axis order.  None records no published fact.
         timing: Run-timing section from :func:`build_timing_section`;
             written to the top-level ``timing`` field.  None omits the
             field.

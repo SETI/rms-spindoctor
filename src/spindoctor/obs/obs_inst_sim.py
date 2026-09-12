@@ -255,6 +255,16 @@ class ObsSim(ObsSnapshotInst):
         return 'SIM'
 
     def get_public_metadata(self) -> dict[str, Any]:
+        """Return the facts the simulated host publishes about the scene's image.
+
+        A simulated image has no spacecraft and no clock, so it publishes none of the
+        times, the exposure time or the filters a spacecraft host does.
+
+        Returns:
+            The image's path and name, ``sim`` as both PDS4 context identifiers, the image
+            shape as ``(x, y)``, the camera, and a description saying the image was
+            simulated from a scene file.
+        """
         return {
             'image_path': self.image_url,
             'image_name': self.abspath.name,
