@@ -66,9 +66,19 @@ Label and index dependencies
 
 **Label fields read.**
 
-* ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT``, both
-  parsed with ``float()`` in ``get_public_metadata``. A label missing either
-  raises, and this is the only instrument that reads them.
+* ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT``, read
+  from the image's VICAR label in ``get_public_metadata``. A count is
+  ``SECONDS.TICKS``: whole seconds, then the 1/256-second ticks past them
+  written as three digits. ``_sclk_count`` converts it to an exact number of
+  seconds through :func:`~spindoctor.support.sclk.fractional_count`, with the
+  moduli ``(4294967296, 256)`` and offsets ``(0, 0)`` that the clock kernel
+  ``cas00172.tsc`` gives, so ``1459229915.075`` is ``1459229915 + 75 / 256``. A
+  tick field of fewer than three digits has lost its trailing zeros and is
+  padded back on the right: ``1347929382.11`` is ``1347929382.110``. The two
+  counts mark the start and the end of the exposure, so ``_published_sclk``
+  passes ``bracketed=True`` to :func:`~spindoctor.support.sclk.exposure_counts`
+  and ``midtime_sclk`` is their exact mean. A count the label does not carry is
+  published as ``None``, and so is the mean.
 * ``SHUTTER_MODE_ID``, read by the ``shutter_mode`` property. A missing key or
   a null yields ``None``; a non-string value raises, because ``str()`` would
   serialize any object without complaint and the result would pass downstream

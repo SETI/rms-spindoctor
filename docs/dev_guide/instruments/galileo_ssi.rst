@@ -57,9 +57,19 @@ to navigate.
 Label and index dependencies
 ============================
 
-**Label fields read.** Only ``filter``, through the base class's property, for
-the single ``filters`` entry in the metadata. ``get_public_metadata`` carries
-the spacecraft-clock reads commented out, so no clock field is written.
+**Label fields read.** ``filter``, through the base class's property, for the
+single ``filters`` entry in the metadata; and the four VICAR label items
+``RIM``, ``MOD91``, ``MOD10`` and ``MOD8``, which together are the image's
+frame count. ``get_public_metadata`` publishes that count as
+``start_time_sclk``: ``_sclk_count`` converts it to an exact number of RIM
+counts through :func:`~spindoctor.support.sclk.fractional_count`, with the
+moduli ``(16777215, 91, 10, 8)`` and offsets ``(0, 0, 0, 0)`` that the clock
+kernel ``mk00062a.tsc`` gives, so the count is
+``RIM + MOD91 / 91 + MOD10 / 910 + MOD8 / 7280``. The frame count comes a few
+seconds before the exposure and the label records no count at the end of the
+image, so ``midtime_sclk`` and ``end_time_sclk`` are always ``None``. A label
+lacking any one of the four items publishes no count: ``start_time_sclk`` is
+``None`` too.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``,
 ``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_ID',)`` and ``_INDEX_CAMERA_MAP``
@@ -280,7 +290,9 @@ uncorrected one, and is not omitted as ``rotation_unsupported``.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 limiting-magnitude form: the anchor at unit exposure, one magnitude gained per
-Pogson ratio, the non-positive-exposure fallback, and finiteness.
+Pogson ratio, the non-positive-exposure fallback, and finiteness. It also pins
+the published clock count: a fractional number of RIM counts with no midtime or
+end count, and no count at all from a label lacking one of the four items.
 
 PDS4 hooks
 ==========

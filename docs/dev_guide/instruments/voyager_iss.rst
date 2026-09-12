@@ -67,7 +67,9 @@ Beyond that it records ``obs.abspath`` and ``obs.image_url`` from an
 extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
 table has exactly one entry, for size 1000, which is what a geometrically
 corrected product is; an image of any other size raises ``KeyError`` from the
-margin lookup rather than loading with a wrong margin.
+margin lookup rather than loading with a wrong margin. Last, it reads the
+spacecraft clock counts from the PDS3 label beside the image, which the VICAR
+label the observation keeps does not carry; see the label fields below.
 
 A TODO on the calibration block records that this arithmetic belongs in the
 host once the host grows it.
@@ -86,12 +88,31 @@ load-blocking:
   where it is used.
 * ``filter`` -- through the base class's property, for the single ``filters``
   entry.
+* ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT`` -- from
+  the PDS3 label beside the image, since the VICAR label the observation keeps
+  does not carry them. ``from_file`` reads them once with
+  :func:`~spindoctor.support.sclk.pds3_label_clock_counts` and keeps them for
+  ``get_public_metadata``. A count is ``LEADING:FRAME:LINE``: the leading field
+  counts 48-minute units, the frame field the 60 frames of 48 seconds in one,
+  and the line field, counted from 1, the 800 lines of 60 milliseconds in a
+  frame. ``_sclk_count`` converts it to an exact number of leading units
+  through :func:`~spindoctor.support.sclk.fractional_count`, with the moduli
+  ``(65536, 60, 800)`` and offsets ``(0, 0, 1)`` that the two spacecraft's
+  clock kernels, ``vg100042.tsc`` and ``vg200041.tsc``, both give, so
+  ``34461:39:672`` is ``34461 + 39 / 60 + (672 - 1) / (60 * 800)``. The start
+  count lies near the shutter opening, but the stop count is that of the frame
+  the image was read out in, with the line field ``001``, which can come
+  minutes after the shutter closed. The two do not bracket the exposure, so
+  ``_published_sclk`` passes ``bracketed=False`` to
+  :func:`~spindoctor.support.sclk.exposure_counts` and ``midtime_sclk`` is
+  always ``None``. Where the label carries no such count, or there is no label
+  beside the image, the count is published as ``None``.
 
-``get_public_metadata`` carries the spacecraft-clock reads commented out, and
-refuses a detector that is neither ``NAC`` nor ``WAC``, because the instrument
-LID encodes the camera and a malformed LID must never reach a PDS4 label. The
-``spacecraft_digit`` property re-reads ``LAB02`` rather than caching it, so any
-consumer that needs the spacecraft gets the same validation.
+``get_public_metadata`` refuses a detector that is neither ``NAC`` nor ``WAC``,
+because the instrument LID encodes the camera and a malformed LID must never
+reach a PDS4 label. The ``spacecraft_digit`` property re-reads ``LAB02`` rather
+than caching it, so any consumer that needs the spacecraft gets the same
+validation.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 
@@ -417,8 +438,9 @@ the correction already furnished.
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` is the
 largest of the four instrument test modules, covering the spacecraft-digit
 parser and all four of its refusals, the I/F factor parser and all three of its
-refusals, the per-camera limiting-magnitude anchors, and the per-spacecraft
-metadata LIDs.
+refusals, the per-camera limiting-magnitude anchors, the per-spacecraft
+metadata LIDs, and the published clock counts: fractional leading units with no
+midtime count, read from the PDS3 label beside the image.
 
 PDS4 hooks
 ==========

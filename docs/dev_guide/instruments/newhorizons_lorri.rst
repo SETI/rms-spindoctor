@@ -47,16 +47,33 @@ Beyond the host call it records ``obs.abspath`` and ``obs.image_url`` from an
 ``FCPath``, reads the flat ``newhorizons_lorri`` config section, and resolves
 the extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. An
 explicit ``extfov_margin_vu`` argument wins over the configuration entirely.
+Last, it reads the spacecraft clock counts from the PDS3 label beside the
+image; see the label fields below.
 
 Label and index dependencies
 ============================
 
-**Label fields read.** None beyond what the base class reads for the exposure
-times and the image shape. ``get_public_metadata`` carries the
-spacecraft-clock reads commented out, and ``filters`` is written as an empty
-list: the camera is panchromatic with no filter wheel, so there is no filter
-name to record. It is the only instrument whose ``filters`` list is empty
-rather than carrying one or two entries.
+**Label fields read.** From the FITS image, nothing beyond what the base class
+reads for the exposure times and the image shape. From the PDS3 label beside
+the image, ``SPACECRAFT_CLOCK_START_COUNT`` and
+``SPACECRAFT_CLOCK_STOP_COUNT``: the FITS header the observation is read from
+carries the start count only, so ``from_file`` reads both from the label once
+with :func:`~spindoctor.support.sclk.pds3_label_clock_counts` and keeps them
+for ``get_public_metadata``. A count is ``SECONDS:TICKS``: whole seconds, then
+the 1/50000-second ticks past them. ``_sclk_count`` converts it to an exact
+number of seconds through :func:`~spindoctor.support.sclk.fractional_count`,
+with the moduli ``(4294967296, 50000)`` and offsets ``(0, 0)`` that the clock
+kernel ``new_horizons_2132.tsc`` gives, so ``0031650238:48850`` is
+``31650238 + 48850 / 50000``. The two counts mark the start and the end of the
+exposure, so ``_published_sclk`` passes ``bracketed=True`` to
+:func:`~spindoctor.support.sclk.exposure_counts` and ``midtime_sclk`` is their
+exact mean. Where the label carries no such count, or there is no label beside
+the image, the count is published as ``None``, and so is the mean.
+
+``get_public_metadata`` writes ``filters`` as an empty list: the camera is
+panchromatic with no filter wheel, so there is no filter name to record. It is
+the only instrument whose ``filters`` list is empty rather than carrying one or
+two entries.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 ``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_ID',)`` and ``_INDEX_CAMERA_MAP``
@@ -305,7 +322,10 @@ it is re-navigated in a fresh process with that kernel furnished.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_newhorizons_lorri.py`` pins
 the limiting-magnitude form: the anchor at unit exposure, one magnitude gained
-per Pogson ratio, the non-positive-exposure fallback, and finiteness.
+per Pogson ratio, the non-positive-exposure fallback, and finiteness. It also
+pins the published clock counts: fractional seconds, a midtime count that is
+the float nearest their exact mean, and counts read from the PDS3 label beside
+the image.
 
 PDS4 hooks
 ==========
