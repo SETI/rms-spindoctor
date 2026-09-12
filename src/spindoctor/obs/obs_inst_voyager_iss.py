@@ -24,20 +24,20 @@ _SCLK_OFFSETS = (0, 0, 1)
 def _sclk_count(count: str) -> Fraction:
     """Return a Voyager spacecraft clock count as a number of the clock's leading units.
 
-    A count is ``LEADING:FRAME:LINE``, after an optional partition and ``/``: the leading
-    field counts 48-minute units, the frame field the 60 frames of 48 seconds in one, and
-    the line field the 800 lines of 60 milliseconds in a frame, counted from 1.  So
-    ``34461:39:672`` is ``34461 + 39 / 60 + (672 - 1) / (60 * 800)``.
+    A count is ``LEADING:FRAME:LINE``: the leading field counts 48-minute units, the frame
+    field the 60 frames of 48 seconds in one, and the line field the 800 lines of 60
+    milliseconds in a frame, counted from 1.  So ``34461:39:672`` is
+    ``34461 + 39 / 60 + (672 - 1) / (60 * 800)``.
 
     Parameters:
         count: The count as text.
 
     Returns:
-        The count in the clock's leading units, the frame and line as a fraction of one.
+        The count in the clock's leading units, exactly, the frame and the line as a
+        fraction of one.
     """
-    _, _, reading = count.strip().rpartition('/')
     return fractional_count(
-        tuple(int(field) for field in reading.split(':')), _SCLK_MODULI, _SCLK_OFFSETS
+        tuple(int(field) for field in count.strip().split(':')), _SCLK_MODULI, _SCLK_OFFSETS
     )
 
 

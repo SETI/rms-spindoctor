@@ -20,7 +20,7 @@ _SCLK_MODULI = (16777215, 91, 10, 8)
 _SCLK_OFFSETS = (0, 0, 0, 0)
 
 _SCLK_FIELDS = ('RIM', 'MOD91', 'MOD10', 'MOD8')
-"""The VICAR label items holding the four fields of an image's start count."""
+"""The VICAR label items holding the four fields of an image's frame count."""
 
 
 def _sclk_count(fields: Sequence[int]) -> Fraction:
@@ -46,11 +46,14 @@ def _published_sclk(label: Mapping[str, Any]) -> dict[str, float | None]:
         label: The image's VICAR label.
 
     Returns:
-        ``start_time_sclk``, the frame count in RIM counts, or None when the label lacks
-        any of its four fields; ``midtime_sclk`` and ``end_time_sclk``, always None.
+        ``start_time_sclk``, the frame count in RIM counts, or None when the label carries
+        no count; ``midtime_sclk`` and ``end_time_sclk``, always None.
     """
-    fields: list[Any] = [label.get(name, None) for name in _SCLK_FIELDS]
-    return exposure_counts(None if None in fields else _sclk_count(fields), None, bracketed=False)
+    if label.get('RIM', None) is None:
+        return exposure_counts(None, None, bracketed=False)
+    return exposure_counts(
+        _sclk_count([label[name] for name in _SCLK_FIELDS]), None, bracketed=False
+    )
 
 
 class ObsGalileoSSI(ObsSnapshotInst):

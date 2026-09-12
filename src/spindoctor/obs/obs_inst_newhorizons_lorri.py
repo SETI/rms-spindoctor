@@ -20,20 +20,18 @@ _SCLK_OFFSETS = (0, 0)
 
 
 def _sclk_count(count: str) -> Fraction:
-    """Return a New Horizons spacecraft clock count as seconds, with its ticks as a fraction.
+    """Return a New Horizons clock count as seconds, with its ticks as a fraction.
 
-    A count is ``SECONDS:TICKS``, after an optional partition and ``/``: whole seconds,
-    then the 1/50000-second ticks past them, so ``0031650238:48850`` is
-    ``31650238 + 48850 / 50000``, or ``31650238.977``.
+    A count is ``SECONDS:TICKS``: whole seconds, then the 1/50000-second ticks past them,
+    so ``0031650238:48850`` is ``31650238 + 48850 / 50000``, or ``31650238.977``.
 
     Parameters:
         count: The count as text.
 
     Returns:
-        The count in seconds of the clock.
+        The count in seconds of the clock, exactly.
     """
-    _, _, reading = count.strip().rpartition('/')
-    seconds, _, ticks = reading.partition(':')
+    seconds, _, ticks = count.strip().partition(':')
     return fractional_count((int(seconds), int(ticks)), _SCLK_MODULI, _SCLK_OFFSETS)
 
 

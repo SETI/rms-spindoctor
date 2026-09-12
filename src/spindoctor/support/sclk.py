@@ -24,11 +24,10 @@ _PDS3_STOP_KEY = 'SPACECRAFT_CLOCK_STOP_COUNT'
 """The PDS3 label keyword naming the clock count at the end of an image."""
 
 _PDS3_CLOCK_COUNT_RE = re.compile(
-    r'^[ \t]*(?P<key>SPACECRAFT_CLOCK_(?:START|STOP)_COUNT)[ \t]*=[ \t]*'
-    r'(?:"(?P<quoted>[^"]*)"|(?P<bare>(?:[^\s"/]|/(?!\*))+))',
+    r'^[ \t]*(?P<key>SPACECRAFT_CLOCK_(?:START|STOP)_COUNT)[ \t]*=[ \t]*"(?P<value>[^"]*)"',
     re.MULTILINE,
 )
-"""A PDS3 label's start or stop clock count keyword and its value, quoted or bare."""
+"""A PDS3 label's start or stop clock count keyword and its quoted value."""
 
 
 def fractional_count(
@@ -105,17 +104,16 @@ def pds3_label_clock_counts(image: FCPath) -> tuple[str | None, str | None]:
 
     Returns:
         The label's ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT``,
-        each as the label writes it without its quotes, or None where the label carries
-        no such keyword or there is no label beside the image.
+        each the text within its quotes, or None where the label carries no such keyword
+        or there is no label beside the image.
     """
     label = image.with_suffix('.LBL' if image.suffix == image.suffix.upper() else '.lbl')
     try:
         text = label.read_text(encoding='utf-8', errors='replace')
     except FileNotFoundError:
         return None, None
-    counts: dict[str, str] = {}
-    for match in _PDS3_CLOCK_COUNT_RE.finditer(text):
-        quoted = match.group('quoted')
-        value = quoted if quoted is not None else match.group('bare')
-        counts.setdefault(match.group('key'), value.strip())
+    counts = {
+        match.group('key'): match.group('value').strip()
+        for match in _PDS3_CLOCK_COUNT_RE.finditer(text)
+    }
     return counts.get(_PDS3_START_KEY), counts.get(_PDS3_STOP_KEY)

@@ -24,20 +24,19 @@ _SCLK_TICK_DIGITS = 3
 def _sclk_count(count: str) -> Fraction:
     """Return a Cassini spacecraft clock count as seconds, with its ticks as a fraction.
 
-    A count is ``SECONDS.TICKS``, after an optional partition and ``/``: whole seconds,
-    then the 1/256-second ticks past them, written as three digits, so ``1459229915.075``
-    is ``1459229915 + 75 / 256``, or ``1459229915.29296875``.  A tick field with fewer
-    digits has lost its trailing zeros, as an index table's copy of a count can, and is
-    padded back on the right: ``1347929382.11`` is ``1347929382.110``.
+    A count is ``SECONDS.TICKS``: whole seconds, then the 1/256-second ticks past them,
+    written as three digits, so ``1459229915.075`` is ``1459229915 + 75 / 256``, or
+    ``1459229915.29296875``.  A tick field with fewer digits has lost its trailing zeros,
+    as an index table's copy of a count can, and is padded back on the right:
+    ``1347929382.11`` is ``1347929382.110``.
 
     Parameters:
         count: The count as text.
 
     Returns:
-        The count in seconds of the clock.
+        The count in seconds of the clock, exactly.
     """
-    _, _, reading = count.strip().rpartition('/')
-    seconds, _, ticks = reading.partition('.')
+    seconds, _, ticks = count.strip().partition('.')
     return fractional_count(
         (int(seconds), int(ticks.ljust(_SCLK_TICK_DIGITS, '0'))), _SCLK_MODULI, _SCLK_OFFSETS
     )
