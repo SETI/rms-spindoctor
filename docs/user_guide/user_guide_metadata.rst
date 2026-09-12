@@ -76,11 +76,12 @@ pipeline carried it:
     The image loaded and the orchestrator ran to completion. The document has
     a full ``navigation_result`` block. The top-level ``status`` is the
     navigation outcome: ``success``, ``failed``, or ``conflicted``. This shape
-    covers failed navigations too: a failure still records what the
-    observation states about the image (its exposure times among it), every
-    technique that ran, the feature inventory, the image classifier,
-    provenance, and (when the attitude could be computed) the ``pointing``
-    and ``times`` blocks; only the offset and its uncertainty are absent.
+    covers failed navigations too: a failure still records what is known
+    about the exposure from the image itself, such as its exposure times and
+    filters, and also every technique that ran, the feature inventory, the
+    image classifier, provenance, and (when the attitude could be computed)
+    the ``pointing`` and ``times`` blocks; only the offset and its
+    uncertainty are absent.
 
 **Load error**
     The image file could not be read, or SPICE coverage was missing for its
@@ -220,14 +221,13 @@ The observation block
 
 The block has two parts. The first six keys below are the image's identity,
 which the navigator writes on every document shape that knows it. The rest are
-the facts the image's own instrument host states about it: its exposure times,
+what is known about the exposure from the image itself: its exposure times,
 its filters and, for Cassini ISS, its sampling, gain, observation id and
 description. Those are present on every navigated document, successful or
 failed, whether or not a ``pointing`` block was recorded; a load-error or
-internal-error document has no observation to ask and carries none of them.
-Which of them appear depends on the instrument, as each row says. The host
-also knows the image's path, name, camera and shape, but those are recorded
-once, under the identity keys, and never repeated.
+internal-error document carries none of them. Which of them appear depends on
+the instrument, as each row says. The image's path, name, camera and shape are
+recorded once, under the identity keys.
 
 .. list-table::
    :header-rows: 1
@@ -1199,13 +1199,13 @@ Navigated, failed
 -----------------
 
 A Galileo SSI frame in which no extractor produced a feature. Everything the
-pipeline learned is still recorded: what the observation states about the
-image, its exposure times and filter among it, the classifier verdict, the
-provenance, and the ``pointing`` block -- with ``cmatrix_original`` only, since a failed
-navigation produces no corrected attitude. There is no top-level ``offset``
-key at all, and both confidence values are ``0.0``. The empty lists and the
-provenance follow the same form as the success example and are shortened
-here.
+pipeline learned is still recorded: what is known about the exposure from the
+image itself, including its exposure times and filter, the classifier verdict,
+the provenance, and the ``pointing`` block -- with ``cmatrix_original`` only,
+since a failed navigation produces no corrected attitude. There is no
+top-level ``offset`` key at all, and both confidence values are ``0.0``. The
+empty lists and the provenance follow the same form as the success example
+and are shortened here.
 
 .. code-block:: json
 

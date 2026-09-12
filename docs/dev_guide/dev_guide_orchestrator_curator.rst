@@ -73,8 +73,9 @@ descriptive facts. A published key the block already holds keeps the block's val
 ``image_shape_xy`` is left out because it is ``image_shape`` in the other axis order.
 Both drivers that write a navigated document -- the autonomous pipeline and the
 ``sd_offset --manual`` pass -- supply the published facts, so they are recorded for every
-image that loaded, whatever became of its navigation and whether or not a ``pointing``
-block was recorded. They are copied as the host states them, unrounded.
+image whose navigation ran to a result, successful or failed, whether or not a
+``pointing`` block was recorded. A load-error or internal-error document carries none of
+them. They are copied as the host states them, unrounded.
 
 Allow-list discipline
 ---------------------
