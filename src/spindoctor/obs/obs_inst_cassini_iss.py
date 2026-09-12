@@ -10,6 +10,45 @@ from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import ObsSnapshotInst
 
+_SCLK_TICKS_PER_SECOND = 256
+"""Ticks in one second of the Cassini spacecraft clock."""
+
+_SCLK_TICK_DIGITS = 3
+"""Digits in the tick field of a spacecraft clock count as an image label writes it."""
+
+
+def _sclk_ticks(count: str) -> int:
+    """Return a Cassini spacecraft clock count as a whole number of ticks.
+
+    A count is ``SECONDS.TICKS``: whole seconds, then the ticks of 1/256 second past
+    them, written as three digits (``1459229915.075`` is 75 ticks past second
+    1459229915).  A tick field with fewer digits has lost its trailing zeros, as an
+    index table's copy of a count can, and is padded back on the right:
+    ``1347929382.11`` is ``1347929382.110``.
+
+    Parameters:
+        count: The count as text.
+
+    Returns:
+        The count in ticks: the seconds times 256, plus the ticks.
+    """
+    seconds, _, ticks = count.strip().partition('.')
+    return int(seconds) * _SCLK_TICKS_PER_SECOND + int(ticks.ljust(_SCLK_TICK_DIGITS, '0'))
+
+
+def _sclk_count(ticks: int) -> str:
+    """Return a whole number of ticks as a Cassini spacecraft clock count.
+
+    Parameters:
+        ticks: The count in ticks of 1/256 second.
+
+    Returns:
+        The count as ``SECONDS.TICKS`` text with a three-digit tick field, the way an
+        image label writes it.
+    """
+    seconds, tick = divmod(ticks, _SCLK_TICKS_PER_SECOND)
+    return f'{seconds}.{tick:0{_SCLK_TICK_DIGITS}d}'
+
 
 class ObsCassiniISS(ObsSnapshotInst):
     """Implements an observation of a Cassini ISS image.
@@ -172,12 +211,16 @@ class ObsCassiniISS(ObsSnapshotInst):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for Cassini ISS.
 
+        The three spacecraft clock counts are text in the label's own ``SECONDS.TICKS``
+        form: the label's start and stop counts, and the count halfway between them,
+        rounded down to a whole tick.
+
         Returns:
             A dictionary containing the public metadata for Cassini ISS.
         """
 
-        scet_start = float(self.dict['SPACECRAFT_CLOCK_START_COUNT'])
-        scet_end = float(self.dict['SPACECRAFT_CLOCK_STOP_COUNT'])
+        start_ticks = _sclk_ticks(self.dict['SPACECRAFT_CLOCK_START_COUNT'])
+        end_ticks = _sclk_ticks(self.dict['SPACECRAFT_CLOCK_STOP_COUNT'])
 
         # The instrument LID encodes the camera as iss{n,w}a; guard against an
         # unexpected detector so a malformed LID never reaches a PDS4 label.
@@ -197,9 +240,11 @@ class ObsCassiniISS(ObsSnapshotInst):
             'start_time_et': self.time[0],
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
-            'start_time_scet': scet_start,
-            'midtime_scet': (scet_start + scet_end) / 2,
-            'end_time_scet': scet_end,
+            'start_time_scet': _sclk_count(start_ticks),
+            # Halfway is taken in whole ticks: the mean of the two counts read as decimal
+            # numbers is no clock reading when their seconds fields sum to an odd number.
+            'midtime_scet': _sclk_count((start_ticks + end_ticks) // 2),
+            'end_time_scet': _sclk_count(end_ticks),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,

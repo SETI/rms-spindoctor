@@ -298,14 +298,16 @@ once, under the identity keys, and never repeated.
        the ``times`` block is present, its ``start_et``, ``midtime_et`` and
        ``stop_et`` hold these same values. Every spacecraft instrument.
    * - ``start_time_scet``, ``midtime_scet``, ``end_time_scet``
-     - number
-     - Cassini ISS only. The spacecraft clock counts at the start and the
-       end of the exposure exactly as the image label states them, written
-       as numbers whose three fractional digits count the clock's
-       1/256-second ticks; ``midtime_scet`` is the mean of the two. These
-       are the instrument's own counts, and they can differ by a fraction of
-       a second from the ``times`` block's clock strings, which SPICE
-       computes from the exposure epochs.
+     - string
+     - Cassini ISS only. The spacecraft clock counts at the start, the
+       middle and the end of the exposure, written the way the image label
+       writes them: whole seconds, a period, then three digits counting the
+       clock's ticks of 1/256 second, as in ``"1459229915.075"``. The start
+       and end are the label's own counts; ``midtime_scet`` is the count
+       halfway between them, taken to the whole tick below when halfway
+       falls between two ticks. These are the label's counts, and they can
+       differ by a fraction of a second from the ``times`` block's clock
+       strings, which SPICE computes from the exposure epochs.
    * - ``exposure_time``
      - number
      - Exposure duration in seconds. Every spacecraft instrument.
@@ -977,9 +979,9 @@ form. Of 79 SPICE kernels, three are shown.
         "start_time_et": 309861208.2064568,
         "midtime_et": 309861208.3164568,
         "end_time_et": 309861208.4264568,
-        "start_time_scet": 1635282917.063,
-        "midtime_scet": 1635282917.0904999,
-        "end_time_scet": 1635282917.118,
+        "start_time_scet": "1635282917.063",
+        "midtime_scet": "1635282917.090",
+        "end_time_scet": "1635282917.118",
         "exposure_time": 0.22,
         "filters": ["CL1", "CL2"],
         "sampling": "FULL",

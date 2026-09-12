@@ -1,5 +1,7 @@
 """Tests for ``spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS``."""
 
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -83,3 +85,34 @@ def test_shutter_mode_non_text_label_value_is_refused() -> None:
     """
     with pytest.raises(ValueError, match='SHUTTER_MODE_ID is not text'):
         _ = _obs_with_label({'SHUTTER_MODE_ID': 42}).shutter_mode
+
+
+def test_the_midtime_clock_count_is_halfway_in_whole_ticks_rounded_down() -> None:
+    """The clock counts are published as label text, the midpoint in whole ticks.
+
+    N1459552248_1_CALIB's label counts are 1459552247.012 and 1459552248.137.  Their
+    seconds fields sum to an odd number, so the mean of the two as decimal numbers,
+    1459552247.5745, reads as 574 ticks in a field that holds 256.  Halfway in ticks is
+    202.5 past the start's second, which rounds down to 202.
+    """
+    obs = _obs_with_label(
+        {
+            'SPACECRAFT_CLOCK_START_COUNT': '1459552247.012',
+            'SPACECRAFT_CLOCK_STOP_COUNT': '1459552248.137',
+        }
+    )
+    obs.detector = 'NAC'
+    obs.image_url = '/holdings/N1459552248_1_CALIB.IMG'
+    obs.abspath = Path('/cache/N1459552248_1_CALIB.IMG')
+    obs.cadence = SimpleNamespace(time=(0.0, 1.5), midtime=0.75)
+    obs.texp = 1.5
+    obs._data_shape_uv = (1024, 1024)
+    obs.filter1, obs.filter2 = 'CL1', 'CL2'
+    obs.sampling = 'FULL'
+    obs.gain_mode = 2
+    public = obs.get_public_metadata()
+    assert (public['start_time_scet'], public['midtime_scet'], public['end_time_scet']) == (
+        '1459552247.012',
+        '1459552247.202',
+        '1459552248.137',
+    )
