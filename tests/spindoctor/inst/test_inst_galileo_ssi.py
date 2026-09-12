@@ -2,10 +2,14 @@ import math
 
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_GALILEO_SSI_IO_01
-from tests.spindoctor.inst.conftest import VicarLabelStandIn
+from tests.spindoctor.inst.conftest import (
+    VicarLabelStandIn,
+    bare_observation,
+    published_clock_counts,
+)
 
 import spindoctor.obs.obs_inst_galileo_ssi as obstgossi
-from spindoctor.obs.obs_inst_galileo_ssi import ObsGalileoSSI, _published_sclk
+from spindoctor.obs.obs_inst_galileo_ssi import ObsGalileoSSI
 
 # The marker is applied per test rather than module-wide: the tests of the star gate and
 # of clock counts fetch nothing, so they run even where the external trees are absent.
@@ -63,16 +67,17 @@ def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
     assert obs.star_max_usable_vmag() == pytest.approx(_GALILEO_ANCHOR, abs=1e-6)
 
 
-def test_the_clock_count_is_a_fractional_rim_count_at_the_start_only() -> None:
-    """The label's start count is published in RIM counts, its finer fields a fraction.
+def test_the_published_count_is_a_fractional_rim_count_with_no_stop() -> None:
+    """The label's frame count is published in RIM counts, its finer fields a fraction.
 
-    C0360361168R's VICAR label gives its start count as RIM 3603611, MOD91 68, MOD10 2 and
-    MOD8 4.  A Galileo label records no count at the end of the image, so the midtime and
-    end counts are null.
+    C0360361168R's VICAR label gives its frame count as RIM 3603611, MOD91 68, MOD10 2
+    and MOD8 4.  A Galileo label records no count at the end of the image, so the
+    midtime and end counts are null.
     """
     label = VicarLabelStandIn(RIM=3603611, MOD91=68, MOD10=2, MOD8=4)
-    assert _published_sclk(label) == {
-        'start_time_sclk': pytest.approx(3603611 + 68 / 91 + 2 / 910 + 4 / 7280, abs=1e-9),
-        'midtime_sclk': None,
-        'end_time_sclk': None,
-    }
+    obs = bare_observation(ObsGalileoSSI, label, filter='CLEAR')
+    assert published_clock_counts(obs) == [
+        pytest.approx(3603611 + 68 / 91 + 2 / 910 + 4 / 7280, abs=1e-9),
+        None,
+        None,
+    ]

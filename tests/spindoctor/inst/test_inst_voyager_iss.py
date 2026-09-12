@@ -2,11 +2,15 @@ import math
 
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_VOYAGER_ISS_IO_01
+from tests.spindoctor.inst.conftest import (
+    VicarLabelStandIn,
+    bare_observation,
+    published_clock_counts,
+)
 
 import spindoctor.obs.obs_inst_voyager_iss as obstvgiss
 from spindoctor.obs.obs_inst_voyager_iss import (
     ObsVoyagerISS,
-    _published_sclk,
     _voyager_if_factor,
     _voyager_spacecraft_digit,
 )
@@ -152,16 +156,22 @@ def test_voyager_iss_reports_spacecraft_digit() -> None:
     assert obs.spacecraft_digit == '2'
 
 
-def test_the_clock_counts_are_fractional_leading_units_with_no_midtime() -> None:
+def test_the_published_counts_are_fractional_leading_units_with_no_midtime() -> None:
     """The label's counts are published in the clock's leading units, with no midtime.
 
-    C1480500_GEOMED's label counts, 14804:59:784 and 14805:00:001, cross a leading unit.
-    A frame is 1/60 of a leading unit, and a line, counted from 1, is 1/800 of a frame.
-    The stop count is the readout frame's, so the two do not bracket the exposure.
+    C1480500_GEOMED's label counts, 14804:59:784 and 14805:00:001, cross a leading
+    unit.  A frame is 1/60 of a leading unit, and a line, counted from 1, is 1/800 of a
+    frame.  The stop count is the readout frame's, so the two do not bracket the
+    exposure.
     """
-    counts = _published_sclk('14804:59:784', '14805:00:001')
-    published = [counts[key] for key in ('start_time_sclk', 'midtime_sclk', 'end_time_sclk')]
-    assert published == [
+    obs = bare_observation(
+        ObsVoyagerISS,
+        VicarLabelStandIn(LAB02=_LAB02_V1),
+        detector='WAC',
+        filter='CLEAR',
+        _label_clock_counts=('14804:59:784', '14805:00:001'),
+    )
+    assert published_clock_counts(obs) == [
         pytest.approx(14804 + 59 / 60 + (784 - 1) / (60 * 800), abs=1e-9),
         None,
         pytest.approx(14805.0, abs=1e-9),

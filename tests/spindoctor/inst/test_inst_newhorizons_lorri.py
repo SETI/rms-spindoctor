@@ -2,6 +2,7 @@ import math
 
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_NEWHORIZONS_LORRI_CHARON_01
+from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 
 import spindoctor.obs.obs_inst_newhorizons_lorri as obstnhlorri
 from spindoctor.obs.obs_inst_newhorizons_lorri import ObsNewHorizonsLORRI, _published_sclk
@@ -62,15 +63,17 @@ def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
     assert obs.star_max_usable_vmag() == pytest.approx(_LORRI_ANCHOR, abs=1e-6)
 
 
-def test_the_clock_counts_are_fractional_seconds_and_their_exact_mean() -> None:
-    """The label's counts are published as clock seconds, the ticks a fraction of one.
+def test_the_published_counts_are_fractional_seconds_and_their_exact_mean() -> None:
+    """The label's counts are published as clock seconds, and their mean as the midtime.
 
     lor_0003104398's one-second exposure crosses a second: its label counts are
     0003104396:49000 and 0003104397:49000, in ticks of 1/50000 second.
     """
-    assert _published_sclk('0003104396:49000', '0003104397:49000') == pytest.approx(
-        {'start_time_sclk': 3104396.98, 'midtime_sclk': 3104397.48, 'end_time_sclk': 3104397.98},
-        abs=1e-9,
+    obs = bare_observation(
+        ObsNewHorizonsLORRI, {}, _label_clock_counts=('0003104396:49000', '0003104397:49000')
+    )
+    assert published_clock_counts(obs) == pytest.approx(
+        [3104396.98, 3104397.48, 3104397.98], abs=1e-9
     )
 
 
@@ -78,8 +81,8 @@ def test_the_midtime_count_is_the_float_nearest_the_exact_mean() -> None:
     """The midtime count is the float nearest the exact mean of the two counts.
 
     lor_0019683105's label counts, 0019683104:48900 and 0019683104:49000, are
-    19683104.978 and 19683104.98 seconds.  The mean of the two floats nearest them is one
-    unit in the last place above 19683104.979.
+    19683104.978 and 19683104.98 seconds.  The mean of the two floats nearest them is
+    one unit in the last place above 19683104.979.
     """
     counts = _published_sclk('0019683104:48900', '0019683104:49000')
     assert counts['midtime_sclk'] == 19683104.979

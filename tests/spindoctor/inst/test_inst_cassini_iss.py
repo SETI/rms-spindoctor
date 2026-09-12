@@ -1,15 +1,17 @@
 """Tests for ``spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS``."""
 
-from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_CASSINI_ISS_RHEA_01
-from tests.spindoctor.inst.conftest import VicarLabelStandIn
+from tests.spindoctor.inst.conftest import (
+    VicarLabelStandIn,
+    bare_observation,
+    published_clock_counts,
+)
 
 import spindoctor.obs.obs_inst_cassini_iss as obstcoiss
-from spindoctor.obs.obs_inst_cassini_iss import ObsCassiniISS, _published_sclk, _sclk_count
+from spindoctor.obs.obs_inst_cassini_iss import ObsCassiniISS, _sclk_count
 
 # The marker is applied per test rather than module-wide: the shutter-mode
 # label tests build a bare observation and fetch nothing, so they run even
@@ -26,6 +28,26 @@ def _obs_with_label(label: dict[str, Any]) -> ObsCassiniISS:
     obs = object.__new__(ObsCassiniISS)
     obs.dict = label
     return obs
+
+
+def _cassini_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
+    """Build a bare narrow-angle observation whose public metadata can be read.
+
+    Parameters:
+        label: The image's VICAR label items.
+
+    Returns:
+        The observation.
+    """
+    return bare_observation(
+        ObsCassiniISS,
+        label,
+        detector='NAC',
+        filter1='CL1',
+        filter2='CL2',
+        sampling='FULL',
+        gain_mode=2,
+    )
 
 
 @REQUIRES_EXTERNAL_DATA
@@ -88,24 +110,29 @@ def test_shutter_mode_non_text_label_value_is_refused() -> None:
         _ = _obs_with_label({'SHUTTER_MODE_ID': 42}).shutter_mode
 
 
-def test_the_clock_counts_are_fractional_seconds_and_their_exact_mean() -> None:
-    """The label's counts are published as clock seconds, the ticks a fraction of one.
+def test_the_published_counts_are_fractional_seconds_and_their_exact_mean() -> None:
+    """The label's counts are published as clock seconds, and their mean as the midtime.
 
-    N1459552248_1_CALIB's exposure crosses a second: its label counts, 1459552247.012 and
-    1459552248.137, are 1459552247 + 12/256 and 1459552248 + 137/256 seconds, and the
-    midpoint is exactly halfway between them.
+    N1459552248_1_CALIB's exposure crosses a second: its label counts, 1459552247.012
+    and 1459552248.137, are 1459552247 + 12/256 and 1459552248 + 137/256 seconds, and
+    the midtime count is exactly halfway between them.
     """
-    assert _published_sclk('1459552247.012', '1459552248.137') == {
-        'start_time_sclk': 1459552247.046875,
-        'midtime_sclk': 1459552247.791015625,
-        'end_time_sclk': 1459552248.53515625,
-    }
+    label = VicarLabelStandIn(
+        SPACECRAFT_CLOCK_START_COUNT='1459552247.012',
+        SPACECRAFT_CLOCK_STOP_COUNT='1459552248.137',
+    )
+    assert published_clock_counts(_cassini_observation(label)) == [
+        1459552247.046875,
+        1459552247.791015625,
+        1459552248.53515625,
+    ]
 
 
 def test_a_tick_field_that_lost_its_trailing_zeros_is_padded_back() -> None:
     """A count whose tick field lost its trailing zeros is read with them restored.
 
-    The COISS index writes N1347929382_3's start count, 1347929382.110, as 1347929382.11.
+    The COISS index writes N1347929382_3's start count, 1347929382.110, as
+    1347929382.11.
     """
     assert _sclk_count('1347929382.11') == 1347929382 + 110 / 256
 
@@ -113,19 +140,8 @@ def test_a_tick_field_that_lost_its_trailing_zeros_is_padded_back() -> None:
 def test_a_label_without_clock_counts_publishes_null_counts() -> None:
     """A label carrying no clock counts publishes all three as null.
 
-    Some early cruise labels, W1294561143_1_CALIB's among them, carry neither
+    Some labels, W1294561143_1_CALIB's among them, carry neither
     SPACECRAFT_CLOCK_START_COUNT nor SPACECRAFT_CLOCK_STOP_COUNT.
     """
-    obs = _obs_with_label(VicarLabelStandIn())
-    obs.detector = 'WAC'
-    obs.image_url = '/holdings/W1294561143_1_CALIB.IMG'
-    obs.abspath = Path('/cache/W1294561143_1_CALIB.IMG')
-    obs.cadence = SimpleNamespace(time=(0.0, 46.0), midtime=23.0)
-    obs.texp = 46.0
-    obs._data_shape_uv = (1024, 1024)
-    obs.filter1, obs.filter2 = 'CL1', 'CL2'
-    obs.sampling = 'FULL'
-    obs.gain_mode = 2
-    public = obs.get_public_metadata()
-    counts = [public[key] for key in ('start_time_sclk', 'midtime_sclk', 'end_time_sclk')]
+    counts = published_clock_counts(_cassini_observation(VicarLabelStandIn()))
     assert counts == [None, None, None]
