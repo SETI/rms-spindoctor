@@ -203,6 +203,8 @@ midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
 a Cassini ISS record carries:
 
+* ``shutter_mode`` -- ``NACONLY``, ``WACONLY`` or ``BOTSIM``, the last when
+  both cameras were exposed at once, sharing one spacecraft attitude.
 * ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk`` -- the start,
   middle and end of the exposure as spacecraft clock counts: the label's own
   start and stop counts, which mark the start and the end of the exposure, in
@@ -220,8 +222,9 @@ a Cassini ISS record carries:
   observation this frame belongs to; either may be null when the label carries
   none.
 
-The instrument host LID is ``...:instrument_host:spacecraft.co``. The
-instrument LID encodes the camera: ``...:instrument:issna.co`` for the narrow
+Its ``instrument`` is ``coiss`` and its ``camera`` is ``NAC`` or ``WAC``. The
+instrument host LID is ``...:instrument_host:spacecraft.co``. The instrument
+LID encodes the camera: ``...:instrument:issna.co`` for the narrow
 angle camera and ``...:instrument:isswa.co`` for the wide angle camera.
 
 Corrected-pointing C-kernels

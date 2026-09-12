@@ -181,10 +181,12 @@ Metadata fields
 Beyond the keys every instrument writes -- image path and name, the start,
 midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
-a New Horizons LORRI record carries nothing extra. ``filters`` is present and
-**empty**: the camera is panchromatic and has no filter wheel, so there is no
-filter name to record. This is the only instrument whose ``filters`` list is
-empty rather than carrying one or two entries.
+a New Horizons LORRI record carries the spacecraft clock counts described
+below. ``filters`` is present and **empty**: the camera is panchromatic and has
+no filter wheel, so there is no filter name to record. This is the only
+instrument whose ``filters`` list is empty rather than carrying one or two
+entries. Its ``instrument`` is ``nhlorri`` and its ``camera`` is ``LORRI``. It
+writes no ``shutter_mode``, since its labels carry none.
 
 It writes the spacecraft-clock fields ``start_time_sclk`` and ``end_time_sclk``
 from the start and stop counts of the PDS3 label beside the image, which mark

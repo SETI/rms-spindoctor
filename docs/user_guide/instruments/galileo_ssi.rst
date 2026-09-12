@@ -160,7 +160,9 @@ Metadata fields
 Beyond the keys every instrument writes -- image path and name, the start,
 midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
-a Galileo SSI record carries one filter entry in ``filters``.
+a Galileo SSI record carries one filter entry in ``filters``. Its
+``instrument`` is ``gossi`` and its ``camera`` is ``SSI``. It writes no
+``shutter_mode``, since its labels carry none.
 
 It writes ``start_time_sclk``, the image's frame count as the label records
 it, which comes a few seconds before the exposure, as a count of the clock's

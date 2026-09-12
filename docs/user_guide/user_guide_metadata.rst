@@ -221,15 +221,15 @@ The observation block
 
 The block has two parts. The first six keys below are the image's identity,
 which the navigator writes on every document shape that knows it. The rest are
-what is known about the exposure from the image itself, such as its exposure
-times and its filters. Those are present on every navigated document,
-successful or failed, whether or not a ``pointing`` block was recorded; a
-load-error or internal-error document carries none of them. Which of them an
-instrument records, and what each means for it, is in the Metadata fields
-section of that instrument's chapter under
-:doc:`/user_guide/instruments/instruments`; a key an instrument does not
-record is absent. The image's path, name, camera and shape are recorded once,
-under the identity keys.
+what the image's instrument states about it: the identifiers of its spacecraft
+and camera, and facts about the exposure, such as its times and its filters.
+Those are present on every navigated document, successful or failed, whether
+or not a ``pointing`` block was recorded; a load-error or internal-error
+document carries none of them. Which of the keys below an instrument records,
+and what each holds for it, is in the Metadata fields section of that
+instrument's chapter under :doc:`/user_guide/instruments/instruments`; a key
+an instrument does not record is absent. The image's path, name, camera and
+shape are recorded once, under the identity keys.
 
 .. list-table::
    :header-rows: 1
@@ -251,13 +251,12 @@ under the identity keys.
      - Basename of the source image file. Same presence as ``image_path``.
    * - ``instrument``
      - string
-     - The registered instrument name for the observation class: ``coiss``,
-       ``gossi``, ``nhlorri``, ``vgiss``, or ``sim`` (``unknown`` for an
-       unregistered class). Always present, in every shape.
+     - The registered name of the instrument whose observation class read
+       the image (``unknown`` for an unregistered class). Always present, in
+       every shape.
    * - ``camera``
      - string
-     - The camera that took the image: ``NAC`` or ``WAC`` for Cassini ISS
-       and Voyager ISS, ``SSI`` for Galileo, ``LORRI`` for New Horizons.
+     - The camera that took the image, as the instrument names it.
        On a navigated document this comes from the loaded observation
        (:attr:`~spindoctor.obs.obs_inst.ObsInst.camera`) and is always
        present. On a load-error document the image was never opened, so the
@@ -268,11 +267,8 @@ under the identity keys.
    * - ``shutter_mode``
      - string
      - The shutter mode the image was taken in, for an instrument whose
-       label carries one. Cassini ISS records ``NACONLY``, ``WACONLY``, or
-       ``BOTSIM`` (both cameras exposed at once, sharing one spacecraft
-       attitude). Omitted for instruments whose labels carry no such field
-       (Voyager ISS, Galileo SSI, New Horizons LORRI) and on load-error
-       documents.
+       label carries one. Omitted for an instrument whose labels carry no
+       such field, and on load-error documents.
    * - ``image_shape``
      - array
      - ``[v, u]`` pixel dimensions of the loaded image data, as two

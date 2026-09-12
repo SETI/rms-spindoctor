@@ -213,7 +213,9 @@ Metadata fields
 Beyond the keys every instrument writes -- image path and name, the start,
 midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
-a Voyager ISS record carries one filter entry in ``filters``.
+a Voyager ISS record carries one filter entry in ``filters``. Its
+``instrument`` is ``vgiss`` and its ``camera`` is ``NAC`` or ``WAC``. It writes
+no ``shutter_mode``, since its labels carry none.
 
 It writes the spacecraft-clock fields ``start_time_sclk`` and ``end_time_sclk``
 from the start and stop counts of the PDS3 label beside the image. The start
