@@ -318,13 +318,17 @@ replaces the PDS3 source for that instrument.
 Output current state: nothing works end to end yet. The Cassini path is
 partially implemented — the per-dataset hook pattern (template dir,
 LID/LIDVID builders, template variables) exists on
-`DataSetPDS3CassiniISS` and the collection machinery runs — but it has
-no final templates, zero tests (#242), and no schema validation, so its
-output is unvalidated. The other three instruments additionally hit
+`DataSetPDS3CassiniISS`, the collection machinery runs, and its data
+labels state real exposure times and describe the backplane FITS beside
+them, tested over a synthetic cohort of navigation and backplane
+products — but its templates are still drafts in places and nothing in
+the test suite validates a label against the PDS4 schema, so its output
+is not yet valid PDS4. The other three instruments additionally hit
 `NotImplementedError` walls in their `pds4_*` DataSet hooks. The work
 is therefore: finish and validate Cassini first (final templates,
-tests, schema validation), then generalize — per-mission template trees
-plus hook implementations, mechanical but voluminous.
+schema validation; the remaining phases of
+`PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`), then generalize — per-mission
+template trees plus hook implementations, mechanical but voluminous.
 
 Work items, in dependency order:
 

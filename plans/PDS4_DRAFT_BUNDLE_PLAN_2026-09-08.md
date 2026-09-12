@@ -1582,8 +1582,8 @@ removals on a two-sided conflict.
 
 ## 7. Follow-ups
 
-**No issues are filed for section 2.2's rows other than 15.** Each is fixed by a named
-phase of this plan, which holds the evidence, the location and the
+**No issues are filed for section 2.2's rows other than 15.** Each is assigned to a
+named phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
 adds a close to reconcile and no reader. Row 15 is the navigation's, not a
 phase's, and is tracked as #619.

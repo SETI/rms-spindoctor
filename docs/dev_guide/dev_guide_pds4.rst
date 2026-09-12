@@ -502,6 +502,7 @@ The two passes write this tree:
        collection_data.lblx                  # summary pass
        <pds4_bundle_path_for_image>/
          <image>_backplanes.lblx
+         <image>_backplanes.fits             # copied from backplane_results_root
          <image>_supplemental.txt
      browse/
        collection_browse.tab                 # summary pass

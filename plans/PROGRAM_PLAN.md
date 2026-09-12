@@ -403,9 +403,10 @@ commitment:
 
 **PDS4 output bundles are required for all four instruments** — not a
 scope decision — and **none of it works end to end today**. The Cassini path
-is partially implemented machinery with no final templates, no schema
-validation, and only a spec-tested backend; Voyager, Galileo, and New
-Horizons additionally hit not-implemented walls. The work is: finish and
+is partially implemented machinery with draft templates and no schema
+validation, though its labels are tested over a synthetic cohort, state
+real exposure times and describe the backplane FITS; Voyager, Galileo,
+and New Horizons additionally hit not-implemented walls. The work is: finish and
 validate the Cassini path (final templates — acceptance list recorded on
 #53; schema validation; the swallowed `template.write` errors and the
 dev-guide output-layout mismatch tracked by #265), then generalize —
