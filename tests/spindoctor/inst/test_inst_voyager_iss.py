@@ -171,11 +171,10 @@ def test_the_published_counts_are_fractional_leading_units_with_no_midtime() -> 
         filter='CLEAR',
         _label_clock_counts=('14804:59:784', '14805:00:001'),
     )
-    assert published_clock_counts(obs) == [
-        pytest.approx(14804 + 59 / 60 + (784 - 1) / (60 * 800), abs=1e-9),
-        None,
-        pytest.approx(14805.0, abs=1e-9),
-    ]
+    start, midtime, end = published_clock_counts(obs)
+    assert start == pytest.approx(14804 + 59 / 60 + (784 - 1) / (60 * 800), abs=1e-9)
+    assert midtime is None
+    assert end == pytest.approx(14805.0, abs=1e-9)
 
 
 @REQUIRES_EXTERNAL_DATA

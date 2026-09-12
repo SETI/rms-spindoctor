@@ -72,9 +72,10 @@ def test_the_published_counts_are_fractional_seconds_and_their_exact_mean() -> N
     obs = bare_observation(
         ObsNewHorizonsLORRI, {}, _label_clock_counts=('0003104396:49000', '0003104397:49000')
     )
-    assert published_clock_counts(obs) == pytest.approx(
-        [3104396.98, 3104397.48, 3104397.98], abs=1e-9
-    )
+    start, midtime, end = published_clock_counts(obs)
+    assert start == pytest.approx(3104396.98, abs=1e-9)
+    assert midtime == pytest.approx(3104397.48, abs=1e-9)
+    assert end == pytest.approx(3104397.98, abs=1e-9)
 
 
 def test_the_midtime_count_is_the_float_nearest_the_exact_mean() -> None:

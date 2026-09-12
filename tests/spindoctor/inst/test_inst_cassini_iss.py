@@ -115,17 +115,17 @@ def test_the_published_counts_are_fractional_seconds_and_their_exact_mean() -> N
 
     N1459552248_1_CALIB's exposure crosses a second: its label counts, 1459552247.012
     and 1459552248.137, are 1459552247 + 12/256 and 1459552248 + 137/256 seconds, and
-    the midtime count is exactly halfway between them.
+    the midtime count is exactly halfway between them.  Each count is a whole number of
+    1/512-second steps, which a float holds exactly, so each is compared exactly.
     """
     label = VicarLabelStandIn(
         SPACECRAFT_CLOCK_START_COUNT='1459552247.012',
         SPACECRAFT_CLOCK_STOP_COUNT='1459552248.137',
     )
-    assert published_clock_counts(_cassini_observation(label)) == [
-        1459552247.046875,
-        1459552247.791015625,
-        1459552248.53515625,
-    ]
+    start, midtime, end = published_clock_counts(_cassini_observation(label))
+    assert start == 1459552247.046875
+    assert midtime == 1459552247.791015625
+    assert end == 1459552248.53515625
 
 
 def test_a_tick_field_that_lost_its_trailing_zeros_is_padded_back() -> None:
@@ -143,5 +143,7 @@ def test_a_label_without_clock_counts_publishes_null_counts() -> None:
     Some labels, W1294561143_1_CALIB's among them, carry neither
     SPACECRAFT_CLOCK_START_COUNT nor SPACECRAFT_CLOCK_STOP_COUNT.
     """
-    counts = published_clock_counts(_cassini_observation(VicarLabelStandIn()))
-    assert counts == [None, None, None]
+    start, midtime, end = published_clock_counts(_cassini_observation(VicarLabelStandIn()))
+    assert start is None
+    assert midtime is None
+    assert end is None
