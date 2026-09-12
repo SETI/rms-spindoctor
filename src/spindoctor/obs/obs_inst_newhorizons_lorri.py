@@ -1,3 +1,4 @@
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,7 +19,7 @@ _SCLK_MODULI = (4294967296, 50000)
 _SCLK_OFFSETS = (0, 0)
 
 
-def _sclk_count(count: str) -> float:
+def _sclk_count(count: str) -> Fraction:
     """Return a New Horizons spacecraft clock count as seconds, with its ticks as a fraction.
 
     A count is ``SECONDS:TICKS``, after an optional partition and ``/``: whole seconds,

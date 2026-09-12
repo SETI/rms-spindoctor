@@ -1,4 +1,5 @@
 from collections.abc import Mapping, Sequence
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
 
@@ -22,7 +23,7 @@ _SCLK_FIELDS = ('RIM', 'MOD91', 'MOD10', 'MOD8')
 """The VICAR label items holding the four fields of an image's start count."""
 
 
-def _sclk_count(fields: Sequence[int]) -> float:
+def _sclk_count(fields: Sequence[int]) -> Fraction:
     """Return a Galileo spacecraft clock count as a number of RIM counts.
 
     Parameters:

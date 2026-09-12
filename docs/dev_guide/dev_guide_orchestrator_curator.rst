@@ -69,10 +69,12 @@ identity -- its path, name, registered instrument, camera, shutter mode and imag
 :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata`: the exposure's start,
 midtime and end in UTC and ET, the label's spacecraft clock counts, the exposure time,
 the filters, the PDS4 context identifiers, and each host's own descriptive facts. Each
-spacecraft host parses its own clock's label format, converts a count to a number with
-its clock's moduli and offsets through :func:`~spindoctor.support.sclk.fractional_count`,
-and publishes the label's start and stop counts through
-:func:`~spindoctor.support.sclk.exposure_counts`. A label's counts mark different moments
+spacecraft host parses its own clock's label format, converts a count to an exact
+fraction of its clock's leading unit with the clock's moduli and offsets through
+:func:`~spindoctor.support.sclk.fractional_count`, and publishes the label's start and
+stop counts through :func:`~spindoctor.support.sclk.exposure_counts`, which writes each
+count, and the mean of the two, as the float nearest its exact value. A label's counts
+mark different moments
 on different instruments, so each host says whether its two counts bracket the exposure.
 Cassini ISS's and New Horizons LORRI's do, and their midtime count is the exact mean of
 the two. Voyager ISS's stop count is that of the frame the image was read out in, and a

@@ -74,6 +74,17 @@ def test_the_clock_counts_are_fractional_seconds_and_their_exact_mean() -> None:
     )
 
 
+def test_the_midtime_count_is_the_float_nearest_the_exact_mean() -> None:
+    """The midtime count is the float nearest the exact mean of the two counts.
+
+    lor_0019683105's label counts, 0019683104:48900 and 0019683104:49000, are
+    19683104.978 and 19683104.98 seconds.  The mean of the two floats nearest them is one
+    unit in the last place above 19683104.979.
+    """
+    counts = _published_sclk('0019683104:48900', '0019683104:49000')
+    assert counts['midtime_sclk'] == 19683104.979
+
+
 @REQUIRES_EXTERNAL_DATA
 def test_newhorizons_lorri_metadata_clock_counts_are_the_pds3_labels() -> None:
     """The published clock counts are those of the PDS3 label beside the FITS image.

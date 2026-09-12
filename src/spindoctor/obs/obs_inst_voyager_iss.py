@@ -1,3 +1,4 @@
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,7 +21,7 @@ _SCLK_MODULI = (65536, 60, 800)
 _SCLK_OFFSETS = (0, 0, 1)
 
 
-def _sclk_count(count: str) -> float:
+def _sclk_count(count: str) -> Fraction:
     """Return a Voyager spacecraft clock count as a number of the clock's leading units.
 
     A count is ``LEADING:FRAME:LINE``, after an optional partition and ``/``: the leading

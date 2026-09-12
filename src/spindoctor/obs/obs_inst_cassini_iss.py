@@ -1,3 +1,4 @@
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,7 +21,7 @@ _SCLK_TICK_DIGITS = 3
 """Digits in the tick field of a spacecraft clock count as an image label writes it."""
 
 
-def _sclk_count(count: str) -> float:
+def _sclk_count(count: str) -> Fraction:
     """Return a Cassini spacecraft clock count as seconds, with its ticks as a fraction.
 
     A count is ``SECONDS.TICKS``, after an optional partition and ``/``: whole seconds,
