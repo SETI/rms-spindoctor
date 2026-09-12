@@ -76,8 +76,14 @@ def test_the_published_count_is_a_fractional_rim_count_with_no_stop() -> None:
     """
     label = VicarLabelStandIn(RIM=3603611, MOD91=68, MOD10=2, MOD8=4)
     obs = bare_observation(ObsGalileoSSI, label, filter='CLEAR')
-    assert published_clock_counts(obs) == [
-        pytest.approx(3603611 + 68 / 91 + 2 / 910 + 4 / 7280, abs=1e-9),
-        None,
-        None,
-    ]
+    start, midtime, end = published_clock_counts(obs)
+    assert start == pytest.approx(3603611 + 68 / 91 + 2 / 910 + 4 / 7280, abs=1e-9)
+    assert midtime is None
+    assert end is None
+
+
+def test_a_label_missing_a_clock_item_publishes_no_count() -> None:
+    """A label lacking any of its four clock items publishes no count."""
+    label = VicarLabelStandIn(RIM=3603611, MOD91=68, MOD10=2)
+    obs = bare_observation(ObsGalileoSSI, label, filter='CLEAR')
+    assert published_clock_counts(obs)[0] is None

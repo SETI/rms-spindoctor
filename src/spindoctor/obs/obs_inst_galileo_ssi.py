@@ -46,14 +46,13 @@ def _published_sclk(label: Mapping[str, Any]) -> dict[str, float | None]:
         label: The image's VICAR label.
 
     Returns:
-        ``start_time_sclk``, the frame count in RIM counts, or None when the label carries
-        no count; ``midtime_sclk`` and ``end_time_sclk``, always None.
+        ``start_time_sclk``, the frame count in RIM counts, or None when the label lacks
+        any of the four items; ``midtime_sclk`` and ``end_time_sclk``, always None.
     """
-    if label.get('RIM', None) is None:
+    fields: list[Any] = [label.get(name, None) for name in _SCLK_FIELDS]
+    if None in fields:
         return exposure_counts(None, None, bracketed=False)
-    return exposure_counts(
-        _sclk_count([label[name] for name in _SCLK_FIELDS]), None, bracketed=False
-    )
+    return exposure_counts(_sclk_count(fields), None, bracketed=False)
 
 
 class ObsGalileoSSI(ObsSnapshotInst):
