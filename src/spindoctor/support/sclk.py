@@ -12,6 +12,7 @@ clock's moduli, offsets and label format; this module holds no instrument's cons
 import re
 from collections.abc import Sequence
 from fractions import Fraction
+from pathlib import Path
 
 from filecache import FCPath
 
@@ -93,7 +94,7 @@ def exposure_counts(
     }
 
 
-def pds3_label_clock_counts(image: FCPath) -> tuple[str | None, str | None]:
+def pds3_label_clock_counts(image: str | Path | FCPath) -> tuple[str | None, str | None]:
     """Return the clock counts the PDS3 label beside an image records.
 
     The label is the file with the image's name and the suffix ``.LBL``, or ``.lbl`` when
@@ -107,7 +108,9 @@ def pds3_label_clock_counts(image: FCPath) -> tuple[str | None, str | None]:
         each the text within its quotes, or None where the label carries no such keyword
         or there is no label beside the image.
     """
-    label = image.with_suffix('.LBL' if image.suffix == image.suffix.upper() else '.lbl')
+    image_path = FCPath(image)
+    suffix = image_path.suffix
+    label = image_path.with_suffix('.LBL' if suffix == suffix.upper() else '.lbl')
     try:
         text = label.read_text(encoding='utf-8', errors='replace')
     except FileNotFoundError:
