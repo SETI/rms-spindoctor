@@ -211,6 +211,14 @@ and code review. The guarantee is mechanical for the channel and
 mechanical-plus-review for the consumers; the assessment behind this
 phrasing is recorded in ``critiques/archive/SIM_REALISM_CRITIQUE_2026-07-18.md``.
 
+What a simulated image's navigation document records about the observation
+stays on the idealized side too.
+:meth:`~spindoctor.obs.obs_inst_sim.ObsSim.get_public_metadata` publishes
+``sim`` as both PDS4 context identifiers and a description saying the image was
+simulated from a scene file. A simulated image has no spacecraft and no clock,
+so it publishes none of the exposure times, the clock counts, the exposure time
+or the filters that a spacecraft instrument publishes.
+
 Sharing code is fine; sharing information is not
 ------------------------------------------------
 

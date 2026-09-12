@@ -221,13 +221,15 @@ The observation block
 
 The block has two parts. The first six keys below are the image's identity,
 which the navigator writes on every document shape that knows it. The rest are
-what is known about the exposure from the image itself: its exposure times,
-its filters and, for Cassini ISS, its sampling, gain, observation id and
-description. Those are present on every navigated document, successful or
-failed, whether or not a ``pointing`` block was recorded; a load-error or
-internal-error document carries none of them. Which of them appear depends on
-the instrument, as each row says. The image's path, name, camera and shape are
-recorded once, under the identity keys.
+what is known about the exposure from the image itself, such as its exposure
+times and its filters. Those are present on every navigated document,
+successful or failed, whether or not a ``pointing`` block was recorded; a
+load-error or internal-error document carries none of them. Which of them an
+instrument records, and what each means for it, is in the Metadata fields
+section of that instrument's chapter under
+:doc:`/user_guide/instruments/instruments`; a key an instrument does not
+record is absent. The image's path, name, camera and shape are recorded once,
+under the identity keys.
 
 .. list-table::
    :header-rows: 1
@@ -278,82 +280,52 @@ recorded once, under the identity keys.
        produced pixel data on the error shapes).
    * - ``instrument_host_lid``
      - string
-     - The PDS4 context identifier of the spacecraft:
-       ``urn:nasa:pds:context:instrument_host:spacecraft.co`` for Cassini,
-       ``...spacecraft.vg1`` or ``...spacecraft.vg2`` for Voyager,
-       ``...spacecraft.go`` for Galileo and ``...spacecraft.nh`` for New
-       Horizons; ``sim`` for a simulated image.
+     - The PDS4 context identifier of the spacecraft that carried the
+       camera.
    * - ``instrument_lid``
      - string
-     - The PDS4 context identifier of the camera, for example
-       ``urn:nasa:pds:context:instrument:issna.co`` for the Cassini
-       narrow-angle camera; ``sim`` for a simulated image.
+     - The PDS4 context identifier of the camera.
    * - ``start_time_utc``, ``midtime_utc``, ``end_time_utc``
      - string
      - When the exposure began, its midpoint, and when it ended, as UTC
-       timestamps to the millisecond. Every spacecraft instrument.
+       timestamps to the millisecond.
    * - ``start_time_et``, ``midtime_et``, ``end_time_et``
      - number
      - The same three instants in TDB seconds past J2000, unrounded. When
        the ``times`` block is present, its ``start_et``, ``midtime_et`` and
-       ``stop_et`` hold these same values. Every spacecraft instrument.
+       ``stop_et`` hold these same values.
    * - ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk``
      - number or null
-     - The spacecraft clock counts the image label records, as numbers:
+     - The spacecraft clock counts the image label records, as numbers: the
+       clock's leading field, with its finer fields as a fraction of one.
        ``start_time_sclk`` and ``end_time_sclk`` are the label's start and
-       stop counts, and ``midtime_sclk`` is the count exactly halfway
-       between them, given only where the two counts bracket the exposure.
-       What the counts mark, and their unit, depend on the instrument:
-
-       * Cassini ISS: the start and the end of the exposure, in seconds of
-         the clock, with its ticks of 1/256 second as a fraction.
-       * New Horizons LORRI: the start and the end of the exposure, in
-         seconds of the clock, with its ticks of 1/50000 second as a
-         fraction.
-       * Voyager ISS: a start count near the shutter opening, and the count
-         of the frame the image was read out in, which can come minutes
-         after the shutter closed, so ``midtime_sclk`` is null. The unit is
-         the clock's leading field, the first five digits of the image
-         number, one of which is 48 minutes: 60 frames of 48 seconds, each
-         800 lines of 60 milliseconds. The frame and the line are a fraction
-         of it.
-       * Galileo SSI: the image's frame count, which comes a few seconds
-         before the exposure, in counts of the clock's RIM field with its
-         three finer fields as a fraction. The label records no stop count,
-         so ``midtime_sclk`` and ``end_time_sclk`` are null.
-
-       A count is null when the label carries none, and a simulated image
-       records none. The ``times`` block's clock strings are computed from
-       the exposure times, so they can differ from these counts: by a
-       fraction of a second for Cassini ISS and New Horizons LORRI, and by
-       seconds to minutes for Galileo SSI and Voyager ISS.
+       stop counts. ``midtime_sclk`` is the count exactly halfway between
+       them where the two counts bracket the exposure, and null where they
+       do not. A count is null when the label carries none. What the counts
+       mark, and the unit of the leading field, depend on the instrument.
+       The ``times`` block's clock strings are computed from the exposure
+       times, so they can differ from these counts.
    * - ``exposure_time``
      - number
-     - Exposure duration in seconds. Every spacecraft instrument.
+     - Exposure duration in seconds.
    * - ``filters``
      - array
-     - The filter names, as strings: two for Cassini ISS (one per filter
-       wheel, for example ``["CL1", "CL2"]``), one for Voyager ISS and
-       Galileo SSI, and an empty array for New Horizons LORRI, which has no
-       filters.
+     - The names of the filters the image was taken through, as strings, one
+       per filter wheel; an empty array for a camera with no filters.
    * - ``sampling``
      - string
-     - Cassini ISS only. The label's instrument mode: ``FULL``, ``SUM2`` or
-       ``SUM4``.
+     - The sampling mode the label records: how the image was summed on the
+       detector.
    * - ``gain_mode``
      - integer or null
-     - Cassini ISS only. The camera's gain state, read from the label's gain
-       mode: ``0`` for 215 electrons per DN, ``1`` for 95, ``2`` for 29 and
-       ``3`` for 12; ``null`` for a label naming any other.
+     - The camera's gain state, as a number the instrument's chapter
+       defines; ``null`` for a label naming a gain it does not list.
    * - ``observation_id``
      - string or null
-     - Cassini ISS only. The label's observation id; ``null`` when the label
-       carries none.
+     - The label's observation id; ``null`` when the label carries none.
    * - ``description``
      - string or null
-     - Cassini ISS: the label's description, ``null`` when the label carries
-       none. A simulated image: a note that it was simulated from a scene
-       file.
+     - A description of the image; ``null`` when the label carries none.
 
 The navigation_result block
 ===========================

@@ -207,16 +207,22 @@ a Cassini ISS record carries:
   middle and end of the exposure as spacecraft clock counts: the label's own
   start and stop counts, which mark the start and the end of the exposure, in
   seconds of the clock with the 1/256-second ticks as a fraction, and the
-  count exactly halfway between them.
-* ``filters`` -- two entries, the two filter wheels, in that order.
-* ``sampling`` -- the on-chip summing mode.
-* ``gain_mode`` -- the commanded gain state.
+  count exactly halfway between them. The ``times`` block's clock strings are
+  computed from the exposure times and can differ from these counts by a
+  fraction of a second.
+* ``filters`` -- two entries, the two filter wheels, in that order, for
+  example ``["CL1", "CL2"]``.
+* ``sampling`` -- the on-chip summing mode: ``FULL``, ``SUM2`` or ``SUM4``.
+* ``gain_mode`` -- the commanded gain state: ``0`` for 215 electrons per DN,
+  ``1`` for 95, ``2`` for 29 and ``3`` for 12, or null for a label naming any
+  other.
 * ``description`` and ``observation_id`` -- the label's free text and the
   observation this frame belongs to; either may be null when the label carries
   none.
 
-The instrument LID encodes the camera: ``...:instrument:issna.co`` for the
-narrow angle camera and ``...:instrument:isswa.co`` for the wide angle camera.
+The instrument host LID is ``...:instrument_host:spacecraft.co``. The
+instrument LID encodes the camera: ``...:instrument:issna.co`` for the narrow
+angle camera and ``...:instrument:isswa.co`` for the wide angle camera.
 
 Corrected-pointing C-kernels
 ============================
