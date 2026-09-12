@@ -186,6 +186,14 @@ class _FakeSnapshot:
         """
         return np.ones(self.data.shape, bool)
 
+    def get_public_metadata(self) -> dict[str, Any]:
+        """Publish no fact about the image beyond what the driver records itself.
+
+        Returns:
+            An empty mapping.
+        """
+        return {}
+
 
 class _FakeObsClass:
     """Observation class whose images always load."""

@@ -9,7 +9,27 @@
     "image_shape": [
       512,
       512
-    ]
+    ],
+    "instrument_host_lid": "urn:nasa:pds:context:instrument_host:spacecraft.co",
+    "instrument_lid": "urn:nasa:pds:context:instrument:isswa.co",
+    "start_time_utc": "2005-05-22T02:12:15.585",
+    "midtime_utc": "2005-05-22T02:12:15.815",
+    "end_time_utc": "2005-05-22T02:12:16.045",
+    "start_time_et": 169999999.77,
+    "midtime_et": 170000000.0,
+    "end_time_et": 170000000.23,
+    "start_time_scet": 1294561202.077,
+    "midtime_scet": 1294561202.136,
+    "end_time_scet": 1294561202.195,
+    "exposure_time": 0.46,
+    "filters": [
+      "CL1",
+      "CL2"
+    ],
+    "sampling": "SUM2",
+    "gain_mode": 2,
+    "description": "Iapetus limb against a star field.",
+    "observation_id": "ISS_00ASA_IAPETUS001_PRIME"
   },
   "navigation_result": {
     "status": "success",

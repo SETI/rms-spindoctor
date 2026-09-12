@@ -246,7 +246,56 @@ def _timing() -> dict[str, Any]:
     return build_timing_section(start, datetime.now(UTC), peak_measured=True)
 
 
-def _document(result: NavResult, *, shutter_mode: str | None = 'NACONLY') -> dict[str, Any]:
+_CASSINI_PUBLIC_METADATA: dict[str, Any] = {
+    'image_path': '/holdings/N0.IMG',
+    'image_name': 'N0.IMG',
+    'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
+    'instrument_lid': 'urn:nasa:pds:context:instrument:issna.co',
+    'start_time_utc': '2007-10-27T07:32:22.020',
+    'midtime_utc': '2007-10-27T07:32:22.130',
+    'end_time_utc': '2007-10-27T07:32:22.240',
+    'start_time_et': 309861208.2064568,
+    'midtime_et': 309861208.3164568,
+    'end_time_et': 309861208.4264568,
+    'start_time_scet': 1635282917.129,
+    'midtime_scet': 1635282917.1575,
+    'end_time_scet': 1635282917.186,
+    'image_shape_xy': (1024, 1024),
+    'camera': 'NAC',
+    'exposure_time': 0.22,
+    'filters': ['CL1', 'CL2'],
+    'sampling': 'FULL',
+    'gain_mode': 3,
+    'description': 'Rhea limb for navigation.',
+    'observation_id': 'ISS_050RH_OPNAV001_PRIME',
+}
+"""What a Cassini ISS host publishes, in its own key order and value types."""
+
+_GALILEO_PUBLIC_METADATA: dict[str, Any] = {
+    'image_path': '/holdings/C0.IMG',
+    'image_name': 'C0.IMG',
+    'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.go',
+    'instrument_lid': 'urn:nasa:pds:context:instrument:go.ssi',
+    'start_time_utc': '1997-11-06T19:29:55.370',
+    'midtime_utc': '1997-11-06T19:29:55.399',
+    'end_time_utc': '1997-11-06T19:29:55.428',
+    'start_time_et': -69820141.43,
+    'midtime_et': -69820141.40,
+    'end_time_et': -69820141.37,
+    'image_shape_xy': (800, 800),
+    'camera': 'SSI',
+    'exposure_time': 0.0583,
+    'filters': ['CLEAR'],
+}
+"""What a Galileo SSI host publishes: no clock counts and no Cassini-only facts."""
+
+
+def _document(
+    result: NavResult,
+    *,
+    shutter_mode: str | None = 'NACONLY',
+    public_metadata: dict[str, Any] = _CASSINI_PUBLIC_METADATA,
+) -> dict[str, Any]:
     """Build the full written document for a navigated result.
 
     Parameters:
@@ -254,6 +303,7 @@ def _document(result: NavResult, *, shutter_mode: str | None = 'NACONLY') -> dic
         shutter_mode: The host's shutter mode, or ``None`` for a host whose
             labels carry none (the field is then omitted, as the failed
             example's Galileo host shows).
+        public_metadata: What the observation's host publishes about the image.
     """
     return _round_trip(
         build_metadata_from_result(
@@ -264,6 +314,7 @@ def _document(result: NavResult, *, shutter_mode: str | None = 'NACONLY') -> dic
             camera='NAC',
             shutter_mode=shutter_mode,
             image_shape=(1024, 1024),
+            public_metadata=public_metadata,
             timing=_timing(),
         )
     )
@@ -316,7 +367,11 @@ def _failed_document() -> dict[str, Any]:
         image_classifier=_classifier(),
         provenance=_provenance(),
     )
-    return _document(_with_pointing(result, corrected=False), shutter_mode=None)
+    return _document(
+        _with_pointing(result, corrected=False),
+        shutter_mode=None,
+        public_metadata=_GALILEO_PUBLIC_METADATA,
+    )
 
 
 def _internal_error_document() -> dict[str, Any]:

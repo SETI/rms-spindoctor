@@ -22,7 +22,13 @@ from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
 
-from .shared import SIM_KERNELS, classifier, navigated, provenance
+from .shared import (
+    SIM_KERNELS,
+    classifier,
+    navigated,
+    provenance,
+    simulated_public_metadata,
+)
 
 
 def simulated_scene() -> dict[str, Any]:
@@ -89,6 +95,9 @@ def simulated_scene() -> dict[str, Any]:
         camera='SIM',
         shutter_mode=None,
         image_shape=(256, 256),
+        public_metadata=simulated_public_metadata(
+            image_name='sim_scene_000042.img', camera='SIM', image_shape=(256, 256)
+        ),
         start=datetime(2026, 8, 8, 16, 47, 55, 180332, tzinfo=UTC),
         elapsed_s=12.5,
         peak_memory_bytes=1073741824,

@@ -29,6 +29,7 @@ from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.navigate_image_files import build_metadata_from_result, build_timing_section
 from spindoctor.support.cmatrix import AttitudeBaseline, PointingSolution
+from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayFloatType
 
 COISS_SUBTREE = 'COISS_2001/data/1294561143_1295221348'
@@ -547,6 +548,18 @@ def _exposure_span(midtime_et: float, exposure_s: float) -> tuple[float, float, 
     return midtime_et - exposure_s / 2.0, midtime_et, midtime_et + exposure_s / 2.0
 
 
+def _image_path(image_name: str) -> Path:
+    """Return where the run read one image from.
+
+    Parameters:
+        image_name: Basename of the source image.
+
+    Returns:
+        Its path under the holdings root the run was given.
+    """
+    return Path('/holdings') / image_name
+
+
 def navigated(
     result: NavResult,
     *,
@@ -555,6 +568,7 @@ def navigated(
     camera: str,
     shutter_mode: str | None,
     image_shape: tuple[int, int],
+    public_metadata: dict[str, Any],
     start: datetime,
     elapsed_s: float,
     peak_memory_bytes: int,
@@ -569,6 +583,9 @@ def navigated(
         shutter_mode: The shutter mode the label recorded, or None for a host
             whose labels carry none.
         image_shape: The loaded image's ``(v, u)`` pixel dimensions.
+        public_metadata: What the observation's host publishes about the image,
+            as :func:`cassini_public_metadata`, :func:`voyager_public_metadata`
+            or :func:`simulated_public_metadata` builds it.
         start: When this image's run began.
         elapsed_s: How long it took.
         peak_memory_bytes: The peak resident size to record for it.
@@ -578,14 +595,171 @@ def navigated(
     """
     return build_metadata_from_result(
         result,
-        Path(f'/holdings/{image_name}'),
+        _image_path(image_name),
         image_name,
         instrument=instrument,
         camera=camera,
         shutter_mode=shutter_mode,
         image_shape=image_shape,
+        public_metadata=public_metadata,
         timing=pinned_timing(start, elapsed_s, peak_memory_bytes),
     )
+
+
+def _recorded_exposure(result: NavResult) -> AttitudeBaseline:
+    """Return the exposure a result's attitude block records.
+
+    A host reads its published times from the same label the attitude's exposure
+    epochs come from, so a document's published times are taken from there rather
+    than stated a second time.
+
+    Parameters:
+        result: A result an attitude solution has been stamped onto.
+
+    Returns:
+        The solution's baseline, which carries the exposure epochs and clock strings.
+
+    Raises:
+        ValueError: If the result carries no attitude solution.
+    """
+    if result.pointing is None:
+        raise ValueError('a published time is taken from the attitude block; stamp one first')
+    return result.pointing.baseline
+
+
+def _published_times(exposure: AttitudeBaseline) -> dict[str, Any]:
+    """Return the start, midtime and end a spacecraft host publishes, in UTC and ET.
+
+    Parameters:
+        exposure: The recorded exposure.
+
+    Returns:
+        The six time fields, in the hosts' own order.
+    """
+    return {
+        'start_time_utc': et_to_utc(exposure.start_et),
+        'midtime_utc': et_to_utc(exposure.midtime_et),
+        'end_time_utc': et_to_utc(exposure.stop_et),
+        'start_time_et': exposure.start_et,
+        'midtime_et': exposure.midtime_et,
+        'end_time_et': exposure.stop_et,
+    }
+
+
+def cassini_public_metadata(
+    result: NavResult,
+    *,
+    image_name: str,
+    camera: str,
+    image_shape: tuple[int, int],
+    filters: tuple[str, str],
+    sampling: str,
+    gain_mode: int,
+    observation_id: str,
+    description: str,
+) -> dict[str, Any]:
+    """Return what the Cassini ISS host publishes about one image of this run.
+
+    The host publishes the label's clock counts as numbers.  This tree's clock
+    strings are counted from each label's reading at shutter open (see
+    :func:`cassini_sclk_open`), so here those counts are the recorded strings
+    without their partition.  On a real image the two can differ by a fraction of
+    a second: the counts are the instrument's own, and the strings are SPICE's
+    conversion of the exposure epochs.
+
+    Parameters:
+        result: The image's result, carrying its attitude solution.
+        image_name: Basename of the source image.
+        camera: ``NAC`` or ``WAC``.
+        image_shape: The loaded image's ``(v, u)`` pixel dimensions.
+        filters: The two filter wheel positions the label records.
+        sampling: The label's instrument mode: ``FULL``, ``SUM2`` or ``SUM4``.
+        gain_mode: The gain state oops reads out of the label's gain mode.
+        observation_id: The label's observation id.
+        description: The label's description.
+
+    Returns:
+        The published facts, in the host's own key order.
+    """
+    exposure = _recorded_exposure(result)
+    scet_start = float(exposure.sclk_start.split('/', 1)[1])
+    scet_end = float(exposure.sclk_stop.split('/', 1)[1])
+    return {
+        'image_path': _image_path(image_name).as_posix(),
+        'image_name': image_name,
+        'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
+        'instrument_lid': f'urn:nasa:pds:context:instrument:iss{camera[0].lower()}a.co',
+        **_published_times(exposure),
+        'start_time_scet': scet_start,
+        'midtime_scet': (scet_start + scet_end) / 2,
+        'end_time_scet': scet_end,
+        'image_shape_xy': (image_shape[1], image_shape[0]),
+        'camera': camera,
+        'exposure_time': exposure.exposure_s,
+        'filters': list(filters),
+        'sampling': sampling,
+        'gain_mode': gain_mode,
+        'description': description,
+        'observation_id': observation_id,
+    }
+
+
+def voyager_public_metadata(
+    result: NavResult,
+    *,
+    image_name: str,
+    camera: str,
+    image_shape: tuple[int, int],
+    filter_name: str,
+) -> dict[str, Any]:
+    """Return what the Voyager ISS host publishes about one Voyager 1 image of this run.
+
+    Parameters:
+        result: The image's result, carrying its attitude solution.
+        image_name: Basename of the source image.
+        camera: ``NAC`` or ``WAC``.
+        image_shape: The loaded image's ``(v, u)`` pixel dimensions.
+        filter_name: The filter the label records.
+
+    Returns:
+        The published facts, in the host's own key order.
+    """
+    exposure = _recorded_exposure(result)
+    return {
+        'image_path': _image_path(image_name).as_posix(),
+        'image_name': image_name,
+        'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.vg1',
+        'instrument_lid': f'urn:nasa:pds:context:instrument:vg1.iss{camera[0].lower()}',
+        **_published_times(exposure),
+        'image_shape_xy': (image_shape[1], image_shape[0]),
+        'camera': camera,
+        'exposure_time': exposure.exposure_s,
+        'filters': [filter_name],
+    }
+
+
+def simulated_public_metadata(
+    *, image_name: str, camera: str, image_shape: tuple[int, int]
+) -> dict[str, Any]:
+    """Return what the simulated host publishes about one scene.
+
+    Parameters:
+        image_name: Basename of the scene file.
+        camera: The camera the scene emulates.
+        image_shape: The rendered image's ``(v, u)`` pixel dimensions.
+
+    Returns:
+        The published facts, in the host's own key order.
+    """
+    return {
+        'image_path': _image_path(image_name).as_posix(),
+        'image_name': image_name,
+        'instrument_host_lid': 'sim',
+        'instrument_lid': 'sim',
+        'image_shape_xy': (image_shape[1], image_shape[0]),
+        'camera': camera,
+        'description': 'Simulated observation from YAML scene',
+    }
 
 
 def pinned_timing(start: datetime, elapsed_s: float, peak_memory_bytes: int) -> dict[str, Any]:

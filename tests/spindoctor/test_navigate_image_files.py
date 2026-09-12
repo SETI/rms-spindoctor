@@ -149,8 +149,8 @@ def _make_fake_obs_class(
         shutter_mode: The shutter mode every loaded snapshot reports, or
             ``None`` for a host whose labels carry no such field.
         raise_on_public_metadata: An exception every loaded snapshot raises
-            from ``get_public_metadata``, so the summary PNG cannot be
-            captioned; ``None`` to answer.
+            from ``get_public_metadata``, so neither the document nor the
+            summary PNG can be built; ``None`` to answer.
 
     Returns:
         A class exposing the one classmethod the driver calls, ``from_file``,
@@ -430,10 +430,11 @@ def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:
 def test_navigate_image_files_public_metadata_fault_is_the_image_error_document(
     tmp_path: Path,
 ) -> None:
-    """A fault captioning the summary PNG is recorded as that image's failure.
+    """A fault reading the observation's published metadata is that image's failure.
 
-    The PNG is written before the metadata document, so the image carries an
-    error document and no PNG rather than a success document beside no PNG.
+    The metadata is read for the document before either product is written, so
+    the image carries an error document and no PNG rather than a success
+    document beside no PNG.
     """
     obs_class = _make_fake_obs_class(raise_on_public_metadata=RuntimeError('no label'))
     image_files = _make_image_files(tmp_path)

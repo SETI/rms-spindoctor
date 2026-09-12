@@ -76,10 +76,11 @@ pipeline carried it:
     The image loaded and the orchestrator ran to completion. The document has
     a full ``navigation_result`` block. The top-level ``status`` is the
     navigation outcome: ``success``, ``failed``, or ``conflicted``. This shape
-    covers failed navigations too: a failure still records every technique
-    that ran, the feature inventory, the image classifier, provenance, and
-    (when the attitude could be computed) the ``pointing`` and ``times``
-    blocks; only the offset and its uncertainty are absent.
+    covers failed navigations too: a failure still records what the
+    observation states about the image (its exposure times among it), every
+    technique that ran, the feature inventory, the image classifier,
+    provenance, and (when the attitude could be computed) the ``pointing``
+    and ``times`` blocks; only the offset and its uncertainty are absent.
 
 **Load error**
     The image file could not be read, or SPICE coverage was missing for its
@@ -217,6 +218,17 @@ The ``status_error`` vocabulary
 The observation block
 =====================
 
+The block has two parts. The first six keys below are the image's identity,
+which the navigator writes on every document shape that knows it. The rest are
+the facts the image's own instrument host states about it: its exposure times,
+its filters and, for Cassini ISS, its sampling, gain, observation id and
+description. Those are present on every navigated document, successful or
+failed, whether or not a ``pointing`` block was recorded; a load-error or
+internal-error document has no observation to ask and carries none of them.
+Which of them appear depends on the instrument, as each row says. The host
+also knows the image's path, name, camera and shape, but those are recorded
+once, under the identity keys, and never repeated.
+
 .. list-table::
    :header-rows: 1
    :widths: 20 12 68
@@ -264,6 +276,63 @@ The observation block
      - ``[v, u]`` pixel dimensions of the loaded image data, as two
        integers. Present only on navigated documents (a load never
        produced pixel data on the error shapes).
+   * - ``instrument_host_lid``
+     - string
+     - The PDS4 context identifier of the spacecraft:
+       ``urn:nasa:pds:context:instrument_host:spacecraft.co`` for Cassini,
+       ``...spacecraft.vg1`` or ``...spacecraft.vg2`` for Voyager,
+       ``...spacecraft.go`` for Galileo and ``...spacecraft.nh`` for New
+       Horizons; ``sim`` for a simulated image.
+   * - ``instrument_lid``
+     - string
+     - The PDS4 context identifier of the camera, for example
+       ``urn:nasa:pds:context:instrument:issna.co`` for the Cassini
+       narrow-angle camera; ``sim`` for a simulated image.
+   * - ``start_time_utc``, ``midtime_utc``, ``end_time_utc``
+     - string
+     - When the exposure began, its midpoint, and when it ended, as UTC
+       timestamps to the millisecond. Every spacecraft instrument.
+   * - ``start_time_et``, ``midtime_et``, ``end_time_et``
+     - number
+     - The same three instants in TDB seconds past J2000, unrounded. When
+       the ``times`` block is present, its ``start_et``, ``midtime_et`` and
+       ``stop_et`` hold these same values. Every spacecraft instrument.
+   * - ``start_time_scet``, ``midtime_scet``, ``end_time_scet``
+     - number
+     - Cassini ISS only. The spacecraft clock counts at the start and the
+       end of the exposure exactly as the image label states them, written
+       as numbers whose three fractional digits count the clock's
+       1/256-second ticks; ``midtime_scet`` is the mean of the two. These
+       are the instrument's own counts, and they can differ by a fraction of
+       a second from the ``times`` block's clock strings, which SPICE
+       computes from the exposure epochs.
+   * - ``exposure_time``
+     - number
+     - Exposure duration in seconds. Every spacecraft instrument.
+   * - ``filters``
+     - array
+     - The filter names, as strings: two for Cassini ISS (one per filter
+       wheel, for example ``["CL1", "CL2"]``), one for Voyager ISS and
+       Galileo SSI, and an empty array for New Horizons LORRI, which has no
+       filters.
+   * - ``sampling``
+     - string
+     - Cassini ISS only. The label's instrument mode: ``FULL``, ``SUM2`` or
+       ``SUM4``.
+   * - ``gain_mode``
+     - integer or null
+     - Cassini ISS only. The camera's gain state, read from the label's gain
+       mode: ``0`` for 215 electrons per DN, ``1`` for 95, ``2`` for 29 and
+       ``3`` for 12; ``null`` for a label naming any other.
+   * - ``observation_id``
+     - string or null
+     - Cassini ISS only. The label's observation id; ``null`` when the label
+       carries none.
+   * - ``description``
+     - string or null
+     - Cassini ISS: the label's description, ``null`` when the label carries
+       none. A simulated image: a note that it was simulated from a scene
+       file.
 
 The navigation_result block
 ===========================
@@ -899,7 +968,24 @@ form. Of 79 SPICE kernels, three are shown.
         "instrument": "coiss",
         "camera": "NAC",
         "shutter_mode": "NACONLY",
-        "image_shape": [1024, 1024]
+        "image_shape": [1024, 1024],
+        "instrument_host_lid": "urn:nasa:pds:context:instrument_host:spacecraft.co",
+        "instrument_lid": "urn:nasa:pds:context:instrument:issna.co",
+        "start_time_utc": "2009-10-26T20:32:22.024",
+        "midtime_utc": "2009-10-26T20:32:22.134",
+        "end_time_utc": "2009-10-26T20:32:22.244",
+        "start_time_et": 309861208.2064568,
+        "midtime_et": 309861208.3164568,
+        "end_time_et": 309861208.4264568,
+        "start_time_scet": 1635282917.063,
+        "midtime_scet": 1635282917.0904999,
+        "end_time_scet": 1635282917.118,
+        "exposure_time": 0.22,
+        "filters": ["CL1", "CL2"],
+        "sampling": "FULL",
+        "gain_mode": 2,
+        "description": "N/A",
+        "observation_id": "ISS_120RH_MUTUALEVE001_PRIME"
       },
       "navigation_result": {
         "status": "success",
@@ -1111,8 +1197,9 @@ Navigated, failed
 -----------------
 
 A Galileo SSI frame in which no extractor produced a feature. Everything the
-pipeline learned is still recorded: the classifier verdict, the provenance,
-and the ``pointing`` block -- with ``cmatrix_original`` only, since a failed
+pipeline learned is still recorded: what the observation states about the
+image, its exposure times and filter among it, the classifier verdict, the
+provenance, and the ``pointing`` block -- with ``cmatrix_original`` only, since a failed
 navigation produces no corrected attitude. There is no top-level ``offset``
 key at all, and both confidence values are ``0.0``. The empty lists and the
 provenance follow the same form as the success example and are shortened
@@ -1127,7 +1214,17 @@ here.
         "image_name": "C0059750900R.IMG",
         "instrument": "gossi",
         "camera": "SSI",
-        "image_shape": [800, 800]
+        "image_shape": [800, 800],
+        "instrument_host_lid": "urn:nasa:pds:context:instrument_host:spacecraft.go",
+        "instrument_lid": "urn:nasa:pds:context:instrument:go.ssi",
+        "start_time_utc": "1990-11-29T22:27:07.068",
+        "midtime_utc": "1990-11-29T22:27:07.071",
+        "end_time_utc": "1990-11-29T22:27:07.074",
+        "start_time_et": -286810315.74894506,
+        "midtime_et": -286810315.74582005,
+        "end_time_et": -286810315.74269503,
+        "exposure_time": 0.00625,
+        "filters": ["GREEN"]
       },
       "navigation_result": {
         "status": "failed",

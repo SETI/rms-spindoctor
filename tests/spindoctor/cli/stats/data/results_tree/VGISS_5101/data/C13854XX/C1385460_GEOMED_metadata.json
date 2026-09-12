@@ -8,6 +8,18 @@
     "image_shape": [
       1024,
       1024
+    ],
+    "instrument_host_lid": "urn:nasa:pds:context:instrument_host:spacecraft.vg1",
+    "instrument_lid": "urn:nasa:pds:context:instrument:vg1.issw",
+    "start_time_utc": "1979-02-01T14:55:49.095",
+    "midtime_utc": "1979-02-01T14:55:49.815",
+    "end_time_utc": "1979-02-01T14:55:50.535",
+    "start_time_et": -659999000.72,
+    "midtime_et": -659999000.0,
+    "end_time_et": -659998999.28,
+    "exposure_time": 1.44,
+    "filters": [
+      "GREEN"
     ]
   },
   "navigation_result": {
