@@ -144,7 +144,7 @@ def test_injected_file_path_template_variables(tmp_path: Path) -> None:
     The image's results path stub names it otherwise than its bundle path stub, so
     a file name taken from the one where the other belongs is seen.
     """
-    env = make_bundle_env(tmp_path, results_path_stub='res/1234567890w_CALIB')
+    env = make_bundle_env(tmp_path, results_path_stub='res/1234567890w_results')
     write_nav_inputs(env)
     _generate(env)
     variables = env.dataset.template_variables
