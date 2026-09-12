@@ -79,9 +79,9 @@ pipeline carried it:
     covers failed navigations too: a failure still records what is known
     about the exposure from the image itself, such as its exposure times and
     filters, and also every technique that ran, the feature inventory, the
-    image classifier, provenance, and (when the attitude could be computed)
-    the ``pointing`` and ``times`` blocks; only the offset and its
-    uncertainty are absent.
+    image classifier, provenance, and the ``pointing`` and ``times`` blocks
+    when the attitude was computed. The offset and its uncertainty are absent
+    on every failed navigation.
 
 **Load error**
     The image file could not be read, or SPICE coverage was missing for its
@@ -268,7 +268,7 @@ shape are recorded once, under the identity keys.
      - string
      - The shutter mode the image was taken in, for an instrument whose
        label carries one. Omitted for an instrument whose labels carry no
-       such field, and on load-error documents.
+       such field, and on load-error and internal-error documents.
    * - ``image_shape``
      - array
      - ``[v, u]`` pixel dimensions of the loaded image data, as two
