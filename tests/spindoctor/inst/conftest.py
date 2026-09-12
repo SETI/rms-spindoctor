@@ -60,7 +60,7 @@ class VicarLabelStandIn(dict[str, Any]):
     way, which a plain dict would not.
     """
 
-    def get(self, key: str, default: Any) -> Any:  # type: ignore[override]  # VicarLabel.get requires the default
+    def get(self, key: str, default: Any) -> Any:  # type: ignore[override]  # default is required
         """Return an item, or the default when the label lacks it.
 
         Parameters:
