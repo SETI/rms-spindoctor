@@ -2,11 +2,13 @@ import math
 
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_GALILEO_SSI_IO_01
+from tests.spindoctor.inst.conftest import VicarLabelStandIn
 
 import spindoctor.obs.obs_inst_galileo_ssi as obstgossi
-from spindoctor.obs.obs_inst_galileo_ssi import ObsGalileoSSI
+from spindoctor.obs.obs_inst_galileo_ssi import ObsGalileoSSI, _published_sclk
 
-pytestmark = REQUIRES_EXTERNAL_DATA
+# The marker is applied per test rather than module-wide: the tests of the star gate and
+# of clock counts fetch nothing, so they run even where the external trees are absent.
 
 # Documented anchor limiting magnitude (limiting mag at texp = 1 s).
 _GALILEO_ANCHOR = 10.3
@@ -24,6 +26,7 @@ def _make_obs(texp: float) -> ObsGalileoSSI:
     return obs
 
 
+@REQUIRES_EXTERNAL_DATA
 def test_galileo_ssi_basic() -> None:
     obs = obstgossi.ObsGalileoSSI.from_file(URL_GALILEO_SSI_IO_01)
     assert obs.midtime == -110923771.01052806
@@ -58,3 +61,18 @@ def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
     """A non-positive exposure falls back to the anchor magnitude."""
     obs = _make_obs(0.0)
     assert obs.star_max_usable_vmag() == pytest.approx(_GALILEO_ANCHOR, abs=1e-6)
+
+
+def test_the_clock_count_is_a_fractional_rim_count_at_the_start_only() -> None:
+    """The label's start count is published in RIM counts, its finer fields a fraction.
+
+    C0360361168R's VICAR label gives its start count as RIM 3603611, MOD91 68, MOD10 2 and
+    MOD8 4.  A Galileo label records no count at the end of the image, so the midtime and
+    end counts are null.
+    """
+    label = VicarLabelStandIn(RIM=3603611, MOD91=68, MOD10=2, MOD8=4)
+    assert _published_sclk(label) == {
+        'start_time_sclk': pytest.approx(3603611 + 68 / 91 + 2 / 910 + 4 / 7280, abs=1e-9),
+        'midtime_sclk': None,
+        'end_time_sclk': None,
+    }

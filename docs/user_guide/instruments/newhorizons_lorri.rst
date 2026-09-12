@@ -186,8 +186,10 @@ a New Horizons LORRI record carries nothing extra. ``filters`` is present and
 filter name to record. This is the only instrument whose ``filters`` list is
 empty rather than carrying one or two entries.
 
-It writes none of the spacecraft-clock fields (``start_time_scet``,
-``midtime_scet``, ``end_time_scet``), and none of ``sampling``, ``gain_mode``,
+It writes the spacecraft-clock fields ``start_time_sclk`` and ``end_time_sclk``
+from the start and stop counts of the PDS3 label beside the image, in seconds of
+the clock with the 1/50000-second ticks as a fraction, and ``midtime_sclk`` as
+their exact mean. It writes none of ``sampling``, ``gain_mode``,
 ``description`` or ``observation_id``. The instrument host LID is
 ``...:instrument_host:spacecraft.nh`` and the instrument LID is
 ``...:instrument:nh.lorri``, with no camera component, since there is one

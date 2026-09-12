@@ -6,11 +6,14 @@ from tests.config import REQUIRES_EXTERNAL_DATA, URL_VOYAGER_ISS_IO_01
 import spindoctor.obs.obs_inst_voyager_iss as obstvgiss
 from spindoctor.obs.obs_inst_voyager_iss import (
     ObsVoyagerISS,
+    _published_sclk,
     _voyager_if_factor,
     _voyager_spacecraft_digit,
 )
 
-pytestmark = REQUIRES_EXTERNAL_DATA
+# The marker is applied per test rather than module-wide: the tests of label strings,
+# clock counts and the star gate fetch nothing, so they run even where the external
+# trees are absent.
 
 # Documented anchor limiting magnitudes (limiting mag at texp = 1 s).
 _VOYAGER_NAC_ANCHOR = 8.3
@@ -37,11 +40,13 @@ _LAB02_V2 = 'VGR-2   FDS 20621.33   PICNO 1326J2-002   SCET 79.189 16:08:47     
 _LABEL3 = 'FOR (I/F)*10000., MULTIPLY DN VALUE BY               1.00000'
 
 
+@REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_basic() -> None:
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
     assert obs.midtime == -646429822.8760977
 
 
+@REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_metadata_spacecraft_lid() -> None:
     """Public metadata derives the instrument-host LID from LAB02."""
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
@@ -140,7 +145,38 @@ def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
     assert obs.star_max_usable_vmag() == pytest.approx(_VOYAGER_NAC_ANCHOR, abs=1e-6)
 
 
+@REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_reports_spacecraft_digit() -> None:
     """The spacecraft digit is read from the image label."""
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
     assert obs.spacecraft_digit == '2'
+
+
+def test_the_clock_counts_are_fractional_fds_counts_and_their_exact_mean() -> None:
+    """The label's counts are published in FDS counts, the finer fields a fraction of one.
+
+    C1480500_GEOMED's exposure crosses an FDS count: its label counts are 14804:59:784 and
+    14805:00:001.  A minor frame is 1/60 of an FDS count, and a line, counted from 1, is
+    1/800 of a minor frame.
+    """
+    start = 14804 + 59 / 60 + (784 - 1) / (60 * 800)
+    end = 14805.0
+    assert _published_sclk('14804:59:784', '14805:00:001') == pytest.approx(
+        {'start_time_sclk': start, 'midtime_sclk': (start + end) / 2, 'end_time_sclk': end},
+        abs=1e-9,
+    )
+
+
+@REQUIRES_EXTERNAL_DATA
+def test_voyager_iss_metadata_clock_counts_are_the_pds3_labels() -> None:
+    """The published clock counts are those of the PDS3 label beside the image.
+
+    The IO test image's PDS3 label gives 20621:32:798 and 20621:33:001; the VICAR label
+    the observation keeps carries neither.
+    """
+    obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
+    meta = obs.get_public_metadata()
+    start = 20621 + 32 / 60 + (798 - 1) / (60 * 800)
+    end = 20621 + 33 / 60
+    counts = [meta[key] for key in ('start_time_sclk', 'midtime_sclk', 'end_time_sclk')]
+    assert counts == pytest.approx([start, (start + end) / 2, end], abs=1e-9)

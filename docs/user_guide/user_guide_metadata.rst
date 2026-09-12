@@ -297,17 +297,24 @@ recorded once, under the identity keys.
      - The same three instants in TDB seconds past J2000, unrounded. When
        the ``times`` block is present, its ``start_et``, ``midtime_et`` and
        ``stop_et`` hold these same values. Every spacecraft instrument.
-   * - ``start_time_scet``, ``midtime_scet``, ``end_time_scet``
-     - string
-     - Cassini ISS only. The spacecraft clock counts at the start, the
-       middle and the end of the exposure, written the way the image label
-       writes them: whole seconds, a period, then three digits counting the
-       clock's ticks of 1/256 second, as in ``"1459229915.075"``. The start
-       and end are the label's own counts; ``midtime_scet`` is the count
-       halfway between them, taken to the whole tick below when halfway
-       falls between two ticks. These are the label's counts, and they can
-       differ by a fraction of a second from the ``times`` block's clock
-       strings, which SPICE computes from the exposure epochs.
+   * - ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk``
+     - number or null
+     - The spacecraft clock counts at the start, the middle and the end of
+       the exposure, as numbers. For Cassini ISS and New Horizons LORRI a
+       count is the clock's seconds, with its ticks as a fraction of a
+       second (ticks of 1/256 second for Cassini, 1/50000 for New
+       Horizons). For Voyager ISS it is a count of the clock's leading
+       field, the FDS count, with the minor frame and the line as a fraction
+       of one; for Galileo SSI, a count of the clock's RIM field, with its
+       three finer fields as a fraction of one. The start and end are the
+       image label's own counts, and ``midtime_sclk`` is exactly halfway
+       between them. A count is null when the label carries none: a Galileo
+       SSI label records only the start count, so its ``midtime_sclk`` and
+       ``end_time_sclk`` are always null, and some early Cassini ISS cruise
+       labels carry no counts at all. These are the label's counts, and they
+       can differ from the ``times`` block's clock strings, which SPICE
+       computes from the exposure epochs. A simulated image records none of
+       them.
    * - ``exposure_time``
      - number
      - Exposure duration in seconds. Every spacecraft instrument.
@@ -979,9 +986,9 @@ form. Of 79 SPICE kernels, three are shown.
         "start_time_et": 309861208.2064568,
         "midtime_et": 309861208.3164568,
         "end_time_et": 309861208.4264568,
-        "start_time_scet": "1635282917.063",
-        "midtime_scet": "1635282917.090",
-        "end_time_scet": "1635282917.118",
+        "start_time_sclk": 1635282917.2460938,
+        "midtime_sclk": 1635282917.3535156,
+        "end_time_sclk": 1635282917.4609375,
         "exposure_time": 0.22,
         "filters": ["CL1", "CL2"],
         "sampling": "FULL",
@@ -1225,6 +1232,9 @@ and are shortened here.
         "start_time_et": -286810315.74894506,
         "midtime_et": -286810315.74582005,
         "end_time_et": -286810315.74269503,
+        "start_time_sclk": 597509.0,
+        "midtime_sclk": null,
+        "end_time_sclk": null,
         "exposure_time": 0.00625,
         "filters": ["GREEN"]
       },

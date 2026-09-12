@@ -6,9 +6,10 @@ from typing import Any
 
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_CASSINI_ISS_RHEA_01
+from tests.spindoctor.inst.conftest import VicarLabelStandIn
 
 import spindoctor.obs.obs_inst_cassini_iss as obstcoiss
-from spindoctor.obs.obs_inst_cassini_iss import ObsCassiniISS
+from spindoctor.obs.obs_inst_cassini_iss import ObsCassiniISS, _published_sclk, _sclk_count
 
 # The marker is applied per test rather than module-wide: the shutter-mode
 # label tests build a bare observation and fetch nothing, so they run even
@@ -87,32 +88,44 @@ def test_shutter_mode_non_text_label_value_is_refused() -> None:
         _ = _obs_with_label({'SHUTTER_MODE_ID': 42}).shutter_mode
 
 
-def test_the_midtime_clock_count_is_halfway_in_whole_ticks_rounded_down() -> None:
-    """The clock counts are published as label text, the midpoint in whole ticks.
+def test_the_clock_counts_are_fractional_seconds_and_their_exact_mean() -> None:
+    """The label's counts are published as clock seconds, the ticks a fraction of one.
 
-    N1459552248_1_CALIB's label counts are 1459552247.012 and 1459552248.137.  Their
-    seconds fields sum to an odd number, so the mean of the two as decimal numbers,
-    1459552247.5745, reads as 574 ticks in a field that holds 256.  Halfway in ticks is
-    202.5 past the start's second, which rounds down to 202.
+    N1459552248_1_CALIB's exposure crosses a second: its label counts, 1459552247.012 and
+    1459552248.137, are 1459552247 + 12/256 and 1459552248 + 137/256 seconds, and the
+    midpoint is exactly halfway between them.
     """
-    obs = _obs_with_label(
-        {
-            'SPACECRAFT_CLOCK_START_COUNT': '1459552247.012',
-            'SPACECRAFT_CLOCK_STOP_COUNT': '1459552248.137',
-        }
-    )
-    obs.detector = 'NAC'
-    obs.image_url = '/holdings/N1459552248_1_CALIB.IMG'
-    obs.abspath = Path('/cache/N1459552248_1_CALIB.IMG')
-    obs.cadence = SimpleNamespace(time=(0.0, 1.5), midtime=0.75)
-    obs.texp = 1.5
+    assert _published_sclk('1459552247.012', '1459552248.137') == {
+        'start_time_sclk': 1459552247.046875,
+        'midtime_sclk': 1459552247.791015625,
+        'end_time_sclk': 1459552248.53515625,
+    }
+
+
+def test_a_tick_field_that_lost_its_trailing_zeros_is_padded_back() -> None:
+    """A count whose tick field lost its trailing zeros is read with them restored.
+
+    The COISS index writes N1347929382_3's start count, 1347929382.110, as 1347929382.11.
+    """
+    assert _sclk_count('1347929382.11') == 1347929382 + 110 / 256
+
+
+def test_a_label_without_clock_counts_publishes_null_counts() -> None:
+    """A label carrying no clock counts publishes all three as null.
+
+    Some early cruise labels, W1294561143_1_CALIB's among them, carry neither
+    SPACECRAFT_CLOCK_START_COUNT nor SPACECRAFT_CLOCK_STOP_COUNT.
+    """
+    obs = _obs_with_label(VicarLabelStandIn())
+    obs.detector = 'WAC'
+    obs.image_url = '/holdings/W1294561143_1_CALIB.IMG'
+    obs.abspath = Path('/cache/W1294561143_1_CALIB.IMG')
+    obs.cadence = SimpleNamespace(time=(0.0, 46.0), midtime=23.0)
+    obs.texp = 46.0
     obs._data_shape_uv = (1024, 1024)
     obs.filter1, obs.filter2 = 'CL1', 'CL2'
     obs.sampling = 'FULL'
     obs.gain_mode = 2
     public = obs.get_public_metadata()
-    assert (public['start_time_scet'], public['midtime_scet'], public['end_time_scet']) == (
-        '1459552247.012',
-        '1459552247.202',
-        '1459552248.137',
-    )
+    counts = [public[key] for key in ('start_time_sclk', 'midtime_sclk', 'end_time_sclk')]
+    assert counts == [None, None, None]

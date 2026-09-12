@@ -203,10 +203,11 @@ midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
 a Cassini ISS record carries:
 
-* ``start_time_scet``, ``midtime_scet``, ``end_time_scet`` -- the start,
-  middle and end of the exposure as spacecraft clock counts, written as text
-  the way the label writes them: the label's own start and end counts, and the
-  count halfway between them. This is the only instrument that records them.
+* ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk`` -- the start,
+  middle and end of the exposure as spacecraft clock counts: the label's own
+  start and end counts, in seconds of the clock with the 1/256-second ticks as
+  a fraction, and their exact mean. All three are null for a label that
+  carries no counts, as some early cruise labels do.
 * ``filters`` -- two entries, the two filter wheels, in that order.
 * ``sampling`` -- the on-chip summing mode.
 * ``gain_mode`` -- the commanded gain state.

@@ -17,6 +17,9 @@
     "start_time_et": -659999000.72,
     "midtime_et": -659999000.0,
     "end_time_et": -659998999.28,
+    "start_time_sclk": 13854.9995,
+    "midtime_sclk": 13854.999749999999,
+    "end_time_sclk": 13855.0,
     "exposure_time": 1.44,
     "filters": [
       "GREEN"

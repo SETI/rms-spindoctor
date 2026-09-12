@@ -37,7 +37,7 @@ from spindoctor.nav_technique.diagnostics import (
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
-from spindoctor.obs.obs_inst_cassini_iss import _sclk_count, _sclk_ticks
+from spindoctor.obs.obs_inst_cassini_iss import _published_sclk
 from spindoctor.support.status_reason import NavStatusReason
 
 from .shared import (
@@ -659,14 +659,13 @@ def _public_metadata(
 ) -> dict[str, Any]:
     """Return what the Cassini ISS host publishes about one image of this run.
 
-    The host publishes the label's start and stop clock counts, and the count
-    halfway between them in whole ticks rounded down, as ``SECONDS.TICKS`` text
-    through its own conversions, which are used here too.  This tree's clock
-    strings are counted from each label's reading at shutter open (see
-    :func:`cassini_sclk_open`), so here the label's counts are the recorded
-    strings without their partition.  On a real image the two can differ by a
-    fraction of a second: the counts are the instrument's own, and the strings are
-    SPICE's conversion of the exposure epochs.
+    The host converts the label's start and stop clock counts to seconds of the
+    clock and publishes them with their exact mean, through its own conversion,
+    which is used here too.  This tree's clock strings are counted from each label's
+    reading at shutter open (see :func:`cassini_sclk_open`), so here the label's
+    counts are the recorded strings without their partition.  On a real image the
+    two can differ: the counts are the instrument's own, and the strings are SPICE's
+    conversion of the exposure epochs.
 
     Parameters:
         result: The image's result, carrying its attitude solution.
@@ -683,17 +682,15 @@ def _public_metadata(
         The published facts, in the host's own key order.
     """
     exposure = recorded_exposure(result)
-    start_ticks = _sclk_ticks(exposure.sclk_start.partition('/')[2])
-    end_ticks = _sclk_ticks(exposure.sclk_stop.partition('/')[2])
     return {
         'image_path': holdings_path(image_name).as_posix(),
         'image_name': image_name,
         'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
         'instrument_lid': f'urn:nasa:pds:context:instrument:iss{camera[0].lower()}a.co',
         **published_times(exposure),
-        'start_time_scet': _sclk_count(start_ticks),
-        'midtime_scet': _sclk_count((start_ticks + end_ticks) // 2),
-        'end_time_scet': _sclk_count(end_ticks),
+        **_published_sclk(
+            exposure.sclk_start.partition('/')[2], exposure.sclk_stop.partition('/')[2]
+        ),
         'image_shape_xy': (image_shape[1], image_shape[0]),
         'camera': camera,
         'exposure_time': exposure.exposure_s,

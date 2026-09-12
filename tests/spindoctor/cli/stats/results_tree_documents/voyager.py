@@ -16,6 +16,7 @@ from spindoctor.nav_orchestrator.ensemble import derive_confidence_rank
 from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.obs.obs_inst_voyager_iss import _published_sclk
 from spindoctor.support.status_reason import NavStatusReason
 
 from .shared import (
@@ -190,6 +191,12 @@ def _public_metadata(
 ) -> dict[str, Any]:
     """Return what the Voyager ISS host publishes about one Voyager 1 image of this run.
 
+    The host converts the PDS3 label's start and stop clock counts to FDS counts and
+    publishes them with their exact mean, through its own conversion, which is used here
+    too.  This tree's clock strings are counted from each label's reading (see
+    :func:`voyager_sclk_open`), so here the label's counts are the recorded strings
+    without their partition.
+
     Parameters:
         result: The image's result, carrying its attitude solution.
         image_name: Basename of the source image.
@@ -207,6 +214,9 @@ def _public_metadata(
         'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.vg1',
         'instrument_lid': f'urn:nasa:pds:context:instrument:vg1.iss{camera[0].lower()}',
         **published_times(exposure),
+        **_published_sclk(
+            exposure.sclk_start.partition('/')[2], exposure.sclk_stop.partition('/')[2]
+        ),
         'image_shape_xy': (image_shape[1], image_shape[0]),
         'camera': camera,
         'exposure_time': exposure.exposure_s,

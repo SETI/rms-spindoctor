@@ -162,8 +162,11 @@ midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
 a Galileo SSI record carries one filter entry in ``filters``.
 
-It writes none of the spacecraft-clock fields (``start_time_scet``,
-``midtime_scet``, ``end_time_scet``), and none of ``sampling``, ``gain_mode``,
+It writes ``start_time_sclk``, the label's spacecraft clock count at the start
+of the image, as a count of the clock's leading field, the RIM count, with its
+three finer fields as a fraction of one. ``midtime_sclk`` and
+``end_time_sclk`` are always null, because a Galileo SSI label records no count
+at the end of the image. It writes none of ``sampling``, ``gain_mode``,
 ``description`` or ``observation_id``. The instrument host LID is
 ``...:instrument_host:spacecraft.go`` and the instrument LID is
 ``...:instrument:go.ssi``, with no camera component, since there is one camera.

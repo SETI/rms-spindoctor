@@ -67,9 +67,12 @@ the per-image document beside an ``observation`` block. That block holds the ima
 identity -- its path, name, registered instrument, camera, shutter mode and image shape
 -- followed by everything the observation's instrument host publishes through
 :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata`: the exposure's start,
-midtime and end in UTC and ET (with the label's spacecraft clock counts for Cassini ISS),
-the exposure time, the filters, the PDS4 context identifiers, and each host's own
-descriptive facts. A published key the block already holds keeps the block's value, and
+midtime and end in UTC and ET and as the label's spacecraft clock counts, the exposure
+time, the filters, the PDS4 context identifiers, and each host's own descriptive facts.
+Each spacecraft host parses its own clock's label format and converts a count to a
+number with its clock's moduli and offsets through
+:func:`~spindoctor.support.sclk.fractional_count`; the midtime count is the exact mean
+of the start and end counts, and a count the label does not carry is None. A published key the block already holds keeps the block's value, and
 ``image_shape_xy`` is left out because it is ``image_shape`` in the other axis order.
 Both drivers that write a navigated document -- the autonomous pipeline and the
 ``sd_offset --manual`` pass -- supply the published facts, so they are recorded for every

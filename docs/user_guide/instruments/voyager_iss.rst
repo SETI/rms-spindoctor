@@ -215,9 +215,11 @@ midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
 a Voyager ISS record carries one filter entry in ``filters``.
 
-It writes none of the spacecraft-clock fields (``start_time_scet``,
-``midtime_scet``, ``end_time_scet``), and none of ``sampling``, ``gain_mode``,
-``description`` or ``observation_id``.
+It writes the spacecraft-clock fields ``start_time_sclk`` and ``end_time_sclk``
+from the start and stop counts of the PDS3 label beside the image, as counts of
+the clock's leading field, the FDS count, with the minor frame and the line as
+a fraction of one, and ``midtime_sclk`` as their exact mean. It writes none of
+``sampling``, ``gain_mode``, ``description`` or ``observation_id``.
 
 The two LIDs vary by spacecraft and camera, and are the one place the metadata
 distinguishes the two spacecraft. The instrument host LID is

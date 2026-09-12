@@ -18,9 +18,9 @@
     "start_time_et": 170000799.77,
     "midtime_et": 170000800.0,
     "end_time_et": 170000800.23,
-    "start_time_scet": "1294562000.055",
-    "midtime_scet": "1294562000.114",
-    "end_time_scet": "1294562000.173",
+    "start_time_sclk": 1294562000.2148438,
+    "midtime_sclk": 1294562000.4453125,
+    "end_time_sclk": 1294562000.6757812,
     "exposure_time": 0.46,
     "filters": [
       "CL1",

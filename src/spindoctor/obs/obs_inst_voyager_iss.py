@@ -5,10 +5,54 @@ import numpy as np
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
+from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_label_clock_counts
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import ObsSnapshotInst
+
+# SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
+# kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both
+# clocks the same fields: the FDS count, then its 60 minor frames, then a minor frame's
+# 800 lines, the line counted from 1.
+_SCLK_MODULI = (65536, 60, 800)
+_SCLK_OFFSETS = (0, 0, 1)
+
+
+def _sclk_count(count: str) -> float:
+    """Return a Voyager spacecraft clock count as a number of FDS counts.
+
+    A count is ``FDS:MINOR:LINE``, after an optional partition and ``/``, so
+    ``34461:39:672`` is ``34461 + 39 / 60 + (672 - 1) / (60 * 800)``.
+
+    Parameters:
+        count: The count as text.
+
+    Returns:
+        The count in FDS counts, with the minor frame and the line as a fraction of one.
+    """
+    _, _, reading = count.strip().rpartition('/')
+    return fractional_count(
+        tuple(int(field) for field in reading.split(':')), _SCLK_MODULI, _SCLK_OFFSETS
+    )
+
+
+def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | None]:
+    """Return the spacecraft clock counts Voyager ISS publishes for one exposure.
+
+    Parameters:
+        start: The label's ``SPACECRAFT_CLOCK_START_COUNT``, or None when it carries none.
+        stop: The label's ``SPACECRAFT_CLOCK_STOP_COUNT``, or None when it carries none.
+
+    Returns:
+        ``start_time_sclk`` and ``end_time_sclk``, the two counts in FDS counts, and
+        ``midtime_sclk``, their exact mean; a count the label does not carry is None, and
+        so is the mean when either count is.
+    """
+    return exposure_counts(
+        None if start is None else _sclk_count(start), None if stop is None else _sclk_count(stop)
+    )
+
 
 # The Voyager 1 SEDR/PDS3 calibration pipeline always computed I/F as if the
 # image had been taken at Jupiter's heliocentric distance, so V1 @ Saturn
@@ -137,6 +181,9 @@ class ObsVoyagerISS(ObsSnapshotInst):
 
         new_obs = ObsVoyagerISS(obs, config=config, extfov_margin_vu=extfov_margin_vu)
         new_obs._inst_config = inst_config
+        # The spacecraft clock counts are in the PDS3 label, which the VICAR label the
+        # observation keeps does not carry.
+        new_obs._label_clock_counts = pds3_label_clock_counts(fc_path)
         return new_obs
 
     def star_min_usable_vmag(self) -> float:
@@ -212,12 +259,12 @@ class ObsVoyagerISS(ObsSnapshotInst):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for Voyager ISS.
 
+        The spacecraft clock counts are those of the PDS3 label beside the image, read when
+        the image was loaded, in FDS counts; each is None when the label carries none.
+
         Returns:
             A dictionary containing the public metadata for Voyager ISS.
         """
-
-        # scet_start = float(obs.dict["SPACECRAFT_CLOCK_START_COUNT"])
-        # scet_end = float(obs.dict["SPACECRAFT_CLOCK_STOP_COUNT"])
 
         spacecraft = self.spacecraft_digit
 
@@ -244,9 +291,7 @@ class ObsVoyagerISS(ObsSnapshotInst):
             'start_time_et': self.time[0],
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
-            # 'start_time_scet': scet_start,
-            # 'midtime_scet': (scet_start + scet_end) / 2,
-            # 'end_time_scet': scet_end,
+            **_published_sclk(*self._label_clock_counts),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,
