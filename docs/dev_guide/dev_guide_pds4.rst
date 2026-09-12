@@ -419,7 +419,8 @@ an array, into ``File_Area_Observational`` after the ``File``; a second ``$FOR``
 over its ``arrays`` writes one ``disp:Display_Settings`` per array into the
 ``Discipline_Area``, each referring to its array's identifier.  The fixed PDS4
 values -- the ``FITS 3.0`` parsing standard, ``Last Index Fastest``, two axes named
-``Line`` and ``Sample`` -- are literals in the template; everything that depends on
+``Line`` and ``Sample``, and a display with ``Sample`` running left to right and
+``Line`` top to bottom -- are literals in the template; everything that depends on
 the file comes from the descriptor, so a plane the writer dropped is not described
 and a frame with no ring backplanes has no ring arrays.  The same label describes
 the supplemental file as a ``Stream_Text`` over its whole length, ``7-Bit ASCII

@@ -234,18 +234,13 @@ For each image, the labels pass generates:
   backplane FITS file beside it, generated from dataset-specific templates.
 
 * **Backplane FITS File** (``<image_name>_backplanes.fits``): a byte-for-byte copy of
-  the image's backplane FITS from the backplane results root, so that the file the
-  label describes, and whose size, checksum and time it states, is the one in the
-  bundle.
+  the image's backplane FITS from the backplane results root.
 
 * **Supplemental File** (``<image_name>_supplemental.txt``): JSON file containing combined
   navigation and backplane metadata, including:
 
   * Navigation metadata (offset, uncertainty, confidence, etc.)
   * Backplane metadata (min/max statistics per body and ring, inventory information)
-
-  The data label describes it as one stream of 7-bit ASCII text with line-feed
-  line endings, which is how it is written.
 
 * **Browse Label File** (``<image_name>_summary.lblx``): XML label file describing the
   browse image, generated from dataset-specific templates.
@@ -257,29 +252,10 @@ Browse products are not optional. Both are written for every image the pass
 labels, and an image whose summary PNG is missing from the navigation results is
 failed rather than bundled without them.
 
-The data label describes every HDU of the FITS beside it, in the order the file
-holds them. The description is read from the source FITS before anything is
-written for the image, and the copy is the same bytes. Each HDU's header is a ``Header`` at
-its byte offset, stating its length and the ``FITS 3.0`` parsing standard. Each
-image HDU after the empty primary is an ``Array_2D_Image`` at the byte offset of
-its data, identified by its HDU name in lower case (``body_id_map``,
-``body_latitude``, ``ring_radius`` and so on), with a ``Line`` axis of the HDU's
-``NAXIS2`` elements and a ``Sample`` axis of its ``NAXIS1``, an element type of
-``IEEE754MSBSingle`` for a float plane and ``SignedMSB4`` for the body identity map,
-and the HDU's ``BUNIT`` as its unit: ``rad`` for an angular plane, because the
-arrays are in radians. Only the planes the FITS holds are described, so the label
-of a frame with no ring backplanes describes no ring arrays.
-
-Each float plane declares its masked value -- the configuration's
-``backplanes.masked_value``, ``-999.0`` as shipped -- as the ``missing_constant`` of
-its ``Special_Constants``, so a reader masks a plane on what its label says rather
-than on a convention. ``BODY_ID_MAP`` declares none: its ``0`` marks a pixel no
-body claimed and every other value is the NAIF ID of the body that did, which is
-what its ``description`` says. Every float plane's ``description`` says what it
-holds: the plane, the ``oops`` backplane method it came from, its unit, and that a
-pixel the plane does not cover holds the missing constant. Each array has display
-settings of its own, laying it out with ``Sample`` running left to right across
-the display and ``Line`` top to bottom down it.
+The data label describes each HDU of the FITS beside it, and each image HDU's array:
+its name, its size in lines and samples, its element type and its unit. Each float
+array declares the masked value (``backplanes.masked_value``, ``-999.0`` as shipped)
+as its missing constant.
 
 Each data label states when its image's exposure began and ended, in its
 ``Time_Coordinates``: the start and stop in UTC, to the millisecond, as in
