@@ -299,22 +299,34 @@ recorded once, under the identity keys.
        ``stop_et`` hold these same values. Every spacecraft instrument.
    * - ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk``
      - number or null
-     - The spacecraft clock counts at the start, the middle and the end of
-       the exposure, as numbers. For Cassini ISS and New Horizons LORRI a
-       count is the clock's seconds, with its ticks as a fraction of a
-       second (ticks of 1/256 second for Cassini, 1/50000 for New
-       Horizons). For Voyager ISS it is a count of the clock's leading
-       field, the FDS count, with the minor frame and the line as a fraction
-       of one; for Galileo SSI, a count of the clock's RIM field, with its
-       three finer fields as a fraction of one. The start and end are the
-       image label's own counts, and ``midtime_sclk`` is exactly halfway
-       between them. A count is null when the label carries none: a Galileo
-       SSI label records only the start count, so its ``midtime_sclk`` and
-       ``end_time_sclk`` are always null, and some early Cassini ISS cruise
-       labels carry no counts at all. These are the label's counts, and they
-       can differ from the ``times`` block's clock strings, which SPICE
-       computes from the exposure epochs. A simulated image records none of
-       them.
+     - The spacecraft clock counts the image label records, as numbers:
+       ``start_time_sclk`` and ``end_time_sclk`` are the label's start and
+       stop counts, and ``midtime_sclk`` is the count exactly halfway
+       between them, given only where the two counts bracket the exposure.
+       What the counts mark, and their unit, depend on the instrument:
+
+       * Cassini ISS: the start and the end of the exposure, in seconds of
+         the clock, with its ticks of 1/256 second as a fraction.
+       * New Horizons LORRI: the start and the end of the exposure, in
+         seconds of the clock, with its ticks of 1/50000 second as a
+         fraction.
+       * Voyager ISS: a start count near the shutter opening, and the count
+         of the frame the image was read out in, which can come minutes
+         after the shutter closed, so ``midtime_sclk`` is null. The unit is
+         the clock's leading field, the first five digits of the image
+         number, one of which is 48 minutes: 60 frames of 48 seconds, each
+         800 lines of 60 milliseconds. The frame and the line are a fraction
+         of it.
+       * Galileo SSI: the image's frame count, which comes a few seconds
+         before the exposure, in counts of the clock's RIM field with its
+         three finer fields as a fraction. The label records no stop count,
+         so ``midtime_sclk`` and ``end_time_sclk`` are null.
+
+       A count is null when the label carries none, and a simulated image
+       records none. The ``times`` block's clock strings are computed from
+       the exposure times, so they can differ from these counts: by a
+       fraction of a second for Cassini ISS and New Horizons LORRI, and by
+       seconds to minutes for Galileo SSI and Voyager ISS.
    * - ``exposure_time``
      - number
      - Exposure duration in seconds. Every spacecraft instrument.

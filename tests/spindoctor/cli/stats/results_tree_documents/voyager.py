@@ -121,6 +121,8 @@ def voyager_ring_edges() -> dict[str, Any]:
             camera='NAC',
             image_shape=(800, 800),
             filter_name='CLEAR',
+            # The counts of the real C1385455_GEOMED label, in VGISS_5101.
+            label_counts=('13854:54:794', '13854:55:001'),
         ),
         start=datetime(2026, 8, 8, 16, 47, 33, 799265, tzinfo=UTC),
         elapsed_s=12.5,
@@ -174,6 +176,10 @@ def voyager_no_features() -> dict[str, Any]:
             camera='WAC',
             image_shape=(1024, 1024),
             filter_name='GREEN',
+            # No archive label has this image number, so the counts are made up in the
+            # real form: the stop count is the readout frame's, at line 001, and the start
+            # count lies one 1.44 s exposure before that frame.
+            label_counts=('13854:59:777', '13855:00:001'),
         ),
         start=datetime(2026, 8, 8, 16, 47, 46, 612907, tzinfo=UTC),
         elapsed_s=8.25,
@@ -188,14 +194,16 @@ def _public_metadata(
     camera: str,
     image_shape: tuple[int, int],
     filter_name: str,
+    label_counts: tuple[str, str],
 ) -> dict[str, Any]:
     """Return what the Voyager ISS host publishes about one Voyager 1 image of this run.
 
-    The host converts the PDS3 label's start and stop clock counts to FDS counts and
-    publishes them with their exact mean, through its own conversion, which is used here
-    too.  This tree's clock strings are counted from each label's reading (see
-    :func:`voyager_sclk_open`), so here the label's counts are the recorded strings
-    without their partition.
+    The host publishes the PDS3 label's start and stop clock counts through its own
+    conversion, which is used here too, and no midtime count, since a Voyager label's stop
+    count is that of the frame the image was read out in.  The counts are given in the
+    label's own form rather than taken from the attitude block's clock strings: those are
+    SPICE's readings at the exposure epochs, and would bracket the exposure where a real
+    label's counts do not.
 
     Parameters:
         result: The image's result, carrying its attitude solution.
@@ -203,6 +211,8 @@ def _public_metadata(
         camera: ``NAC`` or ``WAC``.
         image_shape: The loaded image's ``(v, u)`` pixel dimensions.
         filter_name: The filter the label records.
+        label_counts: The label's ``SPACECRAFT_CLOCK_START_COUNT`` and
+            ``SPACECRAFT_CLOCK_STOP_COUNT``.
 
     Returns:
         The published facts, in the host's own key order.
@@ -214,9 +224,7 @@ def _public_metadata(
         'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.vg1',
         'instrument_lid': f'urn:nasa:pds:context:instrument:vg1.iss{camera[0].lower()}',
         **published_times(exposure),
-        **_published_sclk(
-            exposure.sclk_start.partition('/')[2], exposure.sclk_stop.partition('/')[2]
-        ),
+        **_published_sclk(*label_counts),
         'image_shape_xy': (image_shape[1], image_shape[0]),
         'camera': camera,
         'exposure_time': exposure.exposure_s,

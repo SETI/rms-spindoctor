@@ -205,9 +205,9 @@ a Cassini ISS record carries:
 
 * ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk`` -- the start,
   middle and end of the exposure as spacecraft clock counts: the label's own
-  start and end counts, in seconds of the clock with the 1/256-second ticks as
-  a fraction, and their exact mean. All three are null for a label that
-  carries no counts, as some early cruise labels do.
+  start and stop counts, which mark the start and the end of the exposure, in
+  seconds of the clock with the 1/256-second ticks as a fraction, and the
+  count exactly halfway between them.
 * ``filters`` -- two entries, the two filter wheels, in that order.
 * ``sampling`` -- the on-chip summing mode.
 * ``gain_mode`` -- the commanded gain state.

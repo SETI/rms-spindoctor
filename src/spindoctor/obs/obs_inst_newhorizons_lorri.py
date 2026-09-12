@@ -39,17 +39,22 @@ def _sclk_count(count: str) -> float:
 def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | None]:
     """Return the spacecraft clock counts New Horizons LORRI publishes for one exposure.
 
+    A LORRI label's two counts mark the start and the end of the exposure, so the count
+    halfway between them is its middle.
+
     Parameters:
         start: The label's ``SPACECRAFT_CLOCK_START_COUNT``, or None when it carries none.
         stop: The label's ``SPACECRAFT_CLOCK_STOP_COUNT``, or None when it carries none.
 
     Returns:
-        ``start_time_sclk`` and ``end_time_sclk``, the two counts in seconds of the clock,
-        and ``midtime_sclk``, their exact mean; a count the label does not carry is None,
-        and so is the mean when either count is.
+        ``start_time_sclk`` and ``end_time_sclk``, the two counts in seconds of the
+        clock, and ``midtime_sclk``, their exact mean; a count the label does not carry
+        is None, and so is the mean when either count is.
     """
     return exposure_counts(
-        None if start is None else _sclk_count(start), None if stop is None else _sclk_count(stop)
+        None if start is None else _sclk_count(start),
+        None if stop is None else _sclk_count(stop),
+        bracketed=True,
     )
 
 
@@ -169,9 +174,9 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for New Horizons LORRI.
 
-        The spacecraft clock counts are those of the PDS3 label beside the image, read when
-        the image was loaded, in seconds of the clock; each is None when the label carries
-        none.
+        The spacecraft clock counts are those of the PDS3 label beside the image, read
+        when the image was loaded, in seconds of the clock; each is None when the label
+        carries none.
 
         Returns:
             A dictionary containing the public metadata for New Horizons LORRI.

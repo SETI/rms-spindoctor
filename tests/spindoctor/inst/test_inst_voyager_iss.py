@@ -152,19 +152,20 @@ def test_voyager_iss_reports_spacecraft_digit() -> None:
     assert obs.spacecraft_digit == '2'
 
 
-def test_the_clock_counts_are_fractional_fds_counts_and_their_exact_mean() -> None:
-    """The label's counts are published in FDS counts, the finer fields a fraction of one.
+def test_the_clock_counts_are_fractional_leading_units_with_no_midtime() -> None:
+    """The label's counts are published in the clock's leading units, with no midtime.
 
-    C1480500_GEOMED's exposure crosses an FDS count: its label counts are 14804:59:784 and
-    14805:00:001.  A minor frame is 1/60 of an FDS count, and a line, counted from 1, is
-    1/800 of a minor frame.
+    C1480500_GEOMED's label counts, 14804:59:784 and 14805:00:001, cross a leading unit.
+    A frame is 1/60 of a leading unit, and a line, counted from 1, is 1/800 of a frame.
+    The stop count is the readout frame's, so the two do not bracket the exposure.
     """
-    start = 14804 + 59 / 60 + (784 - 1) / (60 * 800)
-    end = 14805.0
-    assert _published_sclk('14804:59:784', '14805:00:001') == pytest.approx(
-        {'start_time_sclk': start, 'midtime_sclk': (start + end) / 2, 'end_time_sclk': end},
-        abs=1e-9,
-    )
+    counts = _published_sclk('14804:59:784', '14805:00:001')
+    published = [counts[key] for key in ('start_time_sclk', 'midtime_sclk', 'end_time_sclk')]
+    assert published == [
+        pytest.approx(14804 + 59 / 60 + (784 - 1) / (60 * 800), abs=1e-9),
+        None,
+        pytest.approx(14805.0, abs=1e-9),
+    ]
 
 
 @REQUIRES_EXTERNAL_DATA
@@ -176,7 +177,9 @@ def test_voyager_iss_metadata_clock_counts_are_the_pds3_labels() -> None:
     """
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
     meta = obs.get_public_metadata()
-    start = 20621 + 32 / 60 + (798 - 1) / (60 * 800)
-    end = 20621 + 33 / 60
     counts = [meta[key] for key in ('start_time_sclk', 'midtime_sclk', 'end_time_sclk')]
-    assert counts == pytest.approx([start, (start + end) / 2, end], abs=1e-9)
+    assert counts == [
+        pytest.approx(20621 + 32 / 60 + (798 - 1) / (60 * 800), abs=1e-9),
+        None,
+        pytest.approx(20621 + 33 / 60, abs=1e-9),
+    ]

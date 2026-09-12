@@ -13,23 +13,26 @@ from .obs_snapshot_inst import ObsSnapshotInst
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
 # kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both
-# clocks the same fields: the FDS count, then its 60 minor frames, then a minor frame's
-# 800 lines, the line counted from 1.
+# clocks the same three fields: a leading count of 48-minute units, the first five digits
+# of an image number; the 60 frames of 48 seconds in one of them; and the 800 lines of
+# 60 milliseconds in a frame, counted from 1.
 _SCLK_MODULI = (65536, 60, 800)
 _SCLK_OFFSETS = (0, 0, 1)
 
 
 def _sclk_count(count: str) -> float:
-    """Return a Voyager spacecraft clock count as a number of FDS counts.
+    """Return a Voyager spacecraft clock count as a number of the clock's leading units.
 
-    A count is ``FDS:MINOR:LINE``, after an optional partition and ``/``, so
+    A count is ``LEADING:FRAME:LINE``, after an optional partition and ``/``: the leading
+    field counts 48-minute units, the frame field the 60 frames of 48 seconds in one, and
+    the line field the 800 lines of 60 milliseconds in a frame, counted from 1.  So
     ``34461:39:672`` is ``34461 + 39 / 60 + (672 - 1) / (60 * 800)``.
 
     Parameters:
         count: The count as text.
 
     Returns:
-        The count in FDS counts, with the minor frame and the line as a fraction of one.
+        The count in the clock's leading units, the frame and line as a fraction of one.
     """
     _, _, reading = count.strip().rpartition('/')
     return fractional_count(
@@ -38,19 +41,26 @@ def _sclk_count(count: str) -> float:
 
 
 def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | None]:
-    """Return the spacecraft clock counts Voyager ISS publishes for one exposure.
+    """Return the spacecraft clock counts Voyager ISS publishes for one image.
+
+    A Voyager label's start count lies near the shutter opening, but its stop count is
+    the count of the frame the image was read out in, with the line field 001, which can
+    come minutes after the shutter closed.  The two do not bracket the exposure, so no
+    midtime count is published.
 
     Parameters:
         start: The label's ``SPACECRAFT_CLOCK_START_COUNT``, or None when it carries none.
         stop: The label's ``SPACECRAFT_CLOCK_STOP_COUNT``, or None when it carries none.
 
     Returns:
-        ``start_time_sclk`` and ``end_time_sclk``, the two counts in FDS counts, and
-        ``midtime_sclk``, their exact mean; a count the label does not carry is None, and
-        so is the mean when either count is.
+        ``start_time_sclk`` and ``end_time_sclk``, the two counts in the clock's leading
+        units, each None when the label does not carry it, and ``midtime_sclk``, always
+        None.
     """
     return exposure_counts(
-        None if start is None else _sclk_count(start), None if stop is None else _sclk_count(stop)
+        None if start is None else _sclk_count(start),
+        None if stop is None else _sclk_count(stop),
+        bracketed=False,
     )
 
 
@@ -259,8 +269,9 @@ class ObsVoyagerISS(ObsSnapshotInst):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for Voyager ISS.
 
-        The spacecraft clock counts are those of the PDS3 label beside the image, read when
-        the image was loaded, in FDS counts; each is None when the label carries none.
+        The spacecraft clock counts are those of the PDS3 label beside the image, read
+        when the image was loaded, in the clock's leading units; each is None when the
+        label carries none, and the midtime count is always None.
 
         Returns:
             A dictionary containing the public metadata for Voyager ISS.

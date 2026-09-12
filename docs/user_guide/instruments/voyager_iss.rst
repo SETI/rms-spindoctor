@@ -216,10 +216,16 @@ the camera, the exposure time and the instrument host and instrument LIDs --
 a Voyager ISS record carries one filter entry in ``filters``.
 
 It writes the spacecraft-clock fields ``start_time_sclk`` and ``end_time_sclk``
-from the start and stop counts of the PDS3 label beside the image, as counts of
-the clock's leading field, the FDS count, with the minor frame and the line as
-a fraction of one, and ``midtime_sclk`` as their exact mean. It writes none of
-``sampling``, ``gain_mode``, ``description`` or ``observation_id``.
+from the start and stop counts of the PDS3 label beside the image. The start
+count lies near the shutter opening, but the stop count is the count of the
+frame the image was read out in, which can come minutes after the shutter
+closed. The two do not bracket the exposure, so ``midtime_sclk`` is null. Both
+are counts of the clock's leading field, the first five digits of the image
+number: one unit is 48 minutes, 60 frames of 48 seconds, each 800 lines of 60
+milliseconds, and the frame and the line are a fraction of it. The ``times``
+block's clock strings are computed from the exposure times and can differ from
+these counts by minutes. It writes none of ``sampling``, ``gain_mode``,
+``description`` or ``observation_id``.
 
 The two LIDs vary by spacecraft and camera, and are the one place the metadata
 distinguishes the two spacecraft. The instrument host LID is

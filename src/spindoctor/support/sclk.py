@@ -61,20 +61,23 @@ def fractional_count(fields: Sequence[int], moduli: Sequence[int], offsets: Sequ
     return ticks / scale
 
 
-def exposure_counts(start: float | None, end: float | None) -> dict[str, float | None]:
-    """Return the spacecraft clock counts a host publishes for one exposure.
+def exposure_counts(
+    start: float | None, end: float | None, *, bracketed: bool
+) -> dict[str, float | None]:
+    """Return the spacecraft clock counts a host publishes for one image.
 
     Parameters:
-        start: The clock count at the start of the exposure, or None when the label
-            carries none.
-        end: The clock count at the end of the exposure, or None when the label carries
-            none.
+        start: The label's start count, or None when the label carries none.
+        end: The label's stop count, or None when the label carries none.
+        bracketed: Whether the two counts bracket the exposure, so that the count halfway
+            between them is the middle of the exposure.
 
     Returns:
         ``start_time_sclk`` and ``end_time_sclk``, the two counts as given, and
-        ``midtime_sclk``, their exact mean, which is None when either count is.
+        ``midtime_sclk``, their exact mean.  The mean is None when the counts do not
+        bracket the exposure, or when either count is None.
     """
-    midtime = None if start is None or end is None else (start + end) / 2
+    midtime = None if not bracketed or start is None or end is None else (start + end) / 2
     return {'start_time_sclk': start, 'midtime_sclk': midtime, 'end_time_sclk': end}
 
 
