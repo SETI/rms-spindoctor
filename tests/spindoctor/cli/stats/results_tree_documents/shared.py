@@ -16,10 +16,10 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import numpy as np
+from filecache import FCPath
 
 from spindoctor.feature.feature import NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
@@ -548,7 +548,7 @@ def _exposure_span(midtime_et: float, exposure_s: float) -> tuple[float, float, 
     return midtime_et - exposure_s / 2.0, midtime_et, midtime_et + exposure_s / 2.0
 
 
-def holdings_path(image_name: str) -> Path:
+def holdings_path(image_name: str) -> FCPath:
     """Return where the run read one image from.
 
     Parameters:
@@ -557,7 +557,7 @@ def holdings_path(image_name: str) -> Path:
     Returns:
         Its path under the holdings root the run was given.
     """
-    return Path('/holdings') / image_name
+    return FCPath('/holdings') / image_name
 
 
 def navigated(
