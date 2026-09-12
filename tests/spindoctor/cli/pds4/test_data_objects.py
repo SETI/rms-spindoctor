@@ -38,7 +38,7 @@ def _write_backplane_like(path: Path) -> None:
         path: Where the FITS goes.
     """
     body_id_map = np.zeros((3, 5), dtype=np.int32)
-    body_id_map[1:, 2:4] = 602
+    body_id_map[1:, 2:4] = 1
     latitude = fits.ImageHDU(
         data=np.arange(15, dtype=np.float32).reshape(3, 5), name='BODY_LATITUDE'
     )

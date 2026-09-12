@@ -175,8 +175,9 @@ def _missing_constant(masked_value: float) -> str:
         masked_value: The configuration's masked value.
 
     Returns:
-        The shortest decimal spelling of the 32-bit float every masked pixel of a
-        float plane holds.
+        The value every masked pixel of a float plane holds, as a 32-bit float,
+        spelled as the shortest decimal that reads back as that value when parsed
+        as a 64-bit float, so a reader comparing in either precision finds it.
     """
     return repr(float(np.float32(masked_value)))
 

@@ -480,7 +480,7 @@ def test_dataset_without_pds4_support_raises(tmp_path: Path) -> None:
 
 
 def test_backplane_fits_copied_into_bundle_data_tree(tmp_path: Path) -> None:
-    """The backplane FITS is copied into the bundle beside its data label, byte for byte."""
+    """The backplane FITS is copied beside its data label, byte for byte."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     fits_source = env.backplane_root / f'{env.results_path_stub}_backplanes.fits'

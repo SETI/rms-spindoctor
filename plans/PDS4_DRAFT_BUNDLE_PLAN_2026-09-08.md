@@ -387,13 +387,9 @@ plane's name, the `oops` backplane method the configuration names for it, its
 unit, and a sentence saying that a pixel the plane does not cover holds the
 `missing_constant` value -- nothing about the geometry the method computes.
 
-The builder describes what `write_fits` writes and refuses nothing. The FITS
-and both metadata documents are written by this repository's own programs,
-one after another, by one operator, so a file cut short, corrupt, rewritten
-during a run or in a layout the writer does not produce is not a case the
-labels pass defends against (the operator's ruling on the Phase 4 re-review);
-the cohort tests, which run the real writer and hold every stated offset to
-the file's bytes, catch a change to the writer. `BITPIX` is mapped to its PDS4
+The builder describes what `write_fits` writes and refuses nothing; the
+cohort tests, which run the real writer and hold every stated offset to the
+file's bytes, catch a change to the writer. `BITPIX` is mapped to its PDS4
 data type by a plain lookup.
 
 `Array_2D_Image` rather than the generic `Array_2D`, and `Line`/`Sample`
@@ -1088,8 +1084,9 @@ Six places where this plan deliberately does **not** follow the reference:
   Top to Bottom and `Sample` Left to Right in
   `urn:nasa:pds:cassini_iss_saturn:data_raw:1454725799n`. Decided on that
   evidence; the data label states Top to Bottom.
-- The missing constant is written `-999.0`, the shortest decimal spelling of
-  the 32-bit float every masked pixel holds; the reference writes `-999` for
+- The missing constant is written `-999.0`: the value every masked pixel
+  holds, as the shortest decimal that reads back as that value when parsed as
+  a 64-bit float, so a reader comparing in either precision finds it; the reference writes `-999` for
   its float array. They are the same number.
 - Every `Header` carries a `<name>`, the HDU's `EXTNAME` (`PRIMARY` for the
   first), which is the optional first child the schema gives a `Header`, so

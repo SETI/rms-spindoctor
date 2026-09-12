@@ -402,8 +402,9 @@ element type comes from its ``BITPIX`` through
 big-endian), its unit is its ``BUNIT`` when it has one, its ``Line`` and ``Sample``
 extents are ``NAXIS2`` and ``NAXIS1``, and its local identifier is its HDU name in
 lower case.  A float array's missing constant is the configuration's
-``backplanes.masked_value``, spelled as the shortest decimal that reads back as the
-32-bit float the plane holds.  The body identity map declares no missing constant and carries
+``backplanes.masked_value`` as the 32-bit float the plane holds, spelled as the
+shortest decimal that reads back as that value when parsed as a 64-bit float, so a
+reader comparing in either precision finds it.  The body identity map declares no missing constant and carries
 :data:`~spindoctor.cli.pds4.data_objects.BODY_ID_MAP_DESCRIPTION` instead: its
 ``0`` is a pixel no body claimed, not a missing measurement.  The map is found by
 :data:`~spindoctor.cli.backplanes.writer.BODY_ID_MAP_HDU_NAME`, the name the

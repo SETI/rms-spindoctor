@@ -622,7 +622,7 @@ def test_a_cohort_data_label_declares_the_masked_value_its_float_arrays_hold(
 def test_only_the_ring_image_s_data_label_describes_ring_arrays(
     cassini_cohort: Cohort, tmp_path: Path, stub: str, image_name: str, has_rings: bool
 ) -> None:
-    """The ring image's label has an array per configured ring plane, the limb image's none.
+    """The ring image's label has one array per configured ring plane, the limb's none.
 
     Parameters:
         cassini_cohort: The session's Cassini ISS Saturn cohort.

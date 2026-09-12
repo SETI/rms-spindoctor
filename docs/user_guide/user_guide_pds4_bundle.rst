@@ -253,9 +253,9 @@ labels, and an image whose summary PNG is missing from the navigation results is
 failed rather than bundled without them.
 
 The data label describes each HDU of the FITS beside it, and each image HDU's array:
-its name, its size in lines and samples, its element type and its unit. Each float
-array declares the masked value (``backplanes.masked_value``, ``-999.0`` as shipped)
-as its missing constant.
+its name, its size in lines and samples, its element type and, where it has one,
+its unit. Each float array declares the masked value (``backplanes.masked_value``,
+``-999.0`` as shipped) as its missing constant.
 
 Each data label states when its image's exposure began and ended, in its
 ``Time_Coordinates``: the start and stop in UTC, to the millisecond, as in
