@@ -1,9 +1,13 @@
-"""Tests that a navigation document records what the observation's host publishes.
+"""Tests that a navigation document records the facts the observation's host publishes.
 
-``build_metadata_from_result`` writes the facts an instrument host publishes through
-``ObsInst.get_public_metadata`` into the document's ``observation`` block, after the
-image's identity, and ``navigate_image_files`` supplies them for every image that
-loaded, whatever became of its navigation.
+:func:`~spindoctor.navigate_image_files.build_metadata_from_result` writes the facts a host
+publishes through :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata` into the
+document's ``observation`` block, after the image's identity, and
+:func:`~spindoctor.navigate_image_files.navigate_image_files` supplies them for every image
+whose navigation ran to a result, successful or failed.  A load-error or internal-error
+document carries none of them.
+
+The writer treats every host alike, so the host here is a made-up one.
 """
 
 from pathlib import Path
@@ -19,46 +23,34 @@ from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.navigate_image_files import build_metadata_from_result, navigate_image_files
 from spindoctor.support.status_reason import NavStatusReason
 
-_CASSINI_PUBLIC_METADATA: dict[str, Any] = {
-    'image_path': '/cache/N1635282917_1_CALIB.IMG',
-    'image_name': 'N1635282917_1_CALIB.IMG',
-    'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
-    'instrument_lid': 'urn:nasa:pds:context:instrument:issna.co',
-    'start_time_utc': '2009-10-26T20:32:22.024',
-    'midtime_utc': '2009-10-26T20:32:22.134',
-    'end_time_utc': '2009-10-26T20:32:22.244',
-    'start_time_et': 309861208.2064568,
-    'midtime_et': 309861208.3164568,
-    'end_time_et': 309861208.4264568,
-    'start_time_scet': 1635282917.063,
-    'midtime_scet': 1635282917.0904999,
-    'end_time_scet': 1635282917.118,
-    'image_shape_xy': (1024, 1024),
-    'camera': 'NAC',
-    'exposure_time': 0.22,
-    'filters': ['CL1', 'CL2'],
-    'sampling': 'FULL',
-    'gain_mode': 2,
-    'description': 'N/A',
-    'observation_id': 'ISS_120RH_MUTUALEVE001_PRIME',
+_PUBLISHED: dict[str, Any] = {
+    'image_path': '/cache/image_0001.img',
+    'image_name': 'image_0001.img',
+    'start_time_et': 1234.5678901,
+    'midtime_et': 1234.8178901,
+    'end_time_et': 1235.0678901,
+    'image_shape_xy': (48, 32),
+    'exposure_time': 0.5,
+    'filters': ['F1', 'F2'],
+    'note': None,
 }
-"""What Cassini ISS publishes for N1635282917_1_CALIB.IMG, in its own order and types.
+"""What the made-up host publishes about its one image.
 
 The path is spelled differently from the one the writer is given, so a test can tell
-which of the two the document kept.
+which of the two the document kept, and the note is null.
 """
 
 
 class _BlankSnapshot:
-    """An observation whose image holds no data, publishing Cassini's facts."""
+    """An observation whose image holds no data, publishing the made-up host's facts."""
 
     def __init__(self) -> None:
         """Build the snapshot around an all-zero image, which carries no data."""
-        self.data = np.zeros((32, 32), np.float64)
+        self.data = np.zeros((32, 48), np.float64)
         self.extdata = self.data
-        self.midtime = 309861208.3164568
-        self.camera = 'NAC'
-        self.shutter_mode = 'NACONLY'
+        self.midtime = 1234.8178901
+        self.camera = 'CAM'
+        self.shutter_mode = None
 
     def reset_all(self) -> None:
         """Drop cached geometry, of which this stand-in holds none."""
@@ -72,12 +64,12 @@ class _BlankSnapshot:
         return np.ones(self.data.shape, bool)
 
     def get_public_metadata(self) -> dict[str, Any]:
-        """Publish what Cassini ISS publishes about N1635282917_1_CALIB.IMG.
+        """Publish the made-up host's facts about the image.
 
         Returns:
             The published facts.
         """
-        return _CASSINI_PUBLIC_METADATA
+        return _PUBLISHED
 
 
 class _BlankObsClass:
@@ -98,11 +90,11 @@ class _BlankObsClass:
 
 
 def test_the_observation_block_records_the_published_facts_without_a_pointing() -> None:
-    """A Cassini host's published facts, its times among them, reach the observation block.
+    """Every fact the host publishes reaches the observation block, a null one included.
 
     The result carries no pointing, as one does whose attitude could not be computed.
-    The block keeps its own path, name and camera rather than the host's, and leaves
-    out the host's x/y shape, which ``image_shape`` already states.
+    The block keeps its own path rather than the host's, and leaves out the host's x/y
+    shape, which ``image_shape`` already states.
     """
     result = NavResult.success(
         offset_px=(1.5, -2.0),
@@ -117,45 +109,32 @@ def test_the_observation_block_records_the_published_facts_without_a_pointing() 
         ),
         provenance=Provenance(
             spindoctor_version='0.0.0',
-            image_et=309861208.316457,
+            image_et=1234.8178901,
             pipeline_run_iso8601='2026-09-11T00:00:00Z',
         ),
     )
     metadata = build_metadata_from_result(
         result,
-        Path('/holdings/N1635282917_1_CALIB.IMG'),
-        'N1635282917_1_CALIB.IMG',
-        instrument='coiss',
-        camera='NAC',
-        shutter_mode='NACONLY',
-        image_shape=(1024, 1024),
-        public_metadata=_CASSINI_PUBLIC_METADATA,
+        Path('/holdings/image_0001.img'),
+        'image_0001.img',
+        instrument='fake',
+        camera='CAM',
+        image_shape=(32, 48),
+        public_metadata=_PUBLISHED,
     )
     assert 'pointing' not in metadata['navigation_result']
     assert metadata['observation'] == {
-        'image_path': '/holdings/N1635282917_1_CALIB.IMG',
-        'image_name': 'N1635282917_1_CALIB.IMG',
-        'instrument': 'coiss',
-        'camera': 'NAC',
-        'shutter_mode': 'NACONLY',
-        'image_shape': [1024, 1024],
-        'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
-        'instrument_lid': 'urn:nasa:pds:context:instrument:issna.co',
-        'start_time_utc': '2009-10-26T20:32:22.024',
-        'midtime_utc': '2009-10-26T20:32:22.134',
-        'end_time_utc': '2009-10-26T20:32:22.244',
-        'start_time_et': 309861208.2064568,
-        'midtime_et': 309861208.3164568,
-        'end_time_et': 309861208.4264568,
-        'start_time_scet': 1635282917.063,
-        'midtime_scet': 1635282917.0904999,
-        'end_time_scet': 1635282917.118,
-        'exposure_time': 0.22,
-        'filters': ['CL1', 'CL2'],
-        'sampling': 'FULL',
-        'gain_mode': 2,
-        'description': 'N/A',
-        'observation_id': 'ISS_120RH_MUTUALEVE001_PRIME',
+        'image_path': '/holdings/image_0001.img',
+        'image_name': 'image_0001.img',
+        'instrument': 'fake',
+        'camera': 'CAM',
+        'image_shape': [32, 48],
+        'start_time_et': 1234.5678901,
+        'midtime_et': 1234.8178901,
+        'end_time_et': 1235.0678901,
+        'exposure_time': 0.5,
+        'filters': ['F1', 'F2'],
+        'note': None,
     }
 
 
@@ -163,14 +142,14 @@ def test_a_failed_navigation_records_the_published_facts(
     tmp_path: Path, fakes_report_as_simulated: None
 ) -> None:
     """A navigation that fails still records what the observation's host publishes."""
-    image = tmp_path / 'N1635282917_1_CALIB.IMG'
+    image = tmp_path / 'image_0001.img'
     image.write_bytes(b'\x00')
     image_files = ImageFiles(
         image_files=[
             ImageFile(
                 image_file_url=FCPath(str(image)),
-                label_file_url=FCPath(str(image.with_suffix('.LBL'))),
-                results_path_stub='N1635282917_1_CALIB',
+                label_file_url=FCPath(str(image.with_suffix('.lbl'))),
+                results_path_stub='image_0001',
             )
         ]
     )
@@ -182,5 +161,5 @@ def test_a_failed_navigation_records_the_published_facts(
         write_output_files=False,
     )
     assert metadata['status'] == 'failed'
-    assert metadata['observation']['midtime_et'] == 309861208.3164568
-    assert metadata['observation']['filters'] == ['CL1', 'CL2']
+    assert metadata['observation']['midtime_et'] == 1234.8178901
+    assert metadata['observation']['filters'] == ['F1', 'F2']
