@@ -13,12 +13,13 @@ Non-navigated images (``status`` != ``success``) are skipped with a warning.
 The per-dataset ``pds4_*`` hooks parameterize the layout, the LIDs, and the
 template variables; datasets without PDS4 support raise ``NotImplementedError``.
 
-The shipped Cassini templates are drafts: tests below assert substitution and
-layout plumbing, never PDS4-standard content correctness of the draft labels.
+The templates here are the tests' own stand-ins, so the tests assert substitution
+and layout plumbing.  What a bundle's shipped templates render is tested in a
+module named for that bundle.
 """
 
 import json
-import re
+import math
 from pathlib import Path
 from typing import Any
 
@@ -26,10 +27,8 @@ import pytest
 from filecache import FCPath
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
-from spindoctor.config import MAIN_LOGGER, Config
+from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset import ImageFiles
-from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
-from spindoctor.dataset.dataset_pds3_voyager_iss import DataSetPDS3VoyagerISS
 
 from .conftest import (
     DATA_TEMPLATE,
@@ -117,7 +116,7 @@ def test_supplemental_combines_navigation_and_backplane_metadata(tmp_path: Path)
     nav_metadata, backplane_metadata = write_nav_inputs(
         env,
         nav_extra={'offset': {'dv': 1.5, 'du': -2.0}},
-        backplane_metadata={'bodies': {'MIMAS': {'backplanes': {}}}, 'rings': {}},
+        backplane_metadata={'bodies': {'MOON_A': {'backplanes': {}}}, 'rings': {}},
     )
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
@@ -287,6 +286,106 @@ def test_missing_backplane_metadata_skips_generation(
     assert 'no backplane metadata at' in capsys.readouterr().out
 
 
+RING_RESOLUTION_PLANE: list[dict[str, Any]] = [
+    {'name': 'longitudinal_resolution', 'units': 'rad/pixel'}
+]
+"""A ring plane declared in radians per pixel, whose statistic is in degrees per pixel."""
+
+
+def _ring_resolution_document(units: str) -> dict[str, Any]:
+    """Build backplane metadata holding one ring longitudinal resolution statistic.
+
+    Parameters:
+        units: The unit the statistic records.
+
+    Returns:
+        The document, in the shape the backplane writer leaves on disk.
+    """
+    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
+    return {'bodies': {}, 'rings': {'backplanes': {'longitudinal_resolution': statistic}}}
+
+
+def test_a_statistic_in_another_unit_fails_the_image(tmp_path: Path) -> None:
+    """A document recording a plane in a unit the configuration does not give it is failed.
+
+    Every index column is in its plane's configured unit, so indexing the
+    statistic would put its column in two units with nothing saying so.
+    """
+    env = make_bundle_env(tmp_path, rings=RING_RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('rad/pixel'))
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+
+
+def test_a_statistic_in_another_unit_writes_nothing(tmp_path: Path) -> None:
+    """The unit is checked before any product is written, so nothing is on disk."""
+    env = make_bundle_env(tmp_path, rings=RING_RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('rad/pixel'))
+    _generate(env)
+    assert not env.bundle_dir.exists()
+
+
+def test_a_unit_disagreement_names_the_plane_and_both_units(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The error names the plane, the unit the document records and the unit expected."""
+    env = make_bundle_env(tmp_path, rings=RING_RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('rad/pixel'))
+    _generate(env)
+    out = capsys.readouterr().out
+    assert 'longitudinal_resolution' in out
+    assert 'in rad/pixel' in out
+    assert 'expects deg/pixel' in out
+
+
+def test_a_foreign_unit_on_an_undeclared_plane_is_ignored(tmp_path: Path) -> None:
+    """A plane the configuration does not declare is not compared, whatever it records."""
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, backplane_metadata=_ring_resolution_document('furlong/pixel'))
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.WRITTEN
+
+
+RESOLUTION_PLANE: list[dict[str, Any]] = [{'name': 'resolution', 'units': 'km/pixel'}]
+"""A body plane in kilometers per pixel, whose statistic keeps that unit."""
+
+
+def _resolution_document(maximum: float) -> dict[str, Any]:
+    """Build backplane metadata holding one body resolution statistic with this maximum.
+
+    Parameters:
+        maximum: The maximum the statistic records, in the unit the plane takes.
+
+    Returns:
+        The document, in the shape the backplane writer leaves on disk.
+    """
+    statistic = {'min': 60.0, 'max': maximum, 'units': 'km/pixel'}
+    return {'bodies': {'PLANET': {'backplanes': {'resolution': statistic}}}, 'rings': {}}
+
+
+def test_a_statistic_that_is_not_a_finite_number_fails_the_image(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A maximum of NaN fails the image, and the log names the plane and the value.
+
+    No index column can hold it, and a blank in its place would say the plane
+    measured nothing, so it is refused as a statistic in another unit is.
+    """
+    env = make_bundle_env(tmp_path, bodies=RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_resolution_document(math.nan))
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert 'records a resolution maximum of nan' in capsys.readouterr().out
+
+
+def test_a_statistic_that_is_not_a_finite_number_writes_nothing(tmp_path: Path) -> None:
+    """The values are checked before any product is written, so nothing is on disk."""
+    env = make_bundle_env(tmp_path, bodies=RESOLUTION_PLANE)
+    write_nav_inputs(env, backplane_metadata=_resolution_document(math.nan))
+    _generate(env)
+    assert not env.bundle_dir.exists()
+
+
 def test_malformed_nav_metadata_raises(tmp_path: Path) -> None:
     """Unparseable navigation metadata propagates a JSON decode error.
 
@@ -391,202 +490,6 @@ def test_backplane_fits_copied_into_bundle_data_tree(tmp_path: Path) -> None:
     _generate(env)
     bundled_fits = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.fits'
     assert bundled_fits.is_file()
-
-
-# ---------------------------------------------------------------------------
-# Dataset pds4_* hook contract (reference Cassini implementation + walls)
-# ---------------------------------------------------------------------------
-
-
-def _cassini_dataset(
-    tmp_path: Path, *, config: Config | None = None
-) -> DataSetPDS3CassiniISSSaturn:
-    """Construct the reference Cassini Saturn dataset on a local holdings root.
-
-    Parameters:
-        tmp_path: Base temporary directory used as the (empty) holdings root.
-        config: Optional Config override; DEFAULT_CONFIG when None.
-    """
-    return DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings', config=config)
-
-
-def test_cassini_bundle_path_for_image_shards_by_image_number(tmp_path: Path) -> None:
-    """Cassini image names shard into 1234xxxxxx/123456xxxx/ directories."""
-    dataset = _cassini_dataset(tmp_path)
-    assert dataset.pds4_bundle_path_for_image('N1454725799') == '1454xxxxxx/145472xxxx/'
-
-
-def test_cassini_bundle_path_rejects_short_image_name(tmp_path: Path) -> None:
-    """A too-short Cassini image name raises instead of building a malformed path."""
-    dataset = _cassini_dataset(tmp_path)
-    with pytest.raises(ValueError, match='invalid Cassini image name'):
-        dataset.pds4_bundle_path_for_image('N123')
-
-
-def test_cassini_path_stub_appends_lid_part(tmp_path: Path) -> None:
-    """The path stub is the shard path plus the rotated lowercase image LID part."""
-    dataset = _cassini_dataset(tmp_path)
-    image_file = make_image_file('N1454725799_1')
-    assert dataset.pds4_path_stub(image_file) == '1454xxxxxx/145472xxxx/1454725799n'
-
-
-def test_cassini_default_bundle_name_from_config(tmp_path: Path) -> None:
-    """The bundle name comes from the shipped pds4.coiss_saturn config block."""
-    dataset = _cassini_dataset(tmp_path)
-    assert dataset.pds4_bundle_name() == 'cassini_iss_saturn_backplanes_rsfrench2027'
-
-
-def test_cassini_default_template_dir_is_shipped_package_data(tmp_path: Path) -> None:
-    """The default template dir resolves inside the shipped templates package data."""
-    dataset = _cassini_dataset(tmp_path)
-    template_dir = Path(dataset.pds4_bundle_template_dir())
-    assert template_dir.name == 'cassini_iss_saturn_1.0'
-    assert template_dir.parent.name == 'templates'
-    assert (template_dir / 'data.lblx').is_file()
-    assert (template_dir / 'browse.lblx').is_file()
-    assert (template_dir / 'collection_data.lblx').is_file()
-    assert (template_dir / 'global_index_bodies.lblx').is_file()
-
-
-def test_cassini_config_overrides_template_dir_and_bundle_name(tmp_path: Path) -> None:
-    """config pds4.<dataset>.template_dir/bundle_name override the defaults."""
-    override = tmp_path / 'override.yaml'
-    override.write_text(
-        'pds4:\n'
-        '  coiss_saturn:\n'
-        '    template_dir: /absolute/custom/templates\n'
-        '    bundle_name: custom_bundle_name\n',
-        encoding='utf-8',
-    )
-    config = Config()
-    config.update_config(override)
-    dataset = _cassini_dataset(tmp_path, config=config)
-    assert dataset.pds4_bundle_template_dir() == '/absolute/custom/templates'
-    assert dataset.pds4_bundle_name() == 'custom_bundle_name'
-
-
-def test_cassini_relative_template_dir_override_resolves_under_templates(
-    tmp_path: Path,
-) -> None:
-    """A bare-name template_dir override resolves under the packaged templates dir."""
-    override = tmp_path / 'override.yaml'
-    override.write_text(
-        'pds4:\n  coiss_saturn:\n    template_dir: my_custom_set\n', encoding='utf-8'
-    )
-    config = Config()
-    config.update_config(override)
-    dataset = _cassini_dataset(tmp_path, config=config)
-    template_dir = Path(dataset.pds4_bundle_template_dir())
-    assert template_dir.name == 'my_custom_set'
-    assert template_dir.parent.name == 'templates'
-
-
-def test_voyager_pds4_hooks_not_implemented(tmp_path: Path) -> None:
-    """The Voyager dataset's per-image PDS4 hooks are NotImplementedError walls.
-
-    The base-class walls raise a bare NotImplementedError, so the assertions
-    pin the empty message: a messaged NotImplementedError escaping from deeper
-    code would fail them.
-    """
-    dataset = DataSetPDS3VoyagerISS(tmp_path / 'holdings')
-    image_file = make_image_file('C1234567')
-    with pytest.raises(NotImplementedError) as stub_exc:
-        dataset.pds4_path_stub(image_file)
-    assert str(stub_exc.value) == ''
-    with pytest.raises(NotImplementedError) as lidvid_exc:
-        dataset.pds4_image_name_to_data_lidvid('C1234567')
-    assert str(lidvid_exc.value) == ''
-
-
-# ---------------------------------------------------------------------------
-# End-to-end phase 1 against the shipped (draft) Cassini templates
-# ---------------------------------------------------------------------------
-
-
-def test_cassini_end_to_end_with_shipped_draft_templates(tmp_path: Path) -> None:
-    """Phase 1 renders the shipped draft Cassini templates without substitution errors.
-
-    Structural only: asserts the output files exist, the LID substitution took,
-    and no pdstemplate error markers ([[[...]]]) are embedded.  PDS4-standard
-    content correctness of the draft templates is out of scope until the
-    templates are finalized.
-    """
-    dataset = _cassini_dataset(tmp_path)
-    stub = 'COISS_2001/N1454725799_1'
-    image_file = make_image_file('N1454725799_1', results_path_stub=stub, base_dir=tmp_path)
-    nav_root = tmp_path / 'nav'
-    backplane_root = tmp_path / 'backplanes'
-    bundle_results_root = tmp_path / 'bundle'
-    (nav_root / 'COISS_2001').mkdir(parents=True)
-    (backplane_root / 'COISS_2001').mkdir(parents=True)
-    bundle_results_root.mkdir()
-    nav_metadata: dict[str, Any] = {
-        'status': 'success',
-        'observation': {
-            'start_time': '2007-01-01T00:00:00Z',
-            'stop_time': '2007-01-01T00:00:10Z',
-            'mid_time': '2007-01-01T00:00:05Z',
-        },
-    }
-    (nav_root / f'{stub}_metadata.json').write_text(json.dumps(nav_metadata), encoding='utf-8')
-    (backplane_root / f'{stub}_backplane_metadata.json').write_text(
-        json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
-    )
-    (backplane_root / f'{stub}_backplanes.fits').write_bytes(b'FAKE FITS BYTES')
-    (nav_root / f'{stub}_summary.png').write_bytes(b'\x89PNG fake bytes')
-
-    generate_bundle_data_files(
-        dataset,
-        ImageFiles(image_files=[image_file]),
-        nav_results_root=FCPath(nav_root),
-        backplane_results_root=FCPath(backplane_root),
-        bundle_results_root=FCPath(bundle_results_root),
-        logger=MAIN_LOGGER,
-    )
-
-    bundle_dir = bundle_results_root / 'cassini_iss_saturn_backplanes_rsfrench2027'
-    label = bundle_dir / 'data' / '1454xxxxxx' / '145472xxxx' / '1454725799n_backplanes.lblx'
-    assert label.is_file()
-    text = label.read_text(encoding='utf-8')
-    lid = 'urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:data:1454725799n'
-    assert lid in text
-    assert '[[[' not in text
-    browse_label = bundle_dir / 'browse' / '1454xxxxxx' / '145472xxxx' / '1454725799n_summary.lblx'
-    assert browse_label.is_file()
-    browse_text = browse_label.read_text(encoding='utf-8')
-    assert '[[[' not in browse_text
-    suppl = bundle_dir / 'data' / '1454xxxxxx' / '145472xxxx' / '1454725799n_supplemental.txt'
-    assert suppl.is_file()
-
-
-def test_cassini_data_label_lid_matches_dataset_builder(tmp_path: Path) -> None:
-    """The DATA_LID template variable equals pds4_image_name_to_data_lid's output."""
-    dataset = _cassini_dataset(tmp_path)
-    image_file = make_image_file('N1454725799_1')
-    variables = dataset.pds4_template_variables(
-        image_file=image_file, nav_metadata={}, backplane_metadata={}
-    )
-    assert variables['DATA_LID'] == dataset.pds4_image_name_to_data_lid('N1454725799_1')
-    assert variables['BROWSE_LID'] == dataset.pds4_image_name_to_browse_lid('N1454725799_1')
-
-
-def test_cassini_camera_variables_from_image_name(tmp_path: Path) -> None:
-    """The camera template variables derive from the image name's leading letter."""
-    dataset = _cassini_dataset(tmp_path)
-    variables = dataset.pds4_template_variables(
-        image_file=make_image_file('W1454725799_1'), nav_metadata={}, backplane_metadata={}
-    )
-    assert variables['CAMERA_WIDTH'] == 'Wide'
-    assert variables['CAMERA_WN_UC'] == 'W'
-    assert variables['CAMERA_WN_LC'] == 'w'
-
-
-def test_cassini_lid_charset_is_pds4_legal(tmp_path: Path) -> None:
-    """Cassini LIDs are lowercase urn:nasa:pds identifiers with a legal charset."""
-    dataset = _cassini_dataset(tmp_path)
-    lid = dataset.pds4_image_name_to_data_lid('N1454725799_1.IMG')
-    assert lid == lid.lower()
-    assert re.fullmatch(r'urn:nasa:pds(:[a-z0-9_-]+)+', lid) is not None
 
 
 # ---------------------------------------------------------------------------

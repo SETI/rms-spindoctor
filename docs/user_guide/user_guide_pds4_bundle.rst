@@ -32,7 +32,7 @@ PDS4 bundle generation serves to:
 Bundle Structure
 ================
 
-Each bundle follows a standard PDS4 directory structure:
+The two passes write this directory structure:
 
 .. code-block:: text
 
@@ -49,13 +49,12 @@ Each bundle follows a standard PDS4 directory structure:
    │   └── <directory_structure>/
    │       └── <image_name>_backplanes.lblx
    │       └── <image_name>_supplemental.txt
-   ├── document/
-   │   └── supplemental/
-   │       ├── global_index_bodies.lblx
-   │       ├── global_index_bodies.tab
-   │       ├── global_index_rings.lblx
-   │       └── global_index_rings.tab
-   └── bundle.lblx
+   └── document/
+       └── supplemental/
+           ├── global_index_bodies.lblx
+           ├── global_index_bodies.tab
+           ├── global_index_rings.lblx
+           └── global_index_rings.tab
 
 The directory structure within ``data/`` and ``browse/`` mirrors the structure of the
 original PDS4 dataset (if it existed), with paths derived from image names using
@@ -90,7 +89,7 @@ Basic Usage
 
    sd_create_bundle labels DATASET_NAME [options]
 
-Where ``DATASET_NAME`` is one of the supported dataset names (see Navigation User Guide).
+Where ``DATASET_NAME`` names a dataset that can be bundled (see `Supported Datasets`_).
 
 Command-Line Arguments
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -115,7 +114,7 @@ Output options:
 * ``--dry-run``: print the images that would be processed without generating bundle files.
 
 Dataset selection options are the same as in the navigation and backplane drivers (see
-Navigation User Guide).
+:doc:`user_guide_navigation`).
 
 Examples
 ^^^^^^^^
@@ -143,8 +142,8 @@ Cloud Tasks Variant
 ^^^^^^^^^^^^^^^^^^^
 
 Queue-driven processing for the labels pass is supported by ``sd_create_bundle_cloud_tasks``.
-This variant reads tasks from a queue and processes each batch of files. It accepts the
-same environment options used to derive configuration and results roots.
+This variant reads tasks from a queue, one image per task, and accepts the same
+environment options used to derive configuration and results roots.
 
 .. code-block:: bash
 
@@ -156,13 +155,10 @@ same environment options used to derive configuration and results roots.
 
 Each task payload must be a JSON object with the following fields:
 
-* ``dataset_name``: one of the supported dataset names.
-* ``arguments``: an object with optional keys ``nav_models`` and ``nav_techniques``
-  (lists or ``null``).
-* ``files``: an array of objects, each containing required fields ``image_file_url``,
-  ``label_file_url``, and ``results_path_stub``, and optional fields ``index_file_row``
-  (metadata) and ``extra_params`` (a JSON object/dictionary of arbitrary key/value pairs
-  that will be passed through to the observation class's from_file method when the file is read).
+* ``dataset_name``: a dataset that can be bundled (see `Supported Datasets`_).
+* ``files``: an array holding one object, for the task's image, with the required
+  fields ``image_file_url``, ``label_file_url`` and ``results_path_stub``, and the
+  optional field ``index_file_row`` (the image's row of its PDS3 index).
 
 Summary Pass
 ------------
@@ -273,55 +269,57 @@ The summary pass generates:
 * **Global Index Files**:
 
   * ``global_index_bodies.tab``: CSV file with one row per image/body combination,
-    containing min/max values for each configured backplane type (formatted to 5 decimal
-    places)
+    containing min/max values for each configured backplane type
   * ``global_index_bodies.lblx``: PDS4 label for the bodies index
   * ``global_index_rings.tab``: CSV file with one row per image, containing min/max
-    values for each configured ring backplane type (formatted to 5 decimal places)
+    values for each configured ring backplane type
   * ``global_index_rings.lblx``: PDS4 label for the rings index
+
+Each min/max column is written with a precision suited to its unit: three
+decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and five
+significant figures for ``km/pixel``. Angular columns are in degrees, although
+the backplane arrays are in radians (see :doc:`user_guide_backplanes`).
 
 Exit Status
 ===========
 
-A pass exits 0 only when every file it set out to write is on disk. A non-zero
-exit means the bundle is incomplete: whatever was written is still in place, and
-the log names what was not.
+Each pass exits 0 when it wrote everything it set out to write, and 1 when it did
+not; the log says what went wrong. An option a program does not recognize ends it
+with exit status 2 before it does anything.
 
-* ``sd_create_bundle labels`` exits 1 when any image's labels could not be
-  written or its inputs could not be read, and exits 1 before processing
-  anything when the bundle's directory already holds files. It closes with a
-  line giving the number of images it labeled, skipped and failed, so a
-  selection that matched nothing reads as the zero it is.
+* ``sd_create_bundle labels`` exits 1 without writing anything if the bundle
+  directory already holds files or a template is missing. Otherwise it exits 1
+  if any image failed. It ends with a line giving the number of images labeled
+  and skipped, and, when any failed, the number whose labels were not written.
 
-  An image the bundle has nothing to describe is **skipped**, not failed, and
-  does not affect the exit status: an image with no navigation metadata
-  document, one whose navigation did not succeed, and a navigated image with no
-  backplane metadata document. A selection made by volume ordinarily names far
-  more images than have been navigated and backplaned, so such a run is mostly
-  skips.
+  An image with nothing to describe (never navigated, navigation failed, or no
+  backplanes) is skipped, which is not an error. An image fails if a label
+  cannot be written, its summary PNG is missing, or its backplane metadata holds
+  a statistic the index tables cannot hold (one in a unit other than the
+  configured one, or a minimum or maximum that is NaN or infinite). For such a
+  statistic, regenerate that image's backplanes.
 
-  A navigated image whose summary PNG is missing is **failed**, not skipped. It
-  loses its browse products and nothing else; its data label is written or not
-  on its own account.
+  ``--dry-run`` writes nothing and ends with the number of images it would
+  process. It exits 0 if the bundle directory is empty and every template is
+  present.
 
-  ``--dry-run`` writes nothing, and exits 0 once the templates are present and
-  the bundle directory is empty.
+* ``sd_create_bundle summary`` exits 1 without writing anything if a template is
+  missing, or if the bundle has no ``data/`` directory: run the labels pass
+  first, or check ``--bundle-results-root``. It exits 1 if a collection or index
+  label cannot be written. If a supplemental file holds such a statistic, it
+  exits 1 and writes neither index table: regenerate the backplanes, then the
+  bundle, into an empty directory.
 
-* ``sd_create_bundle summary`` exits 1 when any collection or global index label
-  could not be written. The ``.tab`` tables are written whether or not the label
-  describing one is.
+* ``sd_create_bundle_cloud_tasks`` reports a task whose products could not be
+  written as ``status: error``, with ``status_error`` saying why (for example
+  ``label_not_written``), and does not retry it. A task that stops on an error,
+  such as a missing template, is reported by the queue worker as an exception
+  instead, and is not retried unless the worker is set to retry on an exception
+  (``--retry-on-exception``, or ``retry_on_exception`` in the run configuration).
 
-* ``sd_create_bundle_cloud_tasks`` reports a task whose label could not be
-  written as ``status: error`` with ``status_error: label_not_written``, and asks
-  for no retry.
-
-The summary pass builds its tables from what is in the bundle's ``data/`` tree
-without checking that tree for completeness, so it can exit 0 over a bundle the
-labels pass already failed images in -- and an image that got a data label but
-no browse label leaves ``collection_browse.tab`` listing a browse product that is
-not on disk. A summary pass exiting 0 says its own labels were written, and
-nothing about what the labels pass did; take the labels pass's closing line as
-the account of what the bundle covers.
+A summary pass indexes whatever is in the bundle's ``data/`` tree, so its exit
+status says nothing about the labels pass; the labels pass's closing line says
+what the bundle covers.
 
 Configuration
 =============
@@ -336,10 +334,10 @@ files. Each dataset can have its own configuration:
        template_dir: cassini_iss_saturn_1.0
        bundle_name: cassini_iss_saturn_backplanes_rsfrench2027
 
-The ``cassini_iss_saturn_1.0`` template directory ships with the package; to
-configure another dataset, add an entry whose ``template_dir`` points at a
-template directory you create yourself (by name inside the package template
-root, or as an absolute path).
+The ``cassini_iss_saturn_1.0`` template directory ships with the package. The
+``coiss_cruise`` dataset's does not; to bundle it, add an entry whose
+``template_dir`` points at a template directory you create yourself (by name
+inside the package template root, or as an absolute path).
 
 Configuration Options
 ---------------------
@@ -382,11 +380,10 @@ new one has to provide.
 Supported Datasets
 ==================
 
-The Cassini ISS datasets ``coiss_cruise`` and ``coiss_saturn`` can be bundled.
-A run naming any other dataset fails before it processes an image, because both
-passes ask the dataset for its template directory and bundle name first and an
-unsupported dataset supplies neither; nothing is written. Adding a dataset is a
-code change, described in :doc:`/dev_guide/dev_guide_pds4`.
+As the package ships, only the Cassini ISS Saturn dataset (``coiss_saturn``) can
+be bundled. Either pass stops with an error on any other dataset, before writing
+anything. Adding a dataset is a code change, described in
+:doc:`/dev_guide/dev_guide_pds4`.
 
 Workflow
 ========

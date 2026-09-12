@@ -14,7 +14,7 @@ generation they read.
 import argparse
 from collections.abc import Iterator
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 
 import pdstemplate
@@ -25,6 +25,7 @@ from filecache import FCPath
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
+from spindoctor.dataset.dataset_sim import DataSetSim
 
 
 def _image_file(name: str, *, base_dir: Path | None = None) -> ImageFile:
@@ -72,11 +73,15 @@ REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
         'global_index_rings.lblx',
     ],
 }
-"""What the stub dataset declares each pass must find, as Cassini declares it."""
+"""What the stub dataset declares each pass must find: the templates that pass renders."""
 
 
 class _StubDataset:
-    """A dataset serving the pds4_* hooks the drivers call, over chosen batches."""
+    """A dataset serving the pds4_* hooks the drivers call, over chosen batches.
+
+    It carries a configuration declaring no backplanes, as every dataset carries
+    one, for the summary pass's index generator to read.
+    """
 
     def __init__(
         self,
@@ -99,6 +104,7 @@ class _StubDataset:
         self._image_count = image_count
         self._batch_count = batch_count
         self._base_dir = base_dir
+        self.config = SimpleNamespace(backplanes=SimpleNamespace(bodies=[], rings=[]))
 
     def pds4_bundle_name(self) -> str:
         """Return the bundle name whose directory the run writes into."""
@@ -160,7 +166,10 @@ def _stub_dataset(
         for name in names:
             (template_dir / name).write_text('<Product/>\n', encoding='utf-8')
     return _StubDataset(
-        template_dir, image_count=image_count, batch_count=batch_count, base_dir=base_dir
+        template_dir,
+        image_count=image_count,
+        batch_count=batch_count,
+        base_dir=base_dir,
     )
 
 
@@ -195,7 +204,7 @@ def summary_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sd_create_bundle,
         'parse_args_summary',
-        lambda _: argparse.Namespace(dataset_name='coiss_saturn'),
+        lambda _: argparse.Namespace(dataset_name='stub'),
     )
     monkeypatch.setattr(sd_create_bundle, 'load_default_and_user_config', lambda *a: None)
     monkeypatch.setattr(sd_create_bundle, 'build_run_logging', lambda *a: None)
@@ -238,11 +247,15 @@ def _dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _record_generation(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    """Record every image the labels run generates products for.
+def _record_generation(
+    monkeypatch: pytest.MonkeyPatch, *, module: ModuleType = sd_create_bundle
+) -> list[dict[str, Any]]:
+    """Record every image a bundle driver generates products for.
 
     Parameters:
         monkeypatch: Fixture the recording stand-in is installed through.
+        module: The driver whose generation is replaced; the labels
+            subcommand's when not given.
 
     Returns:
         The list the calls are appended to, one entry per image.
@@ -261,7 +274,7 @@ def _record_generation(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         calls.append(kwargs)
         return BundleDataOutcome.WRITTEN
 
-    monkeypatch.setattr(sd_create_bundle, 'generate_bundle_data_files', _generate)
+    monkeypatch.setattr(module, 'generate_bundle_data_files', _generate)
     return calls
 
 
@@ -525,7 +538,8 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
     is a defect in that document rather than an image the bundle has nothing to
     say about, so the generation raises through to the run.  The images on
     either side of it are still processed and the run still closes with a count
-    saying so.
+    saying so.  The log gives the parser's reason, which the frames of a
+    traceback do not carry.
     """
     monkeypatch.setattr(
         sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, batch_count=3, base_dir=tmp_path)
@@ -539,6 +553,7 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
     assert excinfo.value.code == 1
     out = capsys.readouterr().out
     assert 'Failed to generate bundle data files for' in out
+    assert 'Expecting value: line 1 column 1 (char 0)' in out
     expected = (
         'Label generation incomplete: 0 image(s) labeled, 2 skipped, '
         '1 whose labels were not written'
@@ -591,6 +606,55 @@ def test_main_summary_exits_non_zero_when_a_label_is_not_written(
     assert excinfo.value.code == 1
 
 
+def test_main_summary_reports_why_the_index_could_not_be_generated(
+    summary_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An index generator that raises ends the run with the reason in the log.
+
+    A supplemental file in another unit is refused with a message naming the
+    file and both units, and the frames of a traceback do not carry it.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', lambda **kwargs: 0)
+
+    def _refuse(**kwargs: Any) -> int:
+        """Refuse the index the way a supplemental file in another unit is refused.
+
+        Parameters:
+            **kwargs: What the driver passed, unused.
+
+        Raises:
+            ValueError: Always, naming a file and both units.
+        """
+        raise ValueError(
+            'Supplemental file X records the tilt statistic in rad where the '
+            'configuration expects deg'
+        )
+
+    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', _refuse)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    out = capsys.readouterr().out
+    assert 'Supplemental file X records the tilt statistic in rad' in out
+
+
+def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
+    summary_run: None, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A collection generator that raises ends the run with the reason in the log.
+
+    The bundle here has no data directory, and the generator refuses it naming
+    the directory it looked for.  The frames of a traceback show the statement
+    that raised but not the path it interpolated, so the path is what says the
+    reason reached the log.
+    """
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    missing = tmp_path / BUNDLE_NAME / 'data'
+    assert f'Data directory does not exist: {missing}' in capsys.readouterr().out
+
+
 def test_main_summary_exits_zero_when_every_label_is_written(
     summary_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -604,6 +668,9 @@ def test_main_summary_exits_zero_when_every_label_is_written(
 def cloud_task_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Stand the cloud-task worker up on stubs, leaving only its reporting live.
 
+    The dataset is the stub, whose configuration declares no backplanes and so
+    none in a unit the worker refuses.
+
     Parameters:
         tmp_path: Base temporary directory served as every results root.
         monkeypatch: Fixture the stand-ins are installed through.
@@ -613,7 +680,8 @@ def cloud_task_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(module, 'get_nav_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(module, 'get_backplane_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(module, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
-    monkeypatch.setattr(module, 'dataset_name_to_class', lambda _: object)
+    dataset = _stub_dataset(tmp_path)
+    monkeypatch.setattr(module, 'dataset_name_to_class', lambda _: lambda: dataset)
 
 
 def _run_cloud_task(
@@ -631,8 +699,17 @@ def _run_cloud_task(
     monkeypatch.setattr(
         sd_create_bundle_cloud_tasks, 'generate_bundle_data_files', lambda **kwargs: outcome
     )
+    return _process_cloud_task()
+
+
+def _process_cloud_task() -> tuple[bool, Any]:
+    """Run one cloud task over one image, through whatever generation is installed.
+
+    Returns:
+        The worker's retry flag and result.
+    """
     task_data = {
-        'dataset_name': 'coiss_saturn',
+        'dataset_name': 'stub',
         'files': [
             {
                 'image_file_url': '/hermetic/1234567890w.img',
@@ -660,3 +737,19 @@ def test_a_cloud_task_reports_a_product_it_wrote(
     """A product whose labels are on disk still comes back a success."""
     _, result = _run_cloud_task(monkeypatch, BundleDataOutcome.WRITTEN)
     assert result == {'status': 'success'}
+
+
+def test_the_labels_parser_builds_a_dataset_that_reads_no_holdings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dataset that is not PDS3 goes through the labels parser like any other.
+
+    The selection arguments are whatever the dataset class declares, and only
+    that class reads them, so the parser has nothing of its own to read off the
+    namespace.  A parser that read a PDS3 option itself would fail on the first
+    dataset declaring none, which nothing else drives through it.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', None)
+    monkeypatch.setattr(sd_create_bundle, 'DATASET_NAME', None)
+    sd_create_bundle.parse_args_labels(['sim'])
+    assert isinstance(sd_create_bundle.DATASET, DataSetSim)

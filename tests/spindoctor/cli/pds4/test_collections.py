@@ -11,8 +11,8 @@ dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
 scans ``data/`` for ``*_supplemental.txt`` files and writes
 ``document/supplemental/global_index_bodies.tab`` (one row per image/body) and
 ``global_index_rings.tab`` (one row per image with ring backplanes), with
-min/max columns for each configured backplane type formatted to 5 decimal
-places, plus their labels.  Every template a generator renders is required: the
+min/max columns for each configured backplane type, each written in the format
+its unit calls for, plus their labels.  Every template a generator renders is required: the
 drivers check the ones their dataset declares before processing anything, so one
 that is missing raises here rather than being passed over.
 
@@ -23,6 +23,7 @@ transform.  This is what keeps the inventory LIDVIDs and global-index LIDs
 matching the product labels' DATA_LID (regression coverage for #139 and #256).
 """
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -31,11 +32,11 @@ from filecache import FCPath
 
 from spindoctor.cli.pds4 import collections as collections_module
 from spindoctor.cli.pds4.collections import (
+    IndexValueFormat,
     generate_collection_files,
     generate_global_index_files,
 )
 from spindoctor.config import MAIN_LOGGER
-from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
 from .conftest import (
     COLLECTION_BROWSE_TEMPLATE,
@@ -49,8 +50,12 @@ from .conftest import (
     write_templates,
 )
 
-BODY_STATS = {'MIMAS': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2}}}}
-RING_STATS = {'backplanes': {'radius': {'min': 74500.0, 'max': 136800.987654}}}
+BODY_STATS = {
+    'MOON_A': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2, 'units': 'deg'}}}
+}
+"""A body's statistics, in the unit the default configuration's latitude plane takes."""
+RING_STATS = {'backplanes': {'radius': {'min': 81000.0, 'max': 125000.987654, 'units': 'km'}}}
+"""Ring statistics, in the unit the default configuration's radius plane takes."""
 BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
 """A template naming a variable no caller defines, so the render errors."""
 COLLECTION_LABELS = {
@@ -88,21 +93,33 @@ def _run_global_index(env: BundleEnv) -> int:
     )
 
 
-def _index_env(tmp_path: Path) -> BundleEnv:
+def _index_env(
+    tmp_path: Path,
+    *,
+    bodies: list[dict[str, Any]] | None = None,
+    rings: list[dict[str, Any]] | None = None,
+) -> BundleEnv:
     """Build an environment with body/ring backplane types configured.
 
     Parameters:
         tmp_path: Base temporary directory.
+        bodies: ``config.backplanes.bodies`` entries, each with a ``name`` and
+            the ``units`` its plane is declared in.  When None, a 'latitude' in
+            radians and a 'resolution' in kilometers per pixel.
+        rings: ``config.backplanes.rings`` entries on the same terms.  When
+            None, a 'radius' in kilometers.
 
     Returns:
-        A :class:`BundleEnv` whose config lists 'latitude'/'resolution' body
-        backplanes and a 'radius' ring backplane.
+        A :class:`BundleEnv` whose config lists those backplanes.
     """
-    return make_bundle_env(
-        tmp_path,
-        bodies=[{'name': 'latitude'}, {'name': 'resolution'}],
-        rings=[{'name': 'radius'}],
-    )
+    if bodies is None:
+        bodies = [
+            {'name': 'latitude', 'units': 'rad'},
+            {'name': 'resolution', 'units': 'km/pixel'},
+        ]
+    if rings is None:
+        rings = [{'name': 'radius', 'units': 'km'}]
+    return make_bundle_env(tmp_path, bodies=bodies, rings=rings)
 
 
 # ---------------------------------------------------------------------------
@@ -340,8 +357,8 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     """The bodies index has one row per (image, body) pair."""
     env = _index_env(tmp_path)
     two_bodies: dict[str, Any] = {
-        'MIMAS': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0}}},
-        'ENCELADUS': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0}}},
+        'MOON_A': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
+        'MOON_B': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
     }
     write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=two_bodies)
     write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
@@ -349,17 +366,298 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert len(rows) == 4
     body_names = [row[1] for row in rows[1:]]
-    assert body_names == ['MIMAS', 'ENCELADUS', 'MIMAS']
+    assert body_names == ['MOON_A', 'MOON_B', 'MOON_A']
 
 
-def test_bodies_index_numeric_values_formatted_to_five_decimals(tmp_path: Path) -> None:
-    """Numeric min/max values are written with exactly five decimal places."""
+def test_a_degrees_column_is_written_to_three_decimals(tmp_path: Path) -> None:
+    """A statistic in degrees is written to a thousandth of a degree.
+
+    The third decimal is about the last one a pixel resolves.  The plane is
+    declared in radians and the column is in degrees, so the format is found by
+    the unit the statistic is in rather than the one the plane was declared in.
+    """
     env = _index_env(tmp_path)
     write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
-    assert rows[1][3] == '1.23457'
-    assert rows[1][4] == '2.00000'
+    assert rows[1][3] == '1.235'
+    assert rows[1][4] == '2.000'
+
+
+def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
+    """A ring radius in kilometers is written to a tenth of a kilometer.
+
+    At radii of order a hundred thousand kilometers a float32 plane's spacing is
+    hundredths of a kilometer, so a second decimal would print noise.
+    """
+    env = _index_env(tmp_path)
+    radii = {'backplanes': {'radius': {'min': 81000.04, 'max': 125000.96, 'units': 'km'}}}
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
+    _run_global_index(env)
+    rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
+    assert rows[1][2] == '81000.0'
+    assert rows[1][3] == '125001.0'
+
+
+def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path: Path) -> None:
+    """A longitudinal resolution of order a ten-thousandth of a degree per pixel survives.
+
+    This is the column the eight-decimal width exists for: every value in it is
+    below one, so eight decimals stays within the seven significant digits a
+    float32 plane carries, where a narrower fixed-point format rounds a value
+    this small to one significant figure or to zero and the table then reports
+    a measurement it did not make.  Both the minimum and the maximum are
+    checked, since a format applied to one and not the other is the way a table
+    half-rounds.
+    """
+    env = _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
+    fine = {
+        'backplanes': {
+            'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}
+        }
+    }
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=fine)
+    _run_global_index(env)
+    rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
+    assert rows[1][2] == '0.00015470'
+    assert rows[1][3] == '0.00080214'
+
+
+def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
+    tmp_path: Path,
+) -> None:
+    """A resolution in kilometers per pixel keeps five figures at either end of its range.
+
+    A column can run from under a meter per pixel close to a small body to tens
+    of thousands of kilometers at a grazing limb, eight orders of magnitude that
+    no fixed decimal count fits: eight decimals would print the large end
+    to twelve digits of noise, and a width fit to the large end would print the
+    small end as zero.  Five significant figures write both, with trailing
+    zeros kept so that every value shows the same number of them.  They are
+    written positionally, so a value of five or six integer digits is written
+    as the integer it is rather than with a trailing point or an exponent,
+    which are what a general format writes there and what a person reading
+    the table would have to decode.  A zero has no magnitude to count figures
+    from, and is written with the four decimals a value of one gets.
+    """
+    env = _index_env(tmp_path)
+    resolutions: dict[str, Any] = {
+        'MOON_A': {
+            'backplanes': {'resolution': {'min': 0.0006, 'max': 4200.0, 'units': 'km/pixel'}}
+        },
+        'PLANET': {
+            'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0, 'units': 'km/pixel'}}
+        },
+        'MOON_C': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
+    }
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
+    _run_global_index(env)
+    rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
+    assert rows[1][5] == '0.00060000'
+    assert rows[1][6] == '4200.0'
+    assert rows[2][5] == '70853'
+    assert rows[2][6] == '123456'
+    assert rows[3][5] == '0.0000'
+
+
+@pytest.mark.parametrize(
+    ('decimals', 'significant'), [(3, 5), (None, None)], ids=['both set', 'neither set']
+)
+def test_an_index_value_format_sets_exactly_one_of_its_fields(
+    decimals: int | None, significant: int | None
+) -> None:
+    """A format is a number of decimals or of significant figures, never both or neither.
+
+    Parameters:
+        decimals: The decimals field for this case.
+        significant: The significant-figures field for this case.
+    """
+    with pytest.raises(ValueError, match='exactly one of decimals and significant'):
+        IndexValueFormat(decimals=decimals, significant=significant)
+
+
+@pytest.mark.parametrize(
+    'value_format',
+    [IndexValueFormat(decimals=3), IndexValueFormat(significant=5)],
+    ids=['decimals', 'significant figures'],
+)
+def test_an_index_value_format_refuses_a_value_that_is_not_a_finite_number(
+    value_format: IndexValueFormat,
+) -> None:
+    """NaN has no decimal form, so it is refused by name rather than written as ``nan``.
+
+    Each way of writing a value is a case of its own, since each reaches the
+    value by a path of its own.
+
+    Parameters:
+        value_format: The format asked to write NaN.
+    """
+    with pytest.raises(ValueError, match='got nan'):
+        value_format.render(math.nan)
+
+
+def _ring_resolution_env(tmp_path: Path) -> BundleEnv:
+    """Build an environment declaring, beside the default bodies, one ring plane in rad/pixel.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+
+    Returns:
+        The environment, whose ring statistic is expected in degrees per pixel.
+    """
+    return _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
+
+
+def _ring_resolution_stats(units: str) -> dict[str, Any]:
+    """Build ring statistics holding one longitudinal resolution in the given unit.
+
+    Parameters:
+        units: The unit the statistic records.
+
+    Returns:
+        The ``backplanes.rings`` payload of a supplemental file.
+    """
+    statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
+    return {'backplanes': {'longitudinal_resolution': statistic}}
+
+
+def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
+    tmp_path: Path,
+) -> None:
+    """A supplemental file recording a plane in a unit its configuration does not give ends the run.
+
+    Indexing it would put a column in two units.  The error names the file, the
+    plane and both units and says what to regenerate, and no table is written.
+    """
+    env = _ring_resolution_env(tmp_path)
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats('rad/pixel')
+    )
+    with pytest.raises(ValueError) as excinfo:
+        _run_global_index(env)
+    message = str(excinfo.value)
+    assert '1234567890w_supplemental.txt' in message
+    assert 'the longitudinal_resolution statistic' in message
+    assert 'in rad/pixel' in message
+    assert 'expects deg/pixel' in message
+    assert 'regenerate the backplanes, then the bundle into an empty directory' in message
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_supplemental_file_with_a_body_statistic_in_another_unit_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A body plane is held to its unit in the summary pass, as a ring plane is.
+
+    The bodies are read from a member of their own, one entry per body, so a
+    check that read only the rings would index this file.
+    """
+    env = _index_env(tmp_path)
+    radians = {'MOON_A': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': 'rad'}}}}
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=radians)
+    with pytest.raises(ValueError) as excinfo:
+        _run_global_index(env)
+    assert 'the latitude statistic in rad where the configuration expects deg' in str(excinfo.value)
+
+
+def test_a_disagreeing_supplemental_file_anywhere_is_refused_before_the_first_table(
+    tmp_path: Path,
+) -> None:
+    """A disagreement in any supplemental file stops the run before the bodies table exists.
+
+    Every file is read and its rows accumulated before either table is
+    written, so a file that disagrees after others that agree still leaves
+    nothing behind: the first file here holds a body row the bodies table
+    would carry, and the second is the one refused.
+    """
+    env = _ring_resolution_env(tmp_path)
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=BODY_STATS)
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/2222222222w', rings=_ring_resolution_stats('rad/pixel')
+    )
+    with pytest.raises(ValueError, match='2222222222w_supplemental'):
+        _run_global_index(env)
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_supplemental_file_holding_an_infinite_maximum_is_refused_with_nothing_written(
+    tmp_path: Path,
+) -> None:
+    """An infinite maximum ends the run, naming the file and the plane, with no table.
+
+    The JSON reader returns an infinity for the token the writer writes for one, and
+    no index column can hold it.
+    """
+    env = _index_env(tmp_path)
+    unholdable = {
+        'PLANET': {
+            'backplanes': {'resolution': {'min': 60.0, 'max': math.inf, 'units': 'km/pixel'}}
+        }
+    }
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=unholdable)
+    with pytest.raises(ValueError) as excinfo:
+        _run_global_index(env)
+    message = str(excinfo.value)
+    assert '1234567890w_supplemental.txt' in message
+    assert 'records a resolution maximum of inf' in message
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_render_that_fails_leaves_no_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every cell is rendered before either table opens, so a failed render leaves none.
+
+    The checks refuse every value they know no column can hold, but they are not
+    the only way a render can fail, and a table opened before its cells exist is
+    left half-written by whichever failure comes.
+    """
+
+    def _refuse(self: IndexValueFormat, value: float) -> str:
+        """Fail every render, as a value no check anticipated would.
+
+        Parameters:
+            self: The format asked to render, unused.
+            value: The value asked for, named in the message.
+
+        Raises:
+            ValueError: Always.
+        """
+        raise ValueError(f'cannot render {value!r}')
+
+    env = _index_env(tmp_path)
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    monkeypatch.setattr(IndexValueFormat, 'render', _refuse)
+    with pytest.raises(ValueError, match='cannot render'):
+        _run_global_index(env)
+    assert not (env.bundle_dir / 'document').exists()
+
+
+def test_a_refused_run_leaves_none_of_the_index_products_an_earlier_run_wrote(
+    tmp_path: Path,
+) -> None:
+    """A refused run leaves none of the index tables and labels an earlier run wrote.
+
+    Left in place, they would sit beside the collection files the run has
+    rewritten, still indexing the refused file as it was.
+    """
+    products = [
+        'global_index_bodies.tab',
+        'global_index_bodies.lblx',
+        'global_index_rings.tab',
+        'global_index_rings.lblx',
+    ]
+    env = _ring_resolution_env(tmp_path)
+    supplemental_dir = env.bundle_dir / 'document' / 'supplemental'
+    supplemental_dir.mkdir(parents=True)
+    for product in products:
+        (supplemental_dir / product).write_text('an earlier run\n', encoding='utf-8')
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats('rad/pixel')
+    )
+    with pytest.raises(ValueError, match='1234567890w_supplemental'):
+        _run_global_index(env)
+    assert [product for product in products if (supplemental_dir / product).exists()] == []
 
 
 def test_bodies_index_missing_backplane_values_blank(tmp_path: Path) -> None:
@@ -395,8 +693,8 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
     assert rows[0] == ['LID', 'path_to_image_file', 'radius_min', 'radius_max']
     assert len(rows) == 2
     assert rows[1][1] == 'data/shard0/2222222222w_backplanes.lblx'
-    assert rows[1][2] == '74500.00000'
-    assert rows[1][3] == '136800.98765'
+    assert rows[1][2] == '81000.0'
+    assert rows[1][3] == '125001.0'
 
 
 def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> None:
@@ -412,7 +710,11 @@ def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> Non
 def test_unreadable_supplemental_skipped_with_logged_error(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A malformed supplemental file is skipped; other images are still indexed."""
+    """A malformed supplemental file is skipped; other images are still indexed.
+
+    The log gives the parser's reason, which the frames of a traceback do not
+    carry.
+    """
     env = _index_env(tmp_path)
     write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', raw_text='not json')
     write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
@@ -420,7 +722,9 @@ def test_unreadable_supplemental_skipped_with_logged_error(
     rows = read_tab(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert len(rows) == 2
     assert '2222222222w' in rows[1][0]
-    assert 'Error reading supplemental file' in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert 'Error reading supplemental file' in out
+    assert 'Expecting value: line 1 column 1 (char 0)' in out
 
 
 def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
@@ -434,8 +738,8 @@ def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
         },
     )
     two_bodies: dict[str, Any] = {
-        'MIMAS': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0}}},
-        'ENCELADUS': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0}}},
+        'MOON_A': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
+        'MOON_B': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
     }
     write_supplemental(
         env.bundle_dir / 'data', 'shard0/1234567890w', bodies=two_bodies, rings=RING_STATS
@@ -547,123 +851,3 @@ def test_inventory_lidvid_round_trips_with_canonical_builders(tmp_path: Path) ->
     rows = read_tab(env.bundle_dir / 'data' / 'collection_data.tab')
     expected = env.dataset.pds4_image_name_to_data_lid('1234567890w') + '::1.0'
     assert rows[1][1] == expected
-
-
-# ---------------------------------------------------------------------------
-# Real Cassini dataset: LID/LIDVID construction and template tree
-# ---------------------------------------------------------------------------
-
-
-def _cassini_dataset(tmp_path: Path) -> DataSetPDS3CassiniISSSaturn:
-    """Construct the reference Cassini Saturn dataset on a local holdings root.
-
-    Parameters:
-        tmp_path: Base temporary directory used as the (empty) holdings root.
-    """
-    return DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings')
-
-
-def test_cassini_data_lid_canonical_form(tmp_path: Path) -> None:
-    """The Cassini data LID rotates the camera letter to a lowercase suffix."""
-    dataset = _cassini_dataset(tmp_path)
-    lid = dataset.pds4_image_name_to_data_lid('N1454725799')
-    assert lid == 'urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:data:1454725799n'
-
-
-def test_cassini_lidvid_version_field(tmp_path: Path) -> None:
-    """LIDVIDs append a ::1.0 version to the corresponding LID."""
-    dataset = _cassini_dataset(tmp_path)
-    lid = dataset.pds4_image_name_to_data_lid('N1454725799')
-    lidvid = dataset.pds4_image_name_to_data_lidvid('N1454725799')
-    assert lidvid == f'{lid}::1.0'
-
-
-def test_cassini_browse_lid_uses_browse_collection(tmp_path: Path) -> None:
-    """Browse LIDs differ from data LIDs only in the collection segment."""
-    dataset = _cassini_dataset(tmp_path)
-    lid = dataset.pds4_image_name_to_browse_lid('N1454725799')
-    assert lid == 'urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:browse:1454725799n'
-
-
-def test_cassini_lid_part_to_image_name_inverts_rotation(tmp_path: Path) -> None:
-    """The LID-part inverse moves the trailing letter back to an uppercase prefix."""
-    dataset = _cassini_dataset(tmp_path)
-    assert dataset.pds4_lid_part_to_image_name('1454725799n') == 'N1454725799'
-
-
-def test_cassini_lid_part_round_trips_through_data_lid(tmp_path: Path) -> None:
-    """An on-disk LID part recovers the image name whose data LID embeds it."""
-    dataset = _cassini_dataset(tmp_path)
-    image_name = dataset.pds4_lid_part_to_image_name('1454725799n')
-    lid = dataset.pds4_image_name_to_data_lid(image_name)
-    assert lid.endswith(':data:1454725799n')
-
-
-def test_cassini_lid_part_to_image_name_rejects_too_short(tmp_path: Path) -> None:
-    """A LID part shorter than two characters is a programming error."""
-    dataset = _cassini_dataset(tmp_path)
-    with pytest.raises(ValueError, match='invalid Cassini LID part'):
-        dataset.pds4_lid_part_to_image_name('n')
-
-
-def test_cassini_lid_strips_version_suffix_and_extension(tmp_path: Path) -> None:
-    """Image-name version suffixes and extensions do not leak into the LID."""
-    dataset = _cassini_dataset(tmp_path)
-    plain = dataset.pds4_image_name_to_data_lid('N1454725799')
-    suffixed = dataset.pds4_image_name_to_data_lid('N1454725799_1.IMG')
-    assert suffixed == plain
-
-
-def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
-    """The Cassini collection inventory LIDVID matches the label's DATA_LID."""
-    dataset = _cassini_dataset(tmp_path)
-    bundle_results_root = tmp_path / 'bundle'
-    bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
-    touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
-    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER)
-    rows = read_tab(bundle_dir / 'data' / 'collection_data.tab')
-    inventory_lid = rows[1][1].split('::')[0]
-    label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')
-    assert inventory_lid == label_lid
-
-
-@pytest.mark.parametrize(
-    'template_name',
-    [
-        'bundle.lblx',
-        'readme.txt',
-        'data.lblx',
-        'browse.lblx',
-        'collection_data.lblx',
-        'collection_browse.lblx',
-        'collection_context.lblx',
-        'collection_context.csv',
-        'collection_document.lblx',
-        'collection_document.csv',
-        'collection_xml_schema.lblx',
-        'collection_xml_schema.csv',
-        'global_index_bodies.lblx',
-        'global_index_rings.lblx',
-        'cassini-iss-saturn-backplanes-user-guide.lblx',
-    ],
-)
-def test_cassini_template_tree_ships_documented_files(tmp_path: Path, template_name: str) -> None:
-    """Every file in the dev guide's reference template tree ships as package data."""
-    dataset = _cassini_dataset(tmp_path)
-    template_dir = Path(dataset.pds4_bundle_template_dir())
-    assert (template_dir / template_name).is_file()
-
-
-def test_cassini_declares_only_templates_it_ships(tmp_path: Path) -> None:
-    """Every template the Cassini dataset declares required is in its shipped tree.
-
-    Each pass refuses to run when a template it declares is not there, so a
-    declaration naming a file the package does not ship would stop every run of
-    that pass rather than one product of it.
-    """
-    dataset = _cassini_dataset(tmp_path)
-    template_dir = Path(dataset.pds4_bundle_template_dir())
-    declared = dataset.pds4_required_templates('labels') + dataset.pds4_required_templates(
-        'summary'
-    )
-    assert [name for name in declared if not (template_dir / name).is_file()] == []

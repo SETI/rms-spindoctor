@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 from pdslogger import PdsLogger
 
+from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 
@@ -29,6 +30,10 @@ def create_ring_backplanes(
         - "arrays": The ring backplane arrays.
         - "masks": The ring backplane masks.
         - "distance": The ring backplane distance.
+        - "statistics": The ring backplane statistics, each stating the unit it
+          is in, which is not the unit of the array it was taken from wherever
+          the plane is angular.  See
+          :mod:`spindoctor.cli.backplanes.statistics`.
     """
 
     masked_value = float(config.backplanes.masked_value)
@@ -62,7 +67,7 @@ def create_ring_backplanes(
 
     result['planet'] = closest_planet
     result['target_key'] = target_key
-    ring_stats: dict[str, dict[str, float]] = {}
+    ring_stats: dict[str, PlaneStatistics] = {}
 
     for bp_cfg in rings_cfg:
         bp_name = bp_cfg['name']
@@ -92,12 +97,7 @@ def create_ring_backplanes(
         # Calculate min/max statistics
         valid_values = full[mask]
         if len(valid_values) > 0:
-            # Check if this backplane type is in radians and needs conversion
-            if units.lower() == 'rad':
-                valid_values = np.degrees(valid_values)
-            min_val = float(np.nanmin(valid_values))
-            max_val = float(np.nanmax(valid_values))
-            ring_stats[bp_name] = {'min': min_val, 'max': max_val}
+            ring_stats[bp_name] = plane_statistics(valid_values, units=units)
 
     result['statistics'] = ring_stats
 

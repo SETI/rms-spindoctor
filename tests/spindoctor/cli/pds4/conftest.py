@@ -1,12 +1,26 @@
 """Shared hermetic fixtures for the PDS4 bundle generation test suite.
 
+Two environments, for two different questions.
+
 The PDS4 backend (``spindoctor.cli.pds4``) is driven entirely by a ``DataSet``'s
 ``pds4_*`` hooks plus plain files on disk, so these helpers provide a duck-typed
 stand-in dataset that implements only the ``pds4_*`` hook surface, tiny
 ``pdstemplate`` ``.lblx`` templates whose substitution behavior the tests fully
 control, and writers for the navigation / backplane metadata files the bundle
-stage consumes.  Nothing here touches SPICE, PDS holdings, or the network; all
-inputs and outputs live under ``tmp_path``.
+stage consumes.  That is :class:`BundleEnv`, and it is how the plumbing is
+tested: which file goes where, which variable reaches which template, what a
+render that errors leaves behind.
+
+:class:`CohortBundleEnv` is the other half.  It runs the registered dataset a
+cohort's bundle is built with over the templates that dataset ships, on the
+products the cohort writes, and it is how a question about what a label *says*
+is asked -- an epoch, a target, a described data object.  Neither
+answers the other's question: a label rendered from a template the test wrote
+says whatever the test put there, and a plumbing failure inside the shipped
+template set is a needle in three hundred lines of XML.
+
+Nothing here touches SPICE, PDS holdings, or the network; all inputs and
+outputs live under ``tmp_path``.
 """
 
 import csv
@@ -17,6 +31,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 from filecache import FCPath
+from tests.mini_nav_results.cohort import Cohort
 
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
@@ -220,7 +235,13 @@ class NoPds4DataSet:
 
     Mirrors the ``DataSet`` base-class contract for datasets that do not support
     PDS4 bundle generation (dev_guide_pds4.rst "Per-dataset extension points").
+    It carries a configuration declaring no backplanes, as every dataset carries
+    one, so that what the bundle stage reads before it reaches a hook is there.
     """
+
+    def __init__(self) -> None:
+        """Build the dataset with a configuration declaring no backplanes."""
+        self.config = SimpleNamespace(backplanes=SimpleNamespace(bodies=[], rings=[]))
 
     def as_dataset(self) -> DataSet:
         """Return self cast to ``DataSet`` for passing into typed call sites."""
@@ -474,3 +495,54 @@ def read_tab(path: Path) -> list[list[str]]:
     """
     with path.open(newline='', encoding='utf-8') as f:
         return list(csv.reader(f))
+
+
+@dataclass
+class CohortBundleEnv:
+    """A bundle-generation environment over a cohort and its bundle's shipped templates.
+
+    Where :class:`BundleEnv` controls every variable so that the substitution
+    plumbing can be asserted on, this one controls none of them: the dataset is
+    the registered one the cohort's bundle is built with, the templates are the
+    ones that dataset ships, and the inputs are the documents and products a
+    navigation run and the backplane stage leave behind.  What it is for is
+    asserting what a label says, which nothing built out of stand-ins can
+    answer.
+
+    Attributes:
+        dataset: The registered dataset the cohort's bundle is built with,
+            serving its own ``pds4_*`` hooks and its own template directory.
+        cohort: The written cohort, holding both input roots and every image.
+        bundle_results_root: Where this test's bundle goes.
+        bundle_dir: ``bundle_results_root / <the dataset's bundle name>``.
+    """
+
+    dataset: DataSet
+    cohort: Cohort
+    bundle_results_root: Path
+    bundle_dir: Path
+
+
+def make_cohort_bundle_env(cohort: Cohort, tmp_path: Path) -> CohortBundleEnv:
+    """Build a bundle environment over the cohort, writing into ``tmp_path``.
+
+    The cohort is read-only and shared by the session; only the bundle the run
+    writes belongs to one test.
+
+    Parameters:
+        cohort: The session's cohort, holding the navigation and backplane
+            roots the run reads.
+        tmp_path: Base temporary directory for this test's bundle output.
+
+    Returns:
+        The populated :class:`CohortBundleEnv`.
+    """
+    dataset = cohort.dataset()
+    bundle_results_root = tmp_path / 'bundle'
+    bundle_results_root.mkdir(parents=True, exist_ok=True)
+    return CohortBundleEnv(
+        dataset=dataset,
+        cohort=cohort,
+        bundle_results_root=bundle_results_root,
+        bundle_dir=bundle_results_root / dataset.pds4_bundle_name(),
+    )

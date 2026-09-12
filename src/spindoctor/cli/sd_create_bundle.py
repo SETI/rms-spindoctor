@@ -89,7 +89,27 @@ def add_common_arguments(parser: argparse.ArgumentParser, *, for_labels: bool = 
 
 
 def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
-    """Parse arguments for the labels subcommand."""
+    """Parse arguments for the labels subcommand.
+
+    The selection arguments are the dataset class's own, declared and read by
+    it, so the parser adds them without an instance and reads none of them
+    itself; the dataset is constructed once the command line is parsed.
+
+    Sets the module globals ``DATASET`` and ``DATASET_NAME`` as a side effect,
+    because every later stage of the subcommand reads the dataset from there.
+
+    Parameters:
+        command_list: The subcommand's arguments, the dataset name first.
+
+    Returns:
+        The parsed arguments.
+
+    Raises:
+        SystemExit: With status 1, and a usage line on stdout, when no dataset
+            name was given or when the name is not a known dataset.  These end
+            the program rather than raising to a caller because this is a
+            command line being read, and there is nothing above it to recover.
+    """
     global DATASET
     global DATASET_NAME
 
@@ -105,7 +125,7 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
         print('Usage: sd_create_bundle labels <dataset_name> [args]')
         sys.exit(1)
 
-    DATASET = dataset_name_to_class(DATASET_NAME)()
+    dataset_class = dataset_name_to_class(DATASET_NAME)
 
     cmdparser = argparse.ArgumentParser(
         description='PDS4 Bundle Generation - Labels',
@@ -125,9 +145,12 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
     )
 
     # Dataset selection
-    DATASET.add_selection_arguments(cmdparser)
+    dataset_class.add_selection_arguments(cmdparser)
 
     arguments = cmdparser.parse_args(command_list[1:])
+
+    DATASET = dataset_class()
+
     return arguments
 
 
@@ -299,14 +322,17 @@ def main_labels() -> None:
                 bundle_results_root=bundle_results_root,
                 logger=MAIN_LOGGER,
             )
-        except Exception:
+        except Exception as exc:
             # One image whose inputs cannot be read or whose template cannot be
             # found is one image without a label, not a run without a report:
             # the images after it are still processed and the run still says at
-            # the end how many labels it did not write.
+            # the end how many labels it did not write.  The logger's
+            # exception() writes the frames but not the exception's own text,
+            # which is the reason, so the text is handed to it.
             MAIN_LOGGER.exception(
-                'Failed to generate bundle data files for %s',
+                'Failed to generate bundle data files for %s: %s',
                 imagefiles.image_files[0].image_file_url.as_posix(),
+                exc,
             )
             failed_images += 1
             continue
@@ -378,8 +404,10 @@ def main_summary() -> None:
             dataset=dataset,
             logger=MAIN_LOGGER,
         )
-    except Exception:
-        MAIN_LOGGER.exception('Failed to generate collection files')
+    except Exception as exc:
+        # The logger's exception() writes the frames but not the exception's
+        # own text, which is the reason, so the text is handed to it.
+        MAIN_LOGGER.exception('Failed to generate collection files: %s', exc)
         sys.exit(1)
 
     # Generate global index files
@@ -389,8 +417,12 @@ def main_summary() -> None:
             dataset=dataset,
             logger=MAIN_LOGGER,
         )
-    except Exception:
-        MAIN_LOGGER.exception('Failed to generate global index files')
+    except Exception as exc:
+        # The logger's exception() writes the message it is handed and the
+        # frames, not the exception's own text, and a supplemental file in
+        # another unit is refused with a message naming the file and both
+        # units that the frames alone do not carry.
+        MAIN_LOGGER.exception('Failed to generate global index files: %s', exc)
         sys.exit(1)
 
     if failed_labels > 0:

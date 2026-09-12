@@ -36,6 +36,11 @@ SHAPE_VU = (6, 8)
 
 RADIUS_CFG = {'name': 'ring_radius', 'method': 'ring_radius', 'units': 'km'}
 LON_CFG = {'name': 'ring_longitude', 'method': 'ring_longitude', 'units': 'rad'}
+RESOLUTION_CFG = {
+    'name': 'ring_longitudinal_resolution',
+    'method': 'ring_angular_resolution',
+    'units': 'rad/pixel',
+}
 
 
 def _rings_config(entries: list[dict[str, Any]] | None = None) -> FakeBackplanesConfig:
@@ -197,6 +202,24 @@ def test_ring_stats_convert_radians_to_degrees() -> None:
     stats = result['statistics']['ring_longitude']
     assert stats['min'] == pytest.approx(math.degrees(1.5))
     assert stats['max'] == pytest.approx(math.degrees(1.5))
+
+
+def test_ring_stats_convert_radians_per_pixel_to_degrees() -> None:
+    """A plane declared in radians per pixel is summarized in degrees per pixel.
+
+    The ring stage is where the shipped configuration's one compound angular
+    plane lives, and a statistic left in radians there is a column of radians in
+    a table of degrees.
+    """
+    _, method_values = _ring_arrays()
+    method_values['ring_angular_resolution'] = method_values['ring_longitude']
+    snap, _ = _snapshot_with_fake_bp(method_values)
+    config = _rings_config([RESOLUTION_CFG])
+    result = create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
+    assert result is not None
+    stats = result['statistics']['ring_longitudinal_resolution']
+    assert stats['min'] == pytest.approx(math.degrees(1.5))
+    assert stats['units'] == 'deg/pixel'
 
 
 def test_ring_stats_keep_km_units() -> None:

@@ -9,6 +9,7 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.pds4.labels import write_label
+from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.dataset.dataset import DataSet, ImageFiles
 from spindoctor.support.file import json_as_string
 
@@ -23,8 +24,12 @@ class BundleDataOutcome(Enum):
             generated.  A skip is an image the bundle has nothing to say about,
             not a failure of the run.
         FAILED: At least one of the image's products is not in the bundle: a
-            label that could not be rendered, or a browse product whose summary
-            PNG the navigation results do not hold.
+            label that could not be rendered, a browse product whose summary
+            PNG the navigation results do not hold, or, with nothing written
+            for the image at all, backplane metadata recording a statistic no
+            global index column can hold: one in a unit other than the one the
+            configuration gives its plane, or with a minimum or maximum that is
+            NaN or infinite.
     """
 
     WRITTEN = 'written'
@@ -61,6 +66,14 @@ def generate_bundle_data_files(
     without a browse product; the image is failed, and its data label stays on
     disk.
 
+    A navigated image whose backplane metadata records a statistic no global
+    index column can hold is failed as well, before anything is written for it:
+    one in a unit other than the one the configuration gives its plane, or with
+    a minimum or maximum that is NaN or infinite, as
+    :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` checks.
+    A plane the document holds that the configuration does not declare is not
+    checked.
+
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
         image_files: List of images; must have exactly one image in the batch.
@@ -72,7 +85,9 @@ def generate_bundle_data_files(
     Returns:
         WRITTEN when the image's labels are on disk, SKIPPED when the image has
         nothing for the bundle to describe, and FAILED when a label could not be
-        rendered.
+        rendered, the summary PNG is not there, or a backplane statistic is in a
+        unit other than the one the configuration gives its plane or has a
+        minimum or maximum that is NaN or infinite.
 
     Raises:
         ValueError: If the batch does not hold exactly one image.
@@ -141,6 +156,21 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.SKIPPED
         bp_stats = cast(dict[str, Any], json.loads(backplane_metadata_text))
+
+        # Every index column is in its plane's configured unit and holds only
+        # finite numbers, so an image with a statistic the index cannot hold is
+        # failed before anything is written for it.
+        unindexable = unindexable_statistic(bp_stats, dataset.config)
+        if unindexable is not None:
+            logger.error(
+                'Failing bundle generation for "%s": the backplane metadata %s; %s. '
+                'Nothing is written for the image until its backplanes are regenerated '
+                'with statistics an index column can hold',
+                image_path,
+                unindexable.description,
+                unindexable.reason,
+            )
+            return BundleDataOutcome.FAILED
 
         pds4_path_stub = dataset.pds4_path_stub(image_file)
         bundle_name = dataset.pds4_bundle_name()
