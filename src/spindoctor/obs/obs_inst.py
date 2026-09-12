@@ -152,5 +152,17 @@ class ObsInst(ABC):
 
     @abstractmethod
     def get_public_metadata(self) -> dict[str, Any]:
-        """Returns the public metadata for this instrument."""
+        """Return the facts this instrument's host publishes about the image.
+
+        The navigation document's ``observation`` block records each of them after the
+        image's identity, except a fact the block already states, and the summary PNG's
+        caption reads the image name, filters and exposure time from them.
+
+        Returns:
+            The facts, keyed by name in the host's own order: the image's path and name,
+            the PDS4 context identifiers of the spacecraft and the instrument, the image
+            shape as ``(x, y)``, the camera, and, where the host knows them, the start,
+            midtime and end of the exposure, the exposure time, the filters and whatever
+            else the host states about the image.
+        """
         ...

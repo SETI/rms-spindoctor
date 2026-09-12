@@ -679,10 +679,16 @@ policy, and one annotated example per document shape -- is the
   there; that needs no SPICE and never opens the image, so a frame whose
   navigation dies for want of a kernel is still attributed to its camera. An
   image navigated by explicit path rather than enumerated from an index has
-  none. ``shutter_mode`` records
-  the mode the image was taken in for an instrument whose label carries one
-  (Cassini ISS reports ``BOTSIM`` when both cameras were exposed at once);
-  instruments whose labels carry no such field omit it.
+  none. ``shutter_mode`` records the mode the image was taken in for an
+  instrument whose label carries one; instruments whose labels carry no such
+  field omit it. For every image whose
+  navigation ran to a result, successful or failed, the block also records
+  what is known about the exposure from the image itself: when the exposure
+  began, its midpoint and when it ended (in UTC and ET, and as the spacecraft
+  clock counts the label records), the exposure time, the filters, and
+  whatever else the instrument states about the image.
+  These are recorded whether or not a corrected pointing was; a load-error or
+  internal-error document carries none of them.
 * The calculated pointing offset (dv, du)
 * Uncertainty estimates (sigma_v, sigma_u)
 * Confidence scores

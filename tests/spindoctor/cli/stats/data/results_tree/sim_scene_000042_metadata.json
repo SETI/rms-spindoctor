@@ -8,7 +8,10 @@
     "image_shape": [
       256,
       256
-    ]
+    ],
+    "instrument_host_lid": "sim",
+    "instrument_lid": "sim",
+    "description": "Simulated observation from YAML scene"
   },
   "navigation_result": {
     "status": "success",

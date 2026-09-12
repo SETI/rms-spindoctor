@@ -19,7 +19,7 @@ These chapters do not restate the instrument teams' own documentation. There
 are no apertures, focal lengths, pixel scales, angular field extents or filter
 tables here; each chapter's References section points at the official documents
 that carry them. What a chapter carries instead is what SpinDoctor decides,
-configures, measures, or does differently for that instrument.
+configures, measures, or does for that instrument.
 
 A new instrument gets a chapter by copying ``_template.rst`` in this directory
 to ``<instrument>.rst`` and filling it in. The list below is a glob, so nothing

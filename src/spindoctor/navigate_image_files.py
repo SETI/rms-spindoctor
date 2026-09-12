@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import sys
 import traceback
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -72,6 +73,14 @@ __all__ = [
     'write_summary_png',
 ]
 
+
+_RESTATED_PUBLIC_METADATA = frozenset({'image_shape_xy'})
+"""Keys a host publishes that the ``observation`` block already states in another form.
+
+``image_shape_xy`` is ``image_shape`` in the other axis order.  A published key the block
+itself holds -- the image's path, its name, its camera -- is skipped because the block
+already holds it.
+"""
 
 _SPICE_DATA_HINTS = (
     'SPICE(CKINSUFFDATA)',
@@ -326,6 +335,7 @@ def navigate_image_files(
                         camera=snapshot_inst.camera,
                         shutter_mode=snapshot_inst.shutter_mode,
                         image_shape=(int(data_shape[0]), int(data_shape[1])),
+                        public_metadata=snapshot_inst.get_public_metadata(),
                         timing=build_timing_section(
                             run_start, datetime.now(UTC), peak_measured=peak_measured
                         ),
@@ -566,12 +576,18 @@ def build_metadata_from_result(
     camera: str | None = None,
     shutter_mode: str | None = None,
     image_shape: tuple[int, int] | None = None,
+    public_metadata: Mapping[str, Any] | None = None,
     timing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the JSON metadata dict from a NavResult.
 
     Used by both the autonomous pipeline and the manual-nav driver so a
     manually-picked offset writes the same ``_metadata.json`` schema.
+
+    The ``observation`` block records what the observation says about the
+    image whether or not its navigation succeeded and whether or not a pointing
+    was recorded: the identity the parameters below give it, followed by every
+    fact in ``public_metadata`` the block does not already state.
 
     Parameters:
         result: NavResult to curate.
@@ -593,6 +609,14 @@ def build_metadata_from_result(
         image_shape: ``(v, u)`` pixel dimensions of the loaded image data;
             written to the ``observation.image_shape`` field.  None omits
             the field.
+        public_metadata: What the observation's host publishes about the image
+            (:meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata`): its start,
+            midtime and end times, its exposure time, its filters, and whatever else
+            that host states.  Each fact is written to the ``observation`` block under
+            the host's own key and as the host states it, after the fields above,
+            unless the block already states it: a key the block already holds keeps the
+            block's value, and ``image_shape_xy`` is omitted because it is
+            ``image_shape`` in the other axis order.  None records no published fact.
         timing: Run-timing section from :func:`build_timing_section`;
             written to the top-level ``timing`` field.  None omits the
             field.
@@ -609,6 +633,12 @@ def build_metadata_from_result(
         observation['shutter_mode'] = shutter_mode
     if image_shape is not None:
         observation['image_shape'] = [int(image_shape[0]), int(image_shape[1])]
+    if public_metadata is not None:
+        observation.update(
+            (key, value)
+            for key, value in public_metadata.items()
+            if key not in observation and key not in _RESTATED_PUBLIC_METADATA
+        )
     metadata: dict[str, Any] = {
         'status': result.status,
         'observation': observation,

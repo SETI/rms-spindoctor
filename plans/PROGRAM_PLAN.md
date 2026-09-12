@@ -494,7 +494,7 @@ enhancement backlog and code-quality tail are burned down.
   chaotic-rotator poses (#187), manual-nav dialog redesign (#186),
   gated-feature PNG styling (#185), stop-after-features flag (#182),
   body shape models (#23), sim polish (#84, #78, #151, #152, #157, #158).
-- **Hardening/cleanup** (any time, mostly small): #13, #15, #21, #38, #39, #65, #92, #96-#105, #109, #110, #119, #135, #137, #140, #143, #144, #147, #155, #212, plus the GUI viewers printing library log records to stdout (#423), the upstream `rms-pdslogger` registry-eviction request (#428), Cassini BOTSIM pairs defined two different ways (#494), stating the encoding wherever a document or text file is read or written (#518), and removing the `AttrDict` `_IS_IMMUTABLE` marker once oops stops writing its mutability bookkeeping onto foreign objects (#552).
+- **Hardening/cleanup** (any time, mostly small): #15, #21, #38, #39, #65, #92, #96-#105, #109, #110, #119, #135, #137, #140, #143, #144, #147, #155, #212, plus the GUI viewers printing library log records to stdout (#423), the upstream `rms-pdslogger` registry-eviction request (#428), Cassini BOTSIM pairs defined two different ways (#494), stating the encoding wherever a document or text file is read or written (#518), and removing the `AttrDict` `_IS_IMMUTABLE` marker once oops stops writing its mutability bookkeeping onto foreign objects (#552).
 
 **Parallelism:** hardening is permanent filler. Instrument work waits for
 Track A's Cassini verdict only in the sense that there is no point
@@ -591,10 +591,10 @@ from a current one at a glance.
 | C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
 | D — capability completion | 73 | #28, #30, #47, #53, #54, #55, #57, #63, #66, #67, #69, #71, #72, #73, #74, #75, #76, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #265, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #519, #520, #528, #531, #534, #536, #538, #540, #541, #542 |
 | E — test & docs debt | 28 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563 |
-| F — instruments, features, hardening | 60 | #2, #13, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552 |
+| F — instruments, features, hardening | 60 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #628 |
 
 Priority census across all six tracks: no Critical, 22 Essential, 66
-Important, 107 Useful, 34 Minor, 12 Defer. Every open issue carries exactly
+Important, 108 Useful, 33 Minor, 12 Defer. Every open issue carries exactly
 one Priority and one Effort label and at least one each of A-type and
 B-location.
 

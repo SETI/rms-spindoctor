@@ -1,3 +1,4 @@
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
 
@@ -5,10 +6,62 @@ import numpy as np
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
+from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import ObsSnapshotInst
+
+# SCLK01_MODULI_82 and SCLK01_OFFSETS_82 of the Cassini spacecraft clock kernel,
+# $OOPS_RESOURCES/SPICE/Cassini/SCLK/cas00172.tsc: whole seconds, then 1/256-second ticks.
+_SCLK_MODULI = (4294967296, 256)
+_SCLK_OFFSETS = (0, 0)
+
+_SCLK_TICK_DIGITS = 3
+"""Digits in the tick field of a spacecraft clock count as an image label writes it."""
+
+
+def _sclk_count(count: str) -> Fraction:
+    """Return a Cassini spacecraft clock count as seconds, with its ticks as a fraction.
+
+    A count is ``SECONDS.TICKS``: whole seconds, then the 1/256-second ticks past them,
+    written as three digits, so ``1459229915.075`` is ``1459229915 + 75 / 256``, or
+    ``1459229915.29296875``.  A tick field with fewer digits has lost its trailing zeros,
+    as an index table's copy of a count can, and is padded back on the right:
+    ``1347929382.11`` is ``1347929382.110``.
+
+    Parameters:
+        count: The count as text.
+
+    Returns:
+        The count in seconds of the clock, exactly.
+    """
+    seconds, _, ticks = count.strip().partition('.')
+    return fractional_count(
+        (int(seconds), int(ticks.ljust(_SCLK_TICK_DIGITS, '0'))), _SCLK_MODULI, _SCLK_OFFSETS
+    )
+
+
+def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | None]:
+    """Return the spacecraft clock counts Cassini ISS publishes for one exposure.
+
+    A Cassini ISS label's two counts mark the start and the end of the exposure, so the
+    count halfway between them is its middle.
+
+    Parameters:
+        start: The label's ``SPACECRAFT_CLOCK_START_COUNT``, or None when it carries none.
+        stop: The label's ``SPACECRAFT_CLOCK_STOP_COUNT``, or None when it carries none.
+
+    Returns:
+        ``start_time_sclk`` and ``end_time_sclk``, the two counts in seconds of the
+        clock, and ``midtime_sclk``, their exact mean; a count the label does not carry
+        is None, and so is the mean when either count is.
+    """
+    return exposure_counts(
+        None if start is None else _sclk_count(start),
+        None if stop is None else _sclk_count(stop),
+        bracketed=True,
+    )
 
 
 class ObsCassiniISS(ObsSnapshotInst):
@@ -172,12 +225,13 @@ class ObsCassiniISS(ObsSnapshotInst):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for Cassini ISS.
 
+        The spacecraft clock counts are the label's start and stop counts, in seconds of
+        the clock with the ticks as a fraction, and their exact mean; each is None when
+        the label carries no counts.
+
         Returns:
             A dictionary containing the public metadata for Cassini ISS.
         """
-
-        scet_start = float(self.dict['SPACECRAFT_CLOCK_START_COUNT'])
-        scet_end = float(self.dict['SPACECRAFT_CLOCK_STOP_COUNT'])
 
         # The instrument LID encodes the camera as iss{n,w}a; guard against an
         # unexpected detector so a malformed LID never reaches a PDS4 label.
@@ -197,9 +251,10 @@ class ObsCassiniISS(ObsSnapshotInst):
             'start_time_et': self.time[0],
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
-            'start_time_scet': scet_start,
-            'midtime_scet': (scet_start + scet_end) / 2,
-            'end_time_scet': scet_end,
+            **_published_sclk(
+                self.dict.get('SPACECRAFT_CLOCK_START_COUNT', None),
+                self.dict.get('SPACECRAFT_CLOCK_STOP_COUNT', None),
+            ),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,

@@ -52,8 +52,7 @@ Beyond the host call it does four things:
    absolute source URL) from an ``FCPath``, so a run against remote holdings
    still names the file it read.
 2. Selects the configuration block. ``'_CALIB' in fc_path.name.upper()``
-   chooses ``cassini_iss_calib``; anything else chooses ``cassini_iss``. This
-   is the only instrument whose block is chosen from the filename.
+   chooses ``cassini_iss_calib``; anything else chooses ``cassini_iss``.
 3. Indexes that block by ``obs.detector.lower()``. A missing section, or a
    section with no entry for the detector, raises ``ValueError`` naming the
    detectors that are present, rather than failing later on a missing key.
@@ -66,9 +65,21 @@ Label and index dependencies
 
 **Label fields read.**
 
-* ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT``, both
-  parsed with ``float()`` in ``get_public_metadata``. A label missing either
-  raises, and this is the only instrument that reads them.
+* ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT``, read
+  from the image's VICAR label in
+  :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`.
+  A count is ``SECONDS.TICKS``: whole seconds, then the 1/256-second ticks
+  past them written as three digits. ``_sclk_count`` converts it to an exact
+  number of seconds through :func:`~spindoctor.support.sclk.fractional_count`,
+  with the moduli ``(4294967296, 256)`` and offsets ``(0, 0)`` that the clock
+  kernel ``cas00172.tsc`` gives, so ``1459229915.075`` is
+  ``1459229915 + 75 / 256``. A tick field of fewer than three digits has lost
+  its trailing zeros and is padded back on the right: ``1347929382.11`` is
+  ``1347929382.110``. The two counts mark the start and the end of the
+  exposure, so ``_published_sclk`` passes ``bracketed=True`` to
+  :func:`~spindoctor.support.sclk.exposure_counts` and ``midtime_sclk`` is
+  their exact mean. A count the label does not carry is published as ``None``,
+  and so is the mean.
 * ``SHUTTER_MODE_ID``, read by the ``shutter_mode`` property. A missing key or
   a null yields ``None``; a non-string value raises, because ``str()`` would
   serialize any object without complaint and the result would pass downstream
@@ -76,9 +87,10 @@ Label and index dependencies
 * ``DESCRIPTION`` and ``OBSERVATION_ID``, both optional and recorded as
   ``None`` when absent.
 
-``get_public_metadata`` also refuses a detector that is neither ``NAC`` nor
-``WAC``, because the instrument LID encodes the camera as ``issna`` or
-``isswa`` and a malformed LID must never reach a PDS4 label.
+:meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
+also refuses a detector that is neither ``NAC`` nor ``WAC``, because the
+instrument LID encodes the camera as ``issna`` or ``isswa`` and a malformed LID
+must never reach a PDS4 label.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 ``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_ID',)`` and ``_INDEX_CAMERA_MAP``
@@ -116,9 +128,8 @@ yields the held frame before moving on, so no frame is ever dropped.
 Configuration block
 ===================
 
-Two sections, each nested per detector (``nac``, ``wac``) -- the only nested
-instrument block in the tree. Everything else is flat, which is why the loader
-indexes by detector here and nowhere else.
+Two sections, each nested per detector (``nac``, ``wac``), which is why the
+loader indexes the block by detector.
 
 ``cassini_iss`` is a full raw-DN block. ``cassini_iss_calib`` departs from the
 common schema by **omission**: its ``noise`` block carries only
@@ -166,10 +177,9 @@ back to the anchor, since ``np.log`` would otherwise return ``-inf`` or
 bright-end cutoff, and saturated stars are handled downstream.
 
 **PSF.** ``star_psf_sigma`` is 0.54 for the NAC and 0.77 for the WAC.
-``star_psf_sizes`` is keyed by magnitude upper bound and is the only
-per-magnitude table in the tree: brighter than 7 gives a 15x15 cutout, brighter
-than 8 gives 13x13, brighter than 9 gives 11x11, and everything fainter gives
-9x9. Every other instrument declares a single ``100: [7, 7]`` entry.
+``star_psf_sizes`` is keyed by magnitude upper bound: brighter than 7 gives a
+15x15 cutout, brighter than 8 gives 13x13, brighter than 9 gives 11x11, and
+everything fainter gives 9x9.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL1+CL2'``, the two clear
 filter slots, and the table carries one entry with a default of 0.0. Both are
@@ -252,29 +262,29 @@ The predicted pattern excludes ``_gapfill`` itself rather than relying on being
 tested after the gapfill pattern, so the four are mutually exclusive by
 construction rather than by order.
 
-**Deviations in segment construction.** None. This is the reference path:
-records at start, midtime and stop plus a 1 s cadence past 10 s, the baseline's
-angular-velocity vectors copied bit-identically, and ``avflag = 1``.
+**Deviations in segment construction.** None. It takes the standard
+time-varying path: records at start, midtime and stop plus a 1 s cadence past
+10 s, the baseline's angular-velocity vectors copied bit-identically, and
+``avflag = 1``.
 
-**The simultaneous-exposure rule.** ``botsim_loser`` exists for this
-instrument alone, and it follows from the corrected object being the bus. Two
-BOTSIM frames share one bus attitude and one attitude cannot carry two
-corrections, so :func:`~spindoctor.cli.ck.images.botsim_losers` yields the wide
-angle member -- but only to a partner that actually writes. A wide angle frame
-whose narrow angle partner is ineligible, or has no reproducing baseline, keeps
-its own correction rather than losing it to nothing.
+**The simultaneous-exposure rule.** ``botsim_loser`` follows from the corrected
+object being the bus. Two BOTSIM frames share one bus attitude and one attitude
+cannot carry two corrections, so
+:func:`~spindoctor.cli.ck.images.botsim_losers` yields the wide angle member --
+but only to a partner that actually writes. A wide angle frame whose narrow
+angle partner is ineligible, or has no reproducing baseline, keeps its own
+correction rather than losing it to nothing.
 
 **Rigid-rotation residual.** An exact rigid rotation is not exactly a uniform
 tangent-plane shift, and the difference is measured per camera over a 17x17
 grid across the full frame, worst case over eight offset directions, at 50
 pixels of total boresight displacement. The narrow angle camera measures
 6.01e-9 rad -- 1.00e-3 tangent-plane pixels, 1.24e-3 pixels in pixel space --
-and the wide angle camera 5.91e-6 rad, 9.89e-2 tangent-plane pixels and
-7.86e-2 in pixel space. The wide angle figure is the largest in the tree by
-three orders of magnitude, and it is the case to watch: at a 50 pixel offset
-this term alone reaches the round-trip target of 0.1 pixels per axis. It is
-linear in the offset, so quoting it without the offset it was measured at means
-nothing.
+and the wide angle camera 5.91e-6 rad, 9.89e-2 tangent-plane pixels and 7.86e-2
+in pixel space. The wide angle figure is the case to watch: at a 50 pixel
+offset this term alone reaches the round-trip target of 0.1 pixels per axis. It
+is linear in the offset, so quoting it without the offset it was measured at
+means nothing.
 
 **Reproduction path.** ``cspyce.pxform('J2000', camera_frame, midtime_et)``
 against each furnished candidate, accepted at 1e-9 radians. The tie-break
@@ -307,10 +317,10 @@ matched the encircled energy but over-lifted the wide-field halo.
 from the cohort's two wide angle star frames and nine usable cutouts. Treat it
 as cohort-limited and revisit it when more wide angle star frames land.
 
-:func:`~spindoctor.sim.forward.psf.psf_truncation_for_instrument` also singles
-this instrument out: its kernels are truncated at 32 detector pixels rather
-than the default 16, because the documented wings run further out. The match
-keys on the ``coiss`` prefix, so all four instrument keys get the wider window.
+:func:`~spindoctor.sim.forward.psf.psf_truncation_for_instrument` truncates
+this instrument's kernels at 32 detector pixels rather than the default 16,
+because the documented wings run further out. The match keys on the ``coiss``
+prefix, so all four instrument keys get the wider window.
 
 **Distortion residuals.** ``coiss_nac`` is
 ``{k1: 3.17e-04, k2: -3.51e-04, nonradial_rms_px: 0.0}`` and ``coiss_wac`` is
@@ -319,20 +329,18 @@ star-field distortion analysis. The corrected field is sub-pixel and close to
 radially symmetric, which is why the non-radial wander is zero.
 
 **Artifact-mode availability.** Both cameras are in the CCD set and carry the
-whole common surface. Four modes are available to this instrument **only**:
-``bright_dark_pairs``, ``quantization_lut``, ``quantization_ls8b``, and -- with
-one other instrument -- ``partial_lines``. There are no exclusions recorded
-against either camera key.
+whole common surface. They also carry four further modes:
+``bright_dark_pairs``, ``quantization_lut``, ``quantization_ls8b`` and
+``partial_lines``. There are no exclusions recorded against either camera key.
 
-**Realism-match status.** The narrow angle PSF is the best-constrained in the
-tree, tuned against eleven frames. The wide angle PSF rests on two frames.
+**Realism-match status.** The narrow angle PSF is tuned against eleven frames.
+The wide angle PSF rests on two frames.
 
 Image library and test coverage
 ===============================
 
-**Cohort.** The curated library is dominated by this instrument: 62 of the 75
-sidecars, 58 narrow angle and 4 wide angle, spread across the scene classes.
-Every one names a calibrated product.
+**Cohort.** Sixty-two sidecars, 58 narrow angle and 4 wide angle, spread across
+the scene classes. Every one names a calibrated product.
 
 **Integration tests.** The per-image regression suite
 (``tests/integration/test_autonomous_nav.py``) and the structural-invariants
@@ -343,10 +351,10 @@ on a real frame of this instrument and checks it against ``diag(-1, -1, +1)``.
 of this instrument, a star-navigated narrow angle frame and a star-navigated
 wide angle one, plus a wide angle body frame whose ensemble is carried by the
 correlation and distance-transform techniques instead. The wide angle frames
-are there on purpose: the difference between an exact rigid rotation and a
-uniform pixel shift is largest on that camera, at 9.89e-2 pixels for a 50 pixel
-total offset and linear in the offset. The hermetic writer tests build their
-own minimal kernels and do not depend on this instrument's holdings, but the
+are there on purpose: on that camera the difference between an exact rigid
+rotation and a uniform pixel shift reaches 9.89e-2 pixels for a 50 pixel total
+offset, linear in the offset. The hermetic writer tests build their own minimal
+kernels and do not depend on this instrument's holdings, but the
 angular-velocity measurement quoted above was made against the real
 reconstructed kernel ``04002_04009ra.bc``.
 
@@ -356,8 +364,7 @@ config-block selection, the shutter-mode property and the metadata surface.
 PDS4 hooks
 ==========
 
-This dataset is the reference implementation, and the only one where every hook
-is implemented.
+This dataset is the reference implementation, and implements every hook.
 
 * ``pds4_bundle_template_dir`` reads ``config.pds4.<dataset>.template_dir``,
   falls back to ``_default_pds4_template_dir``, and resolves a relative name
@@ -398,18 +405,16 @@ path rather than the offset fallback.
 
 **Mosaics.** Nothing instrument-specific.
 
-**Statistics.** Two things are particular to this instrument.
-:func:`~spindoctor.cli.stats.report_sections.add_botsim_section` exists for it
-alone: it pairs ``N``/``W`` rows sharing a ten-digit number and reports the
-disagreement between the two frames of one simultaneous exposure, which is a
-consistency check no other instrument can offer.
-:func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` also
-special-cases it: every other instrument reads ``extfov_margin_vu`` from one
-flat section, while this one picks the config section from ``_CALIB`` in the
-image name and the detector from the name's leading ``N`` or ``W``, then
-indexes the size-keyed table with the recorded image height. The report's
-image-name rule is ``stem.split('_', 1)[0]``, so
-``N1454725799_1_CALIB.IMG`` reduces to ``N1454725799``.
+**Statistics.**
+:func:`~spindoctor.cli.stats.report_sections.add_botsim_section` pairs
+``N``/``W`` rows sharing a ten-digit number and reports the disagreement
+between the two frames of one simultaneous exposure, as a consistency check.
+:func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` picks the
+config section from ``_CALIB`` in the image name and the detector from the
+name's leading ``N`` or ``W``, then indexes the size-keyed table with the
+recorded image height. The report's image-name rule is
+``stem.split('_', 1)[0]``, so ``N1454725799_1_CALIB.IMG`` reduces to
+``N1454725799``.
 
 Open items
 ==========

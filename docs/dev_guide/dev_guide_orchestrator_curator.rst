@@ -59,6 +59,34 @@ kernel an image navigated against by reproducing ``cmatrix_original`` to within 
 nanoradian and defines a segment interval from the exact exposure epochs, and rounding
 would put the recorded values outside those bounds.
 
+The observation block
+---------------------
+
+:func:`~spindoctor.navigate_image_files.build_metadata_from_result` wraps this block into
+the per-image document beside an ``observation`` block. That block holds the image's
+identity -- its path, name, registered instrument, camera, shutter mode and image shape
+-- followed by everything the observation's instrument host publishes through
+:meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata`: the exposure's start,
+midtime and end in UTC and ET, the label's spacecraft clock counts, the exposure time,
+the filters, the PDS4 context identifiers, and each host's own descriptive facts. Each
+spacecraft host parses its own clock's label format, converts a count to an exact
+fraction of its clock's leading unit with the clock's moduli and offsets through
+:func:`~spindoctor.support.sclk.fractional_count`, and publishes the label's start and
+stop counts through :func:`~spindoctor.support.sclk.exposure_counts`, which writes each
+count, and the mean of the two, as the float nearest its exact value. A label's counts
+mark different moments
+on different instruments, so each host says whether its two counts bracket the exposure.
+Cassini ISS's and New Horizons LORRI's do, and their midtime count is the exact mean of
+the two. Voyager ISS's stop count is that of the frame the image was read out in, and a
+Galileo SSI label has no stop count, so their midtime count is None. A count the label
+does not carry is None. A published key the block already holds keeps the block's value,
+and ``image_shape_xy`` is left out because it is ``image_shape`` in the other axis order.
+Both drivers that write a navigated document -- the autonomous pipeline and the
+``sd_offset --manual`` pass -- supply the published facts, so they are recorded for every
+image whose navigation ran to a result, successful or failed, whether or not a
+``pointing`` block was recorded. A load-error or internal-error document carries none of
+them. They are copied as the host states them, unrounded.
+
 Allow-list discipline
 ---------------------
 

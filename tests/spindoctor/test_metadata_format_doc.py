@@ -29,6 +29,8 @@ from typing import Any
 import numpy as np
 import pytest
 from filecache import FCPath
+from tests.spindoctor.public_metadata_cassini_iss import CASSINI_ISS_PUBLIC_METADATA
+from tests.spindoctor.public_metadata_galileo_ssi import GALILEO_SSI_PUBLIC_METADATA
 
 import spindoctor.nav_technique.diagnostics as diagnostics_module
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
@@ -246,7 +248,12 @@ def _timing() -> dict[str, Any]:
     return build_timing_section(start, datetime.now(UTC), peak_measured=True)
 
 
-def _document(result: NavResult, *, shutter_mode: str | None = 'NACONLY') -> dict[str, Any]:
+def _document(
+    result: NavResult,
+    *,
+    shutter_mode: str | None = 'NACONLY',
+    public_metadata: dict[str, Any] = CASSINI_ISS_PUBLIC_METADATA,
+) -> dict[str, Any]:
     """Build the full written document for a navigated result.
 
     Parameters:
@@ -254,6 +261,7 @@ def _document(result: NavResult, *, shutter_mode: str | None = 'NACONLY') -> dic
         shutter_mode: The host's shutter mode, or ``None`` for a host whose
             labels carry none (the field is then omitted, as the failed
             example's Galileo host shows).
+        public_metadata: What the observation's host publishes about the image.
     """
     return _round_trip(
         build_metadata_from_result(
@@ -264,6 +272,7 @@ def _document(result: NavResult, *, shutter_mode: str | None = 'NACONLY') -> dic
             camera='NAC',
             shutter_mode=shutter_mode,
             image_shape=(1024, 1024),
+            public_metadata=public_metadata,
             timing=_timing(),
         )
     )
@@ -316,7 +325,11 @@ def _failed_document() -> dict[str, Any]:
         image_classifier=_classifier(),
         provenance=_provenance(),
     )
-    return _document(_with_pointing(result, corrected=False), shutter_mode=None)
+    return _document(
+        _with_pointing(result, corrected=False),
+        shutter_mode=None,
+        public_metadata=GALILEO_SSI_PUBLIC_METADATA,
+    )
 
 
 def _internal_error_document() -> dict[str, Any]:
