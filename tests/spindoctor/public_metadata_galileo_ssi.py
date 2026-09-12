@@ -29,4 +29,4 @@ GALILEO_SSI_PUBLIC_METADATA: dict[str, Any] = {
     'exposure_time': 0.00625,
     'filters': ['GREEN'],
 }
-"""The facts, as the host returned them; the path's site-specific prefix is abbreviated."""
+"""The facts as the host returned them, the path's site prefix abbreviated."""

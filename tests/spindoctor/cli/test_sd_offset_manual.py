@@ -117,7 +117,7 @@ def _accepted(obs: Any, *, config: Any) -> NavResult:
 def test_the_manual_pass_records_the_published_facts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The document the manual pass writes records what the observation's host publishes."""
+    """The manual pass's document records what the observation's host publishes."""
     image = tmp_path / 'image_0001.img'
     image.write_bytes(b'\x00')
     image_file = ImageFile(

@@ -1,11 +1,11 @@
 """Tests that a navigation document records the facts the observation's host publishes.
 
-:func:`~spindoctor.navigate_image_files.build_metadata_from_result` writes the facts a host
-publishes through :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata` into the
-document's ``observation`` block, after the image's identity, and
-:func:`~spindoctor.navigate_image_files.navigate_image_files` supplies them for every image
-whose navigation ran to a result, successful or failed.  A load-error or internal-error
-document carries none of them.
+:func:`~spindoctor.navigate_image_files.build_metadata_from_result` writes the facts a
+host publishes through :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata` into
+the document's ``observation`` block, after the image's identity, and
+:func:`~spindoctor.navigate_image_files.navigate_image_files` supplies them for every
+image whose navigation ran to a result, successful or failed.  A load-error or
+internal-error document carries none of them.
 
 The writer treats every host alike, so the host here is a made-up one.
 """

@@ -226,8 +226,8 @@ class ObsCassiniISS(ObsSnapshotInst):
         """Returns the public metadata for Cassini ISS.
 
         The spacecraft clock counts are the label's start and stop counts, in seconds of
-        the clock with the ticks as a fraction, and their exact mean; each is None when the
-        label carries no counts.
+        the clock with the ticks as a fraction, and their exact mean; each is None when
+        the label carries no counts.
 
         Returns:
             A dictionary containing the public metadata for Cassini ISS.

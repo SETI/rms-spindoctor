@@ -36,4 +36,4 @@ CASSINI_ISS_PUBLIC_METADATA: dict[str, Any] = {
     'description': 'N/A',
     'observation_id': 'ISS_120RH_MUTUALEVE001_PRIME',
 }
-"""The facts, as the host returned them; the path's site-specific prefix is abbreviated."""
+"""The facts as the host returned them, the path's site prefix abbreviated."""
