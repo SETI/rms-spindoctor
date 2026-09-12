@@ -16,7 +16,7 @@ Do not restate the instrument team's own documentation. Apertures, focal
 lengths, pixel scales, angular field extents and filter tables belong to the
 official instrument and volume documents, which the References section points
 at. What a chapter carries is what SpinDoctor itself decides, configures,
-measures, or does differently for this instrument.
+measures, or does for this instrument, described for this instrument alone.
 
 Overview
 ========

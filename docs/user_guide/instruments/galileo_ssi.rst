@@ -147,10 +147,9 @@ frame, which points at a static camera-frame alignment error rather than
 per-frame attitude noise. The measurement rests on seven locked frames out of
 eighteen, so it is provisional pending a larger star-frame cohort.
 
-**Residual distortion.** The largest of any well-behaved camera in the
-pipeline: a pincushion term reaching about half a pixel at the field corner,
-with a radial RMS of 0.155 pixels against a centroid-and-astrometry floor of
-0.115. The navigator does not remove it. See
+**Residual distortion.** A pincushion term reaching about half a pixel at the
+field corner, with a radial RMS of 0.155 pixels against a
+centroid-and-astrometry floor of 0.115. The navigator does not remove it. See
 :doc:`/fov_distortion_report/fov_distortion_report` for the coefficients, the
 method and the figures.
 
@@ -221,10 +220,10 @@ baseline's own pointing at each record epoch.
 
 **Omission reasons this instrument produces.** ``not_eligible``, on images
 whose navigation neither succeeded nor conflicted. ``rotation_unsupported``
-never appears, because rotation fitting is off. ``botsim_loser``
-cannot appear either: it belongs to an instrument that exposes two cameras at
-once, and this one has a single camera. ``no_reproducing_baseline`` and
-``baseline_coverage_gap`` are reachable and mean what they mean everywhere.
+never appears, because rotation fitting is off. ``botsim_loser`` cannot appear
+either, since it needs two cameras exposed at once and this instrument has one.
+``no_reproducing_baseline`` and ``baseline_coverage_gap`` are reachable and
+mean what they mean everywhere.
 
 **Interpolation error.** Not yet measured for this instrument.
 

@@ -41,12 +41,10 @@ accepted, and ``**_kwargs`` is named with a leading underscore to say so.
 
 Beyond the host call it records ``obs.abspath`` and ``obs.image_url`` from an
 ``FCPath``, reads the flat ``galileo_ssi`` config section, and resolves the
-extended-FOV margin. The margin resolution carries the same
-``isinstance(..., dict)`` branch every instrument's loader carries, but this
-instrument's configured value is a plain list, so the size-keyed branch is dead
-code here; it is left in place because the loaders are meant to be
-interchangeable, and it carries a TODO saying the branch belongs somewhere
-shared.
+extended-FOV margin. The margin resolution carries an ``isinstance(..., dict)``
+branch for a size-keyed table, but this instrument's configured value is a
+plain list, so that branch is dead code here; it carries a TODO saying the
+branch belongs somewhere shared.
 
 There is no calibration step. The PDS3 archive holds no I/F-calibrated Galileo
 SSI product, and the navigation pipeline treats image brightness
@@ -82,10 +80,10 @@ single-camera one.
 value to end ``.LBL`` and passes it through unchanged; the suffix is matched
 uppercase, deliberately.
 
-``_get_img_name_from_label_filespec`` is the most involved of the four, because
-this archive is organized by target rather than by image number. It drops a
-leading ``GO_*`` volume component, requires two to four remaining levels, drops
-a leading ``REDO`` component, and then branches on the target directory name:
+``_get_img_name_from_label_filespec`` follows this archive's layout, which is
+organized by target rather than by image number. It drops a leading ``GO_*``
+volume component, requires two to four remaining levels, drops a leading
+``REDO`` component, and then branches on the target directory name:
 
 * ``RAW_CAL``, ``VENUS``, ``EARTH``, ``MOON``, ``GASPRA``, ``IDA``, ``SL9``,
   ``EMCONJ``, ``GOPEX`` are two-level, and the image is the second component.
@@ -122,7 +120,7 @@ Nothing departs from the common raw-DN schema: ``data_units: raw_dn``, a full
 ``noise`` block, a full ``image_quality_thresholds`` block with a
 ``saturation_threshold_dn``, a ``source_image_filter`` and a ``mag_offset``
 table. ``extfov_margin_vu`` is a bare ``[350, 350]`` rather than a size-keyed
-table, which is the one structural difference from the size-keyed blocks.
+table.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
 ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_dn``,
@@ -170,9 +168,9 @@ rather than in code.
 Frames, attitude, and rotation fitting
 ======================================
 
-**Camera frame.** ``GLL_SCAN_PLATFORM``. This is the one instrument whose
-"camera frame" is the platform frame itself rather than a frame hung off it,
-because that is the frame ``oops`` builds the observation in.
+**Camera frame.** ``GLL_SCAN_PLATFORM``. The "camera frame" is the platform
+frame itself rather than a frame hung off it, because that is the frame
+``oops`` builds the observation in.
 
 **CK object and clock.** -77001, the scan platform, whose time tags are encoded
 against spacecraft clock -77.
@@ -209,14 +207,13 @@ does, and is what the writer's holdings tests exercise.
 each record epoch.
 
 **Angular-velocity census.** Of the 150 -77001 segments in the local baselines,
-**38 carry no angular velocity**. That is the sharpest per-mission difference
-in the subsystem. A corrected segment must carry a rate at every record --
-``avflag = 0`` makes SPICE skip the segment for ``ckgpav`` and ``sxform`` and
-answer from the uncorrected original instead -- and the writer applies all
-records or none, with none meaning refuse. So roughly a quarter of this
-mission's baseline segments would stop a run that reached them, reported as a
-``ValueError`` naming the missing rate rather than as an omission, since an
-exposure whose baseline supplies pointing but not a rate has no entry in the
+**38 carry no angular velocity**. A corrected segment must carry a rate at
+every record -- ``avflag = 0`` makes SPICE skip the segment for ``ckgpav`` and
+``sxform`` and answer from the uncorrected original instead -- and the writer
+applies all records or none, with none meaning refuse. So roughly a quarter of
+this mission's baseline segments would stop a run that reached them, reported
+as a ``ValueError`` naming the missing rate rather than as an omission, since
+an exposure whose baseline supplies pointing but not a rate has no entry in the
 closed omission-reason set.
 
 **Kernel-name class rules.** None. This mission is listed in
@@ -254,18 +251,17 @@ simulator support.
 
 **Distortion residuals.**
 ``{k1: -3.47e-04, k2: 1.72e-03, nonradial_rms_px: 0.0}``, measured by the
-star-field distortion analysis. This is the largest radial term of any
-well-behaved camera in the tree: a ``k2``-dominated pincushion reaching about
+star-field distortion analysis: a ``k2``-dominated pincushion reaching about
 half a pixel at the field corner.
 
 **Artifact-mode availability.** This instrument is in the CCD set, so it
 carries the CCD-only modes (``radiation_transients``, ``compression_dct``) as
-well as every mode declared available to all instruments. ``truth_window``, the
-losslessly-clean commanded carve-out, is available to it **alone**.
+well as every mode declared available to all instruments. It also carries
+``truth_window``, the losslessly-clean commanded carve-out.
 ``alternating_lines`` carries a ``keep`` mode for this instrument's vertical
-decimation, where the more common ``drop`` mode blanks every Nth line instead.
-No mode records an exclusion reason against this key; the modes it lacks are
-simply not in their availability sets.
+decimation, rather than the ``drop`` mode that blanks every Nth line. No mode
+records an exclusion reason against this key; the modes it lacks are simply not
+in their availability sets.
 
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.
@@ -333,6 +329,6 @@ Open items
   ``noisy_threshold_dn`` and the ``mag_offset_table`` entry.
 * The limiting-magnitude anchor is a nominal-optics derivation, not a
   measurement.
-* ``from_file`` carries a TODO on the extended-FOV margin branch, which is
-  duplicated across every loader and belongs somewhere shared.
+* ``from_file`` carries a TODO saying the extended-FOV margin branch belongs
+  somewhere shared.
 * The simulator PSF is unverified for want of star frames in the cohort.

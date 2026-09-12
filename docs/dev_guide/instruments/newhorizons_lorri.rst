@@ -71,9 +71,7 @@ exact mean. Where the label carries no such count, or there is no label beside
 the image, the count is published as ``None``, and so is the mean.
 
 ``get_public_metadata`` writes ``filters`` as an empty list: the camera is
-panchromatic with no filter wheel, so there is no filter name to record. It is
-the only instrument whose ``filters`` list is empty rather than carrying one or
-two entries.
+panchromatic with no filter wheel, so there is no filter name to record.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 ``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_ID',)`` and ``_INDEX_CAMERA_MAP``
@@ -81,11 +79,10 @@ is ``{'LORRI': 'LORRI'}`` -- an identity map, present so that the camera an
 image is attributed to comes from the same mechanism for every instrument
 rather than being special-cased for a single-camera one.
 
-**Filespec parsing.** This is the one instrument whose archive names are
-**lowercase**, and every parser here matches lowercase deliberately.
-``_get_label_filespec_from_index`` requires the index value to end ``_sci.lbl``
-or ``_eng.lbl`` and passes it through unchanged; both the science and the
-engineering products are navigated.
+**Filespec parsing.** This archive's names are **lowercase**, and every parser
+here matches lowercase deliberately. ``_get_label_filespec_from_index``
+requires the index value to end ``_sci.lbl`` or ``_eng.lbl`` and passes it
+through unchanged; both the science and the engineering products are navigated.
 ``_get_image_filespec_from_label_filespec`` swaps ``.lbl`` for ``.fit``, since
 the image is FITS rather than a PDS3 raster.
 
@@ -117,17 +114,15 @@ One flat section. There is one camera, so nothing is nested and the loader
 reads ``config.category('newhorizons_lorri')`` directly.
 
 Nothing departs from the common raw-DN schema. ``extfov_margin_vu`` is a
-size-keyed table, matching the other multi-readout-mode instrument rather than
-the flat-margin ones.
+size-keyed table.
 
-**This is the one block that uses the** ``_sources`` **convention.** It carries
-a ``_sources`` sub-block mirroring the shape of ``noise``,
-``image_quality_thresholds`` and ``mag_offset``, with one string per value
-naming where that value came from and whether it is measured or still to be
-measured. ``Config._load_yaml`` strips every key beginning with ``_`` at load
-time, so the block has no runtime effect at all; it exists so a reviewer can
-trace a number's provenance and so a calibration pass has a checklist. If the
-convention spreads to the other instrument blocks, this is the shape to copy.
+**This block uses the** ``_sources`` **convention.** It carries a ``_sources``
+sub-block mirroring the shape of ``noise``, ``image_quality_thresholds`` and
+``mag_offset``, with one string per value naming where that value came from and
+whether it is measured or still to be measured. ``Config._load_yaml`` strips
+every key beginning with ``_`` at load time, so the block has no runtime effect
+at all; it exists so a reviewer can trace a number's provenance and so a
+calibration pass has a checklist.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
 ``full_well_dn``, ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_dn``,
@@ -139,18 +134,18 @@ detector full well are different quantities, and only the first is known here.
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** The Pogson-ratio form, ``anchor + log(texp) /
-log(2.512)``, so each factor of 2.512 in exposure buys one magnitude of depth.
-The anchor is 11.7 at a 1 s exposure -- the deepest of any camera in the tree
--- and it is **derived rather than measured**, from three terms: the project's
-reference anchor of 10.5 magnitudes at a 1 s exposure for a 0.19 m aperture,
-scaled by collecting area for this instrument's 0.208 m aperture
+**Limiting magnitude.** The Pogson-ratio form,
+``anchor + log(texp) / log(2.512)``, so each factor of 2.512 in exposure buys
+one magnitude of depth. The anchor is 11.7 at a 1 s exposure, and it is
+**derived rather than measured**, from three terms: the project's reference
+anchor of 10.5 magnitudes at a 1 s exposure for a 0.19 m aperture, scaled by
+collecting area for this instrument's 0.208 m aperture
 (``5*log10(0.208/0.19)``), with no detector-sensitivity penalty because this is
 a CCD, plus **+1.0 magnitude for the panchromatic passband**, which collects
-more flux than a filtered one. That bandpass term is unique to this instrument
-and is the largest single contributor to its depth. All of it is a
-nominal-optics estimate pending calibration against real star fields. A
-non-positive exposure time falls back to the anchor.
+more flux than a filtered one. That bandpass term is the largest single
+contributor to its depth. All of it is a nominal-optics estimate pending
+calibration against real star fields. A non-positive exposure time falls back
+to the anchor.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
@@ -165,9 +160,9 @@ separate purposes and are not expected to agree.
 filter slot, encoded as the digit one -- and the table carries one entry with a
 default of 0.0. Both are placeholders.
 
-**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.33e6, the
-largest in the tree, described in the file as an interim value sized from the
-electron zero point over the single gain state.
+**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.33e6, described
+in the file as an interim value sized from the electron zero point over the
+single gain state.
 
 **Recalibrating.** The cohort's two frames for this instrument are binned four
 by four, so they cannot anchor an unbinned limiting magnitude or an unbinned
@@ -268,11 +263,11 @@ block.
 
 **PSF kernel.** ``{sigma_v: 1.13, sigma_u: 0.87, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 **retained interim elliptical values** from the published references for
-unbinned frames. It is the only elliptical kernel in the catalog. The cohort's
-two star frames for this instrument are binned four by four -- their measured
-binned-pixel encircled-energy radius at 50% is 0.59 pixels -- and cannot
-constrain an unbinned kernel, so a per-readout-mode kernel is future work
-rather than a refinement of this one.
+unbinned frames. The kernel is elliptical. The cohort's two star frames for
+this instrument are binned four by four -- their measured binned-pixel
+encircled-energy radius at 50% is 0.59 pixels -- and cannot constrain an
+unbinned kernel, so a per-readout-mode kernel is future work rather than a
+refinement of this one.
 
 **Distortion residuals.**
 ``{k1: 8.13e-04, k2: -1.10e-03, nonradial_rms_px: 0.0}``, measured by the
@@ -282,13 +277,12 @@ twist, not the distortion.
 
 **Artifact-mode availability.** This instrument is in the CCD set, so it
 carries the CCD-only modes (``radiation_transients``, ``compression_dct``) as
-well as every mode declared available to all instruments. Three modes are
-available to it **alone**: ``embedded_header`` (the row-0 housekeeping header),
+well as every mode declared available to all instruments. It also carries three
+further modes: ``embedded_header`` (the row-0 housekeeping header),
 ``frame_transfer_smear``, and ``serial_tail`` (the post-gain DN undershoot
 after saturation).
 
-Two modes record an explicit **exclusion reason** against this key, which no
-other instrument does:
+Two modes record an explicit **exclusion reason** against this key:
 
 * ``hot_pixels`` -- "explicitly disabled for LORRI, which has none".
 * ``bloom`` -- "explicitly disabled for LORRI, an antiblooming CCD with no
@@ -307,9 +301,8 @@ Image library and test coverage
 ===============================
 
 **Cohort.** Two sidecars, both under ``star_dominated``, and both binned four
-by four. That is the smallest cohort of any instrument, and it is the reason
-the photometric and PSF parameters above are all derivations rather than
-measurements.
+by four, which is why the photometric and PSF parameters above are all
+derivations rather than measurements.
 
 **Integration tests.** The per-image regression suite
 (``tests/integration/test_autonomous_nav.py``) and the structural-invariants

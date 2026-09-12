@@ -80,7 +80,7 @@ variables.
 Backplanes, mosaics, and statistics
 ===================================
 
-Behavior particular to this instrument in each of those stages.
+Describe this instrument alone: its behavior in each of those stages.
 
 Open items
 ==========

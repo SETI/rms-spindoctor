@@ -38,10 +38,9 @@ Loading the image
 =================
 
 :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.from_file` calls
-``oops.hosts.voyager.iss.from_file(path)`` with no keyword arguments at all --
-the only loader in the tree that passes none.
+``oops.hosts.voyager.iss.from_file(path)`` with no keyword arguments.
 
-It is also the only loader that **modifies the pixel data**, in two steps:
+It also **modifies the pixel data**, in two steps:
 
 1. **I/F scaling.** ``_voyager_if_factor`` reads the ``LABEL3`` VICAR record,
    which carries the fixed phrase ``FOR (I/F)*10000., MULTIPLY DN VALUE BY``
@@ -77,8 +76,7 @@ host once the host grows it.
 Label and index dependencies
 ============================
 
-**Label fields read.** More than any other instrument, and two of them are
-load-blocking:
+**Label fields read.** Two of these are load-blocking:
 
 * ``LABEL3`` -- the I/F scaling factor. Missing or malformed stops the load.
 * ``LAB02`` -- the spacecraft digit, at index 4. Not a string, shorter than
@@ -116,10 +114,9 @@ validation.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 
-``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_NAME',)``, and this is the one
-instrument that does not read ``INSTRUMENT_ID``: the Voyager indexes carry no
-such column. ``_INDEX_CAMERA_MAP`` is correspondingly the only map whose keys
-are prose:
+``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_NAME',)``, because the Voyager
+indexes carry no ``INSTRUMENT_ID`` column. The keys of ``_INDEX_CAMERA_MAP``
+are correspondingly prose:
 
 .. code-block:: python
 
@@ -139,26 +136,25 @@ carries ``_RAW``, ``_CALIB`` and ``_GEOMED`` products per frame, so two thirds
 of the index rows are dropped this way by design, and an image count taken from
 a volume listing will not match the number of images a run considers.
 
-``_img_name_valid`` is the most permissive of the four, because users list
-product file names rather than image names: it upper-cases, strips anything
-from the first ``.`` and then anything from the first ``_``, and validates the
-remaining ``Cddddddd`` core. So ``C1234567``, ``C1234567_GEOMED``,
-``C1234567_CALIB`` and ``C1234567_GEOMED.IMG`` all validate to the same image.
-``_extract_img_number`` is the seven digits after the ``C``.
+``_img_name_valid`` is permissive, because users list product file names rather
+than image names: it upper-cases, strips anything from the first ``.`` and then
+anything from the first ``_``, and validates the remaining ``Cddddddd`` core.
+So ``C1234567``, ``C1234567_GEOMED``, ``C1234567_CALIB`` and
+``C1234567_GEOMED.IMG`` all validate to the same image. ``_extract_img_number``
+is the seven digits after the ``C``.
 
-**Monotonicity.** ``_IMG_NUM_MONOTONIC_ACROSS_VOLUMES`` is ``False``, and this
-is the only instrument that sets it. Flight Data Subsystem counts restart per
-spacecraft and per encounter; the volume order interleaves the two spacecraft,
-and Voyager 2's Neptune counts roll over below Voyager 1's Jupiter counts. An
-image-number range can therefore match frames in any volume and no volume-level
-early exit is possible, at the cost of scanning every requested volume.
+**Monotonicity.** ``_IMG_NUM_MONOTONIC_ACROSS_VOLUMES`` is set to ``False``.
+Flight Data Subsystem counts restart per spacecraft and per encounter; the
+volume order interleaves the two spacecraft, and Voyager 2's Neptune counts
+roll over below Voyager 1's Jupiter counts. An image-number range can therefore
+match frames in any volume and no volume-level early exit is possible, at the
+cost of scanning every requested volume.
 
 Configuration block
 ===================
 
 One flat section, shared by two spacecraft and four cameras. Nothing in it
-varies per camera, which is a simplification the other multi-camera instrument
-does not make.
+varies per camera.
 
 The departure from the common schema is a units mismatch that is worth
 understanding rather than tidying. ``data_units`` is ``calibrated_if``, and the
@@ -167,13 +163,12 @@ understanding rather than tidying. ``data_units`` is ``calibrated_if``, and the
 ``saturation_dn: 255``, ``full_well_dn: 255``, ``expected_noise_dn``,
 ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0`` are all DN quantities. The
 DN values describe the detector, which is real; the pipeline navigates the
-scaled I/F product, so
-``NavOrchestrator._build_saturation_mask`` returns an empty mask for this
-instrument as for any ``calibrated_if`` input, and ``saturation_dn`` is never
-consulted. There is no ``saturation_threshold_if`` and adding one would not
-restore the mask: the mask is gated on the units, not on the presence of the
-key. Unlike the other calibrated-I/F case, there is no raw product this
-pipeline can navigate instead.
+scaled I/F product, so ``NavOrchestrator._build_saturation_mask`` returns an
+empty mask for this instrument as for any ``calibrated_if`` input, and
+``saturation_dn`` is never consulted. There is no ``saturation_threshold_if``
+and adding one would not restore the mask: the mask is gated on the units, not
+on the presence of the key. There is no raw product this pipeline can navigate
+instead.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
 ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_if``,
@@ -189,25 +184,23 @@ and should move with the flag if the flag moves.
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** The Pogson-ratio form, ``anchor + log(texp) /
-log(2.512)``, with a **per-camera anchor** selected from the oops detector --
-the only instrument whose anchor varies within its own block. Both are
-**derived rather than measured**, from the project's reference anchor of 10.5
-magnitudes at a 1 s exposure for a 0.19 m aperture, scaled by collecting area
-and then penalized for the detector:
+**Limiting magnitude.** The Pogson-ratio form,
+``anchor + log(texp) / log(2.512)``, with a **per-camera anchor** selected from
+the oops detector. Both are **derived rather than measured**, from the
+project's reference anchor of 10.5 magnitudes at a 1 s exposure for a 0.19 m
+aperture, scaled by collecting area and then penalized for the detector:
 
 .. code-block:: text
 
    NAC: 10.5 + 5*log10(0.176/0.19) - 2.0 (vidicon)  ~= 8.3
    WAC: 10.5 + 5*log10(0.057/0.19) - 2.0 (vidicon)  ~= 5.9
 
-The -2.0 vidicon term is unique to this instrument and is the largest single
-penalty in the tree: a vidicon is roughly two magnitudes less sensitive than a
-CCD. Combined with the wide angle camera's small aperture, it makes 5.9 the
-shallowest limiting magnitude in the pipeline, which is why star navigation
-locks on so few of these frames. All of it is a nominal-optics estimate pending
-calibration against real star fields. A non-positive exposure time falls back
-to the anchor.
+The -2.0 vidicon term is there because a vidicon is roughly two magnitudes less
+sensitive than a CCD. Combined with the wide angle camera's small aperture, it
+puts the wide angle anchor at 5.9, which is why star navigation locks on so few
+of these frames. All of it is a nominal-optics estimate pending calibration
+against real star fields. A non-positive exposure time falls back to the
+anchor.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
@@ -219,10 +212,9 @@ regardless of camera.
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
 entry with a default of 0.0. Both are placeholders.
 
-**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.0e3, the smallest
-in the tree, and its comment records why the units are DN rather than
-electrons: a vidicon has no electron domain, so it renders point sources
-directly in DN.
+**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.0e3, and its
+comment records why the units are DN rather than electrons: a vidicon has no
+electron domain, so it renders point sources directly in DN.
 
 **Recalibrating.** The cohort holds one star frame for this instrument, and the
 geometric resampling the navigated product has been through defeats a kernel
@@ -233,9 +225,6 @@ of each spacecraft.
 
 Frames, attitude, and rotation fitting
 ======================================
-
-This is the instrument the frame machinery was generalized for, and every
-statement below differs from the other instruments'.
 
 **Camera frames.** Built per image as ``f'VG{digit}_ISS{obs.camera[0]}A'``,
 giving ``VG1_ISSNA``, ``VG1_ISSWA``, ``VG2_ISSNA`` and ``VG2_ISSWA``. The
@@ -282,27 +271,26 @@ reproduces.
 camera frames -- all derived per image from one label character. Nothing in
 configuration names a spacecraft.
 
-**Rotation fitting.** ``fit_camera_rotation`` is ``false``, and unlike the
-other instruments where it is off, that is **not** because there is nothing to
-fit. The distortion analysis measures a frame-varying twist on both Voyager 2
-cameras, with a corner scatter of 0.28 pixels, well above the threshold at
-which a twist counts as one common value, and the wide angle mean twist is
-+0.36 degrees, 4.4 pixels at the corner. No static kernel removes a
-frame-varying twist. The flag is off for cost, and the config comment says so.
+**Rotation fitting.** ``fit_camera_rotation`` is ``false``, and that is **not**
+because there is nothing to fit. The distortion analysis measures a
+frame-varying twist on both Voyager 2 cameras, with a corner scatter of 0.28
+pixels, well above the threshold at which a twist counts as one common value,
+and the wide angle mean twist is +0.36 degrees, 4.4 pixels at the corner. No
+static kernel removes a frame-varying twist. The flag is off for cost, and the
+config comment says so.
 
-The interaction with C-kernel eligibility runs the other way here from
-everywhere else: leaving rotation fitting off is what **keeps** this
-instrument's images eligible for corrected kernels. Turning it on would make
-every image ``rotation_unsupported`` and stop the mission's kernels being
-produced, exactly as it does for the instrument where it is on. Anyone enabling
-it should expect that trade and decide it deliberately.
+The flag also decides C-kernel eligibility: leaving rotation fitting off is
+what **keeps** this instrument's images eligible for corrected kernels. Turning
+it on would make every image ``rotation_unsupported`` and stop the mission's
+kernels being produced. Anyone enabling it should expect that trade and decide
+it deliberately.
 
 C-kernel specifics
 ==================
 
 **Baseline structure.** Ordinary type-3 kernels for objects -31100 and -32100,
-but a corrected segment does not compose onto them the way every other
-instrument's does.
+but a corrected segment does not compose onto them; it takes the frozen path
+below.
 
 **Segment construction: the frozen path.** The CK objects are the members of
 :data:`~spindoctor.spice_ids.FROZEN_ATTITUDE_CK_IDS`, and
@@ -318,14 +306,12 @@ Three consequences follow that are easy to get wrong:
   velocity is zero. They are written explicitly rather than declared absent
   because ``avflag = 0`` makes SPICE skip the segment for ``ckgpav`` and
   ``sxform`` and answer from the uncorrected original instead.
-* The baseline's own angular-velocity vectors are **not** copied here, even
-  though every other instrument's segment copies them bit-identically. The
-  rigid-attachment argument that licenses copying does not hold for a segment
-  that deliberately drops the baseline's time variation.
-* The angular-velocity census is therefore irrelevant for this instrument.
-  None of the nine -31100 and -32100 segments in the local baselines carries
-  angular velocity, which for any other instrument would refuse a run, and here
-  changes nothing.
+* The baseline's own angular-velocity vectors are **not** copied. The
+  rigid-attachment argument that licenses copying them does not hold for a
+  segment that deliberately drops the baseline's time variation.
+* The angular-velocity census is therefore irrelevant for this instrument. None
+  of the nine -31100 and -32100 segments in the local baselines carries angular
+  velocity, and that changes nothing.
 
 **Reproduction path.** Also the frozen one, and it is made twice.
 :mod:`spindoctor.cli.ck.assignment` reproduces the observation frame the way
@@ -386,18 +372,16 @@ the flat-top guard leaves two simulated cutouts to compare against -- and the
 Voyager references publish no FWHM to fall back on.
 
 **Distortion residuals.**
-``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. Two things are
-unique here. The radial coefficients are the largest in the catalog by an order
-of magnitude, and the non-radial wander is the only non-zero one: the resampled
-vidicon geometry carries coherent tangential distortion that a radial
-polynomial cannot represent. The block is the Voyager 2 wide angle
-measurement, and the catalog says plainly that one key under-represents the
-spread across two spacecraft and two optics until per-camera keys and locked
-frames for each exist.
+``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. The non-radial wander
+is non-zero: the resampled vidicon geometry carries coherent tangential
+distortion that a radial polynomial cannot represent. The block is the
+Voyager 2 wide angle measurement, and the catalog says plainly that one key
+under-represents the spread across two spacecraft and two optics until
+per-camera keys and locked frames for each exist.
 
 **Artifact-mode availability.** This instrument is **not** in the CCD set, so
 the CCD-only modes -- ``radiation_transients`` and ``compression_dct`` -- are
-unavailable to it. Five modes are available to it **alone**: ``pixel_spikes``,
+unavailable to it. It carries five further modes: ``pixel_spikes``,
 ``beam_bend`` (the brightness-dependent limb bend), ``residual_image`` (the
 prior-frame ghost), ``reseau_scars`` (the reseau-removal patches left by
 archive processing), and ``resample_texture`` (the geometric resample the
@@ -435,12 +419,11 @@ freezes the observation frame during ``from_file``, a kernel furnished after
 that call cannot be seen at all, so the image is loaded a **second** time with
 the correction already furnished.
 
-**Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` is the
-largest of the four instrument test modules, covering the spacecraft-digit
-parser and all four of its refusals, the I/F factor parser and all three of its
-refusals, the per-camera limiting-magnitude anchors, the per-spacecraft
-metadata LIDs, and the published clock counts: fractional leading units with no
-midtime count, read from the PDS3 label beside the image.
+**Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
+spacecraft-digit parser and all four of its refusals, the I/F factor parser and
+all three of its refusals, the per-camera limiting-magnitude anchors, the
+per-spacecraft metadata LIDs, and the published clock counts: fractional
+leading units with no midtime count, read from the PDS3 label beside the image.
 
 PDS4 hooks
 ==========
@@ -457,7 +440,7 @@ Making bundles work here means implementing ``pds4_bundle_path_for_image``,
 ``pds4_path_stub``, ``pds4_lid_part_to_image_name``, the four LID and LIDVID
 builders and ``pds4_template_variables``, and adding a template directory. It
 also means deciding whether one bundle covers both spacecraft or each gets its
-own, which is a question the other datasets do not have to answer.
+own.
 
 Backplanes, mosaics, and statistics
 ===================================

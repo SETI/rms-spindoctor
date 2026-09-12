@@ -25,8 +25,8 @@ Pipeline support
   directory supplied before it will build.
 * **Simulator** -- supported, under four instrument keys: raw and calibrated,
   each per camera.
-* **Statistics** -- supported, and the only instrument with a BOTSIM pair
-  consistency section in the report.
+* **Statistics** -- supported, with a BOTSIM pair consistency section in the
+  report.
 
 Datasets and image selection
 ============================
@@ -34,8 +34,7 @@ Datasets and image selection
 **Dataset names.** ``coiss`` selects the whole archive; ``coiss_cruise`` and
 ``coiss_saturn`` select the two halves of it. Each has a ``_pds3`` alias
 (``coiss_pds3``, ``coiss_cruise_pds3``, ``coiss_saturn_pds3``) naming the same
-class, and all names are case-insensitive. This is the only instrument whose
-archive is split into sub-datasets.
+class, and all names are case-insensitive.
 
 **Volumes.** ``coiss_cruise`` covers COISS_1001 through COISS_1009;
 ``coiss_saturn`` covers COISS_2001 through COISS_2116; ``coiss`` covers both
@@ -83,9 +82,8 @@ before it, so ``--last-image-num`` stops scanning once it passes the range
 rather than reading every remaining volume.
 
 **Cameras and instrument-specific flags.** ``--camera`` takes ``nac`` or
-``wac`` in either case and is available for this instrument only. It filters on
-the image name's leading letter, so it composes with every other selection
-option.
+``wac`` in either case. It filters on the image name's leading letter, so it
+composes with every other selection option.
 
 **Grouping.** ``botsim`` is supported. A BOTSIM ("both simultaneous") command
 fires both shutters at once, and the grouping pairs the two frames into one
@@ -279,13 +277,13 @@ the baseline's own pointing at each record epoch.
 ``rotation_unsupported`` never appears, because rotation fitting is off for
 both cameras.
 
-``botsim_loser`` is unique to this instrument, and it follows from the
-corrected object being the bus. A BOTSIM exposure produces two frames, one per
-camera, sharing one bus attitude, and one attitude cannot carry two different
-corrections. The narrow angle member keeps its correction and the wide angle
-member yields. A wide angle frame yields only to a partner that actually
-writes: one whose narrow angle partner is ineligible, or has no reproducing
-baseline, keeps its own correction rather than losing it to nothing.
+``botsim_loser`` follows from the corrected object being the bus. A BOTSIM
+exposure produces two frames, one per camera, sharing one bus attitude, and one
+attitude cannot carry two different corrections. The narrow angle member keeps
+its correction and the wide angle member yields. A wide angle frame yields only
+to a partner that actually writes: one whose narrow angle partner is
+ineligible, or has no reproducing baseline, keeps its own correction rather
+than losing it to nothing.
 
 **Interpolation error.** Not yet measured for this instrument. What is known is
 the shape rather than the size: the error is zero at every record epoch, grows
