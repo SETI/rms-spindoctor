@@ -682,7 +682,13 @@ policy, and one annotated example per document shape -- is the
   none. ``shutter_mode`` records
   the mode the image was taken in for an instrument whose label carries one
   (Cassini ISS reports ``BOTSIM`` when both cameras were exposed at once);
-  instruments whose labels carry no such field omit it.
+  instruments whose labels carry no such field omit it. For every image that
+  loaded, the block also records what its instrument states about it: when
+  the exposure began, its midpoint and when it ended (in UTC and ET, and as
+  the label's spacecraft clock counts for Cassini ISS), the exposure time, the
+  filters, and for Cassini ISS the sampling, gain, observation id and
+  description. These are recorded whether or not the navigation succeeded and
+  whether or not a corrected pointing was.
 * The calculated pointing offset (dv, du)
 * Uncertainty estimates (sigma_v, sigma_u)
 * Confidence scores
