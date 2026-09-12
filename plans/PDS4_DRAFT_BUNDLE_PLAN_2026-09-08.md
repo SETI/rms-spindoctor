@@ -25,7 +25,7 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-3 have run; Phases 4-10 have not. Two changes landed ahead of
+Phases 1-4 have run; Phases 5-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -53,7 +53,7 @@ this table first and trusts it over any recollection.
 | 2 — The synthetic cohort | **done** | `rf_pds4_phase2`, sections 3.12 and 4 |
 | Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
 | 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
-| 4 — The FITS in the bundle, with its data objects | not started | |
+| 4 — The FITS in the bundle, with its data objects | **done** | `rf_pds4_phase4`, sections 3.3 and 3.13; #69 is closed by hand when its PR merges (section 8) |
 | 5 — Inventories that conform | not started | |
 | 6 — Bundle-level and static products | not started | |
 | 7 — The miscellaneous collection and its global index labels | not started | |
@@ -63,8 +63,9 @@ this table first and trusts it over any recollection.
 
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
-about images that did not navigate), #601 (the `Special_Constants`
-declaration, which is what remains of the masked-value work), #602 (a
+about images that did not navigate), #601 (the masked value, whose
+`Special_Constants` declaration Phase 4 made; what remains of it is the
+index tables' missing value, which Phase 7 settles), #602 (a
 skipped or failed product leaves the bundle inconsistent, which Phases 5 and
 6 own), #611 (the backplane viewer decides degrees from `BUNIT` and the plane's
 name rather than through `statistics_units`, so it shows the `rad/pixel` plane
@@ -75,7 +76,8 @@ disagreeing about a missing template, was closed by hand on 2026-09-11, after
 whatever the column's unit, closes in Phase 2 with a format per unit (section
 3.8); the missing-value sentinel it raised beside that is Phase 7's. #519,
 which found every data label's start and stop empty, closes with Phase 3
-(section 3.4).
+(section 3.4). #69, which asked for the FITS to be described in its data label,
+closes with Phase 4 (section 3.3).
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
@@ -186,32 +188,29 @@ plan).
 
 | # | Defect | Location | Tracked as |
 |---|---|---|---|
-| 1 | The backplane FITS is never copied into the bundle. The label names a bare `1702240231n_backplanes.fits`, which must therefore sit beside it in `data/`; the file stays in `backplane_results_root`. | `bundle_data.py:108`, xfail-pinned at `test_bundle_data.py:319` | #265 (layout item), #69 |
-| 2 | `bundle.lblx` is never written. The template exists and nothing references it: `grep -rn "bundle.lblx" src/ --include=*.py` is empty. | — | #265 area |
-| 3 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. Two more, `miscellaneous` and `spice_kernels`, are neither declared nor generated; section 3.1 adds both, moving the global index tables into the first and the metakernel into the second. | — | #72, #74 |
-| 4 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
-| 5 | `File_Area_Observational` has a `<File>` and no data object. The FITS carries a `PrimaryHDU` plus one `ImageHDU` per surviving backplane (9 HDUs on the verified frame); `writer.py:58-60` drops any plane with no valid pixels, so the set is per-image dynamic. | `data.lblx:174-183` | #69, #30 |
-| 6 | `data.lblx:104` references `<local_identifier_reference>image</local_identifier_reference>`; no object in the label defines that identifier. Falls out of 5. |  `data.lblx:104` | **new** |
-| 7 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
-| 8 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
-| 9 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
-| 10 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
-| 11 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
-| 12 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
-| 13 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 14 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
-| 15 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
-| 16 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 17 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 18 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619; no phase (navigation) |
+| 1 | `bundle.lblx` is never written. The template exists and nothing references it: `grep -rn "bundle.lblx" src/ --include=*.py` is empty. | — | #265 area |
+| 2 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. Two more, `miscellaneous` and `spice_kernels`, are neither declared nor generated; section 3.1 adds both, moving the global index tables into the first and the metakernel into the second. | — | #72, #74 |
+| 3 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
+| 4 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
+| 5 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
+| 6 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
+| 7 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
+| 8 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
+| 9 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
+| 10 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
+| 11 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
+| 12 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
+| 13 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 14 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 15 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619; no phase (navigation) |
+| 16 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
-None of rows 1-17 gets its own tracking issue. Each is fixed by a named
-phase of this plan, which carries the evidence and the disposition together;
+No row but 15 gets its own tracking issue. Each of the others is fixed by a
+named phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
-every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Defect 1 additionally
-has an `xfail` and belongs to #265 and #69. Row 18 is the navigation's, owned
-by no phase, and is tracked as #619. The rows that *would* have
+every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 15 is the
+navigation's, owned by no phase, and is tracked as #619. The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
 difference between the arrays and the tables as settled design rather than a
@@ -356,32 +355,77 @@ into the bundle `data/` directory beside the label, and `BACKPLANE_PATH`
 names the copy, so the `FILE_BYTES`/`FILE_MD5`/`FILE_ZULU` calls describe the
 archived file rather than the source.
 
-The data object block is generated from the copied file. `astropy.io.fits`
-gives everything the label needs without a second convention:
-`hdu.fileinfo()` returns `hdrLoc` and `datLoc`, and the header carries
-`NAXIS1`, `NAXIS2`, `BITPIX` and `BUNIT`. For each HDU the label gets a
-`Header` (offset `hdrLoc`, size `datLoc - hdrLoc`) and, for every HDU past
-the primary, an `Array_2D_Image` with `offset` `datLoc`, an `Element_Array`
-whose `data_type` comes from `BITPIX` (`IEEE754MSBSingle` for -32,
-`SignedMSB4` for 32 -- MSB because FITS is big-endian) and whose `unit`
-comes from `BUNIT`, and two `Axis_Array` blocks named `Line` and `Sample`
-with `elements` from `NAXIS2` and `NAXIS1`.
+The data object block is generated from the FITS by
+`spindoctor/cli/pds4/data_objects.py`, which reads the source in
+`backplane_results_root` before the copy is made; the copy is byte-identical,
+so the source's description is the copy's. `astropy.io.fits` gives everything the
+label needs without a second convention: `hdu.fileinfo()` returns `hdrLoc` and
+`datLoc`, and the header carries `NAXIS1`, `NAXIS2`, `BITPIX` and `BUNIT`. For
+each HDU the label gets a `Header` (offset `hdrLoc`, size `datLoc - hdrLoc`,
+parsing standard `FITS 3.0`) and, for every HDU past the primary, an
+`Array_2D_Image` with `offset` `datLoc` and `axis_index_order` `Last Index
+Fastest`, an `Element_Array` whose `data_type` comes from `BITPIX`
+(`IEEE754MSBSingle` for -32, `SignedMSB4` for 32 -- MSB because FITS is
+big-endian) and whose `unit` comes from `BUNIT`, and two `Axis_Array` blocks
+named `Line` and `Sample` with `elements` from `NAXIS2` and `NAXIS1`. Each
+array's `local_identifier` is its HDU name in lower case: `body_id_map`,
+`body_latitude`, and so on. The allowed values of `parsing_standard_id`,
+`data_type` and `axis_index_order` are the Schematron's, not the XSD's, which
+types all three as plain strings; `FITS 3.0` and `FITS 4.0` are both allowed,
+and 3.0 is stated because every construct the writer uses is in it.
+
+Every float array declares the configured masked value as the
+`missing_constant` of a `Special_Constants` block, read from
+`backplanes.masked_value` rather than written as a literal (section 3.13).
+A test holds the shipped value to a finite number a 32-bit float holds
+exactly, since every masked pixel holds it as one; nothing checks the
+configuration at run time. `BODY_ID_MAP` declares none, because its `0` is the mask rather than a
+missing measurement; its `description` says instead that `0` marks a pixel no
+body claimed and every other value is the NAIF ID of the body that did. Every
+float array carries a `description` too, as the reference's arrays do: the
+plane's name, the `oops` backplane method the configuration names for it, its
+unit, and a sentence saying that a pixel the plane does not cover holds the
+`missing_constant` value -- nothing about the geometry the method computes.
+
+The builder describes what `write_fits` writes and refuses nothing; the
+cohort tests, which run the real writer and hold every stated offset to the
+file's bytes, catch a change to the writer. `BITPIX` is mapped to its PDS4
+data type by a plain lookup.
 
 `Array_2D_Image` rather than the generic `Array_2D`, and `Line`/`Sample`
 axis names, are what the F ring bundle's `data_reproj_img.lblx` uses for an
 image-shaped array; there is no reason to differ.
 
 `pdstemplate` supports `$FOR` / `$END_FOR` and `$IF` / `$ELSE` (verified in
-the installed 2.4.0), so the XML stays in `data.lblx` and Python supplies a
-list of per-HDU dictionaries as one template variable. The first
-non-primary array carries `local_identifier` `image`, which is what
-`data.lblx:104`'s display settings reference; if the operator would rather
-the display settings point at a specific plane, that is a template edit
-against a named HDU, not a code change.
+the installed 2.4.0, on a rendered label), so the XML stays in `data.lblx`
+and Python supplies the per-HDU descriptors as one template variable,
+`BACKPLANE_FITS`.
+
+**Display settings: one block per array.** `data.lblx` generates one
+`disp:Display_Settings` per array, in a `$FOR` over the same descriptors,
+each referencing its own array's identifier. A single block would declare
+one array's orientation -- with the writer's order, `BODY_ID_MAP`'s whenever
+a body is in view -- and leave every other array's undeclared. The display
+dictionary allows several: `Discipline_Area` takes any number of
+dictionary elements, `disp:Display_Settings` is a global element of
+`PDS4_DISP_1O00_1510`, and that dictionary's Schematron constrains each
+block -- its display axes must name the referenced array's, its reference
+must resolve -- and not their count.
 
 A frame with no ring backplanes has no ring HDUs. The `$FOR` handles that
 without a special case, which is the point of generating from the file
 rather than from the config.
+
+The label describes the supplemental file as well, as a `Stream_Text` over
+the whole file, from offset 0 for the length the label states: `7-Bit ASCII
+Text` with `Line-Feed` records, holding one JSON object.
+The Schematron allows both values. The file is written as the ASCII bytes
+`json_as_string` produces, which escapes every character outside ASCII and ends
+lines in a line feed, so the line feeds stay line feeds on any platform. The
+reference describes its supplemental text files as a `Header` of `UTF-8 Text`
+over their heading, followed by a table; ours is JSON with no heading. It ends
+without a line feed after its last line, which section 2.2 row 16 leaves to
+Phase 10's `validate` run.
 
 ### 3.4 Epochs
 
@@ -432,7 +476,7 @@ a label. A success document has one only beside a pointing: `build_metadata_dict
 writes `times` with the pointing, and the navigation records a success with no
 pointing when `compute_pointing` raises `NavPointingError` or the instrument has
 no SPICE camera frame mapped (#619 proposes recording the times for every
-result; section 2.2 row 18). That is a document this package's navigation
+result; section 2.2 row 15). That is a document this package's navigation
 writes, so the labels pass fails such an image before anything is written for
 it, its log saying the navigation recorded no exposure times. It checks only
 that the block is there, since the block always holds all three epochs, and
@@ -516,7 +560,7 @@ The draft is acceptable either way; a bundle delivered to the Node is not.
 Acceptance criterion 8 records that distinction.
 
 Whichever way it goes, the LID gets its `:document:` segment back in all
-three places that drop it (defect 12).
+three places that drop it (defect 9).
 
 ### 3.7 Targets and the mission area
 
@@ -595,7 +639,7 @@ name heuristic.
 
 What follows for the labels, and what a later reader must not "fix":
 
-- The `Array_2D` blocks Phase 4 generates state `unit` from the HDU's
+- The `Array_2D_Image` blocks Phase 4 generates state `unit` from the HDU's
   `BUNIT`, so an angular plane is labelled `rad`. The label describes the
   array, and the array is radians.
 - The `Field_Character` blocks Phase 7 generates for the global index take
@@ -770,7 +814,7 @@ What the Cassini ISS Saturn cohort holds beyond the documents:
 - **A backplane FITS per successful image.** A *real* FITS written by
   `astropy.io.fits`, 16x16 per plane, because Phase 4 reads `hdrLoc` and
   `datLoc` out of it through `fileinfo()` and the label states its size and
-  MD5. The byte blob the current `xfail` test writes cannot serve that.
+  MD5. A few bytes standing in for a FITS cannot serve that.
 - **Backplane metadata beside each FITS**, whose `bodies` and `rings`
   statistics name the same backplanes the FITS carries, since the global
   index columns come from one and the arrays from the other.
@@ -863,8 +907,7 @@ map that the writer writes. A fixture built by a second, parallel writer is a
 fixture that stops describing the product the moment the real writer changes,
 and the merge is where that first bit: it is the merge that decides the HDU
 order, by inserting the body planes sorted and then the ring planes sorted,
-and Phase 4 states every array's byte offset against that order and calls the
-first one the image.
+and Phase 4 states every array's byte offset against that order.
 
 The package sits at `tests/mini_nav_results/`, beside `tests/shims/` and
 `tests/cmatrix_helpers.py`, because a package two suites import should not
@@ -974,8 +1017,10 @@ planes, the second of which marks empty sky valid. Both now ask the array
 whether a pixel is measured, which is one rule and the right answer for
 each.
 
-What this plan still owes is the declaration: Phase 4 gives every
-`Array_2D_Image` a `Special_Constants` block naming the configured value.
+Phase 4 made the declaration: every float `Array_2D_Image` carries a
+`Special_Constants` block whose `missing_constant` is the configured value,
+read from the configuration, and `BODY_ID_MAP`'s array carries none and says
+what its `0` means instead (section 3.3).
 
 `collections.py`'s "TODO Need an appropriate sentinel value for missing
 data" is the table-cell half of the same question. The same `-999` is the
@@ -991,7 +1036,7 @@ discovered at delivery.
 carries an `AUTHORS` string and an `EDITORS` string naming the node staff
 who reviewed the bundle. Ours has a single hardcoded `List_Author` block.
 
-Three places where this plan deliberately does **not** follow the reference:
+Six places where this plan deliberately does **not** follow the reference:
 
 - `populate_template` there discards `template.write`'s `(errors, warnings)`
   return exactly as ours does. Phase 1 fixes that here; it is a defect the
@@ -1017,6 +1062,37 @@ Three places where this plan deliberately does **not** follow the reference:
   The collection range follows the first, whole seconds with the start
   floored and the stop ceiled, which contains every product's written start
   and stop.
+- The display direction. Every `disp:Display_Settings` in a data label here
+  displays `Line` Top to Bottom and `Sample` Left to Right, and both reference
+  labels display `Line` Bottom to Top. Each is right for its own array. The
+  reference's is a reprojected ring grid whose `Line` 0 is the innermost
+  radius. A backplane array is laid out as the calibrated image it describes.
+  `oops` reads that image from its VICAR file in record order, the first record
+  its first line (`vic.data_2d` in `oops/hosts/cassini/iss.py`); the VICAR File
+  Format document (`documents/COISS_0xxx/VICAR-File-Format.pdf` in the PDS3
+  holdings) puts one image line in each record of a band-sequential file, and a
+  calibrated ISS image is one (`ORG='BSQ'`). The backplane stage evaluates every
+  plane over the image's lines by its samples: the body planes on a
+  `Meshgrid.for_fov(..., swap=True)`, whose indices are (v, u)
+  (`backplanes_bodies.py`), and the ring planes on the snapshot's full-frame
+  backplane, whose meshgrid follows the observation's axes, which the Cassini
+  ISS host declares as `('v', 'u')`. The writer writes each array as it is,
+  unflipped. The Cassini ISS User's Guide
+  (`documents/COISS_0xxx/ISS-Users-Guide.pdf`, page 13) says to "display the
+  image such that the (line, sample) origin point is at top left", and the
+  Cassini ISS PDS4 archive declares exactly that for its raw images: `Line`
+  Top to Bottom and `Sample` Left to Right in
+  `urn:nasa:pds:cassini_iss_saturn:data_raw:1454725799n`. Decided on that
+  evidence; the data label states Top to Bottom.
+- The missing constant is written `-999.0`: the value every masked pixel
+  holds, as the shortest decimal that reads back as that value when parsed as
+  a 64-bit float, so a reader comparing in either precision finds it; the reference writes `-999` for
+  its float array. They are the same number.
+- Every `Header` carries a `<name>`, the HDU's `EXTNAME` (`PRIMARY` for the
+  first), which is the optional first child the schema gives a `Header`, so
+  that a reader can tell which HDU a header belongs to. The reference's image
+  file has no `Header`, and the `Header`s of its supplemental tables carry no
+  `<name>`.
 
 ---
 
@@ -1219,23 +1295,37 @@ Closes #519, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
 ### Phase 4 — The FITS in the bundle, with its data objects
 
-Copy the FITS into `data/`. Build the per-HDU descriptor list from the
-copied file. `data.lblx` grows the `$FOR` block described in section 3.3,
-with `local_identifier` `image` on the first array.
+Done on `rf_pds4_phase4`. The labels pass copies the FITS into `data/` beside
+its label and points `BACKPLANE_PATH` at the copy.
+`spindoctor/cli/pds4/data_objects.py` builds a descriptor per HDU from the
+source FITS before the copy is made, the copy being byte-identical, and
+`data.lblx` renders them in two `$FOR` blocks: a `Header` per HDU and
+an `Array_2D_Image` per image HDU in `File_Area_Observational`, and one
+`disp:Display_Settings` per array in the `Discipline_Area` (section 3.3, which
+records why each array has its own).
 
-Each array also declares its masked value: a `Special_Constants` block whose
+Each float array declares its masked value: a `Special_Constants` block whose
 `missing_constant` is the sentinel from `config_900_backplanes.yaml`, per
-section 3.13, so a reader masks on the label rather than on a convention.
-This phase can be written before the generator emits `-999` -- it reads the
-configured value either way -- but the draft bundle should be built from
-backplanes that carry it.
+section 3.13, so a reader masks on the label rather than on a convention;
+`BODY_ID_MAP` declares none and says what its values are instead. The draft
+bundle should be built from backplanes that carry `-999`.
 
-Tests: a two-HDU fixture FITS produces two `Array_2D_Image` blocks with the
-offsets `fileinfo()` reports; each declares the configured sentinel as its
-`missing_constant`; a frame with no ring planes produces no ring arrays; the
-display settings' referenced identifier is defined in the label.
+Tests: over the cohort, the shipped data label of each navigated image has a
+`Header` per HDU and an `Array_2D_Image` per image HDU, each checked at the
+byte level -- `SIMPLE` or `XTENSION` at a header's offset, its stated length
+ending with the record that holds its `END` card, and an array read big-endian
+at its offset equal to the array astropy reads -- with its data type from
+`BITPIX`, its unit from `BUNIT`, the configured `missing_constant` on every
+float array and none on `BODY_ID_MAP`, and every masked pixel holding it. The
+ring image has ring arrays and the limb image none; every
+`local_identifier_reference` resolves; every `<file_name>` is beside its label
+(criterion 5), and the FITS's stated size and MD5 are the copy's; each data
+object's children follow the schema's order. The cohort's frames are square,
+so a plane 2 lines by 3 samples rendered through the shipped template holds
+the two axes apart.
 
-Closes #69; contributes to #30.
+Closes #69, by hand when its PR merges into `rf_pds4_draft_bundle` (section
+8); contributes to #30.
 
 ### Phase 5 — Inventories that conform
 
@@ -1492,11 +1582,10 @@ removals on a two-sided conflict.
 
 ## 7. Follow-ups
 
-**No issues are filed for section 2.2's rows 1-17.** Each is fixed by a named
-phase of this plan, which holds the evidence, the location and the
+**No issues are filed for section 2.2's rows other than 15.** Each is assigned to a
+named phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
-adds a close to reconcile and no reader. Defect 1 additionally has an
-`xfail` and belongs to #265 and #69. Row 18 is the navigation's, not a
+adds a close to reconcile and no reader. Row 15 is the navigation's, not a
 phase's, and is tracked as #619.
 
 The one row that would have outlived this plan was the angular-unit
@@ -1524,9 +1613,12 @@ branch.
 - #600 — what the bundle says about images that did not navigate. Replaces
   section 3.11 when it is decided; nothing before Phase 10 depends on it.
 - #601 — masked backplane values are `-999` as of 2026-09-09, applied on
-  this branch (section 3.13), so one comparison masks every plane. What
-  remains of it here is the `Special_Constants` declaration in the data
-  label, which Phase 4 carries. The ring half of the original finding turned
+  this branch (section 3.13), so one comparison masks every plane, and Phase 4
+  declares it on every float array of the data label. What remains of it is
+  the index tables' missing value, `collections.py`'s "TODO Need an
+  appropriate sentinel value for missing data", which Phase 7 settles; it
+  stays open for that unless the operator closes it with Phase 4. The ring
+  half of the original finding turned
   out to duplicate #251, which is the `xfail`-pinned record that ring-won
   pixels get no `BODY_ID_MAP` entry; the sentinel makes that gap harmless
   for consumers without closing it.
@@ -1539,8 +1631,10 @@ branch.
   variant's image-number bounds and regenerates both goldens; that is #530's
   own work and belongs in a PR about the statistics fixtures, not on a PDS4
   branch. It can land before, after or independently of this plan.
-- #67 — cloud-aware bundle generation. This plan adds a second
-  `get_local_path()`/`shutil` copy for the FITS; both copies are #67's work.
+- #67 — cloud-aware bundle generation. Phase 4 added a second
+  `get_local_path()`/`shutil` copy, for the FITS; both copies, and the
+  label's `FILE_*` functions that read `BACKPLANE_PATH` as a local file, are
+  #67's work.
 - #424 — remove `sd_create_bundle_cloud_tasks`.
 - #53's generalization half — Voyager, Galileo and New Horizons template
   trees and `pds4_*` hooks, against this plan's validated Cassini tree as
@@ -1548,8 +1642,8 @@ branch.
 - #232 — whether the label's geometry values are *correct*, as opposed to
   present and schema-valid. This plan makes a bundle that validates; it does
   not check a single number against independent truth.
-- #30 — the backplane label design as a whole, of which Phase 4 implements
-  the part the file forces.
+- #30 — the backplane label design as a whole, of which Phase 4 implemented
+  the part the file forces: the data objects and their display settings.
 
 ---
 

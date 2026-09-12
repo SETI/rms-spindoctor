@@ -403,14 +403,15 @@ commitment:
 
 **PDS4 output bundles are required for all four instruments** — not a
 scope decision — and **none of it works end to end today**. The Cassini path
-is partially implemented machinery with no final templates, no schema
-validation, and only a spec-tested backend; Voyager, Galileo, and New
-Horizons additionally hit not-implemented walls. The work is: finish and
+is partially implemented machinery with draft templates and no schema
+validation, though its labels are tested over a synthetic cohort, state
+real exposure times and describe the backplane FITS; Voyager, Galileo,
+and New Horizons additionally hit not-implemented walls. The work is: finish and
 validate the Cassini path (final templates — acceptance list recorded on
 #53; schema validation; the swallowed `template.write` errors and the
 dev-guide output-layout mismatch tracked by #265), then generalize —
 per-mission label templates, LID builders, and collection machinery (#53
-with #66, #67, #69, #71-#76, #79, #47, #30, #63). Distinct from this, **PDS4
+with #66, #67, #71-#76, #79, #47, #30, #63). Distinct from this, **PDS4
 *input*** (#34) — reading PDS4-archived data instead of PDS3 — is treated
 like any other future instrument: the archives do not exist yet, their
 creation is external development outside our control, and input support is
@@ -580,7 +581,7 @@ library votes and the decision gates, not by any implementation.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it. 240 issues
+Every open issue, listed exactly once by the track that owns it. 239 issues
 as of 2026-09-03; the counts are given so a reader can tell a stale index
 from a current one at a glance.
 
@@ -589,11 +590,11 @@ from a current one at a glance.
 | A — validation & calibration | 51 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561 |
 | B — navigation correctness | 25 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567 |
 | C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
-| D — capability completion | 72 | #28, #30, #47, #53, #54, #55, #57, #63, #66, #67, #69, #71, #72, #73, #74, #75, #76, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #265, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542 |
+| D — capability completion | 71 | #28, #30, #47, #53, #54, #55, #57, #63, #66, #67, #71, #72, #73, #74, #75, #76, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #265, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542 |
 | E — test & docs debt | 28 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563 |
 | F — instruments, features, hardening | 60 | #2, #13, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552 |
 
-Priority census across all six tracks: no Critical, 22 Essential, 65
+Priority census across all six tracks: no Critical, 22 Essential, 64
 Important, 107 Useful, 34 Minor, 12 Defer. Every open issue carries exactly
 one Priority and one Effort label and at least one each of A-type and
 B-location.

@@ -318,13 +318,17 @@ replaces the PDS3 source for that instrument.
 Output current state: nothing works end to end yet. The Cassini path is
 partially implemented — the per-dataset hook pattern (template dir,
 LID/LIDVID builders, template variables) exists on
-`DataSetPDS3CassiniISS` and the collection machinery runs — but it has
-no final templates, zero tests (#242), and no schema validation, so its
-output is unvalidated. The other three instruments additionally hit
+`DataSetPDS3CassiniISS`, the collection machinery runs, and its data
+labels state real exposure times and describe the backplane FITS beside
+them, tested over a synthetic cohort of navigation and backplane
+products — but its templates are still drafts in places and nothing in
+the test suite validates a label against the PDS4 schema, so its output
+is not yet valid PDS4. The other three instruments additionally hit
 `NotImplementedError` walls in their `pds4_*` DataSet hooks. The work
 is therefore: finish and validate Cassini first (final templates,
-tests, schema validation), then generalize — per-mission template trees
-plus hook implementations, mechanical but voluminous.
+schema validation; the remaining phases of
+`PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`), then generalize — per-mission
+template trees plus hook implementations, mechanical but voluminous.
 
 Work items, in dependency order:
 
@@ -338,12 +342,12 @@ Work items, in dependency order:
 2. **Template finalization acceptance list** — the items recorded
    on #53: schema validation, the unreferenced `cassini:*` variables and
    hardcoded placeholders, TITLE/DESCRIPTION wording, unrendered
-   bundle-level products, variable-less global-index labels, FITS
-   placement (#69/#30), missing-value sentinels, non-navigated-image
+   bundle-level products, variable-less global-index labels, the index
+   tables' missing-value sentinel, non-navigated-image
    handling, and the `.tab`/`.csv` + directory-layout decision. These are
    the acceptance criteria for "final templates" in the paragraph above.
-3. **#69, #30** — backplane FITS description in data labels; backplane
-   label design (couples to the #55 backplane-set decision).
+3. **#30** — backplane label design (couples to the #55 backplane-set
+   decision).
 4. **#79** — scrape PDS4 context products for targets (feeds #73).
 5. **#71-#76, #47** — label/collection completeness items, each small:
    parameterized bundle name/version, target handling, ring geometry

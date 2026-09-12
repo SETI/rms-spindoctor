@@ -9,6 +9,13 @@ from spindoctor.config import IMAGE_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
 from spindoctor.support.file import json_as_string
 
+BODY_ID_MAP_HDU_NAME = 'BODY_ID_MAP'
+"""The name of the HDU holding the body identity map, in a FITS that holds one.
+
+Each of its 32-bit integers is the NAIF ID of the body that claimed the pixel, and 0
+where no body did.
+"""
+
 
 def write_fits(
     *,
@@ -41,7 +48,7 @@ def write_fits(
     # BODY_ID_MAP first (after Primary) - only include if not empty
     has_body_id_map = np.any(body_id_map != 0)
     if has_body_id_map:
-        id_hdu = fits.ImageHDU(data=body_id_map.astype('int32'), name='BODY_ID_MAP')
+        id_hdu = fits.ImageHDU(data=body_id_map.astype('int32'), name=BODY_ID_MAP_HDU_NAME)
         hdus.append(id_hdu)
 
     # Backplane arrays
