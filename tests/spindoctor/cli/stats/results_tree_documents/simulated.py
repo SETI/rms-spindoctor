@@ -22,13 +22,7 @@ from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
 
-from .shared import (
-    SIM_KERNELS,
-    classifier,
-    navigated,
-    provenance,
-    simulated_public_metadata,
-)
+from .shared import SIM_KERNELS, classifier, holdings_path, navigated, provenance
 
 
 def simulated_scene() -> dict[str, Any]:
@@ -95,10 +89,34 @@ def simulated_scene() -> dict[str, Any]:
         camera='SIM',
         shutter_mode=None,
         image_shape=(256, 256),
-        public_metadata=simulated_public_metadata(
+        public_metadata=_public_metadata(
             image_name='sim_scene_000042.img', camera='SIM', image_shape=(256, 256)
         ),
         start=datetime(2026, 8, 8, 16, 47, 55, 180332, tzinfo=UTC),
         elapsed_s=12.5,
         peak_memory_bytes=1073741824,
     )
+
+
+def _public_metadata(
+    *, image_name: str, camera: str, image_shape: tuple[int, int]
+) -> dict[str, Any]:
+    """Return what the simulated host publishes about one scene.
+
+    Parameters:
+        image_name: Basename of the scene file.
+        camera: The camera the scene emulates.
+        image_shape: The rendered image's ``(v, u)`` pixel dimensions.
+
+    Returns:
+        The published facts, in the host's own key order.
+    """
+    return {
+        'image_path': holdings_path(image_name).as_posix(),
+        'image_name': image_name,
+        'instrument_host_lid': 'sim',
+        'instrument_lid': 'sim',
+        'image_shape_xy': (image_shape[1], image_shape[0]),
+        'camera': camera,
+        'description': 'Simulated observation from YAML scene',
+    }

@@ -42,13 +42,15 @@ from spindoctor.support.status_reason import NavStatusReason
 from .shared import (
     COISS_KERNELS,
     COISS_SUBTREE,
-    cassini_public_metadata,
     cassini_sclk_open,
     classifier,
     faint_star,
+    holdings_path,
     navigated,
     pinned_timing,
     provenance,
+    published_times,
+    recorded_exposure,
     ring_edge,
     rotation,
     star,
@@ -174,7 +176,7 @@ def cassini_star_and_limb() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='BOTSIM',
         image_shape=(1024, 1024),
-        public_metadata=cassini_public_metadata(
+        public_metadata=_public_metadata(
             result,
             image_name='N1294561202_1_CALIB.IMG',
             camera='NAC',
@@ -252,7 +254,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='NACONLY',
         image_shape=(1024, 1024),
-        public_metadata=cassini_public_metadata(
+        public_metadata=_public_metadata(
             result,
             image_name='N1294562000_1_CALIB.IMG',
             camera='NAC',
@@ -527,7 +529,7 @@ def cassini_suspect_offset() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='NACONLY',
         image_shape=(1024, 1024),
-        public_metadata=cassini_public_metadata(
+        public_metadata=_public_metadata(
             result,
             image_name='N1294564000_1_CALIB.IMG',
             camera='NAC',
@@ -625,7 +627,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         camera='WAC',
         shutter_mode='BOTSIM',
         image_shape=(512, 512),
-        public_metadata=cassini_public_metadata(
+        public_metadata=_public_metadata(
             result,
             image_name='W1294561202_1_CALIB.IMG',
             camera='WAC',
@@ -640,3 +642,61 @@ def cassini_ring_edges() -> dict[str, Any]:
         elapsed_s=12.5,
         peak_memory_bytes=2147483648,
     )
+
+
+def _public_metadata(
+    result: NavResult,
+    *,
+    image_name: str,
+    camera: str,
+    image_shape: tuple[int, int],
+    filters: tuple[str, str],
+    sampling: str,
+    gain_mode: int,
+    observation_id: str,
+    description: str,
+) -> dict[str, Any]:
+    """Return what the Cassini ISS host publishes about one image of this run.
+
+    The host publishes the label's clock counts as numbers.  This tree's clock
+    strings are counted from each label's reading at shutter open (see
+    :func:`cassini_sclk_open`), so here those counts are the recorded strings
+    without their partition.  On a real image the two can differ by a fraction of
+    a second: the counts are the instrument's own, and the strings are SPICE's
+    conversion of the exposure epochs.
+
+    Parameters:
+        result: The image's result, carrying its attitude solution.
+        image_name: Basename of the source image.
+        camera: ``NAC`` or ``WAC``.
+        image_shape: The loaded image's ``(v, u)`` pixel dimensions.
+        filters: The two filter wheel positions the label records.
+        sampling: The label's instrument mode: ``FULL``, ``SUM2`` or ``SUM4``.
+        gain_mode: The gain state oops reads out of the label's gain mode.
+        observation_id: The label's observation id.
+        description: The label's description.
+
+    Returns:
+        The published facts, in the host's own key order.
+    """
+    exposure = recorded_exposure(result)
+    scet_start = float(exposure.sclk_start.split('/', 1)[1])
+    scet_end = float(exposure.sclk_stop.split('/', 1)[1])
+    return {
+        'image_path': holdings_path(image_name).as_posix(),
+        'image_name': image_name,
+        'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
+        'instrument_lid': f'urn:nasa:pds:context:instrument:iss{camera[0].lower()}a.co',
+        **published_times(exposure),
+        'start_time_scet': scet_start,
+        'midtime_scet': (scet_start + scet_end) / 2,
+        'end_time_scet': scet_end,
+        'image_shape_xy': (image_shape[1], image_shape[0]),
+        'camera': camera,
+        'exposure_time': exposure.exposure_s,
+        'filters': list(filters),
+        'sampling': sampling,
+        'gain_mode': gain_mode,
+        'description': description,
+        'observation_id': observation_id,
+    }

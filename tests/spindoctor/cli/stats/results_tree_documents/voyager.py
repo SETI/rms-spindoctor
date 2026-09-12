@@ -21,11 +21,13 @@ from spindoctor.support.status_reason import NavStatusReason
 from .shared import (
     VGISS_KERNELS,
     classifier,
+    holdings_path,
     navigated,
     provenance,
+    published_times,
+    recorded_exposure,
     ring_edge,
     rotation,
-    voyager_public_metadata,
     voyager_sclk_open,
     with_pointing,
 )
@@ -112,7 +114,7 @@ def voyager_ring_edges() -> dict[str, Any]:
         camera='NAC',
         shutter_mode=None,
         image_shape=(800, 800),
-        public_metadata=voyager_public_metadata(
+        public_metadata=_public_metadata(
             result,
             image_name='C1385455_GEOMED.IMG',
             camera='NAC',
@@ -165,7 +167,7 @@ def voyager_no_features() -> dict[str, Any]:
         camera='WAC',
         shutter_mode=None,
         image_shape=(1024, 1024),
-        public_metadata=voyager_public_metadata(
+        public_metadata=_public_metadata(
             result,
             image_name='C1385460_GEOMED.IMG',
             camera='WAC',
@@ -176,3 +178,37 @@ def voyager_no_features() -> dict[str, Any]:
         elapsed_s=8.25,
         peak_memory_bytes=2684354560,
     )
+
+
+def _public_metadata(
+    result: NavResult,
+    *,
+    image_name: str,
+    camera: str,
+    image_shape: tuple[int, int],
+    filter_name: str,
+) -> dict[str, Any]:
+    """Return what the Voyager ISS host publishes about one Voyager 1 image of this run.
+
+    Parameters:
+        result: The image's result, carrying its attitude solution.
+        image_name: Basename of the source image.
+        camera: ``NAC`` or ``WAC``.
+        image_shape: The loaded image's ``(v, u)`` pixel dimensions.
+        filter_name: The filter the label records.
+
+    Returns:
+        The published facts, in the host's own key order.
+    """
+    exposure = recorded_exposure(result)
+    return {
+        'image_path': holdings_path(image_name).as_posix(),
+        'image_name': image_name,
+        'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.vg1',
+        'instrument_lid': f'urn:nasa:pds:context:instrument:vg1.iss{camera[0].lower()}',
+        **published_times(exposure),
+        'image_shape_xy': (image_shape[1], image_shape[0]),
+        'camera': camera,
+        'exposure_time': exposure.exposure_s,
+        'filters': [filter_name],
+    }
