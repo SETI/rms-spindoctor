@@ -154,7 +154,7 @@ def test_a_failed_navigation_records_the_published_facts(
         ]
     )
     _success, metadata = navigate_image_files(
-        _BlankObsClass,  # type: ignore[arg-type]
+        _BlankObsClass,  # type: ignore[arg-type]  # a stand-in with only what the driver calls
         image_files,
         FCPath(str(tmp_path / 'results')),
         nav_models=['!*'],

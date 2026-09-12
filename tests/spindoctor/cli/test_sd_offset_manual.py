@@ -134,7 +134,7 @@ def test_the_manual_pass_records_the_published_facts(
         main_log_path=None,
     )
     sd_offset._run_manual_pass(
-        _ObsClass,  # type: ignore[arg-type]
+        _ObsClass,  # type: ignore[arg-type]  # a stand-in with only what the pass calls
         argparse.Namespace(),
         FCPath(tmp_path / 'results'),
         run_logging,
