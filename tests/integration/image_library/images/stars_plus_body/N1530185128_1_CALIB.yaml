@@ -8,8 +8,8 @@ scene_tags:
 - stars_plus_body
 - hyperion
 ground_truth:
-  offset_dv_px: 18.1585
-  offset_du_px: 0.1291
+  offset_dv_px: 18.6585
+  offset_du_px: 0.6291
   offset_uncertainty_px: 2.0
   source: operator_verified
   operator: rfrench
@@ -24,6 +24,18 @@ ground_truth:
     Tier ratchet 2026-07-14: with the ensemble tier-honesty fixes the frame recovers to success/high (fused (18.198, 0.140), confidence 0.566). Operator re-eyeballed a hard-stretch star-check overlay and confirmed the motion-streaked catalog stars sit inside their predicted boxes; ratcheted medium -> high. The primary technique is now StarRefineNav: the one-star unique match establishes the gross offset in pass 1 and StarRefineNav refines it with 9 stars (confidence 0.90, delta 0.19 px from the prior), so it becomes the highest-confidence contributor. On the earlier pipeline StarRefineNav returned no result, so the primary was StarUniqueMatchNav.
 
     Re-ratchet 2026-07-23: the ensemble now drops a lone brightness-centroid blob that a corroborated two-star fix contradicts, so this frame commits its star solution instead of conflicting on the BodyBlobNav outlier at (-1.05, 3.48). Measured success/medium/StarRefineNav on truth (fused (18.197, 0.139), confidence 0.723, sigma (0.42, 0.11) px). Tier high -> medium under the recalibrated 0.85 high-tier boundary: StarRefineNav refines the two-star StarUniqueMatchNav seed it descends from, so it lends precision but casts no independent corroboration vote, and the precision-weighted fused confidence lands in the medium band. High would need a second independent star vote (StarFieldFromCatalogNav reports too_few_inliers on this sparse field), so it is unreachable here; the earlier high predated both the recalibration and this ensemble behavior. Offset unchanged and within slack.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 expected:
   status: success
   confidence_tier: medium

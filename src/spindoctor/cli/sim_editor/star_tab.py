@@ -17,6 +17,11 @@ means navigable (true), so the box is checked by default and writes
 ``navigable: false`` (a present key) only when unchecked, matching the
 validator's semantics.
 
+The position spin boxes write the scene's ``v`` / ``u`` unchanged, so they
+carry the scene's own convention: every position in a scene is a pixel corner,
+and the centre of pixel ``N`` is ``N + 0.5``.  The row labels name that
+convention rather than leaving the reader to infer it from a rendered star.
+
 The PSF-window size is stored as a two-element list, never a tuple: the safe
 YAML dumper is not guaranteed to accept tuples, and a tuple never compares
 equal to the list the value reloads as, so a tuple would break a GUI-authored
@@ -43,6 +48,12 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 
+# Tooltip for the position spin boxes, which write the scene value directly.
+_POSITION_TOOLTIP = (
+    'Star {axis} position as a pixel corner: integer N is the boundary '
+    'between pixel N-1 and pixel N, so the centre of pixel N is N + 0.5.'
+)
+
 
 class StarTabMixin(SimEditorBase):
     """Builds and handles the per-star editing tab."""
@@ -65,14 +76,16 @@ class StarTabMixin(SimEditorBase):
         v_spin.setRange(-10000.0, 20000.0)
         v_spin.setDecimals(1)
         v_spin.setValue(p.get('v', 0.0))
+        v_spin.setToolTip(_POSITION_TOOLTIP.format(axis='V'))
         v_spin.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'v', v))
-        fl.addRow('V:', v_spin)
+        fl.addRow('V (pixel corner):', v_spin)
         u_spin = QDoubleSpinBox()
         u_spin.setRange(-10000.0, 20000.0)
         u_spin.setDecimals(1)
         u_spin.setValue(p.get('u', 0.0))
+        u_spin.setToolTip(_POSITION_TOOLTIP.format(axis='U'))
         u_spin.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'u', v))
-        fl.addRow('U:', u_spin)
+        fl.addRow('U (pixel corner):', u_spin)
         # Keep references so drag updates can sync the UI
         w.v_spin = v_spin  # type: ignore[attr-defined]
         w.u_spin = u_spin  # type: ignore[attr-defined]

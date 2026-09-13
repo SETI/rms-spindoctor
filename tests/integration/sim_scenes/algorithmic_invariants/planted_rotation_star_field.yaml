@@ -23,18 +23,18 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: F1, v: 55.0, u: 70.0, vmag: 3.0}
-  - {name: F2, v: 145.0, u: 130.0, vmag: 3.0}
-  - {name: F3, v: 70.0, u: 145.0, vmag: 3.0}
-  - {name: F4, v: 130.0, u: 55.0, vmag: 3.0}
-  - {name: F5, v: 50.0, u: 110.0, vmag: 3.0}
-  - {name: F6, v: 150.0, u: 90.0, vmag: 3.0}
-  - {name: F7, v: 112.0, u: 152.0, vmag: 3.0}
-  - {name: F8, v: 88.0, u: 48.0, vmag: 3.0}
-  - {name: F9, v: 155.0, u: 140.0, vmag: 3.0}
-  - {name: F10, v: 45.0, u: 60.0, vmag: 3.0}
-  - {name: F11, v: 140.0, u: 115.0, vmag: 3.0}
-  - {name: F12, v: 60.0, u: 85.0, vmag: 3.0}
+  - {name: F1, v: 55.5, u: 70.5, vmag: 3.0}
+  - {name: F2, v: 145.5, u: 130.5, vmag: 3.0}
+  - {name: F3, v: 70.5, u: 145.5, vmag: 3.0}
+  - {name: F4, v: 130.5, u: 55.5, vmag: 3.0}
+  - {name: F5, v: 50.5, u: 110.5, vmag: 3.0}
+  - {name: F6, v: 150.5, u: 90.5, vmag: 3.0}
+  - {name: F7, v: 112.5, u: 152.5, vmag: 3.0}
+  - {name: F8, v: 88.5, u: 48.5, vmag: 3.0}
+  - {name: F9, v: 155.5, u: 140.5, vmag: 3.0}
+  - {name: F10, v: 45.5, u: 60.5, vmag: 3.0}
+  - {name: F11, v: 140.5, u: 115.5, vmag: 3.0}
+  - {name: F12, v: 60.5, u: 85.5, vmag: 3.0}
 noise:
   poisson: true
   read_noise_dn: 4.0

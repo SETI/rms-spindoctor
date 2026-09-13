@@ -21,8 +21,8 @@ optics:
 bodies: []
 stars:
   - name: N1
-    v: 100.0
-    u: 110.0
+    v: 100.5
+    u: 110.5
     vmag: 2.5
     companion: {sep_px: 2.5, delta_mag: 2.5, angle_deg: 40.0}
 noise:

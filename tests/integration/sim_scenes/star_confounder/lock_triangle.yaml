@@ -24,15 +24,15 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: N1, v: 60.0, u: 70.0, vmag: 3.0}
-  - {name: N2, v: 140.0, u: 120.0, vmag: 3.0}
-  - {name: N3, v: 80.0, u: 150.0, vmag: 3.0}
-  - {name: X0, v: 40.0, u: 160.0, vmag: 3.2, navigable: false}
-  - {name: X1, v: 160.0, u: 40.0, vmag: 3.2, navigable: false}
-  - {name: X2, v: 45.0, u: 45.0, vmag: 3.2, navigable: false}
-  - {name: X3, v: 155.0, u: 155.0, vmag: 3.2, navigable: false}
-  - {name: X4, v: 100.0, u: 45.0, vmag: 3.2, navigable: false}
-  - {name: X5, v: 45.0, u: 120.0, vmag: 3.2, navigable: false}
+  - {name: N1, v: 60.5, u: 70.5, vmag: 3.0}
+  - {name: N2, v: 140.5, u: 120.5, vmag: 3.0}
+  - {name: N3, v: 80.5, u: 150.5, vmag: 3.0}
+  - {name: X0, v: 40.5, u: 160.5, vmag: 3.2, navigable: false}
+  - {name: X1, v: 160.5, u: 40.5, vmag: 3.2, navigable: false}
+  - {name: X2, v: 45.5, u: 45.5, vmag: 3.2, navigable: false}
+  - {name: X3, v: 155.5, u: 155.5, vmag: 3.2, navigable: false}
+  - {name: X4, v: 100.5, u: 45.5, vmag: 3.2, navigable: false}
+  - {name: X5, v: 45.5, u: 120.5, vmag: 3.2, navigable: false}
 noise:
   poisson: true
   read_noise_dn: 4.0

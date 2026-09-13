@@ -219,6 +219,10 @@ def _downsample_truth(truth: dict[str, Any], os: int) -> None:
     # return to detector units alongside the hit-test entries.  The records are
     # per-render copies (see render_stars), so the render cache stays on the
     # oversampled grid.
+    #
+    # A record's position is oops uv, measured from the grid's own corner, so
+    # it scales by a pure divide: uv 0 is the corner on either grid.  At
+    # oversample 1 this is the identity, as it must be.
     stars = truth.get('stars')
     if stars is not None:
         for star in stars:

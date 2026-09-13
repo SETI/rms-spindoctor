@@ -7,8 +7,8 @@ image_url: pds3://calibrated/COISS_2xxx/COISS_2001/data/1459263896_1459551623/N1
 scene_tags:
 - two_bright_stars_no_body
 ground_truth:
-  offset_dv_px: 3.6928
-  offset_du_px: 5.8052
+  offset_dv_px: 4.1928
+  offset_du_px: 6.3052
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -22,6 +22,18 @@ ground_truth:
     Operator comment: this actually has two stars
 
     Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/high/StarUniqueMatchNav -> measured success/medium/StarRefineNav. Tier high->medium under the recalibrated 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band that the campaign's planted ring-orbit-error failure mass moved out of the high tier; the confidence did not move materially, the boundary did. Offset unchanged and within slack. Primary also moves to StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor; this retires the Track-B marker that withheld refine-as-primary, whose fix shipped as the single-inlier 0.50 cap and does not apply to multi-star refines.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 expected:
   status: success
   confidence_tier: medium

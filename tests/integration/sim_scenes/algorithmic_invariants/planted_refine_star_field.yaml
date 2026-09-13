@@ -25,12 +25,12 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: R1, v: 32.0, u: 42.0, vmag: 3.0}
-  - {name: R2, v: 82.0, u: 33.0, vmag: 3.6}
-  - {name: R3, v: 57.0, u: 92.0, vmag: 3.3}
-  - {name: R4, v: 97.0, u: 93.0, vmag: 4.0}
-  - {name: R5, v: 42.0, u: 102.0, vmag: 3.8}
-  - {name: R6, v: 102.0, u: 52.0, vmag: 3.5}
+  - {name: R1, v: 32.5, u: 42.5, vmag: 3.0}
+  - {name: R2, v: 82.5, u: 33.5, vmag: 3.6}
+  - {name: R3, v: 57.5, u: 92.5, vmag: 3.3}
+  - {name: R4, v: 97.5, u: 93.5, vmag: 4.0}
+  - {name: R5, v: 42.5, u: 102.5, vmag: 3.8}
+  - {name: R6, v: 102.5, u: 52.5, vmag: 3.5}
 noise:
   poisson: true
   read_noise_dn: 4.0

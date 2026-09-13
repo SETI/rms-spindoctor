@@ -8,8 +8,8 @@ scene_tags:
 - star_dominated
 - callirrhoe
 ground_truth:
-  offset_dv_px: -1.1572
-  offset_du_px: -1.5134
+  offset_dv_px: -0.6572
+  offset_du_px: -1.0134
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -20,6 +20,18 @@ ground_truth:
     Selection: NH | 2007 | 8; {"binning": "4x4", "maglim": 13.45, "n_detectable": 62, "star_vmags": [7.63, 9.33, 10.53, 10.78, 10.93], "target": "CALLIRRHOE", "texp_s": 5.0, "year": "2007"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
     Pipeline: status=success, confidence=0.473, rank=low, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [-1.1947, -1.4939], "StarUniqueMatchNav": [-1.1644, -1.6084], "StarRefineNav": [-1.1005, -1.5072]}.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 expected:
   status: success
   confidence_tier: high

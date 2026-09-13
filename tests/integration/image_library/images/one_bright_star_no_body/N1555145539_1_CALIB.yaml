@@ -9,8 +9,8 @@ image_url: pds3://calibrated/COISS_2xxx/COISS_2031/data/1555090699_1555229867/N1
 scene_tags:
 - one_bright_star_no_body
 ground_truth:
-  offset_dv_px: 4.0251
-  offset_du_px: -12.46
+  offset_dv_px: 4.5251
+  offset_du_px: -11.9600
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -30,6 +30,18 @@ ground_truth:
     StarRefineNav (4.0251, -12.46) conf 0.50 (single-inlier refine cap).
 
     Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/StarRefineNav -> measured success/medium/StarUniqueMatchNav. Primary re-ratcheted StarRefineNav->StarUniqueMatchNav: the star refit softened residual_px so the one-star match rides its 0.70 cap above the single-inlier refine 0.50 cap. Status/tier/offset unchanged.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 expected:
   status: success
   confidence_tier: medium

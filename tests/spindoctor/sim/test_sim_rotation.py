@@ -47,13 +47,14 @@ def _centroid(img: np.ndarray) -> tuple[float, float]:
 def test_roll_rotates_star_about_boresight() -> None:
     """A 90 deg roll lands a star at its analytically rotated position.
 
-    The star at ``(40, 90)`` is ``(-24, 26)`` from the centre; a +90 deg roll
-    (matrix ``[[0, -1], [1, 0]]`` in ``(v, u)``) maps that to ``(-26, -24)``, so
-    the rendered centroid must land at ``(38, 40)``.
+    A scene states a position as a pixel corner, so the star at ``(40.5, 90.5)``
+    is drawn on pixel ``(40, 90)``, which is ``(-24, 26)`` from the centre; a
+    +90 deg roll (matrix ``[[0, -1], [1, 0]]`` in ``(v, u)``) maps that to
+    ``(-26, -24)``, so the rendered centroid must land at ``(38, 40)``.
     """
     params = _noiseless_params(
         offset_rotation_deg=90.0,
-        stars=[{'name': 'S', 'v': 40.0, 'u': 90.0, 'vmag': 2.0, 'psf_sigma': 2.0}],
+        stars=[{'name': 'S', 'v': 40.5, 'u': 90.5, 'vmag': 2.0, 'psf_sigma': 2.0}],
     )
     img, _meta = render_combined_model(params)
     centroid_v, centroid_u = _centroid(img)
@@ -65,7 +66,7 @@ def test_zero_roll_leaves_star_in_place() -> None:
     """A zero roll renders the star at its catalog position (no displacement)."""
     params = _noiseless_params(
         offset_rotation_deg=0.0,
-        stars=[{'name': 'S', 'v': 40.0, 'u': 90.0, 'vmag': 2.0, 'psf_sigma': 2.0}],
+        stars=[{'name': 'S', 'v': 40.5, 'u': 90.5, 'vmag': 2.0, 'psf_sigma': 2.0}],
     )
     img, _meta = render_combined_model(params)
     centroid_v, centroid_u = _centroid(img)
@@ -78,15 +79,16 @@ def test_star_record_keeps_unrolled_position() -> None:
 
     The roll is applied to the rendered image only; the NavModel must predict the
     unrolled geometry so a technique recovers the roll rather than cancelling it.
+    The record states the position in the scene's own oops uv.
     """
     params = _noiseless_params(
         offset_rotation_deg=30.0,
-        stars=[{'name': 'S', 'v': 40.0, 'u': 90.0, 'vmag': 2.0}],
+        stars=[{'name': 'S', 'v': 40.5, 'u': 90.5, 'vmag': 2.0}],
     )
     _img, meta = render_combined_model(params)
     star = meta['stars'][0]
-    assert star.v == 40.0
-    assert star.u == 90.0
+    assert star.v == 40.5
+    assert star.u == 90.5
 
 
 def test_roll_rotates_ring_center_and_node_together() -> None:

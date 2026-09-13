@@ -11,8 +11,8 @@ scene_tags:
                                        # sidecar lives in.
 
 ground_truth:
-  offset_dv_px: 3.0579
-  offset_du_px: -0.0188
+  offset_dv_px: 3.5579
+  offset_du_px: 0.4812
   offset_uncertainty_px: 1.0           # 1sigma marginal; tighten
                                        # for bright stars / sharp limbs.
   source: operator_verified
@@ -23,6 +23,18 @@ ground_truth:
     Single star (Vega) in FOV.
     RED filter.
     Tier ratchet 2026-07-14: the single-inlier tier cap now holds a one-star, no-cross-check solution at success/medium (fused (2.577, -0.332), confidence 0.502); operator confirmed Vega sits in its predicted box. Ratcheted low -> medium.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 
 expected:
   status: success                           # success | failed | conflicted

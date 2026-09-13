@@ -8,8 +8,8 @@ scene_tags:
 - stars_plus_body
 - hyperion
 ground_truth:
-  offset_dv_px: -1.0316
-  offset_du_px: -8.7157
+  offset_dv_px: -0.5316
+  offset_du_px: -8.2157
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -22,6 +22,18 @@ ground_truth:
     Pipeline: status=conflicted, confidence=0.13, rank=conflicted, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [-1.0316, -8.7157], "BodyBlobNav": [3.4608, -23.0015], "BodyTerminatorNav": [-3.2845, 32.46], "StarRefineNav": [0.0, 0.0]}.
 
     Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/StarUniqueMatchNav -> measured success/medium/StarRefineNav. Primary re-ratcheted StarUniqueMatchNav->StarRefineNav: the refit zeroed the residual_scatter_px penalty so this two-star refine (0.809) rises above the two-star match 0.80 cap. Multi-star refine; status/tier/offset unchanged.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 expected:
   status: success
   confidence_tier: medium

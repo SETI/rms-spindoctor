@@ -7,8 +7,8 @@ image_url: pds3://calibrated/COISS_2xxx/COISS_2001/data/1459551663_1459568594/N1
 scene_tags:
 - star_dominated
 ground_truth:
-  offset_dv_px: 3.0415
-  offset_du_px: -34.1733
+  offset_dv_px: 3.5415
+  offset_du_px: -33.6733
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -21,6 +21,18 @@ ground_truth:
     Pipeline: status=success, confidence=0.263, rank=low, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [3.3482, -33.6334], "StarRefineNav": [2.9437, -34.1868]}.
 
     Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/high/StarFieldFromCatalogNav -> measured success/high/StarRefineNav. Primary also moves to StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor; this retires the Track-B marker that withheld refine-as-primary, whose fix shipped as the single-inlier 0.50 cap and does not apply to multi-star refines.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 expected:
   status: success
   confidence_tier: high

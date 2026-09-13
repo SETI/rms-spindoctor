@@ -187,6 +187,9 @@ def _check_one_star(
         True if a conflict was found (and ``star.conflicts`` set);
         False otherwise.
     """
+    # ``Meshgrid.for_fov`` states its origin and limit in FOV uv, which is
+    # what a star record carries, so the window is built from the record's
+    # position with no datum shift.
     meshgrid = Meshgrid.for_fov(
         obs.fov,
         origin=(star.u - body_conflict_margin, star.v - body_conflict_margin),
