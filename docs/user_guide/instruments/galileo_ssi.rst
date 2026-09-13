@@ -147,10 +147,9 @@ frame, which points at a static camera-frame alignment error rather than
 per-frame attitude noise. The measurement rests on seven locked frames out of
 eighteen, so it is provisional pending a larger star-frame cohort.
 
-**Residual distortion.** The largest of any well-behaved camera in the
-pipeline: a pincushion term reaching about half a pixel at the field corner,
-with a radial RMS of 0.155 pixels against a centroid-and-astrometry floor of
-0.115. The navigator does not remove it. See
+**Residual distortion.** A pincushion term reaching about half a pixel at the
+field corner, with a radial RMS of 0.155 pixels against a
+centroid-and-astrometry floor of 0.115. The navigator does not remove it. See
 :doc:`/fov_distortion_report/fov_distortion_report` for the coefficients, the
 method and the figures.
 
@@ -160,11 +159,18 @@ Metadata fields
 Beyond the keys every instrument writes -- image path and name, the start,
 midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
-a Galileo SSI record carries one filter entry in ``filters``.
+a Galileo SSI record carries one filter entry in ``filters``. Its
+``instrument`` is ``gossi`` and its ``camera`` is ``SSI``. It writes no
+``shutter_mode``, since its labels carry none.
 
-It writes none of the spacecraft-clock fields (``start_time_scet``,
-``midtime_scet``, ``end_time_scet``), and none of ``sampling``, ``gain_mode``,
-``description`` or ``observation_id``. The instrument host LID is
+It writes ``start_time_sclk``, the image's frame count as the label records
+it, which comes a few seconds before the exposure, as a count of the clock's
+leading field, the RIM count, with its three finer fields as a fraction of one.
+The ``times`` block's clock strings are computed from the exposure times and
+differ from it by seconds. ``midtime_sclk`` and ``end_time_sclk`` are always
+null, because a Galileo SSI label records no count at the end of the image. It
+writes none of ``sampling``, ``gain_mode``, ``description`` or
+``observation_id``. The instrument host LID is
 ``...:instrument_host:spacecraft.go`` and the instrument LID is
 ``...:instrument:go.ssi``, with no camera component, since there is one camera.
 
@@ -214,10 +220,10 @@ baseline's own pointing at each record epoch.
 
 **Omission reasons this instrument produces.** ``not_eligible``, on images
 whose navigation neither succeeded nor conflicted. ``rotation_unsupported``
-never appears, because rotation fitting is off. ``botsim_loser``
-cannot appear either: it belongs to an instrument that exposes two cameras at
-once, and this one has a single camera. ``no_reproducing_baseline`` and
-``baseline_coverage_gap`` are reachable and mean what they mean everywhere.
+never appears, because rotation fitting is off. ``botsim_loser`` cannot appear
+either, since it needs two cameras exposed at once and this instrument has one.
+``no_reproducing_baseline`` and ``baseline_coverage_gap`` are reachable and
+mean what they mean everywhere.
 
 **Interpolation error.** Not yet measured for this instrument.
 

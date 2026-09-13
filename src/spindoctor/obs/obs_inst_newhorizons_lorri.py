@@ -1,3 +1,4 @@
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
 
@@ -5,10 +6,55 @@ import numpy as np
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
+from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_label_clock_counts
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import ObsSnapshotInst
+
+# SCLK01_MODULI_98 and SCLK01_OFFSETS_98 of the New Horizons spacecraft clock kernel,
+# $OOPS_RESOURCES/SPICE/New-Horizons/SCLK/new_horizons_2132.tsc: whole seconds, then
+# 1/50000-second ticks.
+_SCLK_MODULI = (4294967296, 50000)
+_SCLK_OFFSETS = (0, 0)
+
+
+def _sclk_count(count: str) -> Fraction:
+    """Return a New Horizons clock count as seconds, with its ticks as a fraction.
+
+    A count is ``SECONDS:TICKS``: whole seconds, then the 1/50000-second ticks past them,
+    so ``0031650238:48850`` is ``31650238 + 48850 / 50000``, or ``31650238.977``.
+
+    Parameters:
+        count: The count as text.
+
+    Returns:
+        The count in seconds of the clock, exactly.
+    """
+    seconds, _, ticks = count.strip().partition(':')
+    return fractional_count((int(seconds), int(ticks)), _SCLK_MODULI, _SCLK_OFFSETS)
+
+
+def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | None]:
+    """Return the spacecraft clock counts New Horizons LORRI publishes for one exposure.
+
+    A LORRI label's two counts mark the start and the end of the exposure, so the count
+    halfway between them is its middle.
+
+    Parameters:
+        start: The label's ``SPACECRAFT_CLOCK_START_COUNT``, or None when it carries none.
+        stop: The label's ``SPACECRAFT_CLOCK_STOP_COUNT``, or None when it carries none.
+
+    Returns:
+        ``start_time_sclk`` and ``end_time_sclk``, the two counts in seconds of the
+        clock, and ``midtime_sclk``, their exact mean; a count the label does not carry
+        is None, and so is the mean when either count is.
+    """
+    return exposure_counts(
+        None if start is None else _sclk_count(start),
+        None if stop is None else _sclk_count(stop),
+        bracketed=True,
+    )
 
 
 class ObsNewHorizonsLORRI(ObsSnapshotInst):
@@ -69,6 +115,9 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
 
         new_obs = ObsNewHorizonsLORRI(obs, config=config, extfov_margin_vu=extfov_margin_vu)
         new_obs._inst_config = inst_config
+        # The spacecraft clock counts are in the PDS3 label; the FITS header the
+        # observation is read from carries the start count only.
+        new_obs._label_clock_counts = pds3_label_clock_counts(fc_path)
         return new_obs
 
     def star_min_usable_vmag(self) -> float:
@@ -124,13 +173,13 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for New Horizons LORRI.
 
+        The spacecraft clock counts are those of the PDS3 label beside the image, read
+        when the image was loaded, in seconds of the clock; each is None when the label
+        carries none.
+
         Returns:
             A dictionary containing the public metadata for New Horizons LORRI.
         """
-
-        # TODO
-        # scet_start = float(obs.dict["SPACECRAFT_CLOCK_START_COUNT"])
-        # scet_end = float(obs.dict["SPACECRAFT_CLOCK_STOP_COUNT"])
 
         return {
             'image_path': self.image_url,
@@ -143,9 +192,7 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
             'start_time_et': self.time[0],
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
-            # 'start_time_scet': scet_start,
-            # 'midtime_scet': (scet_start + scet_end) / 2,
-            # 'end_time_scet': scet_end,
+            **_published_sclk(*self._label_clock_counts),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,

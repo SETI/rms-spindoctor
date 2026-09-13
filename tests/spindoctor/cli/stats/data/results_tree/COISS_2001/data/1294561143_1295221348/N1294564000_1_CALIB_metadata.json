@@ -9,7 +9,27 @@
     "image_shape": [
       1024,
       1024
-    ]
+    ],
+    "instrument_host_lid": "urn:nasa:pds:context:instrument_host:spacecraft.co",
+    "instrument_lid": "urn:nasa:pds:context:instrument:issna.co",
+    "start_time_utc": "2005-05-22T02:58:55.585",
+    "midtime_utc": "2005-05-22T02:58:55.815",
+    "end_time_utc": "2005-05-22T02:58:56.045",
+    "start_time_et": 170002799.77,
+    "midtime_et": 170002800.0,
+    "end_time_et": 170002800.23,
+    "start_time_sclk": 1294564000.0429688,
+    "midtime_sclk": 1294564000.2734375,
+    "end_time_sclk": 1294564000.5039062,
+    "exposure_time": 0.46,
+    "filters": [
+      "CL1",
+      "CL2"
+    ],
+    "sampling": "FULL",
+    "gain_mode": 3,
+    "description": "Iapetus against background stars.",
+    "observation_id": "ISS_00ASA_IAPETUS003_PRIME"
   },
   "navigation_result": {
     "status": "success",
