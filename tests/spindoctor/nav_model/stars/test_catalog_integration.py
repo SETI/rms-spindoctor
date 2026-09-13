@@ -607,7 +607,7 @@ def test_reduce_catalogs_does_not_flag_genuine_faint_star(
 def test_edge_gate_keeps_a_star_whose_psf_window_fits(
     monkeypatch: pytest.MonkeyPatch, overhang_px: float, expected_count: int
 ) -> None:
-    """The extfov edge gate is decided where the PSF window lives: array indices.
+    """The extfov edge gate is decided where the PSF window lives: pixel-centric.
 
     A 100-row frame padded by 10 makes index 109 the last row an extfov array
     has, and a 5x5 window reaches two rows either side of its star.  The star

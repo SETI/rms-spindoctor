@@ -214,9 +214,9 @@ def _render_stars_cached(
         # indices times ``os``, and ``uv * os - PIXEL_CENTER_TO_CORNER_PX * os`` is
         # ``(uv - PIXEL_CENTER_TO_CORNER_PX) * os``, which is that index.
         # ``grid_shift`` below lands it on the oversampled grid itself.
-        datum_px = PIXEL_CENTER_TO_CORNER_PX * oversample
-        rel_v = star.v - datum_px - roll_center_v
-        rel_u = star.u - datum_px - roll_center_u
+        half_px = PIXEL_CENTER_TO_CORNER_PX * oversample
+        rel_v = star.v - half_px - roll_center_v
+        rel_u = star.u - half_px - roll_center_u
         rot_v = cos_t * rel_v - sin_t * rel_u
         rot_u = sin_t * rel_v + cos_t * rel_u
         # The planted per-star catalog error (explicit plus the seeded scene

@@ -19,7 +19,7 @@ A scene states every position as a pixel corner -- integer ``N`` is the
 boundary between pixel ``N - 1`` and pixel ``N``, so the centre of pixel
 ``N`` is ``N + 0.5`` -- which is the pixel corner coordinate a star record declares.  The
 scene value therefore IS the record value and this builder copies it
-through.  The half pixel that separates it from an array index comes off
+through.  The half pixel that separates it from a pixel-centric position comes off
 only where something indexes an array: the renderer's deposit and the star
 model's extended-FOV position.
 """
@@ -51,7 +51,7 @@ def star_record_from_params(
     already the pixel corner coordinate :class:`~spindoctor.support.types.MutableStar`
     declares, on whatever grid the caller's scene values describe, so they
     are copied through unchanged.  ``move_v`` / ``move_u`` are displacements
-    and carry no datum either.
+    and so need no conversion either.
 
     Parameters:
         star_params: One scene ``stars`` entry (idealized keys only are read).

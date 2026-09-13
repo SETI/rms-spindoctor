@@ -66,13 +66,11 @@ Each real-frame quantity has a deliberate simulated analog:
 Coordinate convention
 ---------------------
 
-A scene states every position as a CORNER coordinate -- ``(0.0, 0.0)`` is the top-left corner
-of pixel ``(0, 0)`` -- so a body stated at ``center_v`` paints its silhouette centred on pixel
-index ``center_v - 0.5`` (see :ref:`sim-pixel-convention`). Predicted positions in this
-pipeline are pixel indices, so this model applies the half-pixel shift, which is
-:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX` -- the same constant every
-other corner-to-index conversion in the pipeline uses, since the shift belongs to the two
-coordinate conventions and not to bodies. Measured
+A scene states every position in pixel-corner coordinates (see
+:ref:`sim-pixel-convention`), so a body stated at ``center_v`` paints its silhouette centred
+at ``center_v - 0.5`` in pixel-centric coordinates. A predicted position at this stage is
+pixel-centric, so this model converts, by
+:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`. Measured
 directly: without the shift every simulated frame carries a flat 0.500 px cross-track error,
 half the method's entire clean-scene cross-track budget spent on a coordinate convention.
 

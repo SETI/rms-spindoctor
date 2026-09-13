@@ -410,12 +410,12 @@ class NavModelStars(NavModel):
         return annotations
 
     def _extfov_indices(self, star: MutableStar) -> tuple[float, float]:
-        """Return the extfov pixel index ``(v, u)`` that ``star`` lands on.
+        """Return ``(v, u)`` of ``star`` in extfov pixel-centric coordinates.
 
         Converts from the record's pixel corner position (see
-        :class:`~spindoctor.support.types.MutableStar`) to a pixel index by
-        dropping the half-pixel datum, then adds the extended-FOV margins,
-        which are whole pixels of padding and carry no datum of their own.
+        :class:`~spindoctor.support.types.MutableStar`) to pixel-centric by
+        subtracting the half pixel, then adds the extended-FOV margins, which
+        are whole pixels of padding and so need no conversion.
         The result is the convention every predicted position in the
         pipeline uses and the one a technique measures its centroids in.
 
@@ -423,7 +423,7 @@ class NavModelStars(NavModel):
             star: Star record carrying a pixel corner position.
 
         Returns:
-            ``(v, u)`` pixel index in the extended (padded) frame.
+            ``(v, u)`` in the extended (padded) frame, pixel-centric.
         """
         return (
             float(star.v) - PIXEL_CENTER_TO_CORNER_PX + float(self.obs.extfov_margin_v),
@@ -598,7 +598,7 @@ def _star_short_info(star: MutableStar) -> str:
     """Return a one-line text summary of a star, suitable for INFO logging.
 
     The line keeps the shape operators grep for.  The
-    ``U`` and ``V`` values are the pixel index the star lands on in the
+    ``U`` and ``V`` values are pixel-centric coordinates in the
     nominal (unpadded) frame, which is the convention every other position in
     a navigation log and document uses; the ``+/-`` figure after each is the
     per-exposure smear amplitude along that axis.
@@ -622,9 +622,9 @@ def _star_short_info(star: MutableStar) -> str:
 def _star_summary(star: MutableStar) -> dict[str, Any]:
     """Return a compact JSON-friendly summary of a star (for metadata).
 
-    ``u`` and ``v`` are the pixel index the star lands on in the nominal
+    ``u`` and ``v`` are pixel-centric coordinates in the nominal
     (unpadded) frame, the same numbers the log line carries.  Every position
-    a navigation document records is a pixel index, so a reader needs to know
+    a navigation document records is pixel-centric, so a reader needs to know
     only which frame it is in: this one is the unpadded frame, and a STAR
     feature's ``predicted_vu`` is the same point plus the extended-FOV margin.
     The record itself holds pixel corner coordinates, which is this value plus

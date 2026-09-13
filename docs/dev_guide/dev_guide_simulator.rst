@@ -1895,32 +1895,31 @@ the same change.
 
 .. _sim-pixel-convention:
 
-Every position is a pixel corner
---------------------------------
+Every position in a scene is a pixel corner
+-------------------------------------------
 
-**Every position that places something in a scene is a pixel corner**: a star's
-``v`` / ``u``, a body's ``center_v`` / ``center_u``, and the ring system's
-``geometry.center_v`` / ``center_u``. Integer ``N`` is the boundary between
-pixel ``N - 1`` and pixel ``N``, so the centre of pixel ``N`` is ``N + 0.5`` and
-the centre of a ``size_v`` by ``size_u`` frame is ``(size_v / 2, size_u / 2)``.
+The two coordinate systems and the half pixel between them are described in
+:ref:`coordinate-systems`. A scene states every position that places something
+in it in **pixel-corner coordinates**: a star's ``v`` / ``u``, a body's
+``center_v`` / ``center_u``, and the ring system's ``geometry.center_v`` /
+``center_u``. So the center of pixel ``N`` is ``N + 0.5``, and the center of a
+``size_v`` by ``size_u`` frame is ``(size_v / 2, size_u / 2)``.
 
-That is the pixel corner convention, and it is the one the whole geometry stack
-underneath already speaks: an FOV, a backplane, a C-matrix, and the ``v`` / ``u``
-a star record carries all agree with it. A position written in a scene, a
-position handed to ``oops``, and a position recorded in a star record are
-therefore one number. The half pixel is added or removed in exactly one kind of
-place -- where something is deposited into or read out of an array cell -- so a
-scene author never applies it.
+This is what the geometry layer underneath uses, so a position written in a
+scene, a position handed to that layer, and the ``v`` / ``u`` a star record
+carries are one number. The conversion happens where the renderer deposits into
+an array cell, and a scene author never applies it.
 
-Displacements carry no datum and so need no such care: the planted ``offset_v``
-/ ``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
-``catalog_error_v`` / ``catalog_error_u``, and a companion's ``sep_px`` are all
-differences between two positions.
+Displacements need no conversion, since they are differences between two
+positions: the planted ``offset_v`` / ``offset_u``, a star's ``move_v`` /
+``move_u`` smear vector, a planted ``catalog_error_v`` / ``catalog_error_u``,
+and a companion's ``sep_px``.
 
-The two centres inside the ``optics`` block -- ``distortion.center_v`` /
-``center_u`` and ``stray_light.center_v`` / ``center_u`` -- are pixel indices
-instead. They name where a whole-frame field is centred rather than where an
-object sits, and both fields are smooth on the scale of a pixel.
+The two centers inside the ``optics`` block -- ``distortion.center_v`` /
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- are stated in
+pixel-centric coordinates instead. They name where a whole-frame field is
+centered rather than where an object sits, and both fields are smooth on the
+scale of a pixel.
 
 Scene parameter reference
 =========================

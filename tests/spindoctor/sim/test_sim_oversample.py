@@ -140,8 +140,8 @@ def test_oversample_star_records_are_detector_scale() -> None:
     assert star.psf_size == (11, 11)
     # The records agree with the detector-unit hit-test entries: the rendered
     # centre is the pixel the record's catalog position lands on, plus the
-    # planted offset.  ``center_v`` is a pixel index -- it says which pixel the
-    # star was drawn on -- so the record's datum comes off before they are
+    # planted offset.  ``center_v`` is pixel-centric -- it says where in the array the
+    # star was drawn on -- so the record's half pixel comes off before they are
     # compared.
     info = meta['star_info'][0]
     assert abs(info['center_v'] - (star.v - PIXEL_CENTER_TO_CORNER_PX + 2.0)) < 1e-9

@@ -34,60 +34,30 @@ entry survives. Pairs of stars whose magnitudes are too close together to disamb
 visually are dropped from both catalogs (the autonomous match would be unable to attribute a
 detection to one or the other).
 
-Pixel datum
------------
+Coordinates a star record carries
+---------------------------------
 
-Two coordinate conventions run through this pipeline, and which one a number is in is a
-property of the number rather than of the model that produced it.
+Both coordinate systems a frame can be written in, and the half pixel between
+them, are described once in :ref:`coordinate-systems`. Two things are specific
+to stars.
 
-In **pixel corner coordinates** an integer names a boundary between two pixels, so the
-centre of pixel ``i`` sits at ``i + 0.5``. This is what the geometry layer speaks:
-``ObsSnapshot.uv_from_ra_and_dec`` returns it, FOV and backplane methods accept it, and a
-meshgrid built for a field of view is expressed in it. In **pixel index coordinates** an
-integer names a pixel, so index ``i`` *is* that pixel's centre. This is what an array
-speaks, and therefore what every measurement taken off an image is in: a technique that
-builds its coordinate array with ``np.arange`` over the slice it indexes the image with
-is working in indices by construction.
+A star record stores the catalog projection as the geometry layer returns it,
+in pixel-corner coordinates, and the record then travels to the techniques. So
+unlike the body, ring and Titan models, which convert while building their
+sampling grids, this model converts at each point of use:
+``NavModelStars._extfov_indices`` before a predicted position reaches a
+feature, the Titan contaminant mask before a star disc is painted, and the log
+line and metadata entry so that what a navigation document records matches
+every other position it records. Two consumers take the record unconverted
+because they want pixel-corner coordinates: the conflict-check meshgrid, which
+is laid out in them, and the smeared-PSF stamp, whose ``eval_rect`` offset is
+measured from a pixel's lower edge.
 
-The half pixel between them is
-:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`.
-
-**Every model uses both.** None of them is "a corner model" or "an index model": each one
-asks the geometry layer where something is, in corner coordinates, and then puts it on an
-array, in indices. What differs is only *where* each crosses over. The body, ring and
-Titan models cross inside themselves -- their sampling grids are built on pixel centres,
-so a predicted body centre, limb or terminator vertex or ring edge is already an index by
-the time it leaves the model. The star model is the one that does not, because a star
-record outlives the model: :class:`~spindoctor.support.types.MutableStar` stores the
-catalog projection as it comes, in corner coordinates, and the record then travels to the
-techniques. So the crossing happens later, at the point of use, rather than during
-rendering.
-
-That is worth stating because it is not a stylistic difference. A navigated offset is the
-difference between a predicted position and a measured one, so a datum error shared by
-both sides cancels in everything computed from the same pair -- the overlays land on
-target, the residuals look clean, the reported confidence is unaffected -- and survives
-only in the absolute answer, where nothing internal can see it.
-
-The half pixel comes **off** wherever a record's position is used to index an array:
-``NavModelStars._extfov_indices``, before a predicted position reaches a feature; the
-Titan contaminant mask, before a star disc is painted; and the log line and metadata
-entry, so that every position a navigation document records is an index like all the
-others.
-
-It stays **on** where the consumer wants corner coordinates: the conflict-check meshgrid,
-which is built from the field of view, and the smeared-PSF stamp, whose ``eval_rect``
-offset is measured from a pixel's lower edge.
-
-A simulated scene states every position in corner coordinates too, so the record builder
-shared by the renderer and the simulated star model copies a scene position through
-unchanged, and the renderer converts where it deposits into the array.
-
-One place converts in the other direction. The extended-FOV edge cull, which drops a star
-whose PSF window would spill off the padded array, holds six freshly projected corner
-positions against ``obs.extfov_u_min`` / ``_max`` and ``extfov_v_min`` / ``_max`` -- and
-those are array indices. It adds the half pixel to the four bounds once, before the
-per-star loop, rather than taking it off six positions per star.
+The extended-FOV edge cull converts the other way. It drops a star whose PSF
+window would spill off the padded array, and holds six freshly projected
+pixel-corner positions against ``obs.extfov_u_min`` / ``_max`` and
+``extfov_v_min`` / ``_max``, which are pixel-centric. It converts the four
+bounds once, before the per-star loop, rather than six positions per star.
 
 Bright-end saturation correction
 --------------------------------
@@ -498,8 +468,9 @@ Annotation helpers
   catalog name and visual magnitude. Stars flagged with a body / ring conflict are
   skipped (they are surfaced in the per-image metadata for reviewer awareness but not
   drawn). Consumes the ``label_*`` and ``label_star_color`` keys documented above.
-- ``_extfov_indices`` — converts a star's recorded pixel corner position to an extfov-frame pixel
-  index (see `Pixel datum`_), for the rectangle drawer and for the emitted feature.
+- ``_extfov_indices`` — converts a star's recorded pixel-corner position to an
+  extfov-frame pixel-centric position (see :ref:`coordinate-systems`), for the
+  rectangle drawer and for the emitted feature.
 - The per-star label string is built by the module-level ``_star_label`` helper, which
   picks one of the four arrow directions
   (:data:`~spindoctor.annotation.annotation_text_info.TEXTINFO_TOP_ARROW` /
@@ -524,11 +495,12 @@ curator to surface in the per-image JSON sidecar:
   ``vmag``, ``photometry_corrected``, ``photometry_saturated``, ``u``, ``v``, ``move_u``,
   ``move_v``, ``spectral_class``, and ``conflicts`` (the comma-separated body- /
   ring-occlusion flag string built from the per-star conflict marking step). ``u`` and
-  ``v`` are the pixel index the star lands on in the nominal (unpadded) frame, the
-  same convention every other recorded position uses; the matching STAR feature's
-  ``predicted_vu`` is that index plus the extended-FOV margin, and the record the
-  entry is built from holds the same point as a pixel corner coordinate, half a pixel higher on each
-  axis (see `Pixel datum`_). The two
+  ``v`` are pixel-centric coordinates in the nominal (unpadded) frame, the
+  same coordinate system every other recorded position uses; the matching STAR
+  feature's ``predicted_vu`` is that position plus the extended-FOV margin, and the
+  record the entry is built from states the same point in pixel-corner
+  coordinates, half a pixel higher on each axis (see :ref:`coordinate-systems`).
+  The two
   ``photometry_*`` booleans are the bright-end saturation provenance:
   ``photometry_corrected`` marks a record whose magnitude was replaced by a YBSC or Tycho-2
   reference value, and ``photometry_saturated`` marks a bright record with no reference in

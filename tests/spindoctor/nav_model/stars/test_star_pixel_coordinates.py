@@ -1,4 +1,4 @@
-"""The half-pixel datum between a star record and the pixel it lands on.
+"""Which coordinate system a star position is in at each stage.
 
 A star record carries pixel corner coordinates (``MutableStar``); every star technique
 measures its centroids in array indices, because each one builds its
@@ -188,14 +188,14 @@ def test_boresight_star_predicts_the_index_its_image_centroids_to() -> None:
     assert predicted[1] == pytest.approx(measured[1], abs=1e-9)
 
 
-def test_the_margin_does_not_disturb_the_datum() -> None:
+def test_the_margin_does_not_disturb_the_conversion() -> None:
     """Padding the frame moves the prediction with the light, not against it.
 
     The margin counts whole rows and columns of padding, so it carries no
-    datum of its own.  Rather than restate that as arithmetic, this pads the
+    conversion of their own.  Rather than restate that as arithmetic, this pads the
     image by the same margin and asks the same question the unpadded case
     asks: the prediction must land on the centroid of the star's light in the
-    padded frame.  A pipeline that applied the datum to the padded position
+    padded frame.  A pipeline that converted the padded position
     instead of the unpadded one, or applied it twice, fails here and not in
     the unpadded test.
     """

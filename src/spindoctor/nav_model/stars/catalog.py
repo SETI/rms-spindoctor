@@ -338,7 +338,7 @@ def _project_stars_to_fov(
     a pixel above the index of the pixel the star lands on.  Stars whose PSF
     support would spill off the extfov are excluded; so are stars whose
     smear motion would push them off the extfov mid-exposure.  The extfov
-    bounds are array indices, so they are expressed in uv before that
+    bounds are pixel-centric, so they are converted before that
     comparison.
 
     Parameters:
@@ -389,10 +389,10 @@ def _project_stars_to_fov(
     u_end_arr = uv_end.to_scalars()[0].vals
     v_end_arr = uv_end.to_scalars()[1].vals
 
-    # ``extfov_*_min`` / ``_max`` are array indices; every position tested
+    # ``extfov_*_min`` / ``_max`` are pixel-centric; every position tested
     # below is pixel corner coordinates.  Convert the four bounds once here rather than the
     # six positions of every star, so the gate compares uv against uv and no
-    # datum is spelled out inside the loop.
+    # conversion is spelled out inside the loop.
     u_min_uv = obs.extfov_u_min + PIXEL_CENTER_TO_CORNER_PX
     u_max_uv = obs.extfov_u_max + PIXEL_CENTER_TO_CORNER_PX
     v_min_uv = obs.extfov_v_min + PIXEL_CENTER_TO_CORNER_PX
@@ -429,7 +429,7 @@ def _project_stars_to_fov(
         ):
             continue
         # Straight from ``uv_from_ra_and_dec``: the record's declared
-        # convention is pixel corner coordinates, so no datum shift happens here.
+        # values are pixel-corner coordinates, so nothing is converted here.
         star.u = float(u)
         star.v = float(v)
         star.move_u = float(u_e - u_s)

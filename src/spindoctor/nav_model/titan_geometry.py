@@ -40,14 +40,12 @@ navigation that finished, which no selection flag can tell from one that ran on
 all its evidence.
 
 Coordinate conventions.  Positions -- the predicted center and the sunward
-pixel that sets the symmetry axis -- are pixel indices plus the extfov
+pixel that sets the symmetry axis -- are pixel-centric plus the extfov
 margin, the same convention every predicted position in the pipeline uses.
 A catalog star record is the one thing that arrives in another convention:
 it carries pixel corner coordinates, so its extfov position is
-``star.v - PIXEL_CENTER_TO_CORNER_PX + extfov_margin_v``.  Holding to one
-convention is what lets a haze offset and a star offset on the same frame be
-compared directly.  Bounding boxes are a
-separate matter: they are integer pixel indices and they only bound where
+``star.v - PIXEL_CENTER_TO_CORNER_PX + extfov_margin_v``.  Bounding boxes are a
+separate matter: they are whole-numbered and they only bound where
 backplanes are evaluated.
 
 A box grows with the body's apparent size, which is unbounded: Titan at
@@ -163,7 +161,7 @@ pass and a whole-frame one.
 _MASK_BOX_SLOP_PX: float = 0.5
 """Slop added when converting a field-of-view centre to a bounding-box index.
 
-Field-of-view coordinates run half a pixel ahead of the pixel indices a
+Field-of-view coordinates run half a pixel ahead of the pixel-centric coordinates a
 bounding box is expressed in, so a box derived from a centre plus a radius
 is widened by this much to compensate that frame shift. The inventory
 midpoint feeding the centre may itself be quantized by up to half a pixel,
@@ -444,7 +442,7 @@ def _bbox_undersample(bbox_nominal: tuple[int, int, int, int], max_samples: int)
     stride costs is up to twice what the estimate predicts.
 
     Parameters:
-        bbox_nominal: ``(u_min, u_max, v_min, v_max)`` in pixel indices.
+        bbox_nominal: ``(u_min, u_max, v_min, v_max)``, pixel-centric.
         max_samples: Largest number of samples the grid may hold; a
             non-positive value imposes no bound.
 
@@ -488,7 +486,7 @@ def _clip_bbox_to_extfov(
     """Intersect a nominal-frame bbox with the extended field of view.
 
     Parameters:
-        bbox_nominal: ``(u_min, u_max, v_min, v_max)`` in pixel indices.
+        bbox_nominal: ``(u_min, u_max, v_min, v_max)``, pixel-centric.
         extfov_shape_vu: ``(rows, cols)`` of the extended frame.
         margin_vu: ``(margin_v, margin_u)`` extfov margins, so nominal index
             ``v`` sits at extfov row ``v + margin_v``.
@@ -514,7 +512,7 @@ def _restricted_backplane(
     """Build a backplane over a nominal-frame bbox.
 
     ``bbox_nominal`` is ``(u_min, u_max, v_min, v_max)`` in nominal-frame
-    pixel indices.  It may run negative inside the extfov margin or past the
+    pixel-centric.  It may run negative inside the extfov margin or past the
     detector: ``oops`` backplanes evaluate fine at off-detector pixel
     coordinates, so nothing here clips the box.  Whether a box is clipped is
     the caller's decision.  The symmetry axis keeps its envelope box
@@ -570,13 +568,13 @@ def _symmetry_axis(
     field-of-view coordinate plus the extfov margin, which is what the
     meshgrid reports and what :func:`geometry_from_obs` builds the predicted
     center in.  Only consistency matters here, because the angle is a
-    difference; converting one end to pixel indices and not the other would
+    difference; converting one end and not the other would
     tilt the axis by a half pixel over the disc radius.
 
     Parameters:
         obs: Observation snapshot.
         bbox_nominal: Unclipped envelope bbox ``(u_min, u_max, v_min,
-            v_max)`` in nominal-frame pixel indices.
+            v_max)`` in nominal-frame pixel-centric coordinates.
         center_vu: Predicted disc center in extfov coordinates.
         margin_vu: ``(margin_v, margin_u)`` extfov margins.
         axis_min_offset_px: Offset below which the axis is degenerate, at a
@@ -797,7 +795,7 @@ def _paint_bright_stars(
     of UCAC4, whose merged magnitudes saturate inside the mask's range.
     Duplicates between the two queries are harmless: they paint overlapping
     discs.  A star record carries a nominal-frame pixel corner position, so the half-pixel
-    datum comes off and the extfov margins go on before painting: the disc
+    half pixel comes off and the extfov margins go on before painting: the disc
     has to land on the pixels the star's light actually fell on.
     """
     queries = (
