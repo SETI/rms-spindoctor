@@ -15,6 +15,7 @@ from ``NavContext`` without subclassing the obs.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -99,12 +100,12 @@ def render_smeared_psf(
     # ``eval_rect`` measures its offset from the centre pixel's lower edge --
     # 0.0 is the corner, 0.5 the centre -- so the fraction it wants is the
     # fractional part of a uv coordinate, which is what the record carries.
-    u_uv = star.u
-    v_uv = star.v
-    u_int = int(u_uv)
-    v_int = int(v_uv)
-    u_frac = float(u_uv - u_int)
-    v_frac = float(v_uv - v_int)
+    # ``math.floor`` and not ``int``: a star in the extended-FOV margin has a
+    # negative uv, and truncation toward zero would hand ``eval_rect`` a
+    # negative fraction where it wants one in [0, 1), displacing the stamp by a
+    # whole pixel on that axis.
+    u_frac = float(star.u - math.floor(star.u))
+    v_frac = float(star.v - math.floor(star.v))
     stamp = psf.eval_rect(
         (psf_half_v * 2 + 1, psf_half_u * 2 + 1),
         offset=(v_frac, u_frac),
