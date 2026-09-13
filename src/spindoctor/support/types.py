@@ -6,7 +6,9 @@ This module defines the numpy-array aliases (``NDArrayAnyType``,
 ``NDArrayUint32Type``, ``NDArrayType``), the generic ``NPType`` type
 variable, the ``PathLike`` union accepted by I/O helpers, and the
 ``MutableStar`` protocol describing the in-memory star-record shape
-used by the star-catalog reduction code.
+used by the star-catalog reduction code, together with
+``STAR_UV_DATUM_PX``, the half pixel that separates a star record's
+position from the array index of the pixel it lands on.
 
 Centralising these aliases keeps every import site aligned on a single
 spelling for the heavily-used numpy types and lets a downstream module
@@ -35,13 +37,36 @@ NDArrayType = npt.NDArray[NPType]
 PathLike = str | Path | FCPath
 
 
+STAR_UV_DATUM_PX: float = 0.5
+"""A star record's ``v``/``u`` minus the index of the pixel it lands on.
+
+``oops`` indexes a pixel by its corner: integer uv is a pixel boundary and
+the centre of pixel index ``i`` is at uv ``i + 0.5``.  A star record carries
+oops uv (see :class:`MutableStar`), so every consumer that indexes an array
+-- a model image, a mask, a detector image a centroid is measured in --
+subtracts this half pixel, and every producer that starts from an array
+index adds it.
+"""
+
+
 class MutableStar(Protocol):
+    """In-memory star record shared by the catalog reduction and the simulator.
+
+    ``v`` and ``u`` are the star's position in ``oops`` uv, the coordinate
+    ``Observation.uv_from_ra_and_dec`` returns and ``FOV`` methods accept, in
+    the nominal (unpadded) field of view.  They are NOT array indices: the
+    index of the pixel the star lands on is ``v - STAR_UV_DATUM_PX``,
+    ``u - STAR_UV_DATUM_PX``.  ``move_v`` / ``move_u`` are per-exposure
+    displacements, so they carry no datum and need no conversion.
+    """
+
     unique_number: int | None
     catalog_name: str
     pretty_name: str
     name: str
 
-    # Image-space location and motion
+    # Image-space location and motion (see the class docstring: ``v``/``u``
+    # are oops uv, not array indices).
     v: float
     u: float
     move_v: float

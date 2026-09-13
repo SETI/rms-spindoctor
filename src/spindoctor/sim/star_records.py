@@ -14,13 +14,19 @@ Only idealized star keys are read here.  The record's ``dn`` field is the
 catalog-derived relative flux ``2.512 ** -(vmag - 4)`` -- a pure function of
 the catalog magnitude, matching the real catalog reduction
 (``spindoctor.nav_model.stars.catalog``) -- not a rendered pixel value.
+
+A scene states a star's position as the pixel index it is drawn on, which is
+what the renderer deposits into and what the editor's click targets use.  A
+star record states it in oops uv, because that is what the real catalog
+reduction produces.  This builder is the boundary between the two, so it is
+where the half-pixel datum is added; nothing downstream may add it again.
 """
 
 from typing import Any, cast
 
 from starcat import Star
 
-from spindoctor.support.types import MutableStar
+from spindoctor.support.types import STAR_UV_DATUM_PX, MutableStar
 
 __all__ = ['DEFAULT_PSF_SIZE', 'star_record_from_params']
 
@@ -39,23 +45,33 @@ def star_record_from_params(
 ) -> MutableStar:
     """Build one catalog star record from a scene star mapping.
 
+    The scene's ``v`` / ``u`` (and the defaults standing in for them) are
+    pixel indices on the grid the caller's scene values describe; the
+    record's ``v`` / ``u`` are the oops uv
+    :class:`~spindoctor.support.types.MutableStar` declares, so they come out
+    ``STAR_UV_DATUM_PX`` higher.  ``move_v`` / ``move_u`` are displacements
+    and carry no datum.
+
     Parameters:
         star_params: One scene ``stars`` entry (idealized keys only are read).
         index: Zero-based position in the scene's star list; drives the
             record's unique number and default name.
-        default_v: V position used when the entry has no ``v`` (frame centre).
-        default_u: U position used when the entry has no ``u`` (frame centre).
+        default_v: V pixel index used when the entry has no ``v`` (frame
+            centre).
+        default_u: U pixel index used when the entry has no ``u`` (frame
+            centre).
 
     Returns:
-        A fully populated star record at the unshifted catalog position.
+        A fully populated star record at the unshifted catalog position, in
+        oops uv.
     """
     star = cast(MutableStar, Star())
     star.unique_number = index + 1
     star.catalog_name = str(star_params.get('catalog_name', 'SIM'))
     star.pretty_name = str(star_params.get('name', f'SIM-{index + 1}'))
     star.name = star.pretty_name
-    star.v = float(star_params.get('v', default_v))
-    star.u = float(star_params.get('u', default_u))
+    star.v = float(star_params.get('v', default_v)) + STAR_UV_DATUM_PX
+    star.u = float(star_params.get('u', default_u)) + STAR_UV_DATUM_PX
     star.move_v = float(star_params.get('move_v', 0.0))
     star.move_u = float(star_params.get('move_u', 0.0))
     star.vmag = float(star_params.get('vmag', 8.0))

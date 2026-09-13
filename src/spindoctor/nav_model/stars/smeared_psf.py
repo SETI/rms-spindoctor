@@ -96,12 +96,15 @@ def render_smeared_psf(
     psf_half_u = int(star.psf_size[1] + np.round(abs(star.move_u))) // 2
     psf_half_v = int(star.psf_size[0] + np.round(abs(star.move_v))) // 2
     move_gran = movement_granularity_px(star.move_v, star.move_u, max_steps=max_movement_steps)
-    u_idx = star.u
-    v_idx = star.v
-    u_int = int(u_idx)
-    v_int = int(v_idx)
-    u_frac = float(u_idx - u_int)
-    v_frac = float(v_idx - v_int)
+    # ``eval_rect`` measures its offset from the centre pixel's lower edge --
+    # 0.0 is the corner, 0.5 the centre -- so the fraction it wants is the
+    # fractional part of a uv coordinate, which is what the record carries.
+    u_uv = star.u
+    v_uv = star.v
+    u_int = int(u_uv)
+    v_int = int(v_uv)
+    u_frac = float(u_uv - u_int)
+    v_frac = float(v_uv - v_int)
     stamp = psf.eval_rect(
         (psf_half_v * 2 + 1, psf_half_u * 2 + 1),
         offset=(v_frac, u_frac),

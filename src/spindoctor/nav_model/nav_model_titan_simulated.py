@@ -71,12 +71,12 @@ BODY_CENTER_INDEX_OFFSET_PX: float = -0.5
 The body renderer treats a body centre as a CORNER coordinate -- ``(0.0,
 0.0)`` is the top-left corner of pixel ``(0, 0)`` -- so a body stated at
 ``center_v`` paints its silhouette centred on pixel index ``center_v -
-0.5``.  (The star renderer's convention is the other one, integer index
-``i`` at coordinate ``i``, which is why the simulated star model adds the
-extfov margin and stops there.)  Predicted positions in this pipeline are
-pixel indices, so the shift is applied here rather than left as a flat half
-pixel of cross-track error -- half the method's entire clean-scene
-cross-track budget, spent on a coordinate convention.
+0.5``.  (A scene's star entries state the other convention, the pixel index
+the star is drawn on; the record built from one is converted to oops uv at
+that boundary, and the star model converts it back.)  Predicted positions in
+this pipeline are pixel indices, so the shift is applied here rather than
+left as a flat half pixel of cross-track error -- half the method's entire
+clean-scene cross-track budget, spent on a coordinate convention.
 """
 
 

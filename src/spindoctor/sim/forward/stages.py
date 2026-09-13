@@ -36,7 +36,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import STAR_UV_DATUM_PX, NDArrayFloatType
 
 __all__ = ['SimFrame', 'Stage', 'downsample_to_detector', 'new_sim_frame']
 
@@ -219,11 +219,16 @@ def _downsample_truth(truth: dict[str, Any], os: int) -> None:
     # return to detector units alongside the hit-test entries.  The records are
     # per-render copies (see render_stars), so the render cache stays on the
     # oversampled grid.
+    #
+    # A record's position is oops uv, which is a scaled pixel index plus the
+    # half-pixel datum; the scaling applies to the index alone, so the datum
+    # comes off before the divide and goes back on after.  At oversample 1
+    # this is the identity, as it must be.
     stars = truth.get('stars')
     if stars is not None:
         for star in stars:
-            star.v = star.v / os
-            star.u = star.u / os
+            star.v = (star.v - STAR_UV_DATUM_PX) / os + STAR_UV_DATUM_PX
+            star.u = (star.u - STAR_UV_DATUM_PX) / os + STAR_UV_DATUM_PX
             star.move_v = star.move_v / os
             star.move_u = star.move_u / os
             # psf_size was scaled by an exact integer multiply, so this is exact.

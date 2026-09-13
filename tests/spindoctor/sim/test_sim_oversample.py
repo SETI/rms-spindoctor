@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.render import render_combined_model, resolve_oversample
+from spindoctor.support.types import STAR_UV_DATUM_PX
 
 
 def _body_scene(*, oversample: int | None) -> dict[str, Any]:
@@ -106,7 +107,9 @@ def test_oversample_star_records_are_detector_scale() -> None:
     At oversample 4 the radiance stage builds the records from os-scaled scene
     entries, so the downsample must rescale them (position, motion vector, PSF
     window) or they disagree with the detector-unit ``star_info`` entries by a
-    factor of the oversample.
+    factor of the oversample.  A record's position is oops uv, so it rescales
+    about the half-pixel datum rather than straight through the divide, and it
+    comes back a half pixel above the scene's pixel index.
     """
     scene: dict[str, Any] = {
         'size_v': 60,
@@ -131,16 +134,18 @@ def test_oversample_star_records_are_detector_scale() -> None:
     }
     _, meta = render_combined_model(scene)
     star = meta['stars'][0]
-    assert star.v == 20.0
-    assert star.u == 24.0
+    assert star.v == 20.0 + STAR_UV_DATUM_PX
+    assert star.u == 24.0 + STAR_UV_DATUM_PX
     assert star.move_v == 2.0
     assert star.move_u == -4.0
     assert star.psf_size == (11, 11)
     # The records agree with the detector-unit hit-test entries: the rendered
-    # centre is the record's catalog position plus the planted offset.
+    # centre is the pixel the record's catalog position lands on, plus the
+    # planted offset.  ``center_v`` is a pixel index -- it says where the star
+    # was drawn -- so the record's datum comes off before they are compared.
     info = meta['star_info'][0]
-    assert abs(info['center_v'] - (star.v + 2.0)) < 1e-9
-    assert abs(info['center_u'] - (star.u - 1.0)) < 1e-9
+    assert abs(info['center_v'] - (star.v - STAR_UV_DATUM_PX + 2.0)) < 1e-9
+    assert abs(info['center_u'] - (star.u - STAR_UV_DATUM_PX - 1.0)) < 1e-9
     # The hit-test half-window never shrinks below one detector pixel: with
     # no PSF the oversampled record floors at ``oversample`` subsamples, so
     # the downsample's divide lands exactly at the editor's 1-px click floor.

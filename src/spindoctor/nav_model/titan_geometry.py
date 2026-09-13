@@ -40,12 +40,14 @@ navigation that finished, which no selection flag can tell from one that ran on
 all its evidence.
 
 Coordinate conventions.  Positions -- the predicted center and the sunward
-pixel that sets the symmetry axis -- are field-of-view coordinates plus the
-extfov margin, the same convention every predicted position in the pipeline
-uses (a catalog star's extfov position is ``star.v + extfov_margin_v``).
-Holding to it is what lets a haze offset and a star offset on the same frame
-be compared directly.  Bounding boxes are a separate matter: they are
-integer pixel indices and they only bound where backplanes are evaluated.
+pixel that sets the symmetry axis -- are pixel indices plus the extfov
+margin, the same convention every predicted position in the pipeline uses.
+A catalog star record is the one thing that arrives in another convention:
+it carries oops uv, so its extfov position is ``star.v - STAR_UV_DATUM_PX +
+extfov_margin_v``.  Holding to one convention is what lets a haze offset and
+a star offset on the same frame be compared directly.  Bounding boxes are a
+separate matter: they are integer pixel indices and they only bound where
+backplanes are evaluated.
 
 A box grows with the body's apparent size, which is unbounded: Titan at
 0.754 km/pixel has an envelope 4343 pixels in radius inside a 1024-pixel
@@ -111,7 +113,7 @@ from spindoctor.nav_model.nav_model_body import (
 )
 from spindoctor.nav_model.stars.catalog import stars_in_extfov
 from spindoctor.support.memory import release_transient_memory
-from spindoctor.support.types import NDArrayBoolType
+from spindoctor.support.types import STAR_UV_DATUM_PX, NDArrayBoolType
 
 __all__ = [
     'OCCLUDER_STRIP_ROWS',
@@ -792,8 +794,9 @@ def _paint_bright_stars(
     Queries the two photometry-reference catalogs and never the bright end
     of UCAC4, whose merged magnitudes saturate inside the mask's range.
     Duplicates between the two queries are harmless: they paint overlapping
-    discs.  Predicted star positions are nominal-frame, so the extfov
-    margins are added before painting.
+    discs.  A star record carries nominal-frame oops uv, so the half-pixel
+    datum comes off and the extfov margins go on before painting: the disc
+    has to land on the pixels the star's light actually fell on.
     """
     queries = (
         ('ybsc', STAR_MASK_YBSC_MIN_VMAG, STAR_MASK_PHOTOMETRY_SPLIT_VMAG),
@@ -810,7 +813,14 @@ def _paint_bright_stars(
             IMAGE_LOGGER.error('Titan: %s star query could not be evaluated: %s', catalog_name, exc)
             raise
         for star in stars:
-            paint_disc(mask, (star.v + margin_vu[0], star.u + margin_vu[1]), radius_px)
+            paint_disc(
+                mask,
+                (
+                    star.v - STAR_UV_DATUM_PX + margin_vu[0],
+                    star.u - STAR_UV_DATUM_PX + margin_vu[1],
+                ),
+                radius_px,
+            )
 
 
 def occluded_disc_fraction(

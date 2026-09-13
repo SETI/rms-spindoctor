@@ -14,6 +14,7 @@ import numpy as np
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
+from spindoctor.support.types import STAR_UV_DATUM_PX
 
 _SIZE = 128
 _CENTER = _SIZE / 2.0
@@ -78,6 +79,8 @@ def test_star_record_keeps_unrolled_position() -> None:
 
     The roll is applied to the rendered image only; the NavModel must predict the
     unrolled geometry so a technique recovers the roll rather than cancelling it.
+    The record states the position in oops uv, a half pixel above the pixel index
+    the scene named.
     """
     params = _noiseless_params(
         offset_rotation_deg=30.0,
@@ -85,8 +88,8 @@ def test_star_record_keeps_unrolled_position() -> None:
     )
     _img, meta = render_combined_model(params)
     star = meta['stars'][0]
-    assert star.v == 40.0
-    assert star.u == 90.0
+    assert star.v == 40.0 + STAR_UV_DATUM_PX
+    assert star.u == 90.0 + STAR_UV_DATUM_PX
 
 
 def test_roll_rotates_ring_center_and_node_together() -> None:

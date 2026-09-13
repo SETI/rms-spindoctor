@@ -267,6 +267,17 @@ and starts with a design document, not code.
   ground-truth terminator fit on N1853392805; implement whichever option the
   operator picks (accept the 2-px-class ground truth, keep TERMINATOR_ARC for
   SPICE-known synchronous rotators, or shape models per #23).
+- **#635** — the star pixel datum: a star record carries oops uv (a pixel's
+  corner) and every star technique measures array indices (a pixel's centre),
+  so every star-derived offset was short by half a pixel in both axes. Fixed
+  by declaring the convention on `MutableStar` and converting at each point of
+  use (`STAR_UV_DATUM_PX`). Two consequences remain for the operator: the
+  library's star-frame ground truths are half a pixel stale on 20 frames and
+  need a re-ratchet decision, and N1530185128 flips to a different star lock
+  (18.2 px -> 1.2 px, confidence 0.72 -> 0.40) because
+  `StarUniqueMatchNav`'s 30-px search window takes the brightest peak inside a
+  slab whose integer bounds move with the prediction — a fragility the datum
+  change tips rather than causes.
 - **Titan haze fit** — the haze solar-symmetry method ships and is validated;
   four measured refinements remain: the arc ray reach sized by the search
   window rather than by where the limb can be (#403), the flat arc-residual

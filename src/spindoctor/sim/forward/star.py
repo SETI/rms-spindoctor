@@ -35,7 +35,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.star_records import star_record_from_params
-from spindoctor.support.types import MutableStar, NDArrayFloatType
+from spindoctor.support.types import STAR_UV_DATUM_PX, MutableStar, NDArrayFloatType
 
 __all__ = [
     'faint_sky_cutoff_mag',
@@ -206,8 +206,14 @@ def _render_stars_cached(
         )
         sim_star_list.append(star)
 
-        rel_v = star.v - roll_center_v
-        rel_u = star.u - roll_center_u
+        # The record states the catalog position in oops uv; the deposit
+        # below indexes an array, so the half-pixel datum comes back off
+        # here.  The scene's pixel-space fields were scaled to this grid by
+        # a pure multiply and the datum was added after that scaling, so
+        # taking it off recovers the scaled index exactly, at any
+        # oversampling.
+        rel_v = star.v - STAR_UV_DATUM_PX - roll_center_v
+        rel_u = star.u - STAR_UV_DATUM_PX - roll_center_u
         rot_v = cos_t * rel_v - sin_t * rel_u
         rot_u = sin_t * rel_v + cos_t * rel_u
         # The planted per-star catalog error (explicit plus the seeded scene

@@ -328,12 +328,15 @@ def _project_stars_to_fov(
     stars: list[MutableStar],
     radec_movement: tuple[float, float] | None,
 ) -> list[MutableStar]:
-    """Project stars into pixel coordinates and drop edge-clipped entries.
+    """Project stars into oops uv and drop edge-clipped entries.
 
     Mutates each surviving star to populate ``u``, ``v``, ``move_u``,
-    ``move_v``, ``ra_pm``, ``dec_pm``.  Stars whose PSF support would
-    spill off the extfov are excluded; so are stars whose smear motion
-    would push them off the extfov mid-exposure.
+    ``move_v``, ``ra_pm``, ``dec_pm``.  ``u`` and ``v`` are whatever
+    ``ObsSnapshot.uv_from_ra_and_dec`` returns, which is oops uv -- the
+    convention :class:`~spindoctor.support.types.MutableStar` declares, half
+    a pixel above the index of the pixel the star lands on.  Stars whose PSF
+    support would spill off the extfov are excluded; so are stars whose
+    smear motion would push them off the extfov mid-exposure.
 
     Parameters:
         obs: Observation snapshot (provides FOV math + extfov bounds).
@@ -413,6 +416,8 @@ def _project_stars_to_fov(
             or v_e >= obs.extfov_v_max - psf_half_v
         ):
             continue
+        # Straight from ``uv_from_ra_and_dec``: the record's declared
+        # convention is oops uv, so no datum shift happens here.
         star.u = float(u)
         star.v = float(v)
         star.move_u = float(u_e - u_s)

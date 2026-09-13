@@ -34,6 +34,28 @@ entry survives. Pairs of stars whose magnitudes are too close together to disamb
 visually are dropped from both catalogs (the autonomous match would be unable to attribute a
 detection to one or the other).
 
+Pixel datum
+-----------
+
+A star record states its position in ``oops`` uv: ``u`` and ``v`` are what
+``ObsSnapshot.uv_from_ra_and_dec`` returns, and
+``oops`` indexes a pixel by its corner, so the centre of pixel index ``i`` is at uv
+``i + 0.5``. Every other predicted position in the pipeline -- body centres, limb and
+terminator vertices, ring edges -- is a pixel index, and so is every centroid a star
+technique measures, because each one builds its coordinate array with ``np.arange``
+over the slice it indexes the image with.
+
+The half pixel between the two is
+:data:`~spindoctor.support.types.STAR_UV_DATUM_PX`. It comes off wherever a record's
+position is used to index an array:
+``NavModelStars._extfov_indices``
+before a predicted position reaches a feature, and the Titan contaminant mask before a
+star disc is painted. It stays on where the consumer wants uv: the conflict-check
+meshgrid, which ``oops`` builds from FOV uv, and the smeared-PSF stamp, whose
+``eval_rect`` offset is measured from the pixel's lower edge. A simulated scene states
+a star's position as the pixel index it is drawn on, and the record builder shared by
+the renderer and the simulated star model adds the datum at that boundary.
+
 Bright-end saturation correction
 --------------------------------
 
@@ -443,8 +465,8 @@ Annotation helpers
   catalog name and visual magnitude. Stars flagged with a body / ring conflict are
   skipped (they are surfaced in the per-image metadata for reviewer awareness but not
   drawn). Consumes the ``label_*`` and ``label_star_color`` keys documented above.
-- ``_extfov_indices`` — converts a star's predicted ``(u, v)`` to extfov-frame indices
-  for the rectangle drawer.
+- ``_extfov_indices`` — converts a star's recorded oops uv to an extfov-frame pixel
+  index (see `Pixel datum`_), for the rectangle drawer and for the emitted feature.
 - The per-star label string is built by the module-level ``_star_label`` helper, which
   picks one of the four arrow directions
   (:data:`~spindoctor.annotation.annotation_text_info.TEXTINFO_TOP_ARROW` /
@@ -468,7 +490,12 @@ curator to surface in the per-image JSON sidecar:
   ``catalog_name``, ``unique_number``, ``pretty_name``, ``ra_deg``, ``dec_deg``,
   ``vmag``, ``photometry_corrected``, ``photometry_saturated``, ``u``, ``v``, ``move_u``,
   ``move_v``, ``spectral_class``, and ``conflicts`` (the comma-separated body- /
-  ring-occlusion flag string built from the per-star conflict marking step). The two
+  ring-occlusion flag string built from the per-star conflict marking step). ``u`` and
+  ``v`` are the pixel index the star lands on in the nominal (unpadded) frame, the
+  same convention every other recorded position uses; the matching STAR feature's
+  ``predicted_vu`` is that index plus the extended-FOV margin, and the record the
+  entry is built from holds the same point as oops uv, half a pixel higher on each
+  axis (see `Pixel datum`_). The two
   ``photometry_*`` booleans are the bright-end saturation provenance:
   ``photometry_corrected`` marks a record whose magnitude was replaced by a YBSC or Tycho-2
   reference value, and ``photometry_saturated`` marks a bright record with no reference in
