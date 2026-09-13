@@ -289,6 +289,21 @@ and starts with a design document, not code.
   the record builder copies a scene position through. The shipped scenes moved
   by half a pixel in the files, and every one of the 64 renders byte-identical
   to what it rendered before.
+- **#642** — the simulator turns a planted roll about one point: the frame's
+  centre in pixel corner coordinates, where the body and ring paths already
+  pivoted. `render_stars` was reading `size / 2` as a pixel centric coordinate,
+  half a detector pixel away, so a rolled scene planted a star truth its own
+  bodies and rings disagreed with. Moving a pivot by `d` shifts every rendered
+  position by `(I - R) d`, a rigid `2 |d| sin(theta / 2)` the same near the
+  centre as far from it, so the one shipped scene with a roll moved its whole
+  star field by 0.0169 px and the other 63 render byte-identical. That scene's
+  baseline flipped from `conflicted` to `success`: `StarUniqueMatchNav` had been
+  confidently answering it 11 px wrong and now declines, which is the #639
+  window fragility tipping on a 0.01 px render change in either direction, not a
+  navigation improvement this earned. One finding from the same audit is filed
+  and left out of that change: a roll rotates positions and poses but not a
+  star's smear vector, a companion's position angle, or the background sky field
+  (#644).
 - **#640** — the star edge cull expresses the four extended-FOV bounds in uv
   before it tests six uv positions against them, so the gate no longer sits
   half a pixel inside the edge it names. Across the 75 library frames one

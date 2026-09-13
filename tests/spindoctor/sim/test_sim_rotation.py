@@ -4,12 +4,16 @@ A planted camera roll rotates the rendered scene about the boresight before the
 translation offset; the simulated star NavModel predicts the unrolled geometry,
 so a star technique recovers the roll.  These tests cover the renderer geometry
 (a star lands at its analytically rotated position; a ring system's center and
-node angle roll together, consistently with bodies and stars) and the scene-level
-``fit_camera_rotation`` override that lets a scene exercise the 3-DoF path on any
-emulated camera, independent of that camera's real rotation-fitting flag.
+node angle roll together; a star, a ring and a body placed alike turn about one
+point, the frame's uv centre) and the scene-level ``fit_camera_rotation``
+override that lets a scene exercise the 3-DoF path on any emulated camera,
+independent of that camera's real rotation-fitting flag.
 """
 
+from collections.abc import Callable
+
 import numpy as np
+import pytest
 
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
@@ -48,9 +52,10 @@ def test_roll_rotates_star_about_boresight() -> None:
     """A 90 deg roll lands a star at its analytically rotated position.
 
     A scene states a position as a pixel corner, so the star at ``(40.5, 90.5)``
-    is drawn on pixel ``(40, 90)``, which is ``(-24, 26)`` from the centre; a
-    +90 deg roll (matrix ``[[0, -1], [1, 0]]`` in ``(v, u)``) maps that to
-    ``(-26, -24)``, so the rendered centroid must land at ``(38, 40)``.
+    is ``(-23.5, 26.5)`` from the frame's uv centre ``(64, 64)``; a +90 deg roll
+    (matrix ``[[0, -1], [1, 0]]`` in ``(v, u)``) maps that to ``(-26.5, -23.5)``,
+    putting the star at uv ``(37.5, 40.5)`` -- the centre of pixel ``(37, 40)``,
+    which is where the rendered centroid must land.
     """
     params = _noiseless_params(
         offset_rotation_deg=90.0,
@@ -58,7 +63,7 @@ def test_roll_rotates_star_about_boresight() -> None:
     )
     img, _meta = render_combined_model(params)
     centroid_v, centroid_u = _centroid(img)
-    assert abs(centroid_v - 38.0) < 0.05
+    assert abs(centroid_v - 37.0) < 0.05
     assert abs(centroid_u - 40.0) < 0.05
 
 
@@ -144,6 +149,89 @@ def test_roll_rotates_ring_center_and_node_together() -> None:
     )
     unrolled, _meta2 = render_combined_model(unrolled_params)
     np.testing.assert_array_equal(rolled, unrolled)
+
+
+def _ring_system_at(center_v: float, center_u: float) -> dict[str, object]:
+    """A face-on circular ringlet centred on ``(center_v, center_u)``."""
+    return {
+        'geometry': {
+            'center_v': center_v,
+            'center_u': center_u,
+            'opening_deg_obs': 90.0,
+            'opening_deg_sun': 90.0,
+            'node_deg': 0.0,
+        },
+        'features': [{'kind': 'ringlet', 'tau': 1.0, 'width': 4.0, 'orbit': {'a': 20.0}}],
+    }
+
+
+def _sphere_at(center_v: float, center_u: float) -> dict[str, object]:
+    """A head-on lit sphere centred on ``(center_v, center_u)``."""
+    return {
+        'center_v': center_v,
+        'center_u': center_u,
+        'axis1': 20.0,
+        'axis2': 20.0,
+        'axis3': 20.0,
+        'phase_angle': 0.0,
+        'illumination_angle': 0.0,
+    }
+
+
+_PIVOT_PROBE_V = 40.5
+_PIVOT_PROBE_U = 90.5
+# A +90 deg roll is the sharpest probe of the pivot: it maps the pixel lattice
+# onto itself, so the rasterized ring and sphere centroids carry no
+# discretization bias to confuse the comparison, and it turns a half-pixel split
+# between two pivots into a full pixel of disagreement.
+_PIVOT_PROBE_ROLL_DEG = 90.0
+_PIVOT_TOLERANCE_PX = 0.01
+
+_GEOMETRY_FACTORIES: dict[str, Callable[[], dict[str, object]]] = {
+    'ring': lambda: {'ring_system': _ring_system_at(_PIVOT_PROBE_V, _PIVOT_PROBE_U)},
+    'body': lambda: {'bodies': [_sphere_at(_PIVOT_PROBE_V, _PIVOT_PROBE_U)]},
+}
+
+
+@pytest.mark.parametrize(
+    'make_geometry', list(_GEOMETRY_FACTORIES.values()), ids=list(_GEOMETRY_FACTORIES)
+)
+def test_roll_turns_stars_and_geometry_about_one_point(
+    make_geometry: Callable[[], dict[str, object]],
+) -> None:
+    """A rolled star and a rolled ring / sphere placed alike land on one another.
+
+    Each source is placed at the same scene position and rolled by the same angle
+    in its own scene, so the two rendered centroids coincide only if both paths
+    turn about the same point.  Reading ``size / 2`` as a pixel centric
+    coordinate for the star field while the geometry reads it as a pixel corner
+    pivots the star field half a detector pixel away from the geometry, which at
+    this roll angle separates the two centroids by a full pixel.
+
+    Parameters:
+        make_geometry: Builds the scene keys placing the ring or sphere.
+    """
+    star_img, _star_meta = render_combined_model(
+        _noiseless_params(
+            offset_rotation_deg=_PIVOT_PROBE_ROLL_DEG,
+            stars=[
+                {
+                    'name': 'S',
+                    'v': _PIVOT_PROBE_V,
+                    'u': _PIVOT_PROBE_U,
+                    'vmag': 2.0,
+                    'psf_sigma': 2.0,
+                }
+            ],
+        )
+    )
+    star_v, star_u = _centroid(star_img)
+    geometry_img, _geometry_meta = render_combined_model(
+        _noiseless_params(offset_rotation_deg=_PIVOT_PROBE_ROLL_DEG, **make_geometry())
+    )
+    geometry_v, geometry_u = _centroid(geometry_img)
+    assert abs(geometry_v - star_v) < _PIVOT_TOLERANCE_PX
+    assert abs(geometry_u - star_u) < _PIVOT_TOLERANCE_PX
 
 
 def test_fit_camera_rotation_override_enables_3dof() -> None:
