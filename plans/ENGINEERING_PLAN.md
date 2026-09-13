@@ -271,9 +271,15 @@ and starts with a design document, not code.
   corner) and every star technique measures array indices (a pixel's centre),
   so every star-derived offset was short by half a pixel in both axes. Fixed
   by declaring the convention on `MutableStar` and converting at each point of
-  use (`STAR_UV_DATUM_PX`). Two consequences remain for the operator: the
-  library's star-frame ground truths are half a pixel stale on 20 frames and
-  need a re-ratchet decision, and N1530185128 flips to a different star lock
+  use (`STAR_UV_DATUM_PX`). The library's star-derived ground truths carried
+  the same bias and 17 of them were corrected by the datum, each one a pin the
+  sidecar records as a star technique's own offset or as a run in which only
+  star techniques emitted. Four were left: three fused pins whose correction is
+  the datum times a star weight that can only be reconstructed, and
+  N1633925572, whose sidecar carries an operator ruling not to re-ratchet.
+  W1444747627 was pinned by hand against an overlay the notes describe as star
+  and body together, so which half the drag followed is not recorded. One
+  consequence remains open: N1530185128 flips to a different star lock
   (18.2 px -> 1.2 px, confidence 0.72 -> 0.40) because
   `StarUniqueMatchNav`'s 30-px search window takes the brightest peak inside a
   slab whose integer bounds move with the prediction — a fragility the datum

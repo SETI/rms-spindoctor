@@ -7,8 +7,8 @@ image_url: pds3://volumes/VGISS_8xxx/VGISS_8210/DATA/C12050XX/C1205021_GEOMED.IM
 scene_tags:
 - star_dominated
 ground_truth:
-  offset_dv_px: -49.1959
-  offset_du_px: -1.7803
+  offset_dv_px: -48.6959
+  offset_du_px: -1.2803
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -22,6 +22,18 @@ ground_truth:
     Operator comment: many stars
 
     Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/StarFieldFromCatalogNav -> measured success/high/StarRefineNav. Tier medium->high adjudicated per provenance: the cautious operator medium pin contradicted this frame's own recorded rank=high from the batch-006 curation run; the recalibrated star-field lock scores high. Offset unchanged and within slack. Primary also moves to StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor; this retires the Track-B marker that withheld refine-as-primary, whose fix shipped as the single-inlier 0.50 cap and does not apply to multi-star refines.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 expected:
   status: success
   confidence_tier: high

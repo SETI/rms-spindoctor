@@ -8,8 +8,8 @@ scene_tags:
 - scattered_light
 - moon_glare
 ground_truth:
-  offset_dv_px: 117.9362
-  offset_du_px: 260.2194
+  offset_dv_px: 118.4362
+  offset_du_px: 260.7194
   offset_uncertainty_px: 2.0
   source: operator_verified
   operator: rfrench
@@ -51,6 +51,18 @@ ground_truth:
     confidence-capped (0.6), so the fused result lands in the medium tier.  The
     residual single-detectable-star quintet frames stay failed (see
     C0059893300R); their capability gap is tracked separately.
+
+    Ground truth corrected by +0.500 / +0.500 px in (dv, du) for issue #635:
+    the star model predicted positions in oops uv while the techniques
+    measured them in array indices, so every star-derived offset was short
+    by half a pixel on each axis. This ground truth is star-derived -- the
+    sidecar above records it as a Star technique's own offset, or records
+    that only Star techniques ran -- so it carries that bias in full, and
+    the correction is the datum itself rather than the amount this frame's
+    current answer happened to move. The operator verification stands: the
+    star boxes the overlay drew came from the same biased conversion, and
+    half a pixel is below what an overlay resolves, so verification never
+    constrained this value either way.
 expected:
   status: success
   confidence_tier: medium
