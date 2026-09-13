@@ -1916,10 +1916,23 @@ positions: the planted ``offset_v`` / ``offset_u``, a star's ``move_v`` /
 and a companion's ``sep_px``.
 
 The two centers inside the ``optics`` block -- ``distortion.center_v`` /
-``center_u`` and ``stray_light.center_v`` / ``center_u`` -- are stated in
-pixel-centric coordinates instead. They name where a whole-frame field is
-centered rather than where an object sits, and both fields are smooth on the
-scale of a pixel.
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- do not follow the
+rule above, and they do not agree with each other either. They name where a
+whole-frame field is centered rather than where an object sits.
+
+``stray_light`` takes its center as pixel-centric and converts it to the
+oversampled grid correctly. ``distortion`` scales its center by the oversample
+factor alone, which is the conversion a pixel-corner value needs, and then uses
+the result against a grid laid out in pixel-centric coordinates; its default
+center, taken when the key is absent, is half an oversampled pixel off for the
+same reason. The size of the disagreement grows with the oversample factor, so
+it is nothing at an oversample of 1 and about a third of a detector pixel at
+the default of 4.
+
+Both fields are smooth on the scale of a pixel, so nothing observable rides on
+this today, and no shipped scene sets a distortion center. It is recorded as an
+open defect rather than as a convention, and an author setting either key
+should expect the two to move relative to one another until it is fixed.
 
 Scene parameter reference
 =========================
