@@ -1,3 +1,5 @@
+from collections.abc import Mapping, Sequence
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
 
@@ -5,10 +7,52 @@ import numpy as np
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
+from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import ObsSnapshotInst
+
+# SCLK01_MODULI_77 and SCLK01_OFFSETS_77 of the Galileo spacecraft clock kernel,
+# $OOPS_RESOURCES/SPICE/Galileo/SCLK/mk00062a.tsc: the RIM count, then its 91 MOD91
+# counts, each of 10 MOD10 counts, each of 8 MOD8 counts.
+_SCLK_MODULI = (16777215, 91, 10, 8)
+_SCLK_OFFSETS = (0, 0, 0, 0)
+
+_SCLK_FIELDS = ('RIM', 'MOD91', 'MOD10', 'MOD8')
+"""The VICAR label items holding the four fields of an image's frame count."""
+
+
+def _sclk_count(fields: Sequence[int]) -> Fraction:
+    """Return a Galileo spacecraft clock count as a number of RIM counts.
+
+    Parameters:
+        fields: The count's four fields: RIM, MOD91, MOD10 and MOD8.
+
+    Returns:
+        The count in RIM counts, ``RIM + MOD91 / 91 + MOD10 / 910 + MOD8 / 7280``.
+    """
+    return fractional_count(fields, _SCLK_MODULI, _SCLK_OFFSETS)
+
+
+def _published_sclk(label: Mapping[str, Any]) -> dict[str, float | None]:
+    """Return the spacecraft clock counts Galileo SSI publishes for one image.
+
+    A Galileo SSI label records one count, the image's frame count, as the VICAR items
+    RIM, MOD91, MOD10 and MOD8; it comes a few seconds before the exposure.  The label
+    records no count at the end of the image.
+
+    Parameters:
+        label: The image's VICAR label.
+
+    Returns:
+        ``start_time_sclk``, the frame count in RIM counts, or None when the label lacks
+        any of the four items; ``midtime_sclk`` and ``end_time_sclk``, always None.
+    """
+    fields: list[Any] = [label.get(name, None) for name in _SCLK_FIELDS]
+    if None in fields:
+        return exposure_counts(None, None, bracketed=False)
+    return exposure_counts(_sclk_count(fields), None, bracketed=False)
 
 
 class ObsGalileoSSI(ObsSnapshotInst):
@@ -122,13 +166,13 @@ class ObsGalileoSSI(ObsSnapshotInst):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for Galileo SSI.
 
+        The spacecraft clock count is the VICAR label's frame count, in RIM counts, which
+        comes a few seconds before the exposure.  The label records no count at the end
+        of the image, so the midtime and end counts are None.
+
         Returns:
             A dictionary containing the public metadata for Galileo SSI.
         """
-
-        # TODO
-        # scet_start = float(obs.dict["SPACECRAFT_CLOCK_START_COUNT"])
-        # scet_end = float(obs.dict["SPACECRAFT_CLOCK_STOP_COUNT"])
 
         return {
             'image_path': self.image_url,
@@ -141,9 +185,7 @@ class ObsGalileoSSI(ObsSnapshotInst):
             'start_time_et': self.time[0],
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
-            # 'start_time_scet': scet_start,
-            # 'midtime_scet': (scet_start + scet_end) / 2,
-            # 'end_time_scet': scet_end,
+            **_published_sclk(self.dict),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,

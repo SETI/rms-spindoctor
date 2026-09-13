@@ -76,10 +76,12 @@ pipeline carried it:
     The image loaded and the orchestrator ran to completion. The document has
     a full ``navigation_result`` block. The top-level ``status`` is the
     navigation outcome: ``success``, ``failed``, or ``conflicted``. This shape
-    covers failed navigations too: a failure still records every technique
-    that ran, the feature inventory, the image classifier, provenance, and
-    (when the attitude could be computed) the ``pointing`` and ``times``
-    blocks; only the offset and its uncertainty are absent.
+    covers failed navigations too: a failure still records what is known
+    about the exposure from the image itself, such as its exposure times and
+    filters, and also every technique that ran, the feature inventory, the
+    image classifier, provenance, and the ``pointing`` and ``times`` blocks
+    when the attitude was computed. The offset and its uncertainty are absent
+    on every failed navigation.
 
 **Load error**
     The image file could not be read, or SPICE coverage was missing for its
@@ -217,6 +219,18 @@ The ``status_error`` vocabulary
 The observation block
 =====================
 
+The block has two parts. The first six keys below are the image's identity,
+which the navigator writes on every document shape that knows it. The rest are
+what the image's instrument states about it: the identifiers of its spacecraft
+and camera, and facts about the exposure, such as its times and its filters.
+Those are present on every navigated document, successful or failed, whether
+or not a ``pointing`` block was recorded; a load-error or internal-error
+document carries none of them. Which of the keys below an instrument records,
+and what each holds for it, is in the Metadata fields section of that
+instrument's chapter under :doc:`/user_guide/instruments/instruments`; a key
+an instrument does not record is absent. The image's path, name, camera and
+shape are recorded once, under the identity keys.
+
 .. list-table::
    :header-rows: 1
    :widths: 20 12 68
@@ -237,13 +251,12 @@ The observation block
      - Basename of the source image file. Same presence as ``image_path``.
    * - ``instrument``
      - string
-     - The registered instrument name for the observation class: ``coiss``,
-       ``gossi``, ``nhlorri``, ``vgiss``, or ``sim`` (``unknown`` for an
-       unregistered class). Always present, in every shape.
+     - The registered name of the instrument whose observation class read
+       the image (``unknown`` for an unregistered class). Always present, in
+       every shape.
    * - ``camera``
      - string
-     - The camera that took the image: ``NAC`` or ``WAC`` for Cassini ISS
-       and Voyager ISS, ``SSI`` for Galileo, ``LORRI`` for New Horizons.
+     - The camera that took the image, as the instrument names it.
        On a navigated document this comes from the loaded observation
        (:attr:`~spindoctor.obs.obs_inst.ObsInst.camera`) and is always
        present. On a load-error document the image was never opened, so the
@@ -254,16 +267,61 @@ The observation block
    * - ``shutter_mode``
      - string
      - The shutter mode the image was taken in, for an instrument whose
-       label carries one. Cassini ISS records ``NACONLY``, ``WACONLY``, or
-       ``BOTSIM`` (both cameras exposed at once, sharing one spacecraft
-       attitude). Omitted for instruments whose labels carry no such field
-       (Voyager ISS, Galileo SSI, New Horizons LORRI) and on load-error
-       documents.
+       label carries one. Omitted for an instrument whose labels carry no
+       such field, and on load-error and internal-error documents.
    * - ``image_shape``
      - array
      - ``[v, u]`` pixel dimensions of the loaded image data, as two
        integers. Present only on navigated documents (a load never
        produced pixel data on the error shapes).
+   * - ``instrument_host_lid``
+     - string
+     - The PDS4 context identifier of the spacecraft that carried the
+       camera.
+   * - ``instrument_lid``
+     - string
+     - The PDS4 context identifier of the camera.
+   * - ``start_time_utc``, ``midtime_utc``, ``end_time_utc``
+     - string
+     - When the exposure began, its midpoint, and when it ended, as UTC
+       timestamps to the millisecond.
+   * - ``start_time_et``, ``midtime_et``, ``end_time_et``
+     - number
+     - The same three instants in TDB seconds past J2000, unrounded. When
+       the ``times`` block is present, its ``start_et``, ``midtime_et`` and
+       ``stop_et`` hold these same values.
+   * - ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk``
+     - number or null
+     - The spacecraft clock counts the image label records, as numbers: the
+       clock's leading field, with its finer fields as a fraction of one.
+       ``start_time_sclk`` and ``end_time_sclk`` are the label's start and
+       stop counts. ``midtime_sclk`` is the count exactly halfway between
+       them where the two counts bracket the exposure, and null where they
+       do not. A count is null when the label carries none. What the counts
+       mark, and the unit of the leading field, depend on the instrument.
+       The ``times`` block's clock strings are computed from the exposure
+       times, so they can differ from these counts.
+   * - ``exposure_time``
+     - number
+     - Exposure duration in seconds.
+   * - ``filters``
+     - array
+     - The names of the filters the image was taken through, as strings, one
+       per filter wheel; an empty array for a camera with no filters.
+   * - ``sampling``
+     - string
+     - The sampling mode the label records: how the image was summed on the
+       detector.
+   * - ``gain_mode``
+     - integer or null
+     - The camera's gain state, as a number the instrument's chapter
+       defines; ``null`` for a label naming a gain it does not list.
+   * - ``observation_id``
+     - string or null
+     - The label's observation id; ``null`` when the label carries none.
+   * - ``description``
+     - string or null
+     - A description of the image; ``null`` when the label carries none.
 
 The navigation_result block
 ===========================
@@ -899,7 +957,24 @@ form. Of 79 SPICE kernels, three are shown.
         "instrument": "coiss",
         "camera": "NAC",
         "shutter_mode": "NACONLY",
-        "image_shape": [1024, 1024]
+        "image_shape": [1024, 1024],
+        "instrument_host_lid": "urn:nasa:pds:context:instrument_host:spacecraft.co",
+        "instrument_lid": "urn:nasa:pds:context:instrument:issna.co",
+        "start_time_utc": "2009-10-26T20:32:22.024",
+        "midtime_utc": "2009-10-26T20:32:22.134",
+        "end_time_utc": "2009-10-26T20:32:22.244",
+        "start_time_et": 309861208.2064568,
+        "midtime_et": 309861208.3164568,
+        "end_time_et": 309861208.4264568,
+        "start_time_sclk": 1635282917.2460938,
+        "midtime_sclk": 1635282917.3535156,
+        "end_time_sclk": 1635282917.4609375,
+        "exposure_time": 0.22,
+        "filters": ["CL1", "CL2"],
+        "sampling": "FULL",
+        "gain_mode": 2,
+        "description": "N/A",
+        "observation_id": "ISS_120RH_MUTUALEVE001_PRIME"
       },
       "navigation_result": {
         "status": "success",
@@ -1111,12 +1186,13 @@ Navigated, failed
 -----------------
 
 A Galileo SSI frame in which no extractor produced a feature. Everything the
-pipeline learned is still recorded: the classifier verdict, the provenance,
-and the ``pointing`` block -- with ``cmatrix_original`` only, since a failed
-navigation produces no corrected attitude. There is no top-level ``offset``
-key at all, and both confidence values are ``0.0``. The empty lists and the
-provenance follow the same form as the success example and are shortened
-here.
+pipeline learned is still recorded: what is known about the exposure from the
+image itself, including its exposure times and filter, the classifier verdict,
+the provenance, and the ``pointing`` block -- with ``cmatrix_original`` only,
+since a failed navigation produces no corrected attitude. There is no
+top-level ``offset`` key at all, and both confidence values are ``0.0``. The
+empty lists and the provenance follow the same form as the success example
+and are shortened here.
 
 .. code-block:: json
 
@@ -1127,7 +1203,20 @@ here.
         "image_name": "C0059750900R.IMG",
         "instrument": "gossi",
         "camera": "SSI",
-        "image_shape": [800, 800]
+        "image_shape": [800, 800],
+        "instrument_host_lid": "urn:nasa:pds:context:instrument_host:spacecraft.go",
+        "instrument_lid": "urn:nasa:pds:context:instrument:go.ssi",
+        "start_time_utc": "1990-11-29T22:27:07.068",
+        "midtime_utc": "1990-11-29T22:27:07.071",
+        "end_time_utc": "1990-11-29T22:27:07.074",
+        "start_time_et": -286810315.74894506,
+        "midtime_et": -286810315.74582005,
+        "end_time_et": -286810315.74269503,
+        "start_time_sclk": 597509.0,
+        "midtime_sclk": null,
+        "end_time_sclk": null,
+        "exposure_time": 0.00625,
+        "filters": ["GREEN"]
       },
       "navigation_result": {
         "status": "failed",

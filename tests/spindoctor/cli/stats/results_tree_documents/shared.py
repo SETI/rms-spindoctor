@@ -16,10 +16,10 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import numpy as np
+from filecache import FCPath
 
 from spindoctor.feature.feature import NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
@@ -29,6 +29,7 @@ from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.navigate_image_files import build_metadata_from_result, build_timing_section
 from spindoctor.support.cmatrix import AttitudeBaseline, PointingSolution
+from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayFloatType
 
 COISS_SUBTREE = 'COISS_2001/data/1294561143_1295221348'
@@ -547,6 +548,18 @@ def _exposure_span(midtime_et: float, exposure_s: float) -> tuple[float, float, 
     return midtime_et - exposure_s / 2.0, midtime_et, midtime_et + exposure_s / 2.0
 
 
+def holdings_path(image_name: str) -> FCPath:
+    """Return where the run read one image from.
+
+    Parameters:
+        image_name: Basename of the source image.
+
+    Returns:
+        Its path under the holdings root the run was given.
+    """
+    return FCPath('/holdings') / image_name
+
+
 def navigated(
     result: NavResult,
     *,
@@ -555,6 +568,7 @@ def navigated(
     camera: str,
     shutter_mode: str | None,
     image_shape: tuple[int, int],
+    public_metadata: dict[str, Any],
     start: datetime,
     elapsed_s: float,
     peak_memory_bytes: int,
@@ -569,6 +583,8 @@ def navigated(
         shutter_mode: The shutter mode the label recorded, or None for a host
             whose labels carry none.
         image_shape: The loaded image's ``(v, u)`` pixel dimensions.
+        public_metadata: What the observation's host publishes about the image, as
+            that host's own module builds it.
         start: When this image's run began.
         elapsed_s: How long it took.
         peak_memory_bytes: The peak resident size to record for it.
@@ -578,14 +594,55 @@ def navigated(
     """
     return build_metadata_from_result(
         result,
-        Path(f'/holdings/{image_name}'),
+        holdings_path(image_name),
         image_name,
         instrument=instrument,
         camera=camera,
         shutter_mode=shutter_mode,
         image_shape=image_shape,
+        public_metadata=public_metadata,
         timing=pinned_timing(start, elapsed_s, peak_memory_bytes),
     )
+
+
+def recorded_exposure(result: NavResult) -> AttitudeBaseline:
+    """Return the exposure a result's attitude block records.
+
+    A host reads its published times from the same label the attitude's exposure
+    epochs come from, so a document's published times are taken from there rather
+    than stated a second time.
+
+    Parameters:
+        result: A result an attitude solution has been stamped onto.
+
+    Returns:
+        The solution's baseline, which carries the exposure epochs and clock strings.
+
+    Raises:
+        ValueError: If the result carries no attitude solution.
+    """
+    if result.pointing is None:
+        raise ValueError('a published time is taken from the attitude block; stamp one first')
+    return result.pointing.baseline
+
+
+def published_times(exposure: AttitudeBaseline) -> dict[str, Any]:
+    """Return the start, midtime and end a spacecraft host publishes, in UTC and ET.
+
+    Parameters:
+        exposure: The recorded exposure.
+
+    Returns:
+        The six time fields, in the hosts' own order.
+    """
+    return {
+        'start_time_utc': et_to_utc(exposure.start_et),
+        'midtime_utc': et_to_utc(exposure.midtime_et),
+        'end_time_utc': et_to_utc(exposure.stop_et),
+        'start_time_et': exposure.start_et,
+        'midtime_et': exposure.midtime_et,
+        'end_time_et': exposure.stop_et,
+    }
 
 
 def pinned_timing(start: datetime, elapsed_s: float, peak_memory_bytes: int) -> dict[str, Any]:

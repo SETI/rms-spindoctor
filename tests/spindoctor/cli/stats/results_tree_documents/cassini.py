@@ -37,6 +37,7 @@ from spindoctor.nav_technique.diagnostics import (
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
+from spindoctor.obs.obs_inst_cassini_iss import _published_sclk
 from spindoctor.support.status_reason import NavStatusReason
 
 from .shared import (
@@ -45,9 +46,12 @@ from .shared import (
     cassini_sclk_open,
     classifier,
     faint_star,
+    holdings_path,
     navigated,
     pinned_timing,
     provenance,
+    published_times,
+    recorded_exposure,
     ring_edge,
     rotation,
     star,
@@ -173,6 +177,17 @@ def cassini_star_and_limb() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='BOTSIM',
         image_shape=(1024, 1024),
+        public_metadata=_public_metadata(
+            result,
+            image_name='N1294561202_1_CALIB.IMG',
+            camera='NAC',
+            image_shape=(1024, 1024),
+            filters=('CL1', 'CL2'),
+            sampling='FULL',
+            gain_mode=3,
+            observation_id='ISS_00ASA_IAPETUS001_PRIME',
+            description='Iapetus limb against a star field.',
+        ),
         start=datetime(2026, 8, 8, 16, 46, 25, 933806, tzinfo=UTC),
         elapsed_s=12.5,
         peak_memory_bytes=5368709120,
@@ -240,6 +255,17 @@ def cassini_all_features_gated() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='NACONLY',
         image_shape=(1024, 1024),
+        public_metadata=_public_metadata(
+            result,
+            image_name='N1294562000_1_CALIB.IMG',
+            camera='NAC',
+            image_shape=(1024, 1024),
+            filters=('CL1', 'GRN'),
+            sampling='FULL',
+            gain_mode=3,
+            observation_id='ISS_00ASA_IAPETUS002_PRIME',
+            description='Iapetus disc at low phase.',
+        ),
         start=datetime(2026, 8, 8, 16, 46, 38, 532110, tzinfo=UTC),
         elapsed_s=8.25,
         peak_memory_bytes=1610612736,
@@ -504,6 +530,17 @@ def cassini_suspect_offset() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='NACONLY',
         image_shape=(1024, 1024),
+        public_metadata=_public_metadata(
+            result,
+            image_name='N1294564000_1_CALIB.IMG',
+            camera='NAC',
+            image_shape=(1024, 1024),
+            filters=('CL1', 'CL2'),
+            sampling='FULL',
+            gain_mode=3,
+            observation_id='ISS_00ASA_IAPETUS003_PRIME',
+            description='Iapetus against background stars.',
+        ),
         start=datetime(2026, 8, 8, 16, 46, 48, 921574, tzinfo=UTC),
         elapsed_s=31.75,
         peak_memory_bytes=8589934592,
@@ -591,7 +628,75 @@ def cassini_ring_edges() -> dict[str, Any]:
         camera='WAC',
         shutter_mode='BOTSIM',
         image_shape=(512, 512),
+        public_metadata=_public_metadata(
+            result,
+            image_name='W1294561202_1_CALIB.IMG',
+            camera='WAC',
+            image_shape=(512, 512),
+            filters=('CL1', 'CL2'),
+            sampling='SUM2',
+            gain_mode=2,
+            observation_id='ISS_00ASA_IAPETUS001_PRIME',
+            description='Iapetus limb against a star field.',
+        ),
         start=datetime(2026, 8, 8, 16, 47, 21, 8443, tzinfo=UTC),
         elapsed_s=12.5,
         peak_memory_bytes=2147483648,
     )
+
+
+def _public_metadata(
+    result: NavResult,
+    *,
+    image_name: str,
+    camera: str,
+    image_shape: tuple[int, int],
+    filters: tuple[str, str],
+    sampling: str,
+    gain_mode: int,
+    observation_id: str,
+    description: str,
+) -> dict[str, Any]:
+    """Return what the Cassini ISS host publishes about one image of this run.
+
+    The host converts the label's start and stop clock counts to seconds of the
+    clock and publishes them with their exact mean, through its own conversion,
+    which is used here too.  This tree's clock strings are counted from each label's
+    reading at shutter open (see :func:`cassini_sclk_open`), so here the label's
+    counts are the recorded strings without their partition.  On a real image the
+    two can differ: the counts are the instrument's own, and the strings are SPICE's
+    conversion of the exposure epochs.
+
+    Parameters:
+        result: The image's result, carrying its attitude solution.
+        image_name: Basename of the source image.
+        camera: ``NAC`` or ``WAC``.
+        image_shape: The loaded image's ``(v, u)`` pixel dimensions.
+        filters: The two filter wheel positions the label records.
+        sampling: The label's instrument mode: ``FULL``, ``SUM2`` or ``SUM4``.
+        gain_mode: The gain state oops reads out of the label's gain mode.
+        observation_id: The label's observation id.
+        description: The label's description.
+
+    Returns:
+        The published facts, in the host's own key order.
+    """
+    exposure = recorded_exposure(result)
+    return {
+        'image_path': holdings_path(image_name).as_posix(),
+        'image_name': image_name,
+        'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
+        'instrument_lid': f'urn:nasa:pds:context:instrument:iss{camera[0].lower()}a.co',
+        **published_times(exposure),
+        **_published_sclk(
+            exposure.sclk_start.partition('/')[2], exposure.sclk_stop.partition('/')[2]
+        ),
+        'image_shape_xy': (image_shape[1], image_shape[0]),
+        'camera': camera,
+        'exposure_time': exposure.exposure_s,
+        'filters': list(filters),
+        'sampling': sampling,
+        'gain_mode': gain_mode,
+        'description': description,
+        'observation_id': observation_id,
+    }
