@@ -1904,7 +1904,7 @@ Every position is a pixel corner
 pixel ``N - 1`` and pixel ``N``, so the centre of pixel ``N`` is ``N + 0.5`` and
 the centre of a ``size_v`` by ``size_u`` frame is ``(size_v / 2, size_u / 2)``.
 
-That is the ``oops`` uv convention, and it is the one the whole geometry stack
+That is the pixel corner convention, and it is the one the whole geometry stack
 underneath already speaks: an FOV, a backplane, a C-matrix, and the ``v`` / ``u``
 a star record carries all agree with it. A position written in a scene, a
 position handed to ``oops``, and a position recorded in a star record are

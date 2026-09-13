@@ -43,10 +43,10 @@ from spindoctor.nav_model.stars.predicted_snr import (
     psf_sigma_px,
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.flux import clean_sclass
 from spindoctor.support.image import draw_rect
 from spindoctor.support.time import now_dt
-from spindoctor.support.types import STAR_UV_DATUM_PX
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
@@ -412,7 +412,7 @@ class NavModelStars(NavModel):
     def _extfov_indices(self, star: MutableStar) -> tuple[float, float]:
         """Return the extfov pixel index ``(v, u)`` that ``star`` lands on.
 
-        Converts from the record's oops uv (see
+        Converts from the record's pixel corner position (see
         :class:`~spindoctor.support.types.MutableStar`) to a pixel index by
         dropping the half-pixel datum, then adds the extended-FOV margins,
         which are whole pixels of padding and carry no datum of their own.
@@ -420,14 +420,14 @@ class NavModelStars(NavModel):
         pipeline uses and the one a technique measures its centroids in.
 
         Parameters:
-            star: Star record carrying an oops uv position.
+            star: Star record carrying a pixel corner position.
 
         Returns:
             ``(v, u)`` pixel index in the extended (padded) frame.
         """
         return (
-            float(star.v) - STAR_UV_DATUM_PX + float(self.obs.extfov_margin_v),
-            float(star.u) - STAR_UV_DATUM_PX + float(self.obs.extfov_margin_u),
+            float(star.v) - PIXEL_CENTER_TO_CORNER_PX + float(self.obs.extfov_margin_v),
+            float(star.u) - PIXEL_CENTER_TO_CORNER_PX + float(self.obs.extfov_margin_u),
         )
 
 
@@ -608,8 +608,8 @@ def _star_short_info(star: MutableStar) -> str:
     temp = getattr(star, 'temperature', None) or 0.0
     return (
         f'Star {star.catalog_name:>6s}/{star.pretty_name:>9s} '
-        f'U {star.u - STAR_UV_DATUM_PX:9.3f}+/-{abs(star.move_u):7.3f} '
-        f'V {star.v - STAR_UV_DATUM_PX:9.3f}+/-{abs(star.move_v):7.3f} '
+        f'U {star.u - PIXEL_CENTER_TO_CORNER_PX:9.3f}+/-{abs(star.move_u):7.3f} '
+        f'V {star.v - PIXEL_CENTER_TO_CORNER_PX:9.3f}+/-{abs(star.move_v):7.3f} '
         f'VMAG {(-1.0 if star.vmag is None else star.vmag):6.3f} '
         f'JBMAG {jb:6.3f} '
         f'JVMAG {jv:6.3f} '
@@ -627,8 +627,8 @@ def _star_summary(star: MutableStar) -> dict[str, Any]:
     a navigation document records is a pixel index, so a reader needs to know
     only which frame it is in: this one is the unpadded frame, and a STAR
     feature's ``predicted_vu`` is the same point plus the extended-FOV margin.
-    The record itself holds oops uv, which is this value plus
-    ``STAR_UV_DATUM_PX``.
+    The record itself holds pixel corner coordinates, which is this value plus
+    ``PIXEL_CENTER_TO_CORNER_PX``.
     """
     return {
         'catalog_name': star.catalog_name,
@@ -639,8 +639,8 @@ def _star_summary(star: MutableStar) -> dict[str, Any]:
         'vmag': star.vmag,
         'photometry_corrected': star.photometry_corrected,
         'photometry_saturated': star.photometry_saturated,
-        'u': star.u - STAR_UV_DATUM_PX,
-        'v': star.v - STAR_UV_DATUM_PX,
+        'u': star.u - PIXEL_CENTER_TO_CORNER_PX,
+        'v': star.v - PIXEL_CENTER_TO_CORNER_PX,
         'move_u': star.move_u,
         'move_v': star.move_v,
         'spectral_class': star.spectral_class,

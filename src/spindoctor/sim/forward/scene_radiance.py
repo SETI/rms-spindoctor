@@ -756,7 +756,7 @@ def _scale_star_params(star_params: dict[str, Any], os: int) -> dict[str, Any]:
     entry), the planted catalog-error displacement, and the companion separation
     are all pixel-space, so they scale with the oversampling factor.  The
     position scales by the same plain multiply as the rest because a scene
-    states it as a pixel corner -- oops uv, measured from the grid's own corner
+    states it as a pixel corner -- measured from the grid's own corner
     -- and uv 0 is the corner on either grid.  At ``os == 1`` every scaled value
     equals its input value.
 

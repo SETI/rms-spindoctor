@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.render import render_combined_model, resolve_oversample
-from spindoctor.support.types import STAR_UV_DATUM_PX
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 
 def _body_scene(*, oversample: int | None) -> dict[str, Any]:
@@ -107,7 +107,7 @@ def test_oversample_star_records_are_detector_scale() -> None:
     At oversample 4 the radiance stage builds the records from os-scaled scene
     entries, so the downsample must rescale them (position, motion vector, PSF
     window) or they disagree with the detector-unit ``star_info`` entries by a
-    factor of the oversample.  A record's position is the scene's own oops uv,
+    factor of the oversample.  A record's position is the scene's own pixel corner coordinates,
     so it comes back the number the scene stated.
     """
     scene: dict[str, Any] = {
@@ -144,8 +144,8 @@ def test_oversample_star_records_are_detector_scale() -> None:
     # star was drawn on -- so the record's datum comes off before they are
     # compared.
     info = meta['star_info'][0]
-    assert abs(info['center_v'] - (star.v - STAR_UV_DATUM_PX + 2.0)) < 1e-9
-    assert abs(info['center_u'] - (star.u - STAR_UV_DATUM_PX - 1.0)) < 1e-9
+    assert abs(info['center_v'] - (star.v - PIXEL_CENTER_TO_CORNER_PX + 2.0)) < 1e-9
+    assert abs(info['center_u'] - (star.u - PIXEL_CENTER_TO_CORNER_PX - 1.0)) < 1e-9
     # The hit-test half-window never shrinks below one detector pixel: with
     # no PSF the oversampled record floors at ``oversample`` subsamples, so
     # the downsample's divide lands exactly at the editor's 1-px click floor.

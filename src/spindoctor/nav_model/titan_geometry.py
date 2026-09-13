@@ -43,9 +43,10 @@ Coordinate conventions.  Positions -- the predicted center and the sunward
 pixel that sets the symmetry axis -- are pixel indices plus the extfov
 margin, the same convention every predicted position in the pipeline uses.
 A catalog star record is the one thing that arrives in another convention:
-it carries oops uv, so its extfov position is ``star.v - STAR_UV_DATUM_PX +
-extfov_margin_v``.  Holding to one convention is what lets a haze offset and
-a star offset on the same frame be compared directly.  Bounding boxes are a
+it carries pixel corner coordinates, so its extfov position is
+``star.v - PIXEL_CENTER_TO_CORNER_PX + extfov_margin_v``.  Holding to one
+convention is what lets a haze offset and a star offset on the same frame be
+compared directly.  Bounding boxes are a
 separate matter: they are integer pixel indices and they only bound where
 backplanes are evaluated.
 
@@ -112,8 +113,9 @@ from spindoctor.nav_model.nav_model_body import (
     occluder_mask_for_body,
 )
 from spindoctor.nav_model.stars.catalog import stars_in_extfov
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.memory import release_transient_memory
-from spindoctor.support.types import STAR_UV_DATUM_PX, NDArrayBoolType
+from spindoctor.support.types import NDArrayBoolType
 
 __all__ = [
     'OCCLUDER_STRIP_ROWS',
@@ -794,7 +796,7 @@ def _paint_bright_stars(
     Queries the two photometry-reference catalogs and never the bright end
     of UCAC4, whose merged magnitudes saturate inside the mask's range.
     Duplicates between the two queries are harmless: they paint overlapping
-    discs.  A star record carries nominal-frame oops uv, so the half-pixel
+    discs.  A star record carries a nominal-frame pixel corner position, so the half-pixel
     datum comes off and the extfov margins go on before painting: the disc
     has to land on the pixels the star's light actually fell on.
     """
@@ -816,8 +818,8 @@ def _paint_bright_stars(
             paint_disc(
                 mask,
                 (
-                    star.v - STAR_UV_DATUM_PX + margin_vu[0],
-                    star.u - STAR_UV_DATUM_PX + margin_vu[1],
+                    star.v - PIXEL_CENTER_TO_CORNER_PX + margin_vu[0],
+                    star.u - PIXEL_CENTER_TO_CORNER_PX + margin_vu[1],
                 ),
                 radius_px,
             )

@@ -17,7 +17,7 @@ the catalog magnitude, matching the real catalog reduction
 
 A scene states every position as a pixel corner -- integer ``N`` is the
 boundary between pixel ``N - 1`` and pixel ``N``, so the centre of pixel
-``N`` is ``N + 0.5`` -- which is the oops uv a star record declares.  The
+``N`` is ``N + 0.5`` -- which is the pixel corner coordinate a star record declares.  The
 scene value therefore IS the record value and this builder copies it
 through.  The half pixel that separates it from an array index comes off
 only where something indexes an array: the renderer's deposit and the star
@@ -48,7 +48,7 @@ def star_record_from_params(
     """Build one catalog star record from a scene star mapping.
 
     The scene's ``v`` / ``u`` (and the defaults standing in for them) are
-    already the oops uv :class:`~spindoctor.support.types.MutableStar`
+    already the pixel corner coordinate :class:`~spindoctor.support.types.MutableStar`
     declares, on whatever grid the caller's scene values describe, so they
     are copied through unchanged.  ``move_v`` / ``move_u`` are displacements
     and carry no datum either.
@@ -57,14 +57,14 @@ def star_record_from_params(
         star_params: One scene ``stars`` entry (idealized keys only are read).
         index: Zero-based position in the scene's star list; drives the
             record's unique number and default name.
-        default_v: V position in oops uv used when the entry has no ``v``
+        default_v: V position in pixel corner coordinates used when the entry has no ``v``
             (frame centre).
-        default_u: U position in oops uv used when the entry has no ``u``
+        default_u: U position in pixel corner coordinates used when the entry has no ``u``
             (frame centre).
 
     Returns:
         A fully populated star record at the unshifted catalog position, in
-        oops uv.
+        pixel corner coordinates.
     """
     star = cast(MutableStar, Star())
     star.unique_number = index + 1

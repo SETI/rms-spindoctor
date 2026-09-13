@@ -42,7 +42,7 @@ class StarGeometry:
 
     Both are pixel indices in the padded frame, which is the convention a
     technique measures a centroid in.  The star record they come from holds
-    oops uv instead, half a pixel higher on each axis; the conversion happens
+    a pixel corner coordinate instead, half a pixel higher on each axis; the conversion happens
     once, where the model emits the feature.
 
     Parameters:

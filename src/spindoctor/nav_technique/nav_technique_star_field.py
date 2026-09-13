@@ -897,7 +897,7 @@ class StarFieldFromCatalogNav(NavTechnique):
             if result is None:
                 continue
             # ``find_position`` reports the position in ``eval_rect`` convention
-            # (offset measured from the pixel's lower edge, which is oops uv);
+            # (offset measured from the pixel's lower edge, which is a pixel corner coordinate);
             # this technique works in pixel indices, so subtract the half-pixel
             # datum to match the moment centroids it replaces.
             refined[i, 0] = result[0] - 0.5

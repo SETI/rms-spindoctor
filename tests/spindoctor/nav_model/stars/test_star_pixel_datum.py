@@ -1,6 +1,6 @@
 """The half-pixel datum between a star record and the pixel it lands on.
 
-A star record carries oops uv (``MutableStar``); every star technique
+A star record carries pixel corner coordinates (``MutableStar``); every star technique
 measures its centroids in array indices, because each one builds its
 coordinate array with ``np.arange`` over the slice it indexes the image
 with.  These tests pin the conversion between the two at the seam where the
@@ -50,7 +50,7 @@ _RENDER_CENTROID_TOL_PX = 0.05
 
 
 def _boresight_uv() -> float:
-    """Return the FOV optical axis in oops uv, straight from ``oops``."""
+    """Return the FOV optical axis in pixel corner coordinates, straight from ``oops``."""
     fov = FlatFOV(1e-5, (_FOV_SIZE, _FOV_SIZE))
     return float(fov.uv_los.vals[0])
 

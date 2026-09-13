@@ -79,7 +79,7 @@ def test_star_record_keeps_unrolled_position() -> None:
 
     The roll is applied to the rendered image only; the NavModel must predict the
     unrolled geometry so a technique recovers the roll rather than cancelling it.
-    The record states the position in the scene's own oops uv.
+    The record states the position in the scene's own pixel corner coordinates.
     """
     params = _noiseless_params(
         offset_rotation_deg=30.0,

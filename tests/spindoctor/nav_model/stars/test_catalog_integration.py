@@ -19,7 +19,8 @@ from tests.shims import FakeObs, install_fake_catalogs, make_star
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_model.stars import catalog as nav_catalog
 from spindoctor.nav_model.stars.catalog import _merge_catalogs, reduce_catalogs, stars_in_extfov
-from spindoctor.support.types import STAR_UV_DATUM_PX, MutableStar
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.types import MutableStar
 
 
 @pytest.fixture
@@ -611,7 +612,7 @@ def test_edge_gate_keeps_a_star_whose_psf_window_fits(
     A 100-row frame padded by 10 makes index 109 the last row an extfov array
     has, and a 5x5 window reaches two rows either side of its star.  The star
     is placed so that window ends just inside that last row, and then just
-    past it.  The record states the position in oops uv, half a pixel above
+    past it.  The record states the position in pixel corner coordinates, half a pixel above
     the index, so a gate comparing that uv against the index bound would
     reject the star whose window fits.
     """
@@ -625,7 +626,7 @@ def test_edge_gate_keeps_a_star_whose_psf_window_fits(
     psf_half_v = obs.star_psf_size(None)[0] // 2
     # The far edge of the window overhangs the last extfov row by
     # ``overhang_px``; the record states that star's index in uv.
-    star_uv_v = obs.extfov_v_max - psf_half_v + overhang_px + STAR_UV_DATUM_PX
+    star_uv_v = obs.extfov_v_max - psf_half_v + overhang_px + PIXEL_CENTER_TO_CORNER_PX
     obs.radec_to_uv = lambda _ra, _dec, _tfrac: (0.0, star_uv_v)
     install_fake_catalogs(
         monkeypatch,
