@@ -338,7 +338,7 @@ def _project_stars_to_fov(
     a pixel above the index of the pixel the star lands on.  Stars whose PSF
     support would spill off the extfov are excluded; so are stars whose
     smear motion would push them off the extfov mid-exposure.  The extfov
-    bounds are pixel-centric, so they are converted before that
+    bounds are whole-numbered, so they are converted before that
     comparison.
 
     Parameters:
@@ -389,7 +389,8 @@ def _project_stars_to_fov(
     u_end_arr = uv_end.to_scalars()[0].vals
     v_end_arr = uv_end.to_scalars()[1].vals
 
-    # ``extfov_*_min`` / ``_max`` are pixel-centric; every position tested
+    # ``extfov_*_min`` / ``_max`` name the first and last pixel of the
+    # padded frame as whole numbers; every position tested
     # below is pixel corner coordinates.  Convert the four bounds once here rather than the
     # six positions of every star, so the gate compares uv against uv and no
     # conversion is spelled out inside the loop.
