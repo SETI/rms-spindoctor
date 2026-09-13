@@ -162,7 +162,18 @@ def core_offsets(
     Returns:
         The profile, whose radial values are an offset from the orbit model when
         the mosaic was built on one and an absolute radius when it was not.
+
+    Raises:
+        ValueError: If either distance is not a finite number, if the search
+            band has negative width, or if the centroid window is narrower than
+            the three samples a centroid needs.  Each of those produces a
+            profile that is NaN in every column, which reads as a mosaic with
+            no measurable core rather than as a value typed wrong.
     """
+    if not math.isfinite(window_km):
+        raise ValueError(f'a centroid window is a distance in km, not {window_km}')
+    if not math.isfinite(search_km) or search_km < 0.0:
+        raise ValueError(f'a search band is a distance in km, not {search_km}')
     local_path = cast(Path, FCPath(path).retrieve())
     with fits.open(local_path) as mosaic:
         header = mosaic[0].header
@@ -181,6 +192,11 @@ def core_offsets(
         )
 
     half_window = round(window_km / radial_resolution)
+    if half_window < 1:
+        raise ValueError(
+            f'a centroid window of {window_km} km is under one row of this mosaic, whose '
+            f'radial resolution is {radial_resolution} km; a centroid needs three'
+        )
     rough = np.array(
         [
             _centroid(

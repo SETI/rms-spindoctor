@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from astropy.io import fits
 from astropy.io.fits.verify import VerifyWarning
+from filecache import FCPath
 from util.nav_verification.measure_core_radius import (
     _centroid,
     _column_bins,
@@ -226,3 +227,32 @@ def test_the_refined_pass_finds_the_core_in_every_column(tmp_path: Path) -> None
     """
     profile = core_offsets(_mosaic_file(tmp_path))
     assert profile.core == pytest.approx(np.zeros(COLUMNS))
+
+
+def test_a_window_narrower_than_a_centroid_is_refused(tmp_path: Path) -> None:
+    """A window under one row would make every column unmeasurable."""
+    with pytest.raises(ValueError, match='under one row'):
+        core_offsets(_mosaic_file(tmp_path), window_km=1.0)
+
+
+def test_a_window_that_is_not_a_distance_is_refused(tmp_path: Path) -> None:
+    """A non-finite window is a typed value, not a measurement choice."""
+    with pytest.raises(ValueError, match='a centroid window is a distance'):
+        core_offsets(_mosaic_file(tmp_path), window_km=float('nan'))
+
+
+def test_a_search_band_of_negative_width_is_refused(tmp_path: Path) -> None:
+    """A negative band reverses its own bounds and measures nothing."""
+    with pytest.raises(ValueError, match='a search band is a distance'):
+        core_offsets(_mosaic_file(tmp_path), search_km=-100.0)
+
+
+def test_a_mosaic_named_by_an_fcpath_is_read(tmp_path: Path) -> None:
+    """The path may arrive in any of the three spellings the signature takes.
+
+    A local temporary file cannot exercise a remote fetch, but it does pin that
+    an ``FCPath`` reaches ``fits.open`` at all, which a plain ``Path`` fixture
+    leaves untested.
+    """
+    profile = core_offsets(FCPath(_mosaic_file(tmp_path)))
+    assert np.isfinite(profile.core).all()
