@@ -49,6 +49,7 @@ from spindoctor.nav_model.stars.saturation import (
     correct_star_photometry,
 )
 from spindoctor.support.flux import clean_sclass
+from spindoctor.support.types import STAR_UV_DATUM_PX
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.config import Config
@@ -336,7 +337,9 @@ def _project_stars_to_fov(
     convention :class:`~spindoctor.support.types.MutableStar` declares, half
     a pixel above the index of the pixel the star lands on.  Stars whose PSF
     support would spill off the extfov are excluded; so are stars whose
-    smear motion would push them off the extfov mid-exposure.
+    smear motion would push them off the extfov mid-exposure.  The extfov
+    bounds are array indices, so they are expressed in uv before that
+    comparison.
 
     Parameters:
         obs: Observation snapshot (provides FOV math + extfov bounds).
@@ -386,6 +389,15 @@ def _project_stars_to_fov(
     u_end_arr = uv_end.to_scalars()[0].vals
     v_end_arr = uv_end.to_scalars()[1].vals
 
+    # ``extfov_*_min`` / ``_max`` are array indices; every position tested
+    # below is oops uv.  Convert the four bounds once here rather than the
+    # six positions of every star, so the gate compares uv against uv and no
+    # datum is spelled out inside the loop.
+    u_min_uv = obs.extfov_u_min + STAR_UV_DATUM_PX
+    u_max_uv = obs.extfov_u_max + STAR_UV_DATUM_PX
+    v_min_uv = obs.extfov_v_min + STAR_UV_DATUM_PX
+    v_max_uv = obs.extfov_v_max + STAR_UV_DATUM_PX
+
     out: list[MutableStar] = []
     iter_args = zip(
         stars,
@@ -402,18 +414,18 @@ def _project_stars_to_fov(
         psf_half_u = star.psf_size[1] // 2
         psf_half_v = star.psf_size[0] // 2
         if (
-            u <= obs.extfov_u_min + psf_half_u
-            or u >= obs.extfov_u_max - psf_half_u
-            or v <= obs.extfov_v_min + psf_half_v
-            or v >= obs.extfov_v_max - psf_half_v
-            or u_s <= obs.extfov_u_min + psf_half_u
-            or u_s >= obs.extfov_u_max - psf_half_u
-            or v_s <= obs.extfov_v_min + psf_half_v
-            or v_s >= obs.extfov_v_max - psf_half_v
-            or u_e <= obs.extfov_u_min + psf_half_u
-            or u_e >= obs.extfov_u_max - psf_half_u
-            or v_e <= obs.extfov_v_min + psf_half_v
-            or v_e >= obs.extfov_v_max - psf_half_v
+            u <= u_min_uv + psf_half_u
+            or u >= u_max_uv - psf_half_u
+            or v <= v_min_uv + psf_half_v
+            or v >= v_max_uv - psf_half_v
+            or u_s <= u_min_uv + psf_half_u
+            or u_s >= u_max_uv - psf_half_u
+            or v_s <= v_min_uv + psf_half_v
+            or v_s >= v_max_uv - psf_half_v
+            or u_e <= u_min_uv + psf_half_u
+            or u_e >= u_max_uv - psf_half_u
+            or v_e <= v_min_uv + psf_half_v
+            or v_e >= v_max_uv - psf_half_v
         ):
             continue
         # Straight from ``uv_from_ra_and_dec``: the record's declared

@@ -56,6 +56,12 @@ meshgrid, which ``oops`` builds from FOV uv, and the smeared-PSF stamp, whose
 every position as a pixel corner, which is the same uv, so the record builder shared by
 the renderer and the simulated star model copies a scene position through unchanged.
 
+One place converts in the other direction. The extended-FOV edge cull, which drops a
+star whose PSF window would spill off the padded array, holds six freshly projected uv
+positions against ``obs.extfov_u_min`` / ``_max`` and ``extfov_v_min`` / ``_max`` -- and
+those are array indices. It adds the half pixel to the four bounds once, before the
+per-star loop, rather than taking it off six positions per star.
+
 Bright-end saturation correction
 --------------------------------
 

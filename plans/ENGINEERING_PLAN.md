@@ -283,6 +283,11 @@ and starts with a design document, not code.
   the record builder copies a scene position through. The shipped scenes moved
   by half a pixel in the files, and every one of the 64 renders byte-identical
   to what it rendered before.
+- **#640** — the star edge cull expresses the four extended-FOV bounds in uv
+  before it tests six uv positions against them, so the gate no longer sits
+  half a pixel inside the edge it names. Across the 75 library frames one
+  star changes state, on `lor_0030713597_0x633_sci`; it lands ten rows into
+  the zero-filled extfov margin, so no frame's navigation moves.
 - **Titan haze fit** — the haze solar-symmetry method ships and is validated;
   four measured refinements remain: the arc ray reach sized by the search
   window rather than by where the limb can be (#403), the flat arc-residual

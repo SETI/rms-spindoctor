@@ -19,7 +19,7 @@ from tests.shims import FakeObs, install_fake_catalogs, make_star
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_model.stars import catalog as nav_catalog
 from spindoctor.nav_model.stars.catalog import _merge_catalogs, reduce_catalogs, stars_in_extfov
-from spindoctor.support.types import MutableStar
+from spindoctor.support.types import STAR_UV_DATUM_PX, MutableStar
 
 
 @pytest.fixture
@@ -596,3 +596,46 @@ def test_reduce_catalogs_does_not_flag_genuine_faint_star(
     out = reduce_catalogs(cast(Any, fake_obs), DEFAULT_CONFIG)
     survivor = out[0]
     assert survivor.photometry_saturated is False
+
+
+@pytest.mark.parametrize(
+    ('overhang_px', 'expected_count'),
+    [(-0.3, 1), (0.3, 0)],
+    ids=['window-fits', 'window-spills'],
+)
+def test_edge_gate_keeps_a_star_whose_psf_window_fits(
+    monkeypatch: pytest.MonkeyPatch, overhang_px: float, expected_count: int
+) -> None:
+    """The extfov edge gate is decided where the PSF window lives: array indices.
+
+    A 100-row frame padded by 10 makes index 109 the last row an extfov array
+    has, and a 5x5 window reaches two rows either side of its star.  The star
+    is placed so that window ends just inside that last row, and then just
+    past it.  The record states the position in oops uv, half a pixel above
+    the index, so a gate comparing that uv against the index bound would
+    reject the star whose window fits.
+    """
+    obs = FakeObs(
+        data=np.zeros((100, 100), dtype=np.float64),
+        extfov_margin_vu=(10, 10),
+        ra_dec_limits_ext_rad=(0.0, 0.5, -0.1, 0.1),
+        star_min_vmag=0.0,
+        star_max_vmag=15.0,
+    )
+    psf_half_v = obs.star_psf_size(None)[0] // 2
+    # The far edge of the window overhangs the last extfov row by
+    # ``overhang_px``; the record states that star's index in uv.
+    star_uv_v = obs.extfov_v_max - psf_half_v + overhang_px + STAR_UV_DATUM_PX
+    obs.radec_to_uv = lambda _ra, _dec, _tfrac: (0.0, star_uv_v)
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[make_star(unique_number=1, ra=0.1, dec=0.0, vmag=5.0)],
+    )
+    out = stars_in_extfov(
+        cast(Any, obs),
+        DEFAULT_CONFIG,
+        catalog_name='ucac4',
+        mag_min=0.0,
+        mag_max=15.0,
+    )
+    assert len(out) == expected_count
