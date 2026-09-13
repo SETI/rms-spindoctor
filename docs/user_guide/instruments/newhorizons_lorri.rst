@@ -155,8 +155,7 @@ freedom, ``(dv, du)``, and no rotation is reported.
 **Measured twist.** The twist is a clean, common +0.1912 +/- 0.0006 degrees
 over the earlier of the two epoch cohorts, which displaces the field corner by
 2.42 pixels, with a frame-to-frame scatter of only 0.027 pixels. That is a
-static camera-frame alignment error rather than per-frame attitude noise: it is
-the largest twist of any camera in the pipeline and also the most consistent.
+static camera-frame alignment error rather than per-frame attitude noise.
 Because it is static, a fixed frame-kernel correction removes it and per-frame
 rotation fitting is not needed -- which is why rotation fitting is off despite
 the size of the number. Until such a correction is applied, expect a systematic
@@ -179,15 +178,21 @@ Metadata fields
 ===============
 
 Beyond the keys every instrument writes -- image path and name, the start,
-midtime and end of the exposure in UTC and in TDB seconds, the image shape,
-the camera, the exposure time and the instrument host and instrument LIDs --
-a New Horizons LORRI record carries nothing extra. ``filters`` is present and
-**empty**: the camera is panchromatic and has no filter wheel, so there is no
-filter name to record. This is the only instrument whose ``filters`` list is
-empty rather than carrying one or two entries.
+midtime and end of the exposure in UTC and in TDB seconds, the image shape, the
+camera, the exposure time and the instrument host and instrument LIDs -- a
+New Horizons LORRI record carries the spacecraft clock counts described below.
+``filters`` is present and **empty**: the camera is panchromatic and has no
+filter wheel, so there is no filter name to record. Its ``instrument`` is
+``nhlorri`` and its ``camera`` is ``LORRI``. It writes no ``shutter_mode``,
+since its labels carry none.
 
-It writes none of the spacecraft-clock fields (``start_time_scet``,
-``midtime_scet``, ``end_time_scet``), and none of ``sampling``, ``gain_mode``,
+It writes the spacecraft-clock fields ``start_time_sclk`` and ``end_time_sclk``
+from the start and stop counts of the PDS3 label beside the image, which mark
+the start and the end of the exposure, in seconds of the clock with the
+1/50000-second ticks as a fraction, and ``midtime_sclk`` as the count exactly
+halfway between them. The ``times`` block's clock strings are computed from the
+exposure times and can differ from these counts by a fraction of a second. It
+writes none of ``sampling``, ``gain_mode``,
 ``description`` or ``observation_id``. The instrument host LID is
 ``...:instrument_host:spacecraft.nh`` and the instrument LID is
 ``...:instrument:nh.lorri``, with no camera component, since there is one
@@ -249,8 +254,8 @@ the baseline's own pointing at each record epoch.
 **Omission reasons this instrument produces.** ``not_eligible``,
 ``no_reproducing_baseline`` and ``baseline_coverage_gap``.
 ``rotation_unsupported`` never appears, because rotation fitting is off.
-``botsim_loser`` cannot appear: it belongs to an instrument that exposes two
-cameras at once, and this one has a single camera.
+``botsim_loser`` cannot appear, since it needs two cameras exposed at once and
+this instrument has one.
 
 **Interpolation error.** Not yet measured for this instrument. What is known is
 the shape rather than the size: the error is zero at every record epoch, grows
