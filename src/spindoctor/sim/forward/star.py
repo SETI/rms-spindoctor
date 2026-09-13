@@ -206,14 +206,16 @@ def _render_stars_cached(
         )
         sim_star_list.append(star)
 
-        # The record states the catalog position in oops uv; the deposit
-        # below indexes an array, so the half-pixel datum comes back off
-        # here.  The scene's pixel-space fields were scaled to this grid by
-        # a pure multiply and the datum was added after that scaling, so
-        # taking it off recovers the scaled index exactly, at any
-        # oversampling.
-        rel_v = star.v - STAR_UV_DATUM_PX - roll_center_v
-        rel_u = star.u - STAR_UV_DATUM_PX - roll_center_u
+        # The record states the catalog position in oops uv on this
+        # oversampled grid, so it is the scene's detector uv times ``os``.
+        # The placement below -- the roll centre, the planted offset, the
+        # catalog error, the hit-test entries -- works in detector pixel
+        # indices times ``os``, and ``uv * os - STAR_UV_DATUM_PX * os`` is
+        # ``(uv - STAR_UV_DATUM_PX) * os``, which is that index.
+        # ``grid_shift`` below lands it on the oversampled grid itself.
+        datum_px = STAR_UV_DATUM_PX * oversample
+        rel_v = star.v - datum_px - roll_center_v
+        rel_u = star.u - datum_px - roll_center_u
         rot_v = cos_t * rel_v - sin_t * rel_u
         rot_u = sin_t * rel_v + cos_t * rel_u
         # The planted per-star catalog error (explicit plus the seeded scene

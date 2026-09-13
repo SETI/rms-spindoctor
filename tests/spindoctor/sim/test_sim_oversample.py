@@ -107,9 +107,8 @@ def test_oversample_star_records_are_detector_scale() -> None:
     At oversample 4 the radiance stage builds the records from os-scaled scene
     entries, so the downsample must rescale them (position, motion vector, PSF
     window) or they disagree with the detector-unit ``star_info`` entries by a
-    factor of the oversample.  A record's position is oops uv, so it rescales
-    about the half-pixel datum rather than straight through the divide, and it
-    comes back a half pixel above the scene's pixel index.
+    factor of the oversample.  A record's position is the scene's own oops uv,
+    so it comes back the number the scene stated.
     """
     scene: dict[str, Any] = {
         'size_v': 60,
@@ -123,8 +122,8 @@ def test_oversample_star_records_are_detector_scale() -> None:
         'stars': [
             {
                 'name': 'S',
-                'v': 20.0,
-                'u': 24.0,
+                'v': 20.5,
+                'u': 24.5,
                 'vmag': 5.0,
                 'move_v': 2.0,
                 'move_u': -4.0,
@@ -134,15 +133,16 @@ def test_oversample_star_records_are_detector_scale() -> None:
     }
     _, meta = render_combined_model(scene)
     star = meta['stars'][0]
-    assert star.v == 20.0 + STAR_UV_DATUM_PX
-    assert star.u == 24.0 + STAR_UV_DATUM_PX
+    assert star.v == 20.5
+    assert star.u == 24.5
     assert star.move_v == 2.0
     assert star.move_u == -4.0
     assert star.psf_size == (11, 11)
     # The records agree with the detector-unit hit-test entries: the rendered
     # centre is the pixel the record's catalog position lands on, plus the
-    # planted offset.  ``center_v`` is a pixel index -- it says where the star
-    # was drawn -- so the record's datum comes off before they are compared.
+    # planted offset.  ``center_v`` is a pixel index -- it says which pixel the
+    # star was drawn on -- so the record's datum comes off before they are
+    # compared.
     info = meta['star_info'][0]
     assert abs(info['center_v'] - (star.v - STAR_UV_DATUM_PX + 2.0)) < 1e-9
     assert abs(info['center_u'] - (star.u - STAR_UV_DATUM_PX - 1.0)) < 1e-9
@@ -167,7 +167,7 @@ def test_oversample_defaulted_psf_size_survives_the_round_trip() -> None:
         'instrument': 'coiss_nac',
         'oversample': 4,
         'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'stars': [{'name': 'S', 'v': 20.0, 'u': 24.0, 'vmag': 5.0}],
+        'stars': [{'name': 'S', 'v': 20.5, 'u': 24.5, 'vmag': 5.0}],
     }
     _, meta = render_combined_model(scene)
     assert meta['stars'][0].psf_size == (11, 11)

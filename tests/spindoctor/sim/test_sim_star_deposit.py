@@ -48,7 +48,7 @@ def _star_scene(instrument: str, *, vmag: float = 4.0, **extra: Any) -> dict[str
         'instrument': instrument,
         'exposure_sec': 1.0,
         'noise': dict(_QUIET_NOISE),
-        'stars': [{'name': 'S', 'v': 32.0, 'u': 32.0, 'vmag': vmag}],
+        'stars': [{'name': 'S', 'v': 32.5, 'u': 32.5, 'vmag': vmag}],
     }
     scene.update(extra)
     return scene

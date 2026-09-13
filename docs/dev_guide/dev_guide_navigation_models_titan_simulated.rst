@@ -66,12 +66,10 @@ Each real-frame quantity has a deliberate simulated analog:
 Coordinate convention
 ---------------------
 
-The simulated body renderer treats a stated body centre as a CORNER coordinate -- ``(0.0, 0.0)``
-is the top-left corner of pixel ``(0, 0)`` -- so a body stated at ``center_v`` paints its
-silhouette centred on pixel index ``center_v - 0.5``. The simulated star renderer uses the other
-convention, integer index ``i`` at coordinate ``i``, which is why the simulated star model adds
-the extended-FOV margin and stops there. Predicted positions in this pipeline are pixel indices,
-so this model applies the half-pixel shift, captured as
+A scene states every position as a CORNER coordinate -- ``(0.0, 0.0)`` is the top-left corner
+of pixel ``(0, 0)`` -- so a body stated at ``center_v`` paints its silhouette centred on pixel
+index ``center_v - 0.5`` (see :ref:`sim-pixel-convention`). Predicted positions in this
+pipeline are pixel indices, so this model applies the half-pixel shift, captured as
 :data:`~spindoctor.nav_model.nav_model_titan_simulated.BODY_CENTER_INDEX_OFFSET_PX`. Measured
 directly: without the shift every simulated frame carries a flat 0.500 px cross-track error,
 half the method's entire clean-scene cross-track budget spent on a coordinate convention.

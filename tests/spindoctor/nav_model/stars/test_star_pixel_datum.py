@@ -4,14 +4,16 @@ A star record carries oops uv (``MutableStar``); every star technique
 measures its centroids in array indices, because each one builds its
 coordinate array with ``np.arange`` over the slice it indexes the image
 with.  These tests pin the conversion between the two at the seam where the
-model hands a predicted position to a technique, and at the seam where the
-simulator's scene builds a record.
+model hands a predicted position to a technique, for a record from the real
+catalog reduction and for one built from a simulated scene.
 
-The anchor is external to the pipeline: ``oops`` puts a default ``FlatFOV``
-optical axis at ``uv_los``, and a star image that is symmetric about the
-middle of an ``N``-pixel axis centroids at index ``(N - 1) / 2``.  Neither
-half is a restatement of the code under test, so a pipeline that reads uv as
-an index fails here by the half pixel that separates them.
+The anchor is external to the pipeline in every case: ``oops`` puts a default
+``FlatFOV`` optical axis at ``uv_los``, a star image that is symmetric about
+the middle of an ``N``-pixel axis centroids at index ``(N - 1) / 2``, and the
+simulated star the image-side renderer actually draws is measured rather than
+predicted.  None of those is a restatement of the code under test, so a
+pipeline that reads uv as an index fails here by the half pixel that
+separates them.
 """
 
 from typing import Any, cast
@@ -25,8 +27,9 @@ from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.nav_model_stars import NavModelStars
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.nav_technique._star_helpers import local_centroid
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.star_records import star_record_from_params
-from spindoctor.support.types import STAR_UV_DATUM_PX, MutableStar
+from spindoctor.support.types import MutableStar
 
 # Odd, so the FOV's optical axis falls on the centre of one pixel rather than
 # on the boundary between two -- a boundary would leave the brightest-pixel
@@ -34,6 +37,16 @@ from spindoctor.support.types import STAR_UV_DATUM_PX, MutableStar
 _FOV_SIZE = 129
 _STAR_SIGMA_PX = 1.5
 _STAR_PEAK_DN = 1000.0
+
+# A scene star well away from the frame centre, so a prediction that mistook
+# the frame centre for the star would not pass by accident.
+_SCENE_STAR_V = 40.5
+_SCENE_STAR_U = 60.5
+
+# The rendered star is digitized to whole DN, which moves its measured
+# centroid off the deposited position by a few hundredths of a pixel -- an
+# order of magnitude below the half pixel this test discriminates.
+_RENDER_CENTROID_TOL_PX = 0.05
 
 
 def _boresight_uv() -> float:
@@ -53,6 +66,22 @@ def _star_image(v_index: float, u_index: float) -> np.ndarray:
     us = np.arange(_FOV_SIZE, dtype=np.float64)[np.newaxis, :]
     r2 = (vs - v_index) ** 2 + (us - u_index) ** 2
     return _STAR_PEAK_DN * np.exp(-r2 / (2.0 * _STAR_SIGMA_PX**2))
+
+
+def _rendered_scene_star(entry: dict[str, Any]) -> np.ndarray:
+    """Return a quiet frame holding only the star the scene entry describes."""
+    scene: dict[str, Any] = {
+        'size_v': _FOV_SIZE,
+        'size_u': _FOV_SIZE,
+        'random_seed': 11,
+        'instrument': 'generic',
+        'exposure_sec': 1.0,
+        'optics': {'psf': {'sigma_v': _STAR_SIGMA_PX, 'sigma_u': _STAR_SIGMA_PX}},
+        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
+        'stars': [entry],
+    }
+    img, _meta = render_combined_model(scene)
+    return img
 
 
 class _StarRecord:
@@ -122,11 +151,11 @@ class _Context:
         self.cosmic_ray_mask_ext = np.zeros(shape_vu, dtype=bool)
 
 
-def _predicted_vu(star: _StarRecord, *, extfov_margin: int) -> tuple[float, float]:
+def _predicted_vu(star: MutableStar, *, extfov_margin: int) -> tuple[float, float]:
     """Return the position the star model predicts for one record."""
     obs = _Obs(extfov_margin=extfov_margin)
     model = NavModelStars('stars', cast(Any, obs), config=cast(Any, _Config()))
-    model._stars = [cast(MutableStar, star)]
+    model._stars = [star]
     context = _Context(obs.extdata_shape_vu)
     feature = model.to_features(cast(NavContext, context))[0]
     geometry = feature.geometry
@@ -142,7 +171,7 @@ def test_boresight_star_predicts_the_index_its_image_centroids_to() -> None:
     which is where that axis points.  The model's prediction must therefore
     equal the centroid a technique measures, with no margin in the way.
     """
-    star = _StarRecord(v=_boresight_uv(), u=_boresight_uv())
+    star = cast(MutableStar, _StarRecord(v=_boresight_uv(), u=_boresight_uv()))
     predicted = _predicted_vu(star, extfov_margin=0)
     image = _star_image(_boresight_index(), _boresight_index())
     measured, _peak = local_centroid(
@@ -171,7 +200,7 @@ def test_the_margin_does_not_disturb_the_datum() -> None:
     the unpadded test.
     """
     margin = 10
-    star = _StarRecord(v=_boresight_uv(), u=_boresight_uv())
+    star = cast(MutableStar, _StarRecord(v=_boresight_uv(), u=_boresight_uv()))
     predicted = _predicted_vu(star, extfov_margin=margin)
     padded = np.zeros((_FOV_SIZE + 2 * margin, _FOV_SIZE + 2 * margin), dtype=np.float64)
     padded[margin : margin + _FOV_SIZE, margin : margin + _FOV_SIZE] = _star_image(
@@ -191,16 +220,27 @@ def test_the_margin_does_not_disturb_the_datum() -> None:
     assert predicted[1] == pytest.approx(measured[1], abs=1e-9)
 
 
-def test_scene_star_index_becomes_a_uv_record() -> None:
-    """A scene states the pixel a star is drawn on; the record states uv.
+def test_a_scene_star_predicts_where_the_renderer_draws_it() -> None:
+    """A prediction built from a scene entry lands on the star the renderer drew.
 
-    The simulator's builder is the boundary between the scene's convention
-    and the record's, so a star the scene puts on pixel ``(40, 60)`` comes
-    back as a record half a pixel higher on both axes -- the same numbers the
-    catalog reduction would produce for a star landing on that pixel.
+    The simulator's two sides read the same scene mapping: the image side
+    deposits the star into an array, and the navigator side builds a record
+    from it and predicts a position.  The rendered star is the anchor, so
+    nothing here restates the builder's own arithmetic, and a side that read
+    the scene's corner coordinate as a pixel index would miss by the half
+    pixel that separates them.
     """
-    star = star_record_from_params(
-        {'v': 40.0, 'u': 60.0, 'vmag': 5.0}, index=0, default_v=0.0, default_u=0.0
+    entry = {'name': 'S', 'v': _SCENE_STAR_V, 'u': _SCENE_STAR_U, 'vmag': 4.0}
+    star = star_record_from_params(entry, index=0, default_v=0.0, default_u=0.0)
+    predicted = _predicted_vu(star, extfov_margin=0)
+    measured, _peak = local_centroid(
+        _rendered_scene_star(entry),
+        predicted,
+        search_window_px=4.0,
+        centroid_box_half_px=4,
+        image_noise_sigma=1.0,
+        detection_sigma=5.0,
     )
-    assert star.v == pytest.approx(40.0 + STAR_UV_DATUM_PX, abs=1e-12)
-    assert star.u == pytest.approx(60.0 + STAR_UV_DATUM_PX, abs=1e-12)
+    assert measured is not None
+    assert predicted[0] == pytest.approx(measured[0], abs=_RENDER_CENTROID_TOL_PX)
+    assert predicted[1] == pytest.approx(measured[1], abs=_RENDER_CENTROID_TOL_PX)

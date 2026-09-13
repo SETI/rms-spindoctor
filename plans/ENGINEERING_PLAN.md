@@ -278,6 +278,11 @@ and starts with a design document, not code.
   `StarUniqueMatchNav`'s 30-px search window takes the brightest peak inside a
   slab whose integer bounds move with the prediction — a fragility the datum
   change tips rather than causes.
+- **#641** — a simulator scene states every position that places something in
+  it as a pixel corner, which is the same oops uv a star record carries, so
+  the record builder copies a scene position through. The shipped scenes moved
+  by half a pixel in the files, and every one of the 64 renders byte-identical
+  to what it rendered before.
 - **Titan haze fit** — the haze solar-symmetry method ships and is validated;
   four measured refinements remain: the arc ray reach sized by the search
   window rather than by where the limb can be (#403), the flat arc-residual

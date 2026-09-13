@@ -53,6 +53,25 @@ Scene classes
                                 in clutter); each carries an ``expected`` block
                                 asserted by the sim expected-outcome machinery
 
+Pixel convention
+----------------
+
+Every position that places something in a scene is a PIXEL CORNER: a star's
+v / u, a body's center_v / center_u, and the ring system's geometry center_v /
+center_u.  Integer N is the boundary between pixel N-1 and pixel N, so the
+centre of pixel N is N + 0.5 and the centre of a size_v by size_u frame is
+(size_v / 2, size_u / 2).  This is the oops uv convention, the one the FOV,
+backplane, and star-record code underneath already use, so a position written
+here is the same number those read.
+
+Displacements carry no datum and need no such care: offset_v / offset_u,
+move_v / move_u, catalog_error_v / catalog_error_u, and a companion's sep_px
+are differences between two positions.
+
+The two centres inside the optics block -- distortion.center_v / center_u and
+stray_light.center_v / center_u -- are pixel indices instead.  They name where
+a whole-frame field is centred rather than where an object sits.
+
 Fields
 ------
 

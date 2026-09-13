@@ -53,8 +53,8 @@ before a predicted position reaches a feature, and the Titan contaminant mask be
 star disc is painted. It stays on where the consumer wants uv: the conflict-check
 meshgrid, which ``oops`` builds from FOV uv, and the smeared-PSF stamp, whose
 ``eval_rect`` offset is measured from the pixel's lower edge. A simulated scene states
-a star's position as the pixel index it is drawn on, and the record builder shared by
-the renderer and the simulated star model adds the datum at that boundary.
+every position as a pixel corner, which is the same uv, so the record builder shared by
+the renderer and the simulated star model copies a scene position through unchanged.
 
 Bright-end saturation correction
 --------------------------------

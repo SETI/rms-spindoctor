@@ -754,8 +754,11 @@ def _scale_star_params(star_params: dict[str, Any], os: int) -> dict[str, Any]:
     Catalog position, per-star PSF width, smear vector, PSF fitting-window size
     (the record builder's default is materialized so it scales like an explicit
     entry), the planted catalog-error displacement, and the companion separation
-    are all pixel-space, so they scale with the oversampling factor.  At
-    ``os == 1`` every scaled value equals its input value.
+    are all pixel-space, so they scale with the oversampling factor.  The
+    position scales by the same plain multiply as the rest because a scene
+    states it as a pixel corner -- oops uv, measured from the grid's own corner
+    -- and uv 0 is the corner on either grid.  At ``os == 1`` every scaled value
+    equals its input value.
 
     Parameters:
         star_params: One scene star entry.

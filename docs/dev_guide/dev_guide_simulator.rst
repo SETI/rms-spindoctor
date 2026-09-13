@@ -1883,6 +1883,35 @@ without a classification fails the import-time completeness assertion in
 :mod:`spindoctor.sim.scene`, so every schema change must extend the boundary in
 the same change.
 
+.. _sim-pixel-convention:
+
+Every position is a pixel corner
+--------------------------------
+
+**Every position that places something in a scene is a pixel corner**: a star's
+``v`` / ``u``, a body's ``center_v`` / ``center_u``, and the ring system's
+``geometry.center_v`` / ``center_u``. Integer ``N`` is the boundary between
+pixel ``N - 1`` and pixel ``N``, so the centre of pixel ``N`` is ``N + 0.5`` and
+the centre of a ``size_v`` by ``size_u`` frame is ``(size_v / 2, size_u / 2)``.
+
+That is the ``oops`` uv convention, and it is the one the whole geometry stack
+underneath already speaks: an FOV, a backplane, a C-matrix, and the ``v`` / ``u``
+a star record carries all agree with it. A position written in a scene, a
+position handed to ``oops``, and a position recorded in a star record are
+therefore one number. The half pixel is added or removed in exactly one kind of
+place -- where something is deposited into or read out of an array cell -- so a
+scene author never applies it.
+
+Displacements carry no datum and so need no such care: the planted ``offset_v``
+/ ``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
+``catalog_error_v`` / ``catalog_error_u``, and a companion's ``sep_px`` are all
+differences between two positions.
+
+The two centres inside the ``optics`` block -- ``distortion.center_v`` /
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- are pixel indices
+instead. They name where a whole-frame field is centred rather than where an
+object sits, and both fields are smooth on the scale of a pixel.
+
 Scene parameter reference
 =========================
 
@@ -2066,7 +2095,8 @@ Common fields:
      - float
      - frame center
      - idealized
-     - Body center in pixels.
+     - Body center in pixels, as a pixel corner (see
+       :ref:`sim-pixel-convention`).
    * - ``axis1`` / ``axis2`` / ``axis3``
      - float
      - 0.0
@@ -2276,8 +2306,10 @@ Star parameters
 ---------------
 
 Each entry of ``stars`` is a dict with ``name`` and an optional
-``catalog_name``, a ``v`` / ``u`` position, a ``vmag`` (visual magnitude; lower
-is brighter), an optional ``spectral_class``, an optional per-star smear vector
+``catalog_name``, a ``v`` / ``u`` position (a pixel corner, like every other
+scene position -- see :ref:`sim-pixel-convention`), a ``vmag`` (visual
+magnitude; lower is brighter), an optional ``spectral_class``, an optional
+per-star smear vector
 ``move_v`` / ``move_u``, an optional PSF fitting-window size ``psf_size`` (a
 two-integer list), and an optional ``navigable`` flag. All of those are
 idealized -- they are the catalog and instrument knowledge a real pipeline has.
