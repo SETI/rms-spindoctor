@@ -122,8 +122,9 @@ an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or
-infinite), and an image whose processing raised an error -- and exits 1 when that
-count is not
+infinite), an image whose navigation document records no exposure times in its
+observation block, as a navigation by an earlier version left it (see `Epochs`_),
+and an image whose processing raised an error -- and exits 1 when that count is not
 zero.  An image with such a statistic is failed before anything is
 written for it, and the log names the image, the plane and what the document
 records there.  The run closes with a line giving that count alongside the
@@ -556,8 +557,17 @@ epoch lands a few nanoseconds to either side, and PDS3's ``IMAGE_MID_TIME`` take
 half up.  The navigation records a success with no pointing when the attitude cannot
 be computed or the instrument has no SPICE camera frame mapped, and the document's
 ``observation`` block records the exposure all the same, so such an image is bundled
-like any other.  The epochs are read as recorded, and the supplemental file carries
-the whole navigation document, so the summary pass reads the same block.
+like any other.  A navigation by an earlier version recorded the exposure times only
+beside a solved pointing, under ``navigation_result.times``, and none in the
+``observation`` block.
+:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails an image
+whose block holds no ``start_time_et`` before anything is written for it, the log
+naming the image, and the image is bundled once it is navigated again; the times are
+not taken from ``navigation_result.times`` instead, so every time the bundle states
+comes from the one block.  The epochs are read as recorded, and the supplemental file
+carries the whole navigation document, so the summary pass reads the same block.  It
+checks nothing: a supplemental file the labels pass wrote always holds the times, and
+a bundle is written into an empty directory.
 
 The data collection label states the range of the products' epochs: the least
 start and the greatest stop over the images the data collection holds, as their
