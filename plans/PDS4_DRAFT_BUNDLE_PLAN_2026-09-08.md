@@ -2715,7 +2715,7 @@ SPICE kernel inventories (section 3.10). The dataset's template variables build 
 product LIDVIDs through its own hooks and no longer carry `BUNDLE_LID` or the unused
 `BUNDLE_LIDVID`, which every template now takes from the bundle's variables.
 
-**The name.** Every place a template spelled the bundle's name takes `$BUNDLE_LID$`: 31
+**The name.** Every place a template spelled the bundle's name takes `$BUNDLE_LID$`: 27
 spellings in 15 files, each collection's and product's LID, every reference to a
 collection or to the user guide, the bundle label's seven member entries, the primary
 members of the document and SPICE kernel inventories, and the readme's two identifiers.
