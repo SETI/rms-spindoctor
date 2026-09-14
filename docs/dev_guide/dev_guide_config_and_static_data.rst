@@ -6,7 +6,7 @@ Every SpinDoctor subsystem reads its tunables from a single
 :class:`~spindoctor.config.config.Config` object loaded from a stack of YAML files. The
 files split cleanly into two kinds: **runtime configuration** (knobs an operator
 might want to tune per run — search ranges, emission thresholds, label fonts) and
-**static data** (per-body shape tables, per-ring catalogues, per-instrument
+**static data** (per-body shape tables, per-ring catalogs, per-instrument
 calibration constants curated from external publications). Both kinds load through
 the same loader; they differ in how they are reviewed and updated.
 
@@ -95,7 +95,7 @@ removal. The shipping sections:
   once, read into a :class:`~spindoctor.nav_records.TreeTuning` by
   :func:`~spindoctor.config.get_results_tree_tuning`; see
   :doc:`dev_guide_results_index`.
-- ``body_shape`` — static per-body shape catalogue (see
+- ``body_shape`` — static per-body shape catalog (see
   :ref:`static-data-citations` below).
 - ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks
   (``noise``, ``mag_offset``, ``image_quality_thresholds``,
@@ -136,13 +136,13 @@ ranges are conventional, not enforced by the loader:
        ``config_040_bodies``, ``config_050_rings``, ``config_060_titan``,
        ``config_070_bootstrap``
    * - ``1xx``
-     - Catalogues
+     - Catalogs
      - ``config_100_satellites``
    * - ``2xx``
      - Per-target tables (static data)
      - ``config_220_body_shape``
    * - ``3xx``
-     - Per-planet ring catalogues (static data)
+     - Per-planet ring catalogs (static data)
      - ``config_300_jupiter_rings``, ``config_310_saturn_rings``,
        ``config_320_uranus_rings``, ``config_330_neptune_rings``
    * - ``4xx``
@@ -258,7 +258,7 @@ it were produced by the same configuration.
 
 .. _static-data-citations:
 
-Static data: catalogues and citation discipline
+Static data: catalogs and citation discipline
 ================================================
 
 The pipeline treats a small set of YAML files as **static data**: per-body
@@ -423,7 +423,7 @@ The same validation pattern extends to per-camera ``noise`` /
 ``mag_offset`` blocks in ``config_4N0_inst_*.yaml`` and to any new entries
 added to ``config_3N0_*_rings.yaml``. Existing ring-catalogue values are
 grandfathered (they were curated by orbit-fitting astronomers and the
-catalogues document their pedigree in the file header) — only *new*
+catalogs document their pedigree in the file header) — only *new*
 additions need explicit ``_sources`` entries.
 
 Strip-rule guarantee
@@ -433,7 +433,7 @@ Strip-rule guarantee
 name starts with ``_`` before merging, so ``_sources`` blocks never appear in
 the parsed :class:`~spindoctor.config.config.Config` object. The runtime accessors
 (``config.body_shape``, ``config.<camera>.mag_offset``, etc.) see only the
-value-bearing fields. Tests assert this behaviour explicitly so the strip
+value-bearing fields. Tests assert this behavior explicitly so the strip
 rule cannot regress silently.
 
 Adding a new tunable

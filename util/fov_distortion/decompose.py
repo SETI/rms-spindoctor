@@ -194,7 +194,7 @@ def weighted_rigid_fit(
     """Fit the weighted rigid rotation + translation mapping predicted to detected.
 
     Solves the weighted orthogonal-Procrustes (Kabsch) problem for the proper
-    rotation and translation that minimise the weighted squared residual
+    rotation and translation that minimize the weighted squared residual
     ``sum_i w_i |detected_i - (R @ predicted_i + t)|**2``.  The determinant of
     the SVD reconstruction is forced positive so the result is a proper
     rotation rather than a reflection.  The rotation angle is invariant to the

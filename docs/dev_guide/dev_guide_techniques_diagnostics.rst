@@ -9,7 +9,7 @@ Per-technique diagnostics are the typed dataclasses every navigation technique r
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.diagnostics` field. Each
 technique declares its own diagnostics dataclass — a frozen, narrow record of the per-fit
 quantities that the confidence formula consumes and the curator surfaces in the JSON sidecar.
-Centralising every diagnostics dataclass in one module lets the curator's allow-list
+Centralizing every diagnostics dataclass in one module lets the curator's allow-list
 discipline catch a programmer who adds a new diagnostic field without updating its JSON
 schema, and lets the
 :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walk verify at
@@ -27,7 +27,7 @@ The confidence formula
 
 Each :class:`~spindoctor.nav_technique.confidence.ConfidenceTerm` references a diagnostic-attribute
 name; the shared evaluator reads that attribute off the diagnostics object and feeds it
-through the offset / divisor / cap normalisation before applying the linear coefficient. See
+through the offset / divisor / cap normalization before applying the linear coefficient. See
 :doc:`dev_guide_techniques_confidence` for the sigmoid math. The technique's
 :attr:`~spindoctor.nav_technique.nav_technique.NavTechnique.confidence_attributes` allow-list spans
 both the diagnostic-attribute names *and* any side-channel flags the spec is allowed to read

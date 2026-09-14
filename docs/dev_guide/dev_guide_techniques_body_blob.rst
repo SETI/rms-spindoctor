@@ -25,7 +25,7 @@ the ensemble combine.
 Theory
 ======
 
-The technique fits a per-image translation by minimising the inverse-variance-weighted
+The technique fits a per-image translation by minimizing the inverse-variance-weighted
 squared residual between the per-blob observed and predicted centroids.
 
 Coarse acquisition (lit-shape matched filter)
@@ -45,7 +45,7 @@ bounding box on the body before the centroid is taken:
 - Otherwise the technique correlates a matched-filter template of the predicted *lit
   silhouette* against the lit-signal image (background subtracted, clipped at zero,
   sky-masked) over ``predicted_center +/- margin``. The response peaks where a body of that
-  shape is best centred; the integer peak offset re-centres the box. The template depends on
+  shape is best centered; the integer peak offset re-centres the box. The template depends on
   phase (:data:`~spindoctor.nav_technique.nav_technique_body_blob._COARSE_CORRELATION_MAX_PHASE_DEG`,
   90 deg):
 
@@ -53,7 +53,7 @@ bounding box on the body before the centroid is taken:
     filled disc of the predicted body radius.
   - **Above half phase** the sunlit region is a thin crescent whose bright pixels sit a
     fraction of a radius off the body center; a disc kernel would lock onto the crescent arc
-    rather than the center. The kernel is instead a *synthesised crescent* -- a Lambertian
+    rather than the center. The kernel is instead a *synthesized crescent* -- a Lambertian
     ``max(0, cos(incidence))`` rendering of a sphere of the predicted radius at the body's
     phase, lit from the sub-solar direction the ``BODY_BLOB`` feature carries
     (``sub_solar_dir_vu``, the projected body-to-Sun direction; see
@@ -117,7 +117,7 @@ SNR is the per-pixel signal-to-noise ratio.
 Joint translation fit
 ---------------------
 
-The joint translation minimises
+The joint translation minimizes
 
 .. math::
 
@@ -155,12 +155,12 @@ Restrictions and assumptions
 ----------------------------
 
 - Per-blob centroids assume the (coarse-re-centred) bounding box truly contains the body's
-  flux. When a cosmic-ray hit, an in-band stellar source, or a neighbouring body's halo lands
+  flux. When a cosmic-ray hit, an in-band stellar source, or a neighboring body's halo lands
   inside the box, the moment skews and the technique reports a wrong centroid. The upstream
   ``BODY_BLOB`` emission gates filter pathological cases (see
   :doc:`dev_guide_navigation_models_body`).
 - The coarse lit-shape acquisition extends the capture range from the bounding box to the full
-  search window at any phase: a disc template at or below half phase, a synthesised crescent
+  search window at any phase: a disc template at or below half phase, a synthesized crescent
   above it. The only residual gap is a body past half phase whose illumination geometry was
   not populated (no ``sub_solar_dir_vu``), where the crescent cannot be oriented; such a body
   is then recovered only via the bounding-box centroid (small offsets) or an installed prior.
@@ -390,7 +390,7 @@ Examples
     Mimas approximately 20 px in diameter in the lower left, at phase angle 72 degrees. The
     body model emits a single ``BODY_BLOB`` feature (the per-pixel ellipsoid uncertainty exceeds
     :data:`~spindoctor.nav_model.nav_model_body.LIMB_ARC_MAX_UNCERTAINTY_PX` so ``LIMB_ARC`` is
-    suppressed in favour of the centroid path).
+    suppressed in favor of the centroid path).
     :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` consumes the blob and
     converges within ~1 px of the operator-verified offset
     :math:`(\Delta v, \Delta u) = (6.08, -1.53)` px. The post-sigmoid hard cap of 0.4

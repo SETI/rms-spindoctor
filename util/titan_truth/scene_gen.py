@@ -6,7 +6,7 @@ accuracy claim has to survive.  Every scene plants a known ``(offset_v,
 offset_u)`` and the navigator recovers it from the image alone, so each scene
 is one measurement of the recovery error.
 
-The families are organised so that one of them -- ``clean`` -- holds the
+The families are organized so that one of them -- ``clean`` -- holds the
 estimator's own assumptions true and every other family breaks exactly one
 class of them:
 
@@ -59,9 +59,9 @@ FAMILIES: tuple[str, ...] = (
     'artifacts_nominal',
 )
 
-# Frame geometry.  The body sits at frame centre in every scene: the search
+# Frame geometry.  The body sits at frame center in every scene: the search
 # window is +-50 px (the coiss_nac extfov margin) and the largest envelope
-# drawn below reaches 99 px, so a centred body keeps the whole envelope inside
+# drawn below reaches 99 px, so a centered body keeps the whole envelope inside
 # the extended frame at every planted offset and the visibility hard-zero
 # never fires for a reason unrelated to the estimator.  Framing is not one of
 # the axes this campaign measures.
@@ -118,7 +118,7 @@ MIN_PHASE_DEG: float = 10.0
 MAX_PHASE_DEG: float = 140.0
 
 # Read-noise range in DN, drawn log-uniformly: a clean frame through to a
-# noisy one, spanning roughly the SNR range the technique characterisation
+# noisy one, spanning roughly the SNR range the technique characterization
 # sweeps.
 MIN_READ_NOISE_DN: float = 1.5
 MAX_READ_NOISE_DN: float = 16.0

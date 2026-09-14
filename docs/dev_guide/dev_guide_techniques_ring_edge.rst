@@ -53,7 +53,7 @@ exposure.
 Theory
 ======
 
-The technique fits a per-image translation by minimising the weighted squared distance from
+The technique fits a per-image translation by minimizing the weighted squared distance from
 the model ring-edge polylines to the image edges, exactly as the limb fit does — see
 :doc:`dev_guide_techniques_dt_fitting` for the cost function, the LM mechanics, and the
 Tukey biweight (the polarity filter is disabled for ring edges; see below).
@@ -357,7 +357,7 @@ sigmoid combination; see :doc:`dev_guide_techniques_confidence`. The formula spe
 - :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.per_edge_dt_rms_mean` —
   alpha = -0.069, offset = 0.0, divisor = 1.0, no cap. Mean per-edge final DT RMS value;
   the mean rather than the raw sum because the sum scales with the number of fused edges,
-  so a fixed divisor would penalise a frame purely for having more rings. The sim
+  so a fixed divisor would penalize a frame purely for having more rings. The sim
   calibration fit gives the term a modest negative weight (mis-locked edge-wave and
   m-mode shapes leave a visible residual), but most of the campaign's failure mass is
   clean-residual wrong-feature locks — aliasing, and planted orbit errors the fit absorbs
