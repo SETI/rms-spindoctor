@@ -20,9 +20,8 @@ Systems Node: https://pds-rings.seti.org/
 The following is the recommended information to include in a (e.g. journal)
 citation of this data set:
 
-  # TODO Update
   "French, R.S.,
-   Backplane Products Generated from Cassini ISS Saturn Images.
+   Backplanes for Navigated Images from Cassini ISS at Saturn.
    PDS Ring-Moon Systems (RMS). DOI TBD."
 
 For questions concerning this data set, please contact:
