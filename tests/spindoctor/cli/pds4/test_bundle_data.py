@@ -374,8 +374,8 @@ def test_a_statistic_that_is_not_a_finite_number_fails_the_image(
 ) -> None:
     """A maximum of NaN fails the image, and the log names the plane and the value.
 
-    No index column can hold it, and a blank in its place would say the plane
-    measured nothing, so it is refused as a statistic in another unit is.
+    No index column can hold it, and the masked value written in its place would say
+    the plane measured nothing, so it is refused as a statistic in another unit is.
     """
     env = make_bundle_env(tmp_path, bodies=RESOLUTION_PLANE)
     write_nav_inputs(env, backplane_metadata=_resolution_document(math.nan))
