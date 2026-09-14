@@ -165,8 +165,8 @@ left at either path is removed -- and counts once among the labels not written,
 with an error naming the collection and each reason.  A collection label states at
 least one record, so a collection with no label of its kind on disk -- no data
 label, or no browse label -- is never written.  The data collection label also
-states the range of its products' epochs, so a data tree
-holding no supplemental file writes no data collection (see `Epochs`_).  The
+states the range of its products' epochs, so a data tree in which no data label has
+a supplemental file beside it writes no data collection (see `Epochs`_).  The
 global index is generated first, and it refuses a
 bundle with no ``data/`` directory, naming the directory, before any product of
 the pass is cleared or written.  The pass also exits 1 when a supplemental file
@@ -555,17 +555,19 @@ recorded.  The summary pass needs no check of the times: the labels pass fails s
 an image before it writes anything for it, its supplemental file included.
 
 The data collection label states the range of the products' epochs: the least
-start and the greatest stop over every supplemental file, written to whole seconds
-with the start rounded down and the stop up.  The range is taken in the one read
+start and the greatest stop over the images the data collection holds, as their
+supplemental files record them, written to whole seconds with the start rounded
+down and the stop up.  A supplemental file with no data label beside it is not in
+the range, as it gives the index no row.  The range is taken in the one read
 of the supplemental files the summary pass makes -- the global
 index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
 :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns it in
 its :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome`.  That is why the
 summary pass runs the index first and hands the range to
 :func:`~spindoctor.cli.pds4.collections.generate_collection_files`.  A scan that
-read no supplemental file yields no range, and the data collection is then not
-written, neither its inventory nor its label, rather than labeled with empty dates
-(see `Exit status`_).
+took in no member's supplemental file yields no range, and the data collection is
+then not written, neither its inventory nor its label, rather than labeled with
+empty dates (see `Exit status`_).
 
 The global index and the miscellaneous collection
 =================================================
@@ -589,9 +591,9 @@ Each product's LID is built from the bundle's name, as the bundle's own is, by
 both take the data labels in the data tree from
 :func:`~spindoctor.cli.pds4.collections.data_products`, so the tables and the inventory
 cannot disagree about what the bundle holds.  The values come from each image's
-supplemental file.  A supplemental file with no data label beside it adds no row; its
-statistics are still checked and its epochs still taken, as every supplemental file's
-are.
+supplemental file.  A supplemental file with no data label beside it adds no row, and
+its epochs are not in the range the data collection label states; its statistics are
+still checked, as every supplemental file's are.
 
 **The table.**  Each table is fixed width, as the reference bundle's index tables are:
 a header line naming the fields, separated by commas, and then the rows.

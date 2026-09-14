@@ -192,13 +192,13 @@ def test_a_summary_over_no_data_label_exits_one_and_writes_neither_collection(
     """Supplemental files and no data label end the summary non-zero, with no collection.
 
     This is the tree a labels pass leaves when every data label fails to render, since
-    it writes an image's supplemental file before the image's data label.  The index
-    then has a range to hand on, but neither collection has a member, and a collection
-    label states at least one record, so neither collection is written, each counts
-    among the labels not written, and the log names each; so does the bundle label,
-    which declares both.  The image, a supplemental file with no data label, is one
-    whose products disagree, and the closing line counts it beside the labels.  The
-    generators are the real ones.
+    it writes an image's supplemental file before the image's data label.  Neither
+    collection has a member, and a collection label states at least one record, so
+    neither collection is written, each counts among the labels not written, and the
+    log names each; so does the bundle label, which declares both, and which has no
+    range to state, since the data collection holds no image.  The image, a
+    supplemental file with no data label, is one whose products disagree, and the
+    closing line counts it beside the labels.  The generators are the real ones.
     """
     env = make_bundle_env(tmp_path / 'env')
     dataset = env.dataset.as_dataset()
