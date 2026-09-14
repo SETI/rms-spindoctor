@@ -421,8 +421,12 @@ def add_ring_args(parser: argparse.ArgumentParser) -> None:
         default='1',
         metavar='N or R,L',
         help=(
-            'Zoom factor for sub-pixel interpolation. An integer applies uniformly; '
-            '"R,L" sets separate radial and longitudinal zoom factors. Default: 1.'
+            'Number of sub-samples taken per output cell, which are averaged into that '
+            'cell. The image is not interpolated: each sub-sample reads the one pixel '
+            'containing it. Raising this smooths the output and fills cells a single '
+            'sample would miss, and costs run time as the product of the radial and '
+            'longitudinal factors. An integer applies uniformly, so the cost is its '
+            'square; "R,L" sets the two separately. Default: 1.'
         ),
     )
     grp.add_argument(
