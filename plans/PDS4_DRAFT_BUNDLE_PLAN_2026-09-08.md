@@ -350,16 +350,19 @@ labels, `kernels.lblx`, the user-guide label, `bundle.lblx`.
 
 **Copied** — a file that ships in the template directory and belongs in the
 bundle verbatim: `readme.txt`, `collection_context.csv`,
-`collection_spice_kernels.csv`, `collection_xml_schema.csv`, `kernels.ker`,
-and the user-guide PDF when it exists. `collection_document.csv` is copied
-verbatim when the PDF is there and without its `P` line when it is not
-(section 3.6).
+`collection_xml_schema.csv`, `kernels.ker`, and the user-guide PDF when it
+exists. `collection_document.csv` and `collection_spice_kernels.csv` are
+copied verbatim when the label of their primary member -- the user guide's,
+the metakernel's -- is written, and without their `P` lines when it is not
+(section 3.6); the SPICE kernel inventory, then empty, is not written at all
+(section 3.5).
 
 `src/spindoctor/cli/pds4/bundle_products.py` owns both for the run-level
 products, so `collections.py` keeps to collection inventories and does not
 grow past its purpose. The summary pass calls it last, after
 `generate_global_index_files` and `generate_collection_files`, and the index
-generator clears its products with its own before it reads anything.
+generator clears its products with its own once it has found the bundle's
+data directory, before it reads any supplemental file.
 
 ### 3.3 The FITS and its data objects
 
@@ -634,7 +637,9 @@ The user-guide PDF is an operator deliverable, tracked as #595 (a shared
 LaTeX template for all four instruments' guides) and #596 (the Cassini guide
 written from it; #597, #598 and #599 are the other three, which wait on
 their instrument's half of #53). The code path is written so that the PDF's
-presence in the template directory is what decides:
+presence in the template directory decides whether the guide and its label
+are written, and the label, written or not, whether the document inventory
+lists the guide:
 
 - PDF present: it is copied into `document/user_guide/`,
   `cassini-iss-saturn-backplanes-user-guide.lblx` is rendered beside it, and
@@ -1609,9 +1614,11 @@ Done on `rf_pds4_phase6`. `src/spindoctor/cli/pds4/bundle_products.py` owns
 the run-level products (section 3.2), and the summary pass calls it last,
 after the global index and the data and browse collections; `collections.py`
 keeps to collection inventories, and its index generator clears the run-level
-products with its own before it reads anything, through
-`clear_bundle_products`, which also removes `document/user_guide/` when that
-leaves it empty, so a rerun leaves nothing stale. The module copies `readme.txt` to the bundle root; copies each static
+products with its own, once it has found the bundle's data directory and
+before it reads any supplemental file, through `clear_bundle_products`, which
+also removes `document/user_guide/` when that leaves it empty in a bundle on
+the local file system (a remote store holds no directory to remove, and
+`FCPath` refuses `rmdir` on one), so a rerun leaves nothing stale. The module copies `readme.txt` to the bundle root; copies each static
 inventory -- context, document, SPICE kernel, XML schema -- into its
 collection's directory and renders the collection label beside it; copies the
 metakernel `kernels.ker` and renders `kernels.lblx`; copies the user guide into
@@ -1652,7 +1659,9 @@ a C-kernel, and its `TODO` is gone. `kernels.lblx` has no
 `Product_SPICE_Kernel`; that is Phase 8's.
 
 **The user guide** follows section 3.6: its presence in the template directory
-decides. The dataset names it, through `DataSet.pds4_user_guide_file_name`,
+decides whether it and its label are written, and its label, written or not,
+whether the document inventory lists it. The dataset names it, through
+`DataSet.pds4_user_guide_file_name`,
 and its label renders from the template of the same stem ending in `.lblx`.
 The document inventory the template directory ships lists the guide as its one
 `P` line; the pass writes it as it is when the guide's label is in the bundle,
@@ -1695,7 +1704,12 @@ every label naming a document of the bundle, the data and bundle labels among
 them, names the guide's own LID, the document inventory lists it as its one
 `P` member, and the readme gives it; the SPICE kernel inventory lists the
 metakernel by its label's LID and version, and `kernels.lblx` states the size,
-checksum and time of the `kernels.ker` beside it; each of the six collection
+checksum and time of the `kernels.ker` beside it, and `bundle.lblx` the time
+of the `readme.txt` beside it; `kernels.lblx`'s `kernel_type` is `MK`, the
+SPICE kernel collection label's `collection_type` `SPICE Kernel`, and the
+bundle label's member entry for that collection
+`bundle_has_spice_kernel_collection`, three values no schema rule can check;
+each of the six collection
 labels states the lines of the inventory beside it as its records; every
 shipped inventory names each member at a version, and no shipped template holds
 a carriage return; and both passes run over a template directory holding only
@@ -1705,7 +1719,9 @@ labeled and listed; a guide absent is none of those, with one warning, and a
 guide whose label failed is not listed; a SPICE kernel collection whose
 metakernel label failed is not written, what an earlier run left at its paths
 removed, with one error; a rerun without the guide leaves no
-`document/user_guide/`; the bundle label states the bundle's LID and range; a
+`document/user_guide/`; clearing takes a bundle root relative to the working
+directory, and one in a remote store, served from a `fake://` URL; the bundle
+label states the bundle's LID and range; a
 bundle label declaring a collection not written, or with no range, is not
 written, counts, and draws one error; each run-level label that fails is
 counted, and every other run-level product is on disk; the driver exits 1 on a
@@ -1940,7 +1956,8 @@ the product is: over Phase 6's cohort bundle the evaluator refuses a
 `XX`, and accepts `kernel_type` `FK` over the metakernel, the SPICE kernel
 collection typed `Document`, and its member entry typed
 `bundle_has_document_collection`, each a value the vocabulary holds. A value
-that is wrong but allowed is left to the tests and to `validate`.
+that is wrong but allowed is left to the tests and to `validate`; a cohort
+test pins those three.
 
 `--check-only` on the labels pass, per section 3.11.
 
