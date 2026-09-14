@@ -67,6 +67,9 @@ SCHEMA_VARIABLE = re.compile(r'\$PDS4_([A-Z]+)_SCHEMA(?:_XSD)?\$')
 OTHER_INFORMATION_MODEL_VERSION = '9.8.7.6'
 """An information model version the tests configure in place of the shipped one."""
 
+VERSION_DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+"""The digits a PDS4 schema's file name writes the parts of a version in, one each."""
+
 
 @pytest.fixture
 def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
@@ -199,6 +202,18 @@ def _schema_locations(label: Path) -> dict[str, str]:
     """
     pairs = ElementTree.parse(label).getroot().get(XSI_SCHEMA_LOCATION, '').split()
     return dict(zip(pairs[::2], pairs[1::2], strict=True))
+
+
+def _version_code(version: str) -> str:
+    """Return the code a PDS4 schema's file name gives a four-part version.
+
+    Parameters:
+        version: The version, as ``1.24.0.0``.
+
+    Returns:
+        Each part written as one digit of :data:`VERSION_DIGITS`, as ``1O00``.
+    """
+    return ''.join(VERSION_DIGITS[int(part)] for part in version.split('.'))
 
 
 def test_the_bundle_takes_the_configured_name_and_version(
@@ -345,3 +360,27 @@ def test_the_shipped_configuration_gives_a_schema_for_each_dictionary_the_templa
         for prefix in SCHEMA_VARIABLE.findall(template.read_text(encoding='utf-8'))
     }
     assert set(DEFAULT_CONFIG.pds4['coiss_saturn']['schemas']) == declared
+
+
+def test_the_shipped_pds_schema_is_of_the_shipped_information_model() -> None:
+    """The shipped schemas are of the information model build the entry names.
+
+    The ``pds`` Schematron requires every label to state the information model version
+    its own build is of, so the two move together: the ``pds`` schema's file name carries
+    the version's code, ``1O00`` for ``1.24.0.0``, and its LIDVID the version's first two
+    parts, ``::1.24``.  Every other dictionary's file name carries the same code, the build
+    it was generated from, before its own.
+    """
+    entry = DEFAULT_CONFIG.pds4['coiss_saturn']
+    version = entry['information_model_version']
+    code = _version_code(version)
+    schemas = entry['schemas']
+    of_another_build = [
+        name
+        for name, schema in schemas.items()
+        if name != 'pds'
+        and not schema['location'].rsplit('/', 1)[-1].startswith(f'PDS4_{name.upper()}_{code}_')
+    ]
+    assert schemas['pds']['location'].rsplit('/', 1)[-1] == f'PDS4_PDS_{code}'
+    assert schemas['pds']['lidvid'].rsplit('::', 1)[-1] == '.'.join(version.split('.')[:2])
+    assert of_another_build == []
