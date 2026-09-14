@@ -472,14 +472,18 @@ def test_a_refused_run_leaves_none_of_the_index_products_an_earlier_run_wrote(
     assert [product for product in products if (index_dir / product).exists()] == []
 
 
-def test_bodies_index_missing_backplane_values_blank(tmp_path: Path) -> None:
-    """Backplane types absent from a body's stats produce empty columns."""
+def test_a_missing_statistic_is_the_masked_value_in_its_column_s_format(tmp_path: Path) -> None:
+    """A plane the image has no statistic for is written as the masked value, in its format.
+
+    The body has a latitude statistic and no resolution one, so its two resolution cells
+    hold the configured masked value, -999, in the five significant figures every value
+    of a ``km/pixel`` column is written to.
+    """
     env = _index_env(tmp_path)
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
-    assert rows[1][5] == ''
-    assert rows[1][6] == ''
+    assert rows[1][5:7] == ['-999.00', '-999.00']
 
 
 def test_index_path_to_image_file_is_data_relative(tmp_path: Path) -> None:

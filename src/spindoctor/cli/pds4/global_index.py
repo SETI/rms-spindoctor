@@ -8,7 +8,9 @@ epochs, which the data collection label and the bundle label state.
 
 Each table is fixed width, as the reference bundle's index tables are: a header line
 naming the columns, separated by commas, and then the rows, each field padded to the
-longest value written in its column, with a comma between fields.
+longest value written in its column, with a comma between fields.  Where an image has
+no statistic for a plane, its two cells hold the configured masked value,
+``backplanes.masked_value``, written in the column's format.
 """
 
 import json
@@ -134,7 +136,9 @@ def index_value_format(units: str) -> IndexValueFormat:
     return INDEX_VALUE_FORMATS[statistics_units(units)]
 
 
-def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueFormat) -> list[str]:
+def _index_cells(
+    statistic: dict[str, Any] | None, value_format: IndexValueFormat, missing: str
+) -> list[str]:
     """Write one plane's minimum and maximum as the two cells an index row gives it.
 
     Parameters:
@@ -142,17 +146,18 @@ def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueForma
             minimum and maximum already checked as finite numbers, or None when
             the file records none for the plane.
         value_format: The format the plane's column is written in.
+        missing: What each of the two cells holds when there is no statistic: the
+            masked value, written in ``value_format``.
 
     Returns:
-        The minimum and the maximum, rendered, or two blanks when there is no
+        The minimum and the maximum, rendered, or ``missing`` twice when there is no
         statistic, which is what a plane that measured nothing leaves.
 
     Raises:
         ValueError: If the minimum or the maximum is not a finite number.
     """
     if statistic is None:
-        # TODO Need an appropriate sentinel value for missing data
-        return ['', '']
+        return [missing, missing]
     return [value_format.render(statistic['min']), value_format.render(statistic['max'])]
 
 
@@ -434,6 +439,12 @@ def generate_global_index_files(
     ring_backplane_types = [bp['name'] for bp in rings_cfg]
     body_formats = {bp['name']: index_value_format(bp['units']) for bp in bodies_cfg}
     ring_formats = {bp['name']: index_value_format(bp['units']) for bp in rings_cfg}
+    # What a cell holds where an image has no statistic for the plane: the value every
+    # masked pixel of the arrays holds, written in the column's own format, so every
+    # value of a column, a missing one included, is written in one form (#601).
+    masked_value = float(config.backplanes.masked_value)
+    body_missing = {name: fmt.render(masked_value) for name, fmt in body_formats.items()}
+    ring_missing = {name: fmt.render(masked_value) for name, fmt in ring_formats.items()}
 
     # A bundle with no data directory is not one a labels pass wrote.  The summary
     # pass runs this generator first, so the check is made here, before any product
@@ -507,7 +518,11 @@ def generate_global_index_files(
             body_backplanes = body_data.get('backplanes', {})
             # Add min/max columns for each configured backplane type
             for bp_type in body_backplane_types:
-                body_row.extend(_index_cells(body_backplanes.get(bp_type), body_formats[bp_type]))
+                body_row.extend(
+                    _index_cells(
+                        body_backplanes.get(bp_type), body_formats[bp_type], body_missing[bp_type]
+                    )
+                )
             body_index_rows.append(body_row)
 
         # Ring index: one line per image
@@ -517,7 +532,11 @@ def generate_global_index_files(
             # Add min/max columns for each configured ring backplane type
             for ring_type in ring_backplane_types:
                 ring_row.extend(
-                    _index_cells(ring_backplanes.get(ring_type), ring_formats[ring_type])
+                    _index_cells(
+                        ring_backplanes.get(ring_type),
+                        ring_formats[ring_type],
+                        ring_missing[ring_type],
+                    )
                 )
             ring_index_rows.append(ring_row)
 

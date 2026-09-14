@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 from filecache import FCPath
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 
 
@@ -93,7 +94,11 @@ class StubDataset:
         self._image_count = image_count
         self._batch_count = batch_count
         self._base_dir = base_dir
-        self.config = SimpleNamespace(backplanes=SimpleNamespace(bodies=[], rings=[]))
+        self.config = SimpleNamespace(
+            backplanes=SimpleNamespace(
+                bodies=[], rings=[], masked_value=DEFAULT_CONFIG.backplanes.masked_value
+            )
+        )
 
     def pds4_bundle_name(self) -> str:
         """Return the bundle name whose directory the run writes into."""
