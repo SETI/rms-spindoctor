@@ -492,8 +492,9 @@ before the collection files in `main_summary`, and returns the range in a
 `GlobalIndexOutcome`, which the driver hands to `generate_collection_files`
 and holds for `bundle.lblx`, which Phase 6 renders, without a second
 computation. With no range to state -- the data tree holds no supplemental
-file -- the data collection label is counted as not written, with an error
-saying so, and the inventory table is still written. The supplemental files
+file -- the data collection is not written, neither its inventory nor its
+label, and counts as a label not written, with an error saying so: one rule
+with the empty collection's (section 3.5). The supplemental files
 are read as the labels pass wrote them, with nothing checked but the
 statistics (the same ruling); a data label that failed to render is reported
 by the labels pass, and the bundle is regenerated before the summary pass
@@ -507,6 +508,25 @@ tables into a root the labels pass would then refuse.
 lineterminator='\n')`, file opened with `newline=''`), one `P,<lidvid>` line
 per member. `<records>` counts members. The `FILE_RECORDS` template function
 counts lines, so with no header it counts the members.
+
+A collection with no member has neither an inventory nor a label.
+`PDS4_PDS_1O00.xsd` requires `<records>` in `File_Area_Inventory/Inventory`
+to be at least 1, so no label can describe an empty inventory; with the
+header row counted, as before Phase 5, an empty collection's label stated one
+record, valid only by accident. It is one rule with the data collection's
+range (section 3.4): a generated collection is written only when its label
+can state everything PDS4 requires of it -- at least one member, and for the
+data collection the range of its members' epochs. One that cannot is not
+written at all, neither its inventory nor its label, whatever an earlier run
+left at either path is removed, and it counts once among the labels not
+written, with an error naming the collection and every reason, so the summary
+pass exits 1. The data and browse collections both take their members from
+the data labels, so they go together: over an empty `data/`, and over
+supplemental files with no data label -- what a labels pass leaves when every
+data label fails to render, since it writes the supplemental file first --
+the summary pass writes neither and counts two. A collection label that fails
+to render is Phase 1's case, not this one: its inventory is written and
+stays, as the index tables do.
 
 Three inventories are **generated**, because their membership depends on
 what the run produced: `collection_data.csv`, `collection_browse.csv`, and
@@ -1345,12 +1365,30 @@ the `:document:` segment (Phase 6) and the `xml_schema` LIDVIDs (section
 3.9) are not this phase's. The global index tables stay `.tab`, header and
 all, as section 3.1 settles; Phase 7 moves and reshapes them.
 
-Tests: over an empty data tree both inventories are empty, and over one data
-label an inventory is that one `P` line; every line of each ends in a line
-feed and none holds a carriage return; over the cohort, each shipped
-collection label names the inventory beside it and states the two navigated
-images as its records; and every line of each inventory the template
-directory ships is a member, ending in a line feed.
+Tests: over one data label an inventory is that one `P` line; every line of
+each ends in a line feed and none holds a carriage return; over the cohort,
+each shipped collection label names the inventory beside it and states the
+two navigated images as its records; and every line of each inventory the
+template directory ships is a member, ending in a line feed.
+
+A product review of the phase found that an empty inventory is one no label
+can describe. Over an empty `data/`, both inventories were written as empty
+files, the data collection label was not written for want of a range, and
+the browse collection label was rendered stating `<records>0</records>`,
+which `PDS4_PDS_1O00.xsd` rejects. Over supplemental files and no data label
+-- a labels pass whose every data label failed -- both labels stated zero
+records and the summary pass exited 0. Before the phase the header row was
+counted, so the same trees gave one record, valid by accident. The phase
+settles it with section 3.5's rule, which takes in section 3.4's for a data
+collection with no range: a collection whose label cannot state what PDS4
+requires gets neither an inventory nor a label, and counts once among the
+labels not written, so the pass exits 1. Tests: over an empty data tree
+neither collection is written, the collection generator itself removing what
+an earlier run left at the four paths, and the two count as two, the data
+collection's error giving both its reasons; over a data label and no
+supplemental file the data collection is not written and the browse
+collection is; and a summary pass over supplemental files and no data label
+exits 1, naming both collections, with neither written.
 
 #602, which section 0.1 and Phase 1 give to Phases 5 and 6, is not in this
 phase's text and was not taken up: the browse inventory is still built from
