@@ -587,9 +587,9 @@ Common Issues
 
 * **Bundle label not written**: the summary pass names each collection the bundle
   label names that is not in the bundle, and the error for that collection, earlier
-  in the log, says why it was not written. Or it says the data tree holds no
-  supplemental file, so there is no time range for the label to state: the labels
-  pass labeled no image, and has to be run first.
+  in the log, says why it was not written. Or it says no data label in the data tree
+  has a supplemental file beside it, so there is no time range for the label to
+  state: the labels pass labeled no image, and has to be run first.
 
 * **Summary PNG not found**: that image is failed. A successfully navigated
   image always has one, so either it was removed from the navigation results or

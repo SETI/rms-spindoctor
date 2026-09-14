@@ -55,13 +55,13 @@ class EpochRange:
 
 
 class EpochRangeScan:
-    """The range of epochs over the supplemental files one scan reads, taken as it reads.
+    """The range of epochs over the products one scan takes in, taken as it reads.
 
     The summary pass reads every supplemental file once, to build the global index,
-    and the range is taken in that same read rather than by a second one: each file's
-    navigation document is handed to :meth:`include` as the file is read.  The range
-    is the least start and the greatest stop, so the order the files are read in
-    cannot change it.
+    and the range is taken in that same read rather than by a second one: the
+    navigation document of each image the data collection holds is handed to
+    :meth:`include` as its file is read.  The range is the least start and the greatest
+    stop, so the order the files are read in cannot change it.
     """
 
     def __init__(self) -> None:

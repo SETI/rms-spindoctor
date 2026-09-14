@@ -214,9 +214,10 @@ The PDS4 schema requires a collection inventory to hold at least one record.
 """
 
 _NO_RANGE = (
-    'the data tree holds no supplemental file, so there is no time range for its label to state'
+    'no data label in the data tree has a supplemental file beside it, so there is no time '
+    'range for its label to state'
 )
-"""Why the data collection is not written when no supplemental file gives it a range."""
+"""Why the data collection is not written when no member's supplemental file gives it a range."""
 
 
 def write_collection(
@@ -412,7 +413,8 @@ def generate_collection_files(
         dataset: The dataset instance for bundle-specific methods.
         logger: Logger for diagnostic messages.
         epochs: The earliest start and the latest stop of the products' exposures,
-            or None when the data tree holds no supplemental file.
+            or None when no data label in the data tree has a supplemental file
+            beside it.
 
     Returns:
         The number of collection labels not written, each label that could not be

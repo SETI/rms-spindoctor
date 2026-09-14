@@ -317,7 +317,7 @@ def _write_bundle_label(
         bundle_root: The bundle's own directory.
         bundle_name: The bundle's name, the last part of its LID.
         epochs: The earliest start and the latest stop of the products' exposures, or
-            None when the data tree holds no supplemental file.
+            None when no data label in the data tree has a supplemental file beside it.
         logger: Logger for diagnostic messages.
 
     Returns:
@@ -327,8 +327,8 @@ def _write_bundle_label(
     if epochs is None:
         label.unlink(missing_ok=True)
         logger.error(
-            'The bundle label %s was not written: the data tree holds no supplemental '
-            'file, so there is no time range for it to state',
+            'The bundle label %s was not written: no data label in the data tree has a '
+            'supplemental file beside it, so there is no time range for it to state',
             label,
         )
         return False
@@ -416,7 +416,7 @@ def generate_bundle_products(
         logger: Logger for diagnostic messages.
         epochs: The earliest start and the latest stop of the products' exposures, as
             :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` took them,
-            or None when the data tree holds no supplemental file.
+            or None when no data label in the data tree has a supplemental file beside it.
 
     Returns:
         The number of run-level labels not written.
