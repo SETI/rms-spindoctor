@@ -206,7 +206,10 @@ Backplanes are configured under ``backplanes`` in
 - ``backplanes.bodies``: list of body backplane entries. Each entry has
   ``name`` (the FITS HDU name), ``method`` (the ``oops.Backplane`` method to
   call), and ``units`` (written to the ``BUNIT`` FITS header). All three are
-  required.
+  required. Each entry also has an ``index`` block, which the PDS4 bundle's
+  index tables read: the ``data_type`` and, under ``minimum`` and ``maximum``,
+  the ``name`` and ``description`` of the two columns that give the backplane's
+  least and greatest value (see :doc:`user_guide_pds4_bundle`).
 - ``backplanes.rings``: list of ring backplane entries with the same
   structure. The special ``distance`` entry is used only for per-pixel
   merge ordering and is not written as an HDU.

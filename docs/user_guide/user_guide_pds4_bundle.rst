@@ -59,14 +59,16 @@ The two passes write this directory structure:
    ├── document/
    │   ├── collection_document.csv
    │   ├── collection_document.lblx
-   │   ├── supplemental/
-   │   │   ├── global_index_bodies.lblx
-   │   │   ├── global_index_bodies.tab
-   │   │   ├── global_index_rings.lblx
-   │   │   └── global_index_rings.tab
    │   └── user_guide/
    │       ├── <user_guide>.lblx
    │       └── <user_guide>.pdf
+   ├── miscellaneous/
+   │   ├── collection_miscellaneous.csv
+   │   ├── collection_miscellaneous.lblx
+   │   ├── global_bodies_index.lblx
+   │   ├── global_bodies_index.tab
+   │   ├── global_rings_index.lblx
+   │   └── global_rings_index.tab
    ├── spice_kernels/
    │   ├── collection_spice_kernels.csv
    │   ├── collection_spice_kernels.lblx
@@ -77,7 +79,9 @@ The two passes write this directory structure:
        └── collection_xml_schema.lblx
 
 The user guide and its label are in ``document/user_guide/`` only when the dataset's
-template directory holds the user guide (see `Templates`_).
+template directory holds the user guide (see `Templates`_). The rings index and its
+label are in ``miscellaneous/`` only when some image in the bundle has ring backplanes
+(see `Global Index Tables`_).
 
 The directory structure within ``data/`` and ``browse/`` mirrors the structure of the
 original PDS4 dataset (if it existed), with paths derived from image names using
@@ -304,14 +308,17 @@ The summary pass generates:
   * ``collection_browse.csv``: CSV file listing all browse products in the bundle
   * ``collection_browse.lblx``: PDS4 label for the browse collection
 
-* **Global Index Files**:
+* **Miscellaneous Collection**, in ``miscellaneous/`` (see `Global Index Tables`_):
 
-  * ``global_index_bodies.tab``: CSV file with one row per image/body combination,
-    containing min/max values for each configured backplane type
-  * ``global_index_bodies.lblx``: PDS4 label for the bodies index
-  * ``global_index_rings.tab``: CSV file with one row per image, containing min/max
-    values for each configured ring backplane type
-  * ``global_index_rings.lblx``: PDS4 label for the rings index
+  * ``global_bodies_index.tab``: a table with one row for each body of each image in
+    the bundle, giving the least and the greatest value of each body backplane
+  * ``global_bodies_index.lblx``: PDS4 label for the bodies index
+  * ``global_rings_index.tab``: a table with one row for each image with ring
+    backplanes, giving the least and the greatest value of each ring backplane
+  * ``global_rings_index.lblx``: PDS4 label for the rings index
+  * ``collection_miscellaneous.csv``: the collection's members: the two index tables,
+    and the context products and documents the bundle cites
+  * ``collection_miscellaneous.lblx``: PDS4 label for the collection
 
 * **Bundle Files**:
 
@@ -342,10 +349,39 @@ down, to the latest exposure stop, rounded up, as in ``2004-02-07T04:25:35Z`` to
 ``2004-02-22T05:32:17Z``. The bundle label is written only when every collection it
 names is in the bundle.
 
-Each min/max column is written with a precision suited to its unit: three
-decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and five
-significant figures for ``km/pixel``. Angular columns are in degrees, although
-the backplane arrays are in radians (see :doc:`user_guide_backplanes`).
+Global Index Tables
+^^^^^^^^^^^^^^^^^^^
+
+The two index tables in ``miscellaneous/`` summarize the backplanes of every image the
+bundle's data collection holds, so that a program can choose images without opening a
+FITS file.
+
+* ``global_bodies_index.tab`` has one row for each body of each image.
+* ``global_rings_index.tab`` has one row for each image that has ring backplanes. When
+  no image has ring backplanes, neither this table nor its label is written.
+
+Each table begins with one line naming its columns, separated by commas. Every row
+after it has the same length: each value is padded with spaces to its column's width
+and followed by a comma, the last by the end of the line. The label beside each table
+gives every column's name, position, width, data type, unit and description.
+
+A row's first column, ``pds:logical_identifier``, is the logical identifier of the
+image's data product, and its ``file_spec`` column is the path of that product's label
+in the bundle. The bodies table's ``body_name`` column names the body. The other
+columns come in pairs, the least and the greatest value one backplane takes over the
+pixels where it has a value, named as the configuration names them, as in
+``geom:minimum_latitude`` and ``geom:maximum_latitude``.
+
+Angular columns are in degrees, although the backplane arrays are in radians (see
+:doc:`user_guide_backplanes`). Each column is written with a precision suited to its
+unit: three decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and
+five significant figures for ``km/pixel``.
+
+Where an image has no value for a backplane, both of its columns hold the masked value
+(``backplanes.masked_value``, ``-999`` as shipped), written with the column's own
+precision: ``-999.000`` in a column of degrees, ``-999.0`` in kilometers,
+``-999.00000000`` in degrees per pixel and ``-999.00`` in kilometers per pixel. The
+label declares that value, as written, as the column's missing constant.
 
 Exit Status
 ===========
@@ -384,7 +420,7 @@ with exit status 2 before it does anything.
   if a label cannot be written, the bundle label included: that label is written
   only when every collection it names is in the bundle, so a collection that was not
   written leaves the bundle without it. A missing user guide is a warning, not a
-  failure. If a supplemental file holds such a statistic, it exits 1 and leaves none
+  failure, and so is an index table no image gives a row, which is not written. If a supplemental file holds such a statistic, it exits 1 and leaves none
   of the files the summary pass writes: regenerate the backplanes, then the bundle,
   into an empty directory.
 
@@ -449,8 +485,9 @@ Each dataset has its own template directory containing:
 * ``browse.lblx``: Template for individual browse product labels
 * ``collection_data.lblx``: Template for data collection label
 * ``collection_browse.lblx``: Template for browse collection label
-* ``global_index_bodies.lblx``: Template for bodies global index label
-* ``global_index_rings.lblx``: Template for rings global index label
+* ``global_bodies_index.lblx`` and ``global_rings_index.lblx``: Templates for the
+  index tables' labels
+* ``collection_miscellaneous.lblx``: Template for the miscellaneous collection label
 * ``bundle.lblx``: Template for the bundle label
 * ``readme.txt``: The bundle's readme, copied into the bundle as it is
 * ``collection_context.csv``, ``collection_document.csv``,
