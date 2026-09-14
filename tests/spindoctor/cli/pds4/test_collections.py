@@ -7,7 +7,9 @@ Contract under test (docs/user_guide/user_guide_pds4_bundle.rst "Summary Pass" /
 ``collection_data.csv`` / ``collection_browse.csv`` inventories (no header, one
 ``P,<lidvid>`` line per product ending in a line feed alone, LIDVIDs from the
 dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
-``.lblx`` labels.  ``generate_global_index_files``
+``.lblx`` labels.  A collection with no member, which is both of them when the
+tree holds no data label, gets neither file and counts as a label not written.
+``generate_global_index_files``
 scans ``data/`` for ``*_supplemental.txt`` files and writes
 ``document/supplemental/global_index_bodies.tab`` (one row per image/body) and
 ``global_index_rings.tab`` (one row per image with ring backplanes), with
@@ -65,6 +67,13 @@ COLLECTION_LABELS = {
     'collection_browse.lblx': ('browse', COLLECTION_BROWSE_TEMPLATE),
 }
 """Each collection label's bundle subdirectory and its intact template body."""
+COLLECTION_PRODUCTS = (
+    'data/collection_data.csv',
+    'data/collection_data.lblx',
+    'browse/collection_browse.csv',
+    'browse/collection_browse.lblx',
+)
+"""Every file the collection generator writes, relative to the bundle's directory."""
 
 
 def _run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> int:
@@ -137,13 +146,33 @@ def test_missing_data_dir_raises(tmp_path: Path) -> None:
         _run_collections(env)
 
 
-def test_an_empty_data_tree_writes_empty_inventories(tmp_path: Path) -> None:
-    """An empty data tree yields empty inventories, since an inventory has no header."""
+def test_an_empty_data_tree_writes_neither_collection(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With no data label and no supplemental file, neither collection is written.
+
+    A collection label states at least one record, so a collection with no member
+    gets no label, and so no inventory either.  The data collection has no range to
+    state as well, and still counts once.  The generator removes whatever an earlier
+    run left at the four paths itself, and not only through the index generator that
+    clears them first in the summary pass, so that a collection on disk is always one
+    this run wrote.  The data collection's error gives both of its reasons.
+    """
     env = make_bundle_env(tmp_path)
-    (env.bundle_dir / 'data').mkdir(parents=True)
-    _run_collections(env)
-    assert (env.bundle_dir / 'data' / 'collection_data.csv').read_bytes() == b''
-    assert (env.bundle_dir / 'browse' / 'collection_browse.csv').read_bytes() == b''
+    for product in COLLECTION_PRODUCTS:
+        earlier = env.bundle_dir / product
+        earlier.parent.mkdir(parents=True, exist_ok=True)
+        earlier.write_text('an earlier run\n', encoding='utf-8')
+    failed = _run_collections(env, epochs=None)
+    assert failed == 2
+    assert [name for name in COLLECTION_PRODUCTS if (env.bundle_dir / name).exists()] == []
+    out = capsys.readouterr().out
+    data_errors = [
+        line for line in out.splitlines() if 'The data collection was not written' in line
+    ]
+    assert len(data_errors) == 1
+    assert 'the data tree holds no data label' in data_errors[0]
+    assert 'the data tree holds no supplemental file' in data_errors[0]
 
 
 def test_data_inventory_row_per_label_with_primary_status(tmp_path: Path) -> None:
@@ -189,12 +218,12 @@ def test_duplicate_image_names_produce_duplicate_rows(tmp_path: Path) -> None:
 def test_non_backplane_label_files_ignored(tmp_path: Path) -> None:
     """Only *_backplanes.lblx files are inventoried from the data tree."""
     env = make_bundle_env(tmp_path)
-    other = env.bundle_dir / 'data' / 'shard0' / '1234567890w_other.lblx'
-    other.parent.mkdir(parents=True)
+    touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    other = env.bundle_dir / 'data' / 'shard0' / '1111111111n_other.lblx'
     other.write_text('<x/>\n', encoding='utf-8')
     _run_collections(env)
     rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.csv')
-    assert rows == []
+    assert rows == [['P', 'urn:nasa:pds:fake_bundle:data:1234567890w::1.0']]
 
 
 def test_every_inventory_line_ends_in_a_line_feed_alone(tmp_path: Path) -> None:
@@ -241,22 +270,6 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
     browse_label = env.bundle_dir / 'browse' / 'collection_browse.lblx'
     browse_text = browse_label.read_text(encoding='utf-8')
     assert str(FCPath(env.bundle_dir) / 'browse' / 'collection_browse.csv') in browse_text
-
-
-def test_a_data_collection_with_no_range_leaves_no_earlier_label(tmp_path: Path) -> None:
-    """With no range to state, the label an earlier run left at the path is removed.
-
-    The generator keeps the rule write_label keeps, that a label on disk is one this
-    run wrote, on its own account and not only through the index generator, which
-    clears the label first in the summary pass.
-    """
-    env = make_bundle_env(tmp_path)
-    data_dir = env.bundle_dir / 'data'
-    data_dir.mkdir(parents=True)
-    earlier = data_dir / 'collection_data.lblx'
-    earlier.write_text('<an earlier run/>\n', encoding='utf-8')
-    _run_collections(env, epochs=None)
-    assert not earlier.exists()
 
 
 @pytest.mark.parametrize(
