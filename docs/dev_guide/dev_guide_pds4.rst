@@ -168,7 +168,9 @@ to state it is not rendered (see `The bundle's run-level products`_).  A metaker
 label that fails to render leaves the SPICE kernel collection with no member, so that
 collection is not written and counts as well, and so does the bundle label.  A static
 inventory whose template fails to render leaves its collection unwritten, and it counts,
-as does a readme that fails to render.  A user-guide
+and so does the bundle label, which declares that collection.  A readme that fails to
+render counts too, and so does the bundle label, which the package's template gives the
+readme's creation time.  A user-guide
 PDF the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what PDS4 requires of it is not
 written at all -- neither its inventory nor its label, and whatever an earlier run
 left at either path is removed -- and counts once among the labels not written,
@@ -888,8 +890,10 @@ labels not written.  The document collection keeps its ``S`` members, so it is a
 written; the SPICE kernel collection, whose one member is the metakernel, is not written
 when the metakernel's label is not, and the bundle label, which declares it, goes too.
 An inventory whose template does not render leaves its collection unwritten the same
-way, its label not rendered over it, and the collection counts once; a readme that does
-not render counts too.
+way, its label not rendered over it, and the collection counts once, and the bundle
+label, which declares the collection, goes too.  A readme that does not render counts
+too, and takes the bundle label with it: the bundle label the package ships states the
+readme's creation time, which a readme not written does not have.
 
 The bundle label declares every collection the bundle holds, one ``Bundle_Member_Entry``
 each, so it is kept only over a bundle that holds them all.  The pass renders it, reads
