@@ -11,17 +11,13 @@ import re
 from pathlib import Path
 
 import pytest
-from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
-from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
-from spindoctor.cli.pds4.collections import generate_collection_files, generate_global_index_files
 from spindoctor.cli.pds4.epochs import EpochRange
-from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
-from .conftest import make_cohort_bundle_env, make_image_file
+from .conftest import make_image_file, write_cohort_bundle
 
 
 @pytest.fixture
@@ -84,20 +80,7 @@ def test_the_cohort_s_data_collection_label_states_the_range_of_its_images(
     second outside it.  The two generators run in the order the summary pass runs
     them, the global index first.
     """
-    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
-    for stub in (LIMB_STUB, RINGS_STUB):
-        generate_bundle_data_files(
-            env.dataset,
-            cassini_cohort.batch(stub),
-            nav_results_root=FCPath(cassini_cohort.nav_results_root),
-            backplane_results_root=FCPath(cassini_cohort.backplane_results_root),
-            bundle_results_root=FCPath(env.bundle_results_root),
-            logger=MAIN_LOGGER,
-        )
-    index = generate_global_index_files(FCPath(env.bundle_results_root), env.dataset, MAIN_LOGGER)
-    generate_collection_files(
-        FCPath(env.bundle_results_root), env.dataset, MAIN_LOGGER, epochs=index.epochs
-    )
+    env = write_cohort_bundle(cassini_cohort, tmp_path, (LIMB_STUB, RINGS_STUB))
     text = (env.bundle_dir / 'data' / 'collection_data.lblx').read_text(encoding='utf-8')
     assert re.findall(r'<start_date_time>(.*)</start_date_time>', text) == ['2004-02-07T04:25:35Z']
     assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == ['2004-02-22T05:32:17Z']

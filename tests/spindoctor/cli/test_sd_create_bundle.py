@@ -79,9 +79,9 @@ REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
 """What the stub dataset declares each pass must find: the templates that pass renders."""
 
 SUMMARY_PRODUCTS = (
-    'data/collection_data.tab',
+    'data/collection_data.csv',
     'data/collection_data.lblx',
-    'browse/collection_browse.tab',
+    'browse/collection_browse.csv',
     'browse/collection_browse.lblx',
     'document/supplemental/global_index_bodies.tab',
     'document/supplemental/global_index_bodies.lblx',

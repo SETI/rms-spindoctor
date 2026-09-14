@@ -4,8 +4,8 @@ Contract under test (docs/user_guide/user_guide_pds4_bundle.rst "Summary Pass" /
 "Summary Pass Outputs" and docs/dev_guide/dev_guide_pds4.rst "Pipeline overview"):
 ``generate_collection_files`` scans the bundle's ``data/`` tree for
 ``*_backplanes.lblx`` labels, sorts them by image name, and writes the
-``collection_data.tab`` / ``collection_browse.tab`` inventories (``Member
-Status`` + ``LIDVID_LID`` columns, one ``P`` row per product, LIDVIDs from the
+``collection_data.csv`` / ``collection_browse.csv`` inventories (no header, one
+``P,<lidvid>`` line per product ending in a line feed alone, LIDVIDs from the
 dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
 ``.lblx`` labels.  ``generate_global_index_files``
 scans ``data/`` for ``*_supplemental.txt`` files and writes
@@ -137,25 +137,22 @@ def test_missing_data_dir_raises(tmp_path: Path) -> None:
         _run_collections(env)
 
 
-def test_empty_data_dir_writes_header_only_inventories(tmp_path: Path) -> None:
-    """An empty data tree yields inventories with only the header row."""
+def test_an_empty_data_tree_writes_empty_inventories(tmp_path: Path) -> None:
+    """An empty data tree yields empty inventories, since an inventory has no header."""
     env = make_bundle_env(tmp_path)
     (env.bundle_dir / 'data').mkdir(parents=True)
     _run_collections(env)
-    data_rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.tab')
-    assert data_rows == [['Member Status', 'LIDVID_LID']]
-    browse_rows = read_csv_rows(env.bundle_dir / 'browse' / 'collection_browse.tab')
-    assert browse_rows == [['Member Status', 'LIDVID_LID']]
+    assert (env.bundle_dir / 'data' / 'collection_data.csv').read_bytes() == b''
+    assert (env.bundle_dir / 'browse' / 'collection_browse.csv').read_bytes() == b''
 
 
 def test_data_inventory_row_per_label_with_primary_status(tmp_path: Path) -> None:
-    """Each *_backplanes.lblx yields one P row with the dataset's data LIDVID."""
+    """One *_backplanes.lblx yields one P row, its data LIDVID, and no header row."""
     env = make_bundle_env(tmp_path)
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     _run_collections(env)
-    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.tab')
-    assert len(rows) == 2
-    assert rows[1] == ['P', 'urn:nasa:pds:fake_bundle:data:1234567890w::1.0']
+    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.csv')
+    assert rows == [['P', 'urn:nasa:pds:fake_bundle:data:1234567890w::1.0']]
 
 
 def test_browse_inventory_uses_browse_lidvids(tmp_path: Path) -> None:
@@ -163,8 +160,8 @@ def test_browse_inventory_uses_browse_lidvids(tmp_path: Path) -> None:
     env = make_bundle_env(tmp_path)
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     _run_collections(env)
-    rows = read_csv_rows(env.bundle_dir / 'browse' / 'collection_browse.tab')
-    assert rows[1] == ['P', 'urn:nasa:pds:fake_bundle:browse:1234567890w::1.0']
+    rows = read_csv_rows(env.bundle_dir / 'browse' / 'collection_browse.csv')
+    assert rows == [['P', 'urn:nasa:pds:fake_bundle:browse:1234567890w::1.0']]
 
 
 def test_inventory_rows_sorted_by_image_name_not_path(tmp_path: Path) -> None:
@@ -173,9 +170,9 @@ def test_inventory_rows_sorted_by_image_name_not_path(tmp_path: Path) -> None:
     touch_label(env.bundle_dir / 'data', 'zz9/1111111111n')
     touch_label(env.bundle_dir / 'data', 'aa0/2222222222w')
     _run_collections(env)
-    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.tab')
-    assert rows[1][1] == 'urn:nasa:pds:fake_bundle:data:1111111111n::1.0'
-    assert rows[2][1] == 'urn:nasa:pds:fake_bundle:data:2222222222w::1.0'
+    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.csv')
+    assert rows[0][1] == 'urn:nasa:pds:fake_bundle:data:1111111111n::1.0'
+    assert rows[1][1] == 'urn:nasa:pds:fake_bundle:data:2222222222w::1.0'
 
 
 def test_duplicate_image_names_produce_duplicate_rows(tmp_path: Path) -> None:
@@ -184,9 +181,9 @@ def test_duplicate_image_names_produce_duplicate_rows(tmp_path: Path) -> None:
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     touch_label(env.bundle_dir / 'data', 'shard1/1234567890w')
     _run_collections(env)
-    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.tab')
-    assert len(rows) == 3
-    assert rows[1] == rows[2]
+    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.csv')
+    assert len(rows) == 2
+    assert rows[0] == rows[1]
 
 
 def test_non_backplane_label_files_ignored(tmp_path: Path) -> None:
@@ -196,8 +193,27 @@ def test_non_backplane_label_files_ignored(tmp_path: Path) -> None:
     other.parent.mkdir(parents=True)
     other.write_text('<x/>\n', encoding='utf-8')
     _run_collections(env)
-    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.tab')
-    assert rows == [['Member Status', 'LIDVID_LID']]
+    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.csv')
+    assert rows == []
+
+
+def test_every_inventory_line_ends_in_a_line_feed_alone(tmp_path: Path) -> None:
+    """Every line of each inventory, the last included, ends in a line feed and no CR.
+
+    The collection labels declare their records delimited by a line feed, and a
+    delimited table's last record is delimited like every other.
+    """
+    env = make_bundle_env(tmp_path)
+    touch_label(env.bundle_dir / 'data', 'shard0/1111111111n')
+    touch_label(env.bundle_dir / 'data', 'shard0/2222222222w')
+    _run_collections(env)
+    raws = [
+        (env.bundle_dir / 'data' / 'collection_data.csv').read_bytes(),
+        (env.bundle_dir / 'browse' / 'collection_browse.csv').read_bytes(),
+    ]
+    endings = [[line[-1:] for line in raw.splitlines(keepends=True)] for raw in raws]
+    assert endings == [[b'\n', b'\n'], [b'\n', b'\n']]
+    assert [raw for raw in raws if b'\r' in raw] == []
 
 
 # ---------------------------------------------------------------------------
@@ -219,12 +235,12 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
     assert failed == 0
     data_label = env.bundle_dir / 'data' / 'collection_data.lblx'
     text = data_label.read_text(encoding='utf-8')
-    assert str(FCPath(env.bundle_dir) / 'data' / 'collection_data.tab') in text
+    assert str(FCPath(env.bundle_dir) / 'data' / 'collection_data.csv') in text
     assert '<start>2004-02-07T04:25:35Z</start>' in text
     assert '<stop>2004-02-22T05:32:17Z</stop>' in text
     browse_label = env.bundle_dir / 'browse' / 'collection_browse.lblx'
     browse_text = browse_label.read_text(encoding='utf-8')
-    assert str(FCPath(env.bundle_dir) / 'browse' / 'collection_browse.tab') in browse_text
+    assert str(FCPath(env.bundle_dir) / 'browse' / 'collection_browse.csv') in browse_text
 
 
 def test_a_data_collection_with_no_range_leaves_no_earlier_label(tmp_path: Path) -> None:
@@ -835,8 +851,8 @@ def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) ->
     env = _cross_reference_env(tmp_path)
     _run_global_index(env)
     _run_collections(env)
-    inventory_rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.tab')
-    inventory_lid = inventory_rows[1][1].split('::')[0]
+    inventory_rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.csv')
+    inventory_lid = inventory_rows[0][1].split('::')[0]
     bodies_rows = read_csv_rows(
         env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab'
     )
@@ -848,8 +864,8 @@ def test_global_index_rings_lid_matches_collection_inventory(tmp_path: Path) -> 
     env = _cross_reference_env(tmp_path)
     _run_global_index(env)
     _run_collections(env)
-    inventory_rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.tab')
-    inventory_lid = inventory_rows[1][1].split('::')[0]
+    inventory_rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.csv')
+    inventory_lid = inventory_rows[0][1].split('::')[0]
     rings_rows = read_csv_rows(
         env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab'
     )
@@ -860,6 +876,6 @@ def test_inventory_lidvid_round_trips_with_canonical_builders(tmp_path: Path) ->
     """With canonical LID builders, the inventory LIDVID is the data LID plus ::1.0."""
     env = _cross_reference_env(tmp_path)
     _run_collections(env)
-    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.tab')
+    rows = read_csv_rows(env.bundle_dir / 'data' / 'collection_data.csv')
     expected = env.dataset.pds4_image_name_to_data_lid('1234567890w') + '::1.0'
-    assert rows[1][1] == expected
+    assert rows[0][1] == expected
