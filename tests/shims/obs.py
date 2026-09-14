@@ -427,8 +427,14 @@ class FakeObs:
 
         Returns:
             A :class:`FakeUV` carrying one ``(u, v)`` per input point, in the
-            pixel corner coordinates the real call answers in, broadcast to the
-            longer of the two inputs.
+            pixel corner coordinates the real call answers in.  A scalar
+            alongside an array is broadcast against it, so the result is as
+            long as the longer input.
+
+        Raises:
+            ValueError: If both inputs are arrays of different lengths.
+                Neither can be broadcast against the other, and the shim makes
+                no attempt to reconcile them.
         """
         ra_arr = np.atleast_1d(np.asarray(_extract_vals(ra), dtype=np.float64))
         dec_arr = np.atleast_1d(np.asarray(_extract_vals(dec), dtype=np.float64))
