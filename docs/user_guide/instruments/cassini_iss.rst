@@ -234,7 +234,8 @@ form:
   the exception, as its row says.
 * A label keyword holding two or four values is split into one key per value.
 * A value the label writes as ``N/A``, ``UNK``, ``--`` or ``-999.0`` is
-  recorded as written; each means the information was not available.
+  recorded as written. What it means depends on the fact, and the fact's row
+  says so wherever the label writes one.
 * A fact whose keyword the label lacks is null.
 
 .. list-table::
@@ -301,7 +302,8 @@ form:
      - ``DELAYED_READOUT_FLAG``
      - none
    * - ``detector_temperature``
-     - The temperature of the detector.
+     - The temperature of the detector; ``-999.0`` when the label has no
+       reading.
      - ``DETECTOR_TEMPERATURE``
      - degrees C
    * - ``electronics_bias``
@@ -338,7 +340,8 @@ form:
      - ``EXPOSURE_DURATION``
      - milliseconds
    * - ``filter_temperature``
-     - The temperature of the filter wheels.
+     - The temperature of the filter wheels; ``-999.0`` when the label has no
+       reading.
      - ``FILTER_TEMPERATURE``
      - degrees C
    * - ``flight_software_version_id``
@@ -373,7 +376,8 @@ form:
      - ``IMAGE_OBSERVATION_TYPE``
      - none
    * - ``instrument_data_rate``
-     - The rate at which data left the camera.
+     - The rate at which data left the camera; ``-999.0`` when the label has
+       no value.
      - ``INSTRUMENT_DATA_RATE``
      - kilobits per second
    * - ``inst_cmprs_type``
@@ -418,12 +422,14 @@ form:
      - ``LIGHT_FLOOD_STATE_FLAG``
      - none
    * - ``method_description``
-     - The information or algorithm used to choose the exposure.
+     - The information or algorithm used to choose the exposure; ``N/A`` when
+       none was given.
      - ``METHOD_DESC``
      - none
    * - ``missing_lines``
-     - The number of missing or incomplete image lines; ``N/A``, or on a few
-       images ``UNK``, for a lossy compressed image.
+     - The number of missing or incomplete image lines, which is counted only
+       for an image that was not lossy compressed: a lossy compressed image
+       has ``N/A``, or on a few images ``UNK``.
      - ``MISSING_LINES``
      - lines
    * - ``missing_packet_flag``
@@ -432,12 +438,14 @@ form:
      - ``MISSING_PACKET_FLAG``
      - none
    * - ``optics_temperature_front``
-     - The temperature of the front optics.
+     - The temperature of the front optics; ``-999.0`` for an image whose
+       extended header was missing.
      - ``OPTICS_TEMPERATURE``, first value
      - degrees C
    * - ``optics_temperature_back``
      - The temperature of the rear optics; ``-999.0`` for the wide angle
-       camera, which has no rear optics sensor.
+       camera, which has no rear optics sensor, and for a narrow angle image
+       whose extended header was missing.
      - ``OPTICS_TEMPERATURE``, second value
      - degrees C
    * - ``order_number``
@@ -463,12 +471,12 @@ form:
      - ``TARGET_DESC``
      - none
    * - ``pds3_target_list``
-     - Always ``N/A``: the archive does not list the bodies in view.
+     - The bodies in view, which the label always writes as ``N/A``.
      - ``TARGET_LIST``
      - none
    * - ``pds3_target_name``
      - The target named when the observation was planned, which is often not
-       what the image shows.
+       what the image shows; ``UNK`` when it is unknown.
      - ``TARGET_NAME``
      - none
    * - ``prepare_cycle_index``
@@ -485,7 +493,8 @@ form:
      - ``RECEIVED_PACKETS``
      - packets
    * - ``sensor_head_electronics_temperature``
-     - The temperature of the sensor head electronics.
+     - The temperature of the sensor head electronics; ``-999.0`` when the
+       label has no reading.
      - ``SENSOR_HEAD_ELEC_TEMPERATURE``
      - degrees C
    * - ``sequence_id``
@@ -516,7 +525,7 @@ form:
      - ``STOP_TIME``
      - UTC
    * - ``telemetry_format_id``
-     - The telemetry mode, for example ``S&ER3``, or ``UNK``.
+     - The telemetry mode, for example ``S&ER3``; ``UNK`` when it is unknown.
      - ``TELEMETRY_FORMAT_ID``
      - none
    * - ``valid_maximum_full_well``
