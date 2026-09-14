@@ -90,7 +90,16 @@
                 </Internal_Reference>
             </Observing_System_Component>
         </Observing_System>
-        <!-- TODO Need to add targets here -->
+        $FOR(target=TARGETS)
+        <Target_Identification>
+            <name>$target.name$</name>
+            <type>$target.target_type$</type>
+            <Internal_Reference>
+                <lid_reference>$target.lid$</lid_reference>
+                <reference_type>data_to_target</reference_type>
+            </Internal_Reference>
+        </Target_Identification>
+        $END_FOR
         <Mission_Area>
             <cassini:Cassini>
                 <cassini:ISS_Specific_Attributes>

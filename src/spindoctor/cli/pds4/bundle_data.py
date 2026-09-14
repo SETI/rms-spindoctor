@@ -11,6 +11,7 @@ from pdslogger import PdsLogger
 from spindoctor.cli.pds4.data_objects import configured_methods, describe_backplane_fits
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
+from spindoctor.cli.pds4.targets import image_targets, target_table
 from spindoctor.dataset.dataset import DataSet, ImageFiles
 from spindoctor.support.file import json_as_string
 
@@ -30,8 +31,9 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold (one in a unit other than the one the
             configuration gives its plane, or with a minimum or maximum that is
-            NaN or infinite) or a navigation document whose observation block
-            records no exposure times, as a navigation by an earlier version left.
+            NaN or infinite), a navigation document whose observation block
+            records no exposure times, as a navigation by an earlier version left,
+            or backplane metadata naming no target for the data label to name.
     """
 
     WRITTEN = 'written'
@@ -84,6 +86,14 @@ def generate_bundle_data_files(
     failed before anything is written for it, the log naming the image, until it is
     navigated again; the times are taken from nowhere else.
 
+    A data label names every target the image's backplanes cover, as
+    :func:`~spindoctor.cli.pds4.targets.image_targets` finds them in its backplane
+    metadata and the configuration's targets table identifies them: each body the
+    metadata names, and the ring target when it holds a ring statistic, handed to the
+    template as ``TARGETS`` in the table's order.  PDS4 requires a data label to name one
+    at least, so an image whose metadata names no body and holds no ring statistic is
+    failed before anything is written for it, the log naming the image.
+
     The backplane FITS is copied into the bundle, beside its data label, which names
     it with no directory part, and the label's size, checksum and time are the
     copy's.
@@ -106,12 +116,16 @@ def generate_bundle_data_files(
         nothing for the bundle to describe, and FAILED when a label could not be
         rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
-        minimum or maximum that is NaN or infinite, or the navigation document's
-        observation block records no exposure times.
+        minimum or maximum that is NaN or infinite, the navigation document's
+        observation block records no exposure times, or the backplane metadata
+        names no target.
 
     Raises:
         ValueError: If the batch does not hold exactly one image.
         OSError: If the backplane FITS cannot be read or copied.
+        KeyError: If the configuration's targets table has no entry for a target the
+            backplane metadata names.  The message names it, and nothing is written for
+            the image.
     """
 
     if len(image_files.image_files) != 1:
@@ -208,6 +222,19 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.FAILED
 
+        # A data label names every target the image's backplanes cover, and PDS4 requires
+        # one at least, so an image whose backplane metadata names no body and holds no
+        # ring statistic cannot be labeled: it is failed before anything is written for it.
+        targets = image_targets(bp_stats, target_table(dataset.config))
+        if len(targets) == 0:
+            logger.error(
+                'Failing bundle generation for "%s": its backplane metadata names no body and '
+                'holds no ring statistic, so its data label has no target to name, and a data '
+                'label has to name one. Nothing is written for the image',
+                image_path,
+            )
+            return BundleDataOutcome.FAILED
+
         fits_source_path = backplane_results_root / (results_path_stub + '_backplanes.fits')
         fits_source_local = cast(Path, fits_source_path.retrieve())
 
@@ -263,6 +290,7 @@ def generate_bundle_data_files(
         template_vars['BACKPLANE_FILENAME'] = fits_file_path.name
         template_vars['BACKPLANE_PATH'] = str(fits_file_path)
         template_vars['BACKPLANE_FITS'] = fits_objects
+        template_vars['TARGETS'] = targets
         template_vars['BACKPLANE_SUPPL_FILENAME'] = suppl_file_path.name
         template_vars['BACKPLANE_SUPPL_PATH'] = str(suppl_file_path)
         template_vars['BROWSE_FULL_FILENAME'] = browse_image_path.name
