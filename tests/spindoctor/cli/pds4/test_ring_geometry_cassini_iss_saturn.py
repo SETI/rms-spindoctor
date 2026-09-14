@@ -19,7 +19,7 @@ from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortC
 from spindoctor.cli.pds4.global_index import INDEX_VALUE_FORMATS
 from spindoctor.support.time import pds4_utc_midpoint
 
-from .conftest import label_cohort_images, make_cohort_bundle_env
+from .cohort_bundle import label_cohort_images, make_cohort_bundle_env
 
 NAMESPACES = {
     'pds': 'http://pds.nasa.gov/pds4/pds/v1',

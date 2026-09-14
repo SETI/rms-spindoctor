@@ -17,7 +17,8 @@ from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortC
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
-from .conftest import make_image_file, write_cohort_bundle
+from .cohort_bundle import write_cohort_bundle
+from .conftest import make_image_file
 
 
 @pytest.fixture

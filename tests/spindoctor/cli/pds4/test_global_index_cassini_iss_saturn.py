@@ -32,6 +32,7 @@ from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.global_index import INDEX_VALUE_FORMATS, generate_global_index_files
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
+from .cohort_bundle import write_cohort_bundle
 from .conftest import (
     index_entry,
     make_bundle_env,
@@ -39,7 +40,6 @@ from .conftest import (
     read_index_rows,
     ring_metadata,
     touch_label,
-    write_cohort_bundle,
     write_supplemental,
 )
 

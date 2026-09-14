@@ -21,7 +21,8 @@ from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortC
 from spindoctor.config import DEFAULT_CONFIG, Config
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
-from .conftest import CohortBundleEnv, label_cohort_images, read_csv_rows, summarize_bundle
+from .cohort_bundle import CohortBundleEnv, label_cohort_images, summarize_bundle
+from .conftest import read_csv_rows
 
 PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
 """The PDS4 common dictionary's namespace, under the prefix the paths below use."""
