@@ -416,14 +416,15 @@ Work items, in dependency order:
    guide matches. Reconcile the documentation with the tree the generator
    actually writes. Its swallowed-label-write part is fixed: every label
    goes through one helper that reports what `pdstemplate` returned and fails
-   the run when a label was not written. Its inventory-filename part, the
-   `.csv`/`.tab` mismatch, is still open.
+   the run when a label was not written. So is its inventory-filename part:
+   the collection inventories are written as the `.csv` files their labels
+   name.
 2. **Template finalization acceptance list** — the items recorded
    on #53: schema validation, the unreferenced `cassini:*` variables and
    hardcoded placeholders, TITLE/DESCRIPTION wording, unrendered
    bundle-level products, variable-less global-index labels, the index
    tables' missing-value sentinel, non-navigated-image
-   handling, and the `.tab`/`.csv` + directory-layout decision. These are
+   handling, and the directory layout. These are
    the acceptance criteria for "final templates" in the paragraph above.
 3. **#30** — backplane label design (couples to the #55 backplane-set
    decision).
