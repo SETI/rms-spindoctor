@@ -596,6 +596,12 @@ supplemental file.  A supplemental file with no data label beside it adds no row
 its epochs are not in the range the data collection label states; its statistics are
 still checked, as every supplemental file's are.
 
+A body gets a row of the bodies table whether or not it has any statistic: the backplane
+writer records a body in the backplane document from the image's inventory alone when
+none of its planes has a value there, and each of that row's statistic cells is then the
+masked value.  The rings are recorded only with their statistics, so an image whose rings
+have none gets no row of the rings table.
+
 **The table.**  Each table is fixed width, as the reference bundle's index tables are:
 a header line naming the fields, separated by commas, and then the rows.
 :func:`~spindoctor.cli.pds4.global_index.lay_out_table` pads every field to the longest
