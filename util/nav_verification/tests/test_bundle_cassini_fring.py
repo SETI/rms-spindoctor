@@ -8,6 +8,7 @@ import pytest
 from util.nav_verification.boresight import separation_px
 from util.nav_verification.bundle_cassini_fring import (
     NAC_PLATE_SCALE_URAD,
+    bundle_image_names,
     read_bundle_pointing,
     suppl_path,
 )
@@ -54,6 +55,11 @@ def test_suppl_path_refuses_what_is_not_an_image_name() -> None:
     """A name the bundle's convention cannot describe is refused where it is given."""
     with pytest.raises(ValueError, match='does not name a Cassini ISS image'):
         suppl_path('mosaic', observation_id='ISS_006RI', bundle_dir=Path('/b'))
+
+
+def test_an_observation_the_bundle_does_not_hold_has_no_frames(tmp_path: Path) -> None:
+    """Comparing a pass the bundle never covered is a question, not an error."""
+    assert bundle_image_names(observation_id='ISS_006RI', bundle_dir=tmp_path) == []
 
 
 def test_pointing_comes_from_the_cmatrix(tmp_path: Path) -> None:

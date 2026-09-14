@@ -192,7 +192,12 @@ def bundle_image_names(
         bundle never covered is asking a reasonable question.
     """
     directory = FCPath(bundle_dir) / observation_id.lower()
-    if not directory.is_dir():
+    # filecache raises for a path that is not there rather than answering False.
+    try:
+        present = directory.is_dir()
+    except FileNotFoundError:
+        present = False
+    if not present:
         return []
     names = []
     for path in directory.glob('*_reproj_img_suppl.txt'):
