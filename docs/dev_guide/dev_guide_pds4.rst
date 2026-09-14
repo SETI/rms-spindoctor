@@ -32,7 +32,7 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    the copy is the same bytes (see `The FITS and its data objects`_).
 
 2. **Collections and indexes.**  After every per-image data label is in place,
-   :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` reads
+   :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` reads
    every ``_supplemental.txt`` in the bundle's ``data/`` tree once, writes the
    ``global_index_bodies`` and ``global_index_rings`` tables and their labels
    under ``document/supplemental/``, and takes the range of the products'
@@ -93,7 +93,7 @@ per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
 Each index column is written in the format
-:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit, each
+:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives its unit, each
 chosen from what one pixel resolves, within the roughly seven significant digits a
 float32 array carries.  Nothing
 checks the configured units when a bundle is written: a unit the table has no
@@ -551,8 +551,8 @@ start and the greatest stop over every supplemental file, written to whole secon
 with the start rounded down and the stop up.  The range is taken in the one read
 of the supplemental files the summary pass makes -- the global
 index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
-:func:`~spindoctor.cli.pds4.collections.generate_global_index_files` returns it in
-its :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome`.  That is why the
+:func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns it in
+its :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome`.  That is why the
 summary pass runs the index first and hands the range to
 :func:`~spindoctor.cli.pds4.collections.generate_collection_files`.  A scan that
 read no supplemental file yields no range, and the data collection is then not
@@ -810,7 +810,7 @@ documented above.
 - :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` — phase 1, one image.
 - :func:`~spindoctor.cli.pds4.collections.generate_collection_files` — phase 2, collection
   + bundle assembly.
-- :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` — per-bundle bodies
+- :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` — per-bundle bodies
   / rings global indexes.
 - :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` — phase 2, the
   run-level products: the readme, the static collections, the user guide and the bundle
@@ -825,7 +825,7 @@ documented above.
   and arrays of a backplane FITS, read from the source before the copy is made,
   for the data label of its copy.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
-  :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome` — the range of the
+  :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome` — the range of the
   products' epochs, taken in the global index's read of the supplemental files
   and handed to the collection generator.
 - :func:`~spindoctor.support.time.et_to_pds4_utc` — the PDS4 spelling of an epoch,

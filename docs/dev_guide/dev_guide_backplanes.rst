@@ -258,7 +258,7 @@ If the part of a unit before any ``/`` is exactly ``rad``, it becomes ``deg``
 and the rest is kept, so ``rad/pixel`` becomes ``deg/pixel``. Every other unit
 is left alone. An angular unit other than ``rad`` (``mrad``, ``arcsec``) would
 need a change to that function, and every unit needs a format in
-:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS`. Two tests over the
+:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS`. Two tests over the
 shipped configuration fail on a unit that needs either change: one allows only
 the measures ``rad``, ``deg`` and ``km``, and the other looks every unit up in
 that table.
