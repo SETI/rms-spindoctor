@@ -48,6 +48,7 @@ from typing import Any, ClassVar
 import julian
 import numpy as np
 
+from spindoctor.cli.backplanes.backplanes_rings import ring_target
 from spindoctor.dataset.dataset_pds3_cassini_iss import (
     DataSetPDS3CassiniISS,
     DataSetPDS3CassiniISSSaturn,
@@ -91,6 +92,21 @@ GATED_MIDTIME_ET = 129400823.55
 Minutes after the first, so the two sit in one observation directory: an image
 the bundle has nothing to say about is the ordinary neighbor of one it does.
 """
+
+LIMB_RING_INCIDENCE_DEG = 64.59619
+"""The incidence angle of sunlight on Saturn's ring plane at the limb image's epoch.
+
+Each of the three is 90 degrees less the Sun's elevation above Saturn's equator at the
+image's epoch, as SPICE gives it, which on a real frame agrees with the backplane
+stage's ring-center incidence angle to within a thousandth of a degree.  The cohort is
+written without kernels, so the values are recorded here rather than computed.
+"""
+
+RINGS_RING_INCIDENCE_DEG = 64.68149
+"""The incidence angle of sunlight on Saturn's ring plane at the ring image's epoch."""
+
+GATED_RING_INCIDENCE_DEG = 64.59625
+"""The incidence angle of sunlight on Saturn's ring plane at the gated image's epoch."""
 
 _LIMB_SUBTREE = 'COISS_2001/data/1454725799_1455008789'
 """The volume and observation directory the first and third images sit under."""
@@ -614,6 +630,8 @@ class CohortCassiniISSSaturn(Cohort):
     ring radii span Saturn's main rings; the resolutions are what a Cassini frame
     of a body a few hundred thousand kilometers away resolves.
     """
+    RING_TARGET: ClassVar[str] = ring_target('SATURN')
+    """The ring target the backplane stage computes a Saturn image's ring backplanes for."""
 
     @classmethod
     def images(cls) -> tuple[CohortImage, ...]:
@@ -641,6 +659,7 @@ class CohortCassiniISSSaturn(Cohort):
                     ),
                 ),
                 rings=False,
+                ring_incidence_angle=LIMB_RING_INCIDENCE_DEG,
             ),
             CohortImage(
                 stub=RINGS_STUB,
@@ -660,6 +679,7 @@ class CohortCassiniISSSaturn(Cohort):
                     ),
                 ),
                 rings=True,
+                ring_incidence_angle=RINGS_RING_INCIDENCE_DEG,
             ),
             CohortImage(
                 stub=GATED_STUB,
@@ -672,6 +692,7 @@ class CohortCassiniISSSaturn(Cohort):
                 ),
                 bodies=(),
                 rings=False,
+                ring_incidence_angle=GATED_RING_INCIDENCE_DEG,
             ),
         )
 

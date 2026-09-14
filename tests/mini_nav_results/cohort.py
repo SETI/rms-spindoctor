@@ -74,6 +74,9 @@ class CohortImage:
         index_file_row: The index row an enumeration hands on with it.
         bodies: The bodies its backplanes cover, empty when it has none.
         rings: Whether its backplanes cover the ring system.
+        ring_incidence_angle: The incidence angle of sunlight on the ring plane at
+            its epoch, in degrees, which its backplane metadata records beside the
+            ring target whether or not its backplanes cover the rings.
     """
 
     stub: str
@@ -84,6 +87,7 @@ class CohortImage:
     index_file_row: dict[str, Any]
     bodies: tuple[CohortBody, ...]
     rings: bool
+    ring_incidence_angle: float
 
     @property
     def navigated(self) -> bool:
@@ -95,7 +99,7 @@ class CohortImage:
 class Cohort(ABC):
     """A written cohort, and where each half of it went.
 
-    The base of every bundle's cohort.  A subclass sets the five class attributes
+    The base of every bundle's cohort.  A subclass sets the six class attributes
     and implements :meth:`images`, :meth:`camera_of` and :meth:`dataset`; this class
     writes the cohort from them, with :meth:`write`.
 
@@ -109,6 +113,9 @@ class Cohort(ABC):
             included, which replaces the image's own.
         PLANE_BOUNDS: What one plane of each configured name spans, in the units
             the configuration declares; the backplane products ramp between them.
+        RING_TARGET: The ring target the backplane stage computes the ring
+            backplanes of the bundle's images for, which each image's backplane
+            metadata names.
         root: The directory everything below sits under.
         nav_results_root: Where the navigation documents and browse images are.
         backplane_results_root: Where the backplane FITS files and their
@@ -124,6 +131,7 @@ class Cohort(ABC):
     IMAGE_SUFFIX: ClassVar[str]
     LABEL_SUFFIX: ClassVar[str]
     PLANE_BOUNDS: ClassVar[Mapping[str, tuple[float, float]]]
+    RING_TARGET: ClassVar[str]
 
     root: Path
     nav_results_root: Path
@@ -209,6 +217,8 @@ class Cohort(ABC):
                     FCPath(fits_path),
                     bodies=image.bodies,
                     rings=image.rings,
+                    ring_target=cls.RING_TARGET,
+                    ring_incidence_angle=image.ring_incidence_angle,
                     plane_bounds=cls.PLANE_BOUNDS,
                     config=DEFAULT_CONFIG,
                 )

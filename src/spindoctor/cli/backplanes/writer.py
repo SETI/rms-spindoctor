@@ -38,7 +38,9 @@ def write_fits(
         body_id_map: The body id map.
         config: The configuration.
         bodies_result: Result from create_body_backplanes containing statistics.
-        rings_result: Result from create_ring_backplanes containing statistics.
+        rings_result: Result from create_ring_backplanes, whose ring target, incidence
+            angle and statistics the metadata's ``rings`` block records as ``target``,
+            ``incidence_angle`` and ``backplanes``.
         logger: Logger for diagnostic messages.
     """
 
@@ -126,9 +128,14 @@ def write_fits(
         if body_entry:
             backplane_metadata['bodies'][body_name] = body_entry
 
-    # Extract ring statistics
+    # The ring target the ring backplanes were computed for, the incidence angle of
+    # sunlight on its plane, and each ring plane's statistics
     if rings_result and 'statistics' in rings_result:
-        backplane_metadata['rings'] = {'backplanes': rings_result['statistics']}
+        backplane_metadata['rings'] = {
+            'target': rings_result['target_key'],
+            'incidence_angle': rings_result['incidence_angle'],
+            'backplanes': rings_result['statistics'],
+        }
 
     metadata_file_path.write_text(json_as_string(backplane_metadata))
     logger.debug('Wrote backplane metadata: %s', metadata_file_path)
