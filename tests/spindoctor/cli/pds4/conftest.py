@@ -542,6 +542,20 @@ def write_supplemental(
     return path
 
 
+def _touch_placeholder(path: Path) -> Path:
+    """Create a placeholder label at a path, and the directories above it.
+
+    Parameters:
+        path: Where the placeholder goes.
+
+    Returns:
+        ``path``.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('<placeholder/>\n', encoding='utf-8')
+    return path
+
+
 def touch_label(data_dir: Path, stub: str) -> Path:
     """Create a ``<stub>_backplanes.lblx`` placeholder in the bundle data tree.
 
@@ -552,10 +566,20 @@ def touch_label(data_dir: Path, stub: str) -> Path:
     Returns:
         The path of the created label file.
     """
-    path = data_dir / f'{stub}_backplanes.lblx'
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text('<placeholder/>\n', encoding='utf-8')
-    return path
+    return _touch_placeholder(data_dir / f'{stub}_backplanes.lblx')
+
+
+def touch_browse_label(browse_dir: Path, stub: str) -> Path:
+    """Create a ``<stub>_summary.lblx`` placeholder in the bundle browse tree.
+
+    Parameters:
+        browse_dir: The bundle's ``browse`` directory.
+        stub: Path stub (may include shard subdirectories) for the image.
+
+    Returns:
+        The path of the created label file.
+    """
+    return _touch_placeholder(browse_dir / f'{stub}_summary.lblx')
 
 
 def read_csv_rows(path: Path) -> list[list[str]]:

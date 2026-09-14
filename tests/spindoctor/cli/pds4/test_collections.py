@@ -3,12 +3,13 @@
 Contract under test (docs/user_guide/user_guide_pds4_bundle.rst "Summary Pass" /
 "Summary Pass Outputs" and docs/dev_guide/dev_guide_pds4.rst "Pipeline overview"):
 ``generate_collection_files`` scans the bundle's ``data/`` tree for
-``*_backplanes.lblx`` labels, sorts them by image name, and writes the
+``*_backplanes.lblx`` labels and its ``browse/`` tree for ``*_summary.lblx``
+labels, sorts each by image name, and writes from them the
 ``collection_data.csv`` / ``collection_browse.csv`` inventories (no header, one
 ``P,<lidvid>`` line per product ending in a line feed alone, LIDVIDs from the
 dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
-``.lblx`` labels.  A collection with no member, which is both of them when the
-tree holds no data label, gets neither file and counts as a label not written.
+``.lblx`` labels.  A collection with no label of its kind on disk gets neither
+file and counts as a label not written.
 ``generate_global_index_files``
 scans ``data/`` for ``*_supplemental.txt`` files and writes
 ``document/supplemental/global_index_bodies.tab`` (one row per image/body) and
@@ -49,6 +50,7 @@ from .conftest import (
     BundleEnv,
     make_bundle_env,
     read_csv_rows,
+    touch_browse_label,
     touch_label,
     write_supplemental,
     write_templates,
@@ -171,8 +173,24 @@ def test_an_empty_data_tree_writes_neither_collection(
         line for line in out.splitlines() if 'The data collection was not written' in line
     ]
     assert len(data_errors) == 1
-    assert 'the data tree holds no data label' in data_errors[0]
+    assert 'the collection has no member' in data_errors[0]
     assert 'the data tree holds no supplemental file' in data_errors[0]
+
+
+def test_a_collection_with_no_member_is_not_written_beside_one_that_has(tmp_path: Path) -> None:
+    """Each collection is judged by its own members: no browse label, no browse collection.
+
+    The data collection has a member and a range, so it is written; the browse
+    collection has no member of its own, so neither its inventory nor its label is,
+    and it counts as one label not written.
+    """
+    env = make_bundle_env(tmp_path)
+    touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    failed = _run_collections(env)
+    assert failed == 1
+    assert (env.bundle_dir / 'data' / 'collection_data.lblx').is_file()
+    browse_products = ['collection_browse.csv', 'collection_browse.lblx']
+    assert [name for name in browse_products if (env.bundle_dir / 'browse' / name).exists()] == []
 
 
 def test_data_inventory_row_per_label_with_primary_status(tmp_path: Path) -> None:
@@ -184,13 +202,24 @@ def test_data_inventory_row_per_label_with_primary_status(tmp_path: Path) -> Non
     assert rows == [['P', 'urn:nasa:pds:fake_bundle:data:1234567890w::1.0']]
 
 
-def test_browse_inventory_uses_browse_lidvids(tmp_path: Path) -> None:
-    """The browse inventory lists the same images with browse LIDVIDs."""
+def test_the_browse_inventory_lists_the_browse_labels_on_disk(tmp_path: Path) -> None:
+    """The browse inventory lists the browse labels in the browse tree, by browse LIDVID.
+
+    It is built from the browse labels rather than the data labels, so an image with a
+    data label and no browse label is not in it, and one with a browse label and no
+    data label is.
+    """
     env = make_bundle_env(tmp_path)
-    touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    touch_label(env.bundle_dir / 'data', 'shard0/1111111111n')
+    touch_label(env.bundle_dir / 'data', 'shard0/2222222222w')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/3333333333n')
     _run_collections(env)
     rows = read_csv_rows(env.bundle_dir / 'browse' / 'collection_browse.csv')
-    assert rows == [['P', 'urn:nasa:pds:fake_bundle:browse:1234567890w::1.0']]
+    assert rows == [
+        ['P', 'urn:nasa:pds:fake_bundle:browse:1111111111n::1.0'],
+        ['P', 'urn:nasa:pds:fake_bundle:browse:3333333333n::1.0'],
+    ]
 
 
 def test_inventory_rows_sorted_by_image_name_not_path(tmp_path: Path) -> None:
@@ -235,6 +264,8 @@ def test_every_inventory_line_ends_in_a_line_feed_alone(tmp_path: Path) -> None:
     env = make_bundle_env(tmp_path)
     touch_label(env.bundle_dir / 'data', 'shard0/1111111111n')
     touch_label(env.bundle_dir / 'data', 'shard0/2222222222w')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/2222222222w')
     _run_collections(env)
     raws = [
         (env.bundle_dir / 'data' / 'collection_data.csv').read_bytes(),
@@ -260,6 +291,7 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
         },
     )
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
     failed = _run_collections(env)
     assert failed == 0
     data_label = env.bundle_dir / 'data' / 'collection_data.lblx'
@@ -324,6 +356,7 @@ def test_a_collection_label_is_written_to_the_bundle_not_to_a_cache(
         },
     )
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
     monkeypatch.setattr(collections_module, 'write_label', _record)
     _run_collections(env)
     assert isinstance(handed_over[label], FCPath)
@@ -358,6 +391,7 @@ def test_a_broken_collection_template_is_counted_and_leaves_the_other(
         tmp_path, template_contents={broken: BROKEN_TEMPLATE, intact: intact_body}
     )
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
     failed = _run_collections(env)
     assert failed == 1
     assert not (env.bundle_dir / broken_dir / broken).exists()

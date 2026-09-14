@@ -26,6 +26,7 @@ from spindoctor.config import MAIN_LOGGER
 from .conftest import (
     BundleEnv,
     make_bundle_env,
+    touch_browse_label,
     touch_label,
     write_supplemental,
 )
@@ -94,6 +95,7 @@ def test_with_no_supplemental_file_the_data_collection_is_not_written(
     env = make_bundle_env(tmp_path)
     data_dir = env.bundle_dir / 'data'
     touch_label(data_dir, 'shard0/1234567890w')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
     _, failed = _summarize(env)
     assert failed == 1
     data_products = ['collection_data.csv', 'collection_data.lblx']
