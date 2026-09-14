@@ -23,6 +23,7 @@ from spindoctor.nav_technique.confidence import ConfidenceBreakdown, ConfidenceS
 from spindoctor.nav_technique.diagnostics import NavTechniqueDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.nav_base import NavBase
 from spindoctor.support.types import NDArrayFloatType
 
@@ -41,6 +42,7 @@ __all__ = [
     'load_model_error_floor',
     'load_ncc_covariance_tuning',
     'log_confidence_breakdown',
+    'reported_position_vu',
     'rotation_pivot_distance_px',
     'rotation_unobservable_sigma_rad',
     'search_window_for_obs',
@@ -135,6 +137,32 @@ def search_window_for_obs(context: NavContext) -> tuple[int, int]:
     """
     margin = context.obs.extfov_margin_vu  # type: ignore[attr-defined]
     return (int(margin[0]), int(margin[1]))
+
+
+def reported_position_vu(
+    position_vu: tuple[float, float], margin_vu: tuple[int, int]
+) -> tuple[float, float]:
+    """Return a technique's working position in the form a person reads.
+
+    A technique works in the extended frame, pixel-centric, because that is
+    what it measures the padded image array in.  A position stated to a person
+    is in the nominal (unpadded) frame, pixel-corner, which is the form that
+    compares directly against a scene file, an image viewer, or another
+    program's output.  A position inside the extended-FOV margin comes back
+    negative, which is where it is.
+
+    Parameters:
+        position_vu: ``(v, u)`` in the extended frame, pixel-centric.
+        margin_vu: ``(margin_v, margin_u)`` extended-FOV margin in whole
+            pixels of padding.
+
+    Returns:
+        ``(v, u)`` in the nominal frame, pixel-corner.
+    """
+    return (
+        position_vu[0] + PIXEL_CENTER_TO_CORNER_PX - margin_vu[0],
+        position_vu[1] + PIXEL_CENTER_TO_CORNER_PX - margin_vu[1],
+    )
 
 
 def rotation_pivot_distance_px(

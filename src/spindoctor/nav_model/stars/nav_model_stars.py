@@ -365,8 +365,11 @@ class NavModelStars(NavModel):
                 # Skip body/ring-blocked stars; they are not labelled.
                 continue
             v_idx, u_idx = self._extfov_indices(star)
-            v_int = int(v_idx)
-            u_int = int(u_idx)
+            # The box marks the pixel the star falls in.  The position is
+            # pixel-centric, so that pixel is the nearest whole number to it,
+            # which is also how the feature's own bounding box is cut.
+            v_int = round(v_idx)
+            u_int = round(u_idx)
             v_half = (star.psf_size[0] // 2) + 2
             u_half = (star.psf_size[1] // 2) + 2
             u_min, v_min = obs.clip_extfov(u_int - u_half, v_int - v_half)
@@ -597,19 +600,18 @@ def _star_feature_id(star: MutableStar) -> str:
 def _star_short_info(star: MutableStar) -> str:
     """Return a one-line text summary of a star, suitable for INFO logging.
 
-    The line keeps the shape operators grep for.  The
-    ``U`` and ``V`` values are pixel-centric coordinates in the
-    nominal (unpadded) frame, which is the convention every other position in
-    a navigation log and document uses; the ``+/-`` figure after each is the
-    per-exposure smear amplitude along that axis.
+    The line keeps the shape operators grep for.  ``U`` and ``V`` are the
+    star's position in pixel-corner coordinates in the nominal (unpadded)
+    frame; the ``+/-`` figure after each is the per-exposure smear amplitude
+    along that axis.
     """
     jb = getattr(star, 'johnson_mag_b', None) or 0.0
     jv = getattr(star, 'johnson_mag_v', None) or 0.0
     temp = getattr(star, 'temperature', None) or 0.0
     return (
         f'Star {star.catalog_name:>6s}/{star.pretty_name:>9s} '
-        f'U {star.u - PIXEL_CENTER_TO_CORNER_PX:9.3f}+/-{abs(star.move_u):7.3f} '
-        f'V {star.v - PIXEL_CENTER_TO_CORNER_PX:9.3f}+/-{abs(star.move_v):7.3f} '
+        f'U {star.u:9.3f}+/-{abs(star.move_u):7.3f} '
+        f'V {star.v:9.3f}+/-{abs(star.move_v):7.3f} '
         f'VMAG {(-1.0 if star.vmag is None else star.vmag):6.3f} '
         f'JBMAG {jb:6.3f} '
         f'JVMAG {jv:6.3f} '
@@ -622,13 +624,8 @@ def _star_short_info(star: MutableStar) -> str:
 def _star_summary(star: MutableStar) -> dict[str, Any]:
     """Return a compact JSON-friendly summary of a star (for metadata).
 
-    ``u`` and ``v`` are pixel-centric coordinates in the nominal
-    (unpadded) frame, the same numbers the log line carries.  Every position
-    a navigation document records is pixel-centric, so a reader needs to know
-    only which frame it is in: this one is the unpadded frame, and a STAR
-    feature's ``predicted_vu`` is the same point plus the extended-FOV margin.
-    The record itself holds pixel corner coordinates, which is this value plus
-    ``PIXEL_CENTER_TO_CORNER_PX``.
+    ``u`` and ``v`` are the star's position in pixel-corner coordinates in the
+    nominal (unpadded) frame, the same numbers the log line carries.
     """
     return {
         'catalog_name': star.catalog_name,
@@ -639,8 +636,8 @@ def _star_summary(star: MutableStar) -> dict[str, Any]:
         'vmag': star.vmag,
         'photometry_corrected': star.photometry_corrected,
         'photometry_saturated': star.photometry_saturated,
-        'u': star.u - PIXEL_CENTER_TO_CORNER_PX,
-        'v': star.v - PIXEL_CENTER_TO_CORNER_PX,
+        'u': star.u,
+        'v': star.v,
         'move_u': star.move_u,
         'move_v': star.move_v,
         'spectral_class': star.spectral_class,
