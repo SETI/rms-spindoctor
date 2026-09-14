@@ -556,8 +556,9 @@ def generate_global_index_files(
     The tables index exactly the images the data inventory lists, the data labels in
     the data tree that :func:`~spindoctor.cli.pds4.collections.data_products` names,
     each with the rows its supplemental file gives: a row in the bodies table for each
-    body it has statistics for, and a row in the rings table when it has ring
-    statistics.  A supplemental file with no data label beside it adds no row, so the
+    body its backplane document names, whether or not the body has any statistic, and a
+    row in the rings table when it has ring statistics.  A supplemental file with no data
+    label beside it adds no row, so the
     tables and the inventory cannot disagree about what the bundle holds, and its
     epochs are not taken into the range; its statistics are still checked, as every
     supplemental file's are.
