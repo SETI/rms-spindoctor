@@ -50,8 +50,9 @@ Two rendering details make the simulated field faithful to a real one:
   0.5 to the eval offset so a star the model predicts at ``(v, u)`` lands there in the
   image, with no half-pixel bias in the recovered offset.
 - **Camera roll about the boresight.** A planted ``offset_rotation_deg`` rotates each
-  star about the image centre before the translation offset, while the star record
-  keeps its unrolled ``(v, u)``; the similarity fit in
+  star about the frame's centre ``(size_v / 2, size_u / 2)`` -- the same point the
+  bodies and the ring system turn about -- before the translation offset, while the
+  star record keeps its unrolled ``(v, u)``; the similarity fit in
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` then
   recovers the roll. See :doc:`dev_guide_rotation`.
 

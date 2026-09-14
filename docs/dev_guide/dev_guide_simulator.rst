@@ -1915,24 +1915,20 @@ positions: the planted ``offset_v`` / ``offset_u``, a star's ``move_v`` /
 ``move_u`` smear vector, a planted ``catalog_error_v`` / ``catalog_error_u``,
 and a companion's ``sep_px``.
 
+The planted roll turns the scene about **one** point in that same convention:
+the frame's center ``(size_v / 2, size_u / 2)``. The stars, the bodies, and the
+ring system all pivot there, so a rolled scene plants a truth its three
+families of content agree on. Moving the pivot displaces every rendered position
+by ``(I - R) d`` for a pivot moved by ``d`` -- a rigid shift of the whole field
+of magnitude ``2 |d| sin(theta / 2)``, the same near the center as far from it
+-- so pivoting the star field half a pixel from the bodies would tilt the star
+solution against the body solution by that amount at every star.
+
 The two centers inside the ``optics`` block -- ``distortion.center_v`` /
-``center_u`` and ``stray_light.center_v`` / ``center_u`` -- do not follow the
-rule above, and they do not agree with each other either. They name where a
-whole-frame field is centered rather than where an object sits.
-
-``stray_light`` takes its center as pixel-centric and converts it to the
-oversampled grid correctly. ``distortion`` scales its center by the oversample
-factor alone, which is the conversion a pixel-corner value needs, and then uses
-the result against a grid laid out in pixel-centric coordinates; its default
-center, taken when the key is absent, is half an oversampled pixel off for the
-same reason. The size of the disagreement grows with the oversample factor, so
-it is nothing at an oversample of 1 and about a third of a detector pixel at
-the default of 4.
-
-Both fields are smooth on the scale of a pixel, so nothing observable rides on
-this today, and no shipped scene sets a distortion center. It is recorded as an
-open defect rather than as a convention, and an author setting either key
-should expect the two to move relative to one another until it is fixed.
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the rule too,
+though what they name is where a whole-frame field is centered rather than where
+an object sits. Both are stated as pixel corners and both convert the same way,
+so the same number written in either block names one point.
 
 Scene parameter reference
 =========================
@@ -1979,7 +1975,9 @@ Top-level fields
      - float
      - 0.0
      - truth
-     - Planted boresight roll (deg) applied about the image center.
+     - Planted boresight roll (deg), applied to stars, bodies, and rings alike
+       about the frame's uv centre ``(size_v / 2, size_u / 2)`` (see
+       :ref:`sim-pixel-convention`).
    * - ``midtime_utc``
      - str
      - none
