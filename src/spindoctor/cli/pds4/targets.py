@@ -19,7 +19,14 @@ from typing import Any
 
 from spindoctor.config import Config
 
-__all__ = ['Pds4Target', 'TargetScan', 'image_targets', 'target_keys', 'target_table']
+__all__ = [
+    'Pds4Target',
+    'TargetScan',
+    'covers_a_target',
+    'image_targets',
+    'target_keys',
+    'target_table',
+]
 
 
 @dataclass(frozen=True)
@@ -80,10 +87,37 @@ def target_keys(backplane_metadata: Mapping[str, Any]) -> list[str]:
         least one ring statistic.
     """
     keys = list(backplane_metadata.get('bodies', {}))
-    rings = backplane_metadata.get('rings', {})
-    if len(rings.get('backplanes', {})) > 0:
-        keys.append(rings['target'])
+    if _holds_ring_statistics(backplane_metadata):
+        keys.append(backplane_metadata['rings']['target'])
     return keys
+
+
+def _holds_ring_statistics(backplane_metadata: Mapping[str, Any]) -> bool:
+    """Return whether an image's backplane metadata holds a ring statistic.
+
+    Parameters:
+        backplane_metadata: The image's backplane metadata.
+
+    Returns:
+        True when its ``rings`` block holds at least one ring statistic.
+    """
+    return len(backplane_metadata.get('rings', {}).get('backplanes', {})) > 0
+
+
+def covers_a_target(backplane_metadata: Mapping[str, Any]) -> bool:
+    """Return whether an image's backplanes cover anything its data label could name.
+
+    Parameters:
+        backplane_metadata: The image's backplane metadata.
+
+    Returns:
+        True when the metadata names a body or holds a ring statistic, the two things
+        :func:`target_keys` takes targets from.  Answering reads no ring target, so it
+        answers for backplanes an earlier version generated, which record none.
+    """
+    return len(backplane_metadata.get('bodies', {})) > 0 or _holds_ring_statistics(
+        backplane_metadata
+    )
 
 
 def _in_table_order(keys: Iterable[str], table: Mapping[str, Pds4Target]) -> tuple[Pds4Target, ...]:
