@@ -246,6 +246,27 @@ def test_a_spice_kernel_collection_whose_metakernel_label_was_not_written_is_not
     assert '| ERROR |' in errors[0]
 
 
+def test_a_static_collection_whose_inventory_does_not_render_leaves_neither_file(
+    tmp_path: Path,
+) -> None:
+    """An inventory whose template errors leaves its collection with neither of its files.
+
+    What an earlier run left at the inventory's path and at its label's is removed, so no
+    label describes an inventory this run did not write.  That it counts, and costs the
+    bundle label, is the static inventory case of the failed-render test.
+    """
+    env = _bundle_env(tmp_path, template_contents={'collection_context.csv': BROKEN_TEMPLATE})
+    earlier = [
+        env.bundle_dir / 'context' / name
+        for name in ('collection_context.csv', 'collection_context.lblx')
+    ]
+    earlier[0].parent.mkdir(parents=True)
+    for path in earlier:
+        path.write_text('an earlier run\n', encoding='utf-8')
+    _run(env)
+    assert [path for path in earlier if path.exists()] == []
+
+
 def test_a_rerun_without_the_user_guide_leaves_no_user_guide_directory(tmp_path: Path) -> None:
     """A rerun over a template directory that no longer holds the guide leaves no directory.
 
