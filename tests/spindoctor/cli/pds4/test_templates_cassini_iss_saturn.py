@@ -47,15 +47,14 @@ from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import ImageFiles
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
+from .cohort_bundle import make_cohort_bundle_env, write_cohort_bundle
 from .conftest import (
     A_RANGE,
-    make_cohort_bundle_env,
     make_image_file,
     navigated_document,
     read_csv_rows,
     touch_label,
     write_backplane_fits,
-    write_cohort_bundle,
 )
 
 SATURN_LATITUDE = {'backplanes': {'body_latitude': {'min': -10.0, 'max': 20.0, 'units': 'deg'}}}

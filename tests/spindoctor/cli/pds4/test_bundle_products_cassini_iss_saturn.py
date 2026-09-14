@@ -19,13 +19,13 @@ import pytest
 from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
-from .conftest import (
+from .cohort_bundle import (
     label_cohort_images,
     make_cohort_bundle_env,
-    read_csv_rows,
     summarize_bundle,
     write_cohort_bundle,
 )
+from .conftest import read_csv_rows
 
 PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
 """The PDS4 common dictionary's namespace, under the prefix the paths below use."""

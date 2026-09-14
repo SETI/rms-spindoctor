@@ -24,12 +24,8 @@ from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.targets import target_table
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
-from .conftest import (
-    label_cohort_images,
-    make_cohort_bundle_env,
-    read_csv_rows,
-    write_cohort_bundle,
-)
+from .cohort_bundle import label_cohort_images, make_cohort_bundle_env, write_cohort_bundle
+from .conftest import read_csv_rows
 
 PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
 """The PDS4 common dictionary's namespace, under the prefix the paths below use."""
