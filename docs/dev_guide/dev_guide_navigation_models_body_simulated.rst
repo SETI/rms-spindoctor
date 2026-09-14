@@ -115,7 +115,7 @@ in via the per-body entry of the observation's filtered scene view
 (``obs.nav_params['bodies']``, see :doc:`dev_guide_simulator`). Expected keys:
 
 - ``name`` — body label used in metadata and the summary PNG.
-- ``center_v``, ``center_u`` — the body centre, in pixel-corner coordinates (see
+- ``center_v``, ``center_u`` — the body center, in pixel-corner coordinates (see
   :ref:`coordinate-systems`).
 - ``range_km`` — subject distance in km (defaults to ``+inf``).
 - ``axis1``, ``axis2``, ``axis3`` — full widths of the three ellipsoid axes, in
@@ -281,7 +281,7 @@ Examples
 
 The simulated body model is consumed by the simulated-image GUI driver
 (``sd_create_simulated_image``). An operator specifies a body — say a Mimas-like
-ellipsoid centred at ``(512, 512)`` with axes ``200`` pixels across, illumination angle ``60``
+ellipsoid centered at ``(512, 512)`` with axes ``200`` pixels across, illumination angle ``60``
 degrees, phase angle ``30`` degrees — and the simulator renders the corresponding
 extended-FOV image plus mask. The downstream
 :class:`~spindoctor.nav_technique.nav_technique_body_disc.BodyDiscCorrelateNav` correlates the

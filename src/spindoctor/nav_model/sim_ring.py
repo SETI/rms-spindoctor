@@ -170,7 +170,7 @@ def predict_ring_feature(
         return PredictedRingFeature(template=None, mask=empty_mask, edges=[])
 
     # The grid starts as array rows and columns and the projection works in
-    # the geometry layer's pixel corner coordinates, where the centre the
+    # the geometry layer's pixel corner coordinates, where the center the
     # caller hands in is stated, so the half pixel goes on here.
     v_coords = np.arange(size_v, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
     u_coords = np.arange(size_u, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX

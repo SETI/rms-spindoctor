@@ -11,7 +11,7 @@ its reliability, the overlay) is inherited rather than reimplemented, so a
 simulated haze frame cannot mean something different from a real one.
 
 The two places where the pixel coordinate systems cross -- the predicted disc
-centre and the masked star disc -- are held against the frame the simulator
+center and the masked star disc -- are held against the frame the simulator
 drew rather than against the arithmetic that produced them.  The rest pin the
 model's own arithmetic and measure nothing rendered.
 """
@@ -38,11 +38,11 @@ _SOLID_RADIUS_PX = 60.0
 # pixel scale, and therefore the one the envelope radius is derived through.
 _KM_PER_PIXEL = 2575.0 / _SOLID_RADIUS_PX
 
-# A body placed away from the frame centre, and at different v and u, so a
-# prediction that had reached for either instead of the body's own centre
+# A body placed away from the frame center, and at different v and u, so a
+# prediction that had reached for either instead of the body's own center
 # could not pass.  Stated half past a whole number in the pixel corner
-# coordinates a scene is written in, the rendered centre falls on a pixel
-# centre, where the frame's mirror symmetry is exact whole array rows.
+# coordinates a scene is written in, the rendered center falls on a pixel
+# center, where the frame's mirror symmetry is exact whole array rows.
 _DISC_V = 100.5
 _DISC_U = 130.5
 # Half-width of the box reflected around the disc: wide enough to hold the
@@ -107,18 +107,18 @@ def _rendered_image(obs: ObsSim) -> NDArrayFloatType:
 
 
 def _rendered_disc_center_vu(image: NDArrayFloatType) -> tuple[float, float]:
-    """Measure a rendered body's centre from the extent of its own light.
+    """Measure a rendered body's center from the extent of its own light.
 
     A fully lit sphere renders radially symmetric, so the first and the last
     row its bright half reaches sit the same distance either side of its
-    centre and their midpoint is that centre, in the pixel centric
+    center and their midpoint is that center, in the pixel centric
     coordinates an array index is read in.
 
     Parameters:
         image: A rendered frame holding one body and nothing else.
 
     Returns:
-        The measured ``(v, u)`` centre in data coordinates.
+        The measured ``(v, u)`` center in data coordinates.
     """
     floor = float(image.min())
     lit = image > floor + 0.5 * (float(image.max()) - floor)
@@ -129,7 +129,7 @@ def _rendered_disc_center_vu(image: NDArrayFloatType) -> tuple[float, float]:
 def _rendered_star_center_vu(
     image: NDArrayFloatType, near_vu: tuple[int, int]
 ) -> tuple[float, float]:
-    """Measure a rendered star's centre of light within a box around it.
+    """Measure a rendered star's center of light within a box around it.
 
     The frame carries a constant pedestal, so the box is weighted by its
     brightness above the frame's own floor before the centroid is taken.
@@ -140,7 +140,7 @@ def _rendered_star_center_vu(
             to the star that the box holds all of its light.
 
     Returns:
-        The measured ``(v, u)`` centre in data coordinates.
+        The measured ``(v, u)`` center in data coordinates.
     """
     v_lo = near_vu[0] - _STAR_REACH_PX
     u_lo = near_vu[1] - _STAR_REACH_PX
@@ -163,9 +163,9 @@ def _mirror_residual(
 
     Parameters:
         image: A rendered frame.
-        center_vu: The pixel centric centre to reflect about; the scenes
-            here place their light on a pixel centre, so a measurement that
-            came out half a pixel away cuts the box off centre and the
+        center_vu: The pixel centric center to reflect about; the scenes
+            here place their light on a pixel center, so a measurement that
+            came out half a pixel away cuts the box off center and the
             residual stops being zero.
         reach_px: Half-width of the box in pixels.
         axis: 0 to reflect rows, 1 to reflect columns.
@@ -186,13 +186,13 @@ def _mirror_residual(
 
 
 def test_predicted_center_is_the_rendered_disc_centre() -> None:
-    """The predicted centre lands on the centre of the disc the renderer drew.
+    """The predicted center lands on the center of the disc the renderer drew.
 
     The body is rendered fully lit, so it is radially symmetric and the frame
     is its own witness: reflected about the row and the column its light
     centroids to, it reproduces itself exactly.  The prediction is then held
-    against that measured centre rather than against the arithmetic that
-    produced it, so a model that read the scene's pixel corner centre as a
+    against that measured center rather than against the arithmetic that
+    produced it, so a model that read the scene's pixel corner center as a
     pixel centric one misses the light by the half pixel that separates the
     two systems.
     """
@@ -342,10 +342,10 @@ def test_bright_star_contributes_a_masked_disc() -> None:
 
 
 def test_star_disc_covers_the_pixels_the_star_lit() -> None:
-    """The masked disc is centred on the light the renderer gave the star.
+    """The masked disc is centered on the light the renderer gave the star.
 
     The rendered star is the anchor: its light is symmetric about the row and
-    the column it centroids to, and the disc that hides it has to be centred
+    the column it centroids to, and the disc that hides it has to be centered
     on the same place.  A scene states a star's position as a pixel corner
     and the disc is painted against pixel centric grids, so a mask painted at
     the stated number sits half a pixel off the light it is there to cover,

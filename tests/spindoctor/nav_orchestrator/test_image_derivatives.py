@@ -30,7 +30,7 @@ def _step_image(shape: tuple[int, int], step_v: int) -> np.ndarray:
 
 
 # A bar whose two edges sit at stated sub-pixel rows, one below its pixel's
-# centre and one above, so a half pixel added to or subtracted from the whole
+# center and one above, so a half pixel added to or subtracted from the whole
 # fixture moves one of the two zero rows whichever way it goes.
 _BAR_SHAPE = (48, 48)
 _BAR_LEADING_V = 12.25
@@ -71,7 +71,7 @@ def _ridge_centroid(gradient: np.ndarray, near_v: float) -> float:
 
     Parameters:
         gradient: Gradient magnitude image.
-        near_v: Pixel-centric row the window is centred on.
+        near_v: Pixel-centric row the window is centered on.
     """
     lo = round(near_v) - 5
     hi = round(near_v) + 6
@@ -120,7 +120,7 @@ def test_gradient_ridge_centres_on_the_planted_edge() -> None:
     crosses partly covered, so the ridge the gaussian and sobel pass produces
     is symmetric about that row and nothing about it is a restatement of the
     operator.  An operator biased by half a pixel, such as a forward difference
-    in place of the centred one, moves the ridge off the number the fixture
+    in place of the centered one, moves the ridge off the number the fixture
     stated and fails here.
     """
     img = _subpixel_bar_image(_BAR_LEADING_V, _BAR_TRAILING_V)
@@ -132,13 +132,13 @@ def test_gradient_ridge_centres_on_the_planted_edge() -> None:
 
 
 def test_edge_dt_zero_locus_is_the_pixel_whose_centre_is_nearest_the_edge() -> None:
-    """The distance transform reads zero on one row per edge, at that row's centre.
+    """The distance transform reads zero on one row per edge, at that row's center.
 
     Every DT-based residual in the pipeline is measured against this zero
     locus, so where it sits relative to the pixel grid is the reference the
     limb, terminator and ring-edge fits all inherit.  A bar boundary at pixel
     centric ``12.25`` puts it on row 12 and one at ``28.75`` on row 29: the
-    pixel whose own centre is nearest the boundary, not the pixel edge the
+    pixel whose own center is nearest the boundary, not the pixel edge the
     boundary runs along.  Reading the boundary half a pixel high would move the
     first row to 13, half a pixel low would move the second to 28, so the pair
     fails whichever way a half pixel goes astray.

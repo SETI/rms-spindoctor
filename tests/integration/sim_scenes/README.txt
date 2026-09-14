@@ -69,13 +69,13 @@ offset_u, move_v / move_u, catalog_error_v / catalog_error_u, and a
 companion's sep_px are differences between two positions.
 
 The planted offset_rotation_deg turns the scene about ONE point in that same
-convention: the frame's centre (size_v / 2, size_u / 2).  The stars, the bodies,
+convention: the frame's center (size_v / 2, size_u / 2).  The stars, the bodies,
 and the ring system all pivot there, so a rolled scene plants a truth its three
 families of content agree on.
 
 The two centres inside the optics block -- distortion.center_v / center_u and
 stray_light.center_v / center_u -- are pixel corners too.  What they name is
-where a whole-frame field is centred rather than where an object sits, and the
+where a whole-frame field is centered rather than where an object sits, and the
 same number written in either block names one point.
 
 Fields

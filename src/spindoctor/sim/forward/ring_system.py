@@ -249,10 +249,10 @@ def render_ring_system(
     lit = (b_obs > 0.0) == (b_sun > 0.0)
     alpha_deg = float(ring_system.get('phase_deg', 0.0))
 
-    # Pixel centres relative to the projected ring centre, mapped back to the
+    # Pixel centers relative to the projected ring center, mapped back to the
     # ring plane through the shared inverse projection.  The grid starts as
     # array rows and columns and the projection works in the geometry layer's
-    # pixel corner coordinates, where the scene states its centre, so the half
+    # pixel corner coordinates, where the scene states its center, so the half
     # pixel goes on here.
     v_coords = np.arange(size_v, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
     u_coords = np.arange(size_u, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX

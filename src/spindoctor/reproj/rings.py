@@ -938,7 +938,7 @@ class RingMosaic:
         Returns:
             Tuple of (u, v) floating-point pixel-corner coordinate arrays, the
             convention the oops FOV works in: a whole number falls on the
-            boundary between two pixels and the centre of column c is at
+            boundary between two pixels and the center of column c is at
             c + 0.5.
         """
         if orbit_model is not None:
@@ -992,7 +992,7 @@ class RingMosaic:
         # size + margin rather than from zero to the padded width.  The bounds
         # therefore come from extfov_*_min / _max, which name the first and last
         # pixel of that frame, and containment is half-open at the top because
-        # these are pixel corners: the centre of the last column is inside it
+        # these are pixel corners: the center of the last column is inside it
         # and the boundary past that column is not.
         u_low = float(obs.extfov_u_min)
         v_low = float(obs.extfov_v_min)
@@ -1060,7 +1060,7 @@ class RingMosaic:
                 longitude axes. The image itself is never interpolated: every
                 sub-sample reads the one image pixel containing it, and the
                 sub-samples of a cell are averaged to produce that cell. Raising
-                it smooths the output and fills cells whose single centre sample
+                it smooths the output and fills cells whose single center sample
                 would miss the ring, at a cost in run time of the product of the
                 two factors. Negative values select spline interpolation order
                 (not yet supported).
@@ -1199,7 +1199,7 @@ class RingMosaic:
             start_u, end_u, start_v, end_v = uv_range
             # uv_range names whole columns and rows; Meshgrid works in the
             # geometry layer's pixel-corner coordinates, so each bound is
-            # converted from the column's own number to the column's centre.
+            # converted from the column's own number to the column's center.
             meshgrid = oops.Meshgrid.for_fov(
                 obs.fov,
                 origin=(

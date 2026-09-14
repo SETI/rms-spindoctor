@@ -175,7 +175,7 @@ def test_detect_sources_finds_planted_star() -> None:
     """A single Gaussian planted in noise is recovered with sub-pixel centroid.
 
     The kernel is symmetric about its own middle sample, so planting it into
-    rows 20 to 26 and columns 30 to 36 puts its centre on the centre of pixel
+    rows 20 to 26 and columns 30 to 36 puts its center on the center of pixel
     ``(23, 33)``, which is the pixel centric position the centroid has to come
     back with.  The seeded noise realisation moves it by about a thousandth of
     a pixel, and the bound is ten times that, two orders of magnitude below

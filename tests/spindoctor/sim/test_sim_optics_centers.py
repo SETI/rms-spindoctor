@@ -52,13 +52,13 @@ def _scene(optics: dict[str, Any]) -> dict[str, Any]:
 
 
 def test_the_radial_bump_is_symmetric_about_the_stated_centre() -> None:
-    """A radial field is equidistant-valued either side of the centre it was given.
+    """A radial field is equidistant-valued either side of the center it was given.
 
-    An ``argmax`` cannot settle this.  The field is smooth, so a centre half a
+    An ``argmax`` cannot settle this.  The field is smooth, so a center half a
     sample off leaves the same sample brightest (and at exactly half a sample the
     two straddling samples tie, which ``argmax`` breaks toward the lower one).
-    Equality of two samples placed symmetrically about the stated centre moves
-    the moment the centre does, in either direction.
+    Equality of two samples placed symmetrically about the stated center moves
+    the moment the center does, in either direction.
     """
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     apply_stray_light(img, amplitude=0.5, model='radial', center_v=11.0, center_u=29.0)
@@ -79,21 +79,21 @@ def test_the_radial_bump_defaults_to_the_frame_centre() -> None:
     low, high = _SIZE // 2 - 1, _SIZE // 2
     assert float(img[low, low]) == pytest.approx(float(img[high, high]))
     # Not the transpose of the line above: this one holds the column fixed, so it
-    # is sensitive to the v centre alone.  Comparing ``img[low, high]`` against
+    # is sensitive to the v center alone.  Comparing ``img[low, high]`` against
     # ``img[high, low]`` instead would be true of any radial field whose two
-    # centre coordinates are equal, whatever they are, and so could not fail.
+    # center coordinates are equal, whatever they are, and so could not fail.
     assert float(img[low, low]) == pytest.approx(float(img[high, low]))
 
 
 def test_stray_light_converts_its_centre_onto_the_oversampled_grid() -> None:
-    """The stated centre reaches the grid the field is evaluated on.
+    """The stated center reaches the grid the field is evaluated on.
 
-    Measured by symmetry rather than by a peak.  The conversion moves the centre
+    Measured by symmetry rather than by a peak.  The conversion moves the center
     by half a subsample, which is exactly the distance an integer ``argmax``
-    cannot resolve: against an expected centre of ``N + 0.5`` both ``N`` and
+    cannot resolve: against an expected center of ``N + 0.5`` both ``N`` and
     ``N + 1`` sit within half a sample, so a peak test accepts the conversion
     omitted, doubled, or applied with the wrong sign.  Samples placed
-    symmetrically about the expected centre are equal only where it actually is.
+    symmetrically about the expected center are equal only where it actually is.
     """
     frame = new_sim_frame(_SIZE, _SIZE, oversample=_OVERSAMPLE)
     apply_optics(

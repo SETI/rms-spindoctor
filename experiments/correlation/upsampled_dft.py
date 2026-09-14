@@ -6,8 +6,8 @@ from spindoctor.support.correlate import int_to_signed, upsampled_dft
 
 def gaussian_patch(shape, sigma, offset):
     # ``offset`` follows psfmodel's ``eval_rect``: it is measured from the upper
-    # left corner of the centre pixel, so (0.5, 0.5) puts the peak on that
-    # pixel's centre and a whole number puts it on a pixel boundary.  That is
+    # left corner of the center pixel, so (0.5, 0.5) puts the peak on that
+    # pixel's center and a whole number puts it on a pixel boundary.  That is
     # the pixel corner convention, and it is the one check_corr_offset.py gets
     # from eval_rect; all three scripts in this directory now name their shifts
     # the same way.
@@ -33,7 +33,7 @@ def estimate_subpixel_shift(usfac: int, frac: float) -> float:
     # peak is at lag +frac, so the nearest integer lag is +1 once frac passes a
     # half, not -1.  Take it from the real argmax through int_to_signed, which is
     # what support.correlate does, rather than hardcoding a lag here: with the
-    # window centred on the wrong lag the argmax pins to the window edge and the
+    # window centered on the wrong lag the argmax pins to the window edge and the
     # table reads as a ~1 px error in the refinement itself.
     # Use region that scales with upsample factor
     region = usfac + 1

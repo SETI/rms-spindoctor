@@ -98,11 +98,11 @@ def test_the_blob_line_states_both_positions_in_the_image_frame(
 ) -> None:
     """The per-blob line names pixels of the image, not of the padded array.
 
-    The disc is drawn on the centre of row 100 and column 100 of the padded
+    The disc is drawn on the center of row 100 and column 100 of the padded
     array, which sits 32 rows and columns of padding in from the image's own
     first row and column, so both the prediction and the centroid measured
-    from it are on the centre of image row 68.  A position stated to a person
-    names a row's centre by that row's number plus a half.  The coarse offset
+    from it are on the center of image row 68.  A position stated to a person
+    names a row's center by that row's number plus a half.  The coarse offset
     between them is a difference and stays as it is.
     """
     drawn_vu = (100.0, 100.0)

@@ -73,8 +73,8 @@ def _star_image(v_pos: float, u_pos: float) -> np.ndarray:
     """Return a frame holding one round Gaussian star at a pixel centric position.
 
     Parameters:
-        v_pos: Row of the star's centre, pixel centric.
-        u_pos: Column of the star's centre, pixel centric.
+        v_pos: Row of the star's center, pixel centric.
+        u_pos: Column of the star's center, pixel centric.
 
     Returns:
         A ``_FOV_SIZE`` square float frame whose only content is that star,

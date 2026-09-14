@@ -64,7 +64,7 @@ class FakeMeshgrid:
     fake computes nothing.  It does keep the ``origin``, ``limit`` and
     ``oversample`` it was built with, which is where a model states the
     sample positions it wants: a stand-in backplane rebuilds the sample
-    centres from them, and that is what lets a test pin the coordinate system
+    centers from them, and that is what lets a test pin the coordinate system
     a model hands the geometry layer rather than only the shape of what comes
     back.
 

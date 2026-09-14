@@ -30,7 +30,7 @@ Two independent ground-truth channels are supported:
   gap.
 
 A third function, :func:`renderer_centroid_offset`, measures the simulator's
-own body renderer against the centre it was asked for, which anchors the
+own body renderer against the center it was asked for, which anchors the
 renderer side on its own and needs no agreement from the model side.  It
 calls the renderer directly and never touches the navigation code path.
 
@@ -135,7 +135,7 @@ class RendererCentroidCheck:
     Attributes:
         requested_center_vu: Sub-pixel body centre requested from the
             renderer, in the renderer's pixel corner coordinates.
-        geometric_center_vu: The same centre in the pixel centric coordinates
+        geometric_center_vu: The same center in the pixel centric coordinates
             the navigator measures in (``requested - 0.5`` on each axis).
         measured_centroid_vu: The intensity-weighted centroid of the
             rendered body, pixel centric.
@@ -327,12 +327,12 @@ def renderer_centroid_offset(
     radially symmetric, so its brightness centroid must coincide with its
     geometric centre; any offset would be a positional bias baked into the
     renderer itself.  The renderer works in pixel corner coordinates, where a
-    pixel's centre sits half a pixel past its array row, so a requested centre
-    ``c`` puts the geometric centre at ``c - 0.5`` pixel centric; the check
+    pixel's center sits half a pixel past its array row, so a requested center
+    ``c`` puts the geometric center at ``c - 0.5`` pixel centric; the check
     compares against that.
 
     Parameters:
-        center_vu: Requested body centre in the renderer's pixel corner
+        center_vu: Requested body center in the renderer's pixel corner
             coordinates.
         diameter_px: Body diameter in pixels.
         size_px: Square image side in pixels.

@@ -56,7 +56,7 @@ def test_centroid_reports_the_pixel_corner_position_it_was_given() -> None:
 
     ``star.v`` / ``star.u`` are pixel corner and ``psf.find_position`` answers in
     the same system -- its offsets are measured from a pixel's corner, its own
-    default (0.5, 0.5) being on centre -- so the prediction goes in and the
+    default (0.5, 0.5) being on center -- so the prediction goes in and the
     detection comes out with no conversion between them.  The decomposition
     cannot see a half pixel added to every detection, because the rigid fit
     absorbs any constant into its translation, so this is the only place such a

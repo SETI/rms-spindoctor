@@ -25,13 +25,13 @@ built from them: the fake backplane evaluates the forward map, the fake
 ``longitude_radius_to_pixels`` evaluates the inverse. The maps take a
 *pixel-corner* coordinate, the convention a real oops FOV returns and the one
 ``reproject`` floors to reach a column, so the backplane cell for column c is
-filled by evaluating the forward map at that column's centre,
+filled by evaluating the forward map at that column's center,
 ``c + PIXEL_CENTER_TO_CORNER_PX``. Filling it at ``c`` instead would describe the
 column's left edge, leaving the fixture's forward and inverse maps half a pixel
 apart and blind to a half-pixel error in the code under test.
 
 The synthetic image is 20x20 with ``data[v, u] = 100 v + u`` so any indexing error
-changes the observed values. Geometry: the centre of pixel ``(v, u)`` sees
+changes the observed values. Geometry: the center of pixel ``(v, u)`` sees
 longitude ``LON0 + u * LON_RES / 2`` and (absolute mode) radius ``990 + v * 2.5``
 km. With the default mosaic grid (radii 1000..1020 km at 5 km, longitude pi/16
 rad) the reprojection covers bins 8..14 sampling pixels ``u = 4 + 2 c``,
@@ -158,10 +158,10 @@ def _v_of_rad_offset(offset: NDArrayFloatType) -> NDArrayFloatType:
 
 
 def _pixel_centers(start: int, count: int) -> NDArrayFloatType:
-    """Return the pixel-corner coordinates of the centres of count columns.
+    """Return the pixel-corner coordinates of the centers of count columns.
 
     The forward maps take pixel-corner coordinates, so a backplane cell must be
-    filled by evaluating them at the cell's centre, not at the cell's own
+    filled by evaluating them at the cell's center, not at the cell's own
     number, which names its low edge.
 
     Parameters:
@@ -200,7 +200,7 @@ def _make_backplane_class(
 ) -> type[Any]:
     """Build a fake oops Backplane class implementing the synthetic geometry.
 
-    Each cell is filled by evaluating the forward maps at the cell's centre, so
+    Each cell is filled by evaluating the forward maps at the cell's center, so
     the backplane agrees with the fake inverse mapping to the last bit: a cell
     reports the longitude and radius whose inverse falls inside that same cell.
 
@@ -234,7 +234,7 @@ def _make_backplane_class(
                 v0 = int(uv[0, 0, 1] - 0.5)
                 nv, nu = uv.shape[0], uv.shape[1]
             vv, uu = np.meshgrid(np.arange(v0, v0 + nv), np.arange(u0, u0 + nu), indexing='ij')
-            # Evaluate the forward maps at each cell's centre, not at the cell's
+            # Evaluate the forward maps at each cell's center, not at the cell's
             # own number; see the module docstring.
             vv_c, uu_c = np.meshgrid(_pixel_centers(v0, nv), _pixel_centers(u0, nu), indexing='ij')
             lons = _lon_of_u(uu_c)
@@ -943,7 +943,7 @@ class TestReprojectAbsoluteGeometry:
         """A zero-width range no pixel's longitude hits yields an empty sparse result.
 
         Both endpoints are inclusive, so start == end keeps exactly those pixels
-        reporting that longitude; 9.3 * _LON_RES falls between two pixel centres
+        reporting that longitude; 9.3 * _LON_RES falls between two pixel centers
         and so selects none.
         """
         _install_geometry(monkeypatch)
@@ -1122,7 +1122,7 @@ def _profile_centroid(profile: NDArrayFloatType) -> float:
 
 
 def _banded_obs() -> _FakeObs:
-    """Observation holding a smooth band centred on one image row and column.
+    """Observation holding a smooth band centered on one image row and column.
 
     The band is symmetric about image row 7 (pixel-corner 7.5, the row of zero
     offset from the orbit model) and image column 10, so its centroid falls on
@@ -1322,7 +1322,7 @@ class TestOrbitPixels:
         monkeypatch.setattr(RingMosaic, 'longitude_radius_to_pixels', staticmethod(_probe))
         u_pix, _v_pix = RingMosaic.orbit_pixels(_FakeExtBpObs(margin=margin), _make_model())
         # -4.5 is outside the padded frame; -4.0 is its first pixel's own
-        # coordinate; N + margin - 0.5 is the centre of its last pixel; the
+        # coordinate; N + margin - 0.5 is the center of its last pixel; the
         # boundary past that is not in it.
         np.testing.assert_allclose(u_pix, probes[1:5])
 

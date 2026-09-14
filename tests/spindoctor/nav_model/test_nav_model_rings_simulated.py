@@ -139,10 +139,10 @@ def test_ring_annulus_template_paints_at_ring_radius() -> None:
 
     The bound is exact rather than slack.  A pixel is painted when its
     anti-aliasing shade exceeds zero, and that shade ramps over one pixel
-    centred on the edge, so a painted pixel's centre lies at most half a pixel
+    centered on the edge, so a painted pixel's center lies at most half a pixel
     outside the 60-to-85 px band.  Measuring that from array indices only
-    gives the same number the renderer used because the predicted centre is
-    pixel centric too, the system those indices are in; a centre carried in
+    gives the same number the renderer used because the predicted center is
+    pixel centric too, the system those indices are in; a center carried in
     pixel corner coordinates would put the whole measurement half a pixel off
     on each axis and paint pixels 1.2 px outside the band.
     """
