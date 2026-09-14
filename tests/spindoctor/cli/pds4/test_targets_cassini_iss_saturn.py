@@ -24,7 +24,12 @@ from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.targets import target_table
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
-from .conftest import label_cohort_images, make_cohort_bundle_env, write_cohort_bundle
+from .conftest import (
+    label_cohort_images,
+    make_cohort_bundle_env,
+    read_csv_rows,
+    write_cohort_bundle,
+)
 
 PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
 """The PDS4 common dictionary's namespace, under the prefix the paths below use."""
@@ -173,3 +178,34 @@ def test_a_run_level_label_names_every_target_the_data_labels_name(
     env = write_cohort_bundle(cassini_cohort, tmp_path, (LIMB_STUB, RINGS_STUB))
     named = _targets_named(env.bundle_dir / label, 'Context_Area')
     assert named == [(*target, reference_type) for target in (SATURN, ENCELADUS, SATURN_RINGS)]
+
+
+def test_every_target_a_data_label_names_is_in_the_context_inventory(
+    cassini_cohort: Cohort, tmp_path: Path
+) -> None:
+    """Each target LID a cohort data label references is a member of the context collection."""
+    env = write_cohort_bundle(cassini_cohort, tmp_path, (LIMB_STUB, RINGS_STUB))
+    rows = read_csv_rows(env.bundle_dir / 'context' / 'collection_context.csv')
+    listed = [lidvid.partition('::')[0] for _, lidvid in rows]
+    named = [
+        lid
+        for label in (env.bundle_dir / 'data').rglob('*_backplanes.lblx')
+        for _, _, lid, _ in _targets_named(label, 'Observation_Area')
+    ]
+    assert [lid for lid in named if lid not in listed] == []
+
+
+def test_the_context_inventory_lists_each_target_at_its_registered_version(
+    cassini_cohort: Cohort, tmp_path: Path
+) -> None:
+    """After the mission, the spacecraft and the two cameras, each target at its version.
+
+    The versions are the ones the PDS registry held for the targets' context products.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, (LIMB_STUB, RINGS_STUB))
+    rows = read_csv_rows(env.bundle_dir / 'context' / 'collection_context.csv')
+    assert rows[4:] == [
+        ['S', 'urn:nasa:pds:context:target:planet.saturn::1.4'],
+        ['S', 'urn:nasa:pds:context:target:satellite.saturn.enceladus::1.2'],
+        ['S', 'urn:nasa:pds:context:target:ring.saturn.rings::1.1'],
+    ]

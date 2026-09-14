@@ -11,8 +11,11 @@ template in the dataset's template directory or copied from it:
 - the metakernel ``kernels.ker``, copied into ``spice_kernels/``, with its label
   ``kernels.lblx`` rendered beside it;
 - the context, document, SPICE kernel and XML schema collections, each an inventory the
-  template directory ships, copied into the collection's directory, with a collection
-  label rendered over it;
+  template directory ships, written into the collection's directory with a collection
+  label rendered over it: the document and SPICE kernel inventories as they are but for
+  a primary member whose label is not in the bundle, the XML schema inventory as it is,
+  and the context inventory with every target the data labels name listed after the
+  template directory's members;
 - ``bundle.lblx``, rendered last.
 """
 
@@ -392,11 +395,13 @@ def generate_bundle_products(
       template directory's, as it is, except that its primary members, the products of
       this bundle it lists as ``P`` -- the user guide in the document collection, the
       metakernel in the SPICE kernel collection -- are listed only when their labels
-      are in the bundle.  A collection left with no member is not written at all,
-      neither its inventory nor its label, whatever is at either path is removed, and
-      it counts once as a label not written, with an error naming it: the SPICE kernel
-      collection, whose one member is the metakernel, is not written when the
-      metakernel's label is not.
+      are in the bundle, and that the context inventory lists every target in
+      ``targets`` after the template directory's lines, one ``S,<lidvid>`` line each, at
+      the version the targets table gives it.  A collection left with no member is not
+      written at all, neither its inventory nor its label, whatever is at either path is
+      removed, and it counts once as a label not written, with an error naming it: the
+      SPICE kernel collection, whose one member is the metakernel, is not written when
+      the metakernel's label is not.
     - ``bundle.lblx`` is rendered last, at the bundle's root, handed ``BUNDLE_LID``,
       ``urn:nasa:pds:<bundle name>``, ``README_PATH``, the range of the products'
       epochs as the data collection label states it, and the products' targets as
@@ -426,7 +431,8 @@ def generate_bundle_products(
             :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` took them,
             or None when no data label in the data tree has a supplemental file beside it.
         targets: Every target the products name, in the targets table's order, as the
-            same generator took them.
+            same generator took them, which the bundle and metakernel labels name and the
+            context inventory lists.
 
     Returns:
         The number of run-level labels not written.
@@ -484,12 +490,25 @@ def generate_bundle_products(
         'spice_kernels': metakernel_labeled,
         'xml_schema': True,
     }
+    # The context collection cites every target the data labels name, beside the context
+    # products the template directory ships; no label of another static collection names
+    # a target, so no other inventory lists one.
+    cited_targets: dict[str, Sequence[Pds4Target]] = {
+        'context': targets,
+        'document': (),
+        'spice_kernels': (),
+        'xml_schema': (),
+    }
     for name in _STATIC_COLLECTIONS:
         inventory = _inventory(bundle_root, name)
         label = _label_beside(inventory)
         content = bytes((template_dir / inventory.name).read_bytes())
         if not keeps_primaries[name]:
             content = _without_primary_members(content)
+        content += b''.join(
+            _SECONDARY_MEMBER + target.lidvid.encode('ascii') + b'\n'
+            for target in cited_targets[name]
+        )
         if len(content) == 0:
             # As for the data and browse collections, a collection with no member gets
             # neither an inventory nor a label: the label would state no record, which
