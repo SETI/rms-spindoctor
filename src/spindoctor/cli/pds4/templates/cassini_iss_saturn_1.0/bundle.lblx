@@ -185,7 +185,7 @@
     </Context_Area>
     <Reference_List>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide</lid_reference>
+            <lid_reference>$BUNDLE_LID$:document:backplanes-user-guide</lid_reference>
             <reference_type>bundle_to_document</reference_type>
             <comment>
                 This is the user guide for the backplanes for navigated images from Cassini ISS at Saturn.
@@ -215,37 +215,37 @@
         </Stream_Text>
     </File_Area_Text>
     <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:browse</lid_reference>
+        <lid_reference>$BUNDLE_LID$:browse</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_browse_collection</reference_type>
     </Bundle_Member_Entry>
     <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:context</lid_reference>
+        <lid_reference>$BUNDLE_LID$:context</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_context_collection</reference_type>
     </Bundle_Member_Entry>
     <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:data</lid_reference>
+        <lid_reference>$BUNDLE_LID$:data</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_data_collection</reference_type>
     </Bundle_Member_Entry>
     <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document</lid_reference>
+        <lid_reference>$BUNDLE_LID$:document</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_document_collection</reference_type>
     </Bundle_Member_Entry>
     <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:miscellaneous</lid_reference>
+        <lid_reference>$BUNDLE_LID$:miscellaneous</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_miscellaneous_collection</reference_type>
     </Bundle_Member_Entry>
     <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:spice_kernels</lid_reference>
+        <lid_reference>$BUNDLE_LID$:spice_kernels</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_spice_kernel_collection</reference_type>
     </Bundle_Member_Entry>
     <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:xml_schema</lid_reference>
+        <lid_reference>$BUNDLE_LID$:xml_schema</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_schema_collection</reference_type>
     </Bundle_Member_Entry>
