@@ -414,7 +414,8 @@ per-mission label templates, LID builders, and collection machinery (#53
 with #66, #67, #71-#73, #75, #79, #47, #30, #63). Beside them are the
 bundle's user guides, one LaTeX template and one guide per instrument
 (#595-#599); what a bundle says about images that did not navigate (#600);
-the index tables' missing value, awaiting the operator's acceptance (#601);
+the index tables' missing value, which the operator has accepted and Phase 7
+closes (#601);
 a dataset without PDS4 support ending `sd_create_bundle` in a traceback
 (#614); and the backplane viewer showing rad/pixel planes in radians where
 every other angular plane is in degrees (#611). Distinct from this, **PDS4
