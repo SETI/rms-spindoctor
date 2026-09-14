@@ -834,6 +834,7 @@ def test_each_cohort_collection_label_describes_the_inventory_beside_it(
 STATIC_INVENTORIES = (
     'collection_context.csv',
     'collection_document.csv',
+    'collection_spice_kernels.csv',
     'collection_xml_schema.csv',
 )
 """The inventories the template directory ships, which a bundle takes as they are."""

@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00.sch"
+    schematypens="http://purl.oclc.org/dsdl/schematron"?>
+
+<Product_SPICE_Kernel
+    xmlns="http://pds.nasa.gov/pds4/pds/v1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00.xsd">
+    <Identification_Area>
+        <logical_identifier>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:spice_kernels:kernels</logical_identifier>
+        <version_id>1.0</version_id>
+        <title>Metakernel for the Backplanes for Navigated Images from Cassini ISS at Saturn</title>
+        <information_model_version>1.24.0.0</information_model_version>
+        <product_class>Product_SPICE_Kernel</product_class>
+        <Citation_Information>
+            <publication_year>2027</publication_year>
+            <keyword>backplanes</keyword>
+            <keyword>cassini iss</keyword>
+            <keyword>saturn</keyword>
+            <keyword>SPICE</keyword>
+            <description>
+                The SPICE metakernel kernels.ker, which the data labels of this bundle name.
+                It lists no SPICE kernels: which kernels it lists has not been decided.
+            </description>
+        </Citation_Information>
+        <Modification_History>
+            <Modification_Detail>
+                <modification_date>$CURRENT_ZULU(date_only=True)$</modification_date>
+                <version_id>1.0</version_id>
+                <description>Initial version.</description>
+            </Modification_Detail>
+        </Modification_History>
+    </Identification_Area>
+    <Context_Area>
+        <Time_Coordinates>
+            <start_date_time xsi:nil="true" nilReason="inapplicable"></start_date_time>
+            <stop_date_time xsi:nil="true" nilReason="inapplicable"></stop_date_time>
+        </Time_Coordinates>
+        <Primary_Result_Summary>
+            <purpose>Observation Geometry</purpose>
+            <processing_level>Derived</processing_level>
+        </Primary_Result_Summary>
+        <Investigation_Area>
+            <name>Cassini-Huygens</name>
+            <type>Mission</type>
+            <Internal_Reference>
+                <lid_reference>urn:nasa:pds:context:investigation:mission.cassini-huygens</lid_reference>
+                <reference_type>data_to_investigation</reference_type>
+            </Internal_Reference>
+        </Investigation_Area>
+        <Observing_System>
+            <name>Cassini Orbiter Imaging Science Subsystem</name>
+            <Observing_System_Component>
+                <name>Cassini Orbiter</name>
+                <type>Host</type>
+                <Internal_Reference>
+                    <lid_reference>urn:nasa:pds:context:instrument_host:spacecraft.co</lid_reference>
+                    <reference_type>is_instrument_host</reference_type>
+                </Internal_Reference>
+            </Observing_System_Component>
+            <Observing_System_Component>
+                <name>Imaging Science Subsystem - Narrow Angle</name>
+                <type>Instrument</type>
+                <description>ISSNA</description>
+                <Internal_Reference>
+                    <lid_reference>urn:nasa:pds:context:instrument:issna.co</lid_reference>
+                    <reference_type>is_instrument</reference_type>
+                </Internal_Reference>
+            </Observing_System_Component>
+            <Observing_System_Component>
+                <name>Imaging Science Subsystem - Wide Angle</name>
+                <type>Instrument</type>
+                <description>ISSWA</description>
+                <Internal_Reference>
+                    <lid_reference>urn:nasa:pds:context:instrument:isswa.co</lid_reference>
+                    <reference_type>is_instrument</reference_type>
+                </Internal_Reference>
+            </Observing_System_Component>
+        </Observing_System>
+        <!-- TODO Need to add targets here -->
+    </Context_Area>
+    <Reference_List>
+        <Internal_Reference>
+            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide</lid_reference>
+            <reference_type>data_to_document</reference_type>
+            <comment>
+                This is the user guide for the backplanes for navigated images from Cassini ISS at Saturn.
+            </comment>
+        </Internal_Reference>
+        <External_Reference>
+            <reference_text>
+                URL: https://naif.jpl.nasa.gov/naif/documentation.html
+                At the time of archiving, NAIF (Navigation and Ancillary Information) Node
+                of NASA PDS provides extensive documentation of SPICE, via the URL given
+                above. For example, "Kernel Required Reading" documentation describing
+                metakernels is accessed via
+                https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/kernel.html
+                Note that the HTML Toolkit Documents are provided in various programming
+                languages (the example above is for C).
+            </reference_text>
+            <description>NAIF HTML documentation describing SPICE</description>
+        </External_Reference>
+    </Reference_List>
+    <File_Area_SPICE_Kernel>
+        <File>
+            <file_name>kernels.ker</file_name>
+            <creation_date_time>$FILE_ZULU(METAKERNEL_PATH)$</creation_date_time>
+            <file_size unit="byte">$FILE_BYTES(METAKERNEL_PATH)$</file_size>
+            <md5_checksum>$FILE_MD5(METAKERNEL_PATH)$</md5_checksum>
+        </File>
+        <SPICE_Kernel>
+            <offset unit="byte">0</offset>
+            <object_length unit="byte">$FILE_BYTES(METAKERNEL_PATH)$</object_length>
+            <parsing_standard_id>SPICE</parsing_standard_id>
+            <description>
+                The SPICE metakernel kernels.ker. It lists no SPICE kernels: which kernels it
+                lists has not been decided, so it holds no KERNELS_TO_LOAD assignment.
+            </description>
+            <kernel_type>MK</kernel_type>
+            <encoding_type>Character</encoding_type>
+        </SPICE_Kernel>
+    </File_Area_SPICE_Kernel>
+</Product_SPICE_Kernel>
