@@ -408,12 +408,16 @@ form:
      - ``INST_CMPRS_RATE``, first value
      - bits per pixel
    * - ``inst_cmprs_rate_actual_bits``
-     - The average number of bits per pixel received.
+     - The average number of bits per pixel received; ``-999.0`` when the
+       label has no value, as on some lossy compressed images, most of them
+       images that were only partly received.
      - ``INST_CMPRS_RATE``, second value
      - bits per pixel
    * - ``inst_cmprs_ratio``
      - The expected image size over the size received; ``N/A`` for an image
-       that was not compressed.
+       that was not compressed, and ``-999.0`` when the label has no value, as
+       on some lossy compressed images, most of them images that were only
+       partly received.
      - ``INST_CMPRS_RATIO``
      - none
    * - ``light_flood_state_flag``
