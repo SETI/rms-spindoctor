@@ -219,7 +219,7 @@ def inventory_entry(
 
 
 class StubVals:
-    """Stand-in for an oops Scalar result exposing only the ``mvals`` masked array."""
+    """Stand-in for an oops Scalar result exposing its ``mvals`` and its ``vals``."""
 
     def __init__(self, mvals: Any) -> None:
         """Wrap a masked array.
@@ -228,6 +228,11 @@ class StubVals:
             mvals: The ``numpy.ma.MaskedArray`` to expose as ``mvals``.
         """
         self.mvals = mvals
+
+    @property
+    def vals(self) -> Any:
+        """The wrapped array's values, its mask set aside, as an oops Scalar's are."""
+        return np.ma.getdata(self.mvals)
 
 
 class FakeRingBackplane:

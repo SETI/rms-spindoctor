@@ -4,12 +4,11 @@ Contract under test (docs/dev_guide/dev_guide_backplanes.rst "Bodies"): the body
 step walks the per-image inventory, clips each body's unclipped bounding box into
 the sensor, evaluates the configured methods over a meshgrid restricted to that
 box, masks against the body silhouette, embeds the result into a sensor-shaped
-frame, records the per-body distance for the merge, and computes per-backplane
-min/max statistics (converted from radians to degrees when units are 'rad').
-Simulated bodies synthesize a constant value confined to the simulated body mask.
+frame, and records the per-body distance for the merge.  The statistics are the
+writer's, taken after the merge.  Simulated bodies synthesize a constant value
+confined to the simulated body mask.
 """
 
-import math
 import os
 import subprocess
 import sys
@@ -38,7 +37,6 @@ from .conftest import (
 SHAPE_VU = (8, 10)
 
 LAT_CFG = {'name': 'body_latitude', 'method': 'latitude', 'units': 'rad'}
-RES_CFG = {'name': 'body_finest_resolution', 'method': 'finest_resolution', 'units': 'km/pixel'}
 
 
 def _bodies_config(entries: list[dict[str, Any]] | None = None) -> FakeBackplanesConfig:
@@ -163,33 +161,6 @@ def test_simulated_body_distance_from_inventory_range() -> None:
     snap, _ = _sim_snapshot_with_moon_a()
     result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
     assert result['MOON_A']['distance'] == 500000.0
-
-
-def test_simulated_body_stats_convert_radians_to_degrees() -> None:
-    """Statistics for a 'rad' plane are reported in degrees."""
-    snap, _ = _sim_snapshot_with_moon_a()
-    result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
-    val = float(result['MOON_A']['arrays']['body_latitude'][2, 3])
-    stats = result['MOON_A']['statistics']['body_latitude']
-    assert stats['min'] == pytest.approx(math.degrees(val))
-    assert stats['max'] == pytest.approx(math.degrees(val))
-
-
-def test_simulated_body_stats_name_the_unit_they_are_in() -> None:
-    """The statistic carries the unit it ended up in, not the array's."""
-    snap, _ = _sim_snapshot_with_moon_a()
-    result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
-    assert result['MOON_A']['statistics']['body_latitude']['units'] == 'deg'
-
-
-def test_simulated_body_stats_keep_non_angle_units() -> None:
-    """Statistics for a non-'rad' plane are not unit converted."""
-    snap, _ = _sim_snapshot_with_moon_a()
-    config = _bodies_config([RES_CFG])
-    result = create_body_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-    val = float(result['MOON_A']['arrays']['body_finest_resolution'][2, 3])
-    stats = result['MOON_A']['statistics']['body_finest_resolution']
-    assert stats['min'] == pytest.approx(val)
 
 
 def test_bodies_ordered_by_increasing_range() -> None:
@@ -378,46 +349,6 @@ def test_real_body_distance_is_inventory_range(monkeypatch: pytest.MonkeyPatch) 
     snap = _real_snapshot_with_moon_a()
     result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
     assert result['MOON_A']['distance'] == 200000.0
-
-
-def test_real_body_stats_convert_radians_to_degrees(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Real-path statistics for a 'rad' plane are reported in degrees.
-
-    Parameters:
-        monkeypatch: pytest monkeypatch fixture.
-    """
-    _patch_backplane_constant(monkeypatch, value=0.5)
-    snap = _real_snapshot_with_moon_a()
-    result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
-    stats = result['MOON_A']['statistics']['body_latitude']
-    assert stats['min'] == pytest.approx(math.degrees(0.5))
-    assert stats['max'] == pytest.approx(math.degrees(0.5))
-
-
-def test_real_body_no_stats_when_fully_masked(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A plane with no valid pixel gets no statistics entry (arrays still present).
-
-    Parameters:
-        monkeypatch: pytest monkeypatch fixture.
-    """
-
-    def values_fn(method: str, body_name: str, shape: tuple[int, int]) -> Any:
-        """Return a fully masked constant array (no valid pixel anywhere).
-
-        Parameters:
-            method: The oops Backplane method name (ignored).
-            body_name: The body being evaluated (ignored).
-            shape: The meshgrid shape as (nv, nu).
-        """
-        return ma.MaskedArray(np.full(shape, 1.0), mask=np.ones(shape, dtype=bool))
-
-    monkeypatch.setattr(bodies_mod, 'Backplane', make_fake_body_backplane_cls(values_fn))
-    snap = _real_snapshot_with_moon_a()
-    result = create_body_backplanes(snap, _bodies_config().as_config(), logger=IMAGE_LOGGER)
-    assert 'body_latitude' not in result['MOON_A']['statistics']
-    assert 'body_latitude' in result['MOON_A']['arrays']
 
 
 # ---------------------------------------------------------------------------

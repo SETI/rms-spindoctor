@@ -17,6 +17,7 @@ What the shipped Cassini templates say is tested over the cohort in
 """
 
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ from filecache.file_cache_source import FileCacheSourceFake
 from spindoctor.cli.pds4.bundle_products import clear_bundle_products, generate_bundle_products
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.global_index import generate_global_index_files
+from spindoctor.cli.pds4.targets import Pds4Target, target_table
 from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (
@@ -39,6 +41,7 @@ from .conftest import (
     USER_GUIDE_PDF,
     BundleEnv,
     make_bundle_env,
+    measured_body,
     read_csv_rows,
     run_collections,
     touch_browse_label,
@@ -69,7 +72,7 @@ def _bundle_env(
     env = make_bundle_env(tmp_path, template_contents=template_contents)
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     write_supplemental(
-        env.bundle_dir / 'data', 'shard0/1234567890w', bodies={'MOON': {'backplanes': {}}}
+        env.bundle_dir / 'data', 'shard0/1234567890w', bodies={'MOON': measured_body()}
     )
     if browse:
         touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
@@ -80,18 +83,28 @@ def _bundle_env(
     return env
 
 
-def _run(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> int:
+def _run(
+    env: BundleEnv,
+    *,
+    epochs: EpochRange | None = A_RANGE,
+    targets: Sequence[Pds4Target] = (),
+) -> int:
     """Run generate_bundle_products over the environment's bundle.
 
     Parameters:
         env: The environment to process.
         epochs: The range of the products' epochs to hand the generator.
+        targets: The targets the products name, to hand the generator.
 
     Returns:
         The number of run-level labels not written.
     """
     return generate_bundle_products(
-        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER, epochs=epochs
+        FCPath(env.bundle_results_root),
+        env.dataset.as_dataset(),
+        MAIN_LOGGER,
+        epochs=epochs,
+        targets=targets,
     ).failed_labels
 
 
@@ -111,7 +124,6 @@ def _lines_holding(capsys: pytest.CaptureFixture[str], text: str) -> list[str]:
 COPIES = {
     'readme.txt': 'readme.txt',
     'spice_kernels/kernels.ker': 'kernels.ker',
-    'context/collection_context.csv': 'collection_context.csv',
     'document/collection_document.csv': 'collection_document.csv',
     'spice_kernels/collection_spice_kernels.csv': 'collection_spice_kernels.csv',
     'xml_schema/collection_xml_schema.csv': 'collection_xml_schema.csv',
@@ -133,6 +145,25 @@ def test_the_copied_products_are_the_template_directory_s_files(tmp_path: Path) 
         if (env.bundle_dir / path).read_text(encoding='utf-8') != RUN_LEVEL_FILES[name]
     ]
     assert differing == []
+
+
+def test_the_context_inventory_lists_each_target_after_the_template_directory_s_members(
+    tmp_path: Path,
+) -> None:
+    """The context inventory is the template directory's lines, then one line per target.
+
+    Each target is a secondary member at its context product's version, in the order it
+    is handed, which is the targets table's.
+    """
+    env = _bundle_env(tmp_path)
+    table = target_table(env.dataset.as_dataset().config)
+    _run(env, targets=(table['PLANET'], table['MOON']))
+    rows = read_csv_rows(env.bundle_dir / 'context' / 'collection_context.csv')
+    assert rows == [
+        ['S', 'urn:nasa:pds:context:instrument:fake::1.0'],
+        ['S', 'urn:nasa:pds:context:target:fake.planet::1.0'],
+        ['S', 'urn:nasa:pds:context:target:fake.moon::1.0'],
+    ]
 
 
 def test_a_user_guide_the_template_directory_holds_is_copied_labeled_and_listed(

@@ -41,8 +41,9 @@ from typing import Any, cast
 import numpy as np
 from filecache import FCPath
 
+from spindoctor.cli.backplanes.backplanes_rings import RingIncidenceAngle
 from spindoctor.cli.backplanes.merge import merge_sources_into_master
-from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
+from spindoctor.cli.backplanes.statistics import DEGREES
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import MAIN_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
@@ -158,29 +159,12 @@ def _bounds_for(name: str, plane_bounds: Mapping[str, tuple[float, float]]) -> t
     return plane_bounds[name]
 
 
-def _statistics(
-    planes: dict[str, NDArrayFloatType],
-    masks: dict[str, NDArrayBoolType],
-    units: dict[str, str],
-) -> dict[str, PlaneStatistics]:
-    """Return the per-plane statistics, as the backplane stage computes them.
+_RING_INCIDENCE_SPREAD_DEG = 0.002
+"""How far the incidence angle ranges over a frame's ring pixels, in degrees.
 
-    Over the valid pixels alone, and through the stage's own reduction, so the
-    unit each statistic is stated in is the one a run would state rather than a
-    second answer that agrees until one of the two changes.
-
-    Parameters:
-        planes: The full-frame planes, keyed by name.
-        masks: True wherever a plane has a measurement, keyed by name.
-        units: The units each plane's values are in, keyed by name.
-
-    Returns:
-        The lowest and highest value of each plane, and the unit they are in.
-    """
-    return {
-        name: plane_statistics(plane[masks[name]], units=units[name])
-        for name, plane in planes.items()
-    }
+Sunlight falls on a ring plane at nearly one angle over a frame: at the ring pixels the
+incidence spans a few thousandths of a degree about the angle at the ring system's center.
+"""
 
 
 def _disc_mask(body: CohortBody) -> NDArrayBoolType:
@@ -226,6 +210,8 @@ def write_backplanes(
     *,
     bodies: tuple[CohortBody, ...],
     rings: bool,
+    ring_target: str,
+    ring_incidence_angle: float,
     plane_bounds: Mapping[str, tuple[float, float]],
     config: Config,
 ) -> None:
@@ -249,6 +235,13 @@ def write_backplanes(
             no body does.  A frame with none still carries a ring result with
             nothing in it, as a real frame whose rings are out of the field
             does.
+        ring_target: The ring target the ring result names, as the ring stage
+            names the one it computes for the image's planet.
+        ring_incidence_angle: The incidence angle of sunlight on the ring
+            plane at the ring system's center, in degrees, which the ring result
+            records whether or not the frame has ring backplanes, as the ring stage
+            does.  The angle at each ring pixel ramps a few thousandths of a degree
+            either side of it.
         plane_bounds: What the cohort gives a plane of each configured name to
             span, in the units the configuration declares.
         config: The configuration whose declared planes, units and masked value
@@ -282,7 +275,6 @@ def write_backplanes(
             'arrays': planes,
             'masks': masks,
             'distance': body.range_km,
-            'statistics': _statistics(planes, masks, body_units),
         }
         center_v, center_u = body.center_vu
         radius_v, radius_u = body.radii_vu
@@ -307,11 +299,21 @@ def write_backplanes(
         else {}
     )
     ring_masks = dict.fromkeys(ring_planes, ring_mask)
+    # The incidence angle at each pixel, in radians as the ring stage keeps it: a ramp
+    # either side of the angle at the ring center, over the ring pixels, and none where
+    # the frame has no rings
+    incidence_bounds = (
+        float(np.radians(ring_incidence_angle - _RING_INCIDENCE_SPREAD_DEG / 2.0)),
+        float(np.radians(ring_incidence_angle + _RING_INCIDENCE_SPREAD_DEG / 2.0)),
+    )
+    seen_rings = ring_mask if rings else np.zeros_like(ring_mask)
     rings_result: dict[str, Any] = {
+        'target_key': ring_target,
+        'incidence_angle': RingIncidenceAngle(value=ring_incidence_angle, units=DEGREES),
+        'pixel_incidence': _ramp(incidence_bounds, seen_rings, masked_value),
         'arrays': ring_planes,
         'masks': ring_masks,
         'distance': _ring_distance(bodies),
-        'statistics': _statistics(ring_planes, ring_masks, ring_units),
     }
 
     snapshot = cast(ObsSnapshot, _SimulatedSnapshot(sim_inventory, config))

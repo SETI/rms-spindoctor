@@ -56,6 +56,9 @@ from .conftest import (
     write_cohort_bundle,
 )
 
+SATURN_LATITUDE = {'backplanes': {'body_latitude': {'min': -10.0, 'max': 20.0, 'units': 'deg'}}}
+"""Saturn's entry in a backplane document, with a latitude statistic, so it has geometry."""
+
 
 def _cassini_dataset(tmp_path: Path) -> DataSetPDS3CassiniISSSaturn:
     """Construct the registered Cassini ISS Saturn dataset over an empty holdings root.
@@ -106,7 +109,7 @@ def _label_with_the_shipped_templates(
     nav_metadata = navigated_document()
     (nav_root / f'{stub}_metadata.json').write_text(json.dumps(nav_metadata), encoding='utf-8')
     (backplane_root / f'{stub}_backplane_metadata.json').write_text(
-        json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
+        json.dumps({'bodies': {'SATURN': SATURN_LATITUDE}, 'rings': {}}), encoding='utf-8'
     )
     write_backplane_fits(backplane_root / f'{stub}_backplanes.fits', shape=fits_shape)
     (nav_root / f'{stub}_summary.png').write_bytes(b'\x89PNG fake bytes')
@@ -347,7 +350,9 @@ def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
     bundle_results_root = tmp_path / 'bundle'
     bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
     touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
-    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=A_RANGE)
+    generate_collection_files(
+        FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=A_RANGE, targets=()
+    )
     rows = read_csv_rows(bundle_dir / 'data' / 'collection_data.csv')
     inventory_lid = rows[0][1].split('::')[0]
     label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')

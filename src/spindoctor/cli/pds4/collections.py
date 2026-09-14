@@ -11,6 +11,7 @@ which the summary pass runs first.
 """
 
 import csv
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Self
@@ -21,6 +22,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.labels import write_label
+from spindoctor.cli.pds4.targets import Pds4Target
 from spindoctor.dataset.dataset import DataSet
 
 
@@ -359,6 +361,7 @@ def generate_collection_files(
     logger: PdsLogger,
     *,
     epochs: EpochRange | None,
+    targets: Sequence[Pds4Target],
 ) -> CollectionOutcome:
     """Inventory and label the data and browse collections, checking the products agree.
 
@@ -376,7 +379,8 @@ def generate_collection_files(
     :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` takes in
     its read of the supplemental files, which is why the summary pass runs that
     first.  The label writes it to whole seconds, the start rounded down and the stop
-    up.
+    up.  It names every target the collection's members name, ``targets``, which that
+    generator takes in the same read, as a Mission Science Data collection's label has to.
 
     Every data product has a browse product, so each image's products are checked
     against each other.  An image with a data label and no browse label, or with a
@@ -415,6 +419,8 @@ def generate_collection_files(
         epochs: The earliest start and the latest stop of the products' exposures,
             or None when no data label in the data tree has a supplemental file
             beside it.
+        targets: Every target the products name, in the targets table's order, which
+            the data collection label names, handed to its template as ``TARGETS``.
 
     Returns:
         The number of collection labels not written, each label that could not be
@@ -463,7 +469,10 @@ def generate_collection_files(
     # Each template is parsed whether or not its collection is written, so one missing
     # from the tree raises rather than being passed over.
     data_template = pdstemplate.PdsTemplate(str(template_base / 'collection_data.lblx'))
-    data_vars: dict[str, Any] = {'COLLECTION_DATA_CSV_PATH': products.data_inventory.as_posix()}
+    data_vars: dict[str, Any] = {
+        'COLLECTION_DATA_CSV_PATH': products.data_inventory.as_posix(),
+        'TARGETS': targets,
+    }
     data_reasons: list[str] = []
     if epochs is None:
         data_reasons.append(_NO_RANGE)

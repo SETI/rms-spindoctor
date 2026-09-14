@@ -24,6 +24,7 @@ from tests.spindoctor.cli.pds4.conftest import (
     RUN_LEVEL_PRODUCTS,
     index_entry,
     make_bundle_env,
+    ring_metadata,
     touch_browse_label,
     touch_label,
     write_supplemental,
@@ -35,6 +36,7 @@ from spindoctor.cli.pds4.bundle_products import BundleProductsOutcome
 from spindoctor.cli.pds4.collections import CollectionOutcome
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.global_index import GlobalIndexOutcome
+from spindoctor.cli.pds4.targets import Pds4Target
 
 SUMMARY_PRODUCTS = (
     'data/collection_data.csv',
@@ -91,7 +93,7 @@ def _summary_counts(
             report.
         bundle: Failed run-level labels to report.
     """
-    index_outcome = GlobalIndexOutcome(failed_labels=index, epochs=None)
+    index_outcome = GlobalIndexOutcome(failed_labels=index, epochs=None, targets=())
     collection_outcome = CollectionOutcome(
         failed_labels=collections, disagreeing_images=disagreeing
     )
@@ -169,7 +171,7 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     data_dir = env.bundle_dir / 'data'
     touch_label(data_dir, 'shard0/1111111111n')
     touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
-    radii = {'backplanes': {'radius': {'min': 81000.0, 'max': 125000.0, 'units': 'km'}}}
+    radii = ring_metadata({'radius': {'min': 81000.0, 'max': 125000.0, 'units': 'km'}})
     write_supplemental(data_dir, 'shard0/1111111111n', bodies=_latitude_in('deg'), rings=radii)
     sd_create_bundle.main_summary()
     products = [env.bundle_dir / name for name in SUMMARY_PRODUCTS]
@@ -314,7 +316,7 @@ def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
     statement that raised but not the path it interpolated, so the path is what says
     the reason reached the log.
     """
-    outcome = GlobalIndexOutcome(failed_labels=0, epochs=None)
+    outcome = GlobalIndexOutcome(failed_labels=0, epochs=None, targets=())
     monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
@@ -353,54 +355,63 @@ def test_main_summary_reports_why_the_bundle_products_could_not_be_generated(
     assert expected in capsys.readouterr().out
 
 
-def test_main_summary_hands_the_index_s_range_to_the_generators_after_it(
+def test_main_summary_hands_the_index_s_range_and_targets_to_the_generators_after_it(
     summary_run: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The index runs first, and the collections and then the run-level products get its range.
+    """The index runs first, and the collections and the run-level products get what it took.
 
     The scan of the supplemental files is the pass's one read of them, so the range
-    the data collection label and the bundle label state can come from nowhere else.
+    the data collection label and the bundle label state, and the targets they and the
+    metakernel label name, can come from nowhere else.
     """
     calls: list[str] = []
     handed: list[Any] = []
     epochs = EpochRange(start_et=100.0, stop_et=900.0)
+    targets = (
+        Pds4Target(
+            lid='urn:nasa:pds:context:target:fake.moon',
+            version='1.0',
+            name='Moon',
+            target_type='Satellite',
+        ),
+    )
 
     def _index(**kwargs: Any) -> GlobalIndexOutcome:
-        """Record the call, and report the range.
+        """Record the call, and report the range and the targets.
 
         Parameters:
             **kwargs: What the driver passed, unused.
 
         Returns:
-            An outcome carrying the range and no failed label.
+            An outcome carrying the range, the targets and no failed label.
         """
         calls.append('index')
-        return GlobalIndexOutcome(failed_labels=0, epochs=epochs)
+        return GlobalIndexOutcome(failed_labels=0, epochs=epochs, targets=targets)
 
     def _collections(**kwargs: Any) -> CollectionOutcome:
-        """Record the call and the range it is handed, and report nothing counted.
+        """Record the call and the range and targets it is handed, and report nothing counted.
 
         Parameters:
-            **kwargs: What the driver passed; ``epochs`` is recorded.
+            **kwargs: What the driver passed; ``epochs`` and ``targets`` are recorded.
 
         Returns:
             An outcome with no failed label and no disagreeing image.
         """
         calls.append('collections')
-        handed.append(kwargs['epochs'])
+        handed.append((kwargs['epochs'], kwargs['targets']))
         return CollectionOutcome(failed_labels=0, disagreeing_images=0)
 
     def _bundle(**kwargs: Any) -> BundleProductsOutcome:
-        """Record the call and the range it is handed, and report nothing counted.
+        """Record the call and the range and targets it is handed, and report nothing counted.
 
         Parameters:
-            **kwargs: What the driver passed; ``epochs`` is recorded.
+            **kwargs: What the driver passed; ``epochs`` and ``targets`` are recorded.
 
         Returns:
             An outcome with no failed label.
         """
         calls.append('bundle')
-        handed.append(kwargs['epochs'])
+        handed.append((kwargs['epochs'], kwargs['targets']))
         return BundleProductsOutcome(failed_labels=0)
 
     monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', _index)
@@ -408,7 +419,7 @@ def test_main_summary_hands_the_index_s_range_to_the_generators_after_it(
     monkeypatch.setattr(sd_create_bundle, 'generate_bundle_products', _bundle)
     sd_create_bundle.main_summary()
     assert calls == ['index', 'collections', 'bundle']
-    assert handed == [epochs, epochs]
+    assert handed == [(epochs, targets), (epochs, targets)]
 
 
 def test_main_summary_exits_zero_when_every_label_is_written(

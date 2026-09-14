@@ -1,11 +1,65 @@
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 
 import numpy as np
 from pdslogger import PdsLogger
 
-from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
+from spindoctor.cli.backplanes.statistics import DEGREES
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
+
+RING_LONGITUDE = 'ring_longitude'
+"""The configured ring plane holding the ring longitude.
+
+Its statistic also records its range wrapped at zero, the arc of longitude the image's
+ring pixels cover.
+"""
+
+RING_LONGITUDINAL_RESOLUTION = 'ring_longitudinal_resolution'
+"""The configured ring plane holding the longitudinal size of a pixel on the rings.
+
+Its coarsest value over an image is the widest gap between the image's ring longitudes
+that still leaves the circle covered.
+"""
+
+
+class RingIncidenceAngle(TypedDict):
+    """The incidence angle of sunlight on the ring plane, as the backplane metadata records it.
+
+    Each angle is the one between the direction the sunlight arrives from and the normal to
+    the ring plane on its sunlit side, from 0 to 90 degrees.
+
+    Attributes:
+        value: The angle at the ring system's center, recorded for every image with a
+            closest planet.
+        min: The least angle over the image's ring pixels, the pixels where a ring plane
+            the FITS holds has a value; recorded when there are any.
+        max: The greatest angle over those pixels.
+        mean: The mean angle over those pixels.
+        units: The unit the angles are in, ``deg``.
+    """
+
+    value: float
+    min: NotRequired[float]
+    max: NotRequired[float]
+    mean: NotRequired[float]
+    units: str
+
+
+def ring_target(planet: str) -> str:
+    """Return the ring target an image's ring backplanes are computed for.
+
+    Parameters:
+        planet: The image's closest planet, as the observation names it.
+
+    Returns:
+        ``SATURN_MAIN_RINGS`` for Saturn, whose main rings the ring backplanes cover, and
+        ``<PLANET>_RING_SYSTEM`` for any other planet.
+    """
+    # Saturn's ring backplanes cover its main rings: a rule about one planet in a module
+    # whose name names none, which moving the choice into configuration would end (#618).
+    if planet == 'SATURN':
+        return 'SATURN_MAIN_RINGS'
+    return f'{planet}_RING_SYSTEM'
 
 
 def create_ring_backplanes(
@@ -26,14 +80,27 @@ def create_ring_backplanes(
         not configured.
 
         - "planet": The closest planet name.
-        - "target_key": The target key used for backplane generation.
+        - "target_key": The ring target the backplanes are computed for, as
+          :func:`ring_target` names it.
+        - "incidence_angle": The incidence angle of sunlight on the ring target's
+          plane, as a :class:`RingIncidenceAngle` in degrees.  It is one angle over
+          the whole image, so no backplane holds it: oops's
+          ``ring_center_incidence_angle`` evaluates it once, at the ring system's
+          center, for the light that reaches the camera at the observation's
+          midtime, measured from the normal on the plane's sunlit side.  It is
+          recorded whether or not any pixel of the image is on the rings.
+        - "pixel_incidence": The incidence angle at each pixel, oops's
+          ``ring_incidence_angle`` on the ring target, measured the same way, in the
+          radians oops gives it and the masked value where the pixel is not on the
+          rings.  No backplane holds it either: the writer records its least, greatest
+          and mean over the ring pixels the merge leaves, beside the angle at the
+          center.
         - "arrays": The ring backplane arrays.
         - "masks": The ring backplane masks.
         - "distance": The ring backplane distance.
-        - "statistics": The ring backplane statistics, each stating the unit it
-          is in, which is not the unit of the array it was taken from wherever
-          the plane is angular.  See
-          :mod:`spindoctor.cli.backplanes.statistics`.
+
+        No statistics: the writer takes them once the merge has removed the ring
+        pixels a nearer body covers.
     """
 
     masked_value = float(config.backplanes.masked_value)
@@ -58,16 +125,24 @@ def create_ring_backplanes(
     if rings_cfg is None:
         raise ValueError('Configuration has no rings section for backplanes')
 
-    # Use planet name - this is a bit of a kludge to handle Saturn's main rings TODO
-    target_key = f'{closest_planet}_RING_SYSTEM'
-    if closest_planet == 'SATURN':
-        target_key = 'SATURN_MAIN_RINGS'
+    target_key = ring_target(closest_planet)
 
     bp = snapshot.bp
 
     result['planet'] = closest_planet
     result['target_key'] = target_key
-    ring_stats: dict[str, PlaneStatistics] = {}
+
+    # Sunlight falls on the ring plane at one angle over the whole image, so no backplane
+    # holds it (#47): it is taken once, at the ring system's center, for the light that
+    # reaches the camera at the observation's midtime.
+    center_incidence = bp.ring_center_incidence_angle(target_key)
+    result['incidence_angle'] = RingIncidenceAngle(
+        value=float(np.degrees(center_incidence.vals)), units=DEGREES
+    )
+    # And at each pixel, which the writer summarizes over the ring pixels the product holds
+    # once the merge has decided which those are
+    pixel_incidence = bp.ring_incidence_angle(target_key)
+    result['pixel_incidence'] = np.ma.filled(pixel_incidence.mvals, fill_value=masked_value)
 
     for bp_cfg in rings_cfg:
         bp_name = bp_cfg['name']
@@ -93,13 +168,6 @@ def create_ring_backplanes(
         if np.any(mask):
             result['arrays'][bp_name] = full
             result['masks'][bp_name] = mask
-
-        # Calculate min/max statistics
-        valid_values = full[mask]
-        if len(valid_values) > 0:
-            ring_stats[bp_name] = plane_statistics(valid_values, units=units)
-
-    result['statistics'] = ring_stats
 
     # Ensure distance is present
     if result['distance'] is None:

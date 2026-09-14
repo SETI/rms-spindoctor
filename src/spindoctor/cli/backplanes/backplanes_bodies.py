@@ -6,7 +6,6 @@ from oops.backplane import Backplane
 from oops.meshgrid import Meshgrid
 from pdslogger import PdsLogger
 
-from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 
@@ -70,6 +69,23 @@ def _create_simulated_body_backplane(
     return full, full_mask
 
 
+def backplane_body_names(planet: str, config: Config) -> list[str]:
+    """Return the bodies the backplane stage looks for in an image of one planet's system.
+
+    An image gets body backplanes for each of these its inventory finds in the field of
+    view, and its backplane metadata names each by the name returned here.
+
+    Parameters:
+        planet: The image's closest planet, as the observation names it.
+        config: The configuration whose satellite list for the planet is read.
+
+    Returns:
+        The planet, then each satellite the configuration lists for it, in the
+        configuration's order.
+    """
+    return [planet, *config.satellites(planet)]
+
+
 def create_body_backplanes(
     snapshot: ObsSnapshot, config: Config, *, logger: PdsLogger
 ) -> dict[str, Any]:
@@ -87,10 +103,9 @@ def create_body_backplanes(
         - "arrays": The body backplane arrays.
         - "masks": The body backplane masks.
         - "distance": The body backplane distance.
-        - "statistics": The body backplane statistics, each stating the unit it
-          is in, which is not the unit of the array it was taken from wherever
-          the plane is angular.  See
-          :mod:`spindoctor.cli.backplanes.statistics`.
+
+        No statistics: the writer takes them once the merge has decided which body
+        each pixel shows.
     """
 
     masked_value = float(config.backplanes.masked_value)
@@ -108,7 +123,7 @@ def create_body_backplanes(
         if closest_planet is None:
             # No planet, no bodies
             return result
-        body_list = [closest_planet, *config.satellites(closest_planet)]
+        body_list = backplane_body_names(closest_planet, config)
         inv = snapshot.inventory(body_list, return_type='full')
 
     candidate_names = list(inv.keys())
@@ -147,7 +162,6 @@ def create_body_backplanes(
 
         per_type_arrays: dict[str, np.ndarray] = {}
         per_type_masks: dict[str, np.ndarray] = {}
-        body_stats: dict[str, PlaneStatistics] = {}
 
         for bp_cfg in bodies_cfg:
             bp_name = bp_cfg['name']
@@ -183,16 +197,10 @@ def create_body_backplanes(
             per_type_arrays[bp_name] = full
             per_type_masks[bp_name] = full_mask
 
-            # Calculate min/max statistics
-            valid_values = full[full_mask]
-            if len(valid_values) > 0:
-                body_stats[bp_name] = plane_statistics(valid_values, units=units)
-
         result[body_name] = {
             'arrays': per_type_arrays,
             'masks': per_type_masks,
             'distance': float(inv_info['range']),
-            'statistics': body_stats,
         }
 
     return result

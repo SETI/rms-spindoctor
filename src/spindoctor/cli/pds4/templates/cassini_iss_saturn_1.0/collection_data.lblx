@@ -129,7 +129,10 @@
         <Primary_Result_Summary>
             <purpose>Science</purpose>
             <processing_level>Derived</processing_level>
-            <!-- TODO Do we need science facets? -->
+            <Science_Facets>
+                <wavelength_range>Visible</wavelength_range>
+                <discipline_name>Ring-Moon Systems</discipline_name>
+            </Science_Facets>
         </Primary_Result_Summary>
         <Investigation_Area>
             <name>Cassini-Huygens</name>
@@ -168,7 +171,16 @@
                 </Internal_Reference>
             </Observing_System_Component>
         </Observing_System>
-        <!-- TODO Need to add targets here -->
+        $FOR(target=TARGETS)
+        <Target_Identification>
+            <name>$target.name$</name>
+            <type>$target.target_type$</type>
+            <Internal_Reference>
+                <lid_reference>$target.lid$</lid_reference>
+                <reference_type>collection_to_target</reference_type>
+            </Internal_Reference>
+        </Target_Identification>
+        $END_FOR
     </Context_Area>
     <Reference_List>
         <Internal_Reference>

@@ -19,6 +19,7 @@ matching the product labels' DATA_LID.
 """
 
 import math
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ from .conftest import (
     make_bundle_env,
     read_csv_rows,
     read_index_rows,
+    ring_metadata,
     run_collections,
     touch_label,
     write_supplemental,
@@ -47,7 +49,7 @@ BODY_STATS = {
     'MOON_A': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2, 'units': 'deg'}}}
 }
 """A body's statistics, in the unit the default configuration's latitude plane takes."""
-RING_STATS = {'backplanes': {'radius': {'min': 81000.0, 'max': 125000.987654, 'units': 'km'}}}
+RING_STATS = ring_metadata({'radius': {'min': 81000.0, 'max': 125000.987654, 'units': 'km'}})
 """Ring statistics, in the unit the default configuration's radius plane takes."""
 
 
@@ -176,6 +178,20 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     assert body_names == ['MOON_A', 'MOON_B', 'MOON_A']
 
 
+def test_a_body_with_no_statistic_has_no_row(tmp_path: Path) -> None:
+    """Of two bodies a supplemental file names, only the one with a statistic has a row.
+
+    The other is a body the image's inventory found that shows at no pixel, so it measured
+    nothing, and a row of it would say nothing.
+    """
+    env = _index_env(tmp_path)
+    bodies = {'MOON_B': {'backplanes': {}}, **BODY_STATS}
+    _write_image(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=bodies)
+    _run_global_index(env)
+    rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
+    assert [row[1] for row in rows[1:]] == ['MOON_A']
+
+
 def test_each_field_is_as_long_as_the_longest_value_in_its_column(tmp_path: Path) -> None:
     """The table is fixed width, each field padded to the longest value in its column.
 
@@ -228,7 +244,7 @@ def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
     hundredths of a kilometer, so a second decimal would print noise.
     """
     env = _index_env(tmp_path)
-    radii = {'backplanes': {'radius': {'min': 81000.04, 'max': 125000.96, 'units': 'km'}}}
+    radii = ring_metadata({'radius': {'min': 81000.04, 'max': 125000.96, 'units': 'km'}})
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
@@ -248,11 +264,9 @@ def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path:
     half-rounds.
     """
     env = _index_env(tmp_path, rings=[index_entry('longitudinal_resolution', 'rad/pixel')])
-    fine = {
-        'backplanes': {
-            'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}
-        }
-    }
+    fine = ring_metadata(
+        {'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}}
+    )
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=fine)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
@@ -285,7 +299,7 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
         'PLANET': {
             'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0, 'units': 'km/pixel'}}
         },
-        'MOON_C': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
+        'MOON_B': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
     }
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
     _run_global_index(env)
@@ -355,7 +369,7 @@ def _ring_resolution_stats(units: str) -> dict[str, Any]:
         The ``backplanes.rings`` payload of a supplemental file.
     """
     statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
-    return {'backplanes': {'longitudinal_resolution': statistic}}
+    return ring_metadata({'longitudinal_resolution': statistic})
 
 
 def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
@@ -547,6 +561,40 @@ def test_the_rows_are_the_data_inventory_s_members(tmp_path: Path) -> None:
     rings = read_index_rows(tables / 'global_rings_index.tab')
     assert [row[0] for row in bodies[1:]] == members
     assert [row[0] for row in rings[1:]] == members
+
+
+def test_the_summary_pass_reads_each_supplemental_file_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The rows, the range of the epochs and the targets come from one read of each file.
+
+    A second read would be a second download of every supplemental file on a bundle root
+    in a remote store.
+    """
+    env = _index_env(tmp_path)
+    _write_image(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
+    reads: Counter[str] = Counter()
+    read_text = FCPath.read_text
+
+    def counted(path: FCPath, *args: Any, **kwargs: Any) -> str:
+        """Count a read of a supplemental file, then read it.
+
+        Parameters:
+            path: The file read.
+            *args: Passed on to the read.
+            **kwargs: Passed on to the read.
+
+        Returns:
+            The file's text.
+        """
+        if path.name.endswith('_supplemental.txt'):
+            reads[path.name] += 1
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(FCPath, 'read_text', counted)
+    _run_global_index(env)
+    assert reads == {'1111111111n_supplemental.txt': 1, '2222222222w_supplemental.txt': 1}
 
 
 def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) -> None:

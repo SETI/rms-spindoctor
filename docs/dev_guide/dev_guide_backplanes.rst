@@ -82,7 +82,7 @@ Per-image, the driver runs three phases:
    serialises the master arrays and the body-ID map to FITS, attaching
    the ``BUNIT`` header from the per-backplane config, and writes a
    companion ``_backplane_metadata.json`` with per-body inventory and
-   per-backplane min/max statistics.
+   per-backplane min/max statistics, taken from the merged master arrays.
 
 Phase 1 skips the image if the navigation step did not converge, writing no
 FITS for it; the downstream PDS4 driver also refuses to render a label for an
@@ -187,6 +187,23 @@ the spacecraft to the ring intersection point along the line of sight)
 that the merge step compares to per-body distances to decide which source
 owns each pixel.
 
+The ring target is the one
+:func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` names for the image's
+closest planet: ``SATURN_MAIN_RINGS`` for Saturn, whose main rings the ring backplanes
+cover, and ``<PLANET>_RING_SYSTEM`` for any other.  The ring step also takes the
+incidence angle of sunlight on that target's plane, once for the image, through
+``oops``'s ``ring_center_incidence_angle`` on the same full-frame backplane: the angle
+at the ring system's center, for the light that reaches the camera at the observation's
+midtime, measured from the normal on the plane's sunlit side, converted to degrees as a
+:class:`~spindoctor.cli.backplanes.backplanes_rings.RingIncidenceAngle`.  Sunlight falls
+on a ring plane at one angle over an image -- on a real frame the angle at the center
+differs from every ring pixel's by a few thousandths of a degree -- so no backplane
+holds it.  The stage records the target and the angle for every image with a closest
+planet, whether or not any pixel is on the rings.  It also keeps the angle at each
+pixel, ``oops``'s ``ring_incidence_angle`` on the same target and measured the same
+way, which no plane holds either: the writer records its least, greatest and mean over
+the ring pixels the merged planes hold, beside the angle at the center.
+
 Distance-aware merge
 ====================
 
@@ -235,12 +252,36 @@ output FITS file structure:
 Alongside the FITS file the writer drops a companion
 ``<image>_backplane_metadata.json`` containing:
 
-- the per-image dataset / instrument / observation metadata,
-- the per-body inventory (NAIF ID, name, predicted bounding box),
-- the per-backplane min / max / mean / valid-pixel-count statistics.
+- ``bodies``: for each body, its planes' statistics under ``backplanes``, a minimum and
+  a maximum each, and from the inventory its center, range and size in pixels
+  (``center_uv``, ``center_range``, ``size_uv``);
+- ``rings``: the ring target the ring backplanes were computed for (``target``), the
+  incidence angle of sunlight on its plane (``incidence_angle``: its ``value`` at the
+  ring system's center and, when a ring plane has a value anywhere, its ``min``,
+  ``max`` and ``mean`` over the pixels where one does, in degrees with their unit), and
+  the ring planes' statistics (``backplanes``).
 
 Each statistic states the unit its values are in, which for an angular plane
 is not the unit of the array it was taken from.
+
+Every statistic is taken from the master arrays the FITS holds, after the merge,
+over the pixels where the plane has a value, so that it summarizes exactly what a
+reader of the FITS finds: a body's over the pixels ``BODY_ID_MAP`` gives the body,
+and the rings' over every pixel.  A pixel of the rings or of a body that a nearer
+body covers holds the nearer body's value, so it counts for the nearer body alone,
+and a body a nearer body hides entirely is recorded with no statistic.  The body
+and ring steps compute none of their own.
+
+The ring longitude's statistic, the plane
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDE` names, also
+records its range wrapped at zero, ``wrapped_min`` and ``wrapped_max``, which
+:func:`~spindoctor.cli.backplanes.statistics.wrapped_range` finds over the same
+pixels.  The widest gap between the longitudes, the gap across zero among them, is
+the part of the circle the image does not cover, and the arc runs from the longitude
+after it to the one before it, so the arc's start is the greater where it crosses
+zero.  Longitudes that leave no gap wider than the coarsest value of the plane
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION`
+names cover the whole circle, recorded as 0 to 360.
 
 The PDS4 bundle generator (:doc:`dev_guide_pds4`) reads this sidecar
 when rendering the per-image data label.
@@ -371,6 +412,10 @@ below:
   source.
 - :func:`~spindoctor.cli.backplanes.backplanes_rings.create_ring_backplanes` — ring
   source.
+- :func:`~spindoctor.cli.backplanes.backplanes_bodies.backplane_body_names` and
+  :func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` — the bodies the stage
+  looks for in an image of one planet's system, and the ring target it computes that
+  image's ring backplanes for, which name them in the metadata document.
 - :func:`~spindoctor.cli.backplanes.statistics.plane_statistics` — per-plane
   reduction to a minimum, a maximum and the unit they are in, over
   :func:`~spindoctor.cli.backplanes.statistics.statistics_units`.
