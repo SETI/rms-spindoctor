@@ -314,9 +314,9 @@ def test_a_label_without_clock_counts_publishes_null_counts() -> None:
 def test_the_label_facts_are_published_as_the_label_states_them() -> None:
     """Each label fact is published under its dictionary name, as the label states it.
 
-    W1573251410_1_CALIB's numbers stay numbers, its times are its own day-of-year spellings
-    with their trailing Z, its gain mode is its text, and its missing-line count is the
-    text N/A.
+    W1573251410_1_CALIB's numbers stay numbers, its times are its own day-of-year
+    spellings with their trailing Z, its gain mode is its text, and its missing-line count
+    is the text N/A.
     """
     public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
     assert {key: public[key] for key in _W1573251410_FACTS} == _W1573251410_FACTS
@@ -376,9 +376,9 @@ def test_a_sequence_keyword_is_split_into_its_attributes_in_order(
 ) -> None:
     """Each element of a sequence keyword is published under the attribute it is.
 
-    The values are real labels' where a real label's elements all differ.  No archive label's
-    four compression parameters all differ, so those four are made distinct here; the
-    label's order is malgo, block type, blocks per group, quantization factor.
+    The values are real labels' where a real label's elements all differ.  No archive
+    label's four compression parameters all differ, so those four are made distinct here;
+    the label's order is malgo, block type, blocks per group, quantization factor.
 
     Parameters:
         keyword: The sequence keyword.

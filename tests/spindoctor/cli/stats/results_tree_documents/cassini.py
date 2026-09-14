@@ -699,8 +699,9 @@ _SHARED_LABEL_ITEMS: dict[str, Any] = {
 }
 """The label items every Cassini image of this tree shares.
 
-They are N1635282917_1_CALIB's, a narrow angle tour frame, with the target made the Iapetus
-every image here was taken of and the ground software version one a 2005 label writes.
+They are N1635282917_1_CALIB's, a narrow angle tour frame, with the target made the
+Iapetus every image here was taken of and the ground software version one a 2005 label
+writes.
 """
 
 _CAMERA_LABEL_ITEMS: dict[str, dict[str, Any]] = {

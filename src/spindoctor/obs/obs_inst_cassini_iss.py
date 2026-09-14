@@ -94,12 +94,12 @@ _LABEL_FACTS: tuple[tuple[str, str | tuple[str, ...]], ...] = (
     ('TELEMETRY_FORMAT_ID', 'telemetry_format_id'),
     ('VALID_MAXIMUM', ('valid_maximum_full_well', 'valid_maximum_DN_sat')),
 )
-"""The label facts the host publishes: each label keyword, with the name it is published under.
+"""The label facts the host publishes: each keyword, with the name it is published under.
 
-A keyword whose value is a sequence carries the names of its elements, in order.  Each name is
-the attribute of the Cassini PDS4 dictionary's ``ISS_Specific_Attributes``
-(``PDS4_CASSINI_1O00_1800``) that the value is, with ``-`` written as ``_``, and the table is
-in the dictionary's order.
+A keyword whose value is a sequence carries the names of its elements, in order.  Each
+name is the attribute of the Cassini PDS4 dictionary's ``ISS_Specific_Attributes``
+(``PDS4_CASSINI_1O00_1800``) that the value is, with ``-`` written as ``_``, and the
+table is in the dictionary's order.
 """
 
 
