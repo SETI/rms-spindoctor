@@ -4,6 +4,10 @@ images, along with associated metadata and documentation.
 The document collection contains a detailed, comprehensive User Guide which
 provides an overview of the contents of this bundle and how to use it.
 
+The miscellaneous collection contains two index tables, one of the bodies and
+one of the rings, that summarize the backplanes of every image in the bundle
+for ease of use in automated pipelines.
+
 The most current version of the entire bundle may be obtained from the PDS using
 the logical identifier:
 

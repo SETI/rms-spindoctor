@@ -49,7 +49,11 @@ from .conftest import (
 def _bundle_env(
     tmp_path: Path, *, template_contents: dict[str, str] | None = None, browse: bool = True
 ) -> BundleEnv:
-    """Build a bundle whose data and browse collections the summary pass has written.
+    """Build a bundle whose index and data and browse collections the pass has written.
+
+    The index generator runs first, as in the summary pass, and writes the miscellaneous
+    collection, which the bundle label declares; then the data and browse collections
+    are written.
 
     Parameters:
         tmp_path: Base temporary directory.
@@ -64,6 +68,9 @@ def _bundle_env(
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     if browse:
         touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
+    generate_global_index_files(
+        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
+    )
     run_collections(env)
     return env
 

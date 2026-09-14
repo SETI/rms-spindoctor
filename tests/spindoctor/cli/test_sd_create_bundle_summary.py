@@ -41,6 +41,8 @@ SUMMARY_PRODUCTS = (
     'data/collection_data.lblx',
     'browse/collection_browse.csv',
     'browse/collection_browse.lblx',
+    'miscellaneous/collection_miscellaneous.csv',
+    'miscellaneous/collection_miscellaneous.lblx',
     'miscellaneous/global_bodies_index.tab',
     'miscellaneous/global_bodies_index.lblx',
     'miscellaneous/global_rings_index.tab',

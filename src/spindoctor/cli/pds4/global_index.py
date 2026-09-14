@@ -1,4 +1,4 @@
-"""The global index tables of a PDS4 bundle, and the formats their values are written in.
+"""The global index tables of a PDS4 bundle, and the miscellaneous collection that holds them.
 
 The summary pass reads every supplemental file the labels pass wrote once, here, and
 builds two tables from them: one row for each body of each image the data collection
@@ -33,12 +33,13 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
-from spindoctor.cli.pds4.bundle_products import clear_bundle_products
+from spindoctor.cli.pds4.bundle_products import clear_bundle_products, secondary_members
 from spindoctor.cli.pds4.collections import (
     clear_collection_products,
     data_directory,
     data_products,
     supplemental_files,
+    write_collection,
 )
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan
 from spindoctor.cli.pds4.labels import write_label
@@ -151,6 +152,9 @@ BODIES_INDEX = 'global_bodies_index'
 
 RINGS_INDEX = 'global_rings_index'
 """The rings table's name: the stem of its file and its label, and its LID's last part."""
+
+INDEX_VERSION = '1.0'
+"""The version of each index product, which its label states and its inventory line names."""
 
 
 def index_lid(bundle_name: str, index_name: str) -> str:
@@ -495,7 +499,9 @@ class GlobalIndexOutcome:
     """What generating the global index files came to.
 
     Attributes:
-        failed_labels: The number of index labels that could not be rendered.
+        failed_labels: The number of labels not written: each index label that could not
+            be rendered, and the miscellaneous collection's label when it could not be
+            rendered or the collection could not be written.
         epochs: The earliest exposure start and the latest exposure stop over the
             supplemental files the index was built from, which the data collection
             label states, or None when there were none.
@@ -534,6 +540,14 @@ def generate_global_index_files(
     descriptions come from the plane's configuration entry, whose unit is the unit its
     statistic is in, and whose missing constant is the masked value in the column's
     format, the text a cell holds where an image has no statistic for the plane.
+
+    The miscellaneous collection is written after the tables, its inventory
+    ``collection_miscellaneous.csv`` and its label beside them: a ``P`` line for each
+    index product whose label is on disk, by its LID and :data:`INDEX_VERSION`, and then
+    an ``S`` line for each secondary member the template directory's document inventory
+    cites, through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`.  It is
+    written through :func:`~spindoctor.cli.pds4.collections.write_collection`, so a
+    collection with no member is not written at all and counts as a label not written.
 
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
@@ -615,7 +629,10 @@ def generate_global_index_files(
     bodies_label = miscellaneous_dir / f'{BODIES_INDEX}.lblx'
     rings_tab = miscellaneous_dir / f'{RINGS_INDEX}.tab'
     rings_label = miscellaneous_dir / f'{RINGS_INDEX}.lblx'
-    for index_product in (bodies_tab, bodies_label, rings_tab, rings_label):
+    collection_inventory = miscellaneous_dir / f'collection_{MISCELLANEOUS_COLLECTION}.csv'
+    collection_label = miscellaneous_dir / f'collection_{MISCELLANEOUS_COLLECTION}.lblx'
+    index_products = (bodies_tab, bodies_label, rings_tab, rings_label)
+    for index_product in (*index_products, collection_inventory, collection_label):
         index_product.unlink(missing_ok=True)
     clear_collection_products(bundle_root)
     clear_bundle_products(bundle_root, dataset)
@@ -688,6 +705,7 @@ def generate_global_index_files(
     template_base = Path(template_dir)
     bodies_template = pdstemplate.PdsTemplate(str(template_base / bodies_label.name))
     rings_template = pdstemplate.PdsTemplate(str(template_base / rings_label.name))
+    collection_template = pdstemplate.PdsTemplate(str(template_base / collection_label.name))
 
     # The bodies table: the data product, the body and the data label, then the least
     # and the greatest value of each configured body plane
@@ -714,6 +732,29 @@ def generate_global_index_files(
         logger=logger,
     )
     failed_labels = [bodies_written, rings_written].count(IndexWritten.UNLABELED)
+
+    # The miscellaneous collection, written after the tables it lists, as the data
+    # inventory is written after the labels it lists.  Its primary members are the index
+    # products whose labels are on disk; its secondary members are the ones the document
+    # inventory the template directory ships cites, taken from there so that the two
+    # inventories cannot disagree about them.
+    primaries = [
+        f'{index_lid(bundle_name, name)}::{INDEX_VERSION}'
+        for name, written in ((BODIES_INDEX, bodies_written), (RINGS_INDEX, rings_written))
+        if written is IndexWritten.LABELED
+    ]
+    if not write_collection(
+        MISCELLANEOUS_COLLECTION,
+        collection_inventory,
+        collection_label,
+        primaries=primaries,
+        secondaries=secondary_members(FCPath(template_dir)),
+        template=collection_template,
+        template_vars={'COLLECTION_MISCELLANEOUS_CSV_PATH': collection_inventory.as_posix()},
+        reasons_not_written=[],
+        logger=logger,
+    ):
+        failed_labels += 1
 
     logger.info(
         'Generated global index files: %d body rows, %d ring rows',

@@ -102,6 +102,7 @@ def test_cassini_lid_strips_version_suffix_and_extension(tmp_path: Path) -> None
         'collection_xml_schema.csv',
         'global_bodies_index.lblx',
         'global_rings_index.lblx',
+        'collection_miscellaneous.lblx',
         'cassini-iss-saturn-backplanes-user-guide.lblx',
         'collection_spice_kernels.lblx',
         'collection_spice_kernels.csv',

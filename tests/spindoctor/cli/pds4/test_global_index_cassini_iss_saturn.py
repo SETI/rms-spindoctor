@@ -27,6 +27,7 @@ from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from .conftest import (
     index_entry,
     make_bundle_env,
+    read_csv_rows,
     touch_label,
     write_cohort_bundle,
     write_supplemental,
@@ -363,3 +364,30 @@ def test_a_missing_statistic_s_cell_holds_the_constant_its_field_declares(
     masked_value = float(DEFAULT_CONFIG.backplanes.masked_value)
     assert cells == declared
     assert [float(constant) for constant in declared] == [masked_value, masked_value]
+
+
+def test_each_primary_member_of_the_miscellaneous_inventory_is_a_label_beside_it(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """The inventory's primary members are the index labels in the collection's directory.
+
+    Each ``P`` line names, as its LID and version, an index product's label in the
+    ``miscellaneous`` directory beside the inventory, and each such label is named.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
+    miscellaneous = env.bundle_dir / 'miscellaneous'
+    rows = read_csv_rows(miscellaneous / 'collection_miscellaneous.csv')
+    primaries = sorted(lidvid for status, lidvid in rows if status == 'P')
+    roots = [
+        ElementTree.parse(label).getroot()
+        for label in miscellaneous.glob('*.lblx')
+        if not label.name.startswith('collection_')
+    ]
+    identification = 'pds:Identification_Area'
+    labels = sorted(
+        f'{_text(root, f"{identification}/pds:logical_identifier")}'
+        f'::{_text(root, f"{identification}/pds:version_id")}'
+        for root in roots
+    )
+    assert len(primaries) == len(INDEX_NAMES)
+    assert primaries == labels

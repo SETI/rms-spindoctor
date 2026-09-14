@@ -450,8 +450,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Returns the file names one bundle pass must find in the template directory.
 
-        The summary pass's are the templates of the data and browse collections and the
-        global index, and those of the run-level products: the bundle label, the readme,
+        The summary pass's are the templates of the data and browse collections, of the
+        global index and of the miscellaneous collection that holds it, and those of the
+        run-level products: the bundle label, the readme,
         the context, document, SPICE kernel and XML schema collections' inventories and
         labels, the metakernel and its label, and the user guide's label.
 
@@ -471,6 +472,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             'collection_browse.lblx',
             'global_bodies_index.lblx',
             'global_rings_index.lblx',
+            'collection_miscellaneous.lblx',
             'bundle.lblx',
             'readme.txt',
             'collection_context.csv',

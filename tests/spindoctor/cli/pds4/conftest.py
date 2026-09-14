@@ -74,7 +74,15 @@ def collection_template(collection: str, body: str) -> str:
     )
 
 
-BUNDLE_COLLECTIONS = ('browse', 'context', 'data', 'document', 'spice_kernels', 'xml_schema')
+BUNDLE_COLLECTIONS = (
+    'browse',
+    'context',
+    'data',
+    'document',
+    'miscellaneous',
+    'spice_kernels',
+    'xml_schema',
+)
 """The collections the summary pass writes, which the stand-in bundle label declares."""
 
 
@@ -133,6 +141,9 @@ COLLECTION_BROWSE_TEMPLATE = collection_template(
 GLOBAL_INDEX_TEMPLATE = (
     '<Index>\n  <lid>$INDEX_LID$</lid>\n'
     '  <records>$FILE_RECORDS(INDEX_TABLE_PATH)-1$</records>\n</Index>\n'
+)
+COLLECTION_MISCELLANEOUS_TEMPLATE = collection_template(
+    'miscellaneous', '  <csv>$COLLECTION_MISCELLANEOUS_CSV_PATH$</csv>\n'
 )
 BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
 """A template naming a variable no caller defines, so the render errors."""
@@ -208,6 +219,7 @@ SUMMARY_TEMPLATES = {
     'collection_browse.lblx': COLLECTION_BROWSE_TEMPLATE,
     'global_bodies_index.lblx': GLOBAL_INDEX_TEMPLATE,
     'global_rings_index.lblx': GLOBAL_INDEX_TEMPLATE,
+    'collection_miscellaneous.lblx': COLLECTION_MISCELLANEOUS_TEMPLATE,
     **RUN_LEVEL_FILES,
 }
 """The files the summary pass takes from the template directory, and their fake content."""

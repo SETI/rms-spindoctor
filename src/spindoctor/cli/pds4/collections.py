@@ -187,20 +187,24 @@ def clear_collection_products(bundle_root: FCPath) -> None:
         path.unlink(missing_ok=True)
 
 
-def _write_inventory(inventory: FCPath, lidvids: list[str]) -> None:
-    """Write a collection inventory listing each LIDVID as a primary member.
+def _write_inventory(inventory: FCPath, primaries: list[str], secondaries: list[str]) -> None:
+    """Write a collection inventory: its primary members, then its secondary members.
 
     The inventory is comma-separated with no header: one ``P,<lidvid>`` line per
-    member, in the order given, each line ending in a line feed alone, the last
-    included.  Its number of lines is therefore its number of members, which is
-    what the collection label states as its records.
+    primary member and then one ``S,<lidvid>`` line per secondary member, each in the
+    order given, and every line ending in a line feed alone, the last included.  Its
+    number of lines is therefore its number of members, which is what the collection
+    label states as its records.
 
     Parameters:
         inventory: Where the inventory goes.
-        lidvids: The members' LIDVIDs, in the order they are listed.
+        primaries: The primary members' LIDVIDs, the products the collection holds.
+        secondaries: The secondary members' LIDVIDs, the products it cites.
     """
     with inventory.open('w', newline='', encoding='utf-8') as f:
-        csv.writer(f, lineterminator='\n').writerows(['P', lidvid] for lidvid in lidvids)
+        writer = csv.writer(f, lineterminator='\n')
+        writer.writerows(['P', lidvid] for lidvid in primaries)
+        writer.writerows(['S', lidvid] for lidvid in secondaries)
 
 
 _NO_MEMBER = 'the collection has no member, and its label has to state at least one record'
@@ -215,41 +219,49 @@ _NO_RANGE = (
 """Why the data collection is not written when no supplemental file gives it a range."""
 
 
-def _write_collection(
+def write_collection(
     name: str,
     inventory: FCPath,
     label: FCPath,
     *,
-    lidvids: list[str],
+    primaries: list[str],
+    secondaries: list[str],
     template: pdstemplate.PdsTemplate,
     template_vars: dict[str, Any],
     reasons_not_written: list[str],
     logger: PdsLogger,
 ) -> bool:
-    """Write one collection's inventory and then its label, or neither of them.
+    """Write one generated collection's inventory and then its label, or neither of them.
 
-    A collection with a reason not to be written is not written at all: whatever is at
-    either path is removed, so that a collection on disk is always one this run wrote,
-    and one error names the collection, both paths and every reason.  Otherwise the
-    inventory is written, and then the label, which reads the inventory's size, checksum
-    and record count from the file; the inventory stays whether or not the label
-    renders.
+    A collection is written only when its label can state what PDS4 requires of it.  One
+    with no member cannot, since its label has to state at least one record, and nor can
+    one the caller gives another reason for.  Such a collection is not written at all:
+    whatever is at either path is removed, so that a collection on disk is always one
+    this run wrote, and one error names the collection, both paths and every reason.
+    Otherwise the inventory is written, and then the label, which reads the inventory's
+    size, checksum and record count from the file; the inventory stays whether or not
+    the label renders.
 
     Parameters:
-        name: The collection's name, as the error gives it: ``data`` or ``browse``.
+        name: The collection's name, as the error gives it: ``data``, ``browse`` or
+            ``miscellaneous``.
         inventory: Where the collection's inventory goes.
         label: Where the collection's label goes.
-        lidvids: The members' LIDVIDs, in the order the inventory lists them.
+        primaries: The LIDVIDs of the products the collection holds, in the order its
+            inventory lists them.
+        secondaries: The LIDVIDs of the products it cites, listed after the primaries.
         template: The parsed template the label renders from.
         template_vars: The variables the label's template resolves against.
-        reasons_not_written: Why the collection cannot be written, one phrase each, or
-            an empty list when it can be.
+        reasons_not_written: Why else the collection cannot be written, one phrase each,
+            or an empty list when nothing else stands in its way.
         logger: Logger for diagnostic messages.
 
     Returns:
         True if the collection's label is on disk, False if it is not.
     """
-    if len(reasons_not_written) > 0:
+    has_member = len(primaries) + len(secondaries) > 0
+    reasons = ([] if has_member else [_NO_MEMBER]) + reasons_not_written
+    if len(reasons) > 0:
         inventory.unlink(missing_ok=True)
         label.unlink(missing_ok=True)
         logger.error(
@@ -257,10 +269,10 @@ def _write_collection(
             name,
             inventory,
             label,
-            '; and '.join(reasons_not_written),
+            '; and '.join(reasons),
         )
         return False
-    _write_inventory(inventory, lidvids)
+    _write_inventory(inventory, primaries, secondaries)
     logger.info('Generated "%s": %s', inventory.name, inventory)
     if not write_label(template, template_vars, label, logger=logger):
         return False
@@ -450,16 +462,17 @@ def generate_collection_files(
     # from the tree raises rather than being passed over.
     data_template = pdstemplate.PdsTemplate(str(template_base / 'collection_data.lblx'))
     data_vars: dict[str, Any] = {'COLLECTION_DATA_CSV_PATH': products.data_inventory.as_posix()}
-    data_reasons = [] if len(data_names) > 0 else [_NO_MEMBER]
+    data_reasons: list[str] = []
     if epochs is None:
         data_reasons.append(_NO_RANGE)
     else:
         data_vars |= epochs.template_variables()
-    if not _write_collection(
+    if not write_collection(
         'data',
         products.data_inventory,
         products.data_label,
-        lidvids=[dataset.pds4_image_name_to_data_lidvid(name) for name in data_names],
+        primaries=[dataset.pds4_image_name_to_data_lidvid(name) for name in data_names],
+        secondaries=[],
         template=data_template,
         template_vars=data_vars,
         reasons_not_written=data_reasons,
@@ -469,14 +482,15 @@ def generate_collection_files(
 
     # The browse collection, whose label states at least one record
     browse_template = pdstemplate.PdsTemplate(str(template_base / 'collection_browse.lblx'))
-    if not _write_collection(
+    if not write_collection(
         'browse',
         products.browse_inventory,
         products.browse_label,
-        lidvids=[dataset.pds4_image_name_to_browse_lidvid(name) for name in browse_names],
+        primaries=[dataset.pds4_image_name_to_browse_lidvid(name) for name in browse_names],
+        secondaries=[],
         template=browse_template,
         template_vars={'COLLECTION_BROWSE_CSV_PATH': products.browse_inventory.as_posix()},
-        reasons_not_written=[] if len(browse_names) > 0 else [_NO_MEMBER],
+        reasons_not_written=[],
         logger=logger,
     ):
         failed_labels += 1

@@ -60,6 +60,8 @@ SUMMARY_LAYOUT = {
     'data/collection_data.lblx',
     'document/collection_document.csv',
     'document/collection_document.lblx',
+    'miscellaneous/collection_miscellaneous.csv',
+    'miscellaneous/collection_miscellaneous.lblx',
     'miscellaneous/global_bodies_index.tab',
     'miscellaneous/global_bodies_index.lblx',
     'miscellaneous/global_rings_index.tab',
@@ -137,7 +139,7 @@ def test_every_member_entry_of_the_bundle_label_names_a_collection_label_in_the_
     """The bundle label's member entries are exactly the collection labels' own LIDs.
 
     A collection label is one directory below the bundle's root.  The bundle label names
-    each of the six the pass writes by the logical identifier that label declares, and
+    each of the seven the pass writes by the logical identifier that label declares, and
     names nothing else.
     """
     env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
@@ -147,6 +149,7 @@ def test_every_member_entry_of_the_bundle_label_names_a_collection_label_in_the_
         for entry in root.iterfind('pds:Bundle_Member_Entry', PDS4_NAMESPACES)
     ]
     held = [_lid(label) for label in env.bundle_dir.glob('*/collection_*.lblx')]
+    assert len(declared) == 7
     assert sorted(declared) == sorted(held)
 
 

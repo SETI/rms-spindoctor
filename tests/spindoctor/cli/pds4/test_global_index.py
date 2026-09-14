@@ -30,6 +30,7 @@ from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (
     BROKEN_TEMPLATE,
+    DEFAULT_BUNDLE_NAME,
     GLOBAL_INDEX_TEMPLATE,
     BundleEnv,
     index_entry,
@@ -116,6 +117,23 @@ def _write_image(
     """
     touch_label(data_dir, stub)
     return write_supplemental(data_dir, stub, bodies=bodies, rings=rings)
+
+
+MISCELLANEOUS = f'urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:miscellaneous'
+"""The miscellaneous collection's LID, which each index product's LID begins with."""
+
+
+def _primary_members(env: BundleEnv) -> list[str]:
+    """Return the LIDVIDs the miscellaneous inventory lists as its primary members.
+
+    Parameters:
+        env: The environment whose bundle's inventory is read.
+
+    Returns:
+        Each ``P`` line's LIDVID, in the inventory's order.
+    """
+    rows = read_csv_rows(env.bundle_dir / 'miscellaneous' / 'collection_miscellaneous.csv')
+    return [lidvid for status, lidvid in rows if status == 'P']
 
 
 # ---------------------------------------------------------------------------
@@ -449,16 +467,19 @@ def test_a_render_that_fails_leaves_no_table(
 def test_a_refused_run_leaves_none_of_the_index_products_an_earlier_run_wrote(
     tmp_path: Path,
 ) -> None:
-    """A refused run leaves none of the index tables and labels an earlier run wrote.
+    """A refused run leaves none of the index products an earlier run wrote.
 
-    Left in place, they would sit beside the collection files the run has
-    rewritten, still indexing the refused file as it was.
+    Left in place, the tables and their labels would sit beside the collection files the
+    run has rewritten, still indexing the refused file as it was, and the miscellaneous
+    collection's inventory and label would still list them.
     """
     products = [
         'global_bodies_index.tab',
         'global_bodies_index.lblx',
         'global_rings_index.tab',
         'global_rings_index.lblx',
+        'collection_miscellaneous.csv',
+        'collection_miscellaneous.lblx',
     ]
     env = _ring_resolution_env(tmp_path)
     index_dir = env.bundle_dir / 'miscellaneous'
@@ -544,14 +565,22 @@ def test_an_index_table_no_image_gives_a_row_is_left_out(
     A table's label states its records, and the PDS4 schema requires at least one, so no
     label can describe an empty table.  A bundle holding no image with ring backplanes is
     a real state rather than a fault, so the run says so at info level and fails nothing.
-    The bodies table, which has a row, is written with its label.
+    The bodies table, which has a row, is written with its label, and the miscellaneous
+    inventory lists it and not the rings table.
     """
     env = _index_env(tmp_path)
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     failed = _run_global_index(env)
     assert failed == 0
-    written = sorted(path.name for path in (env.bundle_dir / 'miscellaneous').iterdir())
-    assert written == ['global_bodies_index.lblx', 'global_bodies_index.tab']
+    miscellaneous = env.bundle_dir / 'miscellaneous'
+    written = sorted(path.name for path in miscellaneous.iterdir())
+    assert written == [
+        'collection_miscellaneous.csv',
+        'collection_miscellaneous.lblx',
+        'global_bodies_index.lblx',
+        'global_bodies_index.tab',
+    ]
+    assert _primary_members(env) == [f'{MISCELLANEOUS}:global_bodies_index::1.0']
     reports = [
         line
         for line in capsys.readouterr().out.splitlines()
@@ -606,6 +635,9 @@ def test_a_broken_index_template_is_counted_and_leaves_the_other(
 ) -> None:
     """One unrenderable index label is counted; the other still gets written.
 
+    The miscellaneous inventory lists a product of the bundle only when its label is in
+    the bundle, so it lists the product whose label was written and not the other.
+
     Parameters:
         tmp_path: Base temporary directory.
         broken: Template whose render errors in this case.
@@ -622,6 +654,72 @@ def test_a_broken_index_template_is_counted_and_leaves_the_other(
     index_dir = env.bundle_dir / 'miscellaneous'
     assert not (index_dir / broken).exists()
     assert (index_dir / intact).is_file()
+    assert _primary_members(env) == [f'{MISCELLANEOUS}:{intact.removesuffix(".lblx")}::1.0']
+
+
+def test_the_miscellaneous_inventory_lists_the_tables_and_what_the_documents_cite(
+    tmp_path: Path,
+) -> None:
+    """The inventory lists each index product, then the document inventory's secondaries.
+
+    Its ``P`` lines are the two index products, by LID and version.  Its ``S`` lines are
+    the secondary members of the document inventory the template directory ships, in
+    that inventory's order, and nothing else of it: the user guide, that inventory's
+    primary member, is not the miscellaneous collection's.  Both inventories take them
+    from that one file, so they cannot disagree.
+    """
+    document = (
+        f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0\n'
+        'S,urn:nasa:pds:context:instrument:first::1.2\n'
+        'S,urn:nasa:pds:context:investigation:second::1.5\n'
+    )
+    env = make_bundle_env(
+        tmp_path,
+        template_contents={'collection_document.csv': document},
+        bodies=[index_entry('latitude', 'rad')],
+        rings=[index_entry('radius', 'km')],
+    )
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS)
+    _run_global_index(env)
+    rows = read_csv_rows(env.bundle_dir / 'miscellaneous' / 'collection_miscellaneous.csv')
+    assert rows == [
+        ['P', f'{MISCELLANEOUS}:global_bodies_index::1.0'],
+        ['P', f'{MISCELLANEOUS}:global_rings_index::1.0'],
+        ['S', 'urn:nasa:pds:context:instrument:first::1.2'],
+        ['S', 'urn:nasa:pds:context:investigation:second::1.5'],
+    ]
+
+
+def test_a_miscellaneous_collection_with_no_member_is_not_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With no index table and nothing cited, the collection is not written, and counts.
+
+    No image gives either table a row and the document inventory cites nothing, so the
+    collection has no member and its label could state no record.  Neither its inventory
+    nor its label is on disk afterwards, whatever an earlier run left there; it counts
+    once as a label not written; and one error names it.
+    """
+    guide_only = f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0\n'
+    env = make_bundle_env(tmp_path, template_contents={'collection_document.csv': guide_only})
+    miscellaneous = env.bundle_dir / 'miscellaneous'
+    earlier = [
+        miscellaneous / 'collection_miscellaneous.csv',
+        miscellaneous / 'collection_miscellaneous.lblx',
+    ]
+    miscellaneous.mkdir(parents=True)
+    for path in earlier:
+        path.write_text('an earlier run\n', encoding='utf-8')
+    (env.bundle_dir / 'data').mkdir()
+    failed = _run_global_index(env)
+    assert failed == 1
+    assert [path for path in earlier if path.exists()] == []
+    errors = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if 'The miscellaneous collection was not written' in line
+    ]
+    assert len(errors) == 1
 
 
 def test_a_missing_index_template_raises(tmp_path: Path) -> None:
