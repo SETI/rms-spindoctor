@@ -468,8 +468,10 @@ def report(
         print(
             '                  measured as the median over the frames already agreeing; a constant'
         )
-        print('                  in both axes says the two answers are working in different')
-        print('                  pixel coordinate systems, not disagreeing about pointing')
+        print('                  over the tolerance in either axis is called out below, and the')
+        print('                  same constant in both is the signature of two answers working')
+        print('                  in different pixel coordinate systems rather than disagreeing')
+        print('                  about pointing')
         if datum_wrong:
             print(
                 f'  WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis): this is a coordinate'
