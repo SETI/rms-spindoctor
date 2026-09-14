@@ -1303,7 +1303,7 @@ label names its EDR; or both.
 **The ruling, 2026-09-14 (#678):** cite the calibrated image the navigation read
 as an external source product, not the raw PDS4 product. A PDS4 bundle of
 calibrated images is coming, and the label switches to `Source_Product_Internal`
-once it exists. Phase 7 applies it. `data.lblx` carries a
+once it exists (#687). Phase 7 applies it. `data.lblx` carries a
 `Source_Product_External` whose
 - `external_source_product_identifier` is the image's volume and the file
   specification of its label within that volume, as in
@@ -2423,6 +2423,9 @@ branch.
   bundle of calibrated images exists, when the label switches to
   `Source_Product_Internal` (section 3.13). Phase 7 applies the ruling, and
   #678 is closed by hand when Phase 7 merges.
+- #687 — cite each image's calibrated PDS4 product through
+  `Source_Product_Internal`, by its LIDVID, once a PDS4 bundle of calibrated
+  images is registered, and drop the external citation (section 3.13).
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow
   from their epochs. Phase 2 builds the epoch-first constructor that makes
   the defect unrepeatable and uses it for every cohort document. Routing the
