@@ -43,6 +43,7 @@ BUNDLE_TOP_LEVEL = {
     'context',
     'data',
     'document',
+    'miscellaneous',
     'spice_kernels',
     'xml_schema',
 }
@@ -59,10 +60,12 @@ SUMMARY_LAYOUT = {
     'data/collection_data.lblx',
     'document/collection_document.csv',
     'document/collection_document.lblx',
-    'document/supplemental/global_index_bodies.tab',
-    'document/supplemental/global_index_bodies.lblx',
-    'document/supplemental/global_index_rings.tab',
-    'document/supplemental/global_index_rings.lblx',
+    'miscellaneous/collection_miscellaneous.csv',
+    'miscellaneous/collection_miscellaneous.lblx',
+    'miscellaneous/global_bodies_index.tab',
+    'miscellaneous/global_bodies_index.lblx',
+    'miscellaneous/global_rings_index.tab',
+    'miscellaneous/global_rings_index.lblx',
     'spice_kernels/collection_spice_kernels.csv',
     'spice_kernels/collection_spice_kernels.lblx',
     'spice_kernels/kernels.ker',
@@ -70,11 +73,7 @@ SUMMARY_LAYOUT = {
     'xml_schema/collection_xml_schema.csv',
     'xml_schema/collection_xml_schema.lblx',
 }
-"""Every file the summary pass writes into a bundle whose template directory has no guide.
-
-The global index tables are under ``document/supplemental/`` until they have a collection
-of their own.
-"""
+"""Every file the summary pass writes into a bundle whose template directory has no guide."""
 
 
 @pytest.fixture
@@ -140,7 +139,7 @@ def test_every_member_entry_of_the_bundle_label_names_a_collection_label_in_the_
     """The bundle label's member entries are exactly the collection labels' own LIDs.
 
     A collection label is one directory below the bundle's root.  The bundle label names
-    each of the six the pass writes by the logical identifier that label declares, and
+    each of the seven the pass writes by the logical identifier that label declares, and
     names nothing else.
     """
     env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
@@ -150,6 +149,7 @@ def test_every_member_entry_of_the_bundle_label_names_a_collection_label_in_the_
         for entry in root.iterfind('pds:Bundle_Member_Entry', PDS4_NAMESPACES)
     ]
     held = [_lid(label) for label in env.bundle_dir.glob('*/collection_*.lblx')]
+    assert len(declared) == 7
     assert sorted(declared) == sorted(held)
 
 
@@ -164,9 +164,6 @@ def _documents_named(label: Path, bundle_lid: str) -> set[str]:
         Each LID an ``Internal_Reference`` of a ``..._to_document`` type names that is a
         product of the bundle.
     """
-    if label.stat().st_size == 0:
-        # The global index labels render from empty templates, so they name nothing.
-        return set()
     references = (
         ElementTree.parse(label).getroot().iter(f'{{{PDS4_NAMESPACES["pds"]}}}Internal_Reference')
     )

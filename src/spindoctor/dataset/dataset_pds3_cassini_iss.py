@@ -9,18 +9,25 @@ from filecache import FCPath, FileCache
 
 from spindoctor.config import Config
 from spindoctor.support.misc import safe_lstrip_zero
-from spindoctor.support.time import et_to_pds4_utc, pds4_utc_midpoint
+from spindoctor.support.time import (
+    PDS4_EXPOSURE_TIME_DIGITS,
+    et_to_pds4_utc,
+    pds4_utc_midpoint,
+)
 
 from .dataset import ImageFile, ImageFiles, Pds4Pass, pds4_label_name
 from .dataset_pds3 import DataSetPDS3
 
-_PDS4_TIME_DIGITS = 3
-"""The decimals of a second a data label writes its exposure's times to.
+_SOURCE_PRODUCT_REFERENCE_TYPE = 'data_to_calibrated_source_product'
+"""What a data label says of the product it was computed from: a calibrated product.
 
-A millisecond, the precision a Cassini image's start and stop are recorded to in its
-PDS3 label and index.  Whole seconds, which the reference bundle writes for its mosaics,
-would state an exposure of a few milliseconds as a window of one or two seconds.
+The image the navigation read is the calibrated image, and this is the value of the five
+the ``PDS4_PDS_1O00`` Schematron allows for a ``Source_Product_External``'s
+``reference_type`` that names a calibrated source.
 """
+
+_SOURCE_PRODUCT_CURATING_FACILITY = 'PDS Ring-Moon Systems Node'
+"""The facility that holds the calibrated image a data label cites as its source."""
 
 
 class DataSetPDS3CassiniISS(DataSetPDS3):
@@ -450,8 +457,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Returns the file names one bundle pass must find in the template directory.
 
-        The summary pass's are the templates of the data and browse collections and the
-        global index, and those of the run-level products: the bundle label, the readme,
+        The summary pass's are the templates of the data and browse collections, of the
+        global index and of the miscellaneous collection that holds it, and those of the
+        run-level products: the bundle label, the readme,
         the context, document, SPICE kernel and XML schema collections' inventories and
         labels, the metakernel and its label, and the user guide's label.
 
@@ -469,8 +477,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         return [
             'collection_data.lblx',
             'collection_browse.lblx',
-            'global_index_bodies.lblx',
-            'global_index_rings.lblx',
+            'global_bodies_index.lblx',
+            'global_rings_index.lblx',
+            'collection_miscellaneous.lblx',
             'bundle.lblx',
             'readme.txt',
             'collection_context.csv',
@@ -610,9 +619,11 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         """Returns template variables for PDS4 label generation.
 
         ``START_DATE_TIME`` and ``STOP_DATE_TIME`` are the exposure's start and stop,
-        read from the epochs the navigation recorded under ``navigation_result.times``
-        and written the way a PDS4 label writes a UTC time, to the millisecond, with a
-        trailing ``Z``, each rounded to the nearest millisecond.  An image's start and
+        read from the ``start_time_et`` and ``end_time_et`` the navigation document's
+        ``observation`` block records, which the host publishes for every image whose
+        navigation ran to a result, pointing or not, and written the way a PDS4 label
+        writes a UTC time, to the millisecond, with a trailing ``Z``, each rounded to
+        the nearest millisecond.  An image's start and
         stop are recorded to the millisecond in its PDS3 label and index, and the
         epochs are computed from those values, so each epoch lies within a few
         nanoseconds of a millisecond, on one side of it or the other: the nearest
@@ -623,10 +634,20 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         milliseconds long has its midtime on a half millisecond, where the recorded
         midtime epoch lands a few nanoseconds to either side of it.
 
+        ``SOURCE_PRODUCT_IDENTIFIER``, ``SOURCE_PRODUCT_REFERENCE_TYPE`` and
+        ``SOURCE_PRODUCT_CURATING_FACILITY`` cite the calibrated image the navigation
+        read as an external source product, since no PDS4 bundle holds calibrated Cassini
+        ISS images yet: by its volume and the file specification of its label within that
+        volume, the volume and the label's directory taken from the image's results path
+        stub and the label's file name from its label's URL, as in
+        ``COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL``; as a calibrated
+        product; held by the PDS Ring-Moon Systems Node.
+
         Parameters:
             image_file: The image file being processed.
-            nav_metadata: Navigation metadata dictionary: a success document recording
-                the exposure's epochs under ``navigation_result.times``.
+            nav_metadata: Navigation metadata dictionary: a success document whose
+                ``observation`` block records the exposure's ``start_time_et`` and
+                ``end_time_et``.
             backplane_metadata: Backplane metadata dictionary.
 
         Returns:
@@ -634,9 +655,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             substitution.
 
         Raises:
-            KeyError: If ``nav_metadata`` records no ``navigation_result.times``, as
-                a navigation that recorded no pointing leaves it.  The labels pass
-                fails such an image before it asks for these variables.
+            KeyError: If ``nav_metadata`` has no ``observation`` block holding
+                ``start_time_et`` and ``end_time_et``, which a document the navigation
+                wrote for a result always has.
         """
         vars_dict: dict[str, Any] = {}
 
@@ -655,18 +676,20 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             vars_dict['CAMERA_WN_UC'] = ''
             vars_dict['CAMERA_WN_LC'] = ''
 
-        # The exposure's start and stop, from the epochs its navigation recorded, each
-        # at the nearest millisecond: the epochs are computed from times recorded to the
-        # millisecond, so the nearest is the one recorded, where a floor or a ceiling
-        # would lose it whenever the float lands a few nanoseconds on its far side.  The
-        # midtime is their midpoint as written, a half rounding up as PDS3's does; the
-        # midtime epoch of an odd-millisecond exposure sits on the half, either side.
-        times = nav_metadata['navigation_result']['times']
+        # The exposure's start and stop, from the observation block the navigation
+        # document holds for every image whose navigation ran to a result, pointing or
+        # not, each at the nearest millisecond: the epochs are computed from times
+        # recorded to the millisecond, so the nearest is the one recorded, where a floor
+        # or a ceiling would lose it whenever the float lands a few nanoseconds on its
+        # far side.  The midtime is their midpoint as written, a half rounding up as
+        # PDS3's does; the midtime epoch of an odd-millisecond exposure sits on the half,
+        # either side.
+        observation = nav_metadata['observation']
         vars_dict['START_DATE_TIME'] = et_to_pds4_utc(
-            times['start_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
+            observation['start_time_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
         )
         vars_dict['STOP_DATE_TIME'] = et_to_pds4_utc(
-            times['stop_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
+            observation['end_time_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
         )
         vars_dict['IMAGE_MID_TIME'] = pds4_utc_midpoint(
             vars_dict['START_DATE_TIME'], vars_dict['STOP_DATE_TIME']
@@ -685,9 +708,18 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         vars_dict['TITLE'] = f'Backplanes for {image_file.image_file_name}'
         vars_dict['DESCRIPTION'] = f'Backplanes for navigated image {image_file.image_file_name}'
         vars_dict['COMMENT'] = 'Generated from navigated image data'
-        vars_dict['SOURCE_IMAGE_LIDVID'] = (
-            f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}::1.0'
-        )
+
+        # The calibrated image the navigation read, cited as an external source product
+        # until a PDS4 bundle holds calibrated Cassini ISS images: by the volume the
+        # Ring-Moon Systems Node holds it under and the file specification of its label
+        # within that volume.  The results path stub the dataset gave the image,
+        # '<volume>/<directory>/<image>', gives the volume and the directory, and the
+        # label's URL the file name, so that no label is opened for it.
+        volume_id, _, image_path = image_file.results_path_stub.partition('/')
+        label_filespec = FCPath(image_path).with_name(image_file.label_file_url.name)
+        vars_dict['SOURCE_PRODUCT_IDENTIFIER'] = f'{volume_id}:{label_filespec.as_posix()}'
+        vars_dict['SOURCE_PRODUCT_REFERENCE_TYPE'] = _SOURCE_PRODUCT_REFERENCE_TYPE
+        vars_dict['SOURCE_PRODUCT_CURATING_FACILITY'] = _SOURCE_PRODUCT_CURATING_FACILITY
 
         # Extract from index_file_row if available
         index_row = image_file.index_file_row

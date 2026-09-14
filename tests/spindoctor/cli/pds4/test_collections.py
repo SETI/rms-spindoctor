@@ -92,7 +92,7 @@ def test_an_empty_data_tree_writes_neither_collection(
     ]
     assert len(data_errors) == 1
     assert 'the collection has no member' in data_errors[0]
-    assert 'the data tree holds no supplemental file' in data_errors[0]
+    assert 'no data label in the data tree has a supplemental file' in data_errors[0]
 
 
 def test_a_collection_with_no_member_is_not_written_beside_one_that_has(tmp_path: Path) -> None:

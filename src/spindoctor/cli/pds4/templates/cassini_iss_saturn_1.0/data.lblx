@@ -163,10 +163,20 @@
             </reference_text>
             <description>NAIF HTML documentation describing SPICE</description>
         </External_Reference>
-        <Source_Product_Internal>
-            <lidvid_reference>$SOURCE_IMAGE_LIDVID$</lidvid_reference>
-            <reference_type>data_to_calibrated_source_product</reference_type>  <!-- TODO Need to check this -->
-        </Source_Product_Internal>
+        $NOTE
+        No PDS4 bundle holds calibrated Cassini ISS images yet, so the calibrated image
+        the backplanes were computed from is cited as an external product; this becomes a
+        Source_Product_Internal once one does.
+        $END_NOTE
+        <Source_Product_External>
+            <external_source_product_identifier>$SOURCE_PRODUCT_IDENTIFIER$</external_source_product_identifier>
+            <reference_type>$SOURCE_PRODUCT_REFERENCE_TYPE$</reference_type>
+            <curating_facility>$SOURCE_PRODUCT_CURATING_FACILITY$</curating_facility>
+            <description>
+                The calibrated image the backplanes were computed from, named by its
+                volume and the file specification of its label within that volume.
+            </description>
+        </Source_Product_External>
     </Reference_List>
     <File_Area_Observational>
         <File>

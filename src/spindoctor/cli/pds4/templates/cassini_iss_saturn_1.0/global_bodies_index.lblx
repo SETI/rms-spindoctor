@@ -2,25 +2,26 @@
 <?xml-model href="https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00.sch"
     schematypens="http://purl.oclc.org/dsdl/schematron"?>
 
-<Product_Bundle
+<Product_Ancillary
     xmlns="http://pds.nasa.gov/pds4/pds/v1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00.xsd">
     <Identification_Area>
-        <logical_identifier>$BUNDLE_LID$</logical_identifier>
+        <logical_identifier>$INDEX_LID$</logical_identifier>
         <version_id>1.0</version_id>
-        <title>Backplanes for Navigated Images from Cassini ISS at Saturn</title>
+        <title>Global Bodies Index</title>
         <information_model_version>1.24.0.0</information_model_version>
-        <product_class>Product_Bundle</product_class>
+        <product_class>Product_Ancillary</product_class>
         <Citation_Information>
             <publication_year>2027</publication_year>
-            <doi>TODO DOI</doi>
             <keyword>backplanes</keyword>
             <keyword>cassini iss</keyword>
             <keyword>saturn</keyword>
+            <keyword>index</keyword>
             <description>
-                This bundle contains backplanes for navigated images from Cassini ISS at
-                Saturn.
+                A table indexing the backplanes for navigated images from Cassini ISS at
+                Saturn, with one row for each body of each image the data collection
+                holds.
             </description>
             <List_Author>
                 <Person>
@@ -119,122 +120,60 @@
             </Modification_Detail>
         </Modification_History>
     </Identification_Area>
-    <Context_Area>
-        <Time_Coordinates>
-            <start_date_time>$EARLIEST_START_DATE_TIME$</start_date_time>
-            <stop_date_time>$LATEST_STOP_DATE_TIME$</stop_date_time>
-        </Time_Coordinates>
-        <Primary_Result_Summary>
-            <purpose>Science</purpose>
-            <processing_level>Derived</processing_level>
-            <description>
-                This bundle contains backplanes for navigated images from Cassini ISS at Saturn.
-            </description>
-            <!-- TODO Do we need science facets? -->
-        </Primary_Result_Summary>
-        <Investigation_Area>
-            <name>Cassini-Huygens</name>
-            <type>Mission</type>
-            <Internal_Reference>
-                <lid_reference>urn:nasa:pds:context:investigation:mission.cassini-huygens</lid_reference>
-                <reference_type>bundle_to_investigation</reference_type>
-            </Internal_Reference>
-        </Investigation_Area>
-        <Observing_System>
-            <name>Cassini Orbiter Imaging Science Subsystem</name>
-            <Observing_System_Component>
-                <name>Cassini Orbiter</name>
-                <type>Host</type>
-                <Internal_Reference>
-                    <lid_reference>urn:nasa:pds:context:instrument_host:spacecraft.co</lid_reference>
-                    <reference_type>is_instrument_host</reference_type>
-                </Internal_Reference>
-            </Observing_System_Component>
-            <Observing_System_Component>
-                <name>Imaging Science Subsystem - Narrow Angle</name>
-                <type>Instrument</type>
-                <description>ISSNA</description>
-                <Internal_Reference>
-                    <lid_reference>urn:nasa:pds:context:instrument:issna.co</lid_reference>
-                    <reference_type>is_instrument</reference_type>
-                </Internal_Reference>
-            </Observing_System_Component>
-            <Observing_System_Component>
-                <name>Imaging Science Subsystem - Wide Angle</name>
-                <type>Instrument</type>
-                <description>ISSWA</description>
-                <Internal_Reference>
-                    <lid_reference>urn:nasa:pds:context:instrument:isswa.co</lid_reference>
-                    <reference_type>is_instrument</reference_type>
-                </Internal_Reference>
-            </Observing_System_Component>
-        </Observing_System>
-        <!-- TODO Need to add targets here-->
-    </Context_Area>
-    <Reference_List>
-        <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide</lid_reference>
-            <reference_type>bundle_to_document</reference_type>
-            <comment>
-                This is the user guide for the backplanes for navigated images from Cassini ISS at Saturn.
-            </comment>
-        </Internal_Reference>
-        <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn:document:iss-data-user-guide</lid_reference>
-            <reference_type>bundle_to_document</reference_type>
-            <comment>The Cassini ISS Data User's Guide (PDS3); DOI: 10.17189/1504135</comment>
-        </Internal_Reference>
-    </Reference_List>
-    <Bundle>
-        <bundle_type>Archive</bundle_type>
-        <description>
-            This bundle contains backplanes for navigated images from Cassini ISS at Saturn.
-        </description>
-    </Bundle>
-    <File_Area_Text>
+    <File_Area_Ancillary>
         <File>
-            <file_name>readme.txt</file_name>
-            <creation_date_time>$FILE_ZULU(README_PATH)$</creation_date_time>
+            <file_name>global_bodies_index.tab</file_name>
+            <creation_date_time>$FILE_ZULU(INDEX_TABLE_PATH)$</creation_date_time>
+            <file_size unit="byte">$FILE_BYTES(INDEX_TABLE_PATH)$</file_size>
+            <md5_checksum>$FILE_MD5(INDEX_TABLE_PATH)$</md5_checksum>
         </File>
-        <Stream_Text>
+        <Header>
             <offset unit="byte">0</offset>
+            <object_length unit="byte">$HEADER_LENGTH$</object_length>
             <parsing_standard_id>7-Bit ASCII Text</parsing_standard_id>
+            <description>
+                One line naming the table's fields, in order, separated by commas.
+            </description>
+        </Header>
+        <Table_Character>
+            <local_identifier>global_bodies_index</local_identifier>
+            <offset unit="byte">$HEADER_LENGTH$</offset>
+            <records>$FILE_RECORDS(INDEX_TABLE_PATH)-1$</records>
+            <description>
+                One row for each body of each image the data collection holds, giving the
+                image's data product, the start and stop of its exposure, and the least
+                and the greatest value each body backplane takes over the pixels where it
+                has a value for that body. Every field is padded with spaces to its length
+                and followed by a comma, the last by the line feed. Angles are in degrees,
+                although the backplane arrays are in radians. A field holding its missing
+                constant marks a backplane that has no value for the body in that image.
+            </description>
             <record_delimiter>Line-Feed</record_delimiter>
-        </Stream_Text>
-    </File_Area_Text>
-    <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:browse</lid_reference>
-        <member_status>Primary</member_status>
-        <reference_type>bundle_has_browse_collection</reference_type>
-    </Bundle_Member_Entry>
-    <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:context</lid_reference>
-        <member_status>Primary</member_status>
-        <reference_type>bundle_has_context_collection</reference_type>
-    </Bundle_Member_Entry>
-    <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:data</lid_reference>
-        <member_status>Primary</member_status>
-        <reference_type>bundle_has_data_collection</reference_type>
-    </Bundle_Member_Entry>
-    <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document</lid_reference>
-        <member_status>Primary</member_status>
-        <reference_type>bundle_has_document_collection</reference_type>
-    </Bundle_Member_Entry>
-    <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:miscellaneous</lid_reference>
-        <member_status>Primary</member_status>
-        <reference_type>bundle_has_miscellaneous_collection</reference_type>
-    </Bundle_Member_Entry>
-    <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:spice_kernels</lid_reference>
-        <member_status>Primary</member_status>
-        <reference_type>bundle_has_spice_kernel_collection</reference_type>
-    </Bundle_Member_Entry>
-    <Bundle_Member_Entry>
-        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:xml_schema</lid_reference>
-        <member_status>Primary</member_status>
-        <reference_type>bundle_has_schema_collection</reference_type>
-    </Bundle_Member_Entry>
-</Product_Bundle>
+            <Record_Character>
+                <fields>$len(FIELDS)$</fields>
+                <groups>0</groups>
+                <record_length unit="byte">$RECORD_LENGTH$</record_length>
+                $FOR(field=FIELDS)
+                <Field_Character>
+                    <name>$field.column.name$</name>
+                    <field_number>$field.number$</field_number>
+                    <field_location unit="byte">$field.location$</field_location>
+                    <data_type>$field.column.data_type$</data_type>
+                    <field_length unit="byte">$field.length$</field_length>
+                    $IF(field.column.unit is not None)
+                    <unit>$field.column.unit$</unit>
+                    $END_IF
+                    <description>
+                        $WRAP(24,91,field.column.description,preserve_single_newlines=False)$
+                    </description>
+                    $IF(field.column.missing_constant is not None)
+                    <Special_Constants>
+                        <missing_constant>$field.column.missing_constant$</missing_constant>
+                    </Special_Constants>
+                    $END_IF
+                </Field_Character>
+                $END_FOR
+            </Record_Character>
+        </Table_Character>
+    </File_Area_Ancillary>
+</Product_Ancillary>

@@ -10,6 +10,16 @@ Pds4Rounding = Literal['nearest', 'down', 'up']
 _PDS4_ROUNDINGS: tuple[Pds4Rounding, ...] = ('nearest', 'down', 'up')
 """Every rounding :func:`et_to_pds4_utc` accepts."""
 
+PDS4_EXPOSURE_TIME_DIGITS = 3
+"""The decimals of a second a PDS4 product states an exposure's start and stop to.
+
+Milliseconds, each written through :func:`et_to_pds4_utc` and rounded to the nearest,
+which gives back a time recorded to the millisecond; whole seconds would state an
+exposure of a few milliseconds as a window of one or two.  A data label and the global
+index tables both state an image's start and stop with it, so a row's times are its
+data label's.
+"""
+
 
 def now_iso() -> str:
     """Returns the current time as an ISO 8601 formatted string with timezone information.
@@ -139,7 +149,9 @@ def et_to_utc(et: float, digits: int | None = 3) -> str:
     return _utc_from_tai(_tai_from_et(et), digits=digits, suffix='')
 
 
-def et_to_pds4_utc(et: float, *, digits: int = 3, rounding: Pds4Rounding = 'nearest') -> str:
+def et_to_pds4_utc(
+    et: float, *, digits: int = PDS4_EXPOSURE_TIME_DIGITS, rounding: Pds4Rounding = 'nearest'
+) -> str:
     """Returns an ET the way a PDS4 label writes a UTC time.
 
     The form is PDS4's ``ASCII_Date_Time_YMD_UTC``: the date as year, month and day, a
@@ -162,7 +174,8 @@ def et_to_pds4_utc(et: float, *, digits: int = 3, rounding: Pds4Rounding = 'near
     Parameters:
         et: The epoch, as SPICE ET (TDB seconds past J2000).
         digits: The number of decimals of a second to write, 0 for whole seconds.
-            The default of three writes milliseconds, as :func:`et_to_utc` does.
+            The default, :data:`PDS4_EXPOSURE_TIME_DIGITS`, writes milliseconds, the
+            precision a PDS4 product states an exposure's start and stop to.
         rounding: Which way an instant between two values of the last digit goes.
 
     Returns:

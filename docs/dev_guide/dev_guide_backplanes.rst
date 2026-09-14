@@ -258,7 +258,7 @@ If the part of a unit before any ``/`` is exactly ``rad``, it becomes ``deg``
 and the rest is kept, so ``rad/pixel`` becomes ``deg/pixel``. Every other unit
 is left alone. An angular unit other than ``rad`` (``mrad``, ``arcsec``) would
 need a change to that function, and every unit needs a format in
-:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS`. Two tests over the
+:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS`. Two tests over the
 shipped configuration fail on a unit that needs either change: one allows only
 the measures ``rad``, ``deg`` and ``km``, and the other looks every unit up in
 that table.
@@ -326,11 +326,14 @@ Adding a backplane
    :class:`~oops.backplane.Backplane` method to call. Verify the
    method exists by reading the ``oops`` source — there is no
    compile-time check on the YAML name.
-2. Append a ``{name, method, units}`` entry to the matching list in
+2. Append a ``{name, method, units, index}`` entry to the matching list in
    ``config_900_backplanes.yaml``. Pick a ``name`` that scans well as
    a FITS HDU name (uppercase or snake_case, no spaces). ``units``
    describes the array, which for an angular plane means radians; the
-   statistics are converted from it, per the units section above.
+   statistics are converted from it, per the units section above. The
+   ``index`` block names the two columns the PDS4 bundle's global index
+   tables give the plane's statistic, their data type and their
+   descriptions (see :doc:`dev_guide_pds4`).
 3. Rebuild a sample image with ``sd_backplanes`` and verify the new
    HDU appears in the FITS file with the expected ``BUNIT`` header and
    non-trivial pixel content (use ``sd_backplane_viewer`` for a quick

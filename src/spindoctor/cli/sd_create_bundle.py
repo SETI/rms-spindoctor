@@ -23,10 +23,8 @@ sys.path.insert(0, package_source_path)
 from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.cli.pds4.bundle_products import generate_bundle_products
-from spindoctor.cli.pds4.collections import (
-    generate_collection_files,
-    generate_global_index_files,
-)
+from spindoctor.cli.pds4.collections import generate_collection_files
+from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.config import (
     DEFAULT_CONFIG,
     MAIN_LOGGER,

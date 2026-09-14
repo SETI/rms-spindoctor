@@ -15,12 +15,9 @@ from typing import Any
 import pytest
 from filecache import FCPath
 
-from spindoctor.cli.pds4.collections import (
-    GlobalIndexOutcome,
-    generate_collection_files,
-    generate_global_index_files,
-)
+from spindoctor.cli.pds4.collections import generate_collection_files
 from spindoctor.cli.pds4.epochs import EpochRange
+from spindoctor.cli.pds4.global_index import GlobalIndexOutcome, generate_global_index_files
 from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (
@@ -40,10 +37,10 @@ def _navigation(start_et: float, stop_et: float) -> dict[str, Any]:
         stop_et: When it ended.
 
     Returns:
-        The document, its midtime halfway between the two.
+        The document, whose ``observation`` block records the two.
     """
-    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
-    return {'status': 'success', 'navigation_result': {'times': times}}
+    observation = {'start_time_et': start_et, 'end_time_et': stop_et}
+    return {'status': 'success', 'observation': observation}
 
 
 def _summarize(env: BundleEnv) -> tuple[GlobalIndexOutcome, int]:
@@ -65,22 +62,53 @@ def _summarize(env: BundleEnv) -> tuple[GlobalIndexOutcome, int]:
     return index, collections.failed_labels
 
 
-def test_the_range_is_the_earliest_start_and_the_latest_stop_over_every_file(
+def _write_member(data_dir: Path, stub: str, navigation: dict[str, Any]) -> None:
+    """Write an image the data collection holds: its data label and its supplemental file.
+
+    Parameters:
+        data_dir: The bundle's ``data`` directory.
+        stub: The image's path stub.
+        navigation: The navigation document its supplemental file carries.
+    """
+    touch_label(data_dir, stub)
+    write_supplemental(data_dir, stub, navigation=navigation)
+
+
+def test_the_range_is_the_earliest_start_and_the_latest_stop_over_every_member(
     tmp_path: Path,
 ) -> None:
-    """Over three supplemental files, the range is the least start and the greatest stop.
+    """Over three members, the range is the least start and the greatest stop.
 
-    The least start is in the second file read and the greatest stop in the first,
-    so a range taken from any one file, or from the first file's start and the last
-    file's stop, is reported.
+    Each image has a data label beside its supplemental file, so the data collection
+    holds all three.  The least start is in the second file read and the greatest stop
+    in the first, so a range taken from any one file, or from the first file's start
+    and the last file's stop, is reported.
     """
     env = make_bundle_env(tmp_path)
     data_dir = env.bundle_dir / 'data'
-    write_supplemental(data_dir, 'shard0/1111111111n', navigation=_navigation(200.0, 900.0))
-    write_supplemental(data_dir, 'shard0/2222222222w', navigation=_navigation(100.0, 300.0))
-    write_supplemental(data_dir, 'shard0/3333333333n', navigation=_navigation(500.0, 600.0))
+    _write_member(data_dir, 'shard0/1111111111n', _navigation(200.0, 900.0))
+    _write_member(data_dir, 'shard0/2222222222w', _navigation(100.0, 300.0))
+    _write_member(data_dir, 'shard0/3333333333n', _navigation(500.0, 600.0))
     index, _ = _summarize(env)
     assert index.epochs == EpochRange(start_et=100.0, stop_et=900.0)
+
+
+def test_a_supplemental_file_with_no_data_label_does_not_widen_the_range(
+    tmp_path: Path,
+) -> None:
+    """An image the data collection does not hold is not in the range its label states.
+
+    The second image has a supplemental file and no data label, which is what the
+    labels pass leaves when an image's data label fails to render, and its exposure
+    begins before the member's and ends after it.  The range is the member's alone,
+    the one image the index gives a row.
+    """
+    env = make_bundle_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    _write_member(data_dir, 'shard0/1111111111n', _navigation(200.0, 300.0))
+    write_supplemental(data_dir, 'shard0/2222222222w', navigation=_navigation(100.0, 900.0))
+    index, _ = _summarize(env)
+    assert index.epochs == EpochRange(start_et=200.0, stop_et=300.0)
 
 
 def test_with_no_supplemental_file_the_data_collection_is_not_written(
@@ -101,7 +129,7 @@ def test_with_no_supplemental_file_the_data_collection_is_not_written(
     data_products = ['collection_data.csv', 'collection_data.lblx']
     assert [name for name in data_products if (data_dir / name).exists()] == []
     assert (env.bundle_dir / 'browse' / 'collection_browse.lblx').is_file()
-    expected = 'the data tree holds no supplemental file, so there is no time range'
+    expected = 'no data label in the data tree has a supplemental file beside it'
     assert expected in capsys.readouterr().out
 
 

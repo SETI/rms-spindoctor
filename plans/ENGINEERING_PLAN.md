@@ -370,17 +370,17 @@ Work items, in dependency order:
 2. **Template finalization acceptance list** — the items recorded
    on #53: schema validation, the unreferenced `cassini:*` variables and
    hardcoded placeholders, TITLE/DESCRIPTION wording,
-   variable-less global-index labels, the index
-   tables' missing-value sentinel, non-navigated-image
+   the operator's acceptance of the index tables'
+   missing-value sentinel (#601), non-navigated-image
    handling, and the directory layout. These are
    the acceptance criteria for "final templates" in the paragraph above.
 3. **#30** — backplane label design (couples to the #55 backplane-set
    decision).
 4. **#79** — scrape PDS4 context products for targets (feeds #73).
-5. **#71-#73, #75, #76, #47** — label/collection completeness items, each
+5. **#71-#73, #75, #47** — label/collection completeness items, each
    small: parameterized bundle name/version, the context collection's
-   targets, target handling, ring geometry class fields, global-index
-   labels, ring incidence angle.
+   targets, target handling, ring geometry class fields, ring incidence
+   angle.
 6. **#66** — integrity-checking pass over a generated bundle.
 7. **#67** — cloud-aware bundle generation (with the Track D cloud
    audit).
