@@ -79,6 +79,7 @@ from spindoctor.sim.ring_geometry import (
     ring_radial_scale,
     ring_sky_from_plane,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -248,10 +249,13 @@ def render_ring_system(
     lit = (b_obs > 0.0) == (b_sun > 0.0)
     alpha_deg = float(ring_system.get('phase_deg', 0.0))
 
-    # Pixel-center coordinates relative to the projected ring center, mapped
-    # back to the ring plane through the shared inverse projection.
-    v_coords = np.arange(size_v, dtype=np.float64) + 0.5
-    u_coords = np.arange(size_u, dtype=np.float64) + 0.5
+    # Pixel centres relative to the projected ring centre, mapped back to the
+    # ring plane through the shared inverse projection.  The grid starts as
+    # array rows and columns and the projection works in the geometry layer's
+    # pixel corner coordinates, where the scene states its centre, so the half
+    # pixel goes on here.
+    v_coords = np.arange(size_v, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+    u_coords = np.arange(size_u, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
     v_grid, u_grid = np.meshgrid(v_coords, u_coords, indexing='ij')
     dv = v_grid - center_v
     du = u_grid - center_u
@@ -592,8 +596,11 @@ def _moonlet_disc_coverage(
     u1 = min(math.ceil(pos_u + reach) + 1, size_u)
     if v0 >= v1 or u0 >= u1:
         return None
-    v_centers = np.arange(v0, v1, dtype=np.float64) + 0.5
-    u_centers = np.arange(u0, u1, dtype=np.float64) + 0.5
+    # The box is named by array rows and columns and the moonlet's position is
+    # stated in the geometry layer's pixel corner coordinates, so the half
+    # pixel goes on here.
+    v_centers = np.arange(v0, v1, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+    u_centers = np.arange(u0, u1, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
     box_v, box_u = np.meshgrid(v_centers, u_centers, indexing='ij')
     dist = np.hypot(box_v - pos_v, box_u - pos_u)
     coverage = compute_antialiasing_shade(radius - dist, float(os))

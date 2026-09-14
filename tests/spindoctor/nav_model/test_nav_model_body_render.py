@@ -53,7 +53,7 @@ class _SphereSpec:
     """Analytic orthographic-sphere scene driving the fake backplane.
 
     Parameters:
-        center_vu: Sphere centre in FOV pixel coordinates ``(v, u)``.
+        center_vu: Sphere centre in the FOV's pixel corner coordinates ``(v, u)``.
         radius_px: Sphere radius in pixels.
         sun_vuz: Sun direction in the ``(v, u, z)`` image frame where ``+z``
             points toward the observer.  Normalised on use.
@@ -268,8 +268,8 @@ def _feature_types(features: list[NavFeature]) -> set[str]:
 def _analytic_disc(obs: FakeObs, spec: _SphereSpec) -> NDArrayBoolType:
     """Return the analytic pixel-centre silhouette in extfov coordinates.
 
-    Pixel index ``i`` covers continuous coordinate ``[i, i + 1)``, so its
-    centre sits at ``i + 0.5`` in the FOV frame the sphere is defined in.
+    Array row ``i`` covers ``[i, i + 1)`` in the pixel corner coordinates the
+    sphere is defined in, so its centre sits at ``i + 0.5`` there.
 
     Parameters:
         obs: Observation defining the extfov grid.
