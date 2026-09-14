@@ -284,7 +284,7 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
         'PLANET': {
             'backplanes': {'resolution': {'min': 70853.2, 'max': 123456.0, 'units': 'km/pixel'}}
         },
-        'MOON_C': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
+        'MOON_B': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
     }
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
     _run_global_index(env)
