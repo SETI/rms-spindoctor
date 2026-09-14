@@ -1,13 +1,16 @@
 """Spec-first tests for the bundle's run-level products (phase 6).
 
-Contract under test (docs/dev_guide/dev_guide_pds4.rst "Pipeline overview" and "Exit
-status"): ``generate_bundle_products`` copies the readme, the user guide when the template
-directory holds it, the metakernel and the static collections' inventories from the
-template directory into the bundle, renders a label beside each, and renders the bundle
-label last, keeping it only over a bundle holding a label for every collection it declares.
-The document inventory lists the user guide only when the bundle holds it, and a bundle
-without it is one warning naming the file rather than a label not written.  Every label is
-attempted, and each one not written is counted.
+Contract under test (docs/dev_guide/dev_guide_pds4.rst "The bundle's run-level products"
+and "Exit status"): ``generate_bundle_products`` copies the readme, the user guide when
+the template directory holds it, the metakernel and the static collections' inventories
+from the template directory into the bundle, renders a label beside each, and renders the
+bundle label last, keeping it only over a bundle holding a label for every collection it
+declares.  An inventory lists a product of the bundle only when that product's label is in
+the bundle, and a collection left with no member is not written.  A bundle without the
+user guide is one warning naming the file rather than a label not written.  Every label is
+attempted, and each one not written is counted.  The summary pass clears an earlier run's
+products before it writes, and the user guide's directory with them when it is left
+empty.
 
 What the shipped Cassini templates say is tested over the cohort in
 ``test_bundle_products_cassini_iss_saturn.py``.
@@ -18,7 +21,8 @@ from pathlib import Path
 import pytest
 from filecache import FCPath
 
-from spindoctor.cli.pds4.bundle_products import generate_bundle_products
+from spindoctor.cli.pds4.bundle_products import clear_bundle_products, generate_bundle_products
+from spindoctor.cli.pds4.collections import generate_global_index_files
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.config import MAIN_LOGGER
 
@@ -27,6 +31,7 @@ from .conftest import (
     BROKEN_TEMPLATE,
     DEFAULT_BUNDLE_NAME,
     RUN_LEVEL_FILES,
+    RUN_LEVEL_PRODUCTS,
     USER_GUIDE_NAME,
     USER_GUIDE_PDF,
     BundleEnv,
@@ -75,6 +80,19 @@ def _run(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> int:
     ).failed_labels
 
 
+def _lines_holding(capsys: pytest.CaptureFixture[str], text: str) -> list[str]:
+    """Return the lines of the captured output that hold a text.
+
+    Parameters:
+        capsys: The fixture the output was captured by.
+        text: The text sought.
+
+    Returns:
+        Each line holding ``text``, in order.
+    """
+    return [line for line in capsys.readouterr().out.splitlines() if text in line]
+
+
 COPIES = {
     'readme.txt': 'readme.txt',
     'spice_kernels/kernels.ker': 'kernels.ker',
@@ -111,9 +129,11 @@ def test_a_user_guide_the_template_directory_holds_is_copied_labeled_and_listed(
     assert failed == 0
     guide = env.bundle_dir / 'document' / 'user_guide' / USER_GUIDE_NAME
     assert guide.read_text(encoding='utf-8') == USER_GUIDE_PDF
-    assert str(FCPath(guide)) in guide.with_suffix('.lblx').read_text(encoding='utf-8')
+    assert FCPath(guide).as_posix() in guide.with_suffix('.lblx').read_text(encoding='utf-8')
     rows = read_csv_rows(env.bundle_dir / 'document' / 'collection_document.csv')
-    assert rows[0] == ['P', f'urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0']
+    primaries = [row for row in rows if row[0] == 'P']
+    lidvid = f'urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0'
+    assert primaries == [['P', lidvid]]
 
 
 def test_a_user_guide_the_template_directory_lacks_is_neither_copied_nor_listed(
@@ -132,14 +152,79 @@ def test_a_user_guide_the_template_directory_lacks_is_neither_copied_nor_listed(
     assert not (env.bundle_dir / 'document' / 'user_guide').exists()
     rows = read_csv_rows(env.bundle_dir / 'document' / 'collection_document.csv')
     assert rows == [['S', 'urn:nasa:pds:context:instrument:fake::1.0']]
-    warnings = [
-        line
-        for line in capsys.readouterr().out.splitlines()
-        if 'is not in the template directory' in line
-    ]
+    warnings = _lines_holding(capsys, 'is not in the template directory')
     assert len(warnings) == 1
     assert '| WARNING |' in warnings[0]
-    assert str(FCPath(source)) in warnings[0]
+    assert FCPath(source).as_posix() in warnings[0]
+
+
+def test_a_user_guide_whose_label_was_not_written_is_not_listed(tmp_path: Path) -> None:
+    """A guide whose label failed to render is left out of the document inventory.
+
+    An inventory lists a product of the bundle only when the product's label is in the
+    bundle, so the guide's line goes, as when the template directory holds no guide, and
+    the inventory's other members stay.
+    """
+    env = _bundle_env(tmp_path, template_contents={'fake-user-guide.lblx': BROKEN_TEMPLATE})
+    _run(env)
+    rows = read_csv_rows(env.bundle_dir / 'document' / 'collection_document.csv')
+    assert rows == [['S', 'urn:nasa:pds:context:instrument:fake::1.0']]
+
+
+def test_a_spice_kernel_collection_whose_metakernel_label_was_not_written_is_not_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With no metakernel label, the SPICE kernel collection has no member and no files.
+
+    Its one member is the metakernel, so its inventory would list nothing: neither the
+    inventory nor the label is written, what an earlier run left at either path is
+    removed, and one error names the collection.  That it counts, and costs the bundle
+    label, is the metakernel case of the failed-label test.
+    """
+    env = _bundle_env(tmp_path, template_contents={'kernels.lblx': BROKEN_TEMPLATE})
+    earlier = [
+        env.bundle_dir / 'spice_kernels' / name
+        for name in ('collection_spice_kernels.csv', 'collection_spice_kernels.lblx')
+    ]
+    earlier[0].parent.mkdir(parents=True)
+    for path in earlier:
+        path.write_text('an earlier run\n', encoding='utf-8')
+    _run(env)
+    assert [path for path in earlier if path.exists()] == []
+    errors = _lines_holding(capsys, 'The spice_kernels collection was not written')
+    assert len(errors) == 1
+    assert '| ERROR |' in errors[0]
+
+
+def test_a_rerun_without_the_user_guide_leaves_no_user_guide_directory(tmp_path: Path) -> None:
+    """A rerun over a template directory that no longer holds the guide leaves no directory.
+
+    The summary pass clears an earlier run's guide and its label before it writes, and
+    the directory they were in, left empty, goes with them.
+    """
+    env = _bundle_env(tmp_path)
+    _run(env)
+    (Path(env.dataset.pds4_bundle_template_dir()) / USER_GUIDE_NAME).unlink()
+    generate_global_index_files(
+        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
+    )
+    _run(env)
+    assert not (env.bundle_dir / 'document' / 'user_guide').exists()
+
+
+def test_clearing_takes_a_bundle_root_relative_to_the_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The run-level products clear under a bundle root named relative to where it runs.
+
+    A bundle results root can be given relative to the working directory, and the user
+    guide's directory, emptied, is removed under one too.
+    """
+    env = _bundle_env(tmp_path)
+    _run(env)
+    monkeypatch.chdir(env.bundle_results_root)
+    clear_bundle_products(FCPath(DEFAULT_BUNDLE_NAME), env.dataset.as_dataset())
+    assert not (env.bundle_dir / 'document' / 'user_guide').exists()
 
 
 def test_the_bundle_label_states_the_bundle_s_lid_and_the_range_it_is_handed(
@@ -164,7 +249,7 @@ def test_a_bundle_label_declaring_a_collection_not_written_is_not_written(
     """A collection the bundle label declares and the bundle lacks keeps the label off disk.
 
     The image has no browse label, so the browse collection was not written; the bundle
-    label, which declares it, is removed once rendered and counted, and the error names
+    label, which declares it, is removed once rendered and counted, and an error names
     the collection it lacks.
     """
     env = _bundle_env(tmp_path, browse=False)
@@ -172,7 +257,9 @@ def test_a_bundle_label_declaring_a_collection_not_written_is_not_written(
     assert failed == 1
     assert not (env.bundle_dir / 'bundle.lblx').exists()
     missing = f'it declares urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:browse, and the bundle holds no'
-    assert missing in capsys.readouterr().out
+    errors = _lines_holding(capsys, missing)
+    assert len(errors) == 1
+    assert '| ERROR |' in errors[0]
 
 
 def test_a_bundle_label_with_no_range_to_state_is_not_written(
@@ -185,46 +272,49 @@ def test_a_bundle_label_with_no_range_to_state_is_not_written(
     failed = _run(env, epochs=None)
     assert failed == 1
     assert not earlier.exists()
-    assert 'so there is no time range for it to state' in capsys.readouterr().out
+    errors = _lines_holding(capsys, 'so there is no time range for it to state')
+    assert len(errors) == 1
+    assert '| ERROR |' in errors[0]
 
 
 @pytest.mark.parametrize(
-    ('broken', 'label', 'kept', 'failed'),
+    ('broken', 'absent', 'failed'),
     [
+        ('fake-user-guide.lblx', {'document/user_guide/fake-user-guide.lblx'}, 1),
         (
-            'fake-user-guide.lblx',
-            'document/user_guide/fake-user-guide.lblx',
-            'document/user_guide/fake-user-guide.pdf',
-            1,
+            'kernels.lblx',
+            {
+                'spice_kernels/kernels.lblx',
+                'spice_kernels/collection_spice_kernels.csv',
+                'spice_kernels/collection_spice_kernels.lblx',
+                'bundle.lblx',
+            },
+            3,
         ),
-        ('kernels.lblx', 'spice_kernels/kernels.lblx', 'spice_kernels/kernels.ker', 1),
-        (
-            'collection_context.lblx',
-            'context/collection_context.lblx',
-            'context/collection_context.csv',
-            2,
-        ),
-        ('bundle.lblx', 'bundle.lblx', 'readme.txt', 1),
+        ('collection_context.lblx', {'context/collection_context.lblx', 'bundle.lblx'}, 2),
+        ('bundle.lblx', {'bundle.lblx'}, 1),
     ],
     ids=['user guide', 'metakernel', 'static collection', 'bundle'],
 )
 def test_a_run_level_label_that_fails_to_render_is_counted(
-    tmp_path: Path, broken: str, label: str, kept: str, failed: int
+    tmp_path: Path, broken: str, absent: set[str], failed: int
 ) -> None:
-    """A run-level label that fails to render is off disk and counted; what it describes stays.
+    """A run-level label that fails is counted, and every other run-level product is written.
 
-    Each is a case of its own because each is counted by a statement of its own.  A static
-    collection whose label fails is one the bundle label declares and the bundle holds no
-    label for, so the bundle label is not kept either, and that case counts two.
+    Each is a case of its own because each is counted by a statement of its own.  Every
+    label is attempted whichever fail, so each case holds every run-level product but the
+    failed label and what its failure takes with it.  The metakernel's takes the SPICE
+    kernel collection, which then has no member; a static collection's leaves that
+    collection without its label; and either takes the bundle label, which declares the
+    collection.  Each of those counts.
 
     Parameters:
         tmp_path: Base temporary directory.
         broken: The template whose render errors in this case.
-        label: Where the label it renders goes.
-        kept: The file that label describes, which stays.
+        absent: The run-level products not on disk afterwards.
         failed: The labels not written.
     """
     env = _bundle_env(tmp_path, template_contents={broken: BROKEN_TEMPLATE})
     assert _run(env) == failed
-    assert not (env.bundle_dir / label).exists()
-    assert (env.bundle_dir / kept).is_file()
+    on_disk = {product for product in RUN_LEVEL_PRODUCTS if (env.bundle_dir / product).exists()}
+    assert on_disk == set(RUN_LEVEL_PRODUCTS) - absent

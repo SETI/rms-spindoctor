@@ -151,8 +151,8 @@ RUN_LEVEL_FILES = {
         'context', '  <csv>$COLLECTION_CONTEXT_CSV_PATH$</csv>\n'
     ),
     'collection_document.csv': (
-        f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0\n'
         'S,urn:nasa:pds:context:instrument:fake::1.0\n'
+        f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0\n'
     ),
     'collection_document.lblx': collection_template(
         'document', '  <csv>$COLLECTION_DOCUMENT_CSV_PATH$</csv>\n'
