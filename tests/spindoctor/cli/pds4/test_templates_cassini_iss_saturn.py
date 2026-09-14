@@ -26,6 +26,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import numpy as np
+import pdstemplate
 import pytest
 from astropy.io import fits
 from filecache import FCPath
@@ -40,6 +41,7 @@ from tests.mini_nav_results.cohort_cassini import (
 )
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.collections import generate_collection_files
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import ImageFiles
@@ -913,7 +915,7 @@ STATIC_INVENTORIES = (
     'collection_spice_kernels.csv',
     'collection_xml_schema.csv',
 )
-"""The inventories the template directory ships, which a bundle takes as they are."""
+"""The inventories the template directory ships, which a bundle takes as they render."""
 
 INVENTORY_RECORD = re.compile(r'[PS],urn:nasa:pds:[a-z0-9._-]+(:[a-z0-9._-]+)*(::\d+\.\d+)?')
 """One inventory line: a primary or secondary member, and its LID or LIDVID."""
@@ -925,16 +927,21 @@ VERSIONED_MEMBER = re.compile(r'.*::\d+\.\d+')
 def test_the_shipped_inventories_list_only_members_each_ending_in_a_line_feed(
     tmp_path: Path,
 ) -> None:
-    """Every line of each shipped inventory is a versioned member, ending in a line feed.
+    """Every line of each shipped inventory, rendered, is a versioned member ending in a line feed.
 
     A collection label counts its inventory's lines as its records, so a header, a
     comment or a blank line is a record that names no member.  Every member is named at
-    an explicit version, the published one of each secondary product.  The label
-    declares its records delimited by a line feed, and the last record is delimited like
-    the others.
+    an explicit version, the bundle's for its own products and the published one of each
+    secondary product.  The label declares its records delimited by a line feed, and the
+    last record is delimited like the others.
     """
-    template_dir = Path(_cassini_dataset(tmp_path).pds4_bundle_template_dir())
-    raws = {name: (template_dir / name).read_bytes() for name in STATIC_INVENTORIES}
+    dataset = _cassini_dataset(tmp_path)
+    template_dir = Path(dataset.pds4_bundle_template_dir())
+    variables = bundle_variables(dataset)
+    raws = {
+        name: pdstemplate.PdsTemplate(str(template_dir / name)).generate(variables).encode('ascii')
+        for name in STATIC_INVENTORIES
+    }
     not_members = [
         (name, line)
         for name, raw in raws.items()

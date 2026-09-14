@@ -14,7 +14,7 @@ import julian
 import pytest
 from tests.spindoctor.cli.pds4.conftest import make_image_file, navigated_document
 
-from spindoctor.config import Config
+from spindoctor.config import DEFAULT_CONFIG, Config
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
 # ---------------------------------------------------------------------------
@@ -42,11 +42,15 @@ def test_cassini_data_lid_canonical_form(tmp_path: Path) -> None:
 
 
 def test_cassini_lidvid_version_field(tmp_path: Path) -> None:
-    """LIDVIDs append a ::1.0 version to the corresponding LID."""
-    dataset = _cassini_dataset(tmp_path)
+    """A LIDVID is its LID at the version the configuration gives the bundle."""
+    override = tmp_path / 'override.yaml'
+    override.write_text("pds4:\n  coiss_saturn:\n    bundle_version: '2.5'\n", encoding='utf-8')
+    config = Config()
+    config.update_config(override)
+    dataset = _cassini_dataset(tmp_path, config=config)
     lid = dataset.pds4_image_name_to_data_lid('N1454725799')
     lidvid = dataset.pds4_image_name_to_data_lidvid('N1454725799')
-    assert lidvid == f'{lid}::1.0'
+    assert lidvid == f'{lid}::2.5'
 
 
 def test_cassini_browse_lid_uses_browse_collection(tmp_path: Path) -> None:
@@ -161,6 +165,18 @@ def test_cassini_default_bundle_name_from_config(tmp_path: Path) -> None:
     """The bundle name comes from the shipped pds4.coiss_saturn config block."""
     dataset = _cassini_dataset(tmp_path)
     assert dataset.pds4_bundle_name() == 'cassini_iss_saturn_backplanes_rsfrench2027'
+
+
+def test_cassini_shipped_configuration_sets_the_bundle_version() -> None:
+    """The shipped pds4.coiss_saturn block sets the bundle's version, as a PDS4 version_id.
+
+    The version is read from the configuration alone, with no default, so the shipped
+    configuration has to give it; and it has to be text of the form the schema's
+    ``version_id`` pattern allows, ``[0-9]+.[0-9]+``, since a YAML number standing in for
+    it would lose a version such as 1.10.
+    """
+    version = DEFAULT_CONFIG.pds4['coiss_saturn']['bundle_version']
+    assert re.fullmatch(r'[0-9]+\.[0-9]+', version) is not None
 
 
 def test_cassini_default_template_dir_is_shipped_package_data(tmp_path: Path) -> None:

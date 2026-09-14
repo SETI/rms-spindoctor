@@ -46,6 +46,7 @@ from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 DEFAULT_BUNDLE_NAME = 'fake_bundle'
+DEFAULT_BUNDLE_VERSION = '1.0'
 DEFAULT_SHARD = 'shard0'
 
 PDS4_NAMESPACE = 'http://pds.nasa.gov/pds4/pds/v1'
@@ -352,6 +353,10 @@ class FakePds4DataSet:
         """Return the configured bundle name."""
         return self._bundle_name
 
+    def pds4_bundle_version(self) -> str:
+        """Return the bundle's version, which each of its products carries."""
+        return DEFAULT_BUNDLE_VERSION
+
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Return the template filenames the given pass must find.
 
@@ -402,7 +407,7 @@ class FakePds4DataSet:
         Parameters:
             image_name: The image name, used verbatim as the LID part.
         """
-        return f'{self.pds4_image_name_to_data_lid(image_name)}::1.0'
+        return f'{self.pds4_image_name_to_data_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_image_name_to_browse_lid(self, image_name: str) -> str:
         """Return the canonical browse LID for the given image name.
@@ -418,7 +423,7 @@ class FakePds4DataSet:
         Parameters:
             image_name: The image name, used verbatim as the LID part.
         """
-        return f'{self.pds4_image_name_to_browse_lid(image_name)}::1.0'
+        return f'{self.pds4_image_name_to_browse_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_template_variables(
         self,

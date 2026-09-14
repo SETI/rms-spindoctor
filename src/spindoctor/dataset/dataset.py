@@ -282,6 +282,20 @@ class DataSet(ABC, NavBase):
         # a DataSet that doesn't support PDS4 bundle generation
         raise NotImplementedError
 
+    def pds4_bundle_version(self) -> str:
+        """Returns the version of the bundle, which each of the bundle's own products carries.
+
+        The bundle, each of its collections and each product it writes states it as its
+        ``version_id``, and every LIDVID naming one of them carries it.  A reference to a
+        product outside the bundle keeps that product's own version.
+
+        Returns:
+            The version, in the PDS4 ``<major>.<minor>`` form (e.g., "1.0").
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Returns the file names one bundle pass must find in the template directory.
 
