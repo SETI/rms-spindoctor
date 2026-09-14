@@ -169,6 +169,18 @@ def _covering_index_map(index_map: Any, os: int) -> Any:
     body does.  A block one body covers exactly half therefore comes out as that
     body, which is the answer :func:`_covering_mask` gives the same block.
 
+    That agreement does not extend to every block, because the two answer
+    different questions: this one asks which body covers the most of a block,
+    and :func:`_covering_mask` asks whether one named body covers half of it.
+    Where several bodies share a block and none reaches half, the block still
+    has a most-covering body while every one of their masks is false.  Nor are
+    the two the same quantity before either is reduced: a mask is a body's whole
+    silhouette, while the index map holds only the nearest body at each
+    subsample, so they already differ wherever one body hides another.  Read the
+    index map for which body a detector pixel shows and a mask for how far one
+    body reaches; a caller wanting them to mean the same thing wants the index
+    map twice.
+
     Parameters:
         index_map: A ``(V*os, U*os)`` integer array on the render grid.
         os: The oversampling factor.
