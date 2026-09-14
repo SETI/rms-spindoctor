@@ -17,7 +17,11 @@ import math
 import numpy as np
 import pytest
 
-from spindoctor.cli.backplanes.statistics import plane_statistics, statistics_units
+from spindoctor.cli.backplanes.statistics import (
+    plane_statistics,
+    statistics_units,
+    wrapped_range,
+)
 
 
 def test_a_radian_unit_becomes_degrees() -> None:
@@ -73,3 +77,44 @@ def test_statistics_of_a_non_angular_plane_keep_their_values_and_unit() -> None:
     stats = plane_statistics(np.array([1000.0, 2000.0]), units='km')
     assert stats['min'] == pytest.approx(1000.0)
     assert stats['units'] == 'km'
+
+
+CROSSING = np.array([359.7, 0.1, 359.9, 0.4])
+"""Longitudes in degrees either side of zero, an arc 0.7 degrees wide, in no order."""
+
+
+def test_an_arc_crossing_zero_starts_at_a_greater_longitude_than_it_ends() -> None:
+    """The arc runs from the longitude after the widest gap to the one before it."""
+    assert wrapped_range(CROSSING, resolution=0.01) == (359.7, 0.4)
+
+
+def test_an_arc_not_crossing_zero_is_the_plain_least_and_greatest() -> None:
+    """When the widest gap is the one across zero, the arc is the plain range."""
+    assert wrapped_range(np.array([150.0, 100.0, 200.0]), resolution=0.01) == (100.0, 200.0)
+
+
+def test_of_two_widest_gaps_the_one_across_zero_keeps_the_plain_range() -> None:
+    """Two longitudes half a circle apart leave two gaps alike, and the plain range stands."""
+    assert wrapped_range(np.array([280.0, 100.0]), resolution=0.01) == (100.0, 280.0)
+
+
+def test_a_longitude_of_360_degrees_is_the_one_at_zero() -> None:
+    """A value rounded up to 360 is on the circle at zero, not beyond the last longitude."""
+    assert wrapped_range(np.array([360.0, 10.0]), resolution=0.01) == (0.0, 10.0)
+
+
+def test_longitudes_leaving_no_gap_wider_than_the_resolution_cover_the_circle() -> None:
+    """A gap no wider than the coarsest pixel leaves the circle covered, 0 to 360."""
+    assert wrapped_range(np.arange(0.0, 360.0, 1.0), resolution=1.0) == (0.0, 360.0)
+
+
+def test_a_longitude_plane_s_statistic_records_its_wrapped_range_in_degrees() -> None:
+    """Given a resolution, a plane's statistic holds its range wrapped at zero, converted."""
+    stats = plane_statistics(np.radians(CROSSING), units='rad', longitude_resolution=0.01)
+    assert stats == {
+        'min': pytest.approx(0.1),
+        'max': pytest.approx(359.9),
+        'units': 'deg',
+        'wrapped_min': pytest.approx(359.7),
+        'wrapped_max': pytest.approx(0.4),
+    }

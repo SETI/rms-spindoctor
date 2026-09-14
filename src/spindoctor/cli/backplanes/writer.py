@@ -7,6 +7,7 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.backplanes_bodies import backplane_body_names
+from spindoctor.cli.backplanes.backplanes_rings import RING_LONGITUDE, RING_LONGITUDINAL_RESOLUTION
 from spindoctor.cli.backplanes.merge import body_naif_id
 from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.config import IMAGE_LOGGER, Config
@@ -74,7 +75,10 @@ def write_fits(
     the merge, so that it summarizes exactly the pixels where the product's own plane has
     a value: a body's over the pixels the body identity map gives the body, and the
     rings' over every pixel.  A pixel of the rings or of a body that a nearer body covers
-    holds the nearer body's value, so it counts for the nearer body alone.
+    holds the nearer body's value, so it counts for the nearer body alone.  The ring
+    longitude's statistic also records its range wrapped at zero, over the same pixels,
+    with the coarsest longitudinal size of a pixel on the rings as the widest gap that
+    leaves the circle covered.
 
     Parameters:
         fits_file_path: The FITS file path.
@@ -191,12 +195,22 @@ def write_fits(
     # nearer body covers the rings, the ring planes have no value
     if rings_result is not None:
         everywhere = np.ones(body_id_map.shape, dtype=np.bool_)
+        ring_statistics = _plane_statistics(
+            master_by_type, ring_units, everywhere, masked_value=masked_value
+        )
+        # The ring longitude's range wrapped at zero as well, the arc its pixels cover,
+        # which a gap no wider than the coarsest pixel does not break
+        if RING_LONGITUDE in ring_statistics:
+            longitude = master_by_type[RING_LONGITUDE]
+            ring_statistics[RING_LONGITUDE] = plane_statistics(
+                longitude[longitude != masked_value],
+                units=ring_units[RING_LONGITUDE],
+                longitude_resolution=ring_statistics[RING_LONGITUDINAL_RESOLUTION]['max'],
+            )
         backplane_metadata['rings'] = {
             'target': rings_result['target_key'],
             'incidence_angle': rings_result['incidence_angle'],
-            'backplanes': _plane_statistics(
-                master_by_type, ring_units, everywhere, masked_value=masked_value
-            ),
+            'backplanes': ring_statistics,
         }
 
     metadata_file_path.write_text(json_as_string(backplane_metadata))

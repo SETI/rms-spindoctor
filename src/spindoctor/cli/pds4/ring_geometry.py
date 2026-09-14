@@ -3,8 +3,10 @@
 The rings dictionary, ``PDS4_RINGS_1O00_1F00``, describes the ring geometry of an image in
 ``rings:Reprojection_Geometry``, within ``rings:Ring_Reprojection``.  A data label of an
 image with ring backplanes fills it from what the backplane stage records for the image:
-the least and the greatest value of each ring plane, and the incidence angle of sunlight
-on the ring plane, one angle over the whole image.  Each value is written as the global
+the least and the greatest value of each ring plane, except that the ring longitude's
+range is the one its statistic records wrapped at zero, as the dictionary defines a
+longitude range, and the incidence angle of sunlight on the ring plane, one angle over
+the whole image.  Each value is written as the global
 index tables write its statistic, in the format
 :data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives its unit, and stated
 in the unit its attribute is defined in, a size per pixel in the length or the angle a
@@ -33,7 +35,8 @@ RING_GEOMETRY_ATTRIBUTES: dict[str, str] = {
 Keyed by the plane's configured name; the attribute is given without its ``minimum_`` or
 ``maximum_``, which the least and the greatest value take.  The ring longitude is measured
 from the ring plane's ascending node on the J2000 equator with no co-rotating frame, so it
-is an inertial longitude.
+is an inertial longitude, and its range is the arc of longitude the image covers: its
+minimum is greater than its maximum where that arc crosses zero.
 """
 
 _PER_PIXEL = '/pixel'
@@ -94,15 +97,25 @@ def _written(value: float, units: str) -> str:
     return INDEX_VALUE_FORMATS[units].render(value)
 
 
-def _range(statistics: Mapping[str, Any], plane: str) -> tuple[RingAttribute, ...]:
+_PLAIN = ('min', 'max')
+"""The ends of a plane's range as its statistic records them, least and greatest."""
+
+_WRAPPED = ('wrapped_min', 'wrapped_max')
+"""The ends of a longitude's range as its statistic records them, wrapped at zero."""
+
+
+def _range(
+    statistics: Mapping[str, Any], plane: str, *, ends: tuple[str, str] = _PLAIN
+) -> tuple[RingAttribute, ...]:
     """Return the two attributes one ring plane's statistic is stated as, or none.
 
     Parameters:
         statistics: The image's ring statistics, keyed by plane name.
         plane: The configured name of the plane.
+        ends: The statistic's keys for the range's minimum and its maximum.
 
     Returns:
-        The plane's least value and its greatest, under the attribute
+        The plane's minimum and maximum, under the attribute
         :data:`RING_GEOMETRY_ATTRIBUTES` gives it, each stated in the statistic's unit
         less any ``/pixel``; or none when the image has no statistic for the plane.
     """
@@ -111,16 +124,17 @@ def _range(statistics: Mapping[str, Any], plane: str) -> tuple[RingAttribute, ..
     statistic = statistics[plane]
     attribute = RING_GEOMETRY_ATTRIBUTES[plane]
     unit = statistic['units'].removesuffix(_PER_PIXEL)
+    minimum, maximum = ends
     return (
         RingAttribute(
             name=f'minimum_{attribute}',
             unit=unit,
-            value=_written(statistic['min'], statistic['units']),
+            value=_written(statistic[minimum], statistic['units']),
         ),
         RingAttribute(
             name=f'maximum_{attribute}',
             unit=unit,
-            value=_written(statistic['max'], statistic['units']),
+            value=_written(statistic[maximum], statistic['units']),
         ),
     )
 
@@ -130,7 +144,8 @@ def ring_geometry(backplane_metadata: Mapping[str, Any]) -> RingGeometry | None:
 
     An image's ring geometry is stated when its backplane metadata holds a ring
     statistic.  Each plane the metadata holds a statistic for gives its least and its
-    greatest value; a plane with none gives neither, so its pair is left out.  The
+    greatest value, the ring longitude its range wrapped at zero; a plane with none gives
+    neither, so its pair is left out.  The
     incidence angle the metadata's ``rings`` block records is stated as the mean, the
     minimum and the maximum incidence angle alike, since it is one angle over the image.
 
@@ -157,7 +172,7 @@ def ring_geometry(backplane_metadata: Mapping[str, Any]) -> RingGeometry | None:
                 for name in _INCIDENCE_ATTRIBUTES
             ),
             *_range(statistics, 'ring_emission_angle'),
-            *_range(statistics, 'ring_longitude'),
+            *_range(statistics, 'ring_longitude', ends=_WRAPPED),
             *_range(statistics, 'ring_radius'),
         ),
         grid=(
