@@ -255,6 +255,39 @@ def test_a_supplemental_file_with_no_data_label_is_an_image_whose_products_disag
     assert f'and no data label at {missing}' in out
 
 
+def test_an_image_holding_a_browse_label_and_a_supplemental_file_counts_once(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An image with a browse label and a supplemental file and no data label counts once.
+
+    That is what a data label that failed to render, or was removed, leaves.  Its one
+    error names both files the image has.
+    """
+    env = make_bundle_env(tmp_path)
+    touch_label(env.bundle_dir / 'data', 'shard0/1111111111n')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
+    browse_label = touch_browse_label(env.bundle_dir / 'browse', 'shard0/5555555555n')
+    supplemental = write_supplemental(env.bundle_dir / 'data', 'shard0/5555555555n')
+    outcome = run_collections(env)
+    assert outcome.disagreeing_images == 1
+    errors = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if 'The products of image 5555555555n disagree' in line
+    ]
+    assert len(errors) == 1
+    assert str(browse_label) in errors[0]
+    assert str(supplemental) in errors[0]
+
+
+def test_two_images_whose_products_disagree_count_two(tmp_path: Path) -> None:
+    """Each image whose products disagree is counted, not only whether any does."""
+    env = make_bundle_env(tmp_path)
+    touch_label(env.bundle_dir / 'data', 'shard0/2222222222w')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/3333333333n')
+    assert run_collections(env).disagreeing_images == 2
+
+
 # ---------------------------------------------------------------------------
 # generate_collection_files: labels
 # ---------------------------------------------------------------------------
@@ -356,8 +389,9 @@ def test_a_broken_collection_template_is_counted_and_leaves_the_other(
     """One unrenderable collection label is counted; the other still gets written.
 
     Failing on the first would hide the second, so a run reports every broken
-    collection template rather than one per run.  Each label is a case of its
-    own because each is counted by a statement of its own.
+    collection template rather than one per run.  The broken label's inventory,
+    written before the label is rendered, stays.  Each label is a case of its own
+    because each is counted by a statement of its own.
 
     Parameters:
         tmp_path: Base temporary directory.
@@ -374,19 +408,31 @@ def test_a_broken_collection_template_is_counted_and_leaves_the_other(
     failed = run_collections(env).failed_labels
     assert failed == 1
     assert not (env.bundle_dir / broken_dir / broken).exists()
+    assert (env.bundle_dir / broken_dir / broken.replace('.lblx', '.csv')).is_file()
     assert (env.bundle_dir / intact_dir / intact).is_file()
 
 
-def test_a_missing_collection_template_raises(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    'template', ['collection_data.lblx', 'collection_browse.lblx'], ids=['data', 'browse']
+)
+def test_a_missing_collection_template_raises_over_an_empty_tree(
+    tmp_path: Path, template: str
+) -> None:
     """A collection template the dataset declares and does not have ends the run.
 
     The driver checks every declared template before it processes anything, so
     one that is missing this far in is a template tree that does not carry what
     its dataset says it does.  Passing over it would leave the bundle with an
-    inventory no label describes, and nothing saying so.
+    inventory no label describes, and nothing saying so.  It raises even over a
+    data tree holding no label, where neither collection can be written.  Each
+    template is a case of its own because each is parsed by a statement of its own.
+
+    Parameters:
+        tmp_path: Base temporary directory.
+        template: The collection template missing in this case.
     """
     env = make_bundle_env(tmp_path)
-    (Path(env.dataset.pds4_bundle_template_dir()) / 'collection_data.lblx').unlink()
-    touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
-    with pytest.raises(FileNotFoundError, match=r'collection_data\.lblx'):
+    (Path(env.dataset.pds4_bundle_template_dir()) / template).unlink()
+    (env.bundle_dir / 'data').mkdir(parents=True)
+    with pytest.raises(FileNotFoundError, match=template.replace('.', r'\.')):
         run_collections(env)
