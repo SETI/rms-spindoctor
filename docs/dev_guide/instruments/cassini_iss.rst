@@ -371,6 +371,12 @@ This dataset is the reference implementation, and implements every hook.
   against ``src/spindoctor/cli/pds4/templates/``.
 * ``pds4_bundle_name`` reads ``config.pds4.<dataset>.bundle_name`` and falls
   back to ``_default_pds4_bundle_name``.
+* ``pds4_bundle_version``, ``pds4_information_model_version`` and ``pds4_schemas``
+  read ``config.pds4.<dataset>.bundle_version``, ``information_model_version`` and
+  ``schemas``, with no fallback.  The shipped ``coiss_saturn`` entry gives the schemas
+  of the ``pds``, ``disp``, ``geom``, ``rings`` and ``cassini`` dictionaries, the last
+  the Cassini mission dictionary, whose namespace the data label declares for its
+  mission area.
 * ``pds4_bundle_path_for_image`` maps ``N1234567890`` to
   ``1234xxxxxx/123456xxxx/``, raising on a name shorter than 11 characters
   rather than returning an empty string a caller would concatenate into a
@@ -379,9 +385,9 @@ This dataset is the reference implementation, and implements every hook.
   lowercase suffix: ``N1454725799`` becomes ``1454725799n``.
   ``pds4_lid_part_to_image_name`` inverts exactly that transform.
 * The four LID and LIDVID builders share the same LID part and differ only in
-  the ``browse`` / ``data`` collection and the ``::1.0`` version suffix.
+  the ``browse`` / ``data`` collection; a LIDVID is its LID at the bundle's version.
 * ``pds4_template_variables`` emits the camera width, the three exposure
-  times from the navigation metadata, the bundle and product LIDs, and roughly
+  times from the navigation metadata, the product LIDs and LIDVIDs, and roughly
   sixty ``cassini:`` namespace variables read straight from the PDS3 index row.
 
 The three dataset-identity hooks -- ``_dataset_name_for_pds4_config``,
