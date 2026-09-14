@@ -1159,7 +1159,7 @@ Both per-image labels are attempted before failed is returned, and so is
 every collection and index label, so one run reports every label it could not
 write rather than one per run. `generate_collection_files` and
 `generate_global_index_files` each return the number of labels that failed;
-the inventory and index `.tab` tables are written either way.
+the inventories and the index tables are written either way.
 
 `main_labels` counts the images whose labels it did not write -- including an
 image whose generation raised and a batch that did not hold exactly one image
@@ -1361,8 +1361,8 @@ decisions in it -- whether every data product must have a browse product --
 that are the operator's.
 
 No issue closes here. The inventory-filename part of #265 is done, and #265
-stays open for its dev-guide output-layout part (Phase 10). Section 2.2's
-header and line-ending rows were never filed as issues (section 7).
+stays open for its dev-guide output-layout part (Phase 10). The header and
+line-ending defects it fixed were never filed as issues (section 7).
 
 ### Phase 6 — Bundle-level and static products
 
