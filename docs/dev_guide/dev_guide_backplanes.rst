@@ -82,7 +82,7 @@ Per-image, the driver runs three phases:
    serialises the master arrays and the body-ID map to FITS, attaching
    the ``BUNIT`` header from the per-backplane config, and writes a
    companion ``_backplane_metadata.json`` with per-body inventory and
-   per-backplane min/max statistics.
+   per-backplane min/max statistics, taken from the merged master arrays.
 
 Phase 1 skips the image if the navigation step did not converge, writing no
 FITS for it; the downstream PDS4 driver also refuses to render a label for an
@@ -258,6 +258,14 @@ Alongside the FITS file the writer drops a companion
 
 Each statistic states the unit its values are in, which for an angular plane
 is not the unit of the array it was taken from.
+
+Every statistic is taken from the master arrays the FITS holds, after the merge,
+over the pixels where the plane has a value, so that it summarizes exactly what a
+reader of the FITS finds: a body's over the pixels ``BODY_ID_MAP`` gives the body,
+and the rings' over every pixel.  A pixel of the rings or of a body that a nearer
+body covers holds the nearer body's value, so it counts for the nearer body alone,
+and a body a nearer body hides entirely is recorded with no statistic.  The body
+and ring steps compute none of their own.
 
 The PDS4 bundle generator (:doc:`dev_guide_pds4`) reads this sidecar
 when rendering the per-image data label.

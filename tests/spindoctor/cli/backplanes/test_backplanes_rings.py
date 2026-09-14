@@ -4,12 +4,11 @@ Contract under test (docs/dev_guide/dev_guide_backplanes.rst "Rings" and
 docs/user_guide/user_guide_backplanes.rst): the ring step evaluates the configured
 methods against the snapshot's full-frame Backplane for the closest planet's ring
 system (SATURN uses the SATURN_MAIN_RINGS target), produces per-pixel arrays plus
-a per-pixel distance array for the merge, computes min/max statistics (degrees for
-'rad' units), and treats the special 'distance' entry as merge-ordering data only,
-never as a written FITS HDU.
+a per-pixel distance array for the merge, and treats the special 'distance' entry as
+merge-ordering data only, never as a written FITS HDU.  The statistics are the
+writer's, taken after the merge.
 """
 
-import math
 from pathlib import Path
 from typing import Any, cast
 
@@ -35,12 +34,6 @@ from .conftest import (
 SHAPE_VU = (6, 8)
 
 RADIUS_CFG = {'name': 'ring_radius', 'method': 'ring_radius', 'units': 'km'}
-LON_CFG = {'name': 'ring_longitude', 'method': 'ring_longitude', 'units': 'rad'}
-RESOLUTION_CFG = {
-    'name': 'ring_longitudinal_resolution',
-    'method': 'ring_angular_resolution',
-    'units': 'rad/pixel',
-}
 
 RING_INCIDENCE_DEG = 63.334
 """The incidence angle of sunlight on the ring plane the fake Backplane serves, in degrees."""
@@ -206,7 +199,7 @@ def test_ring_masks_true_where_valid() -> None:
 
 
 def test_fully_masked_ring_plane_omitted() -> None:
-    """A ring plane with no valid pixel is dropped from arrays, masks, and stats."""
+    """A ring plane with no valid pixel is dropped from arrays and masks."""
     all_masked = ma.MaskedArray(np.full(SHAPE_VU, 1.0), mask=np.ones(SHAPE_VU, dtype=bool))
     _, method_values = _ring_arrays()
     method_values['ring_radius'] = all_masked
@@ -215,46 +208,6 @@ def test_fully_masked_ring_plane_omitted() -> None:
     assert result is not None
     assert 'ring_radius' not in result['arrays']
     assert 'ring_radius' not in result['masks']
-    assert 'ring_radius' not in result['statistics']
-
-
-def test_ring_stats_convert_radians_to_degrees() -> None:
-    """Statistics for a 'rad' ring plane are reported in degrees."""
-    _, method_values = _ring_arrays()
-    snap, _ = _snapshot_with_fake_bp(method_values)
-    config = _rings_config([LON_CFG])
-    result = create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-    assert result is not None
-    stats = result['statistics']['ring_longitude']
-    assert stats['min'] == pytest.approx(math.degrees(1.5))
-    assert stats['max'] == pytest.approx(math.degrees(1.5))
-
-
-def test_ring_stats_convert_radians_per_pixel_to_degrees() -> None:
-    """A plane declared in radians per pixel is summarized in degrees per pixel.
-
-    The ring stage is where the shipped configuration's one compound angular
-    plane lives, and a statistic left in radians there is a column of radians in
-    a table of degrees.
-    """
-    _, method_values = _ring_arrays()
-    method_values['ring_angular_resolution'] = method_values['ring_longitude']
-    snap, _ = _snapshot_with_fake_bp(method_values)
-    config = _rings_config([RESOLUTION_CFG])
-    result = create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-    assert result is not None
-    stats = result['statistics']['ring_longitudinal_resolution']
-    assert stats['min'] == pytest.approx(math.degrees(1.5))
-    assert stats['units'] == 'deg/pixel'
-
-
-def test_ring_stats_keep_km_units() -> None:
-    """Statistics for a km ring plane are not unit converted."""
-    _, method_values = _ring_arrays(value=100000.0)
-    snap, _ = _snapshot_with_fake_bp(method_values)
-    result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
-    assert result is not None
-    assert result['statistics']['ring_radius']['min'] == pytest.approx(100000.0)
 
 
 def test_configured_distance_entry_feeds_merge_distance() -> None:

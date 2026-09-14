@@ -43,7 +43,7 @@ from filecache import FCPath
 
 from spindoctor.cli.backplanes.backplanes_rings import RingIncidenceAngle
 from spindoctor.cli.backplanes.merge import merge_sources_into_master
-from spindoctor.cli.backplanes.statistics import DEGREES, PlaneStatistics, plane_statistics
+from spindoctor.cli.backplanes.statistics import DEGREES
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import MAIN_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
@@ -159,31 +159,6 @@ def _bounds_for(name: str, plane_bounds: Mapping[str, tuple[float, float]]) -> t
     return plane_bounds[name]
 
 
-def _statistics(
-    planes: dict[str, NDArrayFloatType],
-    masks: dict[str, NDArrayBoolType],
-    units: dict[str, str],
-) -> dict[str, PlaneStatistics]:
-    """Return the per-plane statistics, as the backplane stage computes them.
-
-    Over the valid pixels alone, and through the stage's own reduction, so the
-    unit each statistic is stated in is the one a run would state rather than a
-    second answer that agrees until one of the two changes.
-
-    Parameters:
-        planes: The full-frame planes, keyed by name.
-        masks: True wherever a plane has a measurement, keyed by name.
-        units: The units each plane's values are in, keyed by name.
-
-    Returns:
-        The lowest and highest value of each plane, and the unit they are in.
-    """
-    return {
-        name: plane_statistics(plane[masks[name]], units=units[name])
-        for name, plane in planes.items()
-    }
-
-
 def _disc_mask(body: CohortBody) -> NDArrayBoolType:
     """Return the pixels a body's disc claims.
 
@@ -290,7 +265,6 @@ def write_backplanes(
             'arrays': planes,
             'masks': masks,
             'distance': body.range_km,
-            'statistics': _statistics(planes, masks, body_units),
         }
         center_v, center_u = body.center_vu
         radius_v, radius_u = body.radii_vu
@@ -321,7 +295,6 @@ def write_backplanes(
         'arrays': ring_planes,
         'masks': ring_masks,
         'distance': _ring_distance(bodies),
-        'statistics': _statistics(ring_planes, ring_masks, ring_units),
     }
 
     snapshot = cast(ObsSnapshot, _SimulatedSnapshot(sim_inventory, config))

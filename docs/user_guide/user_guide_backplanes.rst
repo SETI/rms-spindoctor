@@ -240,6 +240,10 @@ metadata file an angular plane's minimum and maximum are in degrees (``rad``
 becomes ``deg``, ``rad/pixel`` becomes ``deg/pixel``), and each statistic records
 its unit.
 
+Each minimum and maximum is taken over the pixels where the FITS plane has a value.
+A body's are taken over the pixels ``BODY_ID_MAP`` gives that body, so a part of a
+body, or of the rings, that a nearer body covers does not count.
+
 The metadata file's ``rings`` block names the ring target the ring backplanes are
 computed for, as ``target``, and records ``incidence_angle``: the angle between the
 direction sunlight arrives from and the normal to the ring plane on its sunlit side,

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
@@ -6,9 +7,12 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.backplanes_bodies import backplane_body_names
+from spindoctor.cli.backplanes.merge import body_naif_id
+from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.config import IMAGE_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
 from spindoctor.support.file import json_as_string
+from spindoctor.support.types import NDArrayBoolType
 
 BODY_ID_MAP_HDU_NAME = 'BODY_ID_MAP'
 """The name of the HDU holding the body identity map, in a FITS that holds one.
@@ -16,6 +20,41 @@ BODY_ID_MAP_HDU_NAME = 'BODY_ID_MAP'
 Each of its 32-bit integers is the NAIF ID of the body that claimed the pixel, and 0
 where no body did.
 """
+
+
+def _plane_statistics(
+    planes: Mapping[str, np.ndarray],
+    units: Mapping[str, str],
+    pixels: NDArrayBoolType,
+    *,
+    masked_value: float,
+) -> dict[str, PlaneStatistics]:
+    """Return each plane's statistic over some pixels, from the planes the FITS holds.
+
+    A pixel counts for a plane where the plane has a value there, anything but the masked
+    value, so that a statistic summarizes exactly what a reader of the FITS finds at those
+    pixels.
+
+    Parameters:
+        planes: The planes the merge left, keyed by name, as the FITS holds them.
+        units: The unit the configuration gives each plane to be summarized, keyed by
+            name, in the order the statistics are recorded in.
+        pixels: Where the statistics are taken.
+        masked_value: The value a plane holds where it has none.
+
+    Returns:
+        The statistic of each of those planes that has a value at one of the pixels at
+        least, as :func:`~spindoctor.cli.backplanes.statistics.plane_statistics` takes it.
+    """
+    statistics: dict[str, PlaneStatistics] = {}
+    for name, unit in units.items():
+        if name not in planes:
+            continue
+        plane = planes[name]
+        values = plane[pixels & (plane != masked_value)]
+        if values.size > 0:
+            statistics[name] = plane_statistics(values, units=unit)
+    return statistics
 
 
 def write_fits(
@@ -31,16 +70,24 @@ def write_fits(
 ) -> None:
     """Write FITS file and backplane metadata JSON using FCPath.
 
+    Every statistic the metadata records is taken from the planes the FITS holds, after
+    the merge, so that it summarizes exactly the pixels where the product's own plane has
+    a value: a body's over the pixels the body identity map gives the body, and the
+    rings' over every pixel.  A pixel of the rings or of a body that a nearer body covers
+    holds the nearer body's value, so it counts for the nearer body alone.
+
     Parameters:
         fits_file_path: The FITS file path.
         snapshot: The observation snapshot.
         master_by_type: The master by type.
         body_id_map: The body id map.
         config: The configuration.
-        bodies_result: Result from create_body_backplanes containing statistics.
-        rings_result: Result from create_ring_backplanes, whose ring target, incidence
-            angle and statistics the metadata's ``rings`` block records as ``target``,
-            ``incidence_angle`` and ``backplanes``.
+        bodies_result: Result from create_body_backplanes, each of whose bodies the
+            metadata records, with its statistics and its inventory information.
+        rings_result: Result from create_ring_backplanes, whose ring target and incidence
+            angle the metadata's ``rings`` block records as ``target`` and
+            ``incidence_angle``, beside the ring statistics as ``backplanes``.  None
+            leaves the block empty.
         logger: Logger for diagnostic messages.
     """
 
@@ -102,11 +149,23 @@ def write_fits(
         else:
             inv = {}
 
-    # Extract body statistics and inventory information per body
-    for body_name, body_data in bodies_result.items():
-        body_entry: dict[str, Any] = {}
-        if 'statistics' in body_data:
-            body_entry['backplanes'] = body_data['statistics']
+    # The planes each statistic is taken from, in the configuration's order
+    body_units = {bp['name']: bp['units'] for bp in getattr(config.backplanes, 'bodies', [])}
+    ring_units = {
+        rp['name']: rp['units']
+        for rp in getattr(config.backplanes, 'rings', [])
+        if rp['name'] != 'distance'
+    }
+
+    # Each body's statistics and inventory information
+    for body_name in bodies_result:
+        # The pixels the merge gave the body, where the planes hold its values
+        claimed = body_id_map == body_naif_id(snapshot, body_name)
+        body_entry: dict[str, Any] = {
+            'backplanes': _plane_statistics(
+                master_by_type, body_units, claimed, masked_value=masked_value
+            )
+        }
 
         # Add inventory information for this body
         if body_name in inv:
@@ -125,16 +184,19 @@ def write_fits(
             if u_pixel_size is not None and v_pixel_size is not None:
                 body_entry['size_uv'] = [float(u_pixel_size), float(v_pixel_size)]
 
-        if body_entry:
-            backplane_metadata['bodies'][body_name] = body_entry
+        backplane_metadata['bodies'][body_name] = body_entry
 
     # The ring target the ring backplanes were computed for, the incidence angle of
-    # sunlight on its plane, and each ring plane's statistics
-    if rings_result and 'statistics' in rings_result:
+    # sunlight on its plane, and each ring plane's statistics, over every pixel: where a
+    # nearer body covers the rings, the ring planes have no value
+    if rings_result is not None:
+        everywhere = np.ones(body_id_map.shape, dtype=np.bool_)
         backplane_metadata['rings'] = {
             'target': rings_result['target_key'],
             'incidence_angle': rings_result['incidence_angle'],
-            'backplanes': rings_result['statistics'],
+            'backplanes': _plane_statistics(
+                master_by_type, ring_units, everywhere, masked_value=masked_value
+            ),
         }
 
     metadata_file_path.write_text(json_as_string(backplane_metadata))
