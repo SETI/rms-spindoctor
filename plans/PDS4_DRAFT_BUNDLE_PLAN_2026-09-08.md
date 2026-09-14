@@ -55,8 +55,8 @@ this table first and trusts it over any recollection.
 | 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
 | 4 — The FITS in the bundle, with its data objects | **done** | `rf_pds4_phase4`, sections 3.3 and 3.13; #69 is closed by hand when its PR merges (section 8) |
 | 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; #602 is closed by hand when its PR merges (section 8), #265 staying open for its Phase 10 part |
-| 6 — Bundle-level and static products | **done** | `rf_pds4_phase6`, sections 3.1, 3.2, 3.5, 3.6, 3.9 and 3.13; #74 is closed by hand when its PR merges (section 8), #72 staying open for Phase 8's targets; the source product awaits the operator (#678, section 3.13) |
-| 7 — The miscellaneous collection and its global index labels | **done** | `rf_pds4_phase7`, sections 3.1, 3.5, 3.8 and 3.13; #76 is closed by hand when its PR merges (section 8); #601 stays open for the operator's choice of the index tables' missing value (section 3.13) |
+| 6 — Bundle-level and static products | **done** | `rf_pds4_phase6`, sections 3.1, 3.2, 3.5, 3.6, 3.9 and 3.13; #74 is closed by hand when its PR merges (section 8), #72 staying open for Phase 8's targets; the operator has since ruled on the source product, and Phase 7 applies the ruling (#678, section 3.13) |
+| 7 — The miscellaneous collection and its global index labels | **done** | `rf_pds4_phase7`, sections 3.1, 3.4, 3.5, 3.8 and 3.13; #76, #601 and #678 are closed by hand when its PR merges (section 8), #601 and #678 by the operator's rulings of 2026-09-14 (section 3.13) |
 | 8 — Targets, mission area, ring geometry | not started | |
 | 9 — Parameterize the bundle name and version | not started | |
 | 10 — Validation, the integrity pass, and the draft run | not started | |
@@ -66,7 +66,8 @@ guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the masked value, whose
 `Special_Constants` declaration Phase 4 made on the arrays and Phase 7 on the
 index tables' statistic fields, which hold it where an image has no statistic;
-it closes if the operator accepts that sentinel for the tables), #602 (a
+the operator accepted that sentinel for the tables on 2026-09-14, and it is
+closed by hand when Phase 7 merges), #602 (a
 skipped or failed product leaves the bundle inconsistent), which is Phase 5's
 by the operator's ruling of 2026-09-14 that every data product needs a browse
 product, and is closed by hand when Phase 5 merges, #611 (the backplane viewer
@@ -77,22 +78,22 @@ ends both passes in a traceback rather than a refusal), #677
 (which SPICE kernels the bundle's metakernel lists, a navigation question
 Phase 6 left the metakernel empty for), #678 (what a data label names as
 its source product, the calibrated image the navigation reads having no PDS4
-counterpart; the operator's choice). #603, the two passes
+counterpart; the operator ruled on 2026-09-14 that it is cited as an external
+source product, which Phase 7 applies, and it is closed by hand when Phase 7
+merges). #603, the two passes
 disagreeing about a missing template, was closed by hand on 2026-09-11, after
 #605, Phase 1's PR, merged. #607, the index tables written to one precision
 whatever the column's unit, closes in Phase 2 with a format per unit (section
 3.8); the missing-value sentinel it raised beside that is the masked value
-Phase 7 writes (section 3.13), the operator's to accept on #601. #519,
+Phase 7 writes (section 3.13), which the operator accepted on #601. #519,
 which found every data label's start and stop empty, closes with Phase 3
 (section 3.4). #69, which asked for the FITS to be described in its data label,
 closes with Phase 4 (section 3.3).
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
-(section 3.9); the cohort choice and the user-guide PDF for Phase 10; what a
-data label names as its source product, since the calibrated image the
-navigation reads has no PDS4 counterpart, which is the operator's choice
-(#678, section 3.13); and which kernels the metakernel lists (#677).
+(section 3.9); the cohort choice and the user-guide PDF for Phase 10; and which
+kernels the metakernel lists (#677).
 
 ---
 
@@ -199,22 +200,26 @@ plan).
 
 | # | Defect | Location | Tracked as |
 |---|---|---|---|
-| 1 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. The calibrated image the navigation reads has no PDS4 counterpart to name instead (section 3.13). | `dataset_pds3_cassini_iss.py:688` | #678, the operator's choice (section 3.13) |
+| 1 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. The calibrated image the navigation reads has no PDS4 counterpart to name instead (section 3.13). | `dataset_pds3_cassini_iss.py:688` | #678; fixed by Phase 7, which applies the operator's ruling and cites the calibrated image as a `Source_Product_External` (section 3.13) |
 | 2 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
 | 3 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label, in the data collection label (a Mission Science Data collection, whose references are `collection_to_target`) and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,130`, `bundle.lblx`, `collection_data.lblx`, `kernels.lblx` | #73, #79, #75, #47 |
 | 4 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
 | 5 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 6 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; no phase (navigation) |
+| 6 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; fixed by Phase 7, whose labels pass reads them from there (section 3.4) |
 | 7 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
 No row but 1 and 6 gets its own tracking issue. Each of the others is fixed by a
 named phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
-every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 6 is the
-navigation's, owned by no phase, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. Row 1 was Phase 6's, which stopped on it: the image the
-navigation reads has no PDS4 counterpart to name, and what a data label names
-instead is a decision for the operator, tracked as #678 (section 3.13). The rows that *would* have
+every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 6 was the
+navigation's, and was tracked as #619, which #624 closed by recording the
+host's exposure times in the `observation` block; Phase 7 takes every time the
+bundle states from that block, which fixes the row. Row 1 was Phase 6's, which
+stopped on it: the image the navigation reads has no PDS4 counterpart to name,
+and what a data label names instead was a decision for the operator, tracked
+as #678; the operator ruled on 2026-09-14, and Phase 7 applies the ruling
+(section 3.13). The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
 difference between the arrays and the tables as settled design rather than a
@@ -450,9 +455,14 @@ Phase 10's `validate` run.
 
 ### 3.4 Epochs
 
-`navigation_result.times` holds `start_et`, `stop_et` and `midtime_et` as
-TDB seconds past J2000. `spindoctor/support/time.py` is the one rule that
-turns one into UTC: `et_to_utc` writes the plain ISO spelling the observation
+Every exposure time the bundle states comes from the navigation document's
+`observation` block (the operator's direction of 2026-09-14): `start_time_et`
+and `end_time_et`, the exposure the instrument host publishes
+(`get_public_metadata`), in TDB seconds past J2000. `build_metadata_from_result`
+writes the block for every image whose navigation ran to a result, pointing or
+not (`navigate_image_files.py` 636-641), and the supplemental file carries the
+whole document, so both passes read the same block. `spindoctor/support/time.py`
+is the one rule that turns one into UTC: `et_to_utc` writes the plain ISO spelling the observation
 metadata and the statistics report use (the report's `date_from_image_et` and
 `datetime_from_image_et` in `spindoctor/nav_records/derived.py`), and
 `et_to_pds4_utc` the spelling a PDS4 label takes, `ASCII_Date_Time_YMD_UTC`
@@ -465,7 +475,9 @@ and said so. The C-kernel report converts through `cspyce.et2utc` against the
 kernel its generator furnishes, and is the one conversion outside the rule.
 
 A data label states its exposure's start and stop to the millisecond, each
-rounded to the nearest, and its midtime as their midpoint. A millisecond is
+rounded to the nearest, and its midtime as their midpoint; the millisecond is
+one constant, `PDS4_EXPOSURE_TIME_DIGITS` in `support/time.py`, which the index
+tables' time columns share. A millisecond is
 the precision the PDS3 label and index record an image's times to, and a
 Cassini exposure is often shorter than a second, so whole seconds would state
 a 5 ms exposure as a window of one or two. The nearest, rather than the start
@@ -491,21 +503,18 @@ nearest is also the rule the reference applies to its millisecond start and
 stop; section 3.13 says what it does at whole seconds and for the midtime,
 and which of its rules this bundle follows for which element.
 
-An image whose navigation never reached a solution has no `times` block;
-section 3.11 says what happens to it, and the answer is that it never reaches
-a label. A success document has one only beside a pointing: `build_metadata_dict`
-writes `times` with the pointing, and the navigation records a success with no
-pointing when `compute_pointing` raises `NavPointingError` or the instrument has
-no SPICE camera frame mapped (its `observation` block holds the host's exposure
-times regardless, which this pass does not read; section 2.2 row 6). That is a
-document this package's navigation
-writes, so the labels pass fails such an image before anything is written for
-it, its log saying the navigation recorded no pointing. It checks only
-that the block is there, since the block always holds all three epochs, and
-nothing else about them (the operator's ruling of 2026-09-11 that nothing
-guards against our own files). The summary pass needs no check of the times:
-the labels pass fails such an image before it writes anything for it, its
-supplemental file included. The empty string is not reachable.
+An image whose navigation never reached a result is skipped; section 3.11
+says what happens to it, and the answer is that it never reaches a label. One
+whose navigation reached a result has an `observation` block, pointing or not:
+the navigation records a success with no pointing when `compute_pointing`
+raises `NavPointingError` or the instrument has no SPICE camera frame mapped,
+and the block holds the host's exposure times all the same (section 2.2 row 6).
+Such an image is bundled like any other. Until Phase 7 the labels read
+`navigation_result.times`, which the navigation writes only beside a solved
+pointing, and the labels pass failed such an image with nothing written. The
+epochs are read as recorded, with nothing checked about them (the operator's
+ruling of 2026-09-11 that nothing guards against our own files). The empty
+string is not reachable.
 
 The data collection label states the cohort's earliest start and latest stop,
 at whole seconds as the reference's collection and bundle labels do, the start
@@ -515,8 +524,9 @@ there, in that same read, by an `EpochRangeScan`. The index therefore runs
 before the collection files in `main_summary`, and returns the range in a
 `GlobalIndexOutcome`, which the driver hands to `generate_collection_files`
 and holds for `bundle.lblx`, which Phase 6 renders, without a second
-computation. With no range to state -- the data tree holds no supplemental
-file -- the data collection is not written, neither its inventory nor its
+computation. With no range to state -- no data label in the data tree has a
+supplemental file beside it -- the data collection is not written, neither
+its inventory nor its
 label, and counts as a label not written, with an error saying so: one rule
 with the empty collection's (section 3.5). The supplemental files
 are read as the labels pass wrote them, with nothing checked in them but the
@@ -1164,7 +1174,7 @@ what its `0` means instead (section 3.3).
 
 `collections.py`'s "TODO Need an appropriate sentinel value for missing
 data" was the table-cell half of the same question, and Phase 7 answered it
-with the same value, subject to the operator's acceptance on #601: a cell whose
+with the same value, which the operator accepted on #601: a cell whose
 image has no statistic for its plane holds `backplanes.masked_value` written in
 the column's own format -- `-999.000` in a `deg` column, `-999.0` in `km`,
 `-999.00000000` in `deg/pixel`, `-999.00` in `km/pixel` -- and every statistic
@@ -1209,6 +1219,35 @@ never compares it with the constant; the declaration is what tells a reader
 that the value means the plane has no statistic there. Written exactly as its
 field declares it, the cell is the constant under a textual comparison and a
 numeric one alike, and keeps every value of a column in the column's format.
+
+**Accepted by the operator on 2026-09-14 (#601):** "-999 is good as long as it's
+not a valid data value for that column." It is no valid value of any column.
+Each plane is evaluated by the `oops` backplane method its configuration names,
+with that method's defaults, and its statistic is the least and the greatest
+value over the pixels the method leaves unmasked, a plane in radians converted
+to degrees (`plane_statistics`), so a masked pixel never reaches a statistic and
+each column's range is its method's:
+
+| Plane | Columns | Range, as `oops` computes it | `-999` as written |
+|---|---|---|---|
+| `body_longitude` | `minimum_body_longitude`, `maximum_body_longitude` | 0 to 360 deg: `longitude`'s default `minimum=0` takes the value modulo 2π | `-999.000` |
+| `body_latitude` | `geom:minimum_latitude`, `geom:maximum_latitude` | -90 to 90 deg, planetocentric (`lat_type='centric'`) | `-999.000` |
+| `body_incidence_angle` | `geom:*_incidence_angle` | 0 to 180 deg: π less the separation of the surface normal and the arriving photons | `-999.000` |
+| `body_emission_angle` | `geom:*_emission_angle` | 0 to 180 deg: the separation of the normal and the departing photons | `-999.000` |
+| `body_phase_angle` | `geom:*_phase_angle` | 0 to 180 deg: π less the separation of the departing and the arriving photons | `-999.000` |
+| `body_finest_resolution`, `body_coarsest_resolution` | `*_body_finest_resolution`, `*_body_coarsest_resolution` | 0 or more km/pixel: `Surface.resolution` gives the lengths of two perpendicular derivative vectors | `-999.00` |
+| `ring_radius` | `rings:*_ring_radius` | 0 or more km: the cylindrical radius of the ring-plane intercept | `-999.0` |
+| `ring_longitude` | `minimum_ring_longitude`, `maximum_ring_longitude` | 0 to 360 deg: the cylindrical longitude from the ring plane's J2000 ascending node, `arctan2` modulo 2π | `-999.000` |
+| `ring_emission_angle` | `rings:*_emission_angle` | 0 to 180 deg: the emission angle, measured from the sunward pole | `-999.000` |
+| `ring_phase_angle` | `rings:*_phase_angle` | 0 to 180 deg, as the body's | `-999.000` |
+| `ring_radial_resolution` | `rings:*_radial_resolution` | 0 or more km/pixel: the norm of the radius's derivatives across the pixel | `-999.00` |
+| `ring_longitudinal_resolution` | `rings:*_longitudinal_resolution` | 0 or more deg/pixel: the norm of the longitude's derivatives, from radians | `-999.00000000` |
+
+The two time columns are never missing: every row is of an image the data
+collection holds, whose supplemental file carries the navigation document's
+`observation` block with its start and end, so they declare no missing
+constant. Nor do `pds:logical_identifier`, `body_name` and `file_spec`, which
+every row has.
 
 **DOIs are products of their own.** The reference carries `BUNDLE_DOI` and a
 separate `USERGUIDE_DOI`, and its user-guide label fills a real `<doi>`
@@ -1260,6 +1299,30 @@ in place (section 2.2 row 1). The choices are the operator's, tracked as
 what the calibrated image was made from but not what the navigation read; name
 the calibrated PDS3 product through `Source_Product_External`, as the raw PDS4
 label names its EDR; or both.
+
+**The ruling, 2026-09-14 (#678):** cite the calibrated image the navigation read
+as an external source product, not the raw PDS4 product. A PDS4 bundle of
+calibrated images is coming, and the label switches to `Source_Product_Internal`
+once it exists. Phase 7 applies it. `data.lblx` carries a
+`Source_Product_External` whose
+- `external_source_product_identifier` is the image's volume and the file
+  specification of its label within that volume, as in
+  `COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL`, built in
+  `pds4_template_variables` from the image's results path stub, so no label is
+  opened for it. The calibrated label's own `DATA_SET_ID`,
+  `CO-S-ISSNA/ISSWA-2-EDR-V1.0`, is the EDR's, and its `PRODUCT_ID`,
+  `1_N1454725799.122`, the EDR image's, so either would name the raw product,
+  where the `_CALIB` file specification under the volume names the calibrated
+  one;
+- `reference_type` is `data_to_calibrated_source_product`, one of the five
+  values the `PDS4_PDS_1O00` Schematron allows on
+  `pds:Source_Product_External/pds:reference_type`, and the one for a calibrated
+  source;
+- `curating_facility` is `PDS Ring-Moon Systems Node`: the XSD types it as a
+  string of 1 to 255 characters with no list of values, and the Schematron rule
+  on `pds:Source_Product_External` requires it or a `doi`;
+- `description` says it is the calibrated image the backplanes were computed
+  from.
 
 **Smaller differences Phase 6's product review found**, each adopted or
 declined:
@@ -1325,6 +1388,18 @@ declined:
     image.
   - The `mean_*` columns: the backplane stage records each plane's least and
     greatest value and no mean (`cli/backplanes/statistics.py`).
+  - `rings:minimum_corotating_ring_longitude` and
+    `rings:maximum_corotating_ring_longitude`: the ends of the range of
+    co-rotating longitude over the reference's valid data, computed on the
+    circle, in a frame turning with the F ring's core at its mean rate
+    (581.964 deg/day, after Albers et al. 2012) and at one with inertial
+    longitude at 2007-01-01T00:00:00Z. That frame is the one the reference's
+    mosaics are reprojected into, and so are its
+    `rings:minimum_inertial_ring_longitude` and `..._maximum_...`, the inertial
+    longitudes "associated with valid corotating longitudes". A backplane
+    measures a ring longitude from the ring plane's J2000 ascending node, which
+    the `minimum_ring_longitude` and `maximum_ring_longitude` columns give, and
+    defines no co-rotating frame.
   - The F ring's own columns, its core radius, its node, pericenter and true
     anomaly, and Prometheus's and Pandora's longitudes and radii: that
     bundle's science, not a backplane's.
@@ -1588,8 +1663,9 @@ statistics report's `date_from_image_et` and `datetime_from_image_et` and by
 `pds4_template_variables`. `START_DATE_TIME` and `STOP_DATE_TIME` read
 `navigation_result.times`, each to the nearest millisecond, and
 `IMAGE_MID_TIME` is the midpoint of the two as written, a half rounding up
-(section 3.4); a navigated image whose navigation recorded no pointing is
-failed before anything is written for it. The data
+(section 3.4); a navigated image whose navigation recorded no pointing was
+failed before anything was written for it, until Phase 7 took the times from
+the navigation document's `observation` block (section 3.4). The data
 collection range is taken in the global index's read of the supplemental files,
 which runs first, and written at whole seconds, rounded outward; with no
 range the data collection label is counted as not written. The bundle label's
@@ -1808,12 +1884,13 @@ miscellaneous collection. Five templates were CRLF and are LF, as every label
 now is, and the smaller differences from the reference the product review
 found are adopted or declined in section 3.13.
 
-**Not done: the source product** (section 2.2 row 1). The navigation reads the
+**The source product** (section 2.2 row 1). The navigation reads the
 calibrated image, and the PDS4 Cassini ISS archive has no calibrated product
-for it to name (section 3.13, with the registry's answers). Phase 6 stopped
-rather than invent one: `SOURCE_IMAGE_LIDVID` still names the product itself,
-the template's `TODO Need to check this` stays, and the choice is the
-operator's, tracked as #678.
+for it to name (section 3.13, with the registry's answers), so Phase 6 stopped
+rather than invent one and left the choice to the operator, tracked as #678.
+The operator ruled on 2026-09-14, and Phase 7 applies the ruling: a data
+label cites the calibrated PDS3 image as a `Source_Product_External`, built in
+`pds4_template_variables` (section 3.13).
 
 Tests, over the cohort: the summary pass adds exactly the files section 3.1
 lists for the collections the bundle holds, and the bundle's top level is
@@ -1946,11 +2023,12 @@ The rings dictionary says of its radial and longitudinal resolutions "Not
 intended to be used as a table field"; the reference uses them as table fields,
 and so does this bundle, the quantity being the attribute's.
 
-**The missing value** is decided, and put to the operator on #601: where an image
-has no statistic for a plane, both of its cells hold the masked value, read from
-`backplanes.masked_value`, in the column's own format, and every statistic
-`Field_Character` declares that text as its `missing_constant` (section 3.13,
-which holds the evidence).
+**The missing value** is decided, and the operator accepted it on #601 on
+2026-09-14: where an image has no statistic for a plane, both of its cells hold
+the masked value, read from `backplanes.masked_value`, in the column's own
+format, and every statistic `Field_Character` declares that text as its
+`missing_constant` (section 3.13, which holds the evidence and, column by
+column, why no column can hold `-999` as a real value).
 
 **A table with no row** is not written, nor its label, and is not listed:
 `records` has a minimum of 1 in `PDS4_PDS_1O00.xsd`, so no label can describe
@@ -2026,8 +2104,33 @@ miscellaneous collection: each row's start and stop equal its data label's, and
 the bodies table has 19 fields in records of 290 bytes (293 with the dropped
 statistic's four missing cells), the rings table 16 in records of 272.
 
-Closes #76, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
-#601 stays open until the operator accepts the tables' missing value.
+**The last round**, after both verifications of the fix round:
+- the fixed columns' data types are pinned, one assert each, in both tables;
+- the millisecond rule is one constant, `PDS4_EXPOSURE_TIME_DIGITS` in
+  `support/time.py`, which the data label and the index tables' time columns
+  both import, the dataset still importing nothing from `spindoctor.cli`;
+- section 3.13 declines the reference's co-rotating longitudes, with their
+  inertial companions;
+- by the operator's direction, every exposure time the bundle states comes from
+  the navigation document's `observation` block (`start_time_et`,
+  `end_time_et`) rather than `navigation_result.times`: the data label's start
+  and stop, the index tables' time columns, and the data collection's and the
+  bundle's ranges. An image whose navigation recorded no pointing is therefore
+  bundled like any other, and the labels pass's refusal of it, with its test,
+  is gone; the test's replacement bundles the cohort's limb image with its
+  times and pointing taken out and holds its label's start and stop to the
+  observation block's. The integration test holds the observation block's
+  epochs to the leapseconds kernel. The cohort writes the same epochs into both
+  places, and its four builds -- plain, with the guide, with a dropped
+  statistic and with no rings -- rebuilt at `d63ce7b6` and after this round,
+  differ only in the data labels' source-product block;
+- by the operator's ruling on #678, a data label cites the calibrated image as
+  a `Source_Product_External` (section 3.13), which a cohort test pins;
+- by the operator's ruling on #601, the tables' missing value stands, section
+  3.13 showing for each column that `-999` is no value it can hold.
+
+Closes #76, #601 and #678, by hand when its PR merges into
+`rf_pds4_draft_bundle` (section 8).
 
 ### Phase 8 — Targets, mission area, ring geometry
 
@@ -2266,9 +2369,11 @@ removals on a two-sided conflict.
 **No issues are filed for section 2.2's rows other than 1 and 6.** Each is assigned to a
 named phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
-adds a close to reconcile and no reader. Row 6 is the navigation's, not a
-phase's, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. Row 1 is a decision
-Phase 6 could not make for want of a source product to name, tracked as #678.
+adds a close to reconcile and no reader. Row 6 was the navigation's, and was
+tracked as #619, which #624 closed by recording the host's exposure times in
+the `observation` block, from which Phase 7 takes every time the bundle states.
+Row 1 was a decision Phase 6 could not make for want of a source product to
+name, tracked as #678, which the operator ruled on and Phase 7 applies.
 
 The one row that would have outlived this plan was the angular-unit
 difference between the arrays and the tables, and the difference itself
@@ -2301,9 +2406,9 @@ branch.
   statistic for its plane holds `-999` in the column's own format, and every
   statistic field declares that spelling as its `missing_constant`. `validate`
   accepts such a cell as a real, and the declaration tells a reader what the
-  value means (section 3.13). The Phase 7 PR puts that choice to
-  the operator; #601 closes if the operator accepts it, and stays open until
-  then. The ring
+  value means (section 3.13). The operator accepted it on 2026-09-14, since no
+  column can hold `-999` as a real value (section 3.13 argues each), and #601
+  is closed by hand when Phase 7 merges. The ring
   half of the original finding turned
   out to duplicate #251, which is the `xfail`-pinned record that ring-won
   pixels get no `BODY_ID_MAP` entry; the sentinel makes that gap harmless
@@ -2313,9 +2418,11 @@ branch.
 - #677 — which SPICE kernels the bundle's metakernel lists, a
   navigation question. Phase 6 shipped the `spice_kernels` collection with a
   metakernel that lists none and says so.
-- #678 — what a data label names as its source product: the raw PDS4 product,
-  the calibrated PDS3 one, or both (section 3.13). Until it is decided,
-  `SOURCE_IMAGE_LIDVID` names the product itself.
+- #678 — what a data label names as its source product, ruled on 2026-09-14:
+  the calibrated PDS3 image, as a `Source_Product_External`, until a PDS4
+  bundle of calibrated images exists, when the label switches to
+  `Source_Product_Internal` (section 3.13). Phase 7 applies the ruling, and
+  #678 is closed by hand when Phase 7 merges.
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow
   from their epochs. Phase 2 builds the epoch-first constructor that makes
   the defect unrepeatable and uses it for every cohort document. Routing the
