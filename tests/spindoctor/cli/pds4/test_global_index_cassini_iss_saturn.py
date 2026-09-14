@@ -3,9 +3,10 @@
 What each index label says of its table: its ``Header`` is the table's header line and its
 ``Table_Character`` begins where that line ends; it counts the table's rows as its
 records and its columns as its fields; each ``Field_Character`` is numbered by its
-position and lands on the column it names in every record; each statistic field states
-the data type, unit and description its configuration gives it; each label names the
-table beside it; and each row's exposure start and stop are the ones its data label
+position and lands on the column it names in every record; each fixed field states the
+data type of its values, and each statistic field the data type, unit and description
+its configuration gives it; each label names the table beside it; and each row's
+exposure start and stop are the ones its data label
 states.  The miscellaneous collection and the bundle's entry for it state the
 miscellaneous types.  Those are asked of the cohort's bundle.  Two more questions need a
 configuration the test chooses, and are asked of the shipped templates over plumbing
@@ -335,13 +336,16 @@ def _configured_statistic_fields(
     ]
 
 
-def test_every_statistic_field_states_its_configured_type_unit_and_description(
+def test_every_field_states_its_data_type_and_each_statistic_field_its_unit_and_description(
     cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
 ) -> None:
-    """Each statistic field states the data type, unit and description of its column.
+    """Each field states its data type, and each statistic field its unit and description.
 
-    The data type and the description are the ones the column's own entry in the
-    configuration gives, and the unit is the one its plane's statistic is in: the plane's
+    A fixed column's data type is the one its values are, in both tables:
+    ``pds:logical_identifier`` an ``ASCII_LID``, ``body_name`` and ``file_spec`` each an
+    ``ASCII_String``, and the two times each an ``ASCII_Date_Time_YMD_UTC``.  A statistic
+    field's data type and description are the ones the column's own entry in the
+    configuration gives, and its unit is the one its plane's statistic is in: the plane's
     unit restated through ``statistics_units``, so an angle in radians is a column in
     degrees.  Every field after the fixed columns is held, in order, to the configured
     planes' minimum and maximum columns, in both tables.
@@ -360,7 +364,29 @@ def test_every_statistic_field_states_its_configured_type_unit_and_description(
         ]
         for name, product in products.items()
     }
+    fixed = {
+        name: {
+            field.name: field.data_type
+            for field in _field_characters(product.label)
+            if field.name in FIXED_COLUMNS
+        }
+        for name, product in products.items()
+    }
+    both = list(INDEX_NAMES)
     assert stated == configured
+    assert {
+        name: types['pds:logical_identifier'] for name, types in fixed.items()
+    } == dict.fromkeys(both, 'ASCII_LID')
+    assert fixed['global_bodies_index']['body_name'] == 'ASCII_String'
+    assert {name: types['file_spec'] for name, types in fixed.items()} == dict.fromkeys(
+        both, 'ASCII_String'
+    )
+    assert {name: types['pds:start_date_time'] for name, types in fixed.items()} == dict.fromkeys(
+        both, 'ASCII_Date_Time_YMD_UTC'
+    )
+    assert {name: types['pds:stop_date_time'] for name, types in fixed.items()} == dict.fromkeys(
+        both, 'ASCII_Date_Time_YMD_UTC'
+    )
 
 
 def test_each_index_label_names_the_table_beside_it(
