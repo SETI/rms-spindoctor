@@ -35,6 +35,10 @@ import numpy as np
 from astropy.io import fits
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
+from tests.spindoctor.cli.sd_create_bundle_helpers import (
+    STAND_IN_INFORMATION_MODEL_VERSION,
+    STAND_IN_SCHEMAS,
+)
 
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.bundle_products import generate_bundle_products
@@ -43,7 +47,7 @@ from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.cli.pds4.targets import Pds4Target
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
-from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
+from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass, Pds4Schema
 
 DEFAULT_BUNDLE_NAME = 'fake_bundle'
 DEFAULT_BUNDLE_VERSION = '1.0'
@@ -313,6 +317,8 @@ class FakePds4DataSet:
         template_variables: dict[str, Any] | None = None,
         bodies: list[dict[str, Any]] | None = None,
         rings: list[dict[str, Any]] | None = None,
+        information_model_version: str = STAND_IN_INFORMATION_MODEL_VERSION,
+        schemas: dict[str, Pds4Schema] | None = None,
     ) -> None:
         """Build the fake dataset.
 
@@ -324,10 +330,15 @@ class FakePds4DataSet:
                 :meth:`pds4_template_variables`; empty dict when None.
             bodies: ``config.backplanes.bodies`` entries (dicts with a ``name`` key).
             rings: ``config.backplanes.rings`` entries (dicts with a ``name`` key).
+            information_model_version: Served by :meth:`pds4_information_model_version`.
+            schemas: Served by :meth:`pds4_schemas`; the neutral stand-in when None, and
+                a registered dataset's own for templates it ships, which declare them.
         """
         self._template_dir = template_dir
         self._bundle_name = bundle_name
         self._shard = shard
+        self._information_model_version = information_model_version
+        self._schemas = dict(STAND_IN_SCHEMAS) if schemas is None else schemas
         self.template_variables: dict[str, Any] = (
             template_variables if template_variables is not None else {}
         )
@@ -356,6 +367,14 @@ class FakePds4DataSet:
     def pds4_bundle_version(self) -> str:
         """Return the bundle's version, which each of its products carries."""
         return DEFAULT_BUNDLE_VERSION
+
+    def pds4_information_model_version(self) -> str:
+        """Return the information model version the labels are written against."""
+        return self._information_model_version
+
+    def pds4_schemas(self) -> dict[str, Pds4Schema]:
+        """Return the dictionary schemas the labels declare."""
+        return dict(self._schemas)
 
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Return the template filenames the given pass must find.
@@ -586,6 +605,8 @@ def make_bundle_env(
     template_variables: dict[str, Any] | None = None,
     bodies: list[dict[str, Any]] | None = None,
     rings: list[dict[str, Any]] | None = None,
+    information_model_version: str = STAND_IN_INFORMATION_MODEL_VERSION,
+    schemas: dict[str, Pds4Schema] | None = None,
 ) -> BundleEnv:
     """Build the standard single-image bundle environment under ``tmp_path``.
 
@@ -603,6 +624,11 @@ def make_bundle_env(
             entries matching ``image_name``.
         bodies: ``config.backplanes.bodies`` entries for the fake dataset.
         rings: ``config.backplanes.rings`` entries for the fake dataset.
+        information_model_version: The information model version the fake dataset gives
+            the labels.
+        schemas: The dictionary schemas the fake dataset gives the labels; the neutral
+            stand-in when None.  A test rendering templates a registered dataset ships
+            hands them that dataset's, which those templates declare.
 
     Returns:
         The populated :class:`BundleEnv`.
@@ -621,6 +647,8 @@ def make_bundle_env(
         template_variables=template_variables,
         bodies=bodies,
         rings=rings,
+        information_model_version=information_model_version,
+        schemas=schemas,
     )
 
     image_file = make_image_file(image_name, results_path_stub=results_path_stub, base_dir=tmp_path)
