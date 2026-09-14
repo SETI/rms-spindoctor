@@ -1057,15 +1057,28 @@ inventory is a template listing the LIDVIDs, their spelling unchanged. The bump 
 would now be one edit, of the `rings` entry; a move to another information model build,
 one edit of the entry. The information model version is there because the
 `PDS4_PDS_1O00` Schematron requires `1.24.0.0` of every label, so it moves with the
-`pds` schema. A test over the shipped configuration holds it to the shipped templates: it
-gives a schema for exactly the dictionaries they declare.
+`pds` schema. Tests over the shipped configuration hold it to the shipped templates, a
+schema given for exactly the dictionaries they declare, and to itself: the `pds` schema's
+file name carries the information model version's code (`1O00` for `1.24.0.0`) and its
+LIDVID the version's first two parts (`::1.24`), and every other dictionary's file name
+carries the same build's code.
 
 ### 3.10 Bundle name and version
 
 `bundle_name` and `bundle_version` sit side by side in the dataset's entry in
 `config_950_pds4.yaml`, read through `pds4_bundle_name()` and `pds4_bundle_version()`;
-the version has no default. This was #71, which Phase 9 closes; it landed late because
+neither has a default. This was #71, which Phase 9 closes; it landed late because
 doing it early would have meant re-editing every template the earlier phases touched.
+
+**Where the entry lives, decided in Phase 9's fix round.** The dataset's entry stays in
+`config_950_pds4.yaml`, a registry of PDS4 settings keyed by dataset, and is not moved into
+the instrument's `config_400_inst_coiss.yaml`, although the loader reads the files in order
+and deep-merges each section, so the configuration would be the same either way. Every
+`config_4*` file's bytes are hashed into each navigation document's `static_data_hashes`
+(`nav_orchestrator/provenance.py`), which records them as the instrument's static data: a
+new bundle version or a moved schema kept there would read as a change of Cassini
+instrument data. The resolved configuration's hash covers the `pds4` section wherever it
+is kept.
 
 Following #71's single version number, `bundle_version` is the `version_id` of the
 bundle, of every collection and of every product the bundle writes, and the version in
@@ -2719,8 +2732,8 @@ product LIDVIDs through its own hooks and no longer carry `BUNDLE_LID` or the un
 spellings in 15 files, each collection's and product's LID, every reference to a
 collection or to the user guide, the bundle label's seven member entries, the primary
 members of the document and SPICE kernel inventories, and the readme's two identifiers.
-The code spelled it as the configuration's value and as `_default_pds4_bundle_name`'s
-fallback, and both stay. Lookalikes that stay as they are: the source bundle
+The code spelled it as the configuration's value, which stays, and as
+`_default_pds4_bundle_name`'s fallback, which the fix round removed. Lookalikes that stay as they are: the source bundle
 `cassini_iss_saturn` in the ISS data user guide's LID, in five templates, an external
 product at its own version; the template directory's name, `cassini_iss_saturn_1.0`; and
 the user guide's file name, `cassini-iss-saturn-backplanes-user-guide.pdf`, which the
@@ -2766,6 +2779,47 @@ and 16 with it); the XSD finds only the `TODO DOI` placeholders, two and six; ev
 Schematron rule finds nothing; and the table check finds nothing with the guide and,
 without it, the seven references to the guide's LID it found before. Built under the
 other name and version, the bundle checks the same.
+
+**The fix round**, after the review of `244507cd`, which found no high finding:
+- **External references keep their versions.** The renamed-build test now also builds
+  the bundle under the shipped configuration and holds every LIDVID outside the bundle's
+  LID, file by file, to that build's; before, a context product or the ISS data user
+  guide rendered at the bundle's version survived every test.
+- **The document inventory's secondaries** are taken from that inventory as it renders
+  with the bundle's variables, so the miscellaneous inventory cannot cite an `S` line the
+  document collection writes otherwise. No shipped `S` line holds a variable.
+- **The information model version and the `pds` schema are tied** by a test over the
+  shipped configuration: the schema's file name carries the version's code, its LIDVID
+  the version's first two parts, and every other dictionary's file name the same build's
+  code (section 3.9).
+- **A failed readme or static inventory** costs the bundle label too, which the dev guide
+  now says: the bundle label declares the collection and states the readme's time.
+- **The configuration's comment** over the commented-out entries says what they give and
+  when a dataset bundles. The entries are unchanged.
+- **The name has no code default.** `_default_pds4_bundle_name()` is gone, and a missing
+  `bundle_name` stops the run as a missing `bundle_version` does. Nothing depended on it:
+  the one dataset with no entry, `coiss_cruise`, is refused by the template check first.
+- **The entry stays in `config_950_pds4.yaml`**, as section 3.10 records.
+- **`sphinx -n`** is left as it is: its nine unresolved references come from the API
+  reference documenting `spindoctor.dataset.dataset` as `:noindex:`, which is older than
+  this phase.
+
+Tests. The renamed-build test holds the external references to the shipped build's; a
+stand-in document inventory whose `S` line names the bundle through its variables is
+cited by the miscellaneous inventory as the document collection writes it; the shipped
+configuration keeps the information model version and the schemas of one build; and the
+test over the shipped configuration that pins the name is named for it. Each new or
+changed test was driven red by a mutation: nine, all killed -- the review's E1-E3 and
+X1-X3, the secondaries read unrendered, a rings schema of another build, and the shipped
+name removed, which survived while the name had a default.
+
+Checks. At `66967ad2`, ruff and format clean (799 files) and mypy clean (800 source
+files); the unit suite passes, 12661 and 6 xfailed. Integration, one file at a time, as
+before: the epochs and clock files pass, and the two files holding the six Galileo
+fitted-rotation tests fail as Phase 8 recorded. The plain cohort bundle, rebuilt, is
+byte-identical to the `88f19f57` build but for timestamps; the XSD finds only its two
+`TODO DOI` placeholders, and every Schematron rule finds nothing. With the guide, and
+under the other name and version, it checks as the round before did.
 
 Closes #71, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
