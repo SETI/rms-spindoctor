@@ -163,9 +163,11 @@
             </reference_text>
             <description>NAIF HTML documentation describing SPICE</description>
         </External_Reference>
-        <!-- No PDS4 bundle holds calibrated Cassini ISS images yet, so the calibrated
-             image the backplanes were computed from is cited as an external product;
-             this becomes a Source_Product_Internal once one does. -->
+        $NOTE
+        No PDS4 bundle holds calibrated Cassini ISS images yet, so the calibrated image
+        the backplanes were computed from is cited as an external product; this becomes a
+        Source_Product_Internal once one does.
+        $END_NOTE
         <Source_Product_External>
             <external_source_product_identifier>$SOURCE_PRODUCT_IDENTIFIER$</external_source_product_identifier>
             <reference_type>$SOURCE_PRODUCT_REFERENCE_TYPE$</reference_type>
