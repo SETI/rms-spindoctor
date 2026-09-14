@@ -58,8 +58,9 @@ def process_task(
         when the task names too little to run.
 
     Raises:
-        Exception: Whatever generation raises, for a document it cannot read or a
-            template it cannot find; the task does not catch it.
+        Exception: Whatever generation raises, for a document it cannot read, a
+            template it cannot find, or a backplane FITS it cannot read or copy; the
+            task does not catch it.
     """
 
     arguments = cast(argparse.Namespace, worker_data.args)

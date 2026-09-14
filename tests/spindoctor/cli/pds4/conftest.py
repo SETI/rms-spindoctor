@@ -30,10 +30,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import numpy as np
+from astropy.io import fits
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
 from spindoctor.cli.pds4.epochs import EpochRange
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 # Minimal pdstemplate templates.  Each references only variables the module under
@@ -128,6 +131,7 @@ class FakePds4DataSet:
             backplanes=SimpleNamespace(
                 bodies=bodies if bodies is not None else [],
                 rings=rings if rings is not None else [],
+                masked_value=DEFAULT_CONFIG.backplanes.masked_value,
             )
         )
 
@@ -242,7 +246,11 @@ class NoPds4DataSet:
 
     def __init__(self) -> None:
         """Build the dataset with a configuration declaring no backplanes."""
-        self.config = SimpleNamespace(backplanes=SimpleNamespace(bodies=[], rings=[]))
+        self.config = SimpleNamespace(
+            backplanes=SimpleNamespace(
+                bodies=[], rings=[], masked_value=DEFAULT_CONFIG.backplanes.masked_value
+            )
+        )
 
     def as_dataset(self) -> DataSet:
         """Return self cast to ``DataSet`` for passing into typed call sites."""
@@ -333,6 +341,7 @@ def make_bundle_env(
     tmp_path: Path,
     *,
     image_name: str = '1234567890w',
+    results_path_stub: str | None = None,
     template_contents: dict[str, str] | None = None,
     template_variables: dict[str, Any] | None = None,
     bodies: list[dict[str, Any]] | None = None,
@@ -343,6 +352,8 @@ def make_bundle_env(
     Parameters:
         tmp_path: Base temporary directory.
         image_name: Bare image name for the single input image.
+        results_path_stub: The image's results path stub; ``res/<image_name>``
+            when None.
         template_contents: Template files written over the default set, which
             holds every template the fake dataset declares.  A test naming one
             replaces that one and keeps the rest, because a dataset is required
@@ -371,7 +382,7 @@ def make_bundle_env(
         rings=rings,
     )
 
-    image_file = make_image_file(image_name, base_dir=tmp_path)
+    image_file = make_image_file(image_name, results_path_stub=results_path_stub, base_dir=tmp_path)
     nav_root = tmp_path / 'nav'
     backplane_root = tmp_path / 'backplanes'
     bundle_results_root = tmp_path / 'bundle'
@@ -472,7 +483,26 @@ def write_nav_inputs(
     if summary_png is not None:
         png_file = env.nav_root / f'{env.results_path_stub}_summary.png'
         png_file.write_bytes(summary_png)
+    write_backplane_fits(env.backplane_root / f'{env.results_path_stub}_backplanes.fits')
     return nav_metadata, backplane_metadata
+
+
+def write_backplane_fits(path: Path, *, shape: tuple[int, int] = (2, 2)) -> None:
+    """Write a small backplane FITS: an empty primary HDU and one float plane.
+
+    The labels pass copies an image's FITS into the bundle beside its data label, so
+    every image the plumbing tests label needs one beside its backplane metadata.  It
+    is a real FITS, as the backplane stage writes one, rather than a few bytes
+    standing in for one, so that it is the kind of file the pass copies.
+
+    Parameters:
+        path: Where the FITS goes; its directory is created if it is not there.
+        shape: The plane's lines and samples.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plane = fits.ImageHDU(data=np.zeros(shape, dtype=np.float32), name='BODY_LATITUDE')
+    plane.header['BUNIT'] = 'rad'
+    fits.HDUList([fits.PrimaryHDU(), plane]).writeto(path)
 
 
 def write_supplemental(

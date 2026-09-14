@@ -139,15 +139,19 @@ def test_data_label_rendered_with_substituted_variables(tmp_path: Path) -> None:
 
 
 def test_injected_file_path_template_variables(tmp_path: Path) -> None:
-    """The stage injects the BACKPLANE_*/BROWSE_FULL_* file variables into the dict."""
-    env = make_bundle_env(tmp_path)
+    """The stage injects the BACKPLANE_*/BROWSE_FULL_* file variables into the dict.
+
+    The image's results path stub names it otherwise than its bundle path stub, so
+    a file name taken from the one where the other belongs is seen.
+    """
+    env = make_bundle_env(tmp_path, results_path_stub='res/1234567890w_results')
     write_nav_inputs(env)
     _generate(env)
     variables = env.dataset.template_variables
     assert variables['BACKPLANE_FILENAME'] == '1234567890w_backplanes.fits'
     assert variables['BACKPLANE_SUPPL_FILENAME'] == '1234567890w_supplemental.txt'
     assert variables['BROWSE_FULL_FILENAME'] == '1234567890w_summary.png'
-    expected_fits = str(FCPath(env.backplane_root) / f'{env.results_path_stub}_backplanes.fits')
+    expected_fits = str(FCPath(env.bundle_dir) / 'data' / f'{env.pds4_path_stub}_backplanes.fits')
     assert variables['BACKPLANE_PATH'] == expected_fits
     expected_suppl = str(FCPath(env.bundle_dir) / 'data' / f'{env.pds4_path_stub}_supplemental.txt')
     assert variables['BACKPLANE_SUPPL_PATH'] == expected_suppl
@@ -475,22 +479,14 @@ def test_dataset_without_pds4_support_raises(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason='dev_guide_pds4.rst "Pipeline overview" says the backplane FITS file is '
-    'copied (or symlinked) into the bundle data/ tree, but generate_bundle_data_files '
-    'never copies it; user_guide_pds4_bundle.rst omits it from the outputs, so this '
-    'may be deliberately deferred to template/bundle finalization',
-)
 def test_backplane_fits_copied_into_bundle_data_tree(tmp_path: Path) -> None:
-    """Dev guide: the backplane FITS product is placed in the bundle data/ tree."""
+    """The backplane FITS is copied beside its data label, byte for byte."""
     env = make_bundle_env(tmp_path)
     write_nav_inputs(env)
     fits_source = env.backplane_root / f'{env.results_path_stub}_backplanes.fits'
-    fits_source.write_bytes(b'FAKE FITS BYTES')
     _generate(env)
     bundled_fits = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_backplanes.fits'
-    assert bundled_fits.is_file()
+    assert bundled_fits.read_bytes() == fits_source.read_bytes()
 
 
 # ---------------------------------------------------------------------------

@@ -48,6 +48,7 @@ The two passes write this directory structure:
    │   ├── collection_data.lblx
    │   └── <directory_structure>/
    │       └── <image_name>_backplanes.lblx
+   │       └── <image_name>_backplanes.fits
    │       └── <image_name>_supplemental.txt
    └── document/
        └── supplemental/
@@ -230,7 +231,10 @@ Labels Pass Outputs
 For each image, the labels pass generates:
 
 * **PDS4 Label File** (``<image_name>_backplanes.lblx``): XML label file describing the
-  backplane FITS file, generated from dataset-specific templates.
+  backplane FITS file beside it, generated from dataset-specific templates.
+
+* **Backplane FITS File** (``<image_name>_backplanes.fits``): a byte-for-byte copy of
+  the image's backplane FITS from the backplane results root.
 
 * **Supplemental File** (``<image_name>_supplemental.txt``): JSON file containing combined
   navigation and backplane metadata, including:
@@ -247,6 +251,11 @@ For each image, the labels pass generates:
 Browse products are not optional. Both are written for every image the pass
 labels, and an image whose summary PNG is missing from the navigation results is
 failed rather than bundled without them.
+
+The data label describes each HDU of the FITS beside it, and each image HDU's array:
+its name, its size in lines and samples, its element type and, where it has one,
+its unit. Each float array declares the masked value (``backplanes.masked_value``,
+``-999.0`` as shipped) as its missing constant.
 
 Each data label states when its image's exposure began and ended, in its
 ``Time_Coordinates``: the start and stop in UTC, to the millisecond, as in

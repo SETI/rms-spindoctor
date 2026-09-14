@@ -24,9 +24,11 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    ``_backplane_metadata.json`` produced by ``sd_backplanes``, populates a
    ``pdstemplate`` rendering context with per-image template variables, and
    writes into the bundle's ``data/`` tree the image's ``<image>_backplanes.lblx``
-   label and ``<image>_supplemental.txt`` file, and into its ``browse/`` tree a
-   copy of the summary PNG and its ``<image>_summary.lblx`` label. The data label
-   names the backplane FITS; the pass does not copy the FITS into the bundle.
+   label, a copy of its ``<image>_backplanes.fits`` beside it, and its
+   ``<image>_supplemental.txt`` file, and into its ``browse/`` tree a copy of the
+   summary PNG and its ``<image>_summary.lblx`` label. The label's data objects
+   are read from the source FITS before anything is written into the bundle, and
+   the copy is the same bytes (see `The FITS and its data objects`_).
 
 2. **Collections and indexes.**  After every per-image data label is in place,
    :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` reads
@@ -376,6 +378,64 @@ The two passes render ``data.lblx`` and ``browse.lblx`` for each image and the
 collection and global index labels for the bundle, on every run; the other files
 ship with the templates, and no pass writes them into a bundle.
 
+The FITS and its data objects
+=============================
+
+The labels pass copies an image's ``<stub>_backplanes.fits`` from the backplane
+root into the bundle's ``data/`` tree, beside its data label, which names the file
+with no directory part.  ``BACKPLANE_PATH`` names the copy, so the size, checksum
+and time the label states through ``pdstemplate``'s ``FILE_BYTES``, ``FILE_MD5``
+and ``FILE_ZULU`` are the archived file's.  The copy is written to a local path and
+uploaded, as the summary PNG's is, and those three functions read a local file, so
+a bundle root in the cloud is not supported.
+
+:func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` reads the source
+FITS with ``astropy.io.fits``, before the copy is made, into a
+:class:`~spindoctor.cli.pds4.data_objects.BackplaneFitsObjects`: one
+:class:`~spindoctor.cli.pds4.data_objects.FitsHdu` per HDU, in file order, whose
+header offset and length come from astropy's ``fileinfo()`` (``hdrLoc``, and
+``datLoc`` less ``hdrLoc``), and for every image HDU past the primary a
+:class:`~spindoctor.cli.pds4.data_objects.FitsArray` at ``datLoc``.  An array's
+element type comes from its ``BITPIX`` through
+:data:`~spindoctor.cli.pds4.data_objects.FITS_DATA_TYPES` (``IEEE754MSBSingle`` for
+-32 and ``SignedMSB4`` for 32, the most significant byte first because FITS is
+big-endian), its unit is its ``BUNIT`` when it has one, its ``Line`` and ``Sample``
+extents are ``NAXIS2`` and ``NAXIS1``, and its local identifier is its HDU name in
+lower case.  A float array's missing constant is the configuration's
+``backplanes.masked_value`` as the 32-bit float the plane holds, spelled as the
+shortest decimal that reads back as that value when parsed as a 64-bit float, so a
+reader comparing in either precision finds it.  The body identity map declares no missing constant and carries
+:data:`~spindoctor.cli.pds4.data_objects.BODY_ID_MAP_DESCRIPTION` instead: its
+``0`` is a pixel no body claimed, not a missing measurement.  The map is found by
+:data:`~spindoctor.cli.backplanes.writer.BODY_ID_MAP_HDU_NAME`, the name the
+backplane writer gives it.  Every float array carries a description as well, built
+from what the configuration and the file know -- its name, the ``oops`` backplane
+method :func:`~spindoctor.cli.pds4.data_objects.configured_methods` gives for it,
+and its ``BUNIT`` -- and a sentence saying a pixel the plane does not cover holds
+the missing constant; nothing is said of the geometry the method computes.
+
+``data.lblx`` renders the result, handed to it as ``BACKPLANE_FITS``.  A ``$FOR``
+over its ``hdus`` writes a ``Header``, and an ``Array_2D_Image`` where the HDU has
+an array, into ``File_Area_Observational`` after the ``File``; a second ``$FOR``
+over its ``arrays`` writes one ``disp:Display_Settings`` per array into the
+``Discipline_Area``, each referring to its array's identifier.  The fixed PDS4
+values -- the ``FITS 3.0`` parsing standard, ``Last Index Fastest``, two axes named
+``Line`` and ``Sample``, and a display with ``Sample`` running left to right and
+``Line`` top to bottom -- are literals in the template; everything that depends on
+the file comes from the descriptor, so a plane the writer dropped is not described
+and a frame with no ring backplanes has no ring arrays.  The same label describes
+the supplemental file as a ``Stream_Text`` over its whole length, ``7-Bit ASCII
+Text`` with ``Line-Feed`` records: the pass writes it as the ASCII bytes of the
+one JSON object :func:`~spindoctor.support.file.json_as_string` produces, which
+escapes every character outside ASCII.
+
+The builder describes what :func:`~spindoctor.cli.backplanes.writer.write_fits`
+writes and refuses nothing: the FITS and its metadata are written by this
+repository's own programs, and the cohort tests, which run the real writer and
+hold every stated offset to the file's bytes, catch a change to the writer.
+The source is described before the copy is made, and the copy is byte-identical,
+so the source's description is the copy's.
+
 Epochs
 ======
 
@@ -442,6 +502,7 @@ The two passes write this tree:
        collection_data.lblx                  # summary pass
        <pds4_bundle_path_for_image>/
          <image>_backplanes.lblx
+         <image>_backplanes.fits             # copied from backplane_results_root
          <image>_supplemental.txt
      browse/
        collection_browse.tab                 # summary pass
@@ -599,6 +660,9 @@ documented above.
 - :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one
   check both passes hold every statistic of a document to, its unit and its
   values.
+- :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` — the headers
+  and arrays of a backplane FITS, read from the source before the copy is made,
+  for the data label of its copy.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
   :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome` — the range of the
   products' epochs, taken in the global index's read of the supplemental files

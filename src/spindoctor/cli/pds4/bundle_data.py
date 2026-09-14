@@ -8,6 +8,7 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.pds4.data_objects import configured_methods, describe_backplane_fits
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.dataset.dataset import DataSet, ImageFiles
@@ -81,6 +82,15 @@ def generate_bundle_data_files(
     ``navigation_result.times`` is checked; where it is there, it holds all three
     epochs.
 
+    The backplane FITS is copied into the bundle, beside its data label, which names
+    it with no directory part, and the label's size, checksum and time are the
+    copy's.
+
+    The data label describes every HDU of the FITS, through
+    :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`, which reads the
+    source before the copy is made; the copy is byte-identical, so the source's
+    description is the copy's.
+
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
         image_files: List of images; must have exactly one image in the batch.
@@ -99,6 +109,7 @@ def generate_bundle_data_files(
 
     Raises:
         ValueError: If the batch does not hold exactly one image.
+        OSError: If the backplane FITS cannot be read or copied.
     """
 
     if len(image_files.image_files) != 1:
@@ -194,6 +205,16 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.FAILED
 
+        fits_source_path = backplane_results_root / (results_path_stub + '_backplanes.fits')
+        fits_source_local = cast(Path, fits_source_path.retrieve())
+
+        # The copy made below is byte-identical, so the source's description is the copy's.
+        fits_objects = describe_backplane_fits(
+            fits_source_local,
+            masked_value=float(dataset.config.backplanes.masked_value),
+            methods=configured_methods(dataset.config),
+        )
+
         pds4_path_stub = dataset.pds4_path_stub(image_file)
         bundle_name = dataset.pds4_bundle_name()
         template_dir = dataset.pds4_bundle_template_dir()
@@ -218,22 +239,38 @@ def generate_bundle_data_files(
         data_dir = bundle_root / 'data'
         browse_dir = bundle_root / 'browse'
         label_file_path = data_dir / (pds4_path_stub + '_backplanes.lblx')
+        fits_file_path = data_dir / (pds4_path_stub + '_backplanes.fits')
         suppl_file_path = data_dir / (pds4_path_stub + '_supplemental.txt')
         browse_label_path = browse_dir / (pds4_path_stub + '_summary.lblx')
         browse_image_path = browse_dir / (pds4_path_stub + '_summary.png')
 
+        # The FITS goes into the bundle beside its label, which names it with no
+        # directory part, and BACKPLANE_PATH names the copy, so that the size,
+        # checksum and time the label states are the archived file's.  As with the
+        # summary PNG below, the copy is written to a local path and uploaded, and
+        # the label's FILE_* functions read BACKPLANE_PATH as a local file, so a
+        # bundle root in the cloud is not handled here (#67).
+        fits_file_local = cast(Path, fits_file_path.get_local_path())
+        shutil.copy2(fits_source_local, fits_file_local)
+        fits_file_path.upload()
+        logger.info('Copied backplane FITS: %s', fits_file_path)
+
         # Add file path variables to template_vars
-        fits_file_path = backplane_results_root / (results_path_stub + '_backplanes.fits')
         summary_png_source = nav_results_root / (results_path_stub + '_summary.png')
-        template_vars['BACKPLANE_FILENAME'] = label_file_path.name.replace('.lblx', '.fits')
+        template_vars['BACKPLANE_FILENAME'] = fits_file_path.name
         template_vars['BACKPLANE_PATH'] = str(fits_file_path)
+        template_vars['BACKPLANE_FITS'] = fits_objects
         template_vars['BACKPLANE_SUPPL_FILENAME'] = suppl_file_path.name
         template_vars['BACKPLANE_SUPPL_PATH'] = str(suppl_file_path)
         template_vars['BROWSE_FULL_FILENAME'] = browse_image_path.name
         template_vars['BROWSE_FULL_PATH'] = str(browse_image_path)
 
         # Generate supplemental file (JSON format) - must be written before template
-        suppl_file_path.write_text(json_as_string(combined_metadata))
+        # The label declares the file 7-Bit ASCII Text with Line-Feed records.
+        # json.dumps escapes every character outside ASCII and ends lines in a
+        # line feed, and writing its bytes keeps them line feeds on a platform
+        # whose text files end lines otherwise.
+        suppl_file_path.write_bytes(json_as_string(combined_metadata).encode('ascii'))
         logger.info('Generated supplemental file: %s', suppl_file_path)
 
         # Generate PDS4 label file
