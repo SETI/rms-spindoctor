@@ -316,8 +316,8 @@ The summary pass generates:
   * ``global_rings_index.tab``: a table with one row for each image with ring
     backplanes, giving the least and the greatest value of each ring backplane
   * ``global_rings_index.lblx``: PDS4 label for the rings index
-  * ``collection_miscellaneous.csv``: the collection's members: the two index tables,
-    and the context products and documents the bundle cites
+  * ``collection_miscellaneous.csv``: the collection's members: the index tables it
+    holds, and the context products and documents the bundle cites
   * ``collection_miscellaneous.lblx``: PDS4 label for the collection
 
 * **Bundle Files**:
