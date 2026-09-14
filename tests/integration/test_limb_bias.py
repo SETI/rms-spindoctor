@@ -3,7 +3,7 @@
 The renderer-validation tests run the simulator body renderer directly (no
 navigation, no holdings), so they execute in the plain unit suite and guard
 the assumption the sim-based diagnosis rests on: the simulator plants a body
-at its requested sub-pixel centre without embedding a positional bias.  The
+at its requested sub-pixel center without embedding a positional bias.  The
 navigation smoke test is marked ``integration`` because it drives the full
 model / technique stack.
 """
@@ -23,7 +23,7 @@ from tests.integration.limb_bias import (
 @pytest.mark.parametrize('center_v', [100.0, 100.25, 100.5, 100.75])
 @pytest.mark.parametrize('center_u', [100.0, 100.4])
 def test_renderer_centroid_is_unbiased(center_v: float, center_u: float) -> None:
-    """A phase-0 sphere's brightness centroid lands on its geometric centre."""
+    """A phase-0 sphere's brightness centroid lands on its geometric center."""
     check = renderer_centroid_offset(center_vu=(center_v, center_u), diameter_px=140.0)
     assert check.centroid_error_mag_px < 0.02
 
@@ -32,7 +32,7 @@ def test_renderer_gradient_ridge_sits_inside_limb() -> None:
     """The brightness gradient ridge is inset from the geometric limb.
 
     A positive inset is the photometric roll-off signature: the steepest-slope
-    point that the edge distance transform localises lies inside the true
+    point that the edge distance transform localizes lies inside the true
     silhouette boundary, so a limb fit that assumes the edge is at the geometry
     is pulled inward on the lit side.
     """

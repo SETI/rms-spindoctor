@@ -162,7 +162,7 @@ class Expected:
     the frame is believed navigable in principle but the current pipeline
     cannot yet navigate it, and the referenced issue (format ``#<number>``)
     tracks closing that gap. The regression test still asserts the pinned
-    outcome, so when the issue is fixed and behaviour changes the test
+    outcome, so when the issue is fixed and behavior changes the test
     fails loudly and prompts the fixture to be re-verified. It is a
     machine-readable flag distinguishing "provisionally failing, revisit"
     from a genuinely-unnavigable negative case.

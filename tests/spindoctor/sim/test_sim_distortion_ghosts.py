@@ -1,7 +1,7 @@
 """Residual geometric distortion and ghost reflections in the optics stage.
 
 Distortion tests: a radial k1 warp moves a corner point by the predicted
-amount while the centre stays put, the non-radial field is deterministic per
+amount while the center stays put, the non-radial field is deterministic per
 seed, and a disabled block is the identity.  Ghost tests: a bright source
 casts a displaced, amplitude-scaled copy.
 """
@@ -40,7 +40,7 @@ def test_disabled_distortion_is_identity() -> None:
 
 
 def test_center_pixel_is_unmoved() -> None:
-    """A source at the optical centre does not move under a radial warp."""
+    """A source at the optical center does not move under a radial warp."""
     signal = np.zeros((41, 41), dtype=np.float64)
     signal[20, 20] = 1.0
     out = _distort(signal, {'k1': 0.2, 'k2': 0.0, 'center_v': 20.0, 'center_u': 20.0})
@@ -48,7 +48,7 @@ def test_center_pixel_is_unmoved() -> None:
 
 
 def test_k1_warp_moves_a_corner_point_inward_by_the_prediction() -> None:
-    """A positive k1 pulls an off-centre point toward the centre by k1*rho^2."""
+    """A positive k1 pulls an off-center point toward the center by k1*rho^2."""
     size = 41
     signal = np.zeros((size, size), dtype=np.float64)
     qv, qu = 8, 8

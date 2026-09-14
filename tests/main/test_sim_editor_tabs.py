@@ -103,7 +103,7 @@ def test_distortion_center_keys_absent_unless_enabled(model: Any) -> None:
 
 
 def test_distortion_center_zero_is_authorable(model: Any) -> None:
-    """An explicit 0.0 optical centre survives (no 0.0-to-absent flip)."""
+    """An explicit 0.0 optical center survives (no 0.0-to-absent flip)."""
     model._distortion_group.setChecked(True)
     model._distortion_center_check.setChecked(True)
     model._distortion_center_v_spin.setValue(0.0)
@@ -114,7 +114,7 @@ def test_distortion_center_zero_is_authorable(model: Any) -> None:
 
 
 def test_distortion_center_uncheck_drops_both_keys(model: Any) -> None:
-    """Unchecking the optical-centre enable removes both centre keys."""
+    """Unchecking the optical-center enable removes both center keys."""
     model._distortion_group.setChecked(True)
     model._distortion_center_check.setChecked(True)
     model._distortion_center_v_spin.setValue(40.0)

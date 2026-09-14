@@ -30,7 +30,7 @@ def test_linear_direction_rotates_the_ramp() -> None:
 
 
 def test_radial_peaks_at_center() -> None:
-    """A radial field is brightest at its centre and dim at the corners."""
+    """A radial field is brightest at its center and dim at the corners."""
     img = np.zeros((41, 41), dtype=np.float64)
     apply_stray_light(img, amplitude=0.5, model='radial')
     assert float(img[20, 20]) > float(img[0, 0])
@@ -44,7 +44,7 @@ def test_zero_amplitude_is_a_noop() -> None:
 
 
 def test_unknown_model_raises() -> None:
-    """An unrecognised model name raises with a clear message."""
+    """An unrecognized model name raises with a clear message."""
     img = np.zeros((8, 8), dtype=np.float64)
     with pytest.raises(ValueError, match="model must be 'linear' or 'radial'"):
         apply_stray_light(img, amplitude=0.5, model='spiral')
@@ -89,9 +89,9 @@ def test_render_stray_light_raises_background() -> None:
 
 
 def test_radial_stray_center_is_detector_coordinates_at_oversample() -> None:
-    """An explicit radial stray-light centre stays put when the scene oversamples.
+    """An explicit radial stray-light center stays put when the scene oversamples.
 
-    The centre keys are detector coordinates; the optics stage runs on the
+    The center keys are detector coordinates; the optics stage runs on the
     oversampled grid, so they must scale with the oversample factor like every
     other pixel-space parameter or the bump slides toward the origin.
     """

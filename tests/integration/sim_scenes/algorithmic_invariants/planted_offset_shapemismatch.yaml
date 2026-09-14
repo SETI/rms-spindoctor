@@ -7,10 +7,10 @@ random_seed: 42
 exposure_sec: 1.0
 # B7 scenario 2: mesh vs ellipsoid, same pose.  The frame renders an irregular
 # (lumpy) mesh body, but the navigator predicts a smooth body at the same pose,
-# axes, and centre -- the only difference is shape.  The prediction is realised
+# axes, and center -- the only difference is shape.  The prediction is realized
 # through the body's nav_override mapping: the renderer draws the true geometry
 # (mesh_lumpiness 0.1) while NavModelBodySimulated predicts mesh_lumpiness 0.0,
-# the zero-relief (ellipsoidal) limit of the same mesh.  Realising the
+# the zero-relief (ellipsoidal) limit of the same mesh.  Realizing the
 # ellipsoidal prediction as the smooth limit of the mesh keeps both silhouettes
 # on one renderer with a consistent axis/pose convention, so the residual is pure
 # shape mismatch rather than a renderer-convention skew.

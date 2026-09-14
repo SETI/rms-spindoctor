@@ -49,7 +49,7 @@ def _render(lumpiness: float, *, pose: tuple[float, float, float] = (0.0, 0.0, 0
 
 
 def test_mesh_is_outward_wound() -> None:
-    """Every face normal points away from the body centre."""
+    """Every face normal points away from the body center."""
     mesh = make_irregular_mesh(lumpiness=0.3, seed=1)
     p0 = mesh.vertices[mesh.faces[:, 0]]
     p1 = mesh.vertices[mesh.faces[:, 1]]

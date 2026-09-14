@@ -9,7 +9,7 @@ exposure_sec: 1.0
 # rather than a raw-DN one.  The calibrated_if render path runs the full DN
 # detector chain and then inverts the calibration transform, so the frame carries
 # propagated shot and read noise in I/F units.  The navigation techniques key on
-# scale-invariant quantities (normalised cross-correlation, a MAD-relative noise
+# scale-invariant quantities (normalized cross-correlation, a MAD-relative noise
 # threshold), so the disc recovers the planted offset the same way it does on a
 # raw-DN frame -- demonstrating navigation is unit-agnostic.
 bodies:

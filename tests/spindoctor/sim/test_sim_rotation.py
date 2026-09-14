@@ -83,7 +83,7 @@ def test_star_record_keeps_unrolled_position() -> None:
     """The emitted star record carries the unrolled catalog ``(v, u)``.
 
     The roll is applied to the rendered image only; the NavModel must predict the
-    unrolled geometry so a technique recovers the roll rather than cancelling it.
+    unrolled geometry so a technique recovers the roll rather than canceling it.
     The record states the position in the scene's own pixel corner coordinates.
     """
     params = _noiseless_params(
