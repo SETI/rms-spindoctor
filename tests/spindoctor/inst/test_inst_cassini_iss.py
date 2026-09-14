@@ -1,5 +1,6 @@
 """Tests for ``spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS``."""
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -193,6 +194,149 @@ _W1573251410_FACTS: dict[str, Any] = {
 """The label facts W1573251410_1_CALIB's label states, under their dictionary names."""
 
 
+def _n1454725799_label() -> VicarLabelStandIn:
+    """Return the label items the host reads from N1454725799_1_CALIB (COISS_2001).
+
+    They are the VICAR label's, as rms-vicar reads them.  The frame's mission phase is
+    written with an underscore, ``APPROACH_SCIENCE``, and its antiblooming was off while
+    its light flood was on.
+
+    Returns:
+        The label items.
+    """
+    return VicarLabelStandIn(
+        MISSION_PHASE_NAME='APPROACH_SCIENCE',
+        SPACECRAFT_CLOCK_CNT_PARTITION=1,
+        SPACECRAFT_CLOCK_START_COUNT='1454725799.102',
+        SPACECRAFT_CLOCK_STOP_COUNT='1454725799.122',
+        DESCRIPTION='N/A',
+        ANTIBLOOMING_STATE_FLAG='OFF',
+        BIAS_STRIP_MEAN=14.8699,
+        CALIBRATION_LAMP_STATE_FLAG='N/A',
+        COMMAND_FILE_NAME='OPNAV_848_3.ioi',
+        COMMAND_SEQUENCE_NUMBER=8,
+        DARK_STRIP_MEAN=0.0,
+        DATA_CONVERSION_TYPE='12BIT',
+        DELAYED_READOUT_FLAG='NO',
+        DETECTOR_TEMPERATURE=-89.2435,
+        ELECTRONICS_BIAS=112,
+        EARTH_RECEIVED_START_TIME='2004-039T01:35:53.622Z',
+        EARTH_RECEIVED_STOP_TIME='2004-039T01:36:55.067Z',
+        EXPECTED_MAXIMUM=[50.0, 75.0],
+        EXPECTED_PACKETS=1143,
+        EXPOSURE_DURATION=80.0,
+        FILTER_NAME=['CL1', 'CL2'],
+        FILTER_TEMPERATURE=-0.468354,
+        FLIGHT_SOFTWARE_VERSION_ID='1.3',
+        GAIN_MODE_ID='29 ELECTRONS PER DN',
+        SOFTWARE_VERSION_ID='ISS 9.00 05-22-2003',
+        IMAGE_MID_TIME='2004-037T02:07:06.458Z',
+        IMAGE_NUMBER=1454725799,
+        IMAGE_TIME='2004-037T02:07:06.498Z',
+        IMAGE_OBSERVATION_TYPE='OPNAV',
+        INSTRUMENT_DATA_RATE=365.568,
+        INSTRUMENT_MODE_ID='FULL',
+        INST_CMPRS_TYPE='LOSSLESS',
+        INST_CMPRS_PARAM=['N/A', 'N/A', 'N/A', 'N/A'],
+        INST_CMPRS_RATE=[6.0, 2.11688],
+        INST_CMPRS_RATIO=7.55829,
+        LIGHT_FLOOD_STATE_FLAG='ON',
+        METHOD_DESC='OPNAV MAN.',
+        MISSING_LINES=0,
+        MISSING_PACKET_FLAG='NO',
+        OBSERVATION_ID='NAV_C42SK_OPNAV371_PRIME',
+        OPTICS_TEMPERATURE=[0.712693, 1.82047],
+        ORDER_NUMBER=0,
+        PARALLEL_CLOCK_VOLTAGE_INDEX=9,
+        PRODUCT_CREATION_TIME='2004-038T19:26:35.000Z',
+        PRODUCT_VERSION_TYPE='FINAL',
+        TARGET_DESC='RHEA',
+        TARGET_LIST='N/A',
+        TARGET_NAME='SKY',
+        PREPARE_CYCLE_INDEX=3,
+        READOUT_CYCLE_INDEX=5,
+        RECEIVED_PACKETS=309,
+        SENSOR_HEAD_ELEC_TEMPERATURE=1.63302,
+        SEQUENCE_ID='C42',
+        SEQUENCE_NUMBER=1,
+        SEQUENCE_TITLE='--',
+        SHUTTER_MODE_ID='NACONLY',
+        SHUTTER_STATE_ID='ENABLED',
+        START_TIME='2004-037T02:07:06.418Z',
+        STOP_TIME='2004-037T02:07:06.498Z',
+        TELEMETRY_FORMAT_ID='UNK',
+        VALID_MAXIMUM=[4095, 4095],
+    )
+
+
+_N1454725799_FACTS: dict[str, Any] = {
+    'mission_phase_name': 'APPROACH_SCIENCE',
+    'spacecraft_clock_count_partition': 1,
+    'spacecraft_clock_start_count': '1454725799.102',
+    'spacecraft_clock_stop_count': '1454725799.122',
+    'antiblooming_state_flag': 'OFF',
+    'bias_strip_mean': 14.8699,
+    'calibration_lamp_state_flag': 'N/A',
+    'command_file_name': 'OPNAV_848_3.ioi',
+    'command_sequence_number': 8,
+    'dark_strip_mean': 0.0,
+    'data_conversion_type': '12BIT',
+    'delayed_readout_flag': 'NO',
+    'detector_temperature': -89.2435,
+    'electronics_bias': 112,
+    'earth_received_start_time': '2004-039T01:35:53.622Z',
+    'earth_received_stop_time': '2004-039T01:36:55.067Z',
+    'expected_maximum_full_well': 50.0,
+    'expected_maximum_DN_sat': 75.0,
+    'expected_packets': 1143,
+    'exposure_duration': 80.0,
+    'filter_temperature': -0.468354,
+    'flight_software_version_id': '1.3',
+    'gain_mode_id': '29 ELECTRONS PER DN',
+    'ground_software_version_id': 'ISS 9.00 05-22-2003',
+    'image_mid_time': '2004-037T02:07:06.458Z',
+    'image_number': 1454725799,
+    'image_time': '2004-037T02:07:06.498Z',
+    'image_observation_type': 'OPNAV',
+    'instrument_data_rate': 365.568,
+    'inst_cmprs_type': 'LOSSLESS',
+    'inst_cmprs_param_malgo': 'N/A',
+    'inst_cmprs_param_tb': 'N/A',
+    'inst_cmprs_param_blocks': 'N/A',
+    'inst_cmprs_param_quant': 'N/A',
+    'inst_cmprs_rate_expected_bits': 6.0,
+    'inst_cmprs_rate_actual_bits': 2.11688,
+    'inst_cmprs_ratio': 7.55829,
+    'light_flood_state_flag': 'ON',
+    'method_description': 'OPNAV MAN.',
+    'missing_lines': 0,
+    'missing_packet_flag': 'NO',
+    'optics_temperature_front': 0.712693,
+    'optics_temperature_back': 1.82047,
+    'order_number': 0,
+    'parallel_clock_voltage_index': 9,
+    'pds3_product_creation_time': '2004-038T19:26:35.000Z',
+    'pds3_product_version_type': 'FINAL',
+    'pds3_target_desc': 'RHEA',
+    'pds3_target_list': 'N/A',
+    'pds3_target_name': 'SKY',
+    'prepare_cycle_index': 3,
+    'readout_cycle_index': 5,
+    'received_packets': 309,
+    'sensor_head_electronics_temperature': 1.63302,
+    'sequence_id': 'C42',
+    'sequence_number': 1,
+    'sequence_title': '--',
+    'shutter_state_id': 'ENABLED',
+    'start_time_doy': '2004-037T02:07:06.418Z',
+    'stop_time_doy': '2004-037T02:07:06.498Z',
+    'telemetry_format_id': 'UNK',
+    'valid_maximum_full_well': 4095,
+    'valid_maximum_DN_sat': 4095,
+}
+"""The label facts N1454725799_1_CALIB's label states, under their dictionary names."""
+
+
 def _wide_angle_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
     """Build a bare wide angle observation, taken as W1573251410_1_CALIB was.
 
@@ -312,15 +456,37 @@ def test_a_label_without_clock_counts_publishes_null_counts() -> None:
     assert end is None
 
 
-def test_the_label_facts_are_published_as_the_label_states_them() -> None:
+@pytest.mark.parametrize(
+    ('build', 'facts'),
+    [
+        pytest.param(
+            lambda: _wide_angle_observation(_w1573251410_label()),
+            _W1573251410_FACTS,
+            id='W1573251410_1_CALIB',
+        ),
+        pytest.param(
+            lambda: _cassini_observation(_n1454725799_label()),
+            _N1454725799_FACTS,
+            id='N1454725799_1_CALIB',
+        ),
+    ],
+)
+def test_the_label_facts_are_published_as_the_label_states_them(
+    build: Callable[[], ObsCassiniISS], facts: dict[str, Any]
+) -> None:
     """Each label fact is published under its dictionary name, as the label states it.
 
     W1573251410_1_CALIB's numbers stay numbers, its times are its own day-of-year
     spellings with their trailing Z, its gain mode is its text, and its missing-line count
-    is the text N/A.
+    is the text N/A.  N1454725799_1_CALIB's mission phase keeps its underscore, and its
+    antiblooming flag, OFF, is published apart from its light flood flag, ON.
+
+    Parameters:
+        build: Builds the observation carrying the image's label.
+        facts: The label facts that label states.
     """
-    public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
-    assert {key: public[key] for key in _W1573251410_FACTS} == _W1573251410_FACTS
+    public = build().get_public_metadata()
+    assert {key: public[key] for key in facts} == facts
 
 
 def test_a_keyword_the_label_lacks_is_published_as_null() -> None:
