@@ -580,8 +580,8 @@ Configuration Options
   template declaring one with no entry is not written, and an entry no template
   declares is still listed by the XML schema collection.
 
-``bundle_version``, ``information_model_version`` and ``schemas`` have no default, so an
-entry for a dataset that is bundled gives all three.
+``bundle_name``, ``bundle_version``, ``information_model_version`` and ``schemas`` have
+no default, so an entry for a dataset that is bundled gives all four.
 
 Targets
 -------

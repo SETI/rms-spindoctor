@@ -444,15 +444,16 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_bundle_name(self) -> str:
         """Returns bundle name for PDS4 bundle generation.
 
+        Reads ``config.pds4.<dataset>.bundle_name``, which has no default: the shipped
+        configuration sets it for the dataset that bundles.
+
         Returns:
             Bundle name.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no ``bundle_name``.
         """
-        # Check config first
-        dataset_config = self.config.pds4.get(self._dataset_name_for_pds4_config(), {})
-        if 'bundle_name' in dataset_config:
-            return str(dataset_config['bundle_name'])
-        # Default
-        return self._default_pds4_bundle_name()
+        return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_name'])
 
     def pds4_bundle_version(self) -> str:
         """Returns the bundle's version, which each of the bundle's own products carries.
@@ -902,14 +903,6 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         """
         raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
 
-    def _default_pds4_bundle_name(self) -> str:
-        """Returns the default bundle name.
-
-        Returns:
-            Default bundle name.
-        """
-        raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
-
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.
 
@@ -934,9 +927,6 @@ class DataSetPDS3CassiniISSCruise(DataSetPDS3CassiniISS):
     def _default_pds4_template_dir(self) -> str:
         return 'cassini_iss_cruise_1.0'
 
-    def _default_pds4_bundle_name(self) -> str:
-        return 'cassini_iss_cruise_backplanes_rsfrench2027'
-
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.
 
@@ -958,9 +948,6 @@ class DataSetPDS3CassiniISSSaturn(DataSetPDS3CassiniISS):
 
     def _default_pds4_template_dir(self) -> str:
         return 'cassini_iss_saturn_1.0'
-
-    def _default_pds4_bundle_name(self) -> str:
-        return 'cassini_iss_saturn_backplanes_rsfrench2027'
 
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.

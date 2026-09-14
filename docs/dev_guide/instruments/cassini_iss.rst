@@ -369,11 +369,9 @@ This dataset is the reference implementation, and implements every hook.
 * ``pds4_bundle_template_dir`` reads ``config.pds4.<dataset>.template_dir``,
   falls back to ``_default_pds4_template_dir``, and resolves a relative name
   against ``src/spindoctor/cli/pds4/templates/``.
-* ``pds4_bundle_name`` reads ``config.pds4.<dataset>.bundle_name`` and falls
-  back to ``_default_pds4_bundle_name``.
-* ``pds4_bundle_version``, ``pds4_information_model_version`` and ``pds4_schemas``
-  read ``config.pds4.<dataset>.bundle_version``, ``information_model_version`` and
-  ``schemas``, with no fallback.  The shipped ``coiss_saturn`` entry gives the schemas
+* ``pds4_bundle_name``, ``pds4_bundle_version``, ``pds4_information_model_version``
+  and ``pds4_schemas`` read ``config.pds4.<dataset>.bundle_name``, ``bundle_version``,
+  ``information_model_version`` and ``schemas``, with no fallback.  The shipped ``coiss_saturn`` entry gives the schemas
   of the ``pds``, ``disp``, ``geom``, ``rings`` and ``cassini`` dictionaries, the last
   the Cassini mission dictionary, whose namespace the data label declares for its
   mission area.
@@ -390,10 +388,10 @@ This dataset is the reference implementation, and implements every hook.
   times from the navigation metadata, the product LIDs and LIDVIDs, and roughly
   sixty ``cassini:`` namespace variables read straight from the PDS3 index row.
 
-The three dataset-identity hooks -- ``_dataset_name_for_pds4_config``,
-``_default_pds4_template_dir`` and ``_default_pds4_bundle_name`` -- raise
-``NotImplementedError`` on ``DataSetPDS3CassiniISS`` itself and are supplied by
-the Cruise and Saturn subclasses. That is what makes the undivided ``coiss``
+The two dataset-identity hooks -- ``_dataset_name_for_pds4_config`` and
+``_default_pds4_template_dir`` -- raise ``NotImplementedError`` on
+``DataSetPDS3CassiniISS`` itself and are supplied by the Cruise and Saturn
+subclasses; the bundle's name is read under the first, from the configuration. That is what makes the undivided ``coiss``
 dataset unable to build a bundle: a bundle belongs to one of the two halves,
 not to both.
 
