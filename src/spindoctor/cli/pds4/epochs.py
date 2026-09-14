@@ -13,10 +13,9 @@ products the collection holds.
 from dataclasses import dataclass
 from typing import Any
 
-from spindoctor.support.time import et_to_pds4_utc
+from spindoctor.support.time import PDS4_EXPOSURE_TIME_DIGITS, et_to_pds4_utc
 
 __all__ = [
-    'EXPOSURE_TIME_DIGITS',
     'RANGE_TIME_DIGITS',
     'EpochRange',
     'EpochRangeScan',
@@ -27,14 +26,6 @@ RANGE_TIME_DIGITS = 0
 """The decimals of a second a range of products' epochs is written to: none.
 
 A range is written to whole seconds, the start rounded down and the stop up.
-"""
-
-EXPOSURE_TIME_DIGITS = 3
-"""The decimals of a second one exposure's start and stop are written to: milliseconds.
-
-Each is rounded to the nearest, which gives back a time recorded to the millisecond, as
-a data label states its own exposure; the global index tables write them the same way,
-so a row's times are its data label's.
 """
 
 
@@ -112,7 +103,8 @@ def exposure_times(navigation_document: dict[str, Any]) -> tuple[str, str]:
     """Return one exposure's start and stop as the global index tables write them.
 
     Each is written through :func:`~spindoctor.support.time.et_to_pds4_utc` to
-    :data:`EXPOSURE_TIME_DIGITS` decimals, rounded to the nearest, as in
+    :data:`~spindoctor.support.time.PDS4_EXPOSURE_TIME_DIGITS` decimals, rounded to the
+    nearest, as in
     ``2004-02-07T04:25:35.585Z``, which is how a data label states its own exposure.
 
     Parameters:
@@ -124,6 +116,6 @@ def exposure_times(navigation_document: dict[str, Any]) -> tuple[str, str]:
     """
     times = navigation_document['navigation_result']['times']
     return (
-        et_to_pds4_utc(times['start_et'], digits=EXPOSURE_TIME_DIGITS, rounding='nearest'),
-        et_to_pds4_utc(times['stop_et'], digits=EXPOSURE_TIME_DIGITS, rounding='nearest'),
+        et_to_pds4_utc(times['start_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'),
+        et_to_pds4_utc(times['stop_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'),
     )
