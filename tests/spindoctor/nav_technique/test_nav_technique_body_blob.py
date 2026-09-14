@@ -695,10 +695,10 @@ def test_kernel_centroid_offset_points_toward_the_bright_limb() -> None:
 def test_coarse_crescent_offset_locates_a_displaced_crescent() -> None:
     """The crescent filter maps the predicted lit centroid onto the observed one.
 
-    The observed body is a crescent of the modelled shape placed at geometric
-    centre (80, 95); the prediction is the unshifted geometric centre (64, 64).
+    The observed body is a crescent of the modeled shape placed at geometric
+    center (80, 95); the prediction is the unshifted geometric center (64, 64).
     Because the feature carries the *lit* centroid, the same brightness-centroid
-    offset is added to both predicted and observed centres, so the recovered
+    offset is added to both predicted and observed centers, so the recovered
     shift must equal the geometric displacement ``(16, 31)`` -- this pins the
     lit-vs-geometric-centroid bookkeeping the coarse stage depends on.
     """
@@ -713,7 +713,7 @@ def test_coarse_crescent_offset_locates_a_displaced_crescent() -> None:
     signal = np.zeros(shape, dtype=np.float64)
     v0, u0 = body_center[0] - half, body_center[1] - half
     signal[v0 : v0 + kernel.shape[0], u0 : u0 + kernel.shape[1]] = 100.0 * kernel
-    # Feature carries the lit centroid: geometric centre + kernel centroid off.
+    # Feature carries the lit centroid: geometric center + kernel centroid off.
     pred_lit_vu = (64.0 + centroid_off[0], 64.0 + centroid_off[1])
     dv, du = _coarse_crescent_offset(
         signal,
@@ -733,7 +733,7 @@ def test_body_blob_high_phase_crescent_relocates_with_sub_solar_dir(
 ) -> None:
     """A high-phase blob carrying a sub-solar direction is found beyond its bbox.
 
-    With the direction known the coarse stage synthesises a crescent template
+    With the direction known the coarse stage synthesizes a crescent template
     and correlates it, so a body displaced well outside its predicted bounding
     box is relocated -- the case the skipped disc template cannot handle.  A
     fully-lit disc stands in for the body here; the crescent template still

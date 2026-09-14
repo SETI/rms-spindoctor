@@ -10,8 +10,8 @@ docstrings, not from the current implementation:
   is the Lambert cosine plus a small floor on lit silhouette pixels (or the
   0.01 visibility floor when the body is entirely dark).
 - The limb mask is the set of *lit* silhouette pixels with at least one
-  off-body neighbour; the terminator mask is the set of lit pixels with at
-  least one dark neighbour.
+  off-body neighbor; the terminator mask is the set of lit pixels with at
+  least one dark neighbor.
 - ``visible_lit_fraction`` and ``overflow_fraction`` follow the documented
   formulas over the discrete masks.
 - An empty silhouette collapses every downstream product (masks, samplers,
@@ -62,7 +62,7 @@ class _SphereSpec:
         center_vu: Sphere center in the FOV's pixel corner coordinates ``(v, u)``.
         radius_px: Sphere radius in pixels.
         sun_vuz: Sun direction in the ``(v, u, z)`` image frame where ``+z``
-            points toward the observer.  Normalised on use.
+            points toward the observer.  Normalized on use.
         km_per_px: Constant km/px scale on the resolved body.
     """
 
@@ -176,7 +176,7 @@ def _make_obs(
         spec: Sphere geometry (drives the inventory bounding box).
         data_shape: Sensor-area ``(rows, cols)`` shape.
         margin: Extfov margin applied to both axes.
-        phase_deg: Centre phase angle reported by the geometry backplane.
+        phase_deg: Center phase angle reported by the geometry backplane.
         sub_solar_lonlat_deg: ``(lon, lat)`` reported for the sub-solar point.
         sub_observer_lonlat_deg: ``(lon, lat)`` reported for the sub-observer
             point.
@@ -338,8 +338,8 @@ def test_model_img_lambert_plus_floor_at_disc_center(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A lit pixel's value is the Lambert cosine plus the 0.05 floor."""
-    # Centre the sphere on a pixel centre (pixel 50 spans [50, 51)) so the
-    # centre pixel's surface normal is +z and cos(incidence) = cos(60).
+    # Center the sphere on a pixel center (pixel 50 spans [50, 51)) so the
+    # center pixel's surface normal is +z and cos(incidence) = cos(60).
     spec = _SphereSpec((50.5, 50.5), 20.0, sun_vuz=_sun_for_angle(60.0))
     model, obs = _make_model(monkeypatch, spec)
     model.create_model()
@@ -676,7 +676,7 @@ def test_guaranteed_visible_flag_false_near_edge(monkeypatch: pytest.MonkeyPatch
 def test_empty_silhouette_produces_empty_products(monkeypatch: pytest.MonkeyPatch) -> None:
     """An empty silhouette collapses masks, image, and km/px without failing.
 
-    The sphere is placed between the oversampled sample centres so no sample
+    The sphere is placed between the oversampled sample centers so no sample
     lands on the body; per the dev guide, an empty mask collapses the sampler
     to zero-length arrays and the downstream gates skip every feature.
     """
@@ -935,7 +935,7 @@ def test_limb_arc_vertices_lie_on_silhouette_boundary(
     This is a membership property between the polyline and the mask it was
     read off, so it says nothing about where either sits on the sky.  The
     vertex is rounded up at a half rather than truncated toward zero, which
-    lets a vertex displaced half a pixel down the axis address its neighbour
+    lets a vertex displaced half a pixel down the axis address its neighbor
     and fail; a displacement the other way rounds back onto the pixel it
     started from, which is why the position of the ring is pinned separately.
 
@@ -963,7 +963,7 @@ def test_limb_arc_vertices_lie_on_silhouette_boundary(
 
 
 def test_limb_arc_normals_point_outward(monkeypatch: pytest.MonkeyPatch) -> None:
-    """LIMB_ARC normals point away from the body centre at >=95% of vertices."""
+    """LIMB_ARC normals point away from the body center at >=95% of vertices."""
     spec = _SphereSpec((50.0, 50.0), 20.0)
     model, obs = _make_model(monkeypatch, spec)
     model.create_model()
@@ -1119,7 +1119,7 @@ def test_to_annotations_emits_body_overlay(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def _covering_spec(sun_vuz: tuple[float, float, float] = (0.0, 0.0, 1.0)) -> _SphereSpec:
-    """A sphere far larger than the frame and centred on it.
+    """A sphere far larger than the frame and centered on it.
 
     Parameters:
         sun_vuz: Sun direction; along the observer axis the whole frame is lit,

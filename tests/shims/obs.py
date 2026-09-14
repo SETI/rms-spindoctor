@@ -147,7 +147,7 @@ class FakeObs:
             tuple returned by ``ra_dec_limits_ext()``.
         radec_to_uv: Optional callable mapping ``(ra, dec, tfrac)`` to
             ``(u, v)`` for ``uv_from_ra_and_dec``.  When unset every
-            star projects onto the FOV centre.
+            star projects onto the FOV center.
         center_ra_rad: Right ascension of the frame center, in radians.
         center_dec_rad: Declination of the frame center, in radians.
     """

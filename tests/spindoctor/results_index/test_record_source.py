@@ -1011,7 +1011,7 @@ def test_a_listing_refuses_what_it_cannot_answer(
 
     Parameters:
         two_roots: The two ingested roots and their index.
-        selection: The selection carrying one restriction a listing cannot honour.
+        selection: The selection carrying one restriction a listing cannot honor.
         named: The restriction the refusal has to name.
     """
     with _index_over(two_roots, two_roots.first) as source, pytest.raises(ValueError, match=named):

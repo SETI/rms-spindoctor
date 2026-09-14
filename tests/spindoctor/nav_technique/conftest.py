@@ -2,7 +2,7 @@
 
 Each technique end-to-end test needs the same scaffolding: a fake observation
 (``FakeObs``), a synthetic image, a populated ``NavContext``, and per-feature
-polyline / feature factories.  Centralising these here removes the per-file
+polyline / feature factories.  Centralizing these here removes the per-file
 duplication and makes the technique tests focus on their assertions instead of
 their setup.
 

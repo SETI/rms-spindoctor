@@ -384,7 +384,7 @@ def _make_offset_mosaic(model: RingOrbitModel, *, radius_inner: float = -10.0) -
 
 
 def _make_model(*, e: float = 0.0, w0: float = 0.0, mean_motion: float = 0.0) -> RingOrbitModel:
-    """Return an orbit model with a = 1010 km centred on the synthetic ring.
+    """Return an orbit model with a = 1010 km centered on the synthetic ring.
 
     Parameters:
         e: Eccentricity.

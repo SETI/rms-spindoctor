@@ -247,7 +247,7 @@ def test_axis_is_degenerate_near_zero_phase() -> None:
     """Near zero phase the disc is rotationally symmetric and any axis serves.
 
     The sub-solar point of a sphere at phase ``p`` projects ``R sin(p)`` from
-    the disc centre, so a small enough phase puts it inside the configured
+    the disc center, so a small enough phase puts it inside the configured
     minimum axis offset -- the same condition the catalog model tests on its
     incidence backplane.
     """

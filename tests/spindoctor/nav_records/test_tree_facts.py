@@ -4,7 +4,7 @@ The fourth question on the seam, over the storage that has no database.  What is
 tested here is what the tree alone owes: that a document is read once and the
 walk's own metrics ride along with what came out of it, that a file which is no
 navigation document is reported rather than raised on, and that a selection is
-honoured the way the stream of records honours it.  That the answer matches the
+honored the way the stream of records honors it.  That the answer matches the
 index's is tested where both storages can be driven over one tree, in
 :mod:`tests.spindoctor.results_index.test_facts_stream_agreement`.
 """
@@ -408,7 +408,7 @@ def _mission_tree(tmp_path: Path) -> Path:
 def test_a_mission_filter_keeps_one_missions_images(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger
 ) -> None:
-    """The restriction a stream of records honours, honoured the same way.
+    """The restriction a stream of records honors, honored the same way.
 
     Parameters:
         tmp_path: Directory the tree is written under.

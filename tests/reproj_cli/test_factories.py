@@ -140,7 +140,7 @@ def test_orbit_model_offset_radii_passed_verbatim() -> None:
 
 
 def test_unknown_orbit_model_raises() -> None:
-    """An unrecognised ``--orbit-model`` value raises ``ValueError`` from argparse."""
+    """An unrecognized ``--orbit-model`` value raises ``ValueError`` from argparse."""
     parser = _build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(

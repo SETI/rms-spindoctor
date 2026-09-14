@@ -1,6 +1,6 @@
 """Validation tests for ``config_220_body_shape.yaml`` citations.
 
-Per Part 0 §74 of the design plan: every body in the body-shape catalogue
+Per Part 0 §74 of the design plan: every body in the body-shape catalog
 must carry a complete ``_sources`` mapping; every non-``null`` numeric
 field must have a non-empty citation; ``PLACEHOLDER`` is allowed only
 when paired with a ``null`` value; the strings ``TODO`` / ``FIXME`` /
@@ -22,7 +22,7 @@ _BODY_SHAPE_PATH = (
     / 'config_files'
     / 'config_220_body_shape.yaml'
 )
-"""Path to the shipped body-shape catalogue YAML."""
+"""Path to the shipped body-shape catalog YAML."""
 
 
 _FIELDS_REQUIRING_CITATION = (
@@ -41,7 +41,7 @@ _FORBIDDEN_TOKENS = ('TODO', 'FIXME', 'XXX')
 
 
 def _load_raw_yaml() -> dict[str, Any]:
-    """Return the body-shape catalogue parsed *with* ``_sources`` preserved."""
+    """Return the body-shape catalog parsed *with* ``_sources`` preserved."""
     yaml = YAML(typ='safe')
     with open(_BODY_SHAPE_PATH, encoding='utf-8') as f:
         loaded = yaml.load(f) or {}
