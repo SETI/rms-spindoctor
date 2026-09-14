@@ -6,8 +6,9 @@ shipped draft templates render without substitution errors, that the cohort's
 navigated images land in their shards and the one that did not navigate is
 skipped, that a data label states its exposure's start and stop and an image
 whose navigation recorded none fails, that a data label describes the backplane
-FITS beside it, HDU by HDU and byte for byte, and that the collection inventory
-names the LIDs the labels do.  The plumbing these rest on is tested over stand-in
+FITS beside it, HDU by HDU and byte for byte, that the collection inventory names
+the LIDs the labels do, and that each collection label names the inventory beside
+it and counts its products.  The plumbing these rest on is tested over stand-in
 templates in ``test_bundle_data.py`` and ``test_collections.py``.
 
 The shipped templates are drafts.  Apart from the data objects describing the FITS,
@@ -50,6 +51,7 @@ from .conftest import (
     read_csv_rows,
     touch_label,
     write_backplane_fits,
+    write_cohort_bundle,
 )
 
 
@@ -334,8 +336,8 @@ def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
     bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
     touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
     generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=A_RANGE)
-    rows = read_csv_rows(bundle_dir / 'data' / 'collection_data.tab')
-    inventory_lid = rows[1][1].split('::')[0]
+    rows = read_csv_rows(bundle_dir / 'data' / 'collection_data.csv')
+    inventory_lid = rows[0][1].split('::')[0]
     label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')
     assert inventory_lid == label_lid
 
@@ -782,3 +784,47 @@ def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
         if f'holds the missing constant, {constant!r}.' not in text
     ]
     assert without_constant == []
+
+
+# ---------------------------------------------------------------------------
+# The collection inventories and their labels
+# ---------------------------------------------------------------------------
+
+COLLECTION_INVENTORIES = {
+    'data/collection_data.lblx': 'collection_data.csv',
+    'browse/collection_browse.lblx': 'collection_browse.csv',
+}
+"""Each collection label the summary pass renders, by bundle path, and its inventory."""
+
+
+def test_each_cohort_collection_label_describes_the_inventory_beside_it(
+    cassini_cohort: Cohort, tmp_path: Path
+) -> None:
+    """A shipped collection label names the inventory beside it and counts its products.
+
+    A PDS4 label names a file with no directory part, so the inventory has to be in the
+    label's own directory.  The records the label states are the products the collection
+    holds, the cohort's two navigated images, which a header line in the inventory would
+    make three.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, [stub for stub, _ in NAVIGATED_IMAGES])
+    roots = {
+        label: ElementTree.parse(env.bundle_dir / label).getroot()
+        for label in COLLECTION_INVENTORIES
+    }
+    named = {
+        label: [element.text for element in root.iterfind('.//pds:file_name', PDS4_NAMESPACES)]
+        for label, root in roots.items()
+    }
+    assert named == {label: [inventory] for label, inventory in COLLECTION_INVENTORIES.items()}
+    not_beside = [
+        label
+        for label, inventory in COLLECTION_INVENTORIES.items()
+        if not (env.bundle_dir / label).with_name(inventory).is_file()
+    ]
+    assert not_beside == []
+    records = {
+        label: int(_text(root, 'pds:File_Area_Inventory/pds:Inventory/pds:records'))
+        for label, root in roots.items()
+    }
+    assert records == dict.fromkeys(COLLECTION_INVENTORIES, len(NAVIGATED_IMAGES))

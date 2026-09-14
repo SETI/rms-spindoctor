@@ -177,18 +177,19 @@ def _product_stub(path: FCPath, data_dir: FCPath) -> str:
 
 @dataclass(frozen=True)
 class _CollectionProducts:
-    """Where in a bundle the collection tables and labels the summary pass writes go.
+    """Where in a bundle the collection inventories and labels the summary pass writes go.
 
     Attributes:
-        data_table: The data collection's inventory, ``data/collection_data.tab``.
+        data_inventory: The data collection's inventory, ``data/collection_data.csv``.
         data_label: Its label, ``data/collection_data.lblx``.
-        browse_table: The browse collection's inventory, ``browse/collection_browse.tab``.
+        browse_inventory: The browse collection's inventory,
+            ``browse/collection_browse.csv``.
         browse_label: Its label, ``browse/collection_browse.lblx``.
     """
 
-    data_table: FCPath
+    data_inventory: FCPath
     data_label: FCPath
-    browse_table: FCPath
+    browse_inventory: FCPath
     browse_label: FCPath
 
     @classmethod
@@ -202,9 +203,9 @@ class _CollectionProducts:
             The four paths, under the bundle's ``data`` and ``browse`` directories.
         """
         return cls(
-            data_table=bundle_root / 'data' / 'collection_data.tab',
+            data_inventory=bundle_root / 'data' / 'collection_data.csv',
             data_label=bundle_root / 'data' / 'collection_data.lblx',
-            browse_table=bundle_root / 'browse' / 'collection_browse.tab',
+            browse_inventory=bundle_root / 'browse' / 'collection_browse.csv',
             browse_label=bundle_root / 'browse' / 'collection_browse.lblx',
         )
 
@@ -212,9 +213,28 @@ class _CollectionProducts:
         """Return all four paths.
 
         Returns:
-            The data collection's table and label, then the browse collection's.
+            The data collection's inventory and label, then the browse collection's.
         """
-        return (self.data_table, self.data_label, self.browse_table, self.browse_label)
+        return (self.data_inventory, self.data_label, self.browse_inventory, self.browse_label)
+
+
+def _write_inventory(inventory: FCPath, lidvids: list[str]) -> None:
+    """Write a collection inventory listing each LIDVID as a primary member.
+
+    The inventory is comma-separated with no header: one ``P,<lidvid>`` line per
+    member, in the order given, each line ending in a line feed alone, the last
+    included.  Its number of lines is therefore its number of members, which is
+    what the collection label states as its records.  With no members the file
+    is empty.
+
+    Parameters:
+        inventory: Where the inventory goes.
+        lidvids: The members' LIDVIDs, in the order they are listed.
+    """
+    local_path = cast(Path, inventory.get_local_path())
+    with local_path.open('w', newline='', encoding='utf-8') as f:
+        csv.writer(f, lineterminator='\n').writerows(['P', lidvid] for lidvid in lidvids)
+    inventory.upload()
 
 
 def generate_collection_files(
@@ -224,12 +244,18 @@ def generate_collection_files(
     *,
     epochs: EpochRange | None,
 ) -> int:
-    """Generate collection CSV and label files for the bundle.
+    """Generate the data and browse collection inventories and their labels.
+
+    Each inventory lists one product per line, ``P,<lidvid>``, in the order of the
+    images' names: ``data/collection_data.csv`` the data products and
+    ``browse/collection_browse.csv`` the browse products, both found by the data
+    labels in the data tree.  An inventory has no header, and every line, the last
+    included, ends in a line feed alone, so the records its label counts are its
+    products; with no data label in the tree, both inventories are empty.
 
     Every collection label is attempted, whichever of them fail: a broken data
     collection template must not hide a broken browse collection one.  The
-    inventory tables are written whether or not the labels that describe them
-    render.
+    inventories are written whether or not the labels that describe them render.
 
     The data collection label states the time range of the products the collection
     holds, which is ``epochs``: the range :func:`generate_global_index_files` takes in
@@ -283,21 +309,18 @@ def generate_collection_files(
 
     label_files.sort(key=get_image_name_from_label)
     logger.info('Found %d label files in bundle', len(label_files))
+    image_names = [
+        dataset.pds4_lid_part_to_image_name(label_file.stem.replace('_backplanes', ''))
+        for label_file in label_files
+    ]
 
-    # Generate collection_data.tab
-    collection_data_csv = products.data_table
-    collection_data_local = cast(Path, collection_data_csv.get_local_path())
-    collection_data_local.parent.mkdir(parents=True, exist_ok=True)
-    with collection_data_local.open('w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Member Status', 'LIDVID_LID'])
-        for label_file in label_files:
-            lid_part = label_file.stem.replace('_backplanes', '')
-            image_name = dataset.pds4_lid_part_to_image_name(lid_part)
-            lidvid = dataset.pds4_image_name_to_data_lidvid(image_name)
-            writer.writerow(['P', lidvid])
-    collection_data_csv.upload()
-    logger.info('Generated "collection_data.tab": %s', collection_data_csv)
+    # The data collection's inventory.  Each inventory is written before its label,
+    # which reads the inventory's size, checksum and record count from the file.
+    collection_data_csv = products.data_inventory
+    _write_inventory(
+        collection_data_csv, [dataset.pds4_image_name_to_data_lidvid(name) for name in image_names]
+    )
+    logger.info('Generated "collection_data.csv": %s', collection_data_csv)
 
     # Generate collection label files using template
     template_base = Path(template_dir)
@@ -327,20 +350,13 @@ def generate_collection_files(
         else:
             failed_labels += 1
 
-    # Generate collection_browse.tab (must be written before collection_browse.lblx)
-    collection_browse_csv = products.browse_table
-    collection_browse_local = cast(Path, collection_browse_csv.get_local_path())
-    collection_browse_local.parent.mkdir(parents=True, exist_ok=True)
-    with collection_browse_local.open('w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Member Status', 'LIDVID_LID'])
-        for label_file in label_files:
-            lid_part = label_file.stem.replace('_backplanes', '')
-            image_name = dataset.pds4_lid_part_to_image_name(lid_part)
-            lidvid = dataset.pds4_image_name_to_browse_lidvid(image_name)
-            writer.writerow(['P', lidvid])
-    collection_browse_csv.upload()
-    logger.info('Generated "collection_browse.tab": %s', collection_browse_csv)
+    # The browse collection's inventory
+    collection_browse_csv = products.browse_inventory
+    _write_inventory(
+        collection_browse_csv,
+        [dataset.pds4_image_name_to_browse_lidvid(name) for name in image_names],
+    )
+    logger.info('Generated "collection_browse.csv": %s', collection_browse_csv)
 
     # Collection browse label
     collection_browse_template = template_base / 'collection_browse.lblx'
@@ -390,7 +406,7 @@ def generate_global_index_files(
 
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
-    label before it renders, and so are the two collection tables and two
+    label before it renders, and so are the two collection inventories and two
     collection labels :func:`generate_collection_files` writes after the index.
     A run refused over what a supplemental file holds therefore leaves no product of
     the summary pass, neither this run's nor an earlier run's: no index still

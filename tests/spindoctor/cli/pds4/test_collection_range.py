@@ -25,7 +25,6 @@ from spindoctor.config import MAIN_LOGGER
 from .conftest import (
     BundleEnv,
     make_bundle_env,
-    read_csv_rows,
     write_supplemental,
 )
 
@@ -97,7 +96,7 @@ def test_with_no_supplemental_file_the_data_collection_label_is_not_written(
     _, failed = _summarize(env)
     assert failed == 1
     assert not earlier.exists()
-    assert read_csv_rows(data_dir / 'collection_data.tab') == [['Member Status', 'LIDVID_LID']]
+    assert (data_dir / 'collection_data.csv').read_bytes() == b''
     expected = 'the data tree holds no supplemental file, so there is no time range'
     assert expected in capsys.readouterr().out
 

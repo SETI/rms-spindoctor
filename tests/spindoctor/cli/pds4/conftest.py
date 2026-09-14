@@ -25,6 +25,7 @@ outputs live under ``tmp_path``.
 
 import csv
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -35,8 +36,10 @@ from astropy.io import fits
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
+from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.collections import generate_collection_files, generate_global_index_files
 from spindoctor.cli.pds4.epochs import EpochRange
-from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 # Minimal pdstemplate templates.  Each references only variables the module under
@@ -617,3 +620,35 @@ def make_cohort_bundle_env(cohort: Cohort, tmp_path: Path) -> CohortBundleEnv:
         bundle_results_root=bundle_results_root,
         bundle_dir=bundle_results_root / dataset.pds4_bundle_name(),
     )
+
+
+def write_cohort_bundle(cohort: Cohort, tmp_path: Path, stubs: Sequence[str]) -> CohortBundleEnv:
+    """Build a bundle over some of a cohort's images, running both passes.
+
+    The labels pass runs over each image in turn.  Then the summary pass's two
+    generators run in the order the pass runs them: the global index first, whose
+    range of the products' epochs the collection generator is handed.
+
+    Parameters:
+        cohort: The session's cohort, holding the navigation and backplane roots the
+            run reads.
+        tmp_path: Base temporary directory for this test's bundle output.
+        stubs: The images to bundle, by results path stub.
+
+    Returns:
+        The environment the bundle was written into.
+    """
+    env = make_cohort_bundle_env(cohort, tmp_path)
+    bundle_results_root = FCPath(env.bundle_results_root)
+    for stub in stubs:
+        generate_bundle_data_files(
+            env.dataset,
+            cohort.batch(stub),
+            nav_results_root=FCPath(cohort.nav_results_root),
+            backplane_results_root=FCPath(cohort.backplane_results_root),
+            bundle_results_root=bundle_results_root,
+            logger=MAIN_LOGGER,
+        )
+    index = generate_global_index_files(bundle_results_root, env.dataset, MAIN_LOGGER)
+    generate_collection_files(bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs)
+    return env
