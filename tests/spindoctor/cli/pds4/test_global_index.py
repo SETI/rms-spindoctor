@@ -572,7 +572,7 @@ def _cross_reference_env(tmp_path: Path) -> BundleEnv:
 
 
 def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) -> None:
-    """Round trip: thebodies-index LID equals the collection inventory LID."""
+    """Round trip: the bodies-index LID equals the collection inventory LID."""
     env = _cross_reference_env(tmp_path)
     _run_global_index(env)
     run_collections(env)
@@ -585,7 +585,7 @@ def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) ->
 
 
 def test_global_index_rings_lid_matches_collection_inventory(tmp_path: Path) -> None:
-    """Round trip: therings-index LID equals the collection inventory LID."""
+    """Round trip: the rings-index LID equals the collection inventory LID."""
     env = _cross_reference_env(tmp_path)
     _run_global_index(env)
     run_collections(env)
