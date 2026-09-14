@@ -563,7 +563,8 @@ def _moonlet_disc_coverage(
     foreshorten with the ring).  The coverage shade is exactly 0.0 wherever
     the pixel centre sits half an anti-aliasing window or more outside the
     disc radius, so the evaluation is restricted to the bounding box of that
-    reach (plus one pixel of slack for the pixel-centre convention) and the
+    reach (plus one pixel of slack for the half pixel between the coordinates the
+    reach is stated in and the cells the box names) and the
     caller composites only inside it -- an exact restriction, not an
     approximation.
 
@@ -714,7 +715,8 @@ def _annulus_bbox_slices(
     equations: ``r * hypot(sin(node), sin(B) * cos(node))`` in v and
     ``r * hypot(cos(node), sin(B) * sin(node))`` in u.  Every pixel whose
     ring-plane radius is at most ``r_outer`` therefore lies inside this
-    box; one pixel of slack absorbs the pixel-center convention.
+    box; one pixel of slack absorbs the half pixel between the coordinates the
+    radius is stated in and the cells the box names.
 
     Parameters:
         shape: The render-grid shape ``(V, U)``.

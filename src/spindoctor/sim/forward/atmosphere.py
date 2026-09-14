@@ -386,8 +386,9 @@ def _band_bbox(
     reach_b`` (the rotated-frame extents of the ellipse, with the tilt's
     foreshortening already divided out of ``reach_a``), so its axis-aligned
     bounding box follows by rotating those extents back.  One pixel of slack
-    absorbs the pixel-centre convention; every pixel outside the returned
-    slices lies strictly outside the band.
+    absorbs the half pixel between the coordinates the extents are stated in
+    and the cells the slices name; every pixel outside the returned slices lies
+    strictly outside the band.
 
     Parameters:
         shape: The render-grid shape ``(V, U)``.

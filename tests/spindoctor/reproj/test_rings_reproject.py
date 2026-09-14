@@ -1242,13 +1242,27 @@ class TestZoomedOutputGrid:
 
 
 class _FakeExtBpObs:
-    """Observation stand-in for orbit_pixels: exposes ext_bp and extdata shape."""
+    """Observation stand-in for orbit_pixels: exposes ext_bp and the frame bounds.
 
-    def __init__(self) -> None:
-        """Build the analytic full-frame backplane as the extended backplane."""
+    The extended-FOV bounds are derived from the margin the way an observation
+    derives them, so they name the first and last pixel of the padded frame and
+    run negative inside the margin. ``orbit_pixels`` returns coordinates of the
+    nominal frame, which is the frame those bounds are stated in.
+    """
+
+    def __init__(self, margin: int = 0) -> None:
+        """Build the analytic full-frame backplane as the extended backplane.
+
+        Parameters:
+            margin: Extended-FOV padding, in whole pixels, on every side.
+        """
         bp_cls = _make_backplane_class(model=None, shadow_u_columns=())
         self.ext_bp = bp_cls(self)
-        self.extdata_shape_uv = (_N, _N)
+        self.extdata_shape_uv = (_N + 2 * margin, _N + 2 * margin)
+        self.extfov_u_min = -margin
+        self.extfov_v_min = -margin
+        self.extfov_u_max = _N + margin - 1
+        self.extfov_v_max = _N + margin - 1
         self.midtime = 0.0
 
 
@@ -1278,6 +1292,39 @@ class TestOrbitPixels:
         assert bool(np.all(u_pix < _N))
         assert bool(np.all(v_pix >= 0))
         assert bool(np.all(v_pix < _N))
+
+    def test_the_frame_bounds_are_the_padded_frame_in_nominal_coordinates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The containment test admits the margin and stops at the padded edge.
+
+        ``orbit_pixels`` returns coordinates of the nominal frame, so a position
+        the extended-FOV margin sees is negative and one past the detector runs
+        beyond its width. Testing those against zero and the padded width would
+        drop everything the top and left margins see while admitting an equal
+        band of sky past the opposite edges.
+
+        The probe returns positions either side of both bounds directly, since
+        the analytic orbit this class otherwise uses stays well inside the frame
+        and can never reach a margin.
+        """
+        margin = 4
+        probes = np.array(
+            [-margin - 0.5, -margin + 0.0, 0.0, _N - 0.5, _N + margin - 0.5, _N + margin + 0.5]
+        )
+
+        def _probe(
+            obs: Any, longitude: Any, radius: Any, **kwargs: Any
+        ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+            """Return the probe positions regardless of what was asked for."""
+            return probes.copy(), probes.copy()
+
+        monkeypatch.setattr(RingMosaic, 'longitude_radius_to_pixels', staticmethod(_probe))
+        u_pix, _v_pix = RingMosaic.orbit_pixels(_FakeExtBpObs(margin=margin), _make_model())
+        # -4.5 is outside the padded frame; -4.0 is its first pixel's own
+        # coordinate; N + margin - 0.5 is the centre of its last pixel; the
+        # boundary past that is not in it.
+        np.testing.assert_allclose(u_pix, probes[1:5])
 
     def test_last_column_is_not_dropped(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A point past the last column's left edge is kept, not rejected.

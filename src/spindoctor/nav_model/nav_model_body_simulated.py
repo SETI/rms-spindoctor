@@ -43,7 +43,7 @@ from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, 
 from spindoctor.nav_model.sim_body import create_simulated_body
 from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.sim.mesh_geometry import mesh_spec_from_params, render_mesh_body_image
-from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.image import shift_array
 from spindoctor.support.time import now_dt
@@ -964,8 +964,8 @@ class NavModelBodySimulated(NavModelBodyBase):
         # the scene's pixel-corner one.
         v_center, u_center = self._predicted_center_vu
         return self._create_annotations(
-            round(u_center - self.obs.extfov_margin_u),
-            round(v_center - self.obs.extfov_margin_v),
+            containing_pixel(u_center - self.obs.extfov_margin_u),
+            containing_pixel(v_center - self.obs.extfov_margin_v),
             self._model_img,
             self._limb_mask,
             self._body_mask,
