@@ -190,9 +190,9 @@ than the PSF fit's partly-correlated bias). The technique therefore refines a ma
 with the PSF fit only while its box SNR is below the configurable ceiling
 ``psf_refine_snr_max`` (default 30), and keeps the moment above it. The box SNR is
 :math:`\sum (\text{box} - \text{median}) / \sqrt{\text{signal} + n_{\text{pix}}\,\sigma^{2}}`
-over the fit box. The PSF fit reports its position in the ``eval_rect`` convention (offset
-measured from a pixel's lower edge), so the technique subtracts the half-pixel to land in the
-pixel-centre convention shared by the detection moment and the catalog prediction. Any inlier
+over the fit box. ``psfmodel`` measures its evaluation offset from a pixel's lower edge, so
+the PSF fit reports a pixel-corner position; the technique subtracts the half pixel to reach
+the pixel-centric coordinates it measures the array in (see :ref:`coordinate-systems`). Any inlier
 whose fit fails (too close to the image edge, too few good pixels, no convergence) silently
 falls back to its moment centroid. The whole step is gated by ``psf_refine_enabled`` and the
 obs supplying a ``star_psf()``; without either it is a no-op and the moment centroids stand.

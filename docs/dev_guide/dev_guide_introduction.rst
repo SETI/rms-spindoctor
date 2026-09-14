@@ -87,8 +87,8 @@ The ``[dev]`` group transitively includes the docs group (Sphinx, ``myst-parser`
 (``pip install rms-spindoctor``) is what end users get from PyPI.
 
 Editable installs + mypy: export
-``SETUPTOOLS_ENABLE_FEATURES=legacy-editable`` if mypy cannot find the ``nav``
-package.
+``SETUPTOOLS_ENABLE_FEATURES=legacy-editable`` if mypy cannot find the
+``spindoctor`` package.
 
 Environment variables
 ---------------------
@@ -180,13 +180,18 @@ postgres"]``, so a plain ``pytest`` runs the default tier alone; pass ``-m ""``
    pytest -m ""                                # full suite, every tier
    pytest -m integration                       # only integration
    pytest -m postgres                          # only the postgres tier
-   pytest -n auto --dist=loadfile              # parallel (matches CI)
+   pytest -n 4 --dist=loadfile                 # parallel
    pytest tests/spindoctor/reproj/test_bodies.py      # one file
    pytest tests/spindoctor/reproj/test_bodies.py::test_foo  # one test
    pytest --cov                                # with coverage
 
 ``pytest-xdist`` must run with ``--dist=loadfile`` — the default scheduling
-crashes PyQt6 workers when tests from one file split across processes.
+crashes PyQt6 workers when tests from one file split across processes. Run it
+at ``-n 4``, never ``-n auto``, and pin the BLAS / OpenMP thread counts first:
+
+.. code-block:: bash
+
+   export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 
 The integration suite pulls real images from the holdings URLs and uses the
 operator-curated regression library at ``tests/integration/image_library/``.

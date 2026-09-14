@@ -228,8 +228,8 @@ Both sides deliberately call the same geometry helpers --
 :mod:`spindoctor.sim.ellipsoid_geometry`, :mod:`spindoctor.sim.mesh_geometry`,
 :mod:`spindoctor.sim.ring_geometry`, and :mod:`spindoctor.sim.star_records`.
 This is not a boundary leak; it is what makes the measurement clean. With
-shared conventions (pixel centers, the sign of ``dv``, edge rasterization,
-record defaults) the planted error is the *only* error in a recovery
+shared conventions (the coordinate systems, the sign of ``dv``, edge
+rasterization, record defaults) the planted error is the *only* error in a recovery
 measurement. Independent implementations would each carry their own
 conventions, and any delta between them would land as an unknown systematic
 inside the measured error -- contaminating the truth reference every simulator
@@ -1902,18 +1902,12 @@ The two coordinate systems and the half pixel between them are described in
 :ref:`coordinate-systems`. A scene states every position that places something
 in it in **pixel-corner coordinates**: a star's ``v`` / ``u``, a body's
 ``center_v`` / ``center_u``, and the ring system's ``geometry.center_v`` /
-``center_u``. So the center of pixel ``N`` is ``N + 0.5``, and the center of a
-``size_v`` by ``size_u`` frame is ``(size_v / 2, size_u / 2)``.
+``center_u``. The conversion happens where the renderer deposits into an array
+cell, and a scene author never applies it.
 
-This is what the geometry layer underneath uses, so a position written in a
-scene, a position handed to that layer, and the ``v`` / ``u`` a star record
-carries are one number. The conversion happens where the renderer deposits into
-an array cell, and a scene author never applies it.
-
-Displacements need no conversion, since they are differences between two
-positions: the planted ``offset_v`` / ``offset_u``, a star's ``move_v`` /
-``move_u`` smear vector, a planted ``catalog_error_v`` / ``catalog_error_u``,
-and a companion's ``sep_px``.
+The scene's displacements need no conversion: the planted ``offset_v`` /
+``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
+``catalog_error_v`` / ``catalog_error_u``, and a companion's ``sep_px``.
 
 The planted roll turns the scene about **one** point in that same convention:
 the frame's center ``(size_v / 2, size_u / 2)``. The stars, the bodies, and the
@@ -1927,8 +1921,7 @@ solution against the body solution by that amount at every star.
 The two centers inside the ``optics`` block -- ``distortion.center_v`` /
 ``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the rule too,
 though what they name is where a whole-frame field is centered rather than where
-an object sits. Both are stated as pixel corners and both convert the same way,
-so the same number written in either block names one point.
+an object sits. Both are stated as pixel corners and both convert the same way.
 
 Scene parameter reference
 =========================

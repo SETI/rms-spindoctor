@@ -65,8 +65,13 @@ Testing
 -------
 
 * Use ``pytest`` with ``pytest-xdist``; the canonical command is
-  ``pytest -n auto --dist=loadfile`` (the ``--dist=loadfile`` flag is
+  ``pytest -n 4 --dist=loadfile`` (the ``--dist=loadfile`` flag is
   required because PyQt6 workers crash under default xdist scheduling).
+  Use ``-n 4``, never ``-n auto``, and pin the BLAS / OpenMP thread counts
+  before running::
+
+      export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
+
 * Annotate test function parameters and return types; return ``-> None``.
 * One assertion per condition (no ``and`` in assertions). When testing
   exceptions, use ``pytest.raises`` as a context manager and assert on the
