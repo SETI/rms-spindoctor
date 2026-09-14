@@ -113,6 +113,23 @@ def supplemental_files(data_dir: FCPath) -> dict[str, FCPath]:
     return _products_by_stub(data_dir, _SUPPLEMENTAL_SUFFIX)
 
 
+def data_products(data_dir: FCPath) -> dict[str, FCPath]:
+    """Return the data collection's members: the data labels in a bundle's data tree.
+
+    The data inventory lists these, and the global index tables index these, so that
+    the two cannot disagree about what the bundle holds.
+
+    Parameters:
+        data_dir: The bundle's data directory, as :func:`data_directory` names it.
+
+    Returns:
+        Every ``<stub>_backplanes.lblx`` under ``data_dir``, keyed by its path stub, in
+        the order the data inventory lists them: the order of the products' names,
+        whatever directory each is in.
+    """
+    return _products_by_stub(data_dir, _DATA_LABEL_SUFFIX)
+
+
 @dataclass(frozen=True)
 class _CollectionProducts:
     """Where in a bundle the collection inventories and labels the summary pass writes go.
@@ -405,7 +422,7 @@ def generate_collection_files(
     # labels in the data tree and the browse products by the browse labels in the
     # browse tree, so that each inventory lists what is on disk.
     data_dir = data_directory(bundle_root)
-    data_labels = _products_by_stub(data_dir, _DATA_LABEL_SUFFIX)
+    data_labels = data_products(data_dir)
     browse_labels = _products_by_stub(bundle_root / 'browse', _BROWSE_LABEL_SUFFIX)
     logger.info(
         'Found %d data labels and %d browse labels in bundle', len(data_labels), len(browse_labels)
