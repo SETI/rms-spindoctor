@@ -11,7 +11,7 @@ Image pixel coordinate convention (ring mode):
 
 Display positions (``pixel_x`` / ``pixel_y``) are pixel corner: a whole number
 falls on the boundary between two display cells, so display cell ``k`` occupies
-``[k, k + 1)`` and its centre is at ``k + 0.5``.  That is the same measure
+``[k, k + 1)`` and its center is at ``k + 0.5``.  That is the same measure
 ``QPainter`` uses, and the measure a cursor position arrives in.
 
 Both reprojectors define grid cell ``k`` as the point sample taken at
@@ -824,7 +824,7 @@ class TiledImageWidget(QAbstractScrollArea):
         Both measures are pixel corner and the zoom is a pure scale, so a
         continuous viewport position stays continuous; taking a whole number on
         the way in would quantize every display coordinate to a multiple of
-        ``1 / zoom``, and at zoom 1 no cursor could then name a cell's centre.
+        ``1 / zoom``, and at zoom 1 no cursor could then name a cell's center.
         """
         hv = self.horizontalScrollBar().value()
         vv = self.verticalScrollBar().value()
@@ -834,7 +834,7 @@ class TiledImageWidget(QAbstractScrollArea):
         """Unclipped physical X at pixel-corner display position ``pixel_x``.
 
         Column 0 of the display carries the sample taken at ``_x_origin_deg``, and
-        that sample sits at the centre of the column, which is pixel corner 0.5.
+        that sample sits at the center of the column, which is pixel corner 0.5.
         """
         return float(self._x_origin_deg + (pixel_x - PIXEL_CENTER_TO_CORNER_PX) * self._x_interval)
 
@@ -1111,7 +1111,7 @@ class TiledImageWidget(QAbstractScrollArea):
         # ``gx_grid`` / ``gy_grid`` number the virtual canvas cells, and a cell
         # carries the sample at its own coordinate, so cell ``g`` is the sample
         # ``g`` steps from the canvas origin -- the same coordinate
-        # :meth:`pixel_to_physical` reports at that cell's centre, corner
+        # :meth:`pixel_to_physical` reports at that cell's center, corner
         # ``g + 0.5``.  Rounding then lands on the data bin exactly.
         lon_m = gx_grid * d_lon
         lat_m = 90.0 - gy_grid * d_lat
@@ -1326,7 +1326,7 @@ class TiledImageWidget(QAbstractScrollArea):
         painter.setPen(pen)
 
         # A named parallel or meridian belongs on the row or column that carries
-        # its sample, which is the centre of that display cell -- half a cell in
+        # its sample, which is the center of that display cell -- half a cell in
         # from the boundary the cell coordinate alone names.
         if self._body_geo_parallels:
             step = _nice_sphere_overlay_degree_step(180.0, max_lines=8)
@@ -1376,7 +1376,7 @@ class TiledImageWidget(QAbstractScrollArea):
         # measures from ``cx`` / ``cy``, which are pixel corner (``vw / 2``), and
         # the graticule drawn over the result goes through QPainter, which is
         # pixel corner too.  Screen pixel ``j`` therefore has to be asked for the
-        # ray through its centre, corner ``j + 0.5``, or the texture sits half a
+        # ray through its center, corner ``j + 0.5``, or the texture sits half a
         # screen pixel from the overlay at every zoom.
         xs = np.arange(vw, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
         ys = np.arange(vh, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
@@ -1629,7 +1629,7 @@ class TiledImageWidget(QAbstractScrollArea):
         """Convert a pixel-corner display ``pixel_y`` to its Y physical value.
 
         Row ``r`` carries the sample at its own coordinate and that sample sits at
-        the row's centre, so the pixel-corner position is converted to the pixel
+        the row's center, so the pixel-corner position is converted to the pixel
         centric one the row grid is numbered in before it is scaled.
         """
         centric_y = pixel_y - PIXEL_CENTER_TO_CORNER_PX

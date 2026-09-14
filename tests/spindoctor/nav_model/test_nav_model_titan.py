@@ -688,7 +688,7 @@ def test_every_stage_propagates_its_leaf_failure(
 
 
 # ---------------------------------------------------------------------------
-# The predicted centre's coordinate system
+# The predicted center's coordinate system
 # ---------------------------------------------------------------------------
 
 
@@ -696,15 +696,15 @@ def test_every_stage_propagates_its_leaf_failure(
 def test_predicted_centre_of_a_centred_body_is_the_array_centre(
     scene: type[_SceneBackplane], tmp_path: Path, margin: int
 ) -> None:
-    """A body on the frame's centre predicts the centre of the array.
+    """A body on the frame's center predicts the center of the array.
 
     The two ends of this are stated independently of the code under test.  A
-    field of view puts the centre of a ``size``-wide frame at ``size / 2``: a
-    whole number there falls on the boundary between two pixels, so the centre
+    field of view puts the center of a ``size``-wide frame at ``size / 2``: a
+    whole number there falls on the boundary between two pixels, so the center
     of a 120-wide axis is 60.0, and that is what the inventory reports.  The
-    array puts its own centre at ``(size - 1) / 2``, because a whole number
-    there falls at a pixel's centre, so the same point is 59.5.  The haze fit
-    samples the array, so the predicted centre has to be the second of those.
+    array puts its own center at ``(size - 1) / 2``, because a whole number
+    there falls at a pixel's center, so the same point is 59.5.  The haze fit
+    samples the array, so the predicted center has to be the second of those.
 
     The margin is whole pixels of padding, so it shifts the answer and does
     not change which system it is in; running with and without it catches a
@@ -726,9 +726,9 @@ def test_predicted_centre_of_a_centred_body_is_the_array_centre(
 def test_predicted_centre_of_an_offset_body_keeps_the_same_half_pixel(
     scene: type[_SceneBackplane], tmp_path: Path
 ) -> None:
-    """The conversion is the same half pixel away from the frame's centre.
+    """The conversion is the same half pixel away from the frame's center.
 
-    A body placed on a pixel's centre in the field of view's terms -- a whole
+    A body placed on a pixel's center in the field of view's terms -- a whole
     number plus a half -- lands on a whole-numbered array position, which is
     the clearest case for reading the answer off by eye.
     """
@@ -747,7 +747,7 @@ def test_the_recorded_centre_is_the_inventory_position(
     """What the model records is the inventory's own number for the body.
 
     The geometry works in the padded array's coordinates because that is what
-    the fit measures.  A reader comparing the recorded centre against a scene
+    the fit measures.  A reader comparing the recorded center against a scene
     file, an image viewer or the field of view needs the position in the image
     itself, so the half pixel goes back on and the padding comes off.  Running
     the same assertion under padding is what catches a margin left on.
@@ -766,7 +766,7 @@ def test_the_recorded_centre_is_the_inventory_position(
 def test_the_logged_centre_is_the_inventory_position(
     scene: type[_SceneBackplane], tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The per-image log states the centre where the document does.
+    """The per-image log states the center where the document does.
 
     An operator reads the log line and the document interchangeably, so the
     line carries the inventory's own position in the image, with the padding

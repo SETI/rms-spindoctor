@@ -6,7 +6,7 @@ so a star technique recovers the roll.  These tests cover the renderer geometry
 (a star lands at its analytically rotated position; a ring system's rendered
 pattern turns with the roll, measured against a quarter turn of the array
 itself; a star, a ring and a body placed alike turn about one point, the
-frame's uv centre) and the scene-level ``fit_camera_rotation`` override that
+frame's uv center) and the scene-level ``fit_camera_rotation`` override that
 lets a scene exercise the 3-DoF path on any emulated camera, independent of
 that camera's real rotation-fitting flag.
 """
@@ -52,9 +52,9 @@ def test_roll_rotates_star_about_boresight() -> None:
     """A 90 deg roll lands a star at its analytically rotated position.
 
     A scene states a position as a pixel corner, so the star at ``(40.5, 90.5)``
-    is ``(-23.5, 26.5)`` from the frame's uv centre ``(64, 64)``; a +90 deg roll
+    is ``(-23.5, 26.5)`` from the frame's uv center ``(64, 64)``; a +90 deg roll
     (matrix ``[[0, -1], [1, 0]]`` in ``(v, u)``) maps that to ``(-26.5, -23.5)``,
-    putting the star at uv ``(37.5, 40.5)`` -- the centre of pixel ``(37, 40)``,
+    putting the star at uv ``(37.5, 40.5)`` -- the center of pixel ``(37, 40)``,
     which is where the rendered centroid must land.
     """
     params = _noiseless_params(
@@ -118,9 +118,9 @@ _CHIRAL_RING_SYSTEM: dict[str, object] = {
 def test_roll_turns_the_whole_ring_pattern_a_quarter_turn() -> None:
     """A +90 deg roll of a ring system reproduces a quarter turn of the rendered array.
 
-    ``np.rot90`` turns an array a quarter turn about its own centre, the pixel
+    ``np.rot90`` turns an array a quarter turn about its own center, the pixel
     centric coordinate ``(size - 1) / 2``.  That is the same point in the frame
-    as the geometry layer's pixel corner frame centre ``size / 2``, because both
+    as the geometry layer's pixel corner frame center ``size / 2``, because both
     the pivot and every rotated position carry the same half pixel between the
     two coordinate systems and a pivot rotation is unchanged by translating
     pivot and point alike.  So the anchor is numpy's own array rotation rather
@@ -148,7 +148,7 @@ def test_roll_turns_the_whole_ring_pattern_a_quarter_turn() -> None:
 
 
 def _ring_system_at(center_v: float, center_u: float) -> dict[str, object]:
-    """A face-on circular ringlet centred on ``(center_v, center_u)``."""
+    """A face-on circular ringlet centered on ``(center_v, center_u)``."""
     return {
         'geometry': {
             'center_v': center_v,
@@ -162,7 +162,7 @@ def _ring_system_at(center_v: float, center_u: float) -> dict[str, object]:
 
 
 def _sphere_at(center_v: float, center_u: float) -> dict[str, object]:
-    """A head-on lit sphere centred on ``(center_v, center_u)``."""
+    """A head-on lit sphere centered on ``(center_v, center_u)``."""
     return {
         'center_v': center_v,
         'center_u': center_u,

@@ -59,7 +59,7 @@ class _SphereSpec:
     """Analytic orthographic-sphere scene driving the fake backplane.
 
     Parameters:
-        center_vu: Sphere centre in the FOV's pixel corner coordinates ``(v, u)``.
+        center_vu: Sphere center in the FOV's pixel corner coordinates ``(v, u)``.
         radius_px: Sphere radius in pixels.
         sun_vuz: Sun direction in the ``(v, u, z)`` image frame where ``+z``
             points toward the observer.  Normalised on use.
@@ -275,15 +275,15 @@ def _analytic_disc(obs: FakeObs, spec: _SphereSpec) -> NDArrayBoolType:
     """Return the analytic pixel-centre silhouette in extfov coordinates.
 
     Array row ``i`` covers ``[i, i + 1)`` in the pixel corner coordinates the
-    sphere is defined in, so its centre sits at ``i + 0.5`` there.
+    sphere is defined in, so its center sits at ``i + 0.5`` there.
 
     Parameters:
         obs: Observation defining the extfov grid.
         spec: Sphere geometry.
 
     Returns:
-        A boolean array of the extfov shape, true at every pixel whose centre
-        lies within the sphere's radius of its centre.
+        A boolean array of the extfov shape, true at every pixel whose center
+        lies within the sphere's radius of its center.
     """
     shape = obs.extdata_shape_vu
     vv, uu = np.indices(shape, dtype=np.float64)
@@ -397,9 +397,9 @@ def test_albedo_scales_brightness(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_body_mask_centres_where_the_fixture_placed_the_sphere(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The rendered silhouette's centroid is the sphere's stated centre.
+    """The rendered silhouette's centroid is the sphere's stated center.
 
-    The fixture states the sphere's centre in pixel corner coordinates and the
+    The fixture states the sphere's center in pixel corner coordinates and the
     mask is addressed by rows and columns, so the centroid of the marked
     pixels has to come back half a pixel below the stated number.  The disc is
     symmetric about that point, so the centroid is exact rather than
@@ -424,7 +424,7 @@ def test_body_mask_matches_analytic_silhouette(monkeypatch: pytest.MonkeyPatch) 
     """The rendered silhouette covers the same ground as the analytic disc.
 
     This is an extent check, not a placement one: the oversampled render marks
-    a pixel its analytic pixel-centre counterpart misses wherever the two
+    a pixel its analytic pixel-center counterpart misses wherever the two
     disagree about a boundary pixel, which costs about two percent of the
     union on a radius-20 disc.  An overlap ratio degrades so gently under a
     rigid shift that it cannot resolve half a pixel at any threshold worth
@@ -482,7 +482,7 @@ def test_terminator_location_matches_analytic_prediction(
     axis (tilt along +u), the analytic terminator crosses mid-disc at pixel
     corner ``center_u - radius * cos(alpha)``.  The ridge is a set of columns,
     so what it can say is which column that crossing falls in: the leftmost
-    ridge column is the first one whose own centre is on the lit side, which
+    ridge column is the first one whose own center is on the lit side, which
     bounds it on one side exactly and on the other by the one pixel a column
     number resolves.  A sub-pixel statement would have to measure where the
     Lambert reflectance reaches zero, not where the ridge mask begins.
@@ -516,11 +516,11 @@ def test_terminator_empty_when_fully_lit(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_nonsquare_fov_places_body_correctly(monkeypatch: pytest.MonkeyPatch) -> None:
-    """On a non-square FOV the silhouette lands at the stated extfov centre.
+    """On a non-square FOV the silhouette lands at the stated extfov center.
 
-    The two axes have different lengths and different centres, so an axis
+    The two axes have different lengths and different centers, so an axis
     mix-up that a square frame hides shows here.  The silhouette is symmetric
-    about its centre, so its centroid is the stated pixel corner centre less
+    about its center, so its centroid is the stated pixel corner center less
     the half pixel that converts to rows and columns, exactly.
 
     Parameters:
@@ -777,19 +777,19 @@ def test_no_disc_when_overflow_exceeds_cap(monkeypatch: pytest.MonkeyPatch) -> N
 def test_disc_center_is_the_projected_position_not_the_bbox_midpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The BODY_DISC centre is the inventory's exact position, converted once.
+    """The BODY_DISC center is the inventory's exact position, converted once.
 
     The sphere sits at (50.3, 60.3) in the field of view, whose whole numbers
     fall on pixel boundaries, and its radius is 8 px.  The inventory's integer
     bounding box is therefore floor(50.3 - 8) = 42 to ceil(50.3 + 8) = 59 in
     v, and 52 to 69 in u, whose midpoints are 50.5 and 60.5.  Neither is where
-    the body is: floor and ceil each move away from the centre by the
+    the body is: floor and ceil each move away from the center by the
     fractional part they are handed, and the two only cancel when those
     fractions are complementary, so the midpoint wanders by up to half a pixel
     as the body moves.
 
     The payload is pixel centric, where a whole number falls at a pixel's
-    centre, so the answer is the projected position less half a pixel, plus
+    center, so the answer is the projected position less half a pixel, plus
     the 10-pixel margin the extended frame adds: 50.3 - 0.5 + 10 = 59.8 in v
     and 60.3 - 0.5 + 10 = 69.8 in u.  Taking the bounding-box midpoint instead
     would give 60.5 and 70.5 -- wrong by the 0.2 px it rounds off and by the
@@ -804,7 +804,7 @@ def test_disc_center_is_the_projected_position_not_the_bbox_midpoint(
     geometry = disc.geometry
     assert isinstance(geometry, BodyDiscGeometry)
     # The sphere is one of the positions where the two answers differ; a
-    # centre whose two fractional parts were complementary could not tell
+    # center whose two fractional parts were complementary could not tell
     # the bounding-box midpoint from the projected position.
     assert (math.floor(50.3 - 8.0) + math.ceil(50.3 + 8.0)) / 2.0 != 50.3
     assert geometry.predicted_center_vu[0] == pytest.approx(59.8)
@@ -817,15 +817,15 @@ def test_sub_solar_direction_collapses_on_a_full_phase_disc(
     """A full-phase body reports no sub-solar direction, as the gate says.
 
     The Sun is on the observer's axis, so the render is rotationally
-    symmetric and its brightness centroid falls on the geometric centre.  The
+    symmetric and its brightness centroid falls on the geometric center.  The
     BODY_BLOB direction is the vector between those two, and both are extfov
     pixel centric, so the vector is the zero one, well inside the half-pixel
-    floor below which the direction is meaningless.  A geometric centre
+    floor below which the direction is meaningless.  A geometric center
     carried in pixel corner coordinates would instead sit half a pixel away
     on each axis, a length of 0.707 px, clearing that floor and reporting a
     45-degree direction on a body whose illumination has no direction at all.
 
-    The centroid also has to land on the centre for the blob's predicted
+    The centroid also has to land on the center for the blob's predicted
     position to mean anything, so that is asserted first.
     """
     spec = _SphereSpec((50.5, 50.5), 20.0)
@@ -836,7 +836,7 @@ def test_sub_solar_direction_collapses_on_a_full_phase_disc(
     )
     geometry = blob.geometry
     assert isinstance(geometry, BodyBlobGeometry)
-    # 50.5 in the field of view is the centre of pixel 50, which is 50.0 in
+    # 50.5 in the field of view is the center of pixel 50, which is 50.0 in
     # the array's own coordinates, and the margin puts it at 60.0.
     assert geometry.predicted_center_vu[0] == pytest.approx(60.0)
     assert geometry.predicted_center_vu[1] == pytest.approx(60.0)
@@ -904,10 +904,10 @@ def test_limb_arc_vertices_are_whole_pixel_centric_positions(
 def test_limb_arc_vertices_centre_on_the_stated_sphere_centre(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The ring of LIMB_ARC vertices is centred on the sphere the fixture stated.
+    """The ring of LIMB_ARC vertices is centered on the sphere the fixture stated.
 
-    A closed limb is symmetric about the body centre, so the mean of its
-    vertices is that centre, in the pixel centric coordinates the vertices are
+    A closed limb is symmetric about the body center, so the mean of its
+    vertices is that center, in the pixel centric coordinates the vertices are
     stated in.  Unlike a test that indexes a filled disc, this degrades by
     exactly the amount of any rigid shift rather than gracefully, so half a
     pixel between the meshgrid and the polyline fails it by half a pixel.
@@ -996,10 +996,10 @@ def test_limb_arc_sigmas_positive_and_finite(monkeypatch: pytest.MonkeyPatch) ->
 def test_terminator_arc_vertices_straddle_the_stated_sphere_centre(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The TERMINATOR_ARC ridge is symmetric about the sphere's centre row.
+    """The TERMINATOR_ARC ridge is symmetric about the sphere's center row.
 
     The fixture tilts the sun along +u alone, so the terminator it draws is
-    mirror-symmetric in v about the centre the fixture stated, and the mean of
+    mirror-symmetric in v about the center the fixture stated, and the mean of
     the ridge's vertices has to land on that row in the pixel centric
     coordinates the vertices are stated in.  The anchor is the fixture's own
     number, not anything the model computed, so half a pixel anywhere between

@@ -1969,7 +1969,7 @@ Top-level fields
      - 0.0
      - truth
      - Planted boresight roll (deg), applied to stars, bodies, and rings alike
-       about the frame's uv centre ``(size_v / 2, size_u / 2)`` (see
+       about the frame's uv center ``(size_v / 2, size_u / 2)`` (see
        :ref:`sim-pixel-convention`).
    * - ``midtime_utc``
      - str

@@ -524,9 +524,9 @@ def apply_atmosphere(
     if box is None:
         return empty
     box_v, box_u = box
-    # The box is named by array rows and columns and the body centre is stated
+    # The box is named by array rows and columns and the body center is stated
     # in the geometry layer's pixel corner coordinates, so the half pixel goes
-    # on before the centre comes off.
+    # on before the center comes off.
     v_ctr = (
         np.arange(box_v.start, box_v.stop, dtype=np.float64)
         + (PIXEL_CENTER_TO_CORNER_PX - center_v)

@@ -133,7 +133,7 @@ def create_body_backplanes(
         # Build restricted meshgrid covering the clipped rectangle. The clip
         # names whole columns and rows; Meshgrid works in the geometry layer's
         # pixel-corner coordinates, so each bound is converted from the column's
-        # own number to the column's centre.
+        # own number to the column's center.
         meshgrid = Meshgrid.for_fov(
             snapshot.fov,
             origin=(u0 + PIXEL_CENTER_TO_CORNER_PX, v0 + PIXEL_CENTER_TO_CORNER_PX),

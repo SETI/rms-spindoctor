@@ -290,12 +290,12 @@ and starts with a design document, not code.
   by half a pixel in the files, and every one of the 64 renders byte-identical
   to what it rendered before.
 - **#642** — the simulator turns a planted roll about one point: the frame's
-  centre in pixel corner coordinates, where the body and ring paths already
+  center in pixel corner coordinates, where the body and ring paths already
   pivoted. `render_stars` was reading `size / 2` as a pixel centric coordinate,
   half a detector pixel away, so a rolled scene planted a star truth its own
   bodies and rings disagreed with. Moving a pivot by `d` shifts every rendered
   position by `(I - R) d`, a rigid `2 |d| sin(theta / 2)` the same near the
-  centre as far from it, so the one shipped scene with a roll moved its whole
+  center as far from it, so the one shipped scene with a roll moved its whole
   star field by 0.0169 px and the other 63 render byte-identical. That scene's
   baseline flipped from `conflicted` to `success`: `StarUniqueMatchNav` had been
   confidently answering it 11 px wrong and now declines, which is the #639

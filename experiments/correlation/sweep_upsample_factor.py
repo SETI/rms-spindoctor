@@ -5,8 +5,8 @@ from spindoctor.support.correlate import navigate_with_pyramid_kpeaks
 
 def gaussian_patch(shape: tuple[int, int], sigma: float, offset: tuple[float, float]) -> np.ndarray:
     # ``offset`` follows psfmodel's ``eval_rect``: it is measured from the upper
-    # left corner of the centre pixel, so (0.5, 0.5) puts the peak on that
-    # pixel's centre and a whole number puts it on a pixel boundary.  That is
+    # left corner of the center pixel, so (0.5, 0.5) puts the peak on that
+    # pixel's center and a whole number puts it on a pixel boundary.  That is
     # the pixel corner convention, and it is the one check_corr_offset.py gets
     # from eval_rect; all three scripts in this directory now name their shifts
     # the same way.

@@ -10,7 +10,7 @@ angle, emission angle, phase angle, resolution, etc.) derived from a
 navigated image. The system reads prior navigation metadata to apply the
 image's recorded pointing, then computes body and ring backplanes, merges
 them per-pixel by distance, and writes a multi-HDU FITS file along with a
-JSON metadata file. Each backplane value is the geometry at the centre of
+JSON metadata file. Each backplane value is the geometry at the center of
 that pixel (see :ref:`coordinate-systems`).
 
 Which pointing a product is built on

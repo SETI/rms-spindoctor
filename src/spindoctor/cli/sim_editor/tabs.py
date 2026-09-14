@@ -193,7 +193,7 @@ class TabsMixin(SimEditorBase):
             unique_name = self._find_unique_name(default_name)
             p = {
                 'name': unique_name,
-                # The frame centre in the pixel corner coordinates a scene
+                # The frame center in the pixel corner coordinates a scene
                 # states every position in -- the same point the ring system
                 # defaults to and the same one the star record builder stands in
                 # for an omitted star position, so a fresh scene is concentric.
@@ -277,7 +277,7 @@ class TabsMixin(SimEditorBase):
             unique_name = self._find_unique_name(default_name)
             p = {
                 'name': unique_name,
-                # The frame centre, stated the way the star record builder
+                # The frame center, stated the way the star record builder
                 # states the default it stands in for an omitted position.
                 'v': self.sim_params['size_v'] / 2.0,
                 'u': self.sim_params['size_u'] / 2.0,

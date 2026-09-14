@@ -75,7 +75,7 @@ def test_label_position_divides_by_the_zoom(model: Any) -> None:
 
 
 def test_readout_prints_a_pixel_centre(model: Any) -> None:
-    """The readout can name the centre of a pixel, which is what a scene uses."""
+    """The readout can name the center of a pixel, which is what a scene uses."""
     model._zoom_factor = 1.0
     model._update_status_bar(QPointF(4.5, 3.5))
     assert 'V, U:     3.50,     4.50' in _status_text(model)

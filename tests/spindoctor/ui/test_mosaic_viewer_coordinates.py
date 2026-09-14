@@ -100,7 +100,7 @@ def body_widget(qapp: QApplication) -> TiledImageWidget:
 
 
 def test_column_centre_reads_that_column_longitude(ring_widget: TiledImageWidget) -> None:
-    """The centre of a painted column reads the longitude that column samples."""
+    """The center of a painted column reads the longitude that column samples."""
     for col in range(_N_COLS):
         lon, _rad = ring_widget.pixel_to_physical(col + 0.5, 0.5)
         assert lon == pytest.approx(_LON_ORIGIN + col * _LON_RES, abs=1e-9)
@@ -113,7 +113,7 @@ def test_column_boundary_reads_half_a_column_short(ring_widget: TiledImageWidget
 
 
 def test_row_centre_reads_that_row_radius(ring_widget: TiledImageWidget) -> None:
-    """The centre of a painted row reads the radius that array row samples."""
+    """The center of a painted row reads the radius that array row samples."""
     for arr_row in range(_N_ROWS):
         pixel_y = (_N_ROWS - 1 - arr_row) + 0.5
         _lon, rad = ring_widget.pixel_to_physical(0.5, pixel_y)
@@ -168,13 +168,13 @@ def test_x_tick_lands_on_the_centre_of_its_column(ring_widget: TiledImageWidget)
 
 
 def test_body_cell_centre_reads_that_cell_longitude(body_widget: TiledImageWidget) -> None:
-    """The centre of a body canvas cell reads the longitude that column samples."""
+    """The center of a body canvas cell reads the longitude that column samples."""
     lon, _lat = body_widget.pixel_to_physical(3.5, 0.5)
     assert lon == pytest.approx(3 * _BODY_RES, abs=1e-9)
 
 
 def test_body_cell_centre_reads_that_cell_latitude(body_widget: TiledImageWidget) -> None:
-    """The centre of a body canvas cell reads the latitude that row samples."""
+    """The center of a body canvas cell reads the latitude that row samples."""
     _lon, lat = body_widget.pixel_to_physical(0.5, 2.5)
     assert lat == pytest.approx(90.0 - 2 * _BODY_RES, abs=1e-9)
 
