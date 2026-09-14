@@ -8,7 +8,9 @@ a SPICE kernel inventory naming the metakernel by its label's LID and version.  
 plumbing is tested over stand-in templates in ``test_bundle_products.py``.
 """
 
+import hashlib
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -134,10 +136,11 @@ def test_the_summary_pass_writes_every_file_of_each_collection_the_bundle_holds(
 def test_every_member_entry_of_the_bundle_label_names_a_collection_label_in_the_bundle(
     cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
 ) -> None:
-    """Each of the bundle label's six member entries is a collection label's own LID.
+    """The bundle label's member entries are exactly the collection labels' own LIDs.
 
-    A collection label is one directory below the bundle's root, and the LID an entry
-    names is the logical identifier that label declares.
+    A collection label is one directory below the bundle's root.  The bundle label names
+    each of the six the pass writes by the logical identifier that label declares, and
+    names nothing else.
     """
     env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
     root = ElementTree.parse(env.bundle_dir / 'bundle.lblx').getroot()
@@ -145,9 +148,8 @@ def test_every_member_entry_of_the_bundle_label_names_a_collection_label_in_the_
         entry.findtext('pds:lid_reference', '', PDS4_NAMESPACES).strip()
         for entry in root.iterfind('pds:Bundle_Member_Entry', PDS4_NAMESPACES)
     ]
-    held = {_lid(label) for label in env.bundle_dir.glob('*/collection_*.lblx')}
-    assert len(declared) == 6
-    assert [lid for lid in declared if lid not in held] == []
+    held = [_lid(label) for label in env.bundle_dir.glob('*/collection_*.lblx')]
+    assert sorted(declared) == sorted(held)
 
 
 def _documents_named(label: Path, bundle_lid: str) -> set[str]:
@@ -180,12 +182,13 @@ def _documents_named(label: Path, bundle_lid: str) -> set[str]:
 def test_every_label_names_the_user_guide_by_the_lid_its_own_label_declares(
     cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The data labels, the bundle label and the document inventory name the guide's own LID.
+    """The labels, the document inventory and the readme name the guide by its own LID.
 
     The bundle is built from a copy of the shipped template directory holding a stand-in
     guide, so that the guide's label is rendered and its LID can be read from it.  Every
     label naming a document of the bundle names that one LID, the data labels and the
-    bundle label among them, and it is the document inventory's one primary member.
+    bundle label among them; it is the document inventory's one primary member; and the
+    readme gives it on a line of its own.
     """
     env = make_cohort_bundle_env(cassini_cohort, tmp_path)
     templates = tmp_path / 'templates'
@@ -209,6 +212,8 @@ def test_every_label_names_the_user_guide_by_the_lid_its_own_label_declares(
     assert {'bundle.lblx', *data_labels} <= naming.keys()
     rows = read_csv_rows(env.bundle_dir / 'document' / 'collection_document.csv')
     assert [lidvid.split('::')[0] for status, lidvid in rows if status == 'P'] == [guide_lid]
+    readme = (env.bundle_dir / 'readme.txt').read_text(encoding='ascii').splitlines()
+    assert guide_lid in readme
 
 
 def test_both_passes_take_no_file_the_dataset_does_not_declare(
@@ -230,10 +235,33 @@ def test_both_passes_take_no_file_the_dataset_does_not_declare(
     ]
     for name in names:
         shutil.copy(shipped / name, declared / name)
+    # A stand-in guide, so that the guide's label renders from the template declared for it.
+    guide = declared / env.dataset.pds4_user_guide_file_name()
+    guide.write_bytes(b'%PDF-1.4 a stand-in user guide\n')
     monkeypatch.setattr(env.dataset, 'pds4_bundle_template_dir', lambda: str(declared))
     label_cohort_images(env, NAVIGATED_STUBS)
     summarize_bundle(env)
     assert (env.bundle_dir / 'bundle.lblx').is_file()
+
+
+def test_the_metakernel_label_describes_the_metakernel_beside_it(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """kernels.lblx states the size, the checksum and the time of the kernels.ker beside it.
+
+    The file it names is the bundle's copy, so its time is the copy's, to the second.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
+    metakernel = env.bundle_dir / 'spice_kernels' / 'kernels.ker'
+    root = ElementTree.parse(metakernel.with_suffix('.lblx')).getroot()
+    stated = 'pds:File_Area_SPICE_Kernel/pds:File/pds:'
+    size = root.findtext(f'{stated}file_size', '', PDS4_NAMESPACES)
+    md5 = root.findtext(f'{stated}md5_checksum', '', PDS4_NAMESPACES)
+    created = root.findtext(f'{stated}creation_date_time', '', PDS4_NAMESPACES)
+    assert int(size) == metakernel.stat().st_size
+    assert md5.strip() == hashlib.md5(metakernel.read_bytes(), usedforsecurity=False).hexdigest()
+    modified = datetime.fromtimestamp(metakernel.stat().st_mtime, UTC)
+    assert created.strip() == modified.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def test_the_spice_kernel_inventory_lists_the_metakernel_by_its_label_s_lid_and_version(
