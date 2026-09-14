@@ -481,9 +481,9 @@ writes, so the labels pass fails such an image before anything is written for
 it, its log saying the navigation recorded no pointing. It checks only
 that the block is there, since the block always holds all three epochs, and
 nothing else about them (the operator's ruling of 2026-09-11 that nothing
-guards against our own files). The summary pass needs no check: the labels pass
-writes no supplemental file for an image it failed. The empty string is not
-reachable.
+guards against our own files). The summary pass needs no check of the times:
+the labels pass fails such an image before it writes anything for it, its
+supplemental file included. The empty string is not reachable.
 
 The data collection label states the cohort's earliest start and latest stop,
 at whole seconds as the reference's collection and bundle labels do, the start
@@ -497,10 +497,11 @@ computation. With no range to state -- the data tree holds no supplemental
 file -- the data collection is not written, neither its inventory nor its
 label, and counts as a label not written, with an error saying so: one rule
 with the empty collection's (section 3.5). The supplemental files
-are read as the labels pass wrote them, with nothing checked but the
+are read as the labels pass wrote them, with nothing checked in them but the
 statistics (the same ruling); a data label that failed to render is reported
-by the labels pass, and the bundle is regenerated before the summary pass
-runs. Running first, the index generator refuses a bundle with no data
+by the labels pass, and by the summary pass as an image whose products
+disagree (section 3.5), and the bundle is cleared and regenerated. Running
+first, the index generator refuses a bundle with no data
 directory itself, as the collection generator does, rather than write its
 tables into a root the labels pass would then refuse.
 
@@ -533,8 +534,8 @@ are one rule at two scales -- each image holds all its products, and each
 collection at least one member -- and the collection rule refuses an empty
 collection even over a bundle with no image, where the check has nothing to
 count. Over
-an empty `data/` the summary pass writes neither collection and counts two
-labels; over supplemental files and no label -- what a labels pass leaves
+a bundle with no data label and no browse label the summary pass writes
+neither collection and counts two labels; over supplemental files and no label -- what a labels pass leaves
 when every label fails to render, since it writes the supplemental file
 first -- it writes neither, counts two labels, and counts every image as one
 whose products disagree. A collection label that fails
@@ -1201,17 +1202,21 @@ not, and the run exits 1.
 
 Both per-image labels are attempted before failed is returned, and so is
 every collection and index label, so one run reports every label it could not
-write rather than one per run. `generate_collection_files` and
-`generate_global_index_files` each return the number of labels that failed;
-the inventories and the index tables are written either way.
+write rather than one per run. `generate_global_index_files` returns the
+number of labels that failed, and `generate_collection_files`, since Phase 5,
+a `CollectionOutcome` carrying that number beside the images whose products
+disagree. The index tables are written either way, and so is the inventory
+of a collection whose label fails to render; a collection that cannot be
+written at all gets neither inventory nor label (section 3.5).
 
 `main_labels` counts the images whose labels it did not write -- including an
 image whose generation raised and a batch that did not hold exactly one image
 -- carries on to the next image either way, and closes with a line giving
 that count beside the images it labeled and the images it skipped, so a
 selection that matched nothing reads as zero. A dry run reports what it would
-have processed and counts nothing. `main_summary` sums the two returned
-counts; each exits 1 when its count is not zero.
+have processed and counts nothing. `main_summary` sums the two failed-label
+counts and, since Phase 5, counts the images whose products disagree beside
+them; each pass exits 1 when a count it keeps is not zero.
 `sd_create_bundle_cloud_tasks` maps a failed product onto a `status: error`
 result carrying `status_error: label_not_written`, with no retry.
 
@@ -1443,7 +1448,7 @@ disagreeing image alone.
 Closes #602, by hand when its PR merges into `rf_pds4_draft_bundle` (section
 8). The inventory-filename part of #265 is done, and #265 stays open for its
 dev-guide output-layout part (Phase 10). The header and line-ending defects
-it fixed were never filed as issues (section 7).
+it fixed were never filed as issues.
 
 ### Phase 6 — Bundle-level and static products
 
