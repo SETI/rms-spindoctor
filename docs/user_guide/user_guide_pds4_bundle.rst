@@ -318,9 +318,9 @@ Each data label names its targets, the bodies and rings its backplanes cover: on
 ``Target_Identification`` for each body that shows at a pixel of the image, where at
 least one of its backplanes has a value, and one for the rings when the image has ring
 backplanes. A body in the field of view that shows at no pixel, such as one hidden
-behind a nearer body, is not named. Each gives the target's name and type and refers to its PDS4 context
-product by its logical identifier, as the targets table identifies it (see
-`Targets`_): for example ``Saturn``, of type ``Planet``, at
+behind a nearer body, is not named. Each gives the target's name and type and refers
+to its PDS4 context product by its logical identifier, as the targets table identifies
+it (see `Targets`_): for example ``Saturn``, of type ``Planet``, at
 ``urn:nasa:pds:context:target:planet.saturn``.
 
 The data label of an image with ring backplanes also states the image's ring geometry,
@@ -393,8 +393,9 @@ The summary pass generates:
   and no bundle label, and the pass exits 1.
 
 The data collection label, the SPICE kernel collection label, the bundle label and the
-metakernel label each name every target the bundle's data labels name, once each. The document and miscellaneous
-collections list no target, since none of their labels names one.
+metakernel label each name every target the bundle's data labels name, once each. The
+document and miscellaneous collections list no target, since none of their labels names
+one.
 
 * **User Guide**: the bundle's user guide, a PDF, copied into ``document/user_guide/``
   from the dataset's template directory, and its PDS4 label beside it. When the template

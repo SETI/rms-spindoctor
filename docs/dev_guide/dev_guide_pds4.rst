@@ -141,12 +141,12 @@ does not count against the run: an image with no navigation metadata document,
 an image whose navigation status is not ``success``, and a navigated image with
 no backplane metadata document are all cases of a selection naming more images
 than the bundle covers, which is the ordinary state of a selection made by
-volume.  So is an image whose backplane metadata names no body and holds no ring
-statistic, as a star field's does (see `Targets and the ring geometry`_): it is
-skipped before any check that fails an image, since nothing would be written for
-it however those came out.  An error raised while one image is processed is logged with its
-traceback naming the image, counts the image against the run, and the run
-carries on to the next one.
+volume.  So is an image whose backplane metadata names no body with geometry and holds
+no ring statistic, as a star field's does (see `Targets and the ring geometry`_): it is
+skipped before any check that fails an image, since nothing would be written for it
+however those came out.  An error raised while one image is processed is logged with
+its traceback naming the image, counts the image against the run, and the run carries
+on to the next one.
 
 A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
@@ -629,16 +629,18 @@ Nothing checks for it: a bundle is written into an empty directory, the labels p
 first, so the members of the pass are the labels pass's own.  The data collection label
 names them with ``collection_to_target``, as the SPICE kernel collection label does, the
 bundle label with ``bundle_to_target`` and the metakernel label with ``data_to_target``,
-the values the Schematron allows under each kind of product, and the context inventory lists each, after the members the
-template directory ships, as ``S,<lidvid>``.  The document and miscellaneous inventories
-list no target, since no label of their collections names one.
+the values the Schematron allows under each kind of product, and the context inventory
+lists each, after the members the template directory ships, as ``S,<lidvid>``.  The
+document and miscellaneous inventories list no target, since no label of their
+collections names one.
 
 :func:`~spindoctor.cli.pds4.ring_geometry.ring_geometry` builds the ring geometry a data
 label of an image with ring statistics states, handed to the template as
-``RING_GEOMETRY``, or None for an image with none.  It fills ``rings:Reprojection_Geometry``.
-Of the other classes of ``PDS4_RINGS_1O00_1F00``, ``rings:Ring_Spectrum`` holds every
-one of an image's ranges of ring radius, longitude, angles and resolutions but the
-longitudinal resolution, but it describes ring spectra and spectrograms, and the
+``RING_GEOMETRY``, or None for an image with none.  It fills
+``rings:Reprojection_Geometry``.  Of the other classes of ``PDS4_RINGS_1O00_1F00``,
+``rings:Ring_Spectrum`` holds every one of an image's ranges of ring radius, longitude,
+angles and resolutions but the longitudinal resolution, but it describes ring spectra
+and spectrograms, and the
 dictionary's Schematron requires it to identify the observation's wavelengths.
 :data:`~spindoctor.cli.pds4.ring_geometry.RING_GEOMETRY_ATTRIBUTES` gives the attribute
 each configured ring plane's least and greatest value are stated as.  The attributes
