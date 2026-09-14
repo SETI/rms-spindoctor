@@ -180,13 +180,13 @@ def _ring_longitude_column_origin_and_extent_hi_deg(
 
     Returns:
         ``(origin_deg, extent_deg, global_bins)`` where ``origin_deg`` is the
-        longitude in degrees at column 0 and ``extent_deg`` is the high edge of
-        the last column.  ``global_bins`` is ``None`` when columns map
-        contiguously from ``origin_deg`` (i.e. origin + ix * resolution is
-        correct); when the populated bins have gaps, ``global_bins`` is the
-        ``np.flatnonzero(longitude_antimask)`` array and callers must use
-        ``global_bins[ix] * lon_res_rad * _RAD_TO_DEG`` for per-column
-        longitude instead of the linear formula.
+        longitude in degrees column 0 samples and ``extent_deg`` is one
+        resolution step past the last column's longitude.  ``global_bins`` is
+        ``None`` when columns map contiguously from ``origin_deg`` (i.e. origin
+        + ix * resolution is correct); when the populated bins have gaps,
+        ``global_bins`` is the ``np.flatnonzero(longitude_antimask)`` array and
+        callers must use ``global_bins[ix] * lon_res_rad * _RAD_TO_DEG`` for
+        per-column longitude instead of the linear formula.
     """
     lon_res_deg = lon_res_rad * _RAD_TO_DEG
     n_full = int(longitude_antimask.shape[0])
@@ -297,11 +297,13 @@ class RingDisplayData:
         mean_incidence_deg: Mean incidence angle (deg), when available.
         photometric_model_name: Model applied when the file was written, if any.
         observation_time_tdb: Per-column TDB seconds past J2000, when present.
-        longitude_column_origin_deg: Longitude (deg) at image column 0 (left edge of
-            that bin), for sparse reprojections and mosaics whose first column is not
-            at 0 deg.
+        longitude_column_origin_deg: Longitude (deg) image column 0 samples, for
+            sparse reprojections and mosaics whose first column is not at 0 deg.
+            Each column is one point sample, so this is the column's own
+            longitude and not a boundary around it.
         longitude_extent_hi_deg: Upper cap for longitude (deg) for EW x-axis sync
-            and cursor clipping (exclusive upper edge of the last column bin in deg).
+            and cursor clipping: one resolution step past the last column's
+            longitude.
         contributing_image_names: Names in ``image_number`` order (mosaic); for a single
             reproj, at most one entry when ``image_name`` was stored on save.
         longitude_global_bins: For sparse mosaics with non-contiguous populated bins,

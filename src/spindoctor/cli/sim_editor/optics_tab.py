@@ -884,8 +884,14 @@ class OpticsTabMixin(SimEditorBase):
         model_index = self._stray_model_combo.findText(str(self._stray_value('model', 'linear')))
         if model_index >= 0:
             self._stray_model_combo.setCurrentIndex(model_index)
-        self._stray_center_v_spin.setValue(float(self._stray_value('center_v', 0.0)))
-        self._stray_center_u_spin.setValue(float(self._stray_value('center_u', 0.0)))
+        has_center = self._stray_has_center()
+        self._stray_center_check.setChecked(has_center)
+        # An absent centre key displays its effective default (frame centre).
+        default_center_v, default_center_u = self._stray_center_defaults()
+        self._stray_center_v_spin.setValue(float(self._stray_value('center_v', default_center_v)))
+        self._stray_center_v_spin.setEnabled(has_center)
+        self._stray_center_u_spin.setValue(float(self._stray_value('center_u', default_center_u)))
+        self._stray_center_u_spin.setEnabled(has_center)
         self._stray_group.setChecked(isinstance(stray, dict))
 
     def _sync_scene_geometry(self) -> None:

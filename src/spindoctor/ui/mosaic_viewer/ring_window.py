@@ -1052,13 +1052,12 @@ class RingMosaicWindow(QMainWindow):
         else:
             ew_data = self._column_band_ew(dd, arr_min, arr_max)
         longs = self._column_longitudes_deg(dd)
-        rel_min = (arr_min - (dd.n_radii - 1) / 2.0) * dd.radius_resolution_km
-        rel_max = (arr_max - (dd.n_radii - 1) / 2.0) * dd.radius_resolution_km
+        r_min = self._band_row_radius_km(dd, arr_min)
+        r_max = self._band_row_radius_km(dd, arr_max)
         if _ring_longitude_corotating(dd):
-            band = f'{rel_min:+.0f} to {rel_max:+.0f} km (radial offset from orbit)'
+            band = f'{r_min:+.0f} to {r_max:+.0f} km (radial offset from orbit)'
         else:
-            mean_core = (dd.radius_inner + dd.radius_outer) / 2.0
-            band = f'{rel_min + mean_core:.0f} to {rel_max + mean_core:.0f} km (absolute radius)'
+            band = f'{r_min:.0f} to {r_max:.0f} km (absolute radius)'
         valid = ew_data.compressed()
         ew_mean = float(np.mean(valid)) if valid.size > 0 else 0.0
         ew_std = float(np.std(valid)) if valid.size > 0 else 0.0
@@ -1069,6 +1068,29 @@ class RingMosaicWindow(QMainWindow):
             lw=0.8,
             label=f'{band}  {ew_mean:.4f} ± {ew_std:.4f}',
         )
+
+    @staticmethod
+    def _band_row_radius_km(dd: RingDisplayData, arr_row: float) -> float:
+        """Radius (km) the equivalent-width band reports for array row ``arr_row``.
+
+        The signed radial offset from the orbit model when the mosaic carries
+        co-rotating longitudes, and the absolute radius when it carries inertial
+        ones -- the same quantity the band legend prints, so a boundary quoted
+        while the band is being selected and the legend of the band that results
+        are one number.
+
+        Parameters:
+            dd: The loaded ring display data.
+            arr_row: Array row (0 = inner), the row a display position was
+                converted to.
+
+        Returns:
+            The radius or radial offset in km.
+        """
+        rel = (arr_row - (dd.n_radii - 1) / 2.0) * dd.radius_resolution_km
+        if _ring_longitude_corotating(dd):
+            return float(rel)
+        return float(rel + (dd.radius_inner + dd.radius_outer) / 2.0)
 
     @staticmethod
     def _mosaic_radial_abs_km_bounds(dd: RingDisplayData) -> tuple[float, float]:
@@ -1645,7 +1667,13 @@ class RingMosaicWindow(QMainWindow):
         dd = self._display_data
         if dd is None:
             return
-        _, r_val = self._image_widget.pixel_to_physical(px, py)
+        # Quote the boundary of the band that will actually be integrated: the
+        # band is cut on the array row ``pixel_y_to_arr_row`` selects, so the
+        # message reads that row's radius rather than the continuous coordinate
+        # under the cursor, which lies anywhere within the row.
+        arr_row = self._image_widget.pixel_y_to_arr_row(py)
+        arr_row = int(np.clip(arr_row, 0, dd.n_radii - 1))
+        r_val = self._band_row_radius_km(dd, arr_row)
         if _ring_longitude_corotating(dd):
             r_desc = 'radial offset from orbit'
         else:

@@ -11,6 +11,12 @@ orbit_error / declared_orbit_sigma groups, and the system-level azimuthal /
 moonlets blocks live in the sibling
 :mod:`spindoctor.cli.sim_editor.ring_advanced` mixin, appended below the
 groups built here.
+
+The centre spin boxes write the scene's shared ``center_v`` / ``center_u``
+unchanged, so they carry the scene's own convention: every position in a scene
+is a pixel corner, and the centre of pixel ``N`` is ``N + 0.5``.  The row
+labels name that convention rather than leaving the reader to infer it from a
+rendered frame.
 """
 
 from typing import Any
@@ -35,6 +41,12 @@ from spindoctor.cli.sim_editor.base import SimEditorBase
 _RING_KINDS = ('ringlet', 'gap', 'edge', 'ramp', 'wave')
 _KINDS_WITH_WIDTH = frozenset({'ringlet', 'gap', 'ramp'})
 _KINDS_WITH_SIDE = frozenset({'edge', 'ramp'})
+
+# Tooltip for the shared-centre spin boxes, which write the scene value directly.
+_CENTER_TOOLTIP = (
+    'Ring system centre {axis} position as a pixel corner: integer N is the '
+    'boundary between pixel N-1 and pixel N, so the centre of pixel N is N + 0.5.'
+)
 
 
 class RingTabMixin(SimEditorBase):
@@ -199,14 +211,16 @@ class RingTabMixin(SimEditorBase):
         center_v.setRange(-1.0e6, 1.0e6)
         center_v.setDecimals(1)
         center_v.setValue(float(geometry.get('center_v', self.sim_params['size_v'] / 2.0)))
+        center_v.setToolTip(_CENTER_TOOLTIP.format(axis='V'))
         center_v.valueChanged.connect(lambda v: self._on_ring_geometry('center_v', v))
-        fl.addRow('Center V:', center_v)
+        fl.addRow('Center V (pixel corner):', center_v)
         center_u = QDoubleSpinBox()
         center_u.setRange(-1.0e6, 1.0e6)
         center_u.setDecimals(1)
         center_u.setValue(float(geometry.get('center_u', self.sim_params['size_u'] / 2.0)))
+        center_u.setToolTip(_CENTER_TOOLTIP.format(axis='U'))
         center_u.valueChanged.connect(lambda v: self._on_ring_geometry('center_u', v))
-        fl.addRow('Center U:', center_u)
+        fl.addRow('Center U (pixel corner):', center_u)
         # Keep references so drag updates can sync the UI.
         w.center_v_spin = center_v  # type: ignore[attr-defined]
         w.center_u_spin = center_u  # type: ignore[attr-defined]
