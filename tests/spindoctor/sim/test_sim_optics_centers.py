@@ -11,6 +11,7 @@ The two arrive there by different code, so these tests measure where each field
 actually ends up rather than comparing the arithmetic to itself.
 """
 
+import math
 from typing import Any
 
 import numpy as np
@@ -50,12 +51,20 @@ def _scene(optics: dict[str, Any]) -> dict[str, Any]:
     return {'random_seed': 1, 'optics': optics}
 
 
-def test_the_radial_bump_peaks_on_the_stated_centre() -> None:
-    """A radial field's peak is at the centre it was given, in the grid's own terms."""
+def test_the_radial_bump_is_symmetric_about_the_stated_centre() -> None:
+    """A radial field is equidistant-valued either side of the centre it was given.
+
+    An ``argmax`` cannot settle this.  The field is smooth, so a centre half a
+    sample off leaves the same sample brightest (and at exactly half a sample the
+    two straddling samples tie, which ``argmax`` breaks toward the lower one).
+    Equality of two samples placed symmetrically about the stated centre moves
+    the moment the centre does, in either direction.
+    """
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     apply_stray_light(img, amplitude=0.5, model='radial', center_v=11.0, center_u=29.0)
-    peak_v, peak_u = np.unravel_index(int(np.argmax(img)), img.shape)
-    assert (int(peak_v), int(peak_u)) == (11, 29)
+    for gap in (1, 2, 3):
+        assert float(img[11 - gap, 29]) == pytest.approx(float(img[11 + gap, 29]))
+        assert float(img[11, 29 - gap]) == pytest.approx(float(img[11, 29 + gap]))
 
 
 def test_the_radial_bump_defaults_to_the_frame_centre() -> None:
@@ -69,11 +78,23 @@ def test_the_radial_bump_defaults_to_the_frame_centre() -> None:
     apply_stray_light(img, amplitude=0.5, model='radial')
     low, high = _SIZE // 2 - 1, _SIZE // 2
     assert float(img[low, low]) == pytest.approx(float(img[high, high]))
-    assert float(img[low, high]) == pytest.approx(float(img[high, low]))
+    # Not the transpose of the line above: this one holds the column fixed, so it
+    # is sensitive to the v centre alone.  Comparing ``img[low, high]`` against
+    # ``img[high, low]`` instead would be true of any radial field whose two
+    # centre coordinates are equal, whatever they are, and so could not fail.
+    assert float(img[low, low]) == pytest.approx(float(img[high, low]))
 
 
 def test_stray_light_converts_its_centre_onto_the_oversampled_grid() -> None:
-    """The stated centre reaches the grid the field is evaluated on."""
+    """The stated centre reaches the grid the field is evaluated on.
+
+    Measured by symmetry rather than by a peak.  The conversion moves the centre
+    by half a subsample, which is exactly the distance an integer ``argmax``
+    cannot resolve: against an expected centre of ``N + 0.5`` both ``N`` and
+    ``N + 1`` sit within half a sample, so a peak test accepts the conversion
+    omitted, doubled, or applied with the wrong sign.  Samples placed
+    symmetrically about the expected centre are equal only where it actually is.
+    """
     frame = new_sim_frame(_SIZE, _SIZE, oversample=_OVERSAMPLE)
     apply_optics(
         frame,
@@ -89,10 +110,18 @@ def test_stray_light_converts_its_centre_onto_the_oversampled_grid() -> None:
         ),
         rng=np.random.default_rng(1),
     )
-    peak_v, peak_u = np.unravel_index(int(np.argmax(frame.signal)), frame.signal.shape)
     expected = _expected_oversampled_center(_CENTER)
-    assert int(peak_v) == pytest.approx(expected, abs=0.5)
-    assert int(peak_u) == pytest.approx(expected, abs=0.5)
+    lo = math.floor(expected)
+    hi = lo + 1
+    col = lo
+    assert float(frame.signal[lo, col]) == pytest.approx(float(frame.signal[hi, col]))
+    for gap in (1, 2, 3):
+        assert float(frame.signal[lo - gap, col]) == pytest.approx(
+            float(frame.signal[hi + gap, col])
+        )
+        assert float(frame.signal[col, lo - gap]) == pytest.approx(
+            float(frame.signal[col, hi + gap])
+        )
 
 
 def _warp_fixed_point(distortion: dict[str, Any]) -> float:
