@@ -310,10 +310,10 @@ def _write_bundle_label(
     """Write the bundle label, but only over a bundle holding every collection it declares.
 
     The label states the range of the products' epochs and names their targets, so with
-    no range it is not rendered.  Rendered, it is kept only when every ``Bundle_Member_Entry`` names a
-    collection whose label is in the bundle, one declaring that LID as its logical
-    identifier; otherwise it is removed.  Either way whatever an earlier run left at the
-    path is gone, and one error names the label and the reason.
+    no range it is not rendered.  Rendered, it is kept only when every
+    ``Bundle_Member_Entry`` names a collection whose label is in the bundle, one declaring
+    that LID as its logical identifier; otherwise it is removed.  Either way whatever an
+    earlier run left at the path is gone, and one error names the label and the reason.
 
     Parameters:
         template_dir: The dataset's template directory.
