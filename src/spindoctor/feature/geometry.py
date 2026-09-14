@@ -40,9 +40,14 @@ class StarGeometry:
     time and may differ after a refinement step records the matched
     detection.
 
+    Both are pixel-centric coordinates in the padded frame, which is what a
+    technique measures a centroid in.  The star record they come from holds
+    a pixel corner coordinate instead, half a pixel higher on each axis; the conversion happens
+    once, where the model emits the feature.
+
     Parameters:
-        predicted_vu: Predicted star (v, u) in extfov coordinates.
-        catalog_vu: Catalog-aberrated star (v, u) in extfov coordinates.
+        predicted_vu: Predicted star (v, u) in extfov pixel-centric coordinates.
+        catalog_vu: Catalog-aberrated star (v, u) in extfov pixel-centric coordinates.
             Equal to ``predicted_vu`` at extraction; may differ after
             refinement.
         bbox_extfov_vu: Half-open bounding box ``(v_min, u_min, v_max,

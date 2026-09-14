@@ -36,12 +36,26 @@ PathLike = str | Path | FCPath
 
 
 class MutableStar(Protocol):
+    """In-memory star record shared by the catalog reduction and the simulator.
+
+    ``v`` and ``u`` are the star's position in **pixel corner coordinates** in
+    the nominal (unpadded) field of view -- an integer names a boundary between
+    two pixels, not a pixel.  The same point in pixel-centric coordinates is
+    ``v - PIXEL_CENTER_TO_CORNER_PX``,
+    ``u - PIXEL_CENTER_TO_CORNER_PX`` (see
+    :data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`).  It is the
+    convention the geometry layer speaks, which is why the record holds it
+    rather than converting at the producer.  ``move_v`` / ``move_u`` are
+    per-exposure displacements, so they need no conversion.
+    """
+
     unique_number: int | None
     catalog_name: str
     pretty_name: str
     name: str
 
-    # Image-space location and motion
+    # Image-space location and motion (see the class docstring: ``v``/``u``
+    # are pixel-corner, not pixel-centric).
     v: float
     u: float
     move_v: float

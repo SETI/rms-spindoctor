@@ -52,14 +52,14 @@ class _FakeContext:
 
 def test_instances_built_for_simulated_obs_with_stars() -> None:
     """A simulated obs that rendered stars yields exactly one star model."""
-    obs = _obs([{'name': 'S1', 'v': 40.0, 'u': 50.0, 'vmag': 3.0}])
+    obs = _obs([{'name': 'S1', 'v': 40.5, 'u': 50.5, 'vmag': 3.0}])
     instances = NavModelStarsSimulated.instances_for_obs(obs)
     assert len(instances) == 1
 
 
 def test_instance_is_the_simulated_subclass() -> None:
     """The built instance is the simulated star model, not the base class."""
-    obs = _obs([{'name': 'S1', 'v': 40.0, 'u': 50.0, 'vmag': 3.0}])
+    obs = _obs([{'name': 'S1', 'v': 40.5, 'u': 50.5, 'vmag': 3.0}])
     instances = NavModelStarsSimulated.instances_for_obs(obs)
     assert isinstance(instances[0], NavModelStarsSimulated)
 
@@ -74,8 +74,8 @@ def test_create_model_adopts_scene_star_catalog() -> None:
     """``create_model`` populates the star list from ``obs.nav_params``."""
     obs = _obs(
         [
-            {'name': 'S1', 'v': 40.0, 'u': 50.0, 'vmag': 3.0},
-            {'name': 'S2', 'v': 80.0, 'u': 35.0, 'vmag': 4.0},
+            {'name': 'S1', 'v': 40.5, 'u': 50.5, 'vmag': 3.0},
+            {'name': 'S2', 'v': 80.5, 'u': 35.5, 'vmag': 4.0},
         ]
     )
     model = NavModelStarsSimulated('stars', obs)
@@ -85,7 +85,7 @@ def test_create_model_adopts_scene_star_catalog() -> None:
 
 def test_metadata_records_star_count() -> None:
     """The model metadata reports the rendered star count."""
-    obs = _obs([{'name': 'S1', 'v': 40.0, 'u': 50.0, 'vmag': 3.0}])
+    obs = _obs([{'name': 'S1', 'v': 40.5, 'u': 50.5, 'vmag': 3.0}])
     model = NavModelStarsSimulated('stars', obs)
     model.create_model()
     assert model.metadata['star_count'] == 1
@@ -95,8 +95,8 @@ def test_to_features_emits_one_star_feature_per_star() -> None:
     """One STAR feature is emitted for each rendered star."""
     obs = _obs(
         [
-            {'name': 'S1', 'v': 40.0, 'u': 50.0, 'vmag': 3.0},
-            {'name': 'S2', 'v': 80.0, 'u': 35.0, 'vmag': 4.0},
+            {'name': 'S1', 'v': 40.5, 'u': 50.5, 'vmag': 3.0},
+            {'name': 'S2', 'v': 80.5, 'u': 35.5, 'vmag': 4.0},
         ]
     )
     model = NavModelStarsSimulated('stars', obs)
@@ -109,10 +109,12 @@ def test_to_features_predicts_unshifted_position_in_extfov() -> None:
     """The emitted STAR feature predicts the unshifted ``(v, u)`` in extfov coords.
 
     The renderer applies the planted offset only to the image, not to the star
-    record, so the predicted position is ``(v + extfov_margin, u + extfov_margin)``
-    -- the prediction a technique differences against the shifted detection.
+    record, so the prediction is the scene's own position in extfov coordinates
+    -- what a technique differences against the shifted detection.  A scene
+    states a position as a pixel corner, so the star at ``(40.5, 50.5)`` sits on
+    pixel ``(40, 50)`` and the prediction is that index plus the margin.
     """
-    obs = _obs([{'name': 'S1', 'v': 40.0, 'u': 50.0, 'vmag': 3.0}])
+    obs = _obs([{'name': 'S1', 'v': 40.5, 'u': 50.5, 'vmag': 3.0}])
     model = NavModelStarsSimulated('stars', obs)
     model.create_model()
     feature = model.to_features(cast(NavContext, _FakeContext()))[0]

@@ -11,8 +11,10 @@ exposure_sec: 1.0
 # split-resolution path (detector-grid shading upsampled under the
 # oversampled relief silhouette), the defaulted PSF kernel size at
 # oversample, and the stray-light center_v/center_u scaling onto the
-# oversampled grid -- any change to that mapping must flip this
-# baseline.  All of relief, PSF, and stray light are truth-side: the
+# oversampled grid.  A change to that mapping moves the rendered image;
+# it does not necessarily move the recorded result, which is what this
+# baseline pins -- a half-pixel shift of the bump leaves the fused
+# offset where it was.  All of relief, PSF, and stray light are truth-side: the
 # navigator fits its smooth sharp Lambert template against the blurred
 # ragged limb over a sloped background.  Measured behavior: the limb
 # fit and the disc correlation both survive the blur and the sloped

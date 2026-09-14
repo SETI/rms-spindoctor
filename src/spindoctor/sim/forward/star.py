@@ -35,6 +35,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.star_records import star_record_from_params
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import MutableStar, NDArrayFloatType
 
 __all__ = [
@@ -206,8 +207,16 @@ def _render_stars_cached(
         )
         sim_star_list.append(star)
 
-        rel_v = star.v - roll_center_v
-        rel_u = star.u - roll_center_u
+        # The record states the catalog position in pixel corner coordinates on this
+        # oversampled grid, so it is the scene's detector uv times ``os``.
+        # The placement below -- the roll centre, the planted offset, the
+        # catalog error, the hit-test entries -- works in detector pixel
+        # indices times ``os``, and ``uv * os - PIXEL_CENTER_TO_CORNER_PX * os`` is
+        # ``(uv - PIXEL_CENTER_TO_CORNER_PX) * os``, which is that index.
+        # ``grid_shift`` below lands it on the oversampled grid itself.
+        half_px = PIXEL_CENTER_TO_CORNER_PX * oversample
+        rel_v = star.v - half_px - roll_center_v
+        rel_u = star.u - half_px - roll_center_u
         rot_v = cos_t * rel_v - sin_t * rel_u
         rot_u = sin_t * rel_v + cos_t * rel_u
         # The planted per-star catalog error (explicit plus the seeded scene

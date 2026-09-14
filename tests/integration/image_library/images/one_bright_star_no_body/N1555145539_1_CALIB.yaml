@@ -9,8 +9,8 @@ image_url: pds3://calibrated/COISS_2xxx/COISS_2031/data/1555090699_1555229867/N1
 scene_tags:
 - one_bright_star_no_body
 ground_truth:
-  offset_dv_px: 4.0251
-  offset_du_px: -12.46
+  offset_dv_px: 4.5251
+  offset_du_px: -11.9600
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench

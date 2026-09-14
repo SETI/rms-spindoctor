@@ -8,8 +8,8 @@ scene_tags:
 - star_dominated
 - callirrhoe
 ground_truth:
-  offset_dv_px: -1.1572
-  offset_du_px: -1.5134
+  offset_dv_px: -0.6572
+  offset_du_px: -1.0134
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench

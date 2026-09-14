@@ -11,8 +11,8 @@ scene_tags:
                                        # sidecar lives in.
 
 ground_truth:
-  offset_dv_px: 3.0579
-  offset_du_px: -0.0188
+  offset_dv_px: 3.5579
+  offset_du_px: 0.4812
   offset_uncertainty_px: 1.0           # 1sigma marginal; tighten
                                        # for bright stars / sharp limbs.
   source: operator_verified
