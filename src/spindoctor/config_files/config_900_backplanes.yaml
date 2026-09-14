@@ -235,5 +235,119 @@ backplanes:
   # measurement, and 0 (not a NAIF ID) already means no body claimed the pixel.
   masked_value: -999.0
 
-  # Optional mapping from NAIF ID to PDS4 LID (used for label target identification)
-  target_lids: {}
+  # The PDS4 target a bundle's labels identify each body and ring system as, keyed by
+  # the name the backplane metadata gives it: a body by the name the backplane stage
+  # looks for it under, the rings by the ring target their backplanes are computed for.
+  # Each entry gives the logical identifier of the target's PDS4 context product, the
+  # version of that product the PDS registry holds, and the name and type the product
+  # gives the target. A label names a target by its logical identifier, and the context
+  # collection's inventory lists it at its version. The entries are the PDS registry's
+  # answers of 2026-09-14 to GET https://pds.nasa.gov/api/search/1/products/<lid>/latest;
+  # maintaining them from the context products is #79. Every body the backplane stage
+  # looks for in a Saturn image has an entry, as a test over this file holds.
+  target_lids:
+    SATURN:
+      lid: urn:nasa:pds:context:target:planet.saturn
+      version: '1.4'
+      name: Saturn
+      type: Planet
+    ATLAS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.atlas
+      version: '1.2'
+      name: Atlas
+      type: Satellite
+    CALYPSO:
+      lid: urn:nasa:pds:context:target:satellite.saturn.calypso
+      version: '1.2'
+      name: Calypso
+      type: Satellite
+    DAPHNIS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.daphnis
+      version: '1.2'
+      name: Daphnis
+      type: Satellite
+    DIONE:
+      lid: urn:nasa:pds:context:target:satellite.saturn.dione
+      version: '1.2'
+      name: Dione
+      type: Satellite
+    ENCELADUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.enceladus
+      version: '1.2'
+      name: Enceladus
+      type: Satellite
+    EPIMETHEUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.epimetheus
+      version: '1.2'
+      name: Epimetheus
+      type: Satellite
+    HELENE:
+      lid: urn:nasa:pds:context:target:satellite.saturn.helene
+      version: '1.3'
+      name: Helene
+      type: Satellite
+    HYPERION:
+      lid: urn:nasa:pds:context:target:satellite.saturn.hyperion
+      version: '1.2'
+      name: Hyperion
+      type: Satellite
+    IAPETUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.iapetus
+      version: '1.2'
+      name: Iapetus
+      type: Satellite
+    JANUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.janus
+      version: '1.2'
+      name: Janus
+      type: Satellite
+    MIMAS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.mimas
+      version: '1.2'
+      name: Mimas
+      type: Satellite
+    PAN:
+      lid: urn:nasa:pds:context:target:satellite.saturn.pan
+      version: '1.2'
+      name: Pan
+      type: Satellite
+    PANDORA:
+      lid: urn:nasa:pds:context:target:satellite.saturn.pandora
+      version: '1.2'
+      name: Pandora
+      type: Satellite
+    PHOEBE:
+      lid: urn:nasa:pds:context:target:satellite.saturn.phoebe
+      version: '1.2'
+      name: Phoebe
+      type: Satellite
+    PROMETHEUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.prometheus
+      version: '1.2'
+      name: Prometheus
+      type: Satellite
+    RHEA:
+      lid: urn:nasa:pds:context:target:satellite.saturn.rhea
+      version: '1.2'
+      name: Rhea
+      type: Satellite
+    TELESTO:
+      lid: urn:nasa:pds:context:target:satellite.saturn.telesto
+      version: '1.2'
+      name: Telesto
+      type: Satellite
+    TETHYS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.tethys
+      version: '1.2'
+      name: Tethys
+      type: Satellite
+    TITAN:
+      lid: urn:nasa:pds:context:target:satellite.saturn.titan
+      version: '1.1'
+      name: Titan
+      type: Satellite
+    SATURN_MAIN_RINGS:
+      lid: urn:nasa:pds:context:target:ring.saturn.rings
+      version: '1.1'
+      name: Saturn Rings
+      type: Ring
