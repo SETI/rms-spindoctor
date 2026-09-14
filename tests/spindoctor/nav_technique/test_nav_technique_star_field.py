@@ -85,7 +85,17 @@ def _make_star_field_features(
 def test_detect_image_sources_finds_planted_stars(
     draw_gaussian_star: DrawGaussianStarFactory,
 ) -> None:
-    """The matched-filter detector recovers planted Gaussian peaks."""
+    """The matched-filter detector recovers planted Gaussian peaks.
+
+    The stars are planted at whole pixel centric positions on a noise-free
+    frame, so each one is symmetric about the pixel it sits on and the moment
+    centroid returns that position exactly.  The bound is what the finite
+    centroid box leaves, and is far below the half pixel that separates the
+    two coordinate systems.
+
+    Parameters:
+        draw_gaussian_star: Stamps a Gaussian source onto a frame in place.
+    """
     centers = [(50.0, 60.0), (120.0, 80.0), (200.0, 220.0)]
     image = _star_field_image(centers, draw=draw_gaussian_star)
     detected = _detect_image_sources(
@@ -100,8 +110,8 @@ def test_detect_image_sources_finds_planted_stars(
     detected_centers = sorted((s.v, s.u) for s in detected)
     expected = sorted(centers)
     for got, want in zip(detected_centers, expected, strict=True):
-        assert got[0] == pytest.approx(want[0], abs=0.5)
-        assert got[1] == pytest.approx(want[1], abs=0.5)
+        assert got[0] == pytest.approx(want[0], abs=0.01)
+        assert got[1] == pytest.approx(want[1], abs=0.01)
 
 
 def test_detect_image_sources_caps_at_max_sources(

@@ -172,7 +172,15 @@ def test_apply_shape_cuts_rejects_high_roundness() -> None:
 
 
 def test_detect_sources_finds_planted_star() -> None:
-    """A single Gaussian planted in noise is recovered with sub-pixel centroid."""
+    """A single Gaussian planted in noise is recovered with sub-pixel centroid.
+
+    The kernel is symmetric about its own middle sample, so planting it into
+    rows 20 to 26 and columns 30 to 36 puts its centre on the centre of pixel
+    ``(23, 33)``, which is the pixel centric position the centroid has to come
+    back with.  The seeded noise realisation moves it by about a thousandth of
+    a pixel, and the bound is ten times that, two orders of magnitude below
+    the half pixel that separates the two coordinate systems.
+    """
     rng = np.random.default_rng(0)
     image = rng.normal(scale=0.5, size=(50, 50)).astype(np.float64)
     star = _gaussian_kernel(7, 1.2) * 200.0
@@ -190,8 +198,8 @@ def test_detect_sources_finds_planted_star() -> None:
     )
     assert len(sources) >= 1
     best = max(sources, key=lambda s: s.peak_dn)
-    assert best.v == pytest.approx(23.0, abs=0.6)
-    assert best.u == pytest.approx(33.0, abs=0.6)
+    assert best.v == pytest.approx(23.0, abs=0.01)
+    assert best.u == pytest.approx(33.0, abs=0.01)
     assert isinstance(best, DetectedSource)
     assert best.saturated is False
 

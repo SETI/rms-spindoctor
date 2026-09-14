@@ -678,12 +678,18 @@ def test_kernel_centroid_offset_is_zero_for_a_disc() -> None:
 
 
 def test_kernel_centroid_offset_points_toward_the_bright_limb() -> None:
-    """A crescent's brightness centroid is displaced toward the sub-solar limb."""
+    """A crescent's brightness centroid is displaced toward the sub-solar limb.
+
+    The sun points along +u alone, so the crescent is mirror-symmetric in v
+    and its centroid cannot move off the kernel's own middle row at all: the
+    v bound is exact rather than approximate, and a crescent built about the
+    wrong row would fail it by however far it was built wrong.
+    """
     # Sun toward +u (right): the lit centroid sits right of the geometric center.
     kernel = _crescent_kernel(10.0, math.radians(120.0), (0.0, 1.0))
     off_v, off_u = _kernel_centroid_offset(kernel)
     assert off_u > 1.0
-    assert off_v == pytest.approx(0.0, abs=0.2)
+    assert off_v == pytest.approx(0.0, abs=1e-12)
 
 
 def test_coarse_crescent_offset_locates_a_displaced_crescent() -> None:
