@@ -132,7 +132,7 @@ Every CLI listed in ``[project.scripts]`` is installed onto ``$PATH`` by
    * - ``sd_backplane_viewer``
      - PyQt6 viewer for a backplane file.
    * - ``sd_create_bundle`` / ``sd_create_bundle_cloud_tasks``
-     - Build a PDS4 bundle from navigated images + backplanes. See
+     - Build a PDS4 bundle from navigated images + backplanes, and check one. See
        :doc:`/user_guide/user_guide_pds4_bundle` and :doc:`/dev_guide/dev_guide_pds4`.
    * - ``sd_mosaic`` / ``sd_mosaic_rings`` / ``sd_mosaic_body``
      - Reprojection drivers (rings, body, dispatcher). See

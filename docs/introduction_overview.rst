@@ -103,8 +103,8 @@ PDS4 Bundle Phase
 -----------------
 
 * ``sd_create_bundle`` - Create PDS4-compliant data bundles containing
-  navigation results, backplanes, and metadata. Supports both label generation
-  and summary creation.
+  navigation results, backplanes, and metadata. Supports label generation,
+  summary creation, and checking a bundle that has been written.
 
 Cloud Tasks Support
 ===================
