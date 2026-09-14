@@ -1,9 +1,10 @@
 """The global index tables of a PDS4 bundle, and the miscellaneous collection that holds them.
 
 The summary pass reads every supplemental file the labels pass wrote once, here, and
-builds two tables from them: one row for each body of each image the data collection
-holds, and one row for each such image with ring backplanes, each giving the image's
-exposure start and stop and the minimum and maximum every configured plane spans.  The
+builds two tables from them: one row for each body with geometry in each image the
+data collection holds, and one row for each such image with ring backplanes, each giving
+the image's exposure start and stop and the minimum and maximum every configured plane
+spans.  The
 same read takes the range of the products' epochs, which the data collection label and
 the bundle label state, and the targets the products name, which the data collection,
 bundle and metakernel labels name and the context inventory lists.

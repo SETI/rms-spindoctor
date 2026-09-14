@@ -784,8 +784,8 @@ view that shows at no pixel is named with no statistic, and is no target (Phase 
 round; Part A named it, and W1479724035 names nine bodies, seven with no pixel) -- and
 one for the rings when the metadata holds a ring statistic, each with
 the name and type its context product gives and an `Internal_Reference` to its LID of
-type `data_to_target`, in the table's order.  An image whose metadata names no body and
-holds no ring statistic has no target, which `PDS4_PDS_1O00.xsd` requires of a data
+type `data_to_target`, in the table's order.  An image whose metadata names no body with
+geometry and holds no ring statistic has no target, which `PDS4_PDS_1O00.xsd` requires of a data
 label, and its backplanes hold no geometry for a label to describe, so it is skipped,
 with one log line, before anything is written for it and before the checks that fail an
 image.  Under the provisional rule that an absent input is a skip, which #600 will
