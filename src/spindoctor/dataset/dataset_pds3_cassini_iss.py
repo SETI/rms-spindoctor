@@ -11,7 +11,7 @@ from spindoctor.config import Config
 from spindoctor.support.misc import safe_lstrip_zero
 from spindoctor.support.time import et_to_pds4_utc, pds4_utc_midpoint
 
-from .dataset import ImageFile, ImageFiles, Pds4Pass
+from .dataset import ImageFile, ImageFiles, Pds4Pass, pds4_label_name
 from .dataset_pds3 import DataSetPDS3
 
 _PDS4_TIME_DIGITS = 3
@@ -465,7 +465,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         """
         if pds4_pass == 'labels':
             return ['data.lblx', 'browse.lblx']
-        user_guide_label = Path(self.pds4_user_guide_file_name()).with_suffix('.lblx').name
+        user_guide_label = pds4_label_name(self.pds4_user_guide_file_name())
         return [
             'collection_data.lblx',
             'collection_browse.lblx',
@@ -835,6 +835,16 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
 
         Returns:
             Default bundle name.
+        """
+        raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
+
+    def pds4_user_guide_file_name(self) -> str:
+        """Returns the file name of the bundle's user guide in the template directory.
+
+        Each registered subclass names its own bundle's guide; this class names none.
+
+        Raises:
+            NotImplementedError: Always, as for the class's other PDS4 defaults.
         """
         raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
 

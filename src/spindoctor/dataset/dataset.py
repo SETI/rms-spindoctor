@@ -2,7 +2,7 @@ import argparse
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, ClassVar, Literal, cast
 
 from filecache import FCPath
@@ -14,6 +14,23 @@ Pds4Pass = Literal['labels', 'summary']
 """Which pass of PDS4 bundle generation a set of templates belongs to:
 ``labels`` for the per-image pass, ``summary`` for the collection and index
 pass."""
+
+
+def pds4_label_name(file_name: str) -> str:
+    """Return the name of the PDS4 label that describes a file, which sits beside it.
+
+    A label takes the name of the file it describes with the suffix ``.lblx``: the
+    metakernel ``kernels.ker`` is described by ``kernels.lblx``, and a user guide
+    ``guide.pdf`` by ``guide.lblx``, the name its template has in the template directory
+    too.
+
+    Parameters:
+        file_name: The described file's name, with no directory part.
+
+    Returns:
+        The label's name.
+    """
+    return PurePosixPath(file_name).with_suffix('.lblx').name
 
 
 @dataclass
@@ -293,8 +310,8 @@ class DataSet(ABC, NavBase):
 
         The summary pass copies the guide into the bundle's ``document/user_guide/``
         when the template directory holds it, and renders its label beside it from the
-        template whose name is the guide's with the suffix ``.lblx``.  When the
-        directory does not hold it, the bundle holds no guide and the pass says so.
+        template :func:`pds4_label_name` names for it.  When the directory does not
+        hold it, the bundle holds no guide and the pass says so.
 
         Returns:
             The guide's file name, relative to the template directory.
