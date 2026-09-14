@@ -1,5 +1,7 @@
 This bundle contains backplane products generated from Cassini ISS calibrated
-images, along with associated metadata and documentation.
+images, along with associated metadata and documentation. An image is included
+only when its backplanes cover Saturn, one of the satellites this bundle names,
+or Saturn's main rings; a frame of stars alone, for example, is not.
 
 The document collection contains a detailed, comprehensive User Guide which
 provides an overview of the contents of this bundle and how to use it.

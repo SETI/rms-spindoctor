@@ -456,21 +456,43 @@ def test_a_document_navigated_before_the_observation_recorded_times_fails_with_n
     assert 'records no exposure times in its observation block' in capsys.readouterr().out
 
 
-def test_an_image_whose_backplane_metadata_names_no_target_fails_with_nothing_written(
+NO_TARGET: dict[str, Any] = {'bodies': {}, 'rings': ring_metadata({})}
+"""Backplane metadata naming no body and holding no ring statistic, as a star field's.
+
+Its rings block names a ring target and an incidence angle, as the stage records them for
+every image with a closest planet, beside no ring statistic.
+"""
+
+
+def test_an_image_whose_backplanes_cover_no_target_is_skipped_with_nothing_written(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Backplanes covering no body and holding no ring statistic give no target to name.
+    """Backplanes covering no body and no rings hold nothing for a data label to describe.
 
-    PDS4 requires a data label to name a target, so the image is failed, with one line
-    saying why, before anything is written for it.  The ring target its metadata names
-    beside no ring statistic is not one, since there are no ring backplanes to describe.
+    The image is skipped, with one line saying why, before anything is written for it.
+    The ring target its metadata names beside no ring statistic is not a target, since
+    there are no ring backplanes to describe.
     """
     env = make_bundle_env(tmp_path)
-    write_nav_inputs(env, backplane_metadata={'bodies': {}, 'rings': ring_metadata({})})
+    write_nav_inputs(env, backplane_metadata=NO_TARGET)
     outcome = _generate(env)
-    assert outcome is BundleDataOutcome.FAILED
+    assert outcome is BundleDataOutcome.SKIPPED
     assert not env.bundle_dir.exists()
-    assert 'so its data label has no target to name' in capsys.readouterr().out
+    expected = 'its backplanes hold no body and no ring, so there is nothing for its data label'
+    assert expected in capsys.readouterr().out
+
+
+def test_an_image_covering_no_target_is_skipped_whatever_its_navigation_document_records(
+    tmp_path: Path,
+) -> None:
+    """An image with nothing to describe is skipped though an earlier version navigated it.
+
+    Nothing would be written for it however its document were read, so navigating it
+    again, which the failure asks for, would change nothing.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, nav_extra=EARLIER_VERSION_DOCUMENT, backplane_metadata=NO_TARGET)
+    assert _generate(env) is BundleDataOutcome.SKIPPED
 
 
 def test_ring_statistics_with_no_incidence_angle_fail_the_image_with_nothing_written(

@@ -141,7 +141,10 @@ does not count against the run: an image with no navigation metadata document,
 an image whose navigation status is not ``success``, and a navigated image with
 no backplane metadata document are all cases of a selection naming more images
 than the bundle covers, which is the ordinary state of a selection made by
-volume.  An error raised while one image is processed is logged with its
+volume.  So is an image whose backplane metadata names no body and holds no ring
+statistic, as a star field's does (see `Targets and the ring geometry`_): it is
+skipped before any check that fails an image, since nothing would be written for
+it however those came out.  An error raised while one image is processed is logged with its
 traceback naming the image, counts the image against the run, and the run
 carries on to the next one.
 
@@ -606,8 +609,12 @@ list and ring target.
 
 ``data.lblx`` names an image's targets, handed to it as ``TARGETS``, one
 ``Target_Identification`` each, with a ``data_to_target`` reference.  PDS4 requires a
-data label to name one at least, so the labels pass fails an image whose backplane
-metadata names none, before anything is written for it.  The summary pass takes the
+data label to name one at least.  An image whose backplane metadata names none -- no
+body, and no ring statistic -- has no geometry for a data label to describe, so the
+labels pass skips it before anything is written for it, logging why, and
+:func:`~spindoctor.cli.pds4.targets.covers_a_target` decides it without reading a
+ring target, which backplanes an earlier version generated do not record.  The summary
+pass takes the
 targets of the data collection's members in its one read of the supplemental files, by a
 :class:`~spindoctor.cli.pds4.targets.TargetScan`, as it takes the range of their epochs,
 and :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns them in

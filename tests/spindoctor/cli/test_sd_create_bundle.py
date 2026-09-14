@@ -13,6 +13,7 @@ generation they read.
 """
 
 import argparse
+import json
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any, cast
@@ -384,6 +385,38 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
         '1 whose labels were not written'
     )
     assert expected in out
+
+
+def test_a_labels_run_skips_an_image_whose_backplanes_cover_no_target_and_exits_zero(
+    labels_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A navigated image with nothing in its backplanes is skipped, and the run succeeds.
+
+    Its navigation succeeded and recorded its exposure, and its backplanes name no body
+    and hold no ring statistic, as a star field's do.  The generation runs for real: the
+    image is counted as skipped, nothing is written into the bundle, and the run ends
+    without an exit status of its own, which is 0.
+
+    Parameters:
+        labels_run: Fixture standing the subcommand up on stubs.
+        monkeypatch: Fixture the one-image enumeration is installed through.
+        tmp_path: Base temporary directory served as every results root.
+        capsys: Fixture the closing report is read from.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', stub_dataset(tmp_path, base_dir=tmp_path))
+    stub = tmp_path / 'res' / batch_image_name(0, 0)
+    stub.parent.mkdir(parents=True)
+    navigation = {'status': 'success', 'observation': {'start_time_et': 0.0, 'end_time_et': 1.0}}
+    Path(f'{stub}_metadata.json').write_text(json.dumps(navigation), encoding='utf-8')
+    Path(f'{stub}_backplane_metadata.json').write_text(
+        json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
+    )
+    sd_create_bundle.main_labels()
+    assert 'Label generation complete: 0 image(s) labeled, 1 skipped' in capsys.readouterr().out
+    assert not (tmp_path / BUNDLE_NAME).exists()
 
 
 @pytest.fixture
