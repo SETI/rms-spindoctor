@@ -28,6 +28,7 @@ from spindoctor.cli.pds4.bundle_products import generate_bundle_products
 from spindoctor.cli.pds4.check import check_bundle
 from spindoctor.cli.pds4.collections import generate_collection_files
 from spindoctor.cli.pds4.global_index import generate_global_index_files
+from spindoctor.cli.pds4.image_inputs import report_image_inputs
 from spindoctor.config import (
     DEFAULT_CONFIG,
     MAIN_LOGGER,
@@ -147,11 +148,20 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
 
     # Output
     output_group = cmdparser.add_argument_group('Output')
-    output_group.add_argument(
+    modes = output_group.add_mutually_exclusive_group()
+    modes.add_argument(
         '--dry-run',
         action='store_true',
         default=False,
         help="Don't process images, just print what would be done",
+    )
+    modes.add_argument(
+        '--check-only',
+        action='store_true',
+        default=False,
+        help="""Write nothing: report, for each selected image, whether its navigation
+        document, summary PNG, backplane FITS and backplane metadata exist and whether
+        its navigation succeeded, and exit 1 if any selected image is incomplete""",
     )
 
     # Dataset selection
@@ -245,6 +255,45 @@ def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
         return False
 
 
+def _report_inputs(arguments: argparse.Namespace) -> None:
+    """Report what each selected image has of the files the labels pass reads.
+
+    Prints one line for each image of every batch the selection enumerates -- whether its
+    navigation document, summary PNG, backplane FITS and backplane metadata exist, and
+    whether its navigation succeeded -- and then a count.  It writes nothing: no label, no
+    log, and no bundle root, which it neither needs nor creates.
+
+    Parameters:
+        arguments: The labels subcommand's parsed arguments.
+
+    Raises:
+        SystemExit: With status 1 when any selected image lacks one of the four files or
+            its navigation did not succeed.
+    """
+    assert DATASET is not None
+    nav_results_root = FCPath(get_nav_results_root(arguments, DEFAULT_CONFIG))
+    backplane_results_root = FCPath(get_backplane_results_root(arguments, DEFAULT_CONFIG))
+    selected = 0
+    incomplete = 0
+    for imagefiles in DATASET.yield_image_files_from_arguments(arguments):
+        for image_file in imagefiles.image_files:
+            report = report_image_inputs(
+                image_file,
+                nav_results_root=nav_results_root,
+                backplane_results_root=backplane_results_root,
+            )
+            print(report.line())
+            selected += 1
+            if not report.complete:
+                incomplete += 1
+    print(
+        f'Input check: {selected} image(s) selected, {selected - incomplete} complete, '
+        f'{incomplete} incomplete'
+    )
+    if incomplete > 0:
+        sys.exit(1)
+
+
 def main_labels() -> None:
     """Main function for labels subcommand.
 
@@ -255,6 +304,9 @@ def main_labels() -> None:
     bundle root must be empty or absent: a bundle is written into an empty
     directory rather than assembled out of two runs.  A dry run is refused the
     same way, because what it reports on is a run that would be.
+
+    With ``--check-only`` the run checks neither: it reports on each selected image's
+    inputs, as :func:`_report_inputs` describes, and writes nothing.
     """
     command_list = sys.argv[2:]  # Skip 'labels'
     arguments = parse_args_labels(command_list)
@@ -262,6 +314,11 @@ def main_labels() -> None:
     # Read configuration files
     with reporting_configuration_errors():
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
+
+    if arguments.check_only:
+        # A report on the inputs writes nothing, not even a log, and has no bundle root.
+        _report_inputs(arguments)
+        return
 
     with reporting_configuration_errors():
         build_run_logging(PROGRAM_NAME, arguments, DEFAULT_CONFIG)
