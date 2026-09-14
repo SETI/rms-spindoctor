@@ -5,6 +5,8 @@ directory of shipped schemas, and a label declaring it, so that the one rule of 
 evaluator a test is about is the only thing that decides its outcome.
 """
 
+import locale
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -156,6 +158,38 @@ def test_a_label_declaring_a_schematron_the_package_does_not_ship_is_a_finding(
         f'declares the Schematron {url}, of which the package ships no copy',
     )
     assert schematron_findings('label.lblx', parse(label)) == [expected]
+
+
+@pytest.fixture
+def collating_locale() -> Iterator[None]:
+    """Collate strings by a language's rules for one test, as a Qt application leaves a process.
+
+    Yields:
+        Nothing; the collation in force before the test is restored after it.
+    """
+    before = locale.setlocale(locale.LC_COLLATE)
+    try:
+        locale.setlocale(locale.LC_COLLATE, 'en_US.UTF-8')
+    except locale.Error:
+        pytest.skip('this machine has no en_US.UTF-8 locale to collate strings by')
+    try:
+        yield
+    finally:
+        locale.setlocale(locale.LC_COLLATE, before)
+
+
+def test_a_substring_test_compares_code_points_whatever_the_locale(
+    collating_locale: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``contains`` and ``starts-with`` compare code points, XPath's default, not by the locale."""
+    rules = (
+        '<sch:pattern><sch:rule context="x:b">'
+        '<sch:let name="prefix" value="\'urn:nasa:pds:\'"/>'
+        '<sch:assert test="contains(\'(urn:nasa:pds:, urn:esa:psa:)\', $prefix)">in</sch:assert>'
+        '<sch:assert test="starts-with(@lid, $prefix)">starts</sch:assert>'
+        '</sch:rule></sch:pattern>'
+    )
+    assert _evaluate(tmp_path, monkeypatch, rules, '<x:b lid="urn:nasa:pds:bundle"/>') == []
 
 
 @pytest.mark.parametrize(
