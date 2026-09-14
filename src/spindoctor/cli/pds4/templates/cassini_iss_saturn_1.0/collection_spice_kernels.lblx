@@ -123,7 +123,16 @@
             <purpose>Observation Geometry</purpose>
             <processing_level>Derived</processing_level>
         </Primary_Result_Summary>
-        <!-- TODO Need to add targets here -->
+        $FOR(target=TARGETS)
+        <Target_Identification>
+            <name>$target.name$</name>
+            <type>$target.target_type$</type>
+            <Internal_Reference>
+                <lid_reference>$target.lid$</lid_reference>
+                <reference_type>collection_to_target</reference_type>
+            </Internal_Reference>
+        </Target_Identification>
+        $END_FOR
     </Context_Area>
     <Collection>
         <collection_type>SPICE Kernel</collection_type>

@@ -164,13 +164,14 @@ def test_the_data_label_of_an_image_with_two_bodies_names_both(
         ('bundle.lblx', 'bundle_to_target'),
         ('data/collection_data.lblx', 'collection_to_target'),
         ('spice_kernels/kernels.lblx', 'data_to_target'),
+        ('spice_kernels/collection_spice_kernels.lblx', 'collection_to_target'),
     ],
-    ids=['bundle', 'data collection', 'metakernel'],
+    ids=['bundle', 'data collection', 'metakernel', 'kernel collection'],
 )
 def test_a_run_level_label_names_every_target_the_data_labels_name(
     cassini_cohort: Cohort, tmp_path: Path, label: str, reference_type: str
 ) -> None:
-    """The bundle, data collection and metakernel labels each name the cohort's targets.
+    """The bundle, the data and SPICE kernel collections and the metakernel name the targets.
 
     Every target a data label names, each once, in the targets table's order, with the
     reference type the Schematron allows under that kind of product's context area.

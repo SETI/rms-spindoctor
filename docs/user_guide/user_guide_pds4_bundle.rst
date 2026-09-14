@@ -389,8 +389,8 @@ The summary pass generates:
   says so. When its label cannot be written, the bundle has no SPICE kernel collection
   and no bundle label, and the pass exits 1.
 
-The data collection label, the bundle label and the metakernel label each name every
-target the bundle's data labels name, once each. The document and miscellaneous
+The data collection label, the SPICE kernel collection label, the bundle label and the
+metakernel label each name every target the bundle's data labels name, once each. The document and miscellaneous
 collections list no target, since none of their labels names one.
 
 * **User Guide**: the bundle's user guide, a PDF, copied into ``document/user_guide/``

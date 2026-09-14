@@ -391,7 +391,8 @@ def generate_bundle_products(
     - For each of the context, document, SPICE kernel and XML schema collections, the
       inventory ``collection_<name>.csv`` is written into the collection's directory
       and the label ``collection_<name>.lblx`` rendered beside it, handed the
-      inventory's path as ``COLLECTION_<NAME>_CSV_PATH``.  Each inventory is the
+      inventory's path as ``COLLECTION_<NAME>_CSV_PATH`` and the products' targets as
+      ``TARGETS``, which the SPICE kernel collection's label names.  Each inventory is the
       template directory's, as it is, except that its primary members, the products of
       this bundle it lists as ``P`` -- the user guide in the document collection, the
       metakernel in the SPICE kernel collection -- are listed only when their labels
@@ -491,8 +492,9 @@ def generate_bundle_products(
         'xml_schema': True,
     }
     # The context collection cites every target the data labels name, beside the context
-    # products the template directory ships; no label of another static collection names
-    # a target, so no other inventory lists one.
+    # products the template directory ships.  No other inventory lists one: no document or
+    # XML schema label names a target, and the SPICE kernel inventory, whose labels do,
+    # lists its own product alone, as the data inventory does.
     cited_targets: dict[str, Sequence[Pds4Target]] = {
         'context': targets,
         'document': (),
@@ -527,7 +529,10 @@ def generate_bundle_products(
             continue
         inventory.write_bytes(content)
         logger.info('Generated "%s": %s', inventory.name, inventory)
-        inventory_vars = {f'COLLECTION_{name.upper()}_CSV_PATH': inventory.as_posix()}
+        inventory_vars = {
+            f'COLLECTION_{name.upper()}_CSV_PATH': inventory.as_posix(),
+            'TARGETS': targets,
+        }
         if not _render(template_dir, label, inventory_vars, logger=logger):
             failed_labels += 1
 
