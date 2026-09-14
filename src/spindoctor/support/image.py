@@ -617,7 +617,7 @@ def apply_linear_gamma_stretch(
             ``white <= black`` (including accidental UI equality), ``white`` is
             raised silently to the next representable float above ``black`` so
             the linear scale denominator is never zero.
-        gamma: Exponent applied after linear normalisation; must be finite and
+        gamma: Exponent applied after linear normalization; must be finite and
             strictly greater than zero.
 
     Returns:

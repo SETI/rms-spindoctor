@@ -192,7 +192,7 @@ class ObsSim(ObsSnapshotInst):
         consulted, so a scene that plants noise different from the published
         values produces an honestly-wrong detection limit, which is desired model
         error, not a defect.  Keeping this physical matters beyond the faint-star
-        gate: the star NavModel synthesises each STAR feature's predicted SNR
+        gate: the star NavModel synthesizes each STAR feature's predicted SNR
         (and from it the CRLB position covariance and reliability score) from how
         far the star sits above this limit, so an arbitrarily permissive
         placeholder inflates every simulated star's SNR by tens of orders of

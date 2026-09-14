@@ -117,7 +117,7 @@ def matched_filter_image(image: NDArrayFloatType, *, kernel: NDArrayFloatType) -
     """Return the matched-filter response of ``image`` against ``kernel``.
 
     Implements the standard DAOPHOT matched filter: subtract the
-    kernel mean, normalise to unit-energy, and convolve.  The peak
+    kernel mean, normalize to unit-energy, and convolve.  The peak
     amplitude at each pixel is then the linear-least-squares estimate
     of the signal scale at that location.
 
@@ -213,7 +213,7 @@ def centroid_gaussian_fit(
         box: Square detection box, ``(2N+1, 2N+1)``.
 
     Returns:
-        ``(dv, du)`` offset in pixels from the centre of ``box``.
+        ``(dv, du)`` offset in pixels from the center of ``box``.
     """
     if box.ndim != 2 or box.shape[0] != box.shape[1] or box.shape[0] % 2 == 0:
         raise ValueError(f'centroid box must be square odd; got shape {box.shape}')
@@ -243,7 +243,7 @@ def centroid_saturated(
     information is in the annulus around the saturated core where the
     PSF wings are still linear.  This routine computes the
     brightness-weighted moment of pixels whose DN is below
-    ``full_well_dn`` and whose distance from the box centre lies in
+    ``full_well_dn`` and whose distance from the box center lies in
     ``[half_width_inner, half_width_outer]``.
 
     Parameters:
@@ -254,7 +254,7 @@ def centroid_saturated(
         half_width_outer: Outer radius of the annulus (in pixels).
 
     Returns:
-        ``(dv, du)`` offset in pixels from the centre of ``box``.
+        ``(dv, du)`` offset in pixels from the center of ``box``.
     """
     if half_width_inner < 0 or half_width_outer <= half_width_inner:
         raise ValueError(
@@ -284,8 +284,8 @@ def _sharpness_roundness(
 ) -> tuple[float, float]:
     """Return DAOPHOT sharpness and roundness for a small detection box.
 
-    ``sharpness = (peak - mean(neighbours)) / peak`` measures how much
-    the central pixel dominates its neighbours.  ``roundness`` is the
+    ``sharpness = (peak - mean(neighbors)) / peak`` measures how much
+    the central pixel dominates its neighbors.  ``roundness`` is the
     signed fractional difference between the box's two marginal
     Gaussian widths; it points to bloom or one-axis trails when its
     absolute value exceeds ``DAOPHOT_DEFAULT_ROUNDNESS_BOUND``.
@@ -299,12 +299,12 @@ def _sharpness_roundness(
     if box.ndim != 2 or box.shape[0] != box.shape[1] or box.shape[0] % 2 == 0:
         raise ValueError(f'shape-cut box must be square odd; got shape {box.shape}')
     n = (box.shape[0] - 1) // 2
-    centre = float(box[n, n])
-    if centre <= 0.0:
+    center = float(box[n, n])
+    if center <= 0.0:
         return 0.0, 0.0
-    neighbour_sum = float(np.sum(box) - centre)
+    neighbour_sum = float(np.sum(box) - center)
     neighbour_count = box.size - 1
-    sharp = (centre - neighbour_sum / neighbour_count) / centre
+    sharp = (center - neighbour_sum / neighbour_count) / center
     col_marginal = np.sum(box, axis=0)
     row_marginal = np.sum(box, axis=1)
     col_var = _marginal_variance(col_marginal)
@@ -316,7 +316,7 @@ def _sharpness_roundness(
 
 
 def _marginal_variance(profile: NDArrayFloatType) -> float:
-    """Return the variance of a 1-D marginal profile around its centre."""
+    """Return the variance of a 1-D marginal profile around its center."""
     profile = np.asarray(profile, dtype=np.float64)
     n = (profile.size - 1) // 2
     coords = np.arange(-n, n + 1, dtype=np.float64)

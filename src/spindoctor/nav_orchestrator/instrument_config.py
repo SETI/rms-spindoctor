@@ -27,7 +27,7 @@ __all__ = [
 
 
 DataUnits = Literal['raw_dn', 'calibrated_if']
-"""The two recognised per-instrument data-unit kinds.
+"""The two recognized per-instrument data-unit kinds.
 
 ``raw_dn`` instruments expose pixels in raw analog-to-digital counts; their
 saturation, blank, and noise thresholds are quoted in DN.  ``calibrated_if``
@@ -48,7 +48,7 @@ class InstrumentSettings:
         marker_value: Missing-data sentinel value (``0`` for most raw
             instruments; ``NaN`` for calibrated-IF).
         thresholds: Image-quality thresholds for the classifier.  All
-            values normalised to the appropriate units (DN for
+            values normalized to the appropriate units (DN for
             ``raw_dn``, I/F for ``calibrated_if``).
         fit_camera_rotation: Per-camera flag enabling 3-DoF technique
             fits.
@@ -114,7 +114,7 @@ def instrument_settings_from_obs(obs: Any) -> InstrumentSettings:
 
     Raises:
         ValueError: If ``inst_config`` is supplied but missing
-            required fields, or carries an unrecognised ``data_units``
+            required fields, or carries an unrecognized ``data_units``
             value.
     """
     inst_config = getattr(obs, 'inst_config', None)

@@ -126,7 +126,7 @@ that silhouette, so at or below this phase the disc template runs.  Above it
 the sunlit region is a thin crescent whose bright pixels sit a fraction of a
 radius off the body center: a disc template locks onto the crescent arc
 rather than the center, so the technique instead correlates a crescent
-template synthesised at the body's phase and sub-solar direction (see
+template synthesized at the body's phase and sub-solar direction (see
 :func:`_crescent_kernel`).  When that direction is unknown -- a body absent
 its illumination geometry -- the high-phase blob keeps its predicted bbox
 (no relocation) and relies on the brightness-weighted centroid's existing
@@ -140,7 +140,7 @@ def _disc_kernel(radius_px: float) -> NDArrayFloatType:
 
     The kernel is the blob-shaped template the coarse acquisition correlates
     against the observed signal: a disc whose response, convolved with the
-    lit-signal image, peaks where a body-sized bright region is best centred.
+    lit-signal image, peaks where a body-sized bright region is best centered.
     """
     r = max(math.ceil(radius_px), 1)
     yy, xx = np.mgrid[-r : r + 1, -r : r + 1]
@@ -153,7 +153,7 @@ def _crescent_kernel(
 ) -> NDArrayFloatType:
     """Return a Lambertian-crescent matched-filter kernel.
 
-    Synthesises the expected lit silhouette of a sphere of the predicted
+    Synthesizes the expected lit silhouette of a sphere of the predicted
     radius at the given phase, illuminated from the image-plane direction
     ``sub_solar_dir_vu`` -- the template the coarse acquisition correlates
     when a body is past half phase.  Each pixel inside the projected disc
@@ -215,11 +215,11 @@ def _coarse_correlation_offset(
     finds the body anywhere in the window even when SPICE mis-predicts it by
     tens of pixels.  The kernel is flipped before the FFT convolution so the
     operation is a correlation -- the peak lands where the template's geometric
-    centre best overlaps the body.
+    center best overlaps the body.
 
     ``predicted_center_vu`` is the predicted *brightness* centroid (the lit
     centroid the feature carries), which on a crescent sits off the geometric
-    centre.  The correlation peak is the body's geometric centre, so the
+    center.  The correlation peak is the body's geometric center, so the
     kernel's own brightness-centroid offset is added back: the returned shift
     maps the predicted lit centroid onto the observed lit centroid, matching
     the residual the caller forms against ``predicted_center_vu``.  For a
@@ -228,10 +228,10 @@ def _coarse_correlation_offset(
     Parameters:
         image_signal: ``(H, W)`` lit signal (image minus background, clipped
             at zero, sky-masked), in extfov coordinates.
-        kernel: Odd-sized matched-filter template centred on its middle pixel.
+        kernel: Odd-sized matched-filter template centered on its middle pixel.
         predicted_center_vu: Predicted body lit centroid in extfov coordinates.
         margin_vu: ``(margin_v, margin_u)`` search half-window about the
-            predicted centre.
+            predicted center.
 
     Returns:
         ``(dv, du)`` integer bbox shift (observed minus predicted lit
@@ -266,7 +266,7 @@ def _kernel_centroid_offset(kernel: NDArrayFloatType) -> tuple[float, float]:
     Zero for a symmetric template (a filled disc); for a crescent it is the
     lit-centroid displacement toward the bright limb, which
     :func:`_coarse_correlation_offset` adds back so the recovered shift is in
-    terms of the lit centroid rather than the geometric centre.
+    terms of the lit centroid rather than the geometric center.
     """
     total = float(kernel.sum())
     if total <= 0.0:
@@ -457,7 +457,7 @@ def _collect_per_blob_residuals(
         # matched-filter template of the predicted lit silhouette to find the
         # body across the full window.  A filled disc models that silhouette
         # while the body is at least half-lit; past half phase a crescent
-        # template synthesised at the body's sub-solar direction is needed,
+        # template synthesized at the body's sub-solar direction is needed,
         # since a disc locks onto the off-center crescent arc.  When the
         # crescent's direction is unknown the high-phase blob keeps its
         # predicted bbox (see _COARSE_CORRELATION_MAX_PHASE_DEG).

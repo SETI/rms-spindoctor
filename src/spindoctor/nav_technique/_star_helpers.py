@@ -121,7 +121,7 @@ class SimilarityFit:
     Maps a catalog point ``c`` to ``R(theta) @ c + translation`` in the
     image (``v, u``) frame — i.e. ``translation_vu`` is the global-frame
     translation, *not* a pivot-relative offset.  ``pivot_vu`` reports
-    the weighted catalog centroid the SVD was centred on so callers can
+    the weighted catalog centroid the SVD was centered on so callers can
     recover the equivalent pivot-relative form
     ``t_pivot = translation_vu + (R - I) @ pivot_vu`` when they need
     the rotation expressed about that pivot.
@@ -156,7 +156,7 @@ def similarity_transform_fit(
     """Solve the weighted Kabsch / orthogonal-Procrustes problem.
 
     Returns the ``(rotation, translation)`` that maps the catalog point
-    cloud onto the detection point cloud minimising the weighted squared
+    cloud onto the detection point cloud minimizing the weighted squared
     residual sum.  The fit is rigid (no scale): the SVD's middle
     diagonal is replaced with ``diag(1, det(U @ Vt))`` so the result is
     a proper rotation even when one cohort happens to be a mirror image
@@ -273,7 +273,7 @@ def local_centroid(
 
     Parameters:
         image_ext: 2-D extfov image array.
-        predicted_vu_pos: ``(v, u)`` prediction at the centre of the
+        predicted_vu_pos: ``(v, u)`` prediction at the center of the
             search window.
         search_window_px: Half-width of the search window in pixels.
         centroid_box_half_px: Half-width of the centroid-fit box in
@@ -285,7 +285,7 @@ def local_centroid(
 
     Returns:
         ``(centroid, peak_dn)`` where ``centroid`` is the
-        ``(v, u)`` sub-pixel centre or ``None`` if no peak cleared
+        ``(v, u)`` sub-pixel center or ``None`` if no peak cleared
         the threshold.  ``peak_dn`` is the brightest DN in the search
         window regardless of whether the peak was accepted (handy for
         diagnostics).
@@ -346,7 +346,7 @@ def detection_peak_ratio(
 
     Parameters:
         image_ext: 2-D extfov image array.
-        predicted_vu_pos: ``(v, u)`` prediction at the centre of the
+        predicted_vu_pos: ``(v, u)`` prediction at the center of the
             search window (same value passed to :func:`local_centroid`).
         detection_vu: The accepted detection centroid whose surrounding
             ``exclude_half_px`` box (the source's own pixels) is removed

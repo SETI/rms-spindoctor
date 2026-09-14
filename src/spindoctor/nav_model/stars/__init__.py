@@ -1,13 +1,13 @@
 """Catalog-driven star NavModel package.
 
-The package is organised as a small set of helper modules around a thin
+The package is organized as a small set of helper modules around a thin
 orchestrator class:
 
 - ``catalog`` — multi-catalog reduction, stellar aberration, proper
   motion, FOV projection, dedup.
 - ``conflicts`` — body and ring occlusion checks for catalog stars.
 - ``predicted_snr`` — per-star integrated-SNR estimate plus the
-  ``SCLASS_TO_B_MINUS_V`` spectral-class colour lookup.
+  ``SCLASS_TO_B_MINUS_V`` spectral-class color lookup.
 - ``smeared_psf`` — smear-aware PSF rendering and per-image smear vector.
 - ``detection`` — DAOPHOT-style source detection (matched filter,
   centroid fit, shape cuts) used by downstream techniques.

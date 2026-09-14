@@ -93,9 +93,9 @@ def _zero_padded_shift(
     padding on the boundary.
 
     Equivalent to ``np.roll`` but drops out-of-bounds pixels rather than
-    wrapping them to the opposite edge — the wrapping behaviour is wrong
+    wrapping them to the opposite edge — the wrapping behavior is wrong
     for body / ring templates whose support sits anywhere off the array
-    centre, because rotation about a pivot followed by a shift back
+    center, because rotation about a pivot followed by a shift back
     would otherwise smear template content into the diametrically
     opposite corner of the image.
 
@@ -128,7 +128,7 @@ def _rotate_template(
 
     Uses :func:`scipy.ndimage.rotate` followed by a zero-padded translate
     that re-centres the rotation pivot — ``ndimage.rotate`` rotates about
-    the array centre, so we shift the array so the pivot is at the centre,
+    the array center, so we shift the array so the pivot is at the center,
     rotate, then shift back.  Both shifts use :func:`_zero_padded_shift`
     rather than ``np.roll`` so out-of-bounds pixels are dropped instead of
     wrapping to the opposite edge (a wrap would smear template content
@@ -182,8 +182,8 @@ def _composite_pivot_vu(features: list[NavFeature]) -> tuple[float, float]:
 
     The composite template is the union of every body's per-body template
     painted into ext-FOV coordinates; the natural rotation pivot is the
-    centroid of the bodies' predicted centres in that same frame.  A
-    single-body composite reduces to that body's predicted centre.
+    centroid of the bodies' predicted centers in that same frame.  A
+    single-body composite reduces to that body's predicted center.
 
     The centers are extfov pixel centric, which is the system
     :func:`_rotate_template` states the array's own center in, so the shift
@@ -199,12 +199,12 @@ def _composite_pivot_vu(features: list[NavFeature]) -> tuple[float, float]:
         raise ValueError(
             '_composite_pivot_vu requires at least one BODY_DISC feature; got an empty list'
         )
-    centres = [
+    centers = [
         feat.geometry.predicted_center_vu  # type: ignore[union-attr]
         for feat in features
     ]
-    cv = sum(c[0] for c in centres) / len(centres)
-    cu = sum(c[1] for c in centres) / len(centres)
+    cv = sum(c[0] for c in centers) / len(centers)
+    cu = sum(c[1] for c in centers) / len(centers)
     return float(cv), float(cu)
 
 
@@ -509,9 +509,9 @@ class BodyDiscCorrelateNav(NavTechnique):
           ``2 * max_rotation_deg / 10`` deg, which is exactly 1 deg at
           the default ``max_rotation_deg = 5``).  Pick the rotation with
           the highest NCC peak quality.
-        * Level 1 — 5 samples in 0.5 deg steps centred on the level-0
+        * Level 1 — 5 samples in 0.5 deg steps centered on the level-0
           winner.  Pick the new winner.
-        * Level 2 — 3 samples in 0.25 deg steps centred on the level-1
+        * Level 2 — 3 samples in 0.25 deg steps centered on the level-1
           winner.  The peak's local quality curvature feeds the rotation
           uncertainty estimate.
 
@@ -540,7 +540,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             upsample_factor=upsample_factor,
             consistency_tol=consistency_tol,
         )
-        # Level 1: 5 samples in 0.5 deg steps centred on the level-0 winner,
+        # Level 1: 5 samples in 0.5 deg steps centered on the level-0 winner,
         # clamped to the configured ``+-max_rotation_deg`` cap so the
         # outer-loop search never proposes a rotation outside the
         # operator-supplied envelope.
@@ -564,7 +564,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             upsample_factor=upsample_factor,
             consistency_tol=consistency_tol,
         )
-        # Level 2: 3 samples in 0.25 deg steps centred on the level-1
+        # Level 2: 3 samples in 0.25 deg steps centered on the level-1
         # winner, again clamped to the cap.
         step_l2 = math.radians(0.25)
         l2_thetas = [

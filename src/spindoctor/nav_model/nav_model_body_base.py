@@ -302,7 +302,7 @@ class NavModelBodyBase(NavModel):
         if not math.isfinite(phase_angle_deg):
             phase_angle_deg = 0.0
         # Clamp to the BodyBlobFlags valid range; phase outside [0, 180]
-        # is a corner-case artefact, never a physical value.
+        # is a corner-case artifact, never a physical value.
         phase_angle_deg = max(0.0, min(180.0, phase_angle_deg))
         phase_irregularity_factor = self._phase_irregularity_factor(shape, phase_angle_deg)
         sigma_irregular_px = phase_irregularity_factor * (self._predicted_diameter_px / 2.0)

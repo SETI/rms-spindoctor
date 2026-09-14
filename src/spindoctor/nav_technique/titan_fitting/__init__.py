@@ -5,7 +5,7 @@ doi:10.1029/2024GL113415) exploits two properties of a cloud-free hazy
 atmosphere.  Absent surface detail the disc is mirror-symmetric about the
 image-plane line through the body center and the sub-solar point, so the
 image displacement perpendicular to that line ("cross-track") is the shift
-that maximises mirror symmetry.  The limb arc facing the sub-solar point is
+that maximizes mirror symmetry.  The limb arc facing the sub-solar point is
 close to circular, so a circle fit with FREE radius to that arc pins the
 displacement along the line ("along-track") without assuming a haze
 altitude.  Together the two constraints give a full ``(dv, du)`` offset.

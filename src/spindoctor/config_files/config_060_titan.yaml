@@ -33,7 +33,7 @@ titan:
     # quarter used -- a 1001-square box strides by 2 and samples 251001 --
     # so everything below is quoted for the estimate and again at twice it.
     # The pixel the stride locates is the sub-solar point on the solid body,
-    # r_solid * sin(phase) from the centre (the limb, r_solid, above 90
+    # r_solid * sin(phase) from the center (the limb, r_solid, above 90
     # degrees of phase), so the axis quantizes by about
     # 2 * (r_env / r_solid) / (sqrt(cap) * sin(phase)) radians. The ratio is
     # 1.27 under the 700 km atmosphere above, so a million samples is 0.15
@@ -110,7 +110,7 @@ titan:
     arc:
       # Widened from 60 deg on real-frame evidence.  The sunward-sector
       # circle fit determines the limb position (d + R) far better than it
-      # separates the centre shift d from the radius R, and the variance
+      # separates the center shift d from the radius R, and the variance
       # that degeneracy adds to d falls by a factor of 3.5 between a 60 deg
       # and an 80 deg half-sector.  It matters because the haze top is
       # expected to be wavelength-dependent (a prior, not something the

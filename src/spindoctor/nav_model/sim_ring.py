@@ -83,7 +83,7 @@ def _border_from_signed_distance(diff: NDArrayFloatType) -> NDArrayBoolType:
 
     A pixel joins the border when its sign differs from a 4-neighbor's and
     it is at least as close to the zero crossing (mirroring the historical
-    border-atop rasterisation, so predicted edges keep their established
+    border-atop rasterization, so predicted edges keep their established
     1-pixel sampling).
 
     Parameters:
