@@ -504,15 +504,29 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
     assert rows[1][3] == '125001.0'
 
 
-def test_no_supplemental_files_writes_header_only_indexes(tmp_path: Path) -> None:
-    """With no supplemental file in the data directory, header-only tables are written."""
+def test_an_index_table_no_image_gives_a_row_is_left_out(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A table with no row is not written, nor its label, and nothing is counted against the run.
+
+    A table's label states its records, and the PDS4 schema requires at least one, so no
+    label can describe an empty table.  A bundle holding no image with ring backplanes is
+    a real state rather than a fault, so the run says so at info level and fails nothing.
+    The bodies table, which has a row, is written with its label.
+    """
     env = _index_env(tmp_path)
-    (env.bundle_dir / 'data').mkdir(parents=True)
-    _run_global_index(env)
-    bodies_rows = read_csv_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
-    assert len(bodies_rows) == 1
-    rings_rows = read_csv_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
-    assert len(rings_rows) == 1
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    failed = _run_global_index(env)
+    assert failed == 0
+    written = sorted(path.name for path in (env.bundle_dir / 'miscellaneous').iterdir())
+    assert written == ['global_bodies_index.lblx', 'global_bodies_index.tab']
+    reports = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if 'global_rings_index.tab was not written' in line
+    ]
+    assert len(reports) == 1
+    assert '| INFO |' in reports[0]
 
 
 def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
