@@ -6,18 +6,20 @@ primary HDU, an int32 BODY_ID_MAP as the first image HDU (emitted only when some
 pixel has a non-zero ID), and one float32 ImageHDU per non-all-zero backplane with
 BUNIT taken from the per-backplane config units.  A sidecar
 ``<stub>_backplane_metadata.json`` carries per-body inventory information and
-per-backplane statistics.
+per-backplane statistics, taken from the merged planes the FITS holds.
 """
 
 import json
+import math
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
 from astropy.io import fits
 from filecache import FCPath
 
+from spindoctor.cli.backplanes.merge import body_naif_id, merge_sources_into_master
 from spindoctor.cli.backplanes.writer import write_fits
 
 from .conftest import (
@@ -300,8 +302,18 @@ def test_write_fits_sidecar_path_naming(tmp_path: Path) -> None:
     assert sidecar.exists()
 
 
-def _moon_a_setup() -> tuple[HermeticObs, dict[str, Any]]:
-    """Build a simulated snapshot with a MOON_A inventory and its bodies_result."""
+def _moon_a_metadata(tmp_path: Path) -> dict[str, Any]:
+    """Write the products of a simulated frame showing MOON_A, and read back its sidecar.
+
+    MOON_A has an inventory entry and claims a block of the body identity map, where the
+    body latitude plane holds -10 degrees and, at one pixel, 25 degrees, in radians.
+
+    Parameters:
+        tmp_path: Directory receiving the outputs.
+
+    Returns:
+        The backplane metadata document the writer wrote.
+    """
     inventory = {
         'MOON_A': inventory_entry(
             u_min=2,
@@ -315,34 +327,30 @@ def _moon_a_setup() -> tuple[HermeticObs, dict[str, Any]]:
         )
     }
     snap = make_snapshot(shape_vu=SHAPE_VU, simulated=True, sim_inventory=inventory)
-    bodies_result = {
-        'MOON_A': {
-            'arrays': {},
-            'masks': {},
-            'distance': 500000.0,
-            'statistics': {'body_latitude': {'min': -10.0, 'max': 25.0, 'units': 'deg'}},
-        }
-    }
-    return snap, bodies_result
+    latitude = np.full(SHAPE_VU, MASKED_VALUE, dtype=np.float32)
+    latitude[1:3, 2:5] = math.radians(-10.0)
+    latitude[1, 2] = math.radians(25.0)
+    id_map = np.zeros(SHAPE_VU, dtype=np.int32)
+    id_map[1:3, 2:5] = body_naif_id(snap, 'MOON_A')
+    _, sidecar = _write(
+        tmp_path,
+        master={'body_latitude': latitude},
+        id_map=id_map,
+        snapshot=snap,
+        bodies_result={'MOON_A': {'arrays': {}, 'masks': {}, 'distance': 500000.0}},
+    )
+    return cast(dict[str, Any], json.loads(sidecar.read_text()))
 
 
 def test_write_fits_sidecar_body_statistics(tmp_path: Path) -> None:
-    """Per-body min/max statistics are written under bodies.<name>.backplanes.
+    """A body's statistics, in degrees for a plane in radians, are under its backplanes.
 
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _moon_a_setup()
-    _, sidecar = _write(
-        tmp_path,
-        master=_master_with(1.0),
-        id_map=_id_map(),
-        snapshot=snap,
-        bodies_result=bodies_result,
-    )
-    metadata = json.loads(sidecar.read_text())
+    metadata = _moon_a_metadata(tmp_path)
     assert metadata['bodies']['MOON_A']['backplanes'] == {
-        'body_latitude': {'min': -10.0, 'max': 25.0, 'units': 'deg'}
+        'body_latitude': {'min': pytest.approx(-10.0), 'max': pytest.approx(25.0), 'units': 'deg'}
     }
 
 
@@ -356,15 +364,7 @@ def test_write_fits_sidecar_center_uv_is_swapped_to_vu(tmp_path: Path) -> None:
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _moon_a_setup()
-    _, sidecar = _write(
-        tmp_path,
-        master=_master_with(1.0),
-        id_map=_id_map(),
-        snapshot=snap,
-        bodies_result=bodies_result,
-    )
-    metadata = json.loads(sidecar.read_text())
+    metadata = _moon_a_metadata(tmp_path)
     assert metadata['bodies']['MOON_A']['center_uv'] == [2.0, 3.5]
 
 
@@ -374,59 +374,172 @@ def test_write_fits_sidecar_center_range_and_size(tmp_path: Path) -> None:
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _moon_a_setup()
-    _, sidecar = _write(
-        tmp_path,
-        master=_master_with(1.0),
-        id_map=_id_map(),
-        snapshot=snap,
-        bodies_result=bodies_result,
-    )
-    metadata = json.loads(sidecar.read_text())
+    metadata = _moon_a_metadata(tmp_path)
     assert metadata['bodies']['MOON_A']['center_range'] == 500000.0
     assert metadata['bodies']['MOON_A']['size_uv'] == [4.0, 3.0]
+
+
+RINGS_RESULT: dict[str, Any] = {
+    'target_key': 'PLANET_RING_SYSTEM',
+    'incidence_angle': {'value': 40.0, 'units': 'deg'},
+}
+"""What of a ring result the writer records as it is, beside the statistics it takes."""
 
 
 def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
     """The ring target, its incidence angle and the ring statistics are written under rings.
 
+    The statistics are the ring planes' the FITS holds, over the pixels where each has a
+    value.
+
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    rings_result = {
-        'planet': 'PLANET',
-        'target_key': 'PLANET_RING_SYSTEM',
-        'incidence_angle': {'value': 63.334, 'units': 'deg'},
-        'arrays': {},
-        'masks': {},
-        'distance': None,
-        'statistics': {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}},
-    }
+    radius = np.full(SHAPE_VU, MASKED_VALUE, dtype=np.float32)
+    radius[2, 3] = 70000.0
+    radius[4, 5] = 140000.0
     _, sidecar = _write(
-        tmp_path, master=_master_with(1.0), id_map=_id_map(), rings_result=rings_result
+        tmp_path, master={'ring_radius': radius}, id_map=_id_map(), rings_result=RINGS_RESULT
     )
     metadata = json.loads(sidecar.read_text())
     assert metadata['rings'] == {
         'target': 'PLANET_RING_SYSTEM',
-        'incidence_angle': {'value': 63.334, 'units': 'deg'},
+        'incidence_angle': {'value': 40.0, 'units': 'deg'},
         'backplanes': {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}},
     }
 
 
-def test_write_fits_sidecar_omits_body_with_no_content(tmp_path: Path) -> None:
-    """A body with no statistics key and no inventory entry is left out.
+COVERED_LATITUDE = 1.5
+"""PLANET's latitude, in radians, where MOON_A covers it: no pixel of PLANET shows it."""
+
+COVERED_RADIUS = 50000.0
+"""The rings' radius, in km, where MOON_A covers them: no pixel of the rings shows it."""
+
+
+def _rows(first: int, stop: int) -> np.ndarray:
+    """Return a mask true on the frame's rows from ``first`` up to ``stop``.
+
+    Parameters:
+        first: The first row.
+        stop: The row after the last.
+
+    Returns:
+        The full-frame mask.
+    """
+    mask = np.zeros(SHAPE_VU, dtype=bool)
+    mask[first:stop, :] = True
+    return mask
+
+
+def _plane(mask: np.ndarray, value: float, covered_value: float) -> np.ndarray:
+    """Return a source's plane: one value on its mask, another where MOON_A covers it.
+
+    Parameters:
+        mask: Where the source has a value.
+        value: Its value there.
+        covered_value: Its value on rows 0 and 1, which MOON_A covers.
+
+    Returns:
+        The full-frame plane, the masked value off the mask.
+    """
+    plane = np.full(SHAPE_VU, MASKED_VALUE, dtype=np.float32)
+    plane[mask] = value
+    plane[mask & _rows(0, 2)] = covered_value
+    return plane
+
+
+def _covered_metadata(tmp_path: Path) -> dict[str, Any]:
+    """Merge and write a frame in which a nearer body covers the rings and two bodies.
+
+    MOON_A, the nearest source, fills rows 0 and 1.  Behind it are PLANET, which fills
+    rows 0 to 3, MOON_B, which is behind MOON_A and nowhere else, and the rings, which
+    fill every row, nearer than PLANET.  Where MOON_A covers them, PLANET's latitude and
+    the rings' radius hold values seen nowhere else, so a statistic taken over pixels a
+    nearer body covers shows them.
+
+    Parameters:
+        tmp_path: Directory receiving the outputs.
+
+    Returns:
+        The backplane metadata document the writer wrote.
+    """
+    snap = make_snapshot(shape_vu=SHAPE_VU, simulated=True, sim_inventory={})
+    near, planet, rings = _rows(0, 2), _rows(0, 4), _rows(0, SHAPE_VU[0])
+
+    def body(mask: np.ndarray, plane: np.ndarray, distance: float) -> dict[str, Any]:
+        """Return a body's result, one latitude plane on its mask at one distance.
+
+        Parameters:
+            mask: Where the body is seen.
+            plane: Its latitude plane.
+            distance: How far it is.
+
+        Returns:
+            The body's entry in the body stage's result.
+        """
+        return {
+            'arrays': {'body_latitude': plane},
+            'masks': {'body_latitude': mask},
+            'distance': distance,
+        }
+
+    bodies_result = {
+        'MOON_A': body(near, _plane(near, 0.2, 0.2), 1.0e5),
+        'PLANET': body(planet, _plane(planet, 0.5, COVERED_LATITUDE), 1.0e6),
+        'MOON_B': body(near, _plane(near, 0.7, 0.7), 2.0e6),
+    }
+    rings_result = {
+        **RINGS_RESULT,
+        'arrays': {'ring_radius': _plane(rings, 100000.0, COVERED_RADIUS)},
+        'masks': {'ring_radius': rings},
+        'distance': np.full(SHAPE_VU, 5.0e5, dtype=np.float32),
+    }
+    master, id_map = merge_sources_into_master(
+        snap, bodies_result=bodies_result, rings_result=rings_result
+    )
+    _, sidecar = _write(
+        tmp_path,
+        master=master,
+        id_map=id_map,
+        snapshot=snap,
+        bodies_result=bodies_result,
+        rings_result=rings_result,
+    )
+    return cast(dict[str, Any], json.loads(sidecar.read_text()))
+
+
+def test_ring_statistics_leave_out_the_rings_a_nearer_body_covers(tmp_path: Path) -> None:
+    """A ring pixel a nearer body covers has no ring value in the FITS, nor in a statistic.
 
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    _, sidecar = _write(
-        tmp_path,
-        master=_master_with(1.0),
-        id_map=_id_map(),
-        bodies_result={'GHOST': {'arrays': {}, 'masks': {}, 'distance': 1.0}},
-    )
-    metadata = json.loads(sidecar.read_text())
-    assert 'GHOST' not in metadata['bodies']
+    radius = _covered_metadata(tmp_path)['rings']['backplanes']['ring_radius']
+    assert radius == {'min': 100000.0, 'max': 100000.0, 'units': 'km'}
+
+
+def test_a_body_s_statistics_leave_out_what_a_nearer_body_covers(tmp_path: Path) -> None:
+    """A body's statistics are over the pixels the body identity map gives it.
+
+    Parameters:
+        tmp_path: pytest-provided temporary directory.
+    """
+    latitude = _covered_metadata(tmp_path)['bodies']['PLANET']['backplanes']['body_latitude']
+    expected = math.degrees(0.5)
+    assert latitude == {
+        'min': pytest.approx(expected),
+        'max': pytest.approx(expected),
+        'units': 'deg',
+    }
+
+
+def test_a_body_a_nearer_body_hides_entirely_has_no_statistic(tmp_path: Path) -> None:
+    """A body the merge gives no pixel is recorded with no statistic.
+
+    Parameters:
+        tmp_path: pytest-provided temporary directory.
+    """
+    assert _covered_metadata(tmp_path)['bodies']['MOON_B']['backplanes'] == {}
 
 
 def test_write_fits_non_simulated_uses_config_satellites(tmp_path: Path) -> None:
@@ -453,7 +566,7 @@ def test_write_fits_non_simulated_uses_config_satellites(tmp_path: Path) -> None
         id_map=_id_map(),
         snapshot=snap,
         config=config,
-        bodies_result={'MOON_A': {'statistics': {}}},
+        bodies_result={},
     )
     assert config.satellites_calls == ['PLANET']
     assert snap.inventory_calls == [['PLANET', 'MOON_A', 'MOON_B']]
@@ -470,15 +583,7 @@ def test_write_fits_sidecar_includes_mean_and_valid_count(tmp_path: Path) -> Non
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _moon_a_setup()
-    _, sidecar = _write(
-        tmp_path,
-        master=_master_with(1.0),
-        id_map=_id_map(),
-        snapshot=snap,
-        bodies_result=bodies_result,
-    )
-    metadata = json.loads(sidecar.read_text())
+    metadata = _moon_a_metadata(tmp_path)
     assert 'mean' in metadata['bodies']['MOON_A']['backplanes']['body_latitude']
 
 
@@ -493,15 +598,7 @@ def test_write_fits_sidecar_includes_naif_id(tmp_path: Path) -> None:
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _moon_a_setup()
-    _, sidecar = _write(
-        tmp_path,
-        master=_master_with(1.0),
-        id_map=_id_map(),
-        snapshot=snap,
-        bodies_result=bodies_result,
-    )
-    metadata = json.loads(sidecar.read_text())
+    metadata = _moon_a_metadata(tmp_path)
     body_keys = set(metadata['bodies']['MOON_A'])
     assert 'naif_id' in body_keys
 
@@ -518,13 +615,5 @@ def test_write_fits_sidecar_includes_observation_metadata(tmp_path: Path) -> Non
     Parameters:
         tmp_path: pytest-provided temporary directory.
     """
-    snap, bodies_result = _moon_a_setup()
-    _, sidecar = _write(
-        tmp_path,
-        master=_master_with(1.0),
-        id_map=_id_map(),
-        snapshot=snap,
-        bodies_result=bodies_result,
-    )
-    metadata = json.loads(sidecar.read_text())
+    metadata = _moon_a_metadata(tmp_path)
     assert len(set(metadata) - {'bodies', 'rings'}) > 0

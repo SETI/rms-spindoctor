@@ -3,7 +3,7 @@ from typing import Any, TypedDict
 import numpy as np
 from pdslogger import PdsLogger
 
-from spindoctor.cli.backplanes.statistics import DEGREES, PlaneStatistics, plane_statistics
+from spindoctor.cli.backplanes.statistics import DEGREES
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 
@@ -68,10 +68,9 @@ def create_ring_backplanes(
         - "arrays": The ring backplane arrays.
         - "masks": The ring backplane masks.
         - "distance": The ring backplane distance.
-        - "statistics": The ring backplane statistics, each stating the unit it
-          is in, which is not the unit of the array it was taken from wherever
-          the plane is angular.  See
-          :mod:`spindoctor.cli.backplanes.statistics`.
+
+        No statistics: the writer takes them once the merge has removed the ring
+        pixels a nearer body covers.
     """
 
     masked_value = float(config.backplanes.masked_value)
@@ -111,8 +110,6 @@ def create_ring_backplanes(
         value=float(np.degrees(center_incidence.vals)), units=DEGREES
     )
 
-    ring_stats: dict[str, PlaneStatistics] = {}
-
     for bp_cfg in rings_cfg:
         bp_name = bp_cfg['name']
         method = bp_cfg.get('method')
@@ -137,13 +134,6 @@ def create_ring_backplanes(
         if np.any(mask):
             result['arrays'][bp_name] = full
             result['masks'][bp_name] = mask
-
-        # Calculate min/max statistics
-        valid_values = full[mask]
-        if len(valid_values) > 0:
-            ring_stats[bp_name] = plane_statistics(valid_values, units=units)
-
-    result['statistics'] = ring_stats
 
     # Ensure distance is present
     if result['distance'] is None:

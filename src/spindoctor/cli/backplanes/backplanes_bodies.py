@@ -6,7 +6,6 @@ from oops.backplane import Backplane
 from oops.meshgrid import Meshgrid
 from pdslogger import PdsLogger
 
-from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -105,10 +104,9 @@ def create_body_backplanes(
         - "arrays": The body backplane arrays.
         - "masks": The body backplane masks.
         - "distance": The body backplane distance.
-        - "statistics": The body backplane statistics, each stating the unit it
-          is in, which is not the unit of the array it was taken from wherever
-          the plane is angular.  See
-          :mod:`spindoctor.cli.backplanes.statistics`.
+
+        No statistics: the writer takes them once the merge has decided which body
+        each pixel shows.
     """
 
     masked_value = float(config.backplanes.masked_value)
@@ -168,7 +166,6 @@ def create_body_backplanes(
 
         per_type_arrays: dict[str, np.ndarray] = {}
         per_type_masks: dict[str, np.ndarray] = {}
-        body_stats: dict[str, PlaneStatistics] = {}
 
         for bp_cfg in bodies_cfg:
             bp_name = bp_cfg['name']
@@ -204,16 +201,10 @@ def create_body_backplanes(
             per_type_arrays[bp_name] = full
             per_type_masks[bp_name] = full_mask
 
-            # Calculate min/max statistics
-            valid_values = full[full_mask]
-            if len(valid_values) > 0:
-                body_stats[bp_name] = plane_statistics(valid_values, units=units)
-
         result[body_name] = {
             'arrays': per_type_arrays,
             'masks': per_type_masks,
             'distance': float(inv_info['range']),
-            'statistics': body_stats,
         }
 
     return result
