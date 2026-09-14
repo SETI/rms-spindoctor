@@ -192,13 +192,15 @@ def test_a_summary_over_no_data_label_exits_one_and_writes_neither_collection(
     """Supplemental files and no data label end the summary non-zero, with no collection.
 
     This is the tree a labels pass leaves when every data label fails to render, since
-    it writes an image's supplemental file before the image's data label.  Neither
-    collection has a member, and a collection label states at least one record, so
-    neither collection is written, each counts among the labels not written, and the
-    log names each; so does the bundle label, which declares both, and which has no
-    range to state, since the data collection holds no image.  The image, a
-    supplemental file with no data label, is one whose products disagree, and the
-    closing line counts it beside the labels.  The generators are the real ones.
+    it writes an image's supplemental file before the image's data label.  Neither the
+    data nor the browse collection has a member, and a collection label states at least
+    one record, so neither is written; nor is the miscellaneous collection, since the
+    index gives neither table a row.  Each of the three counts among the labels not
+    written, and the log names each; so does the bundle label, which declares all
+    three, and which has no range to state, since the data collection holds no image.
+    The image, a supplemental file with no data label, is one whose products disagree,
+    and the closing line counts it beside the labels.  The generators are the real
+    ones.
     """
     env = make_bundle_env(tmp_path / 'env')
     dataset = env.dataset.as_dataset()
@@ -210,17 +212,23 @@ def test_a_summary_over_no_data_label_exits_one_and_writes_neither_collection(
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
-    not_written = ('data/collection_', 'browse/collection_', 'bundle.lblx')
+    not_written = (
+        'data/collection_',
+        'browse/collection_',
+        'miscellaneous/collection_',
+        'bundle.lblx',
+    )
     unwritten = [env.bundle_dir / name for name in SUMMARY_PRODUCTS if name.startswith(not_written)]
     assert [product for product in unwritten if product.exists()] == []
     out = capsys.readouterr().out
     closing = (
-        'Summary generation incomplete: 3 label(s) were not written, '
+        'Summary generation incomplete: 4 label(s) were not written, '
         '1 image(s) whose products disagree'
     )
     assert closing in out
     assert 'The data collection was not written' in out
     assert 'The browse collection was not written' in out
+    assert 'The miscellaneous collection was not written' in out
 
 
 @pytest.mark.parametrize(

@@ -154,7 +154,9 @@ did not write, over its three generators, and exits 1 the same way.  The index
 tables are written either way, and so is the inventory of a collection whose label
 fails to render.  An index table no image gives a row is not written, nor its label,
 and does not count: a table label states at least one record, and a bundle with no
-image with ring backplanes is not a fault.  The bundle label counts when it is not written: it is kept only
+image with ring backplanes is not a fault.  With neither table written, though, the
+miscellaneous collection holds nothing of its own, so it is not written, and it counts.
+The bundle label counts when it is not written: it is kept only
 over a bundle holding a label for every collection it declares, and with no range
 to state it is not rendered (see `The bundle's run-level products`_).  A metakernel
 label that fails to render leaves the SPICE kernel collection with no member, so that
@@ -662,7 +664,9 @@ label together.  ``records`` is the table's line count less the header line.
 **A table with no row.**  ``PDS4_PDS_1O00.xsd`` gives ``records`` a minimum of 1, so no
 label can describe an empty table.  A table no image gives a row, such as the rings table
 of a bundle with no image with ring backplanes, is not written, nor its label, and is not
-listed; the run says so at info level and counts nothing against the run.
+listed; the run says so at info level and counts nothing against the run.  When neither
+table is written, the miscellaneous collection has nothing of its own to hold and is not
+written either, which does count (below).
 
 **The collection.**  After the tables, the generator writes the miscellaneous collection,
 as the data inventory is written after its labels, through
@@ -672,8 +676,12 @@ an ``S`` line for each secondary member of the document inventory the template d
 ships, taken through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`, so
 that the two inventories cite the same context products and ISS data user guide.  The
 collection label, ``collection_miscellaneous.lblx``, has ``collection_type``
-``Miscellaneous``.  A collection with no member is not written and counts as a label not
-written, as the data and browse collections do.
+``Miscellaneous``.  The collection takes its members from the index labels, as the data
+and browse collections take theirs from labels of their own kind, so with neither index
+product labeled -- no image gives either table a row, or neither label renders -- it is
+not written, whatever the document inventory cites, and counts once as a label not
+written; the bundle label, which declares it, is then not written either (see
+`Exit status`_).
 
 The index products and the collection are cleared with the rest of the summary pass's
 products before any supplemental file is read (see `Exit status`_).

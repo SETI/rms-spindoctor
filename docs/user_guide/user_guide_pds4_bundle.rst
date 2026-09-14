@@ -360,6 +360,9 @@ FITS file.
 * ``global_rings_index.tab`` has one row for each image that has ring backplanes. When
   no image has ring backplanes, neither this table nor its label is written.
 
+When neither table has a row, the miscellaneous collection is not written either, and
+the summary pass exits 1 (see `Exit Status`_).
+
 Each table begins with one line naming its columns, separated by commas. Every row
 after it has the same length: each value is padded with spaces to its column's width
 and followed by a comma, the last by the end of the line. The label beside each table
@@ -420,7 +423,10 @@ with exit status 2 before it does anything.
   if a label cannot be written, the bundle label included: that label is written
   only when every collection it names is in the bundle, so a collection that was not
   written leaves the bundle without it. A missing user-guide PDF is a warning, not
-  a failure, and so is an index table no image gives a row, which is not written.
+  a failure. An index table no image gives a row is not written; the log records
+  that, and it is not a failure. When neither table is written, though, the
+  miscellaneous collection has no products, and the pass exits 1 as for any
+  collection with none.
   If a supplemental file holds such a statistic, it exits 1 and leaves none
   of the files the summary pass writes: regenerate the backplanes, then the bundle,
   into an empty directory.
