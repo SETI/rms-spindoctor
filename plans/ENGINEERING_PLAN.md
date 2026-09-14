@@ -420,19 +420,23 @@ Work items, in dependency order:
    the collection inventories are written as the `.csv` files their labels
    name.
 2. **Template finalization acceptance list** — the items recorded
-   on #53: schema validation, the unreferenced `cassini:*` variables and
-   hardcoded placeholders, TITLE/DESCRIPTION wording,
+   on #53: schema validation, the unreferenced `cassini:*` variables (Part B of
+   the PDS4 plan's Phase 8, from the navigation document's `observation`
+   block, #684) and hardcoded placeholders, TITLE/DESCRIPTION wording,
    the operator's acceptance of the index tables'
    missing-value sentinel (#601), non-navigated-image
    handling, and the directory layout. These are
    the acceptance criteria for "final templates" in the paragraph above.
 3. **#30** — backplane label design (couples to the #55 backplane-set
    decision).
-4. **#79** — scrape PDS4 context products for targets (feeds #73).
-5. **#71-#73, #75, #47** — label/collection completeness items, each
-   small: parameterized bundle name/version, the context collection's
-   targets, target handling, ring geometry class fields, ring incidence
-   angle.
+4. **#79** — scrape the PDS4 context products to maintain the targets
+   table, `backplanes.target_lids`, which Part A of the PDS4 plan's Phase 8
+   filled by hand from the PDS registry.
+5. **#71** — the parameterized bundle name and version (the PDS4 plan's
+   Phase 9). The other label and collection completeness items -- the
+   context collection's targets (#72), target handling (#73), the ring
+   geometry class fields (#75) and the ring incidence angle (#47) -- are Part
+   A of Phase 8, closed by hand when its PR merges.
 6. **#66** — integrity-checking pass over a generated bundle.
 7. **#67** — cloud-aware bundle generation (with the Track D cloud
    audit).
