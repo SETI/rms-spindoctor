@@ -2579,6 +2579,52 @@ unchanged.  The crossing build's ring label states the longitude from 359.687 to
 line, the bundle holds the ring image alone, and the context inventory lists Saturn and
 its rings but not Enceladus.
 
+**The last round**, after the product and code verifications of the fix round:
+
+- **Statistics in double precision.**  `plane_statistics` restated a float32 plane's
+  radians in degrees in float32, so a size per pixel in degrees, written to eight
+  decimals, lost its last digit: W1626850595 stated 0.27105078 where its FITS array,
+  converted in double, gives 0.27105080.  It now converts in float64, and the wrapped
+  range is found over the same values.
+- **NaN in the wrapped range** is ignored, as `nanmin` and `nanmax` ignore it for the
+  plain range, and longitudes that are all NaN give NaN for both ends.
+- **One rule for a body with geometry.**  A body counts only when its backplanes hold at
+  least one statistic, as `targets.has_geometry` decides, and the one rule serves the
+  skip, the targets, which the run-level labels and the context inventory follow, and
+  the rows of the bodies index (section 3.7).  The last reverses Phase 7's row of
+  missing values for a body with no statistic, which on real frames would fill the
+  table with rows that measured nothing; a body with statistics for some planes and not
+  others keeps its row.
+- **Pins** for the fix round's two surviving mutations: the cohort's rings index row
+  states the plain ring longitude, 0 to 360, where its data label states the wrapped
+  range, 216.000 to 204.706 (N29); and the writer test's ring pixels span 41 to 49 deg,
+  mean 43, about a center of 40, the least, the greatest and the mean each pinned on
+  its own (N17).
+- **The readme** says which images the bundle leaves out and why, naming the 19
+  satellites, and five rst lines the fix round and this round left past 90 characters
+  are wrapped.
+- **Older body-only backplanes**: no change, since backplanes are regenerated before a
+  delivery build.
+
+Tests.  A float32 radian value whose degrees differ in the eighth decimal is stated as
+its float64 conversion; a NaN among the longitudes leaves the arc as it is, and
+longitudes all NaN give none; a frame naming only a body with no statistic is skipped;
+of two bodies, one with a statistic and one without, the data label names one target,
+the bodies index has one row, and the one without is no target; the rings index states
+the plain longitude; and the writer's least, greatest and mean incidence each stand
+apart from the center's.  Each new or changed test was driven red by a mutation:
+eleven, all killed.
+
+Checks.  At `6d86f0d5`, ruff, the format check (796 files) and mypy (797 source files)
+are clean, and so are sphinx and pymarkdown; the unit suite passes, 12647 and 6
+xfailed.  The plain cohort bundle, rebuilt, has only the `TODO DOI` placeholders for the
+XSD, nothing for any Schematron rule, and the table check's seven findings of the fix
+round, the user guide's LID with no PDF.  Against the fix round's build, both index
+tables are byte-identical and every value a label states is unchanged: the statistics'
+double-precision digits change the two supplemental files, 8154 to 8149 bytes and 9179
+to 9229, and so each data label's statement of that file's size and checksum; the readme
+is the other difference.
+
 **Part B: the mission area.**  `cassini:ISS_Specific_Attributes` is to be filled from the
 Cassini facts the navigation document's `observation` block records, which #684 adds, on
 a branch against `main`, by the operator's direction.  It reaches this stack after #684
