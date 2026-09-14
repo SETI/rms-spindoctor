@@ -222,6 +222,11 @@
         <reference_type>bundle_has_document_collection</reference_type>
     </Bundle_Member_Entry>
     <Bundle_Member_Entry>
+        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:spice_kernels</lid_reference>
+        <member_status>Primary</member_status>
+        <reference_type>bundle_has_spice_kernel_collection</reference_type>
+    </Bundle_Member_Entry>
+    <Bundle_Member_Entry>
         <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:xml_schema</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_schema_collection</reference_type>

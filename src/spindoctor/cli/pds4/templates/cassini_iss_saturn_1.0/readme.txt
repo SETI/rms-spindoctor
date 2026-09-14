@@ -2,9 +2,7 @@ This bundle contains backplane products generated from Cassini ISS calibrated
 images, along with associated metadata and documentation.
 
 The document collection contains a detailed, comprehensive User Guide which
-provides an overview of the contents of this bundle and how to use it, along
-with index files that summarize information about all backplanes for ease of
-use in automated pipelines.
+provides an overview of the contents of this bundle and how to use it.
 
 The most current version of the entire bundle may be obtained from the PDS using
 the logical identifier:

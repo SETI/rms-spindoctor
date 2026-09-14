@@ -124,14 +124,14 @@
     <File_Area_Inventory>
         <File>
             <file_name>collection_xml_schema.csv</file_name>
-            <creation_date_time>$FILE_ZULU("collection_xml_schema.csv")$</creation_date_time>
-            <file_size unit="byte">$FILE_BYTES("collection_xml_schema.csv")$</file_size>
-            <md5_checksum>$FILE_MD5("collection_xml_schema.csv")$</md5_checksum>
+            <creation_date_time>$FILE_ZULU(COLLECTION_XML_SCHEMA_CSV_PATH)$</creation_date_time>
+            <file_size unit="byte">$FILE_BYTES(COLLECTION_XML_SCHEMA_CSV_PATH)$</file_size>
+            <md5_checksum>$FILE_MD5(COLLECTION_XML_SCHEMA_CSV_PATH)$</md5_checksum>
         </File>
         <Inventory>
             <offset unit="byte">0</offset>
             <parsing_standard_id>PDS DSV 1</parsing_standard_id>
-            <records>$FILE_RECORDS("collection_xml_schema.csv")$</records>
+            <records>$FILE_RECORDS(COLLECTION_XML_SCHEMA_CSV_PATH)$</records>
             <record_delimiter>Line-Feed</record_delimiter>
             <field_delimiter>Comma</field_delimiter>
             <Record_Delimited>
