@@ -113,6 +113,9 @@ class StubDataset:
 
         Parameters:
             pds4_pass: Which pass's templates to name.
+
+        Returns:
+            The template filenames the pass must find.
         """
         return REQUIRED_TEMPLATES[pds4_pass]
 
