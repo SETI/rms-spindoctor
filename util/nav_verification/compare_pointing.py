@@ -20,6 +20,12 @@ sit inside every number here and make a pass look worse than it is, so the
 disagreement is resolved onto the camera's axes, the constant part is measured
 and reported on its own, and what is left is the per-frame disagreement.
 
+Because the per-frame numbers are defined to have that constant taken out, the
+line it is reported on is the only place a coordinate system error can show, so
+a constant larger than a tenth of a pixel in either axis is called out there as
+loudly as a wrong frame is, and a run with too few agreeing frames to measure
+one says so rather than leaving the line's absence to read as a zero.
+
 Run after ``source /seti/newnav/setup.sh``, from the repository root::
 
     python util/nav_verification/compare_pointing.py \\
@@ -69,6 +75,20 @@ from spindoctor.nav_records import (  # noqa: E402
 )
 
 TOLERANCE_PX = 2.0
+
+# How large the constant common to the whole run may be, in either axis, before
+# the report calls it out.  Two pipelines that agree about where the whole
+# numbers of their pixel coordinates fall agree about it on every frame, so all
+# that is left in the median over the agreeing frames is the estimator's own
+# noise: the per-frame scatter measured on this bundle is about 0.1 px per axis,
+# which puts the standard error of that median at 0.06 px over the fewest frames
+# it is ever taken on and under 0.02 px over a few hundred.  A number above this
+# is not a pointing disagreement.  It is one side putting its pixel coordinate
+# system half a pixel, or a pixel, away from the other's, and the only way that
+# ever shows is here, because the per-frame numbers are defined to have it
+# removed.  The constant measured on the Cassini F ring bundle was +0.494, +0.491
+# px, five times this, and it was a real defect in one of the two pipelines.
+COMMON_OFFSET_TOLERANCE_PX = 0.1
 
 # Below this many agreeing frames a median offset is not a constant, it is a
 # few numbers, so the common part is left in rather than fitted to noise.
@@ -392,7 +412,10 @@ def report(
     Parameters:
         rows: The comparisons, already annotated by ``remove_common_offset``.
         common: The offset common to the whole run, as that call measured it,
-            or None when too few frames agreed to measure one.
+            or None when too few frames agreed to measure one.  Either way it
+            is reported: one above ``COMMON_OFFSET_TOLERANCE_PX`` in an axis is
+            called out the way a wrong frame is, and one that could not be
+            measured is said to be unmeasured rather than left to read as zero.
         tolerance_px: How far from the independent answer a frame may be before
             it is called wrong.
         bundle_frames: How many frames the bundle holds for this observation,
@@ -437,19 +460,42 @@ def report(
             + (f' ({rounded} against a rounded boresight)' if rounded else '')
         )
 
+    datum_wrong = common is not None and (
+        max(abs(common[0]), abs(common[1])) > COMMON_OFFSET_TOLERANCE_PX
+    )
     if common is not None and residuals.size:
         print(f'\ncommon offset     {common[0]:+.3f}, {common[1]:+.3f} px along the camera axes')
         print(
             '                  measured as the median over the frames already agreeing; a constant'
         )
-        print('                  in both axes says the two answers are working in different')
-        print('                  pixel coordinate systems, not disagreeing about pointing')
+        print('                  over the tolerance in either axis is called out below, and the')
+        print('                  same constant in both is the signature of two answers working')
+        print('                  in different pixel coordinate systems rather than disagreeing')
+        print('                  about pointing')
+        if datum_wrong:
+            print(
+                f'  WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis): this is a coordinate'
+            )
+            print('                  system one of the two sides has put in the wrong place, not')
+            print('                  a pass that navigated badly, and every per-frame number')
+            print('                  below has it taken out')
+    elif residuals.size:
+        print(
+            f'\ncommon offset     not measured: fewer than {MIN_FRAMES_FOR_COMMON_OFFSET} '
+            'frames agree, which is too'
+        )
+        print('                  few for a median to mean anything, so a constant common to the')
+        print('                  run is still inside every number below rather than shown to be')
+        print('                  absent from them')
 
     if residuals.size:
-        print(
-            '\ndisagreement with the independent answer'
-            + (', less that constant:' if common is not None else ':')
-        )
+        if common is None:
+            qualifier = ':'
+        elif datum_wrong:
+            qualifier = ', less a constant that should not be there:'
+        else:
+            qualifier = ', less that constant:'
+        print('\ndisagreement with the independent answer' + qualifier)
         print(
             f'  median {np.median(residuals):.2f} px, 90th {np.percentile(residuals, 90):.2f}, '
             f'max {residuals.max():.2f}'
