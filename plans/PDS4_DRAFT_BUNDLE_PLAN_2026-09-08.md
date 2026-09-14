@@ -72,7 +72,7 @@ product, and is closed by hand when Phase 5 merges, #611 (the backplane viewer
 decides degrees from `BUNIT` and the plane's name rather than through
 `statistics_units`, so it shows the `rad/pixel` plane in radians per pixel),
 #614 (a dataset without PDS4 support
-ends both passes in a traceback rather than a refusal), #METAKERNEL_ISSUE
+ends both passes in a traceback rather than a refusal), #677
 (which SPICE kernels the bundle's metakernel lists, a navigation question
 Phase 6 left the metakernel empty for). #603, the two passes
 disagreeing about a missing template, was closed by hand on 2026-09-11, after
@@ -88,7 +88,7 @@ model build's dictionaries are registered, with the Engineering Node
 (section 3.9); the cohort choice and the user-guide PDF for Phase 10; what a
 data label names as its source product, since the calibrated image the
 navigation reads has no PDS4 counterpart, which is the operator's choice
-(section 3.13); and which kernels the metakernel lists (#METAKERNEL_ISSUE).
+(section 3.13); and which kernels the metakernel lists (#677).
 
 ---
 
@@ -327,7 +327,7 @@ The reference figured it out -- a `Product_SPICE_Kernel` with `kernel_type`
 `MK` over the metakernel, in its own collection, listed by
 `collection_spice_kernels.csv` -- and Phase 6 followed it. Which kernels the
 metakernel names is a question for the navigation side, not for this plan
-(#METAKERNEL_ISSUE); that it has a home in the bundle is settled here. Until
+(#677); that it has a home in the bundle is settled here. Until
 the question is answered, the metakernel lists no kernels and every label
 describing it says so.
 
@@ -1576,7 +1576,7 @@ resolves to a collection label in the bundle.
 a `Product_SPICE_Kernel` with `kernel_type` `MK` over `kernels.ker`, and a
 static `collection_spice_kernels.csv` listing
 `P,urn:nasa:pds:<bundle>:spice_kernels:kernels::1.0`. Which kernels the
-metakernel lists is not settled (#METAKERNEL_ISSUE), so `kernels.ker` is a
+metakernel lists is not settled (#677), so `kernels.ker` is a
 placeholder: the `KPL/MK` identification word and a comment saying it lists no
 kernels, with no `KERNELS_TO_LOAD` assignment, since SPICE refuses an empty one
 (`SPICE(BADVARASSIGN)`) and loads the comment-only file. `kernels.lblx`'s
@@ -1963,7 +1963,7 @@ branch.
   for consumers without closing it.
 - #79 — scrape the PDS4 context products so `target_lids` is maintained
   rather than hand-written.
-- #METAKERNEL_ISSUE — which SPICE kernels the bundle's metakernel lists, a
+- #677 — which SPICE kernels the bundle's metakernel lists, a
   navigation question. Phase 6 shipped the `spice_kernels` collection with a
   metakernel that lists none and says so.
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow
