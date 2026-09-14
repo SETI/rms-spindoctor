@@ -21,7 +21,12 @@ import pdstemplate
 import pytest
 from cloud_tasks.worker import WorkerData
 from filecache import FCPath
-from tests.spindoctor.cli.pds4.conftest import make_bundle_env, touch_label, write_supplemental
+from tests.spindoctor.cli.pds4.conftest import (
+    make_bundle_env,
+    touch_browse_label,
+    touch_label,
+    write_supplemental,
+)
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
@@ -634,6 +639,7 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     )
     data_dir = env.bundle_dir / 'data'
     touch_label(data_dir, 'shard0/1111111111n')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
     write_supplemental(data_dir, 'shard0/1111111111n', bodies=_latitude_in('deg'))
     sd_create_bundle.main_summary()
     products = [env.bundle_dir / name for name in SUMMARY_PRODUCTS]
