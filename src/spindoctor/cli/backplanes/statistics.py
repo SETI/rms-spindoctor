@@ -127,15 +127,19 @@ def plane_statistics(
             :func:`wrapped_range` finds it with this as its resolution.
 
     Returns:
-        The plane's minimum and maximum, converted to degrees if the plane's unit
-        is in radians, and the unit they are in; and, given a longitude
-        resolution, its range wrapped at zero in the same unit.
+        The plane's minimum and maximum, converted to degrees in double precision if
+        the plane's unit is in radians, and the unit they are in; and, given a
+        longitude resolution, its range wrapped at zero in the same unit.
 
     Raises:
         ValueError: If ``values`` is empty.
     """
 
     converted = statistics_units(units)
+    # In double precision, whatever the plane's own type, so that a value restated in
+    # degrees keeps every digit its unit's format writes: a float32 conversion loses the
+    # eighth decimal of a size per pixel in degrees.
+    values = np.asarray(values, dtype=np.float64)
     # A unit that changed is a radian one restated in degrees, and the values
     # move with it; every other unit is left alone in both.
     if converted != units:
