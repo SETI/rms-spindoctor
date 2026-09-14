@@ -34,6 +34,35 @@ entry survives. Pairs of stars whose magnitudes are too close together to disamb
 visually are dropped from both catalogs (the autonomous match would be unable to attribute a
 detection to one or the other).
 
+Coordinates a star record carries
+---------------------------------
+
+Both coordinate systems a frame can be written in, and the half pixel between
+them, are described once in :ref:`coordinate-systems`. Two things are specific
+to stars.
+
+A star record stores the catalog projection as the geometry layer returns it,
+in pixel-corner coordinates, and the record then travels to the techniques. So
+unlike the body, ring and Titan models, which convert while building their
+sampling grids, this model converts at each point of use:
+``NavModelStars._extfov_indices`` before a predicted position reaches a
+feature, the Titan contaminant mask before a star disc is painted, and the log
+line and metadata entry so that what a navigation document records matches
+every other position it records. Two consumers take the record unconverted
+because they want pixel-corner coordinates: the conflict-check meshgrid, which
+is laid out in them, and the smeared-PSF stamp, whose ``eval_rect`` offset is
+measured from a pixel's lower edge.
+
+The extended-FOV edge cull converts the other way. It drops a star whose PSF
+window would spill off the padded array, and holds six freshly projected
+pixel-corner positions against ``obs.extfov_u_min`` / ``_max`` and
+``extfov_v_min`` / ``_max``. Those four are whole numbers naming the first and
+last pixel of the padded frame -- ``-margin`` and ``shape + margin - 1`` -- so
+reaching a pixel-corner position from one of them adds the same half pixel that
+:meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.ext_bp` adds when it lays a
+meshgrid on those pixels' centers. The cull converts the four bounds once,
+before the per-star loop, rather than six positions per star.
+
 Bright-end saturation correction
 --------------------------------
 
@@ -443,8 +472,9 @@ Annotation helpers
   catalog name and visual magnitude. Stars flagged with a body / ring conflict are
   skipped (they are surfaced in the per-image metadata for reviewer awareness but not
   drawn). Consumes the ``label_*`` and ``label_star_color`` keys documented above.
-- ``_extfov_indices`` — converts a star's predicted ``(u, v)`` to extfov-frame indices
-  for the rectangle drawer.
+- ``_extfov_indices`` — converts a star's recorded pixel-corner position to an
+  extfov-frame pixel-centric position (see :ref:`coordinate-systems`), for the
+  rectangle drawer and for the emitted feature.
 - The per-star label string is built by the module-level ``_star_label`` helper, which
   picks one of the four arrow directions
   (:data:`~spindoctor.annotation.annotation_text_info.TEXTINFO_TOP_ARROW` /
@@ -468,7 +498,13 @@ curator to surface in the per-image JSON sidecar:
   ``catalog_name``, ``unique_number``, ``pretty_name``, ``ra_deg``, ``dec_deg``,
   ``vmag``, ``photometry_corrected``, ``photometry_saturated``, ``u``, ``v``, ``move_u``,
   ``move_v``, ``spectral_class``, and ``conflicts`` (the comma-separated body- /
-  ring-occlusion flag string built from the per-star conflict marking step). The two
+  ring-occlusion flag string built from the per-star conflict marking step). ``u`` and
+  ``v`` are pixel-centric coordinates in the nominal (unpadded) frame, the
+  same coordinate system every other recorded position uses; the matching STAR
+  feature's ``predicted_vu`` is that position plus the extended-FOV margin, and the
+  record the entry is built from states the same point in pixel-corner
+  coordinates, half a pixel higher on each axis (see :ref:`coordinate-systems`).
+  The two
   ``photometry_*`` booleans are the bright-end saturation provenance:
   ``photometry_corrected`` marks a record whose magnitude was replaced by a YBSC or Tycho-2
   reference value, and ``photometry_saturated`` marks a bright record with no reference in

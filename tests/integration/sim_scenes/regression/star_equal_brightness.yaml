@@ -18,14 +18,14 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: S1, v: 40.0, u: 50.0, vmag: 3.3}
-  - {name: S2, v: 160.0, u: 150.0, vmag: 3.3}
-  - {name: S3, v: 70.0, u: 165.0, vmag: 3.3}
-  - {name: S4, v: 150.0, u: 55.0, vmag: 3.3}
-  - {name: S5, v: 50.0, u: 120.0, vmag: 3.3}
-  - {name: S6, v: 150.0, u: 100.0, vmag: 3.3}
-  - {name: S7, v: 112.0, u: 172.0, vmag: 3.3}
-  - {name: S8, v: 88.0, u: 38.0, vmag: 3.3}
+  - {name: S1, v: 40.5, u: 50.5, vmag: 3.3}
+  - {name: S2, v: 160.5, u: 150.5, vmag: 3.3}
+  - {name: S3, v: 70.5, u: 165.5, vmag: 3.3}
+  - {name: S4, v: 150.5, u: 55.5, vmag: 3.3}
+  - {name: S5, v: 50.5, u: 120.5, vmag: 3.3}
+  - {name: S6, v: 150.5, u: 100.5, vmag: 3.3}
+  - {name: S7, v: 112.5, u: 172.5, vmag: 3.3}
+  - {name: S8, v: 88.5, u: 38.5, vmag: 3.3}
 noise:
   poisson: true
   read_noise_dn: 4.0

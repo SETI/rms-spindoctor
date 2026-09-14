@@ -267,6 +267,33 @@ and starts with a design document, not code.
   ground-truth terminator fit on N1853392805; implement whichever option the
   operator picks (accept the 2-px-class ground truth, keep TERMINATOR_ARC for
   SPICE-known synchronous rotators, or shape models per #23).
+- **#635** — the star pixel datum: a star record carries oops uv (a pixel's
+  corner) and every star technique measures array indices (a pixel's centre),
+  so every star-derived offset was short by half a pixel in both axes. Fixed
+  by declaring the convention on `MutableStar` and converting at each point of
+  use (`STAR_UV_DATUM_PX`). The library's star-derived ground truths carried
+  the same bias and 17 of them were corrected by the datum, each one a pin the
+  sidecar records as a star technique's own offset or as a run in which only
+  star techniques emitted. Four were left: three fused pins whose correction is
+  the datum times a star weight that can only be reconstructed, and
+  N1633925572, whose sidecar carries an operator ruling not to re-ratchet.
+  W1444747627 was pinned by hand against an overlay the notes describe as star
+  and body together, so which half the drag followed is not recorded. One
+  consequence remains open: N1530185128 flips to a different star lock
+  (18.2 px -> 1.2 px, confidence 0.72 -> 0.40) because
+  `StarUniqueMatchNav`'s 30-px search window takes the brightest peak inside a
+  slab whose integer bounds move with the prediction — a fragility the datum
+  change tips rather than causes.
+- **#641** — a simulator scene states every position that places something in
+  it as a pixel corner, which is the same oops uv a star record carries, so
+  the record builder copies a scene position through. The shipped scenes moved
+  by half a pixel in the files, and every one of the 64 renders byte-identical
+  to what it rendered before.
+- **#640** — the star edge cull expresses the four extended-FOV bounds in uv
+  before it tests six uv positions against them, so the gate no longer sits
+  half a pixel inside the edge it names. Across the 75 library frames one
+  star changes state, on `lor_0030713597_0x633_sci`; it lands ten rows into
+  the zero-filled extfov margin, so no frame's navigation moves.
 - **Titan haze fit** — the haze solar-symmetry method ships and is validated;
   four measured refinements remain: the arc ray reach sized by the search
   window rather than by where the limb can be (#403), the flat arc-residual

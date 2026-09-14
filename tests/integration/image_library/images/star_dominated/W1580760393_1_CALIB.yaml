@@ -16,8 +16,8 @@ scene_tags:
   - star_dominated
 
 ground_truth:
-  offset_dv_px: -2.9821
-  offset_du_px: -3.6711
+  offset_dv_px: -2.4821
+  offset_du_px: -3.1711
   # 1sigma marginal; tighten for bright stars / sharp limbs.
   offset_uncertainty_px: 1.0
   source: operator_verified

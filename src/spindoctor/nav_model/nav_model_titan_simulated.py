@@ -48,9 +48,10 @@ from spindoctor.nav_model.titan_geometry import (
     occluded_disc_fraction,
     paint_disc,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType
 
-__all__ = ['BODY_CENTER_INDEX_OFFSET_PX', 'REQUIRED_SIM_PARAMS', 'NavModelTitanSimulated']
+__all__ = ['REQUIRED_SIM_PARAMS', 'NavModelTitanSimulated']
 
 
 REQUIRED_SIM_PARAMS: tuple[str, ...] = ('center_v', 'center_u', 'axis1', 'axis2', 'km_per_pixel')
@@ -62,21 +63,6 @@ envelope radius (pixels), and without it the envelope -- the outer bound of
 everything the fit samples -- would have to be invented.  A scene missing any
 of them gets no haze model, which is a legible absence rather than a
 degenerate feature.
-"""
-
-
-BODY_CENTER_INDEX_OFFSET_PX: float = -0.5
-"""Shift from a scene body's stated centre to its pixel-index centre.
-
-The body renderer treats a body centre as a CORNER coordinate -- ``(0.0,
-0.0)`` is the top-left corner of pixel ``(0, 0)`` -- so a body stated at
-``center_v`` paints its silhouette centred on pixel index ``center_v -
-0.5``.  (The star renderer's convention is the other one, integer index
-``i`` at coordinate ``i``, which is why the simulated star model adds the
-extfov margin and stops there.)  Predicted positions in this pipeline are
-pixel indices, so the shift is applied here rather than left as a flat half
-pixel of cross-track error -- half the method's entire clean-scene
-cross-track budget, spent on a coordinate convention.
 """
 
 
@@ -252,8 +238,8 @@ class NavModelTitanSimulated(NavModelTitan):
         extfov_shape_vu = (int(self.obs.extdata_shape_vu[0]), int(self.obs.extdata_shape_vu[1]))
         window_px = float(max(margin_v, margin_u))
         center_vu = (
-            float(params['center_v']) + BODY_CENTER_INDEX_OFFSET_PX + margin_v,
-            float(params['center_u']) + BODY_CENTER_INDEX_OFFSET_PX + margin_u,
+            float(params['center_v']) - PIXEL_CENTER_TO_CORNER_PX + margin_v,
+            float(params['center_u']) - PIXEL_CENTER_TO_CORNER_PX + margin_u,
         )
         km_per_px = float(params['km_per_pixel'])
         r_solid_px = _mean_semi_axis_px(params)

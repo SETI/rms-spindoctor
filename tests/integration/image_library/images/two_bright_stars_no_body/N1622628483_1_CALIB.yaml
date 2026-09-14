@@ -7,8 +7,8 @@ image_url: pds3://calibrated/COISS_2xxx/COISS_2055/data/1622549816_1622632159/N1
 scene_tags:
 - two_bright_stars_no_body
 ground_truth:
-  offset_dv_px: 9.5422
-  offset_du_px: 8.0528
+  offset_dv_px: 10.0422
+  offset_du_px: 8.5528
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
