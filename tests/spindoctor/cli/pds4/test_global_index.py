@@ -19,6 +19,7 @@ matching the product labels' DATA_LID.
 """
 
 import math
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -546,6 +547,40 @@ def test_the_rows_are_the_data_inventory_s_members(tmp_path: Path) -> None:
     rings = read_index_rows(tables / 'global_rings_index.tab')
     assert [row[0] for row in bodies[1:]] == members
     assert [row[0] for row in rings[1:]] == members
+
+
+def test_the_summary_pass_reads_each_supplemental_file_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The rows, the range of the epochs and the targets come from one read of each file.
+
+    A second read would be a second download of every supplemental file on a bundle root
+    in a remote store.
+    """
+    env = _index_env(tmp_path)
+    _write_image(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
+    reads: Counter[str] = Counter()
+    read_text = FCPath.read_text
+
+    def counted(path: FCPath, *args: Any, **kwargs: Any) -> str:
+        """Count a read of a supplemental file, then read it.
+
+        Parameters:
+            path: The file read.
+            *args: Passed on to the read.
+            **kwargs: Passed on to the read.
+
+        Returns:
+            The file's text.
+        """
+        if path.name.endswith('_supplemental.txt'):
+            reads[path.name] += 1
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(FCPath, 'read_text', counted)
+    _run_global_index(env)
+    assert reads == {'1111111111n_supplemental.txt': 1, '2222222222w_supplemental.txt': 1}
 
 
 def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) -> None:

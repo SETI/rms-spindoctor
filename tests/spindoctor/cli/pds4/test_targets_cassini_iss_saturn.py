@@ -181,6 +181,23 @@ def test_a_run_level_label_names_every_target_the_data_labels_name(
     assert named == [(*target, reference_type) for target in (SATURN, ENCELADUS, SATURN_RINGS)]
 
 
+def test_no_inventory_but_the_context_inventory_lists_a_target(
+    cassini_cohort: Cohort, tmp_path: Path
+) -> None:
+    """The context inventory lists the targets, and no other inventory of the bundle does.
+
+    No document or miscellaneous label names a target, and the data and SPICE kernel
+    inventories list their own products alone.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, (LIMB_STUB, RINGS_STUB))
+    listing = {
+        inventory.relative_to(env.bundle_dir).as_posix()
+        for inventory in env.bundle_dir.rglob('collection_*.csv')
+        if any(':context:target:' in lidvid for _, lidvid in read_csv_rows(inventory))
+    }
+    assert listing == {'context/collection_context.csv'}
+
+
 def test_every_target_a_data_label_names_is_in_the_context_inventory(
     cassini_cohort: Cohort, tmp_path: Path
 ) -> None:
