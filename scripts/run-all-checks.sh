@@ -365,6 +365,14 @@ run_markdown_checks() {
 
     source "$VENV/bin/activate"
 
+    print_info "Running codespell (typos and British spellings)..."
+    if python -m codespell_lib src tests docs util experiments scripts README.md CONTRIBUTING.md .cursor; then
+        print_success "codespell passed"
+    else
+        print_error "codespell failed"
+        FAILED_CHECKS+=("Markdown - codespell")
+    fi
+
     print_info "Running PyMarkdown scan (docs/, .cursor/, root *.md)..."
     if python -m pymarkdown scan docs/ .cursor/ README.md CONTRIBUTING.md; then
         print_success "PyMarkdown scan passed"
@@ -416,6 +424,15 @@ run_docs_build() {
         sphinx_failed=true
     fi
 
+    local codespell_failed=false
+    print_info "Running codespell (typos and British spellings)..."
+    if python -m codespell_lib src tests docs util experiments scripts README.md CONTRIBUTING.md .cursor; then
+        print_success "codespell passed"
+    else
+        print_error "codespell failed"
+        codespell_failed=true
+    fi
+
     if [ "$RUN_MARKDOWN" != true ]; then
         print_info "Running PyMarkdown scan (docs/, .cursor/, root *.md)..."
         if python -m pymarkdown scan docs/ .cursor/ README.md CONTRIBUTING.md; then
@@ -428,10 +445,12 @@ run_docs_build() {
 
     deactivate 2>/dev/null || true
 
-    if [ "$sphinx_failed" = true ] || [ "$pymarkdown_failed" = true ]; then
+    if [ "$sphinx_failed" = true ] || [ "$pymarkdown_failed" = true ] \
+        || [ "$codespell_failed" = true ]; then
         if [ -n "$status_file" ]; then
             [ "$sphinx_failed" = true ] && echo "Documentation - Sphinx build" >> "$status_file"
             [ "$pymarkdown_failed" = true ] && echo "Documentation - PyMarkdown scan" >> "$status_file"
+            [ "$codespell_failed" = true ] && echo "Documentation - codespell" >> "$status_file"
         else
             [ "$sphinx_failed" = true ] && FAILED_CHECKS+=("Documentation - Sphinx build")
             [ "$pymarkdown_failed" = true ] && FAILED_CHECKS+=("Documentation - PyMarkdown scan")
