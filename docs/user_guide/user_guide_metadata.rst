@@ -58,6 +58,14 @@ Everything in this file uses the ``(v, u)`` pixel convention: ``v`` is the row
 ``[dv, du]`` with the meaning: if the SPICE-predicted position of a feature is
 ``(v, u)``, its actual position in the image is ``(v + dv, u + du)``.
 
+A position the pipeline states -- the ``(v, u)`` above, a star position in a
+navigation log, a predicted body centre -- is measured from the image's
+upper-left corner, so a whole number falls on the boundary between two pixels
+and the centre of row ``n`` is ``n + 0.5``. A star at ``v = 64.5`` sits in the
+middle of row 64. Positions are measured in the image itself, not in the padded
+frame the navigation searches, so something just outside the image is stated at
+a negative coordinate.
+
 The same measured offset appears twice, at two precisions:
 
 * The top-level ``offset`` key is the **full-precision** value, exactly as the
@@ -657,8 +665,14 @@ reliability gate:
      - Human-readable reason when ``gated`` is true; ``null`` otherwise.
    * - ``bbox_extfov_vu``
      - array
-     - Half-open bounding box ``[v_min, u_min, v_max, u_max]`` in
-       extended-FOV pixel coordinates, four integers.
+     - Bounding box ``[v_min, u_min, v_max, u_max]``, four integers. The
+       box is half-open: it covers rows ``v_min`` through ``v_max - 1`` and
+       columns ``u_min`` through ``u_max - 1``. It is measured in the
+       *extended* frame, which is the image padded on all four sides by the
+       instrument's configured ``extfov_margin_vu``, so subtract the margin
+       to get image rows and columns. With a Cassini NAC margin of 50 rows
+       and 140 columns, the ``[495, 577, 644, 727]`` in the example below
+       covers image rows 445 to 593 and columns 437 to 586.
    * - ``reliability_reasons``
      - object
      - The per-component breakdown of ``reliability``, so a gate decision

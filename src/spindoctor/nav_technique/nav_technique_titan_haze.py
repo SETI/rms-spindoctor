@@ -38,6 +38,7 @@ from spindoctor.nav_technique.nav_technique import (
     embed_rotation_unobservable,
     load_model_error_floor,
     log_confidence_breakdown,
+    reported_position_vu,
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
@@ -445,11 +446,14 @@ class TitanHazeNav(NavTechnique):
             angle_refine_deg = (
                 0.0 if geometry.axis_degenerate else float(symmetry_block['angle_refine_deg'])
             )
+            reported_center = reported_position_vu(
+                geometry.predicted_center_vu, (margin_v, margin_u)
+            )
             self.logger.info(
                 'Fitting haze at predicted center (%.2f, %.2f), envelope radius %.2f px, '
                 'axis %.2f deg (degenerate = %s), window %.0f px',
-                geometry.predicted_center_vu[0],
-                geometry.predicted_center_vu[1],
+                reported_center[0],
+                reported_center[1],
                 geometry.r_env_px,
                 math.degrees(geometry.sun_angle_rad),
                 geometry.axis_degenerate,

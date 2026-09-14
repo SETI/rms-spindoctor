@@ -499,11 +499,11 @@ curator to surface in the per-image JSON sidecar:
   ``vmag``, ``photometry_corrected``, ``photometry_saturated``, ``u``, ``v``, ``move_u``,
   ``move_v``, ``spectral_class``, and ``conflicts`` (the comma-separated body- /
   ring-occlusion flag string built from the per-star conflict marking step). ``u`` and
-  ``v`` are pixel-centric coordinates in the nominal (unpadded) frame, the
-  same coordinate system every other recorded position uses; the matching STAR
-  feature's ``predicted_vu`` is that position plus the extended-FOV margin, and the
-  record the entry is built from states the same point in pixel-corner
-  coordinates, half a pixel higher on each axis (see :ref:`coordinate-systems`).
+  ``v`` are pixel-corner coordinates in the nominal (unpadded) frame, straight off the
+  record, which is the form every position reported to a person is stated in (see
+  :ref:`coordinate-systems`); the matching STAR feature's ``predicted_vu`` is the same
+  point converted to pixel-centric and shifted by the extended-FOV margin, for the
+  techniques that measure the array.
   The two
   ``photometry_*`` booleans are the bright-end saturation provenance:
   ``photometry_corrected`` marks a record whose magnitude was replaced by a YBSC or Tycho-2

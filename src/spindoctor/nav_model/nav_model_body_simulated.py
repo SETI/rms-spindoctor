@@ -959,11 +959,13 @@ class NavModelBodySimulated(NavModelBodyBase):
         """Emit body silhouette + label annotations for the summary PNG."""
         if self._model_img is None or self._body_mask is None or self._limb_mask is None:
             return Annotations()
-        center_v = float(self._sim_params.get('center_v', self.obs.data_shape_v / 2.0))
-        center_u = float(self._sim_params.get('center_u', self.obs.data_shape_u / 2.0))
+        # The label anchor is a pixel of the nominal frame, so it comes off
+        # the payload's extended-frame pixel-centric centre rather than off
+        # the scene's pixel-corner one.
+        v_center, u_center = self._predicted_center_vu
         return self._create_annotations(
-            round(center_u),
-            round(center_v),
+            round(u_center - self.obs.extfov_margin_u),
+            round(v_center - self.obs.extfov_margin_v),
             self._model_img,
             self._limb_mask,
             self._body_mask,
