@@ -73,10 +73,10 @@ def _mesh_params(**overrides: Any) -> dict[str, Any]:
 def test_the_label_anchors_on_the_pixel_the_body_centre_falls_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The label is anchored on the row and column holding the body's centre.
+    """The label is anchored on the row and column holding the body's center.
 
-    A scene states a centre as a pixel corner, so row 40 spans 40.0 to 41.0
-    and a centre of 40.7 falls inside it.  The anchor addresses a pixel of the
+    A scene states a center as a pixel corner, so row 40 spans 40.0 to 41.0
+    and a center of 40.7 falls inside it.  The anchor addresses a pixel of the
     image, so it is that row, whatever the fraction is.
 
     Parameters:
@@ -148,13 +148,13 @@ def test_mesh_prediction_matches_rendered_data() -> None:
 
 
 def test_prediction_centres_on_the_centre_the_scene_states() -> None:
-    """The predicted silhouette's centroid is the scene's own centre.
+    """The predicted silhouette's centroid is the scene's own center.
 
     The anchor is outside both sides of the round trip above: the scene states
-    a pixel corner centre, the mask is addressed by rows and columns, and the
-    ellipsoid is symmetric about its centre, so the centroid of the marked
+    a pixel corner center, the mask is addressed by rows and columns, and the
+    ellipsoid is symmetric about its center, so the centroid of the marked
     pixels is the stated number less the half pixel that converts between the
-    two coordinate systems, exactly.  A model reading the scene's centre pixel
+    two coordinate systems, exactly.  A model reading the scene's center pixel
     centric fails here by that half pixel.
     """
     obs = _obs()

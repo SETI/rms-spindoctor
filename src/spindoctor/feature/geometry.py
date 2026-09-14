@@ -7,7 +7,7 @@ image-side operations remain global, so no payload describes a per-feature
 image crop.
 
 Every position on a payload is in extended-FOV (extfov) image coordinates
-(v, u), pixel centric: a whole number falls at a pixel's centre, so the centre
+(v, u), pixel centric: a whole number falls at a pixel's center, so the center
 of a ``size``-wide frame is ``(size - 1) / 2``.  That is the system every
 consumer of these payloads works in, because every one of them addresses the
 array -- a rotation pivot on a rendered template, a predicted centroid

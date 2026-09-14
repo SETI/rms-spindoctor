@@ -4,9 +4,9 @@ Builds the per-body editing tab (geometry, shape model, mesh parameters, pose,
 lighting, crater relief, anti-aliasing, and the navigation-override group) and
 owns the handlers that write body fields back into the data model.
 
-The centre spin boxes write the scene's ``center_v`` / ``center_u``
+The center spin boxes write the scene's ``center_v`` / ``center_u``
 unchanged, so they carry the scene's own convention: every position in a scene
-is a pixel corner, and the centre of pixel ``N`` is ``N + 0.5``.  The row
+is a pixel corner, and the center of pixel ``N`` is ``N + 0.5``.  The row
 labels name that convention rather than leaving the reader to infer it from a
 rendered frame.
 """
@@ -31,10 +31,10 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 
-# Tooltip for the centre spin boxes, which write the scene value directly.
+# Tooltip for the center spin boxes, which write the scene value directly.
 _CENTER_TOOLTIP = (
-    'Body centre {axis} position as a pixel corner: integer N is the boundary '
-    'between pixel N-1 and pixel N, so the centre of pixel N is N + 0.5.'
+    'Body center {axis} position as a pixel corner: integer N is the boundary '
+    'between pixel N-1 and pixel N, so the center of pixel N is N + 0.5.'
 )
 
 

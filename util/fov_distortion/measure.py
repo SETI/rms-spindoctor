@@ -162,7 +162,7 @@ def _centroid_star(
         return None
     # ``find_position`` takes and returns positions in the ``eval_rect``
     # convention: an offset is measured from the upper left corner of a pixel and
-    # its own default (0.5, 0.5) sits on that pixel's centre, so the centre of
+    # its own default (0.5, 0.5) sits on that pixel's center, so the center of
     # row i comes back as i + 0.5.  That is pixel corner, the same system
     # ``star.v`` / ``star.u`` are in, so the prediction goes in and the detection
     # comes out without a conversion and the two subtract directly.  Do not take
@@ -246,14 +246,14 @@ def measure_frame(
     image = np.nan_to_num(np.asarray(obs.data, dtype=np.float64))
     h, w = image.shape
     # Radial origin for the decomposition.  This is the pixel centric frame
-    # centre; the star positions it is used with are pixel corner, whose frame
-    # centre is (h / 2, w / 2), so the origin sits half a pixel up and left of
-    # the field centre those positions measure from.  Against a half-diagonal
+    # center; the star positions it is used with are pixel corner, whose frame
+    # center is (h / 2, w / 2), so the origin sits half a pixel up and left of
+    # the field center those positions measure from.  Against a half-diagonal
     # normalizing radius that half pixel moves the fitted k1 by four parts in ten
     # thousand, k2 by three in a thousand and the twist by a microdegree, all of
     # them an order of magnitude inside the error the fit itself makes on a known
     # distortion, so it is recorded here rather than chased.  Either way it is
-    # the frame centre, not the camera's boresight, which this tool does not ask
+    # the frame center, not the camera's boresight, which this tool does not ask
     # about.
     center = ((h - 1) / 2.0, (w - 1) / 2.0)
     rho_ref = 0.5 * math.hypot(h, w)

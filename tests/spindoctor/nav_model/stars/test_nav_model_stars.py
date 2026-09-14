@@ -444,7 +444,7 @@ def test_the_drawn_star_box_covers_the_feature_bounding_box() -> None:
     overlay, and a star technique searches the feature's bounding box; the two
     have to name the same pixels or the confirmation is of a box the pipeline
     never used.  This star sits a fifth of a pixel into its row and column,
-    which is where a box centred by truncation rather than by the nearest
+    which is where a box centered by truncation rather than by the nearest
     pixel lands one row and one column low.
     """
     model, _obs = _make_model()

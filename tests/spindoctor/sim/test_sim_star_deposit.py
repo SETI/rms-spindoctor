@@ -315,7 +315,7 @@ def test_sky_field_reaches_both_edges_of_the_frame_alike() -> None:
 
     The deposit reads a pixel centric position, where a ``size``-wide frame
     spans ``[-0.5, size - 0.5]``.  Drawing over ``[0, size)`` instead leaves
-    the outer half of the first row and column unable to hold a star centre
+    the outer half of the first row and column unable to hold a star center
     while half a pixel of field runs off the far edge, so the first row
     collects about half the flux the last one does.  Over the frame the
     deposit sees, the two edges agree.  A flat count law (``b`` zero) gives

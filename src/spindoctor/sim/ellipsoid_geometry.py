@@ -144,11 +144,11 @@ def project_ellipsoid(
     work_semi_minor = semi_minor_axis * aa_scale
     work_semi_c = semi_c_axis * aa_scale
 
-    # Create coordinate grids at pixel centres.  The grid starts as array rows
+    # Create coordinate grids at pixel centers.  The grid starts as array rows
     # and columns and the projection works in the geometry layer's pixel corner
-    # coordinates, where the caller states the centre, so the half pixel goes
+    # coordinates, where the caller states the center, so the half pixel goes
     # on here; that alignment holds at every supersampling scale because the
-    # centre is scaled with the grid.
+    # center is scaled with the grid.
     v_coords, u_coords = np.mgrid[0:work_v, 0:work_u].astype(float)
     v_coords += PIXEL_CENTER_TO_CORNER_PX
     u_coords += PIXEL_CENTER_TO_CORNER_PX

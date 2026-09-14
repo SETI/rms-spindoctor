@@ -867,7 +867,7 @@ class OpticsTabMixin(SimEditorBase):
         self._distortion_k2_spin.setValue(float(block.get('k2', 0.0)))
         has_center = 'center_v' in block or 'center_u' in block
         self._distortion_center_check.setChecked(has_center)
-        # An absent centre key displays its effective default (frame centre).
+        # An absent center key displays its effective default (frame center).
         default_center_v, default_center_u = self._distortion_center_defaults()
         self._distortion_center_v_spin.setValue(float(block.get('center_v', default_center_v)))
         self._distortion_center_v_spin.setEnabled(has_center)
@@ -886,7 +886,7 @@ class OpticsTabMixin(SimEditorBase):
             self._stray_model_combo.setCurrentIndex(model_index)
         has_center = self._stray_has_center()
         self._stray_center_check.setChecked(has_center)
-        # An absent centre key displays its effective default (frame centre).
+        # An absent center key displays its effective default (frame center).
         default_center_v, default_center_u = self._stray_center_defaults()
         self._stray_center_v_spin.setValue(float(self._stray_value('center_v', default_center_v)))
         self._stray_center_v_spin.setEnabled(has_center)

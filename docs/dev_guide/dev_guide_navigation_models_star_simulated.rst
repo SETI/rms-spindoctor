@@ -51,7 +51,7 @@ Two rendering details make the simulated field faithful to a real one:
   oversampled grid, so a star the model predicts at ``(v, u)`` centroids there after
   the box downsample, with no half-pixel bias in the recovered offset.
 - **Camera roll about the boresight.** A planted ``offset_rotation_deg`` rotates each
-  star about the frame's centre ``(size_v / 2, size_u / 2)`` -- the same point the
+  star about the frame's center ``(size_v / 2, size_u / 2)`` -- the same point the
   bodies and the ring system turn about -- before the translation offset, while the
   star record keeps its unrolled ``(v, u)``; the similarity fit in
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` then

@@ -230,9 +230,9 @@ and ``rings``:
 
 - ``bodies`` holds one entry per body in the field of view, keyed by body
   name. Each entry carries a ``backplanes`` sub-dict of per-backplane
-  statistics, ``center_uv`` — the body's predicted centre as ``[v, u]``, a
+  statistics, ``center_uv`` — the body's predicted center as ``[v, u]``, a
   pixel-corner position in the nominal frame (see
-  :ref:`coordinate-systems`) — ``center_range``, the range to that centre
+  :ref:`coordinate-systems`) — ``center_range``, the range to that center
   in km, and ``size_uv``, the body's ``[u, v]`` pixel diameters.
 - ``rings`` holds a ``backplanes`` sub-dict of the same statistics.
 

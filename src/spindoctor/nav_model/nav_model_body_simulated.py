@@ -477,9 +477,9 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._model_img = model_img_full
         self._body_mask = body_mask_full
         self._limb_mask = limb_mask_full
-        # The scene states the body's centre in pixel corner coordinates,
+        # The scene states the body's center in pixel corner coordinates,
         # which is what the silhouette renderer draws against (it puts the
-        # centre of pixel i at i + 0.5).  The payload is pixel centric, and so
+        # center of pixel i at i + 0.5).  The payload is pixel centric, and so
         # is the lit-weighted centroid this value is differenced against, so
         # the half pixel comes off next to the margin that goes on.
         self._predicted_center_vu = (
@@ -960,7 +960,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         if self._model_img is None or self._body_mask is None or self._limb_mask is None:
             return Annotations()
         # The label anchor is a pixel of the nominal frame, so it comes off
-        # the payload's extended-frame pixel-centric centre rather than off
+        # the payload's extended-frame pixel-centric center rather than off
         # the scene's pixel-corner one.
         v_center, u_center = self._predicted_center_vu
         return self._create_annotations(

@@ -109,7 +109,7 @@ def _deposit_point_mass(
 
     The splat conserves the total and places the deposited centroid exactly at
     ``(v, u)``, which it reads pixel centric because it writes into the array:
-    a whole number falls on a pixel's centre.  A non-zero motion vector
+    a whole number falls on a pixel's center.  A non-zero motion vector
     distributes the mass evenly along the
     centred drift track (a per-star smear the whole-scene optics stage does not
     apply).
@@ -168,9 +168,9 @@ def _render_stars_cached(
     sim_star_list: list[MutableStar] = []
     star_info: list[dict[str, Any]] = []
 
-    # A camera roll rotates the whole frame about the boresight, the uv centre
+    # A camera roll rotates the whole frame about the boresight, the uv center
     # of the frame.  The rendered star position is the catalog position rotated
-    # by ``rotation_deg`` about that centre, then translated by the planted
+    # by ``rotation_deg`` about that center, then translated by the planted
     # offset.  The star record keeps its unrotated catalog (v, u) so the NavModel
     # predicts the unshifted geometry and a star technique recovers BOTH the
     # rotation and the translation.  The rotation matrix matches the navigator's
@@ -183,10 +183,10 @@ def _render_stars_cached(
     # below in pixel centric ones; on this oversampled grid the half pixel
     # between the two is scaled by ``os`` alongside every other pixel quantity.
     half_px = PIXEL_CENTER_TO_CORNER_PX * oversample
-    # The pivot is the frame's centre, ``size / 2`` in pixel corner coordinates,
+    # The pivot is the frame's center, ``size / 2`` in pixel corner coordinates,
     # written here pixel centric -- the same point the body and ring paths turn
     # their geometry about.  Pivoting on ``size / 2`` read pixel centric instead
-    # would put the star field's centre of rotation half a detector pixel from
+    # would put the star field's center of rotation half a detector pixel from
     # theirs, and a rolled scene would plant a truth its own bodies and rings
     # disagreed with (#642).
     roll_center_v = size_v / 2.0 - half_px
@@ -220,7 +220,7 @@ def _render_stars_cached(
 
         # The record states the catalog position in pixel corner coordinates on
         # this oversampled grid, so it is the scene's detector position times
-        # ``os``.  The placement below -- the roll centre, the planted offset,
+        # ``os``.  The placement below -- the roll center, the planted offset,
         # the catalog error, the hit-test entries -- is pixel centric on that
         # grid, and ``corner * os - PIXEL_CENTER_TO_CORNER_PX * os`` is
         # ``(corner - PIXEL_CENTER_TO_CORNER_PX) * os``, which is that position.
@@ -342,8 +342,8 @@ def render_stars(
         rendered_sigma: The scene PSF core sigma the stars render at (oversampled
             units), recorded in the hit-test metadata.
         rotation_deg: Camera-roll angle (degrees) applied before the translation
-            offset, modelling a pointing rotation the star techniques recover.
-            The pivot is the frame's centre, ``(size_v / 2, size_u / 2)`` in
+            offset, modeling a pointing rotation the star techniques recover.
+            The pivot is the frame's center, ``(size_v / 2, size_u / 2)`` in
             pixel corner coordinates, which is the point the body and ring
             geometry turns about.
         oversample: The render-grid oversampling factor.

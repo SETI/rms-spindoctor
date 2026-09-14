@@ -196,8 +196,8 @@ def _body_grid(
     """
     size_v, size_u = dims
     semi_a, semi_b, semi_c = semi_axes
-    # The grid starts as array rows and columns and the body centre is stated
-    # in pixel corner coordinates, so the half pixel goes on before the centre
+    # The grid starts as array rows and columns and the body center is stated
+    # in pixel corner coordinates, so the half pixel goes on before the center
     # comes off.
     v_coords, u_coords = np.mgrid[0:size_v, 0:size_u].astype(float)
     v_coords += PIXEL_CENTER_TO_CORNER_PX - center[0]

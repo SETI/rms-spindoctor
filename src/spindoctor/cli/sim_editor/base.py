@@ -259,15 +259,15 @@ class SimEditorBase(QMainWindow):
         raise NotImplementedError
 
     def _on_stray_center(self, key: str, value: float) -> None:
-        """Write a stray-light centre key (implemented in StrayLightMixin)."""
+        """Write a stray-light center key (implemented in StrayLightMixin)."""
         raise NotImplementedError
 
     def _stray_has_center(self) -> bool:
-        """True when a stray-light centre key is authored (StrayLightMixin)."""
+        """True when a stray-light center key is authored (StrayLightMixin)."""
         raise NotImplementedError
 
     def _stray_center_defaults(self) -> tuple[float, float]:
-        """The effective stray-light centre default (StrayLightMixin)."""
+        """The effective stray-light center default (StrayLightMixin)."""
         raise NotImplementedError
 
     def _build_optics_tab(self) -> QWidget:

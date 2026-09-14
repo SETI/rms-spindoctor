@@ -29,9 +29,9 @@ _HALF_U = float(np.hypot(_SEMI_MAJOR * _SIN_T, _SEMI_MINOR * _COS_T))
 # The bbox is stated in the pixel corner coordinates the scene uses; the mask
 # is addressed by rows and columns.  Converting between them is the only thing
 # separating the two, so the containment bound below is zero: every marked
-# pixel's own centre lies inside the converted box.  The tightness bound is one
+# pixel's own center lies inside the converted box.  The tightness bound is one
 # pixel, which is what a rasterized extent can promise -- the outermost marked
-# pixel is the last one whose centre the box contains, so the box edge can be
+# pixel is the last one whose center the box contains, so the box edge can be
 # up to a whole pixel beyond it and no further.
 _TIGHTNESS_BOUND_PX = 1.0
 
@@ -124,9 +124,9 @@ def test_silhouette_centres_on_the_bbox_centre() -> None:
     """The rendered silhouette's centroid is the middle of the inventory bbox.
 
     This is the one statement here that resolves the conversion the bbox
-    spans.  The ellipse is symmetric about its centre, so the centroid of the
+    spans.  The ellipse is symmetric about its center, so the centroid of the
     marked pixels is exact, and the bbox's own midpoint is the scene's stated
-    centre; the two differ by exactly the half pixel between a pixel corner
+    center; the two differ by exactly the half pixel between a pixel corner
     coordinate and a row or column.  An extent bound cannot see that half
     pixel, because a rasterized extent is only good to the pixel.
     """
@@ -139,9 +139,9 @@ def test_silhouette_centres_on_the_bbox_centre() -> None:
 
 
 def test_silhouette_falls_inside_bbox() -> None:
-    """Every rendered body pixel's centre lies within the inventory bbox.
+    """Every rendered body pixel's center lies within the inventory bbox.
 
-    The bound is zero: a pixel is marked because its own centre is inside the
+    The bound is zero: a pixel is marked because its own center is inside the
     ellipse, so once the bbox is converted to rows and columns no marked pixel
     can lie outside it at all.
     """
@@ -159,7 +159,7 @@ def test_bbox_hugs_silhouette() -> None:
     """The bbox is tight: the silhouette reaches within a pixel of each bbox edge.
 
     One pixel is what a rasterized extent can promise.  The outermost marked
-    pixel is the last one whose centre the box contains, so the box edge lies
+    pixel is the last one whose center the box contains, so the box edge lies
     less than a whole pixel beyond it; anything looser would admit an empty
     row or column between the silhouette and the box.
     """
