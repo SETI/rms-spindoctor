@@ -25,7 +25,7 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-4 have run; Phases 5-10 have not. Two changes landed ahead of
+Phases 1-5 have run; Phases 6-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -54,7 +54,7 @@ this table first and trusts it over any recollection.
 | Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
 | 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
 | 4 — The FITS in the bundle, with its data objects | **done** | `rf_pds4_phase4`, sections 3.3 and 3.13; #69 is closed by hand when its PR merges (section 8) |
-| 5 — Inventories that conform | not started | |
+| 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; no issue closes, #265 staying open for its Phase 10 part |
 | 6 — Bundle-level and static products | not started | |
 | 7 — The miscellaneous collection and its global index labels | not started | |
 | 8 — Targets, mission area, ring geometry | not started | |
@@ -66,10 +66,11 @@ guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the masked value, whose
 `Special_Constants` declaration Phase 4 made; what remains of it is the
 index tables' missing value, which Phase 7 settles), #602 (a
-skipped or failed product leaves the bundle inconsistent, which Phases 5 and
-6 own), #611 (the backplane viewer decides degrees from `BUNIT` and the plane's
-name rather than through `statistics_units`, so it shows the `rad/pixel` plane
-in radians per pixel), #614 (a dataset without PDS4 support
+skipped or failed product leaves the bundle inconsistent, given to Phases 5
+and 6; Phase 5 did not take it up, see Phase 5), #611 (the backplane viewer
+decides degrees from `BUNIT` and the plane's name rather than through
+`statistics_units`, so it shows the `rad/pixel` plane in radians per pixel),
+#614 (a dataset without PDS4 support
 ends both passes in a traceback rather than a refusal). #603, the two passes
 disagreeing about a missing template, was closed by hand on 2026-09-11, after
 #605, Phase 1's PR, merged. #607, the index tables written to one precision
@@ -192,24 +193,21 @@ plan).
 | 2 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. Two more, `miscellaneous` and `spice_kernels`, are neither declared nor generated; section 3.1 adds both, moving the global index tables into the first and the metakernel into the second. | — | #72, #74 |
 | 3 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
 | 4 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
-| 5 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
-| 6 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
-| 7 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
-| 8 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
-| 9 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
-| 10 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 11 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
-| 12 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
-| 13 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 14 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 15 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619; no phase (navigation) |
-| 16 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
+| 5 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
+| 6 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
+| 7 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
+| 8 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
+| 9 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
+| 10 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 11 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 12 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619; no phase (navigation) |
+| 13 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
-No row but 15 gets its own tracking issue. Each of the others is fixed by a
+No row but 12 gets its own tracking issue. Each of the others is fixed by a
 named phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
-every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 15 is the
+every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 12 is the
 navigation's, owned by no phase, and is tracked as #619. The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
@@ -424,7 +422,7 @@ The Schematron allows both values. The file is written as the ASCII bytes
 lines in a line feed, so the line feeds stay line feeds on any platform. The
 reference describes its supplemental text files as a `Header` of `UTF-8 Text`
 over their heading, followed by a table; ours is JSON with no heading. It ends
-without a line feed after its last line, which section 2.2 row 16 leaves to
+without a line feed after its last line, which section 2.2 row 13 leaves to
 Phase 10's `validate` run.
 
 ### 3.4 Epochs
@@ -476,7 +474,7 @@ a label. A success document has one only beside a pointing: `build_metadata_dict
 writes `times` with the pointing, and the navigation records a success with no
 pointing when `compute_pointing` raises `NavPointingError` or the instrument has
 no SPICE camera frame mapped (#619 proposes recording the times for every
-result; section 2.2 row 15). That is a document this package's navigation
+result; section 2.2 row 12). That is a document this package's navigation
 writes, so the labels pass fails such an image before anything is written for
 it, its log saying the navigation recorded no exposure times. It checks only
 that the block is there, since the block always holds all three epochs, and
@@ -508,7 +506,7 @@ tables into a root the labels pass would then refuse.
 `.csv`, no header row, `\n` line terminator (`csv.writer(f,
 lineterminator='\n')`, file opened with `newline=''`), one `P,<lidvid>` line
 per member. `<records>` counts members. The `FILE_RECORDS` template function
-counts lines, so it agrees once the header is gone.
+counts lines, so with no header it counts the members.
 
 Three inventories are **generated**, because their membership depends on
 what the run produced: `collection_data.csv`, `collection_browse.csv`, and
@@ -517,9 +515,9 @@ products of section 3.1.
 
 Four are **copied verbatim** from the template directory (section 3.2),
 because their membership is fixed: context, document, spice_kernels and
-schema. Their `collection_*.csv` templates get the same treatment as the
-generated ones -- no header, LF -- and `collection_context.csv`'s trailing
-`# TODO` comment line is removed, since it is currently counted as a record.
+schema. Their `collection_*.csv` templates follow the same rules as the
+generated ones -- no header, LF, a line feed after the last line -- and hold
+no comment line, since the label would count one as a record.
 
 Members carry an explicit version: the reference writes
 `P,urn:...:miscellaneous:global_mosaic_index::1.0` and
@@ -530,6 +528,10 @@ to be filled in from the context products as they are registered. The one
 exception the reference itself makes is its own `collection_context.csv`,
 which is LID-only; both forms appear to pass, so prefer the versioned one
 and let validation say otherwise.
+
+Our `collection_context.csv` lists the mission, the spacecraft and the two
+cameras, and no target, where the reference's lists every target its labels
+name. Its targets come with the target table of section 3.7, in Phase 8.
 
 A collection inventory also carries **`S` members**, not only `P`. The
 reference's document and miscellaneous inventories both list the context
@@ -560,7 +562,7 @@ The draft is acceptable either way; a bundle delivered to the Node is not.
 Acceptance criterion 8 records that distinction.
 
 Whichever way it goes, the LID gets its `:document:` segment back in all
-three places that drop it (defect 9).
+three places that drop it (defect 6).
 
 ### 3.7 Targets and the mission area
 
@@ -1329,14 +1331,37 @@ Closes #69, by hand when its PR merges into `rf_pds4_draft_bundle` (section
 
 ### Phase 5 — Inventories that conform
 
-`.csv`, headerless, LF, correct record counts, for the two generated
-inventories and the three copied ones. `.tab` removed everywhere including
-the global index tables.
+Done on `rf_pds4_phase5`. The data and browse inventories are written as
+`collection_data.csv` and `collection_browse.csv`, the names their labels
+give, through one writer in `collections.py`: no header, one `P,<lidvid>`
+line per member, each line ending in a line feed alone, the last included
+(section 3.5), so the `<records>` that `FILE_RECORDS` counts is the number
+of members. The three inventories the template directory ships were already
+headerless and LF, with a line feed after the last line; the phase removed
+`collection_context.csv`'s trailing `# TODO` line, which a label would have
+counted as a record, and left their content otherwise as it was. Versioned
+context members and `S` members in the generated inventories (section 3.5),
+the `:document:` segment (Phase 6) and the `xml_schema` LIDVIDs (section
+3.9) are not this phase's. The global index tables stay `.tab`, header and
+all, as section 3.1 settles; Phase 7 moves and reshapes them.
 
-Tests: the generated inventory has no header, ends every line with `\n`, and
-`FILE_RECORDS` equals the member count.
+Tests: over an empty data tree both inventories are empty, and over one data
+label an inventory is that one `P` line; every line of each ends in a line
+feed and none holds a carriage return; over the cohort, each shipped
+collection label names the inventory beside it and states the two navigated
+images as its records; and every line of each inventory the template
+directory ships is a member, ending in a line feed.
 
-Closes the inventory-filename part of #265 and the new format issue.
+#602, which section 0.1 and Phase 1 give to Phases 5 and 6, is not in this
+phase's text and was not taken up: the browse inventory is still built from
+the data labels, so an image with a data label and no browse label is listed
+in the browse inventory with no product on disk. What #602 asks has
+decisions in it -- whether every data product must have a browse product --
+that are the operator's.
+
+No issue closes here. The inventory-filename part of #265 is done, and #265
+stays open for its dev-guide output-layout part (Phase 10). Section 2.2's
+header and line-ending rows were never filed as issues (section 7).
 
 ### Phase 6 — Bundle-level and static products
 
@@ -1582,10 +1607,10 @@ removals on a two-sided conflict.
 
 ## 7. Follow-ups
 
-**No issues are filed for section 2.2's rows other than 15.** Each is assigned to a
+**No issues are filed for section 2.2's rows other than 12.** Each is assigned to a
 named phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
-adds a close to reconcile and no reader. Row 15 is the navigation's, not a
+adds a close to reconcile and no reader. Row 12 is the navigation's, not a
 phase's, and is tracked as #619.
 
 The one row that would have outlived this plan was the angular-unit
