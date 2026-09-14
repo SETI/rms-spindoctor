@@ -1,7 +1,7 @@
 """Shared image-side derivatives consumed by every DT-based technique.
 
 The orchestrator computes one gradient-magnitude image, one gradient-vector
-image, and one signed distance-transform image per navigation; every limb /
+image, and one edge distance-transform image per navigation; every limb /
 terminator / ring-edge technique then samples those products at its own
 model polylines.  Computing them once keeps the per-image cost bounded
 regardless of how many DT techniques run.
@@ -21,10 +21,13 @@ Three quantities are produced and attached to the per-image
     with the model's outward normal at each polyline vertex.
 
 ``image_edge_dt_ext``
-    Distance transform of the binarised gradient image, with the threshold
-    chosen as ``edge_threshold_k_sigma * image_noise_sigma``.  The DT is
-    truncated at :data:`DEFAULT_DT_HALF_WIDTH_PX` so the per-pixel cost is
-    bounded for the DT-based techniques' Levenberg-Marquardt step.
+    Euclidean distance transform of the binarised gradient image, with the
+    threshold chosen as ``edge_threshold_k_sigma * image_noise_sigma``.  The DT
+    is truncated at :data:`DEFAULT_DT_HALF_WIDTH_PX` so the per-pixel cost is
+    bounded for the DT-based techniques' Levenberg-Marquardt step.  It is not
+    signed: the values are non-negative everywhere and the zero locus is the
+    edge pixels themselves, at their own centres, not an oriented boundary
+    running along pixel edges half a pixel away.
 
 The thresholding intentionally treats *every* edge pixel as a candidate; the
 per-technique polarity filter rejects matches that disagree on the gradient

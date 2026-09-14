@@ -78,6 +78,7 @@ from spindoctor.nav_technique.nav_technique import (
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
@@ -897,11 +898,11 @@ class StarFieldFromCatalogNav(NavTechnique):
             if result is None:
                 continue
             # ``find_position`` reports the position in ``eval_rect`` convention
-            # (offset measured from the pixel's lower edge, which is a pixel corner coordinate);
-            # this technique works in pixel-centric coordinates, so subtract the half
-            # half pixel to match the moment centroids it replaces.
-            refined[i, 0] = result[0] - 0.5
-            refined[i, 1] = result[1] - 0.5
+            # (offset measured from the pixel's lower edge, which is a pixel corner
+            # coordinate); this technique measures the image array, so the half pixel
+            # comes off here to match the moment centroids it replaces.
+            refined[i, 0] = result[0] - PIXEL_CENTER_TO_CORNER_PX
+            refined[i, 1] = result[1] - PIXEL_CENTER_TO_CORNER_PX
             n_refined += 1
         self.logger.debug(
             'PSF-refined %d of %d matched inlier(s); the rest kept their moment centroid',

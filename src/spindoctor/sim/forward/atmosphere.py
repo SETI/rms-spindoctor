@@ -81,6 +81,7 @@ from spindoctor.sim.forward.haze_structure import (
     scale_height_field,
     tilted_illumination_2d,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -522,8 +523,17 @@ def apply_atmosphere(
     if box is None:
         return empty
     box_v, box_u = box
-    v_ctr = (np.arange(box_v.start, box_v.stop, dtype=np.float64) + (0.5 - center_v))[:, None]
-    u_ctr = (np.arange(box_u.start, box_u.stop, dtype=np.float64) + (0.5 - center_u))[None, :]
+    # The box is named by array rows and columns and the body centre is stated
+    # in the geometry layer's pixel corner coordinates, so the half pixel goes
+    # on before the centre comes off.
+    v_ctr = (
+        np.arange(box_v.start, box_v.stop, dtype=np.float64)
+        + (PIXEL_CENTER_TO_CORNER_PX - center_v)
+    )[:, None]
+    u_ctr = (
+        np.arange(box_u.start, box_u.stop, dtype=np.float64)
+        + (PIXEL_CENTER_TO_CORNER_PX - center_u)
+    )[None, :]
 
     v_rot = (v_ctr * cos_rz - u_ctr * sin_rz) * cos_rt
     u_rot = v_ctr * sin_rz + u_ctr * cos_rz

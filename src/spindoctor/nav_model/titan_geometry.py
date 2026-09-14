@@ -532,10 +532,12 @@ def _restricted_backplane(
         The backplane and the meshgrid it was built over.
     """
     u_min, u_max, v_min, v_max = bbox_nominal
+    # The box is stated in array bounds; the meshgrid reads the geometry
+    # layer's pixel corner coordinates, so the half pixel goes on here.
     meshgrid = Meshgrid.for_fov(
         obs.fov,
-        origin=(u_min + 0.5, v_min + 0.5),
-        limit=(u_max + 0.5, v_max + 0.5),
+        origin=(u_min + PIXEL_CENTER_TO_CORNER_PX, v_min + PIXEL_CENTER_TO_CORNER_PX),
+        limit=(u_max + PIXEL_CENTER_TO_CORNER_PX, v_max + PIXEL_CENTER_TO_CORNER_PX),
         undersample=max(1, undersample),
         swap=True,
     )

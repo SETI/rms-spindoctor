@@ -458,7 +458,8 @@ def plant_circular_body(
 
     Parameters:
         shape: ``(rows, cols)`` of the output arrays.
-        centre_vu: Body centre in pixel coordinates.
+        centre_vu: Body centre, pixel centric: it is measured against the
+            array's own rows and columns below.
         radius_px: Body radius in pixels.
         sub_solar_lon_deg: Scalar sub-solar longitude in degrees.
         sub_solar_lat_deg: Scalar sub-solar latitude in degrees.

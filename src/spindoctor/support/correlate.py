@@ -643,7 +643,10 @@ def evaluate_candidate(
             to ``model_pad``.
 
     Returns:
-        A dictionary containing the navigation result.
+        A dictionary containing the navigation result.  Its ``offset`` is the
+        ``(dv, du)`` displacement that carries the model onto the image.  A
+        displacement is a difference of two positions, so it belongs to no
+        pixel coordinate system and crosses between them unchanged.
 
     Raises:
         ValueError: If the model is smaller than the image in either dimension
@@ -1059,7 +1062,9 @@ def navigate_with_pyramid_kpeaks(
 
     Returns:
         A dictionary containing the navigation result:
-        - offset: The offset.
+        - offset: The ``(dv, du)`` displacement that carries the model onto the
+          image.  A displacement is a difference of two positions, so it belongs
+          to no pixel coordinate system and crosses between them unchanged.
         - cov: The covariance matrix.
         - sigma_xy: The sigma_xy.
         - quality: The quality of the navigation.

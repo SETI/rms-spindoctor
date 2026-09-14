@@ -96,8 +96,9 @@ class FakeUV:
     """Stand-in for the result of ``Observation.uv_from_ra_and_dec``.
 
     Parameters:
-        u_vals: Array (or scalar) of U-pixel coordinates.
-        v_vals: Array (or scalar) of V-pixel coordinates.
+        u_vals: Array (or scalar) of U, in the pixel corner coordinates the
+            geometry layer reports.
+        v_vals: Array (or scalar) of V, in the same coordinates.
     """
 
     u_vals: np.ndarray
@@ -397,7 +398,7 @@ class FakeObs:
         tfrac: float = 0.5,
         apparent: bool = True,
     ) -> FakeUV:
-        """Project RA/DEC into pixel coordinates.
+        """Project RA/DEC into the pixel corner coordinates ``oops`` reports.
 
         When ``self.radec_to_uv`` is set, the callable is invoked once per
         ``(ra, dec)`` point with ``(ra, dec, tfrac)`` and must return
