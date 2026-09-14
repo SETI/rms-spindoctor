@@ -43,6 +43,7 @@ from .conftest import (
     run_collections,
     touch_browse_label,
     touch_label,
+    write_supplemental,
 )
 
 
@@ -53,7 +54,8 @@ def _bundle_env(
 
     The index generator runs first, as in the summary pass, and writes the miscellaneous
     collection, which the bundle label declares; then the data and browse collections
-    are written.
+    are written.  The one image has a data label and a supplemental file naming one
+    body, so the bodies table has a row, which the miscellaneous collection holds.
 
     Parameters:
         tmp_path: Base temporary directory.
@@ -66,6 +68,9 @@ def _bundle_env(
     """
     env = make_bundle_env(tmp_path, template_contents=template_contents)
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', bodies={'MOON': {'backplanes': {}}}
+    )
     if browse:
         touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
     generate_global_index_files(

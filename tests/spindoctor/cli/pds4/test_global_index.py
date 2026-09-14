@@ -690,18 +690,19 @@ def test_the_miscellaneous_inventory_lists_the_tables_and_what_the_documents_cit
     ]
 
 
-def test_a_miscellaneous_collection_with_no_member_is_not_written(
+def test_a_miscellaneous_collection_with_no_index_table_is_not_written(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """With no index table and nothing cited, the collection is not written, and counts.
+    """With neither index table written, the collection is not written, and counts.
 
-    No image gives either table a row and the document inventory cites nothing, so the
-    collection has no member and its label could state no record.  Neither its inventory
-    nor its label is on disk afterwards, whatever an earlier run left there; it counts
-    once as a label not written; and one error names it.
+    The collection takes its members from the index labels, as the data collection
+    takes its members from the data labels, so the secondary members the document
+    inventory cites do not make one of it.  No image gives either table a row, so
+    neither the collection's inventory nor its label is on disk afterwards, whatever an
+    earlier run left there; it counts once as a label not written; and one error names
+    it and says why.
     """
-    guide_only = f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0\n'
-    env = make_bundle_env(tmp_path, template_contents={'collection_document.csv': guide_only})
+    env = make_bundle_env(tmp_path)
     miscellaneous = env.bundle_dir / 'miscellaneous'
     earlier = [
         miscellaneous / 'collection_miscellaneous.csv',
@@ -720,6 +721,7 @@ def test_a_miscellaneous_collection_with_no_member_is_not_written(
         if 'The miscellaneous collection was not written' in line
     ]
     assert len(errors) == 1
+    assert 'neither index table was written with its label' in errors[0]
 
 
 def test_a_missing_index_template_raises(tmp_path: Path) -> None:

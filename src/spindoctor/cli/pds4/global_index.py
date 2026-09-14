@@ -156,6 +156,11 @@ RINGS_INDEX = 'global_rings_index'
 INDEX_VERSION = '1.0'
 """The version of each index product, which its label states and its inventory line names."""
 
+_NO_INDEX_PRODUCT = (
+    'neither index table was written with its label, so the collection holds no product of its own'
+)
+"""Why the miscellaneous collection is not written when neither index product is labeled."""
+
 
 def index_lid(bundle_name: str, index_name: str) -> str:
     """Return the LID of one global index product, built from the bundle's name.
@@ -523,7 +528,9 @@ def generate_global_index_files(
     written whether or not the label that describes it renders.  A table that no image
     gives a row is not written, nor its label: a table's label states its records, and
     PDS4 requires at least one.  That is not a failure, since a bundle can hold no image
-    with ring backplanes; the log says so at info level.
+    with ring backplanes; the log says so at info level.  With neither table written,
+    though, the miscellaneous collection holds nothing of its own, and that counts
+    (below).
 
     The tables index exactly the images the data inventory lists, the data labels in
     the data tree that :func:`~spindoctor.cli.pds4.collections.data_products` names,
@@ -546,9 +553,13 @@ def generate_global_index_files(
     ``collection_miscellaneous.csv`` and its label beside them: a ``P`` line for each
     index product whose label is on disk, by its LID and :data:`INDEX_VERSION`, and then
     an ``S`` line for each secondary member the template directory's document inventory
-    cites, through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`.  It is
-    written through :func:`~spindoctor.cli.pds4.collections.write_collection`, so a
-    collection with no member is not written at all and counts as a label not written.
+    cites, through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`.  It
+    takes its members from the index labels, as the data collection takes its members
+    from the data labels, so with neither index product labeled -- no image gives either
+    table a row, or neither label renders -- it is not written at all, whatever it would
+    cite, and counts once as a label not written; the bundle label, which declares it,
+    is then not written either.  It is written through
+    :func:`~spindoctor.cli.pds4.collections.write_collection`.
 
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
@@ -746,7 +757,10 @@ def generate_global_index_files(
     # inventory is written after the labels it lists.  Its primary members are the index
     # products whose labels are on disk; its secondary members are the ones the document
     # inventory the template directory ships cites, taken from there so that the two
-    # inventories cannot disagree about them.
+    # inventories cannot disagree about them.  A collection takes its members from the
+    # labels of its own kind, so with neither index product labeled it holds nothing of
+    # its own and is not written, whatever it would cite: it counts, and the bundle
+    # label, which declares it, goes with it.
     primaries = [
         f'{index_lid(bundle_name, name)}::{INDEX_VERSION}'
         for name, written in ((BODIES_INDEX, bodies_written), (RINGS_INDEX, rings_written))
@@ -760,7 +774,7 @@ def generate_global_index_files(
         secondaries=secondary_members(template_dir),
         template=collection_template,
         template_vars={'COLLECTION_MISCELLANEOUS_CSV_PATH': collection_inventory.as_posix()},
-        reasons_not_written=[],
+        reasons_not_written=[] if primaries else [_NO_INDEX_PRODUCT],
         logger=logger,
     ):
         failed_labels += 1
