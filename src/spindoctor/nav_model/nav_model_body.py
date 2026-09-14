@@ -79,7 +79,7 @@ from spindoctor.nav_model.nav_model_body_base import (
     _sigmoid,
 )
 from spindoctor.nav_model.stars.predicted_snr import psf_sigma_px
-from spindoctor.support.constants import HALFPI
+from spindoctor.support.constants import HALFPI, PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.image import filter_downsample, shift_array
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.time import now_dt
@@ -851,11 +851,17 @@ class NavModelBody(NavModelBodyBase):
         self._limb_mask = limb_mask
         self._terminator_mask = terminator_mask
 
-        u_center_data = (u_min_unc + u_max_unc) / 2.0
-        v_center_data = (v_min_unc + v_max_unc) / 2.0
+        # The inventory states the body's projected position exactly, in the
+        # pixel corner coordinates the geometry layer works in and ordered
+        # (u, v).  The payload is pixel centric, so the half pixel comes off
+        # next to the margin that goes on.  The bounding box is not a stand-in
+        # for the position: its bounds are floor(u - r) and ceil(u + r), whose
+        # midpoint lands on the centre only when the two fractional parts
+        # happen to be complementary.
+        center_uv = inventory['center_uv']
         self._predicted_center_vu = (
-            float(v_center_data + obs.extfov_margin_v),
-            float(u_center_data + obs.extfov_margin_u),
+            float(center_uv[1]) - PIXEL_CENTER_TO_CORNER_PX + obs.extfov_margin_v,
+            float(center_uv[0]) - PIXEL_CENTER_TO_CORNER_PX + obs.extfov_margin_u,
         )
         diameter = max(
             float(inventory['u_pixel_size']),

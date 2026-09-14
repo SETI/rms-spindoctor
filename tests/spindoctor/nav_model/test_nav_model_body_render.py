@@ -40,7 +40,7 @@ import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.annotation import Annotations
 from spindoctor.config.config import Config
 from spindoctor.feature.feature import NavFeature
-from spindoctor.feature.geometry import LimbPolyline
+from spindoctor.feature.geometry import BodyBlobGeometry, BodyDiscGeometry, LimbPolyline
 from spindoctor.nav_model.nav_model_body import NavModelBody
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
@@ -702,6 +702,76 @@ def test_no_disc_when_overflow_exceeds_cap(monkeypatch: pytest.MonkeyPatch) -> N
     assert model._overflow_fraction > 0.3
     types_emitted = _feature_types(model.to_features(_noise_context(obs)))
     assert 'BODY_DISC' not in types_emitted
+
+
+def test_disc_center_is_the_projected_position_not_the_bbox_midpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The BODY_DISC centre is the inventory's exact position, converted once.
+
+    The sphere sits at (50.3, 60.3) in the field of view, whose whole numbers
+    fall on pixel boundaries, and its radius is 8 px.  The inventory's integer
+    bounding box is therefore floor(50.3 - 8) = 42 to ceil(50.3 + 8) = 59 in
+    v, and 52 to 69 in u, whose midpoints are 50.5 and 60.5.  Neither is where
+    the body is: floor and ceil each move away from the centre by the
+    fractional part they are handed, and the two only cancel when those
+    fractions are complementary, so the midpoint wanders by up to half a pixel
+    as the body moves.
+
+    The payload is pixel centric, where a whole number falls at a pixel's
+    centre, so the answer is the projected position less half a pixel, plus
+    the 10-pixel margin the extended frame adds: 50.3 - 0.5 + 10 = 59.8 in v
+    and 60.3 - 0.5 + 10 = 69.8 in u.  Taking the bounding-box midpoint instead
+    would give 60.5 and 70.5 -- wrong by the 0.2 px it rounds off and by the
+    half pixel it never converts.
+    """
+    spec = _SphereSpec((50.3, 60.3), 8.0)
+    model, obs = _make_model(monkeypatch, spec, margin=10)
+    model.create_model()
+    disc = next(
+        f for f in model.to_features(_noise_context(obs)) if f.feature_type.name == 'BODY_DISC'
+    )
+    geometry = disc.geometry
+    assert isinstance(geometry, BodyDiscGeometry)
+    # The sphere is one of the positions where the two answers differ; a
+    # centre whose two fractional parts were complementary could not tell
+    # the bounding-box midpoint from the projected position.
+    assert (math.floor(50.3 - 8.0) + math.ceil(50.3 + 8.0)) / 2.0 != 50.3
+    assert geometry.predicted_center_vu[0] == pytest.approx(59.8)
+    assert geometry.predicted_center_vu[1] == pytest.approx(69.8)
+
+
+def test_sub_solar_direction_collapses_on_a_full_phase_disc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A full-phase body reports no sub-solar direction, as the gate says.
+
+    The Sun is on the observer's axis, so the render is rotationally
+    symmetric and its brightness centroid falls on the geometric centre.  The
+    BODY_BLOB direction is the vector between those two, and both are extfov
+    pixel centric, so the vector is the zero one, well inside the half-pixel
+    floor below which the direction is meaningless.  A geometric centre
+    carried in pixel corner coordinates would instead sit half a pixel away
+    on each axis, a length of 0.707 px, clearing that floor and reporting a
+    45-degree direction on a body whose illumination has no direction at all.
+
+    The centroid also has to land on the centre for the blob's predicted
+    position to mean anything, so that is asserted first.
+    """
+    spec = _SphereSpec((50.5, 50.5), 20.0)
+    model, obs = _make_model(monkeypatch, spec, margin=10, phase_deg=0.0)
+    model.create_model()
+    blob = next(
+        f for f in model.to_features(_noise_context(obs)) if f.feature_type.name == 'BODY_BLOB'
+    )
+    geometry = blob.geometry
+    assert isinstance(geometry, BodyBlobGeometry)
+    # 50.5 in the field of view is the centre of pixel 50, which is 50.0 in
+    # the array's own coordinates, and the margin puts it at 60.0.
+    assert geometry.predicted_center_vu[0] == pytest.approx(60.0)
+    assert geometry.predicted_center_vu[1] == pytest.approx(60.0)
+    assert blob.flags is not None
+    assert getattr(blob.flags, 'sub_solar_dir_vu', None) == (0.0, 0.0)
 
 
 def test_no_features_for_subpixel_body(monkeypatch: pytest.MonkeyPatch) -> None:

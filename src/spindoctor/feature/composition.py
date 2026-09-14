@@ -209,10 +209,16 @@ def _paint_circle_outline(
     the ext-FOV.  The radius is floored at one pixel so a body smaller than
     a pixel still marks its predicted position.
 
+    The centre is rounded to the cell it falls in, which is what a pixel
+    centric position means: a whole number there is a pixel's centre, so the
+    nearest whole number is the pixel that holds the position.  Every payload
+    reaching here states its centre that way.
+
     Parameters:
         image: Overlay image, modified in place.
         mask: Overlay mask, modified in place.
-        center_vu: Predicted ``(v, u)`` center of the circle.
+        center_vu: Predicted ``(v, u)`` center of the circle, extfov pixel
+            centric.
         radius_px: Circle radius in pixels.
     """
     v_int = round(center_vu[0])

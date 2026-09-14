@@ -185,6 +185,11 @@ def _composite_pivot_vu(features: list[NavFeature]) -> tuple[float, float]:
     centroid of the bodies' predicted centres in that same frame.  A
     single-body composite reduces to that body's predicted centre.
 
+    The centres are extfov pixel centric, which is the system
+    :func:`_rotate_template` states the array's own centre in, so the shift
+    that brings the pivot onto that centre is the whole of the offset between
+    them.
+
     Raises:
         ValueError: if ``features`` is empty (the upstream feasibility
             gate should never let this happen, but the check guards
