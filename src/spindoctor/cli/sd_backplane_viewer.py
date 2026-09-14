@@ -11,7 +11,7 @@ import numpy as np
 from astropy.io import fits
 from filecache import FCPath, FileCache
 from PIL import Image
-from PyQt6.QtCore import QObject, QPoint, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QPointF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage, QMouseEvent, QPixmap, QWheelEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -1138,7 +1138,7 @@ class NavBackplaneViewer(QDialog):
     def _on_move(self, event: QMouseEvent) -> None:
         self._zoom_ctl.on_mouse_move(event)
         # Status update of value at cursor
-        self._update_cursor_status(event.pos())
+        self._update_cursor_status(event.position())
 
     def _on_release(self, _event: QMouseEvent) -> None:
         self._zoom_ctl.on_mouse_release(_event)
@@ -1313,7 +1313,18 @@ class NavBackplaneViewer(QDialog):
         self._zoom_label.setText(f'Zoom: {self._zoom_factor:.2f}x')
 
     # ---- Cursor sampling ----
-    def _update_cursor_status(self, pos: QPoint) -> None:
+    def _update_cursor_status(self, pos: QPointF) -> None:
+        """Show the cursor's (v, u) position and the values under it.
+
+        A Qt event position is a continuous pixel corner coordinate and the zoom
+        divide keeps it so, which is what the readout prints -- the same measure
+        and the same precision the manual navigation dialog prints, so a position
+        read off one panel means the same thing in the other.  The pixel sampled
+        beside it is the one containing that position, which is its floor.
+
+        Parameters:
+            pos: Cursor position in label coordinates.
+        """
         if self._img_float is None:
             return
         pixmap = self._label.pixmap()
@@ -1321,17 +1332,19 @@ class NavBackplaneViewer(QDialog):
             return
         # Approximate inverse of zoom/pan to get image coords
         # Since we didn't actually change widget offset, map pos to image by dividing by zoom
-        u = int(pos.x() / max(self._zoom_factor, 1e-6))
-        v = int(pos.y() / max(self._zoom_factor, 1e-6))
+        img_u = float(pos.x()) / max(self._zoom_factor, 1e-6)
+        img_v = float(pos.y()) / max(self._zoom_factor, 1e-6)
         h, w = self._img_float.shape
-        if v < 0 or v >= h or u < 0 or u >= w:
+        if not (0.0 <= img_v < h and 0.0 <= img_u < w):
             self._status_label.setText('V, U: --, --  Value: --')
             self._body_id_val_label.setText('Object: --')
             self._body_val_label.setText('Value: --')
             self._ring_val_label.setText('Value: --')
             return
+        v = int(img_v)
+        u = int(img_u)
         val = float(self._img_float[v, u])
-        self._status_label.setText(f'V, U: {v}, {u}  Value: {val:.6g}')
+        self._status_label.setText(f'V, U: {img_v:.2f}, {img_u:.2f}  Value: {val:.6g}')
         # Update BODY_ID value regardless of visibility
         if (
             self._body_id_map is not None
