@@ -445,8 +445,10 @@ def generate_collection_files(
     as a label not written, with one error naming the collection and every reason: a
     collection with no label of its kind on disk, and the data collection when
     ``epochs`` is None.  Whatever an earlier run left at either of its paths is
-    removed, so a collection on disk is always one this run wrote.  An empty collection
-    is the limiting case of a disagreement: no image has a product of its kind.
+    removed, so a collection on disk is always one this run wrote.  The check and this
+    rule are one rule at two scales, each image holding all its products and each
+    collection at least one member: an empty collection is refused by this rule even
+    over a bundle with no image, where the check has nothing to count.
 
     Every collection label that can be written is attempted, whichever of them fail: a
     broken data collection template must not hide a broken browse collection one.  An
