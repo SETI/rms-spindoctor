@@ -96,14 +96,14 @@ def test_body_limb_nav_recovers_multi_body_offset(
 ) -> None:
     shape = (240, 240)
     radius = 22.0
-    centres = [(80.0, 80.0), (160.0, 90.0), (130.0, 170.0)]
+    centers = [(80.0, 80.0), (160.0, 90.0), (130.0, 170.0)]
     image = np.zeros(shape, dtype=np.float64)
-    for cv, cu in centres:
+    for cv, cu in centers:
         image += disc_image(shape, (cv, cu), radius)
     image = np.clip(image, 0.0, 100.0)
     planted_dv, planted_du = 1.0, -1.5
     features: list[NavFeature] = []
-    for idx, (cv, cu) in enumerate(centres):
+    for idx, (cv, cu) in enumerate(centers):
         model_center = (cv - planted_dv, cu - planted_du)
         vertices, outward = circle_polyline(model_center, radius, 80)
         features.append(
@@ -173,7 +173,7 @@ def test_body_limb_nav_at_edge_when_offset_walks_outside_search_window(
 ) -> None:
     """LM converging at or beyond the extfov margin must register as at_edge.
 
-    ``ObsSnapshot.extract_offset_array`` cannot honour an offset whose
+    ``ObsSnapshot.extract_offset_array`` cannot honor an offset whose
     magnitude meets or exceeds the extfov margin without zero-filling
     part of the overlay slice.  The technique must flag at_edge=True so
     the ensemble can drop the result whenever an interior alternative
@@ -190,7 +190,7 @@ def test_body_limb_nav_at_edge_when_offset_walks_outside_search_window(
     radius = 25.0
     image = disc_image(shape, image_center, radius)
     margin_v, margin_u = 5, 10
-    # Plant the model far enough from the image centre that the
+    # Plant the model far enough from the image center that the
     # converged offset reaches the V-axis margin in either direction.
     model_center = (image_center[0] - 11.0, image_center[1] - 9.0)
     vertices, outward = circle_polyline(model_center, radius, 120)

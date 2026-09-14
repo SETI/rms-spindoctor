@@ -32,7 +32,7 @@ class _ConcreteTechniqueForTest(NavTechnique):
 
     ``_abstract = True`` keeps it out of the process-wide registry so it
     cannot leak into full-ensemble navigations run later in the same
-    worker; the registration behaviour itself is exercised by
+    worker; the registration behavior itself is exercised by
     ``test_navtechnique_registry_records_subclass`` with a scoped probe.
     """
 

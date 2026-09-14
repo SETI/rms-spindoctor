@@ -83,8 +83,8 @@ def test_collect_provenance_metadata_hashes_static_data_yamls() -> None:
     """The hash dict covers config_220_body_shape.yaml and the inst configs."""
     meta = collect_provenance_metadata()
     names = set(meta.static_data_hashes.keys())
-    # Every shipped 4N0 instrument block plus the body-shape catalogue
-    # must appear; ring catalogues (3N0) are also static data.
+    # Every shipped 4N0 instrument block plus the body-shape catalog
+    # must appear; ring catalogs (3N0) are also static data.
     assert 'config_220_body_shape.yaml' in names
     assert 'config_400_inst_coiss.yaml' in names
     assert 'config_310_saturn_rings.yaml' in names

@@ -22,7 +22,7 @@ _SIZE = 220
 
 
 def _feature_params() -> dict[str, Any]:
-    """A centred navigable ringlet with curved inner and outer edges."""
+    """A centered navigable ringlet with curved inner and outer edges."""
     return {
         'name': 'SATURN',
         'kind': 'ringlet',

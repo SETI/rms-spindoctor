@@ -58,8 +58,8 @@ def test_no_shipped_instrument_fits_camera_rotation() -> None:
     """No shipped instrument enables rotation fitting, and enabling one needs work.
 
     Nothing can currently use a fitted rotation.  Each technique measures it
-    about its own centre, so the translations reported alongside it are not in
-    one convention, and a rotation without a recorded centre cannot be carried
+    about its own center, so the translations reported alongside it are not in
+    one convention, and a rotation without a recorded center cannot be carried
     into an attitude -- which suppresses the corrected C-matrix and omits the
     frame from the corrected kernels.  Enabling it therefore needs the rotation
     convention settled first, and needs the conflicted result path taught to

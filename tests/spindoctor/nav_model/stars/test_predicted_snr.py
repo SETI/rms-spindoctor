@@ -149,7 +149,7 @@ def test_predicted_snr_raises_for_non_positive_noise_sigma() -> None:
 
 
 def test_predicted_snr_unity_signal_scale_is_no_op() -> None:
-    """signal_dn_to_image_unit_scale=1.0 reproduces the default behaviour."""
+    """signal_dn_to_image_unit_scale=1.0 reproduces the default behavior."""
     star: Any = _FakeStar(vmag=4.0)
     psf: Any = _FakeSigmaPSF(sigma=1.0)
     base = predicted_snr(star, psf=psf, image_noise_sigma=0.5)

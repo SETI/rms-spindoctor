@@ -469,12 +469,12 @@ def test_compose_dialog_overlay_star_marker_off_image_no_op() -> None:
 
 
 def test_compose_dialog_overlay_star_marker_clamps_at_edge() -> None:
-    """A STAR centre near the FOV edge produces an exact 3x3-perimeter pixel set.
+    """A STAR center near the FOV edge produces an exact 3x3-perimeter pixel set.
 
     With predicted (1, 1) on a 20x20 FOV, the marker can extend at most
     1 pixel before hitting the edge — the floor (3) does not apply here
     because the explicit edge clamp is tighter.  The full 8-pixel
-    perimeter (3x3 outline minus the centre) is asserted as an exact
+    perimeter (3x3 outline minus the center) is asserted as an exact
     set so a regression in the half-width clamp logic fails loud.
     """
     from spindoctor.feature.composition import compose_dialog_overlay
@@ -501,7 +501,7 @@ def test_compose_dialog_overlay_star_marker_clamps_at_edge() -> None:
     assert set(zip(*np.nonzero(mask), strict=True)) == expected_pixels
     assert np.count_nonzero(image) == len(expected_pixels)
     assert np.count_nonzero(mask) == len(expected_pixels)
-    assert image[1, 1] == 0.0  # centre not painted
+    assert image[1, 1] == 0.0  # center not painted
 
 
 def _make_titan(

@@ -61,7 +61,7 @@ class _RingBackplane(FakeBackplane):
 
     The synthetic catalogs used here are circular (``ae = 0``) with no
     perturbations, for which the multi-mode radius equals the base ring
-    radius, so the identity mapping is the spec-correct behaviour.
+    radius, so the identity mapping is the spec-correct behavior.
     """
 
     def radial_mode(
@@ -211,7 +211,7 @@ def _ramp_ring(
 def _arc_ring(*, scale: float = 800.0) -> RingBackplaneData:
     """Build ring backplane data whose iso-radius contours are curved arcs.
 
-    ``radius(v, u) = scale * hypot(v + 100, u - 50)`` centres the ring system
+    ``radius(v, u) = scale * hypot(v + 100, u - 50)`` centers the ring system
     100 rows above the frame so edges arc visibly across the FOV.
 
     Parameters:

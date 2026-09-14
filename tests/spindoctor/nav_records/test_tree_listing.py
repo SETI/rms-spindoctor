@@ -8,7 +8,7 @@ The refusals are the point of most of this.  A directory nobody can list is a
 directory whose documents nobody read, and a pass that finished around one would
 report itself clean while covering less than the tree, so it stops.  A directory
 reached a second way is not a gap and is declined rather than refused.  And a
-restriction a listing cannot honour is refused rather than ignored, because a
+restriction a listing cannot honor is refused rather than ignored, because a
 listing of the whole root handed back as a listing of one mission is a wrong
 answer rather than a missing feature.
 """

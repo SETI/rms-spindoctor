@@ -169,7 +169,7 @@ def test_visibility_dilation_uses_each_axis_own_margin(config: Config) -> None:
     """An envelope clearing the detector on both axes scores normally.
 
     The margins here are deliberately unequal (5 rows against 40 columns,
-    the shape a Cassini NAC has).  The body centre sits at row 60 of the
+    the shape a Cassini NAC has).  The body center sits at row 60 of the
     EXTENDED frame, so it is 55 px inside the detector's top edge, and its
     52 px envelope clears that edge by 3 px.  Dilating the row axis by the
     40 px column margin instead would demand 92 px and fail the frame for
@@ -185,7 +185,7 @@ def test_visibility_dilation_uses_each_axis_own_margin(config: Config) -> None:
 def test_visibility_still_hard_zeroes_when_an_axis_is_clipped(config: Config) -> None:
     """The same body four pixels nearer the top edge fails the row test.
 
-    At row 56 of the extended frame the centre is 51 px inside the
+    At row 56 of the extended frame the center is 51 px inside the
     detector's top edge, one pixel less than the envelope radius, so the
     envelope genuinely crosses it.
     """
@@ -317,7 +317,7 @@ def _titan_only_config(tmp_path: Path) -> Config:
 def _inventory_entry(
     center_vu: tuple[float, float], half_size_px: float, range_km: float
 ) -> dict[str, Any]:
-    """Build an inventory record for a body of the given centre and size."""
+    """Build an inventory record for a body of the given center and size."""
     return {
         'u_min_unclipped': center_vu[1] - half_size_px,
         'u_max_unclipped': center_vu[1] + half_size_px,
@@ -380,7 +380,7 @@ class _BoxMeshgrid:
     """Meshgrid stand-in materializing the ``(u, v)`` of every box sample.
 
     Mirrors ``oops.Meshgrid.for_fov`` closely enough for the model's
-    coordinate arithmetic: one sample per pixel centre over the requested
+    coordinate arithmetic: one sample per pixel center over the requested
     nominal-frame box, indexed ``(v, u)``.
     """
 
@@ -1028,7 +1028,7 @@ def test_degenerate_axis_guard_scales_with_the_stride(
     A strided box locates the sunward pixel only to within the stride, so the
     floor on the arm is applied in strides.  The stride is read off a first
     pass over the scene; the sub-solar point is then planted two strides from
-    the centre, above the 3 px floor and under three strides.
+    the center, above the 3 px floor and under three strides.
     """
     scene.titan_center_vu = (60.5, 60.5)
     scene.titan_radius_px = 2000.0
@@ -1061,7 +1061,7 @@ def test_symmetry_axis_points_at_the_sub_solar_pixel(
 
 
 def test_near_zero_phase_axis_is_degenerate(scene: type[_SceneBackplane], tmp_path: Path) -> None:
-    """A sub-solar point at the disc centre marks the axis degenerate."""
+    """A sub-solar point at the disc center marks the axis degenerate."""
     scene.sub_solar_offset_vu = (0.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None

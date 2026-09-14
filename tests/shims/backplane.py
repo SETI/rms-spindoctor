@@ -313,7 +313,7 @@ class FakeBackplane:
         return _scalar(self._body(body_name).center_phase_rad)
 
     def center_resolution(self, body_name: str, axis: str = 'u') -> polymath.Scalar:
-        """Return the scalar km/px scale at the body centre.
+        """Return the scalar km/px scale at the body center.
 
         The shim reports the same scale on both axes; ``axis`` is accepted
         for API parity with ``oops.Backplane.center_resolution``.
@@ -450,9 +450,9 @@ def plant_circular_body(
     """Build :class:`BodyBackplaneData` for a circular body silhouette.
 
     Convenience factory that paints a circle of radius ``radius_px``
-    centred at ``centre_vu`` and assigns each silhouette pixel an
+    centered at ``centre_vu`` and assigns each silhouette pixel an
     incidence angle that varies smoothly across the disc (zero at the
-    centre, increasing outward to the limb).  Suitable for end-to-end
+    center, increasing outward to the limb).  Suitable for end-to-end
     body-NavModel tests where the exact incidence pattern is not the
     focus.
 
@@ -487,7 +487,7 @@ def plant_circular_body(
     du = uu - centre_vu[1]
     radius = np.sqrt(dv * dv + du * du)
     body_mask = radius <= radius_px
-    # Linear ramp from 0 at centre to pi/2 at limb; outside the limb the
+    # Linear ramp from 0 at center to pi/2 at limb; outside the limb the
     # value is irrelevant because ``body_mask`` is False.
     incidence = np.where(
         body_mask,

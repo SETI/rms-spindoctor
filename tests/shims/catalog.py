@@ -57,12 +57,12 @@ class FakeStar:
         ra: Catalog right ascension in radians.
         dec: Catalog declination in radians.
         vmag: Catalog V-band magnitude.
-        b_v: Catalog ``B-V`` colour, or ``None``.
+        b_v: Catalog ``B-V`` color, or ``None``.
         johnson_mag_v: Johnson V magnitude (set by the reduction when
             absent).
         johnson_mag_b: Johnson B magnitude (set by the reduction).
         johnson_mag_faked: ``True`` when the reduction supplied
-            ``johnson_mag_b`` from the spectral-class colour table
+            ``johnson_mag_b`` from the spectral-class color table
             instead of the catalog.
         photometry_corrected: ``True`` when the bright-end saturation
             pass replaced ``vmag`` with a YBSC or Tycho-2 reference value.
