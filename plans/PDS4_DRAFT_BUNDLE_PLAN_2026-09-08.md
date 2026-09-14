@@ -560,7 +560,8 @@ and let validation say otherwise.
 
 Our `collection_context.csv` lists the mission, the spacecraft and the two
 cameras, and no target, where the reference's lists every target its labels
-name. Its targets come with the target table of section 3.7, in Phase 8.
+name. Its targets come with the target table of section 3.7, in Phase 8,
+whose text carries the assignment and its test.
 
 A collection inventory also carries **`S` members**, not only `P`. The
 reference's document and miscellaneous inventories both list the context
@@ -1527,6 +1528,13 @@ body present in the image's backplane metadata.
 variables. Ring geometry class fields and the ring incidence angle in the
 label.
 
+**The context inventory lists the targets.** `collection_context.csv` lists
+every target context product the data labels reference, taken from
+`target_lids`, as the reference bundle's lists every target its labels name;
+today it lists the mission, the spacecraft and the two cameras and no target
+(section 3.5). Each target is an `S` member carrying its version, as section
+3.5 has every member do.
+
 **The index row a run hands over holds two columns.** The enumeration reads
 only the columns it declares -- `_INDEX_COLUMNS` plus `_INDEX_CAMERA_COLUMNS`,
 which for Cassini are `FILE_SPECIFICATION_NAME` and `INSTRUMENT_ID`, plus the
@@ -1549,7 +1557,9 @@ index's own names, so both halves are visible there rather than papered
 over.
 
 Tests: an image with two bodies emits two `Target_Identification` blocks; an
-image with rings emits the ring geometry block and one without emits none.
+image with rings emits the ring geometry block and one without emits none;
+and every target LID a data label references is listed in the context
+inventory.
 
 Closes #73, #75, #47; contributes to #53's template list. #79 stays open.
 
