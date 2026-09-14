@@ -11,6 +11,7 @@ import csv
 import json
 import math
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, cast
 
@@ -174,6 +175,73 @@ def index_lid(bundle_name: str, index_name: str) -> str:
     return f'urn:nasa:pds:{bundle_name}:{MISCELLANEOUS_COLLECTION}:{index_name}'
 
 
+class IndexWritten(Enum):
+    """What writing one global index product came to.
+
+    Attributes:
+        LABELED: The table and its label are both on disk.
+        UNLABELED: The table is on disk, and its label failed to render.
+        OMITTED: Neither is on disk, because no image gives the table a row.
+    """
+
+    LABELED = 'labeled'
+    UNLABELED = 'unlabeled'
+    OMITTED = 'omitted'
+
+
+def _write_index(
+    table: FCPath,
+    label: FCPath,
+    header: list[str],
+    rows: list[list[str]],
+    *,
+    template: pdstemplate.PdsTemplate,
+    template_vars: dict[str, Any],
+    logger: PdsLogger,
+) -> IndexWritten:
+    """Write one index table and then its label, or neither when the table has no row.
+
+    A table's label states the table's records, and PDS4 requires at least one
+    (``records`` has a minimum of 1 in ``PDS4_PDS_1O00.xsd``), so a table with no row
+    cannot be described: neither it nor its label is written.  That is no failure, since
+    a bundle can hold no image with ring backplanes, and the log says so at info level.
+    Otherwise the table is written, and then its label, which reads the table's size,
+    checksum and record count from the file; the table stays whether or not the label
+    renders.
+
+    Parameters:
+        table: Where the table goes.
+        label: Where its label goes.
+        header: The table's column names, in order.
+        rows: The table's rows, every cell already rendered.
+        template: The parsed template the label renders from.
+        template_vars: The variables the label's template resolves against.
+        logger: Logger for diagnostic messages.
+
+    Returns:
+        What came of it: both on disk, the table alone, or neither.
+    """
+    if len(rows) == 0:
+        logger.info(
+            'The index table %s was not written, nor its label: no image the data '
+            'collection holds gives it a row, and a table label has to state at least '
+            'one record',
+            table,
+        )
+        return IndexWritten.OMITTED
+    table_local = cast(Path, table.get_local_path())
+    with table_local.open('w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerows(rows)
+    table.upload()
+    logger.info('Generated "%s" with %d rows', table.name, len(rows))
+    if not write_label(template, template_vars, label, logger=logger):
+        return IndexWritten.UNLABELED
+    logger.info('Generated "%s"', label.name)
+    return IndexWritten.LABELED
+
+
 @dataclass(frozen=True)
 class GlobalIndexOutcome:
     """What generating the global index files came to.
@@ -196,8 +264,11 @@ def generate_global_index_files(
 ) -> GlobalIndexOutcome:
     """Generate global index files for bodies and rings.
 
-    Both index labels are attempted, whichever of them fail, and the index
-    tables are written whether or not the labels that describe them render.
+    Both index labels are attempted, whichever of them fail, and an index table is
+    written whether or not the label that describes it renders.  A table that no image
+    gives a row is not written, nor its label: a table's label states its records, and
+    PDS4 requires at least one.  That is not a failure, since a bundle can hold no image
+    with ring backplanes; the log says so at info level.
 
     The tables index exactly the images the data inventory lists, the data labels in
     the data tree that :func:`~spindoctor.cli.pds4.collections.data_products` names,
@@ -259,7 +330,6 @@ def generate_global_index_files(
     template_dir = dataset.pds4_bundle_template_dir()
     bundle_root = bundle_results_root / bundle_name
     config = dataset.config
-    failed_labels = 0
 
     # Get configured backplane types from config
     bodies_cfg = config.backplanes.bodies
@@ -355,61 +425,51 @@ def generate_global_index_files(
                 )
             ring_index_rows.append(ring_row)
 
-    # The bodies table
-    bodies_tab_local = cast(Path, bodies_tab.get_local_path())
-    with bodies_tab_local.open('w', newline='') as f:
-        writer = csv.writer(f)
-        # Build header: LID, body_name, path_to_image_file, then min/max for each backplane type
-        header = ['LID', 'body_name', 'path_to_image_file']
-        for bp_type in body_backplane_types:
-            header.append(f'{bp_type}_min')
-            header.append(f'{bp_type}_max')
-        writer.writerow(header)
-        writer.writerows(body_index_rows)
-    bodies_tab.upload()
-    logger.info('Generated "%s" with %d rows', bodies_tab.name, len(body_index_rows))
-
-    # The rings table
-    rings_tab_local = cast(Path, rings_tab.get_local_path())
-    # No explicit parent mkdir: get_local_path() creates parents (matching the
-    # bodies index above), so an extra mkdir here was redundant and asymmetric.
-    with rings_tab_local.open('w', newline='') as f:
-        writer = csv.writer(f)
-        # Build header: LID, path_to_image_file, then min/max for each ring type
-        header = ['LID', 'path_to_image_file']
-        # TODO Add planet name to rings table
-        for ring_type in ring_backplane_types:
-            header.append(f'{ring_type}_min')
-            header.append(f'{ring_type}_max')
-        writer.writerow(header)
-        writer.writerows(ring_index_rows)
-    rings_tab.upload()
-    logger.info('Generated "%s" with %d rows', rings_tab.name, len(ring_index_rows))
-
-    # Generate label files using templates
+    # Each label renders from the template of its own name.  Both are parsed before
+    # either table is written, whether or not the table has a row, so a template
+    # missing from the tree raises rather than being passed over.
     template_base = Path(template_dir)
+    bodies_template = pdstemplate.PdsTemplate(str(template_base / bodies_label.name))
+    rings_template = pdstemplate.PdsTemplate(str(template_base / rings_label.name))
 
-    # Global index bodies label, rendered from the template of its own name
-    template = pdstemplate.PdsTemplate(str(template_base / bodies_label.name))
-    template_vars = {
-        'INDEX_LID': index_lid(bundle_name, BODIES_INDEX),
-        'FILE_RECORDS': len(body_index_rows),
-    }
-    if write_label(template, template_vars, bodies_label, logger=logger):
-        logger.info('Generated "%s"', bodies_label.name)
-    else:
-        failed_labels += 1
+    # The bodies table: LID, body_name, path_to_image_file, then min/max for each
+    # backplane type
+    bodies_header = ['LID', 'body_name', 'path_to_image_file']
+    for bp_type in body_backplane_types:
+        bodies_header.append(f'{bp_type}_min')
+        bodies_header.append(f'{bp_type}_max')
+    bodies_written = _write_index(
+        bodies_tab,
+        bodies_label,
+        bodies_header,
+        body_index_rows,
+        template=bodies_template,
+        template_vars={
+            'INDEX_LID': index_lid(bundle_name, BODIES_INDEX),
+            'FILE_RECORDS': len(body_index_rows),
+        },
+        logger=logger,
+    )
 
-    # Global index rings label, rendered from the template of its own name
-    template = pdstemplate.PdsTemplate(str(template_base / rings_label.name))
-    template_vars = {
-        'INDEX_LID': index_lid(bundle_name, RINGS_INDEX),
-        'FILE_RECORDS': len(ring_index_rows),
-    }
-    if write_label(template, template_vars, rings_label, logger=logger):
-        logger.info('Generated "%s"', rings_label.name)
-    else:
-        failed_labels += 1
+    # The rings table: LID, path_to_image_file, then min/max for each ring type
+    rings_header = ['LID', 'path_to_image_file']
+    # TODO Add planet name to rings table
+    for ring_type in ring_backplane_types:
+        rings_header.append(f'{ring_type}_min')
+        rings_header.append(f'{ring_type}_max')
+    rings_written = _write_index(
+        rings_tab,
+        rings_label,
+        rings_header,
+        ring_index_rows,
+        template=rings_template,
+        template_vars={
+            'INDEX_LID': index_lid(bundle_name, RINGS_INDEX),
+            'FILE_RECORDS': len(ring_index_rows),
+        },
+        logger=logger,
+    )
+    failed_labels = [bodies_written, rings_written].count(IndexWritten.UNLABELED)
 
     logger.info(
         'Generated global index files: %d body rows, %d ring rows',

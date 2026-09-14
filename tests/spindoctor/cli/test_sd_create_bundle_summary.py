@@ -153,7 +153,11 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     no index is reported here, as is an earlier run's index or run-level product; and
     the log gives the reason the run was refused.
     """
-    env = make_bundle_env(tmp_path / 'env', bodies=[{'name': 'latitude', 'units': 'rad'}])
+    env = make_bundle_env(
+        tmp_path / 'env',
+        bodies=[{'name': 'latitude', 'units': 'rad'}],
+        rings=[{'name': 'radius', 'units': 'km'}],
+    )
     dataset = env.dataset.as_dataset()
     monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
     monkeypatch.setattr(
@@ -162,7 +166,8 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     data_dir = env.bundle_dir / 'data'
     touch_label(data_dir, 'shard0/1111111111n')
     touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
-    write_supplemental(data_dir, 'shard0/1111111111n', bodies=_latitude_in('deg'))
+    radii = {'backplanes': {'radius': {'min': 81000.0, 'max': 125000.0, 'units': 'km'}}}
+    write_supplemental(data_dir, 'shard0/1111111111n', bodies=_latitude_in('deg'), rings=radii)
     sd_create_bundle.main_summary()
     products = [env.bundle_dir / name for name in SUMMARY_PRODUCTS]
     assert [product for product in products if not product.exists()] == []
