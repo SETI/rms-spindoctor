@@ -32,6 +32,7 @@ from .conftest import (
     BROKEN_TEMPLATE,
     GLOBAL_INDEX_TEMPLATE,
     BundleEnv,
+    index_entry,
     make_bundle_env,
     read_csv_rows,
     read_index_rows,
@@ -73,9 +74,9 @@ def _index_env(
 
     Parameters:
         tmp_path: Base temporary directory.
-        bodies: ``config.backplanes.bodies`` entries, each with a ``name`` and
-            the ``units`` its plane is declared in.  When None, a 'latitude' in
-            radians and a 'resolution' in kilometers per pixel.
+        bodies: ``config.backplanes.bodies`` entries, each as :func:`index_entry`
+            builds one.  When None, a 'latitude' in radians and a 'resolution' in
+            kilometers per pixel.
         rings: ``config.backplanes.rings`` entries on the same terms.  When
             None, a 'radius' in kilometers.
 
@@ -84,11 +85,11 @@ def _index_env(
     """
     if bodies is None:
         bodies = [
-            {'name': 'latitude', 'units': 'rad'},
-            {'name': 'resolution', 'units': 'km/pixel'},
+            index_entry('latitude', 'rad'),
+            index_entry('resolution', 'km/pixel'),
         ]
     if rings is None:
-        rings = [{'name': 'radius', 'units': 'km'}]
+        rings = [index_entry('radius', 'km')]
     return make_bundle_env(tmp_path, bodies=bodies, rings=rings)
 
 
@@ -129,13 +130,13 @@ def test_bodies_index_header_from_configured_backplane_types(tmp_path: Path) -> 
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
     assert rows[0] == [
-        'LID',
+        'pds:logical_identifier',
         'body_name',
-        'path_to_image_file',
-        'latitude_min',
-        'latitude_max',
-        'resolution_min',
-        'resolution_max',
+        'file_spec',
+        'minimum_latitude',
+        'maximum_latitude',
+        'minimum_resolution',
+        'maximum_resolution',
     ]
 
 
@@ -164,7 +165,7 @@ def test_each_field_is_as_long_as_the_longest_value_in_its_column(tmp_path: Path
     left-justified, a comma separates the fields, and every line ends in a line feed.
     The header line names the columns, unpadded.
     """
-    env = _index_env(tmp_path, bodies=[{'name': 'latitude', 'units': 'rad'}], rings=[])
+    env = _index_env(tmp_path, bodies=[index_entry('latitude', 'rad')], rings=[])
     two_bodies: dict[str, Any] = {
         'A': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
         'MOON_B': {'backplanes': {'latitude': {'min': -12.5, 'max': 45.25, 'units': 'deg'}}},
@@ -175,7 +176,7 @@ def test_each_field_is_as_long_as_the_longest_value_in_its_column(tmp_path: Path
     lid = 'urn:nasa:pds:fake_bundle:data:1111111111n'
     path = 'data/shard0/1111111111n_backplanes.lblx'
     assert table.read_bytes().decode('ascii').splitlines(keepends=True) == [
-        'LID,body_name,path_to_image_file,latitude_min,latitude_max\n',
+        'pds:logical_identifier,body_name,file_spec,minimum_latitude,maximum_latitude\n',
         f'{lid},A     ,{path},  1.000, 2.000\n',
         f'{lid},MOON_B,{path},-12.500,45.250\n',
     ]
@@ -222,7 +223,7 @@ def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path:
     checked, since a format applied to one and not the other is the way a table
     half-rounds.
     """
-    env = _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
+    env = _index_env(tmp_path, rings=[index_entry('longitudinal_resolution', 'rad/pixel')])
     fine = {
         'backplanes': {
             'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}
@@ -317,7 +318,7 @@ def _ring_resolution_env(tmp_path: Path) -> BundleEnv:
     Returns:
         The environment, whose ring statistic is expected in degrees per pixel.
     """
-    return _index_env(tmp_path, rings=[{'name': 'longitudinal_resolution', 'units': 'rad/pixel'}])
+    return _index_env(tmp_path, rings=[index_entry('longitudinal_resolution', 'rad/pixel')])
 
 
 def _ring_resolution_stats(units: str) -> dict[str, Any]:
@@ -487,7 +488,7 @@ def test_a_missing_statistic_is_the_masked_value_in_its_column_s_format(tmp_path
 
 
 def test_index_path_to_image_file_is_data_relative(tmp_path: Path) -> None:
-    """The path_to_image_file column points at data/<stub>_backplanes.lblx."""
+    """The file_spec column gives the data label's path, data/<stub>_backplanes.lblx."""
     env = _index_env(tmp_path)
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS)
     _run_global_index(env)
@@ -528,7 +529,7 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
     _write_image(env.bundle_dir / 'data', 'shard0/2222222222w', rings=RING_STATS)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
-    assert rows[0] == ['LID', 'path_to_image_file', 'radius_min', 'radius_max']
+    assert rows[0] == ['pds:logical_identifier', 'file_spec', 'minimum_radius', 'maximum_radius']
     assert len(rows) == 2
     assert rows[1][1] == 'data/shard0/2222222222w_backplanes.lblx'
     assert rows[1][2] == '81000.0'
