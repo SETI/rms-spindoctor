@@ -179,8 +179,8 @@ class TitanGeometryInputs:
     an observation or a SPICE kernel.
 
     Parameters:
-        predicted_center_vu: Geometric disc center in extfov coordinates --
-            the body's field-of-view center plus the extfov margin.
+        predicted_center_vu: Geometric disc center in extfov pixel centric
+            coordinates, which is what the fit measures the image array in.
         r_solid_px: Apparent solid-body radius in pixels; ``0.0`` when the
             image scale or body radius is not finite and positive.
         r_env_px: Apparent haze-envelope radius in pixels; ``0.0`` under the
