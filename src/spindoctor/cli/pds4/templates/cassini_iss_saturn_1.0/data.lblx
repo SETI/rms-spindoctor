@@ -136,7 +136,44 @@
                     </geom:comment>
                 </geom:SPICE_Kernel_Files>
             </geom:Geometry>
-            <!-- TODO Need to add rings geometry here -->
+            $IF(RING_GEOMETRY is not None)
+            <rings:Ring_Moon_Systems>
+                <rings:Ring_Reprojection>
+                    <rings:Reprojection_Geometry>
+                        <rings:description>
+                            The arrays of this product are not reprojected: each is laid out
+                            as the image's lines and samples. The values below summarize the
+                            image's ring backplanes over the pixels where each has a value, in
+                            the plane of Saturn's equator. The minimum and the maximum of each
+                            quantity are the least and the greatest value of its backplane: the
+                            phase angle; the emission angle, measured from the normal to the
+                            ring plane on its sunlit side; the ring longitude, measured from
+                            the ascending node of the ring plane on the J2000 equator; the ring
+                            radius; and the radial and the longitudinal size of a pixel in the
+                            ring plane. The longitude range is a plain least and greatest
+                            rather than one wrapped at zero, so rings seen across zero
+                            longitude span from near 0 to near 360 degrees. Sunlight falls on
+                            the ring plane at one angle over the whole image, so the incidence
+                            angle is taken once, at the center of Saturn's ring system, for the
+                            light that reached the camera at the observation's midtime, and the
+                            mean, the minimum and the maximum all state it. No co-rotating frame
+                            is used, and the basis epoch is the observation's midtime.
+                        </rings:description>
+                        <rings:epoch_reprojection_basis_utc>$IMAGE_MID_TIME$</rings:epoch_reprojection_basis_utc>
+                        <rings:reprojection_plane>Equator</rings:reprojection_plane>
+                        <rings:corotating_flag>N</rings:corotating_flag>
+                        $FOR(attribute=RING_GEOMETRY.geometry)
+                        <rings:$attribute.name$ unit="$attribute.unit$">$attribute.value$</rings:$attribute.name$>
+                        $END_FOR
+                        <rings:Reprojection_Grid_Parameters>
+                            $FOR(attribute=RING_GEOMETRY.grid)
+                            <rings:$attribute.name$ unit="$attribute.unit$">$attribute.value$</rings:$attribute.name$>
+                            $END_FOR
+                        </rings:Reprojection_Grid_Parameters>
+                    </rings:Reprojection_Geometry>
+                </rings:Ring_Reprojection>
+            </rings:Ring_Moon_Systems>
+            $END_IF
         </Discipline_Area>
     </Observation_Area>
     <Reference_List>

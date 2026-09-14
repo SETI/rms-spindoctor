@@ -473,6 +473,31 @@ def test_an_image_whose_backplane_metadata_names_no_target_fails_with_nothing_wr
     assert 'so its data label has no target to name' in capsys.readouterr().out
 
 
+def test_ring_statistics_with_no_incidence_angle_fail_the_image_with_nothing_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Backplanes an earlier version generated, with ring statistics alone, fail the image.
+
+    Such backplanes record no ring target to name the rings by and no incidence angle for
+    the ring geometry to state, so the image is failed with one line saying why, to have
+    its backplanes regenerated, rather than by an error from deeper in the pass.
+    """
+    env = make_bundle_env(tmp_path)
+    statistics = {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}}
+    write_nav_inputs(
+        env,
+        backplane_metadata={
+            'bodies': {'MOON': {'backplanes': {}}},
+            'rings': {'backplanes': statistics},
+        },
+    )
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert not env.bundle_dir.exists()
+    expected = 'records ring statistics but no ring target or incidence angle'
+    assert expected in capsys.readouterr().out
+
+
 def test_a_target_the_table_has_no_entry_for_raises_with_nothing_written(tmp_path: Path) -> None:
     """A body the targets table does not identify is refused by name, nothing written."""
     env = make_bundle_env(tmp_path)
