@@ -65,7 +65,7 @@ class ModeParam:
             ``enum`` (with ``choices``), or ``int_list`` (with ``length``).
         default: The value used when the key is absent.  ``None`` marks an
             optional parameter with no default shape (the renderer supplies its
-            own fallback, e.g. a centred window).
+            own fallback, e.g. a centered window).
         choices: The permitted values for an ``enum`` parameter.
         length: The required length of an ``int_list`` parameter.
     """
@@ -187,7 +187,7 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
     _telemetry_mode(
         'edited_frame',
         # The Voyager IM edited-mode band width, so a bare incidence keeps a
-        # physical centred band; an explicit half_frame wins over the band.
+        # physical centered band; an explicit half_frame wins over the band.
         ModeParam('band_width_px', 'positive_int', 440),
         ModeParam('half_frame', 'bool', False),
         ModeParam('half', 'enum', 'top', choices=('top', 'bottom')),

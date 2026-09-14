@@ -42,7 +42,7 @@ def smear_kernel(dv_px: float, du_px: float) -> NDArrayFloatType | None:
     """Build a normalized line-segment motion-blur kernel.
 
     The kernel is the drift track from ``-(dv, du)/2`` to ``+(dv, du)/2`` about
-    the centre, sampled and bilinearly splatted so the smear is centred (the
+    the center, sampled and bilinearly splatted so the smear is centered (the
     centroid does not move).
 
     Parameters:

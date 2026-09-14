@@ -322,6 +322,6 @@ def _deposit_splatter(
             v = v0 + dv
             u = u0 + du
             if 0 <= v < size_v and 0 <= u < size_u:
-                # Center pixel takes the full charge; neighbours a fraction.
+                # Center pixel takes the full charge; neighbors a fraction.
                 weight = 1.0 if (dv == 0 and du == 0) else float(rng.uniform(0.2, 0.6))
                 electrons[v, u] += charge * weight

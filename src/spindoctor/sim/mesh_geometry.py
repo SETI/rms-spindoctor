@@ -3,14 +3,14 @@
 The ellipsoid renderers cannot produce the non-ellipsoidal silhouette of an
 irregular body (Hyperion, Phoebe).  Because ``oops`` will not gain DSK
 support, the sim carries its own small renderer that projects a triangle mesh
-through a scene-supplied pose and rasterises the shaded silhouette.  It is
+through a scene-supplied pose and rasterizes the shaded silhouette.  It is
 sim-only: the body's orientation is ground truth from the scene, not from
 SPICE.
 
 This module is deliberately shared between the image-side forward renderer
 (``spindoctor.sim.forward.body_mesh``) and the navigator-side predicted-body
 renderer (``spindoctor.nav_model.nav_model_body_simulated``): the mesh shape,
-pose, and rasterisation conventions are idealized information both sides may
+pose, and rasterization conventions are idealized information both sides may
 know, and sharing one implementation guarantees that a scene's planted
 geometry error (via ``nav_override``) is the only difference between the
 rendered and the predicted silhouette.  Every function takes explicit
@@ -147,7 +147,7 @@ def make_irregular_mesh(
                 bank_amps[k] * np.cos(bank_m_lat[k] * theta + bank_m_lon[k] * phi + bank_phases[k])
                 for k in range(n_modes)
             )
-        # relief spans about [-n_modes, n_modes]; normalise so lumpiness is the
+        # relief spans about [-n_modes, n_modes]; normalize so lumpiness is the
         # fractional relief amplitude.
         return float(max(1.0 + lumpiness * relief / max(n_modes, 1), 0.2))
 
@@ -236,7 +236,7 @@ def render_polyhedral_body(
 
     Parameters:
         size: ``(size_v, size_u)`` output image size in pixels.
-        center: ``(v, u)`` body centre in pixels.
+        center: ``(v, u)`` body center in pixels.
         mesh: The unit-radius body mesh.
         semi_axes_px: Per-axis ``(a, b, c)`` half-sizes in pixels applied to the
             mesh in its body frame before the pose rotation.
@@ -418,7 +418,7 @@ def render_mesh_body_image(
 
     Parameters:
         size: ``(size_v, size_u)`` output image size in pixels.
-        center: ``(v, u)`` body centre in pixels.
+        center: ``(v, u)`` body center in pixels.
         semi_axes_px: Per-axis ``(a, b, c)`` half-sizes in pixels.
         spec: The mesh shape and pose.
         illumination_angle: Image-plane light azimuth in radians.

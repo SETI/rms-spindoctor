@@ -3,8 +3,8 @@
 The navigator corrects each camera's known distortion model, so the quantity
 actually present in the frames the pipeline consumes -- and the only quantity
 this stage plants -- is the residual: a low-order radial polynomial about the
-optical centre plus an optional small non-radial wander.  A limb fitted at the
-frame edge then disagrees with a ring fitted through the centre by the
+optical center plus an optional small non-radial wander.  A limb fitted at the
+frame edge then disagrees with a ring fitted through the center by the
 differential residual between their positions, which the navigator gets no
 model to remove.
 
@@ -80,7 +80,7 @@ def apply_distortion(
         params: The full scene mapping; supplies the scene ``random_seed`` for
             the non-radial field's stream and, when ``distortion`` is not passed,
             the ``optics.distortion`` block.
-        oversample: The render-grid oversampling factor (centre and amplitude
+        oversample: The render-grid oversampling factor (center and amplitude
             are in detector pixels and scale to the render grid).
         distortion: An explicit distortion block; when None the block is read
             from ``params['optics']['distortion']`` (the instrument-defaults
@@ -98,10 +98,10 @@ def apply_distortion(
         return
 
     size_v, size_u = frame.signal.shape
-    # A scene states a centre in pixel-corner coordinates on the detector grid;
+    # A scene states a center in pixel-corner coordinates on the detector grid;
     # the sampling grid below is pixel-centric on the oversampled one.  Scaling
     # a corner coordinate is a plain multiply, and the half pixel takes it the
-    # rest of the way.  The default is the frame's own centre, which lands on
+    # rest of the way.  The default is the frame's own center, which lands on
     # (size - 1) / 2 by the same route.
     center_v = (
         float(distortion.get('center_v', (size_v / oversample) / 2.0)) * oversample

@@ -85,7 +85,7 @@ def _render_mesh_shape_cached(
     relief_corr_deg: float,
     relief_seed: int,
 ) -> NDArrayFloatType:
-    """Cache an irregular mesh body shape at the reference (image) centre.
+    """Cache an irregular mesh body shape at the reference (image) center.
 
     The truth-side upgrades (shading mode, relief field) are part of the
     cache key; at their defaults ('flat', relief off) this renders exactly

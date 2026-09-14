@@ -313,7 +313,7 @@ class ManualNavDialog(QDialog):
             config: Optional ``Config`` override.
             annotations: Merged ``Annotations`` collection (one entry
                 per NavModel that contributed).  Drawn at the chosen
-                ``(dv, du)`` into the labelled summary PNG written
+                ``(dv, du)`` into the labeled summary PNG written
                 alongside a saved sidecar.  ``None`` (or empty) is
                 permitted; the saved PNG then carries the source-image
                 grayscale alone.
@@ -937,13 +937,13 @@ class ManualNavDialog(QDialog):
             )
             return
 
-        # Companion PNG: render the same labelled annotation overlay
+        # Companion PNG: render the same labeled annotation overlay
         # (body / star / ring labels) the autonomous summary PNG would
         # produce, drawn at the chosen (dv, du) so the snapshot matches
         # the YAML's offset.  Falls back to the source-image grayscale
         # alone when no NavModel emitted any annotations.  PNG-write
         # failures are non-fatal — the YAML is the load-bearing
-        # artefact.
+        # artifact.
         png_path = Path(path_str).with_suffix('.png')
         png_warning = ''
         try:

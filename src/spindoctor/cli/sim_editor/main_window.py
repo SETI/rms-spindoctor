@@ -307,14 +307,14 @@ class CreateSimulatedImageModel(
         self._zoom_ctl.on_wheel(event)
 
     def _zoom_in(self) -> None:
-        """Zoom in about the viewport centre."""
+        """Zoom in about the viewport center."""
         # The ZoomPanController's centre-anchored zoom is identical to the
         # open-coded version (it wraps this window's scroll area + zoom state).
         if self._base_pixmap is not None:
             self._zoom_ctl.zoom_in_center()
 
     def _zoom_out(self) -> None:
-        """Zoom out about the viewport centre."""
+        """Zoom out about the viewport center."""
         if self._base_pixmap is not None:
             self._zoom_ctl.zoom_out_center()
 
@@ -383,7 +383,7 @@ class CreateSimulatedImageModel(
 
     # ---- Visual toggles ----
     def _toggle_visual_aids(self, state: Any) -> None:
-        """Toggle the body/star/ring centre overlays."""
+        """Toggle the body/star/ring center overlays."""
         if isinstance(state, Qt.CheckState):
             self._show_visual_aids = state is Qt.CheckState.Checked
         elif isinstance(state, int):

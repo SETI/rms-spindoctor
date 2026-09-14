@@ -177,7 +177,7 @@ def _relative_to_holdings(abspath_str: str, holdings_root: str) -> str | None:
 
     Tolerates trailing slashes and case-sensitive comparisons; does not
     walk the filesystem.  ``holdings_root`` is expected to already be
-    normalised by :func:`_resolve_pds3_holdings_root` (no trailing
+    normalized by :func:`_resolve_pds3_holdings_root` (no trailing
     slash).
     """
     if not abspath_str.startswith(holdings_root):

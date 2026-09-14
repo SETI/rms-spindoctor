@@ -399,9 +399,9 @@ class OpticsTabMixin(SimEditorBase):
             tooltip='Radial k2 coefficient.',
         )
         form.addRow('k2:', self._distortion_k2_spin)
-        # The optical centre is an optional key pair: an absent key means the
-        # frame centre, so a centre spin only authors its own key when the
-        # enable is on and the spin itself is edited (a legitimate 0.0 centre
+        # The optical center is an optional key pair: an absent key means the
+        # frame center, so a center spin only authors its own key when the
+        # enable is on and the spin itself is edited (a legitimate 0.0 center
         # is then expressible, and a partial block keeps its absent key).
         has_center = 'center_v' in block or 'center_u' in block
         self._distortion_center_check = QCheckBox('Set optical centre')
@@ -409,7 +409,7 @@ class OpticsTabMixin(SimEditorBase):
         self._distortion_center_check.setToolTip(
             'Enable authoring explicit optical-centre keys; each spin edit '
             'writes only its own key.  Unchecked drops the keys (the '
-            'renderer uses the frame centre).'
+            'renderer uses the frame center).'
         )
         form.addRow(self._distortion_center_check)
         default_center_v, default_center_u = self._distortion_center_defaults()
@@ -419,7 +419,7 @@ class OpticsTabMixin(SimEditorBase):
             decimals=2,
             step=1.0,
             value=float(block.get('center_v', default_center_v)),
-            tooltip='Optical-centre v (px); absent = frame centre.',
+            tooltip='Optical-center v (px); absent = frame center.',
         )
         self._distortion_center_v_spin.setEnabled(has_center)
         form.addRow('Center V (px):', self._distortion_center_v_spin)
@@ -429,7 +429,7 @@ class OpticsTabMixin(SimEditorBase):
             decimals=2,
             step=1.0,
             value=float(block.get('center_u', default_center_u)),
-            tooltip='Optical-centre u (px); absent = frame centre.',
+            tooltip='Optical-center u (px); absent = frame center.',
         )
         self._distortion_center_u_spin.setEnabled(has_center)
         form.addRow('Center U (px):', self._distortion_center_u_spin)
@@ -456,7 +456,7 @@ class OpticsTabMixin(SimEditorBase):
         return group
 
     def _distortion_center_defaults(self) -> tuple[float, float]:
-        """The effective optical-centre default: the frame centre, in pixels."""
+        """The effective optical-center default: the frame center, in pixels."""
         return (
             float(self.sim_params.get('size_v', 512)) / 2.0,
             float(self.sim_params.get('size_u', 512)) / 2.0,
@@ -491,10 +491,10 @@ class OpticsTabMixin(SimEditorBase):
             self._drop_optics('distortion')
 
     def _on_distortion_center_check(self, checked: bool) -> None:
-        """Enable the optical-centre spins; unchecking drops the centre keys.
+        """Enable the optical-center spins; unchecking drops the center keys.
 
-        Checking writes nothing by itself: an absent centre key stays absent
-        (the frame centre keeps applying) until its own spin is edited.
+        Checking writes nothing by itself: an absent center key stays absent
+        (the frame center keeps applying) until its own spin is edited.
         """
         self._distortion_center_v_spin.setEnabled(checked)
         self._distortion_center_u_spin.setEnabled(checked)
