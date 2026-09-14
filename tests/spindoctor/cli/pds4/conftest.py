@@ -570,31 +570,30 @@ def make_bundle_env(
     )
 
 
-NAVIGATED_TIMES: dict[str, float] = {
-    'start_et': 129399999.77,
-    'stop_et': 129400000.23,
-    'midtime_et': 129400000.0,
+NAVIGATED_EXPOSURE: dict[str, float] = {
+    'start_time_et': 129399999.77,
+    'end_time_et': 129400000.23,
 }
-"""The exposure epochs a success document records under ``navigation_result.times``.
+"""The exposure a success document's ``observation`` block records, in TDB seconds.
 
-A navigated image's document records its exposure's epochs beside its pointing, the
-labels pass fails an image whose document records none, and the summary pass reads them
-from every supplemental file, so every navigated document and every supplemental file
-the plumbing tests write records these.
+The navigation records an image's exposure in the ``observation`` block of its
+document, pointing or not; both passes read the start and end from there, the summary
+pass from every supplemental file, so every navigated document and every supplemental
+file the plumbing tests write records these.
 """
 
 
 def navigated_document(**extra: Any) -> dict[str, Any]:
-    """Return a success navigation document recording an exposure's epochs.
+    """Return a success navigation document recording an exposure.
 
     Parameters:
         **extra: Keys merged into the document, over the two it holds otherwise.
 
     Returns:
-        A document with ``status`` ``success`` and a ``navigation_result`` whose
-        ``times`` are :data:`NAVIGATED_TIMES`, with ``extra`` merged in.
+        A document with ``status`` ``success`` and an ``observation`` block recording
+        :data:`NAVIGATED_EXPOSURE`, with ``extra`` merged in.
     """
-    return {'status': 'success', 'navigation_result': {'times': dict(NAVIGATED_TIMES)}, **extra}
+    return {'status': 'success', 'observation': dict(NAVIGATED_EXPOSURE), **extra}
 
 
 A_RANGE = EpochRange(start_et=129399999.77, stop_et=130700000.54)
@@ -632,14 +631,14 @@ def write_nav_inputs(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Write the navigation and backplane input files for the environment's image.
 
-    The navigation document is :func:`navigated_document`'s, recording an exposure's
-    epochs, so that a success document is one the labels pass can label.
+    The navigation document is :func:`navigated_document`'s, whose ``observation`` block
+    records an exposure, so that a success document is one the labels pass can label.
 
     Parameters:
         env: The bundle environment to populate.
         status: Navigation ``status`` value; None omits the key entirely.
         nav_extra: Extra keys merged into the navigation metadata dict, over the
-            ``navigation_result`` it holds otherwise.
+            ``status`` and ``observation`` it holds otherwise.
         backplane_metadata: Backplane metadata dict; a small default when None.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
 

@@ -299,15 +299,17 @@ def test_a_cohort_data_label_states_its_exposure_s_start_and_stop(
     assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == [stop]
 
 
-def test_a_navigated_image_that_recorded_no_pointing_fails_with_nothing_written(
-    cassini_cohort: Cohort, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_a_navigated_image_that_recorded_no_pointing_is_bundled_with_its_observed_times(
+    cassini_cohort: Cohort, tmp_path: Path
 ) -> None:
-    """A success document with no times fails its image, and the bundle stays as it was.
+    """An image whose navigation recorded no pointing gets its products, times and all.
 
     A navigation that recorded no pointing has no ``navigation_result.times`` either, and
-    a data label takes its exposure's start and end from those.  The document is the
-    cohort's limb image's as written, its times and pointing taken out, under a navigation
-    root of the test's own.
+    its document's ``observation`` block records the exposure all the same, which is
+    what a data label states.  The document is the cohort's limb image's as written, its
+    times and pointing taken out, under a navigation root of the test's own beside the
+    image's summary PNG, so the start and stop its label states can come only from the
+    observation block.  They are the limb image's, as SPICE writes them.
     """
     cohort_document = cassini_cohort.nav_results_root / f'{LIMB_STUB}_metadata.json'
     document = json.loads(cohort_document.read_text(encoding='utf-8'))
@@ -316,6 +318,10 @@ def test_a_navigated_image_that_recorded_no_pointing_fails_with_nothing_written(
     written = tmp_path / 'nav' / f'{LIMB_STUB}_metadata.json'
     written.parent.mkdir(parents=True)
     written.write_text(json.dumps(document), encoding='utf-8')
+    summary_png = f'{LIMB_STUB}_summary.png'
+    (tmp_path / 'nav' / summary_png).write_bytes(
+        (cassini_cohort.nav_results_root / summary_png).read_bytes()
+    )
     env = make_cohort_bundle_env(cassini_cohort, tmp_path)
     outcome = generate_bundle_data_files(
         env.dataset,
@@ -325,9 +331,13 @@ def test_a_navigated_image_that_recorded_no_pointing_fails_with_nothing_written(
         bundle_results_root=FCPath(env.bundle_results_root),
         logger=MAIN_LOGGER,
     )
-    assert outcome is BundleDataOutcome.FAILED
-    assert not env.bundle_dir.exists()
-    assert 'its navigation recorded no pointing' in capsys.readouterr().out
+    label = env.bundle_dir / 'data' / f'{_product_stem(LIMB_IMAGE_NAME)}_backplanes.lblx'
+    text = label.read_text(encoding='utf-8')
+    assert outcome is BundleDataOutcome.WRITTEN
+    starts = re.findall(r'<start_date_time>(.*)</start_date_time>', text)
+    stops = re.findall(r'<stop_date_time>(.*)</stop_date_time>', text)
+    assert starts == ['2004-02-07T04:25:35.585Z']
+    assert stops == ['2004-02-07T04:25:36.045Z']
 
 
 def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:

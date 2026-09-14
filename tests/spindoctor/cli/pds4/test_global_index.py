@@ -195,7 +195,8 @@ def test_each_field_is_as_long_as_the_longest_value_in_its_column(tmp_path: Path
     table = env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab'
     lid = 'urn:nasa:pds:fake_bundle:data:1111111111n'
     path = 'data/shard0/1111111111n_backplanes.lblx'
-    # The exposure's start and stop, NAVIGATED_TIMES, as SPICE writes them to the millisecond
+    # The exposure's start and stop, NAVIGATED_EXPOSURE, as SPICE writes them to the
+    # millisecond
     times = '2004-02-07T04:25:35.585Z,2004-02-07T04:25:36.045Z'
     assert table.read_bytes().decode('ascii').splitlines(keepends=True) == [
         'pds:logical_identifier,body_name,file_spec,pds:start_date_time,pds:stop_date_time,'

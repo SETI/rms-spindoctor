@@ -251,10 +251,10 @@ def test_a_start_nanoseconds_short_of_its_millisecond_is_written_as_pds3_states_
     """
     stop_et = float(julian.tdb_from_tai(julian.tai_from_iso('2009-247T15:07:30.812')))
     start_et = stop_et - 50.0 / 1000.0
-    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
+    observation = {'start_time_et': start_et, 'end_time_et': stop_et}
     variables = _cassini_dataset(tmp_path).pds4_template_variables(
         image_file=make_image_file('W1630770594_1'),
-        nav_metadata={'status': 'success', 'navigation_result': {'times': times}},
+        nav_metadata={'status': 'success', 'observation': observation},
         backplane_metadata={},
     )
     assert variables['START_DATE_TIME'] == '2009-09-04T15:07:30.762Z'
@@ -279,10 +279,10 @@ def test_an_odd_millisecond_exposure_s_midtime_is_its_half_millisecond_taken_up(
     """
     stop_et = float(julian.tdb_from_tai(julian.tai_from_iso('2009-236T04:55:38.829')))
     start_et = stop_et - 5.0 / 1000.0
-    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
+    observation = {'start_time_et': start_et, 'end_time_et': stop_et}
     variables = _cassini_dataset(tmp_path).pds4_template_variables(
         image_file=make_image_file('W1629783475_1'),
-        nav_metadata={'status': 'success', 'navigation_result': {'times': times}},
+        nav_metadata={'status': 'success', 'observation': observation},
         backplane_metadata={},
     )
     assert variables['IMAGE_MID_TIME'] == '2009-08-24T04:55:38.827Z'

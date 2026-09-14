@@ -37,10 +37,10 @@ def _navigation(start_et: float, stop_et: float) -> dict[str, Any]:
         stop_et: When it ended.
 
     Returns:
-        The document, its midtime halfway between the two.
+        The document, whose ``observation`` block records the two.
     """
-    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
-    return {'status': 'success', 'navigation_result': {'times': times}}
+    observation = {'start_time_et': start_et, 'end_time_et': stop_et}
+    return {'status': 'success', 'observation': observation}
 
 
 def _summarize(env: BundleEnv) -> tuple[GlobalIndexOutcome, int]:
