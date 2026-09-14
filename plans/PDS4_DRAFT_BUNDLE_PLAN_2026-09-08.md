@@ -1415,14 +1415,15 @@ declined:
     mosaics are reprojected into, the F ring's science, and a backplane defines
     none. The reference's `rings:minimum_inertial_ring_longitude` and
     `..._maximum_...` are not declined with them: they are inertial longitudes,
-    the co-rotating pair turned back by the frame's rotation since its epoch
-    (row `1874525875w` of its `global_reproj_img_index.tab` gives co-rotating
+    the co-rotating pair plus the frame's rotation since its epoch (row
+    `1874525875w` of its `global_reproj_img_index.tab` gives co-rotating
     338.04 to 77.60 and inertial 14.095 to 113.655, the frame having turned
     36.053 deg), and so the quantity our `minimum_ring_longitude` and
-    `maximum_ring_longitude` give. Ours differ only in the wrap convention, a
-    plain least and greatest where the reference's range is taken on the
-    circle, which is why they carry names of their own (the Phase 7 record's
-    naming table).
+    `maximum_ring_longitude` give. Ours differ in the wrap convention, a plain
+    least and greatest where the reference's range is taken on the circle,
+    which is why they carry names of their own (the Phase 7 record's naming
+    table), and in ranging over every pixel with a ring intercept rather than
+    the reference's F ring reprojection.
   - The F ring's own columns, its core radius, its node, pericenter and true
     anomaly, and Prometheus's and Pandora's longitudes and radii: that
     bundle's science, not a backplane's.
