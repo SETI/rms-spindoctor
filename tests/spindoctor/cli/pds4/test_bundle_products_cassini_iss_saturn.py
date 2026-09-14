@@ -3,9 +3,10 @@
 What the summary pass writes into the Cassini ISS Saturn bundle from the templates the
 package ships: every file of each collection the bundle holds; a bundle label each of
 whose member entries names a collection label in the bundle; one LID for the user guide
-wherever a label or the document inventory names it, the LID its own label declares; and
-a SPICE kernel inventory naming the metakernel by its label's LID and version.  The
-plumbing is tested over stand-in templates in ``test_bundle_products.py``.
+wherever a label or the document inventory names it, the LID its own label declares; a
+SPICE kernel inventory naming the metakernel by its label's LID and version; and the
+SPICE kernel types the labels state, which no schema rule checks.  The plumbing is tested
+over stand-in templates in ``test_bundle_products.py``.
 """
 
 import hashlib
@@ -277,3 +278,34 @@ def test_the_spice_kernel_inventory_lists_the_metakernel_by_its_label_s_lid_and_
     )
     rows = read_csv_rows(env.bundle_dir / 'spice_kernels' / 'collection_spice_kernels.csv')
     assert rows == [['P', f'{_lid(label)}::{version.strip()}']]
+
+
+def test_the_spice_kernel_labels_state_the_spice_kernel_types(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """The metakernel, its collection and the bundle's entry for it state the SPICE types.
+
+    Each field's schema permits other products' values in it as well, so a label carrying
+    another product's type passes every schema check: the metakernel's kernel type, the
+    SPICE kernel collection's type, and the reference type of the bundle's member entry
+    naming that collection.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
+    spice_kernels = env.bundle_dir / 'spice_kernels'
+    kernel = ElementTree.parse(spice_kernels / 'kernels.lblx').getroot()
+    kernel_type = kernel.findtext(
+        'pds:File_Area_SPICE_Kernel/pds:SPICE_Kernel/pds:kernel_type', '', PDS4_NAMESPACES
+    )
+    collection_label = spice_kernels / 'collection_spice_kernels.lblx'
+    collection = ElementTree.parse(collection_label).getroot()
+    collection_type = collection.findtext('pds:Collection/pds:collection_type', '', PDS4_NAMESPACES)
+    bundle = ElementTree.parse(env.bundle_dir / 'bundle.lblx').getroot()
+    reference_types = [
+        entry.findtext('pds:reference_type', '', PDS4_NAMESPACES).strip()
+        for entry in bundle.iterfind('pds:Bundle_Member_Entry', PDS4_NAMESPACES)
+        if entry.findtext('pds:lid_reference', '', PDS4_NAMESPACES).strip()
+        == _lid(collection_label)
+    ]
+    assert kernel_type.strip() == 'MK'
+    assert collection_type.strip() == 'SPICE Kernel'
+    assert reference_types == ['bundle_has_spice_kernel_collection']
