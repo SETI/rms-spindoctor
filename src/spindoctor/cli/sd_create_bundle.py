@@ -384,6 +384,9 @@ def main_summary() -> None:
     supplemental file leaves none of them, neither this run's nor an earlier run's.
     A bundle with no data directory is refused before anything is cleared, since it
     is not a tree a labels pass wrote.
+
+    The run ends with exit status 1 when a collection or index label was not written
+    or an image's products disagree, and its closing error gives both counts.
     """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
@@ -423,9 +426,9 @@ def main_summary() -> None:
         MAIN_LOGGER.exception('Failed to generate global index files: %s', exc)
         sys.exit(1)
 
-    # Generate collection files
+    # Generate the collection files, checking as it goes that each image's products agree
     try:
-        failed_labels = index.failed_labels + generate_collection_files(
+        collection_outcome = generate_collection_files(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
@@ -437,9 +440,13 @@ def main_summary() -> None:
         MAIN_LOGGER.exception('Failed to generate collection files: %s', exc)
         sys.exit(1)
 
-    if failed_labels > 0:
+    failed_labels = index.failed_labels + collection_outcome.failed_labels
+    if failed_labels > 0 or collection_outcome.disagreeing_images > 0:
         MAIN_LOGGER.error(
-            'Summary generation incomplete: %d label(s) were not written', failed_labels
+            'Summary generation incomplete: %d label(s) were not written, '
+            '%d image(s) whose products disagree',
+            failed_labels,
+            collection_outcome.disagreeing_images,
         )
         sys.exit(1)
 

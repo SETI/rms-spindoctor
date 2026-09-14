@@ -6,9 +6,10 @@ Contract under test (docs/user_guide/user_guide_pds4_bundle.rst "Labels Pass" /
 ``_metadata.json`` and ``_backplane_metadata.json``, and writes into
 ``<bundle_results_root>/<bundle name>/`` a ``data/<stub>_backplanes.lblx`` label
 rendered from the dataset's ``data.lblx`` template, a
-``data/<stub>_supplemental.txt`` JSON file combining both metadata dicts, and
-(browse products being optional) a ``browse/<stub>_summary.png`` copy plus a
-``browse/<stub>_summary.lblx`` label when the navigation summary PNG exists.
+``data/<stub>_supplemental.txt`` JSON file combining both metadata dicts, and a
+``browse/<stub>_summary.png`` copy plus a ``browse/<stub>_summary.lblx`` label.
+Every navigated image has browse products: one whose navigation summary PNG is
+missing is failed, its browse products not written.
 Non-navigated images (``status`` != ``success``) are skipped with a warning.
 The per-dataset ``pds4_*`` hooks parameterize the layout, the LIDs, and the
 template variables; datasets without PDS4 support raise ``NotImplementedError``.

@@ -37,10 +37,17 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    under ``document/supplemental/``, and takes the range of the products'
    exposure epochs in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
-   ``data/`` tree, collects every ``_backplanes.lblx`` it finds, sorts them by
-   image name, and writes the ``collection_data.tab`` and
-   ``collection_browse.tab`` inventories and their labels, the data collection
-   label stating the range it is handed.
+   ``data/`` and ``browse/`` trees, collects every ``_backplanes.lblx`` and
+   ``_summary.lblx`` it finds, sorts each set by product name -- the file name
+   less its suffix, which is the last part of the member's LID -- checks that each
+   image's products agree, and writes the ``collection_data.csv`` inventory from
+   the data labels and the ``collection_browse.csv`` inventory from the browse
+   labels, and their labels, the data collection label stating the range it is
+   handed.  An inventory lists one product per
+   line, as ``P,<LIDVID>``, with no header, and every line, the last included,
+   ends in a line feed alone, so the record count its label states is the
+   number of products the collection holds.  A collection with no product gets
+   neither an inventory nor a label (see `Exit status`_).
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
@@ -134,10 +141,17 @@ so it counts nothing against the run, including a batch it reports it could not
 have processed.
 
 ``sd_create_bundle summary`` counts the collection and index labels it did not
-write, over both generators, and exits 1 the same way.  The inventory and index
-``.tab`` tables are written either way.  The data collection label counts as not
-written when the data tree holds no supplemental file, and so no range for it to
-state (see `Epochs`_).  The global index is generated first, and it refuses a
+write, over both generators, and exits 1 the same way.  The index tables are
+written either way, and so is the inventory of a collection whose label fails to
+render.  A collection whose label cannot state what PDS4 requires of it is not
+written at all -- neither its inventory nor its label, and whatever an earlier run
+left at either path is removed -- and counts once among the labels not written,
+with an error naming the collection and each reason.  A collection label states at
+least one record, so a collection with no label of its kind on disk -- no data
+label, or no browse label -- is never written.  The data collection label also
+states the range of its products' epochs, so a data tree
+holding no supplemental file writes no data collection (see `Epochs`_).  The
+global index is generated first, and it refuses a
 bundle with no ``data/`` directory, naming the directory, before any product of
 the pass is cleared or written.  The pass also exits 1 when a supplemental file
 holds a statistic no index column can -- one in a unit other than the one the
@@ -145,20 +159,43 @@ configuration gives its plane, or a minimum or maximum that is NaN or infinite -
 the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  The index tables and
-labels an earlier run wrote, and its collection tables and labels, are cleared
+labels an earlier run wrote, and its collection inventories and labels, are cleared
 before the first supplemental file is read, the collection files by the index
 generator since it runs first.  Every supplemental file is read, and every value in
 both index tables rendered, before either table is opened, so a run refused over a
 supplemental file leaves no product of the pass, neither this run's nor an earlier
 run's.  The pass reads each
-supplemental file as the labels pass wrote it and checks nothing about it but the
-statistics; anything else unexpected raises, and the run ends with exit status 1.
+supplemental file as the labels pass wrote it and checks nothing in it but the
+statistics; whether a data label is beside it is the product check that follows.
+Anything else unexpected raises, and the run ends with exit status 1.
 
-The summary pass builds both inventories from the data labels in the bundle's
-``data/`` tree and does not check that tree for completeness, so it can exit 0
-over a bundle the labels pass failed images in.  An image that got a data label
-but no browse label, its summary PNG missing, leaves ``collection_browse.tab``
-listing a browse product that is not on disk.
+The summary pass inventories each collection from the labels of its own kind, the
+data collection from the data labels in ``data/`` and the browse collection from
+the browse labels in ``browse/``, and holds each image's products against each
+other, since every data product has a browse product.  An image with a data label
+and no browse label, or with a browse label or a supplemental file and no data
+label, disagrees: the pass logs one error naming the image, the files of it that
+are there and the label it lacks, counts it, and exits 1, its closing line giving
+the images whose products disagree beside the labels not written.  Such an image
+is still listed in whichever inventory holds a product of it.  These are the states
+a labels pass that failed an image leaves -- an image whose summary PNG was missing
+has a data label and no browse label, and one whose data label failed to render has
+its supplemental file, written first, and perhaps a browse label -- so a summary
+pass over that bundle exits 1 as the labels pass did.  The check and the
+empty-collection rule are one rule at two scales -- each image holds all its
+products, and each collection at least one member -- and the collection rule
+refuses an empty collection even over a bundle with no image, where the check has
+nothing to count.  A data label with no
+supplemental file is not checked, since the labels pass writes an image's
+supplemental file before its data label.
+
+A summary pass that exits 1 cleans up nothing it wrote: the generators report what
+they cannot describe rather than repair the bundle.  After one, the index tables
+can hold rows for an image with no data label, since they are built from the
+supplemental files; the browse labels can name a data collection that was not
+written, and the data labels a browse collection that was not written.  Clear the
+bundle directory and regenerate the bundle into it, as after a labels pass that
+exits 1.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
@@ -473,8 +510,8 @@ or the instrument has no SPICE camera frame mapped.
 :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails such an
 image before anything is written for it, the log naming the image; it checks only
 that ``navigation_result.times`` is there, and where it is, the epochs are read as
-recorded.  The summary pass needs no check of its own: the labels pass writes no
-supplemental file for an image it failed.
+recorded.  The summary pass needs no check of the times: the labels pass fails such
+an image before it writes anything for it, its supplemental file included.
 
 The data collection label states the range of the products' epochs: the least
 start and the greatest stop over every supplemental file, written to whole seconds
@@ -485,9 +522,9 @@ index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
 its :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome`.  That is why the
 summary pass runs the index first and hands the range to
 :func:`~spindoctor.cli.pds4.collections.generate_collection_files`.  A scan that
-read no supplemental file yields no range, and the
-data collection label is then counted as not written rather than rendered with empty
-dates.
+read no supplemental file yields no range, and the data collection is then not
+written, neither its inventory nor its label, rather than labeled with empty dates
+(see `Exit status`_).
 
 Output layout
 =============
@@ -498,14 +535,14 @@ The two passes write this tree:
 
    <bundle_results_root>/<bundle_name>/
      data/
-       collection_data.tab                   # summary pass
+       collection_data.csv                   # summary pass
        collection_data.lblx                  # summary pass
        <pds4_bundle_path_for_image>/
          <image>_backplanes.lblx
          <image>_backplanes.fits             # copied from backplane_results_root
          <image>_supplemental.txt
      browse/
-       collection_browse.tab                 # summary pass
+       collection_browse.csv                 # summary pass
        collection_browse.lblx                # summary pass
        <pds4_bundle_path_for_image>/
          <image>_summary.lblx

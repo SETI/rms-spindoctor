@@ -25,7 +25,7 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-4 have run; Phases 5-10 have not. Two changes landed ahead of
+Phases 1-5 have run; Phases 6-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -54,7 +54,7 @@ this table first and trusts it over any recollection.
 | Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
 | 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
 | 4 — The FITS in the bundle, with its data objects | **done** | `rf_pds4_phase4`, sections 3.3 and 3.13; #69 is closed by hand when its PR merges (section 8) |
-| 5 — Inventories that conform | not started | |
+| 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; #602 is closed by hand when its PR merges (section 8), #265 staying open for its Phase 10 part |
 | 6 — Bundle-level and static products | not started | |
 | 7 — The miscellaneous collection and its global index labels | not started | |
 | 8 — Targets, mission area, ring geometry | not started | |
@@ -66,10 +66,12 @@ guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the masked value, whose
 `Special_Constants` declaration Phase 4 made; what remains of it is the
 index tables' missing value, which Phase 7 settles), #602 (a
-skipped or failed product leaves the bundle inconsistent, which Phases 5 and
-6 own), #611 (the backplane viewer decides degrees from `BUNIT` and the plane's
-name rather than through `statistics_units`, so it shows the `rad/pixel` plane
-in radians per pixel), #614 (a dataset without PDS4 support
+skipped or failed product leaves the bundle inconsistent), which is Phase 5's
+by the operator's ruling of 2026-09-14 that every data product needs a browse
+product, and is closed by hand when Phase 5 merges, #611 (the backplane viewer
+decides degrees from `BUNIT` and the plane's name rather than through
+`statistics_units`, so it shows the `rad/pixel` plane in radians per pixel),
+#614 (a dataset without PDS4 support
 ends both passes in a traceback rather than a refusal). #603, the two passes
 disagreeing about a missing template, was closed by hand on 2026-09-11, after
 #605, Phase 1's PR, merged. #607, the index tables written to one precision
@@ -192,24 +194,21 @@ plan).
 | 2 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. Two more, `miscellaneous` and `spice_kernels`, are neither declared nor generated; section 3.1 adds both, moving the global index tables into the first and the metakernel into the second. | — | #72, #74 |
 | 3 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
 | 4 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
-| 5 | Inventory filename mismatch: templates declare `collection_data.csv` / `collection_browse.csv`; the code writes `.tab`. The labels point at files that do not exist. | `collections.py:55,88` vs `collection_data.lblx:193`, `collection_browse.lblx:131` | #265 |
-| 6 | Inventories carry a `Member Status,LIDVID_LID` header row, and `<records>` counts it. PDS4 collection inventories are headerless. | `collections.py:60,93` | **new** |
-| 7 | Inventories are written CRLF (`csv.writer`'s default dialect) while the labels declare `<record_delimiter>Line-Feed</record_delimiter>`. Verified with `od -c`. | `collections.py:58,91` | **new** |
-| 8 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
-| 9 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
-| 10 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 11 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
-| 12 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
-| 13 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 14 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 15 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; no phase (navigation) |
-| 16 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
+| 5 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
+| 6 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
+| 7 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
+| 8 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
+| 9 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
+| 10 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 11 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 12 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; no phase (navigation) |
+| 13 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
-No row but 15 gets its own tracking issue. Each of the others is fixed by a
+No row but 12 gets its own tracking issue. Each of the others is fixed by a
 named phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
-every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 15 is the
+every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 12 is the
 navigation's, owned by no phase, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
@@ -424,7 +423,7 @@ The Schematron allows both values. The file is written as the ASCII bytes
 lines in a line feed, so the line feeds stay line feeds on any platform. The
 reference describes its supplemental text files as a `Header` of `UTF-8 Text`
 over their heading, followed by a table; ours is JSON with no heading. It ends
-without a line feed after its last line, which section 2.2 row 16 leaves to
+without a line feed after its last line, which section 2.2 row 13 leaves to
 Phase 10's `validate` run.
 
 ### 3.4 Epochs
@@ -476,15 +475,15 @@ a label. A success document has one only beside a pointing: `build_metadata_dict
 writes `times` with the pointing, and the navigation records a success with no
 pointing when `compute_pointing` raises `NavPointingError` or the instrument has
 no SPICE camera frame mapped (its `observation` block holds the host's exposure
-times regardless, which this pass does not read; section 2.2 row 15). That is a
+times regardless, which this pass does not read; section 2.2 row 12). That is a
 document this package's navigation
 writes, so the labels pass fails such an image before anything is written for
 it, its log saying the navigation recorded no pointing. It checks only
 that the block is there, since the block always holds all three epochs, and
 nothing else about them (the operator's ruling of 2026-09-11 that nothing
-guards against our own files). The summary pass needs no check: the labels pass
-writes no supplemental file for an image it failed. The empty string is not
-reachable.
+guards against our own files). The summary pass needs no check of the times:
+the labels pass fails such an image before it writes anything for it, its
+supplemental file included. The empty string is not reachable.
 
 The data collection label states the cohort's earliest start and latest stop,
 at whole seconds as the reference's collection and bundle labels do, the start
@@ -495,12 +494,14 @@ before the collection files in `main_summary`, and returns the range in a
 `GlobalIndexOutcome`, which the driver hands to `generate_collection_files`
 and holds for `bundle.lblx`, which Phase 6 renders, without a second
 computation. With no range to state -- the data tree holds no supplemental
-file -- the data collection label is counted as not written, with an error
-saying so, and the inventory table is still written. The supplemental files
-are read as the labels pass wrote them, with nothing checked but the
+file -- the data collection is not written, neither its inventory nor its
+label, and counts as a label not written, with an error saying so: one rule
+with the empty collection's (section 3.5). The supplemental files
+are read as the labels pass wrote them, with nothing checked in them but the
 statistics (the same ruling); a data label that failed to render is reported
-by the labels pass, and the bundle is regenerated before the summary pass
-runs. Running first, the index generator refuses a bundle with no data
+by the labels pass, and by the summary pass as an image whose products
+disagree (section 3.5), and the bundle is cleared and regenerated. Running
+first, the index generator refuses a bundle with no data
 directory itself, as the collection generator does, rather than write its
 tables into a root the labels pass would then refuse.
 
@@ -509,7 +510,46 @@ tables into a root the labels pass would then refuse.
 `.csv`, no header row, `\n` line terminator (`csv.writer(f,
 lineterminator='\n')`, file opened with `newline=''`), one `P,<lidvid>` line
 per member. `<records>` counts members. The `FILE_RECORDS` template function
-counts lines, so it agrees once the header is gone.
+counts lines, so with no header it counts the members.
+
+A collection with no member has neither an inventory nor a label.
+`PDS4_PDS_1O00.xsd` requires `<records>` in `File_Area_Inventory/Inventory`
+to be at least 1, so no label can describe an empty inventory; with the
+header row counted, as before Phase 5, an empty collection's label stated one
+record, valid only by accident. It is one rule with the data collection's
+range (section 3.4): a generated collection is written only when its label
+can state everything PDS4 requires of it -- at least one member, and for the
+data collection the range of its members' epochs. One that cannot is not
+written at all, neither its inventory nor its label, whatever an earlier run
+left at either path is removed, and it counts once among the labels not
+written, with an error naming the collection and every reason, so the summary
+pass exits 1. Each generated collection takes its members from the labels of
+its own kind on disk -- the data collection from the data labels, the browse
+collection from the browse labels -- and the summary pass holds each image's
+products against each other, since every data product has a browse product
+(#602, Phase 5): an image with a data label and no browse label, or a browse
+label or supplemental file and no data label, disagrees, is logged by name
+and counted, and the pass exits 1. The check and the empty-collection rule
+are one rule at two scales -- each image holds all its products, and each
+collection at least one member -- and the collection rule refuses an empty
+collection even over a bundle with no image, where the check has nothing to
+count. Over
+a bundle with no data label and no browse label the summary pass writes
+neither collection and counts two labels; over supplemental files and no label -- what a labels pass leaves
+when every label fails to render, since it writes the supplemental file
+first -- it writes neither, counts two labels, and counts every image as one
+whose products disagree. A collection label that fails
+to render is Phase 1's case, not this one: its inventory is written and
+stays, as the index tables do.
+
+A summary that exits 1 removes nothing it wrote: the generators report what
+they cannot describe rather than repair the bundle, and a bundle is written
+into an empty directory (the operator's ruling on #605, recorded in Phase 1's
+text). After one, the index tables can hold rows for an image with no data
+label, until Phase 7 limits them to the data inventory's members; the browse
+labels can name a data collection that was not written, and the data labels
+a browse collection that was not written. The directory is cleared and the
+bundle regenerated into it, as after a labels pass that exits 1.
 
 Three inventories are **generated**, because their membership depends on
 what the run produced: `collection_data.csv`, `collection_browse.csv`, and
@@ -518,19 +558,25 @@ products of section 3.1.
 
 Four are **copied verbatim** from the template directory (section 3.2),
 because their membership is fixed: context, document, spice_kernels and
-schema. Their `collection_*.csv` templates get the same treatment as the
-generated ones -- no header, LF -- and `collection_context.csv`'s trailing
-`# TODO` comment line is removed, since it is currently counted as a record.
+schema. Their `collection_*.csv` templates follow the same rules as the
+generated ones -- no header, LF, a line feed after the last line -- and hold
+no comment line, since the label would count one as a record.
 
 Members carry an explicit version: the reference writes
 `P,urn:...:miscellaneous:global_mosaic_index::1.0` and
 `S,urn:nasa:pds:context:instrument:issna.co::1.2`, naming the actual
 published version of each secondary product rather than leaving it open. Our
 `collection_context.csv` currently has no `::` at all on any line, which has
-to be filled in from the context products as they are registered. The one
+to be filled in from the context products as they are registered; Phase 6
+does so. The one
 exception the reference itself makes is its own `collection_context.csv`,
 which is LID-only; both forms appear to pass, so prefer the versioned one
 and let validation say otherwise.
+
+Our `collection_context.csv` lists the mission, the spacecraft and the two
+cameras, and no target, where the reference's lists every target its labels
+name. Its targets come with the target table of section 3.7, in Phase 8,
+whose text carries the assignment and its test.
 
 A collection inventory also carries **`S` members**, not only `P`. The
 reference's document and miscellaneous inventories both list the context
@@ -542,7 +588,12 @@ collection references, not just what it owns.
 
 `collection_document.csv` lists the backplanes user guide and the PDS3 ISS
 Data User's Guide. The first is a product this bundle owns and must
-therefore contain; the second is an external reference and stays `S`.
+therefore contain; the second is an external reference and stays `S`. It
+cites the second as
+`urn:nasa:pds:cassini_iss_saturn:document:iss-data-user-guide::2.0`, the
+version the reference bundle cites, by the operator's decision of
+2026-09-14. The PDS registry returned only version 1.1 of that product on
+2026-09-14.
 
 The user-guide PDF is an operator deliverable, tracked as #595 (a shared
 LaTeX template for all four instruments' guides) and #596 (the Cassini guide
@@ -561,7 +612,7 @@ The draft is acceptable either way; a bundle delivered to the Node is not.
 Acceptance criterion 8 records that distinction.
 
 Whichever way it goes, the LID gets its `:document:` segment back in all
-three places that drop it (defect 9).
+three places that drop it (defect 6).
 
 ### 3.7 Targets and the mission area
 
@@ -1155,17 +1206,22 @@ not, and the run exits 1.
 
 Both per-image labels are attempted before failed is returned, and so is
 every collection and index label, so one run reports every label it could not
-write rather than one per run. `generate_collection_files` and
-`generate_global_index_files` each return the number of labels that failed;
-the inventory and index `.tab` tables are written either way.
+write rather than one per run. `generate_global_index_files` returns a
+`GlobalIndexOutcome` carrying the number of labels that failed, beside the
+epoch range it gained in Phase 3, and `generate_collection_files`, since
+Phase 5, a `CollectionOutcome` carrying that number beside the images whose
+products disagree. The index tables are written either way, and so is the inventory
+of a collection whose label fails to render; a collection that cannot be
+written at all gets neither inventory nor label (section 3.5).
 
 `main_labels` counts the images whose labels it did not write -- including an
 image whose generation raised and a batch that did not hold exactly one image
 -- carries on to the next image either way, and closes with a line giving
 that count beside the images it labeled and the images it skipped, so a
 selection that matched nothing reads as zero. A dry run reports what it would
-have processed and counts nothing. `main_summary` sums the two returned
-counts; each exits 1 when its count is not zero.
+have processed and counts nothing. `main_summary` sums the two failed-label
+counts and, since Phase 5, counts the images whose products disagree beside
+them; each pass exits 1 when a count it keeps is not zero.
 `sd_create_bundle_cloud_tasks` maps a failed product onto a `status: error`
 result carrying `status_error: label_not_written`, with no retry.
 
@@ -1189,7 +1245,8 @@ their content. And an image that got a data label and no browse label still
 leaves the bundle internally inconsistent, because the browse inventory is
 built from the data labels and so lists a product that is not on disk; the
 labels pass counts that image, but the summary pass that follows inspects
-nothing. That is #602, and Phases 5 and 6 own it. A skipped image is not that
+nothing. That is #602, which the operator's ruling of 2026-09-14 gave to
+Phase 5 (see Phase 5). A skipped image is not that
 case: it has no data label, so it is in none of the inventories, and what it
 leaves is a bundle covering fewer images than the selection named.
 
@@ -1330,14 +1387,79 @@ Closes #69, by hand when its PR merges into `rf_pds4_draft_bundle` (section
 
 ### Phase 5 — Inventories that conform
 
-`.csv`, headerless, LF, correct record counts, for the two generated
-inventories and the three copied ones. `.tab` removed everywhere including
-the global index tables.
+Done on `rf_pds4_phase5`. The data and browse inventories are written as
+`collection_data.csv` and `collection_browse.csv`, the names their labels
+give, through one writer in `collections.py`: no header, one `P,<lidvid>`
+line per member, each line ending in a line feed alone, the last included
+(section 3.5), so the `<records>` that `FILE_RECORDS` counts is the number
+of members. The three inventories the template directory ships were already
+headerless and LF, with a line feed after the last line; the phase removed
+`collection_context.csv`'s trailing `# TODO` line, which a label would have
+counted as a record, cited the ISS data user guide in
+`collection_document.csv` at `::2.0` by the operator's decision (section
+3.6), and left their content otherwise as it was. Versioned
+context members and `S` members in the generated inventories (section 3.5),
+the `:document:` segment (Phase 6) and the `xml_schema` LIDVIDs (section
+3.9) are not this phase's. The global index tables stay `.tab`, header and
+all, as section 3.1 settles; Phase 7 moves and reshapes them.
 
-Tests: the generated inventory has no header, ends every line with `\n`, and
-`FILE_RECORDS` equals the member count.
+Tests: over one data label an inventory is that one `P` line; every line of
+each ends in a line feed and none holds a carriage return; over the cohort,
+each shipped collection label names the inventory beside it and states the
+two navigated images as its records; and every line of each inventory the
+template directory ships is a member, ending in a line feed.
 
-Closes the inventory-filename part of #265 and the new format issue.
+A product review of the phase found that an empty inventory is one no label
+can describe. Over an empty `data/`, both inventories were written as empty
+files, the data collection label was not written for want of a range, and
+the browse collection label was rendered stating `<records>0</records>`,
+which `PDS4_PDS_1O00.xsd` rejects. Over supplemental files and no data label
+-- a labels pass whose every data label failed -- both labels stated zero
+records and the summary pass exited 0. Before the phase the header row was
+counted, so the same trees gave one record, valid by accident. The phase
+settles it with section 3.5's rule, which takes in section 3.4's for a data
+collection with no range: a collection whose label cannot state what PDS4
+requires gets neither an inventory nor a label, and counts once among the
+labels not written, so the pass exits 1. Tests: over an empty data tree
+neither collection is written, the collection generator itself removing what
+an earlier run left at the four paths, and the two count as two, the data
+collection's error giving both its reasons; over a data label and no
+supplemental file the data collection is not written and the browse
+collection is; and a summary pass over supplemental files and no data label
+exits 1, naming both collections, with neither written.
+
+#602 is this phase's, by the operator's ruling of 2026-09-14 that every data
+product needs a browse product. Each inventory lists the labels of its own
+kind on disk -- the data inventory the data labels, the browse inventory the
+browse labels, where before both were built from the data labels -- and the
+summary pass holds each image's products against each other: a data label
+with no browse label, or a browse label or supplemental file with no data
+label, is an image whose products disagree. Each gets one error naming the
+image, the files of it that are there and the label it lacks, and is
+counted, and the pass exits 1, its closing line giving those images beside
+the labels not written. The inventories still list what is on disk. The
+check and section 3.5's empty-collection rule are one rule at two scales:
+each image holds all its products, and each collection at least one member.
+A data label with no
+supplemental file is not checked, since the labels pass writes the
+supplemental file first. Phase 7 makes the global index rows exactly the data
+inventory's members, which settles #602's question of where the index takes
+its images from. Tests: the browse inventory lists the browse
+labels on disk and not the data labels; each collection is judged empty by
+its own members; one test per disagreement, each counting the one image it
+names with the label it lacks; and the summary pass exits 1 on a
+disagreeing image alone. A re-review's mutation run then pinned six more
+behaviors: an image holding a browse label and a supplemental file with no
+data label counts once, its one error naming both; two disagreeing images
+count two; a collection label that fails to render keeps its inventory; and
+each collection template, when missing, raises over a data tree holding no
+label. The global index tests moved to `test_global_index.py`, keeping every
+test module under 1000 lines.
+
+Closes #602, by hand when its PR merges into `rf_pds4_draft_bundle` (section
+8). The inventory-filename part of #265 is done, and #265 stays open for its
+dev-guide output-layout part (Phase 10). The header and line-ending defects
+it fixed were never filed as issues.
 
 ### Phase 6 — Bundle-level and static products
 
@@ -1361,6 +1483,16 @@ question and is not settled here; the label and the collection are.
 The document collection's guide moves into a `user_guide/` subdirectory, per
 section 3.1. And `readme.txt` loses the clause placing the index files in
 the document collection, which section 3.1 moved.
+
+**The static inventories' members follow section 3.5.** As the reference's
+does, `collection_document.csv` lists beside its own primary the context
+products and the external ISS data user guide as `S` members, every member
+with an explicit version: the mission, the spacecraft and the two cameras at
+the versions their context products carry, and the ISS data user guide at
+`::2.0` (section 3.6). `collection_context.csv`'s own four lines -- the
+mission, the spacecraft and the two cameras -- gain the same versions, the
+versioned form section 3.5 prefers over the reference's LID-only context
+inventory; Phase 8 adds the targets in that form.
 
 Tests: the summary pass over a one-image bundle produces every file section
 3.1 lists; the seven `Bundle_Member_Entry` LIDs each resolve to a
@@ -1417,12 +1549,32 @@ Then the collection itself: a `collection_miscellaneous.lblx` template with
 `collection_type` `Miscellaneous`, and a generated
 `collection_miscellaneous.csv` listing the two products, written after them
 for the same reason the data inventory is written after the labels it lists.
+As the reference's does, it lists beside those two `P` members the context
+products and the external ISS data user guide as `S` members, every member
+with an explicit version (section 3.5): the two index products at the
+bundle's version, the context products at theirs, and the ISS data user guide
+at `::2.0` (section 3.6).
+
+**The index rows are exactly the data inventory's members.** The tables
+index the images the data inventory lists, each with the rows its
+supplemental file gives -- a bodies row per body, a rings row where it has
+ring backplanes -- and no other image. The values still come from the
+supplemental files, but a supplemental file with no data label beside it,
+which Phase 5's check reports as an image whose products disagree (section
+3.5), adds no row, where today it adds one. That settles #602's question of
+where the index takes its images from, and the index half of #602 is this
+phase's to implement. Landing it corrects the two sentences that describe
+today's behavior: section 3.5's, that after a summary exits 1 the index
+tables can hold rows for an image with no data label, and the same sentence
+in the dev guide's account of exit status.
 
 Tests: adding a backplane to the config adds a column to the table and a
 `Field_Character` to the label; `fields` matches the column count; every
 `Field_Character` offset and length lands on the column it names in a
-generated row; and the inventory's two LIDVIDs each resolve to a label in
-the same collection.
+generated row; the inventory's two LIDVIDs each resolve to a label in the
+same collection; and a supplemental file with no data label beside it adds
+no row to either table, so every row's LID is that of a data inventory
+member.
 
 Closes #76.
 
@@ -1433,6 +1585,13 @@ body present in the image's backplane metadata.
 `cassini:ISS_Specific_Attributes` filled from the already-computed
 variables. Ring geometry class fields and the ring incidence angle in the
 label.
+
+**The context inventory lists the targets.** `collection_context.csv` lists
+every target context product the data labels reference, taken from
+`target_lids`, as the reference bundle's lists every target its labels name;
+today it lists the mission, the spacecraft and the two cameras and no target
+(section 3.5). Each target is an `S` member carrying its version, as section
+3.5 has every member do.
 
 **The index row a run hands over holds two columns.** The enumeration reads
 only the columns it declares -- `_INDEX_COLUMNS` plus `_INDEX_CAMERA_COLUMNS`,
@@ -1456,7 +1615,9 @@ index's own names, so both halves are visible there rather than papered
 over.
 
 Tests: an image with two bodies emits two `Target_Identification` blocks; an
-image with rings emits the ring geometry block and one without emits none.
+image with rings emits the ring geometry block and one without emits none;
+and every target LID a data label references is listed in the context
+inventory.
 
 Closes #73, #75, #47; contributes to #53's template list. #79 stays open.
 
@@ -1478,9 +1639,16 @@ Closes #71.
 
 ### Phase 10 — Validation, the integrity pass, and the draft run
 
-Schema validation as a repeatable command: `xmlschema` plus `lxml`'s ISO
-Schematron against the five schemas the labels declare, over a generated
-tree, added to `scripts/run-all-checks.sh` and to CI. The NASA PDS
+Schema validation as a repeatable command: `xmlschema` against the five
+schemas the labels declare and `PDS4_CART_1O00_1970.xsd`, which the Cassini
+mission schema imports -- run offline without it, `xmlschema` warns that the
+`cart/v1` import failed and validates without it -- plus their Schematron
+rules, over a generated tree, added to `scripts/run-all-checks.sh` and to CI. The rules cannot be
+run by `lxml`'s ISO Schematron: on 2026-09-14 the product reviewer found
+that `lxml.isoschematron` refuses the PDS4 1O00 Schematron, reporting that
+it "does not work with schemas using the xslt2 query language".
+pyschematron 1.2.1 ran the same rules, and a control label with a wrong
+`offset` failed them as it should. The NASA PDS
 `validate` tool is the authority for the draft acceptance and additionally
 checks referential integrity, but it is Java and does not belong in this
 repository's CI; the Python check is the gate that runs on every PR, and
@@ -1583,10 +1751,10 @@ removals on a two-sided conflict.
 
 ## 7. Follow-ups
 
-**No issues are filed for section 2.2's rows other than 15.** Each is assigned to a
+**No issues are filed for section 2.2's rows other than 12.** Each is assigned to a
 named phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
-adds a close to reconcile and no reader. Row 15 is the navigation's, not a
+adds a close to reconcile and no reader. Row 12 is the navigation's, not a
 phase's, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block.
 
 The one row that would have outlived this plan was the angular-unit

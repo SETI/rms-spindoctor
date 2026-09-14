@@ -3,9 +3,10 @@
 The summary pass reads every supplemental file once, in the global index generator, and
 takes the range of the products' exposure epochs in that read.  The collection
 generator, run after it, states the range in the data collection label, or, with no
-range to state, does not write that label.  These run the two generators in that order,
-over plumbing supplemental files.  What the range comes to over a bundle's shipped
-templates is tested in a module named for that bundle.
+range to state, writes neither that label nor the collection's inventory.  These run
+the two generators in that order, over plumbing supplemental files.  What the range
+comes to over a bundle's shipped templates is tested in a module named for that
+bundle.
 """
 
 from pathlib import Path
@@ -25,7 +26,8 @@ from spindoctor.config import MAIN_LOGGER
 from .conftest import (
     BundleEnv,
     make_bundle_env,
-    read_tab,
+    touch_browse_label,
+    touch_label,
     write_supplemental,
 )
 
@@ -57,10 +59,10 @@ def _summarize(env: BundleEnv) -> tuple[GlobalIndexOutcome, int]:
     bundle_results_root = FCPath(env.bundle_results_root)
     dataset = env.dataset.as_dataset()
     index = generate_global_index_files(bundle_results_root, dataset, MAIN_LOGGER)
-    failed = generate_collection_files(
+    collections = generate_collection_files(
         bundle_results_root, dataset, MAIN_LOGGER, epochs=index.epochs
     )
-    return index, failed
+    return index, collections.failed_labels
 
 
 def test_the_range_is_the_earliest_start_and_the_latest_stop_over_every_file(
@@ -81,23 +83,24 @@ def test_the_range_is_the_earliest_start_and_the_latest_stop_over_every_file(
     assert index.epochs == EpochRange(start_et=100.0, stop_et=900.0)
 
 
-def test_with_no_supplemental_file_the_data_collection_label_is_not_written(
+def test_with_no_supplemental_file_the_data_collection_is_not_written(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """No products, no range: the label counts as not written; the inventory is written.
+    """A member but no range: the data collection is not written, and counts once.
 
-    A label stating empty dates is not one PDS4 accepts, and an earlier run's label
-    at the path would state a range this run did not take, so it is removed.
+    A label stating empty dates is not one PDS4 accepts, and an inventory with no
+    label beside it describes nothing, so neither is written.  The browse collection
+    states no range, so its member is enough for it to be written.
     """
     env = make_bundle_env(tmp_path)
     data_dir = env.bundle_dir / 'data'
-    data_dir.mkdir(parents=True)
-    earlier = data_dir / 'collection_data.lblx'
-    earlier.write_text('<an earlier run/>\n', encoding='utf-8')
+    touch_label(data_dir, 'shard0/1234567890w')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
     _, failed = _summarize(env)
     assert failed == 1
-    assert not earlier.exists()
-    assert read_tab(data_dir / 'collection_data.tab') == [['Member Status', 'LIDVID_LID']]
+    data_products = ['collection_data.csv', 'collection_data.lblx']
+    assert [name for name in data_products if (data_dir / name).exists()] == []
+    assert (env.bundle_dir / 'browse' / 'collection_browse.lblx').is_file()
     expected = 'the data tree holds no supplemental file, so there is no time range'
     assert expected in capsys.readouterr().out
 
@@ -113,6 +116,7 @@ def test_the_range_is_stated_at_the_whole_seconds_outside_it(tmp_path: Path) -> 
     """
     env = make_bundle_env(tmp_path)
     data_dir = env.bundle_dir / 'data'
+    touch_label(data_dir, 'shard0/1234567890w')
     write_supplemental(
         data_dir, 'shard0/1234567890w', navigation=_navigation(129399999.78493077, 130700000.54)
     )

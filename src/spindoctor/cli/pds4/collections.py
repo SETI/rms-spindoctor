@@ -160,35 +160,70 @@ _SUPPLEMENTAL_SUFFIX = '_supplemental.txt'
 _DATA_LABEL_SUFFIX = '_backplanes.lblx'
 """What follows a product's path stub in the name of its data label."""
 
+_BROWSE_LABEL_SUFFIX = '_summary.lblx'
+"""What follows a product's path stub in the name of its browse label."""
 
-def _product_stub(path: FCPath, data_dir: FCPath) -> str:
-    """Return a product's path stub, read off its supplemental file.
+
+def _product_stub(path: FCPath, tree: FCPath, suffix: str) -> str:
+    """Return a product's path stub, read off one of its files.
 
     Parameters:
-        path: The product's supplemental file, under ``data_dir``.
-        data_dir: The bundle's data directory.
+        path: The file, under ``tree``.
+        tree: The bundle directory the file is under, ``data`` or ``browse``.
+        suffix: What follows the stub in the file's name.
 
     Returns:
-        The file's path relative to ``data_dir``, in POSIX form, less
-        ``_supplemental.txt``, as in ``shard0/1234567890w``.
+        The file's path relative to ``tree``, in POSIX form, less ``suffix``, as in
+        ``shard0/1234567890w``.
     """
-    return path.relative_to(data_dir).as_posix().removesuffix(_SUPPLEMENTAL_SUFFIX)
+    return path.relative_to(tree).as_posix().removesuffix(suffix)
+
+
+def _products_by_stub(tree: FCPath, suffix: str) -> dict[str, FCPath]:
+    """Return the files of one kind in a bundle directory, keyed by path stub.
+
+    Parameters:
+        tree: The bundle directory to search, ``data`` or ``browse``.  One that is
+            not there holds none.
+        suffix: What follows a product's path stub in the name of the files sought.
+
+    Returns:
+        Every file under ``tree`` whose name ends in ``suffix``, keyed by its path
+        stub, in the order of the products' names -- each file's name less ``suffix``,
+        which is the last part of the product's LID -- whatever directory each is in.
+    """
+    files = sorted(tree.rglob(f'*{suffix}'), key=lambda path: path.name.removesuffix(suffix))
+    return {_product_stub(path, tree, suffix): path for path in files}
+
+
+def _image_name(stub: str, dataset: DataSet) -> str:
+    """Return the name of the image a product's path stub belongs to.
+
+    Parameters:
+        stub: The product's path stub, as in ``shard0/1234567890w``.
+        dataset: The dataset whose LID scheme the stub's last part follows.
+
+    Returns:
+        The image name the dataset gives the stub's last part, which is a LID part.
+    """
+    return dataset.pds4_lid_part_to_image_name(stub.rsplit('/', 1)[-1])
 
 
 @dataclass(frozen=True)
 class _CollectionProducts:
-    """Where in a bundle the collection tables and labels the summary pass writes go.
+    """Where in a bundle the collection inventories and labels the summary pass writes go.
 
     Attributes:
-        data_table: The data collection's inventory, ``data/collection_data.tab``.
+        data_inventory: The data collection's inventory, ``data/collection_data.csv``.
         data_label: Its label, ``data/collection_data.lblx``.
-        browse_table: The browse collection's inventory, ``browse/collection_browse.tab``.
+        browse_inventory: The browse collection's inventory,
+            ``browse/collection_browse.csv``.
         browse_label: Its label, ``browse/collection_browse.lblx``.
     """
 
-    data_table: FCPath
+    data_inventory: FCPath
     data_label: FCPath
-    browse_table: FCPath
+    browse_inventory: FCPath
     browse_label: FCPath
 
     @classmethod
@@ -202,9 +237,9 @@ class _CollectionProducts:
             The four paths, under the bundle's ``data`` and ``browse`` directories.
         """
         return cls(
-            data_table=bundle_root / 'data' / 'collection_data.tab',
+            data_inventory=bundle_root / 'data' / 'collection_data.csv',
             data_label=bundle_root / 'data' / 'collection_data.lblx',
-            browse_table=bundle_root / 'browse' / 'collection_browse.tab',
+            browse_inventory=bundle_root / 'browse' / 'collection_browse.csv',
             browse_label=bundle_root / 'browse' / 'collection_browse.lblx',
         )
 
@@ -212,9 +247,162 @@ class _CollectionProducts:
         """Return all four paths.
 
         Returns:
-            The data collection's table and label, then the browse collection's.
+            The data collection's inventory and label, then the browse collection's.
         """
-        return (self.data_table, self.data_label, self.browse_table, self.browse_label)
+        return (self.data_inventory, self.data_label, self.browse_inventory, self.browse_label)
+
+
+def _write_inventory(inventory: FCPath, lidvids: list[str]) -> None:
+    """Write a collection inventory listing each LIDVID as a primary member.
+
+    The inventory is comma-separated with no header: one ``P,<lidvid>`` line per
+    member, in the order given, each line ending in a line feed alone, the last
+    included.  Its number of lines is therefore its number of members, which is
+    what the collection label states as its records.
+
+    Parameters:
+        inventory: Where the inventory goes.
+        lidvids: The members' LIDVIDs, in the order they are listed.
+    """
+    with inventory.open('w', newline='', encoding='utf-8') as f:
+        csv.writer(f, lineterminator='\n').writerows(['P', lidvid] for lidvid in lidvids)
+
+
+_NO_MEMBER = 'the collection has no member, and its label has to state at least one record'
+"""Why a collection with no member is not written.
+
+The PDS4 schema requires a collection inventory to hold at least one record.
+"""
+
+_NO_RANGE = (
+    'the data tree holds no supplemental file, so there is no time range for its label to state'
+)
+"""Why the data collection is not written when no supplemental file gives it a range."""
+
+
+def _write_collection(
+    name: str,
+    inventory: FCPath,
+    label: FCPath,
+    *,
+    lidvids: list[str],
+    template: pdstemplate.PdsTemplate,
+    template_vars: dict[str, Any],
+    reasons_not_written: list[str],
+    logger: PdsLogger,
+) -> bool:
+    """Write one collection's inventory and then its label, or neither of them.
+
+    A collection with a reason not to be written is not written at all: whatever is at
+    either path is removed, so that a collection on disk is always one this run wrote,
+    and one error names the collection, both paths and every reason.  Otherwise the
+    inventory is written, and then the label, which reads the inventory's size, checksum
+    and record count from the file; the inventory stays whether or not the label
+    renders.
+
+    Parameters:
+        name: The collection's name, as the error gives it: ``data`` or ``browse``.
+        inventory: Where the collection's inventory goes.
+        label: Where the collection's label goes.
+        lidvids: The members' LIDVIDs, in the order the inventory lists them.
+        template: The parsed template the label renders from.
+        template_vars: The variables the label's template resolves against.
+        reasons_not_written: Why the collection cannot be written, one phrase each, or
+            an empty list when it can be.
+        logger: Logger for diagnostic messages.
+
+    Returns:
+        True if the collection's label is on disk, False if it is not.
+    """
+    if len(reasons_not_written) > 0:
+        inventory.unlink(missing_ok=True)
+        label.unlink(missing_ok=True)
+        logger.error(
+            'The %s collection was not written, neither its inventory %s nor its label %s: %s',
+            name,
+            inventory,
+            label,
+            '; and '.join(reasons_not_written),
+        )
+        return False
+    _write_inventory(inventory, lidvids)
+    logger.info('Generated "%s": %s', inventory.name, inventory)
+    if not write_label(template, template_vars, label, logger=logger):
+        return False
+    logger.info('Generated "%s"', label.name)
+    return True
+
+
+@dataclass(frozen=True)
+class CollectionOutcome:
+    """What generating the collection files came to.
+
+    Attributes:
+        failed_labels: The number of collection labels not written: each that could not
+            be rendered, and each collection that could not be written, counted once
+            whatever its number of reasons.
+        disagreeing_images: The number of images whose products disagree: an image with
+            a data label and no browse label, or with a browse label or a supplemental
+            file and no data label.  Each is counted once, whatever it lacks.
+    """
+
+    failed_labels: int
+    disagreeing_images: int
+
+
+def _disagreeing_images(
+    data_labels: dict[str, FCPath],
+    browse_labels: dict[str, FCPath],
+    supplemental_files: dict[str, FCPath],
+    *,
+    bundle_root: FCPath,
+    dataset: DataSet,
+    logger: PdsLogger,
+) -> int:
+    """Log each image whose products disagree, and return how many there are.
+
+    Every data product has a browse product, so an image's products agree when it has
+    both a data label and a browse label, and disagree when it has one of them without
+    the other, or a supplemental file and no data label.  A data label with no
+    supplemental file is not checked, since the labels pass writes an image's
+    supplemental file before its data label.
+
+    Each image whose products disagree gets one error, naming the image, the files of
+    it that are there, and the label it lacks, at the path where that label belongs.
+
+    Parameters:
+        data_labels: The data labels in the data tree, keyed by path stub.
+        browse_labels: The browse labels in the browse tree, keyed by path stub.
+        supplemental_files: The supplemental files in the data tree, keyed by path stub.
+        bundle_root: The bundle's own directory, under which a missing label belongs.
+        dataset: The dataset whose LID scheme names each image.
+        logger: Logger for the errors.
+
+    Returns:
+        The number of images whose products disagree, each counted once.
+    """
+    stubs = data_labels.keys() | browse_labels.keys() | supplemental_files.keys()
+    disagreeing = 0
+    for stub in sorted(stubs, key=lambda stub: stub.rsplit('/', 1)[-1]):
+        if stub in data_labels:
+            if stub in browse_labels:
+                continue
+            lacks = 'browse label'
+            missing = bundle_root / 'browse' / f'{stub}{_BROWSE_LABEL_SUFFIX}'
+            held = [data_labels[stub]]
+        else:
+            lacks = 'data label'
+            missing = bundle_root / 'data' / f'{stub}{_DATA_LABEL_SUFFIX}'
+            held = [files[stub] for files in (browse_labels, supplemental_files) if stub in files]
+        logger.error(
+            'The products of image %s disagree: it has %s, and no %s at %s',
+            _image_name(stub, dataset),
+            ' and '.join(str(path) for path in held),
+            lacks,
+            missing,
+        )
+        disagreeing += 1
+    return disagreeing
 
 
 def generate_collection_files(
@@ -223,39 +411,65 @@ def generate_collection_files(
     logger: PdsLogger,
     *,
     epochs: EpochRange | None,
-) -> int:
-    """Generate collection CSV and label files for the bundle.
+) -> CollectionOutcome:
+    """Inventory and label the data and browse collections, checking the products agree.
 
-    Every collection label is attempted, whichever of them fail: a broken data
-    collection template must not hide a broken browse collection one.  The
-    inventory tables are written whether or not the labels that describe them
-    render.
+    The collections describe what is on disk, and what they cannot describe is counted
+    against the run.  Each inventory lists one product per line, ``P,<lidvid>``, in the
+    order of the products' names, the last part of each member's LID, whatever
+    directory each is in: ``data/collection_data.csv`` the data products, found
+    by the data labels in the data tree, and ``browse/collection_browse.csv`` the
+    browse products, found by the browse labels in the browse tree.  An inventory has
+    no header, and every line, the last included, ends in a line feed alone, so the
+    records its label counts are its products.
 
     The data collection label states the time range of the products the collection
     holds, which is ``epochs``: the range :func:`generate_global_index_files` takes in
     its read of the supplemental files, which is why the summary pass runs that
     first.  The label writes it to whole seconds, the start rounded down and the stop
-    up.  With no range to state, because the data tree holds no supplemental file,
-    the data collection label is counted as not written, with an error saying so,
-    rather than rendered with empty dates, which PDS4 does not accept; whatever an
-    earlier run left at its path is removed, so a label on disk is always one this
-    run wrote.
+    up.
+
+    Every data product has a browse product, so each image's products are checked
+    against each other.  An image with a data label and no browse label, or with a
+    browse label or a supplemental file and no data label, disagrees: it gets one error
+    naming the image, the files of it that are there and the label it lacks, and it is
+    counted once.  It is still listed in whichever inventory holds a product of it.  A
+    data label with no supplemental file is not checked, since the labels pass writes
+    an image's supplemental file before its data label.
+
+    A collection is written only when its label can state what PDS4 requires of it:
+    at least one record, and, for the data collection, the time range.  One that
+    cannot is not written at all, neither its inventory nor its label, and counts once
+    as a label not written, with one error naming the collection and every reason: a
+    collection with no label of its kind on disk, and the data collection when
+    ``epochs`` is None.  Whatever an earlier run left at either of its paths is
+    removed, so a collection on disk is always one this run wrote.  The check and this
+    rule are one rule at two scales, each image holding all its products and each
+    collection at least one member: an empty collection is refused by this rule even
+    over a bundle with no image, where the check has nothing to count.
+
+    Every collection label that can be written is attempted, whichever of them fail: a
+    broken data collection template must not hide a broken browse collection one.  An
+    inventory is written before its label, which reads the inventory's size, checksum
+    and record count, and stays whether or not the label renders.
 
     Every collection template the dataset declares is required.  The caller is
     expected to have checked them before processing anything, so one that is
-    missing here raises rather than being passed over.
+    missing here raises rather than being passed over, whether or not its collection
+    can be written.
 
     Parameters:
-        bundle_results_root: Root directory of the bundle. The bundle data directory
-            will be scanned for all backplane label files.
+        bundle_results_root: Root directory of the bundle.  The bundle's data and
+            browse directories are scanned for their labels.
         dataset: The dataset instance for bundle-specific methods.
         logger: Logger for diagnostic messages.
         epochs: The earliest start and the latest stop of the products' exposures,
             or None when the data tree holds no supplemental file.
 
     Returns:
-        The number of collection labels that could not be rendered, the data
-        collection label counted among them when there is no range for it to state.
+        The number of collection labels not written, each label that could not be
+        rendered and each collection that could not be written counted once whatever
+        its number of reasons, and the number of images whose products disagree.
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, or a
@@ -268,94 +482,75 @@ def generate_collection_files(
     products = _CollectionProducts.in_bundle(bundle_root)
     failed_labels = 0
 
-    # Every product in the data directory, found by its data label
+    # Each collection's products, found by their labels: the data products by the data
+    # labels in the data tree and the browse products by the browse labels in the
+    # browse tree, so that each inventory lists what is on disk.
     data_dir = _data_dir(bundle_root)
-    label_files = list(data_dir.rglob(f'*{_DATA_LABEL_SUFFIX}'))
-
-    # Sort by image name (extracted from filename)
-    def get_image_name_from_label(path: FCPath) -> str:
-        # Extract image name from filename
-        # (e.g., "1234567890w_backplanes.lblx" -> "1234567890w")
-        name = path.stem
-        if '_backplanes' in name:
-            return name.split('_backplanes')[0]
-        return name
-
-    label_files.sort(key=get_image_name_from_label)
-    logger.info('Found %d label files in bundle', len(label_files))
-
-    # Generate collection_data.tab
-    collection_data_csv = products.data_table
-    collection_data_local = cast(Path, collection_data_csv.get_local_path())
-    collection_data_local.parent.mkdir(parents=True, exist_ok=True)
-    with collection_data_local.open('w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Member Status', 'LIDVID_LID'])
-        for label_file in label_files:
-            lid_part = label_file.stem.replace('_backplanes', '')
-            image_name = dataset.pds4_lid_part_to_image_name(lid_part)
-            lidvid = dataset.pds4_image_name_to_data_lidvid(image_name)
-            writer.writerow(['P', lidvid])
-    collection_data_csv.upload()
-    logger.info('Generated "collection_data.tab": %s', collection_data_csv)
-
-    # Generate collection label files using template
+    data_labels = _products_by_stub(data_dir, _DATA_LABEL_SUFFIX)
+    browse_labels = _products_by_stub(bundle_root / 'browse', _BROWSE_LABEL_SUFFIX)
+    logger.info(
+        'Found %d data labels and %d browse labels in bundle', len(data_labels), len(browse_labels)
+    )
+    data_names = [_image_name(stub, dataset) for stub in data_labels]
+    browse_names = [_image_name(stub, dataset) for stub in browse_labels]
     template_base = Path(template_dir)
 
-    # Collection data label.  It states the range of the products' epochs, so a
-    # collection with no range is a label not written rather than one stating
-    # empty dates.  The path is cleared either way, as write_label clears it, so
-    # an earlier run's label never describes this run's inventory.
-    collection_data_template = template_base / 'collection_data.lblx'
-    template = pdstemplate.PdsTemplate(str(collection_data_template))
-    collection_data_label = products.data_label
+    # Every data product has a browse product (the operator's ruling on #602), and a
+    # supplemental file belongs to a data product, so each image's products are held
+    # against each other.
+    disagreeing_images = _disagreeing_images(
+        data_labels,
+        browse_labels,
+        _products_by_stub(data_dir, _SUPPLEMENTAL_SUFFIX),
+        bundle_root=bundle_root,
+        dataset=dataset,
+        logger=logger,
+    )
+
+    # The data collection, whose label states at least one record, as the PDS4 schema
+    # requires of an inventory, and the range of the products' epochs, so with no member
+    # or no range it is not written rather than labeled with no record or empty dates.
+    # Each template is parsed whether or not its collection is written, so one missing
+    # from the tree raises rather than being passed over.
+    data_template = pdstemplate.PdsTemplate(str(template_base / 'collection_data.lblx'))
+    data_vars: dict[str, Any] = {'COLLECTION_DATA_CSV_PATH': products.data_inventory.as_posix()}
+    data_reasons = [] if len(data_names) > 0 else [_NO_MEMBER]
     if epochs is None:
-        collection_data_label.unlink(missing_ok=True)
-        logger.error(
-            'The data collection label %s was not written: the data tree holds no '
-            'supplemental file, so there is no time range for it to state',
-            collection_data_label,
-        )
-        failed_labels += 1
+        data_reasons.append(_NO_RANGE)
     else:
-        template_vars = {
-            'COLLECTION_DATA_CSV_PATH': str(collection_data_csv),
-            **epochs.template_variables(),
-        }
-        if write_label(template, template_vars, collection_data_label, logger=logger):
-            logger.info('Generated "collection_data.lblx"')
-        else:
-            failed_labels += 1
-
-    # Generate collection_browse.tab (must be written before collection_browse.lblx)
-    collection_browse_csv = products.browse_table
-    collection_browse_local = cast(Path, collection_browse_csv.get_local_path())
-    collection_browse_local.parent.mkdir(parents=True, exist_ok=True)
-    with collection_browse_local.open('w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Member Status', 'LIDVID_LID'])
-        for label_file in label_files:
-            lid_part = label_file.stem.replace('_backplanes', '')
-            image_name = dataset.pds4_lid_part_to_image_name(lid_part)
-            lidvid = dataset.pds4_image_name_to_browse_lidvid(image_name)
-            writer.writerow(['P', lidvid])
-    collection_browse_csv.upload()
-    logger.info('Generated "collection_browse.tab": %s', collection_browse_csv)
-
-    # Collection browse label
-    collection_browse_template = template_base / 'collection_browse.lblx'
-    template = pdstemplate.PdsTemplate(str(collection_browse_template))
-    collection_browse_label = products.browse_label
-    template_vars = {
-        'COLLECTION_BROWSE_CSV_PATH': str(collection_browse_csv),
-    }
-    if write_label(template, template_vars, collection_browse_label, logger=logger):
-        logger.info('Generated "collection_browse.lblx"')
-    else:
+        data_vars |= epochs.template_variables()
+    if not _write_collection(
+        'data',
+        products.data_inventory,
+        products.data_label,
+        lidvids=[dataset.pds4_image_name_to_data_lidvid(name) for name in data_names],
+        template=data_template,
+        template_vars=data_vars,
+        reasons_not_written=data_reasons,
+        logger=logger,
+    ):
         failed_labels += 1
 
-    logger.info('Generated collection files: %d products', len(label_files))
-    return failed_labels
+    # The browse collection, whose label states at least one record
+    browse_template = pdstemplate.PdsTemplate(str(template_base / 'collection_browse.lblx'))
+    if not _write_collection(
+        'browse',
+        products.browse_inventory,
+        products.browse_label,
+        lidvids=[dataset.pds4_image_name_to_browse_lidvid(name) for name in browse_names],
+        template=browse_template,
+        template_vars={'COLLECTION_BROWSE_CSV_PATH': products.browse_inventory.as_posix()},
+        reasons_not_written=[] if len(browse_names) > 0 else [_NO_MEMBER],
+        logger=logger,
+    ):
+        failed_labels += 1
+
+    logger.info(
+        'Generated collection files: %d data products, %d browse products',
+        len(data_labels),
+        len(browse_labels),
+    )
+    return CollectionOutcome(failed_labels=failed_labels, disagreeing_images=disagreeing_images)
 
 
 @dataclass(frozen=True)
@@ -390,7 +585,7 @@ def generate_global_index_files(
 
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
-    label before it renders, and so are the two collection tables and two
+    label before it renders, and so are the two collection inventories and two
     collection labels :func:`generate_collection_files` writes after the index.
     A run refused over what a supplemental file holds therefore leaves no product of
     the summary pass, neither this run's nor an earlier run's: no index still
@@ -465,13 +660,19 @@ def generate_global_index_files(
     for suppl_file in data_dir.rglob(f'*{_SUPPLEMENTAL_SUFFIX}'):
         supplemental_files.append(suppl_file)
 
-    # Sort by image name (extracted from filename)
-    def get_image_name_from_supplemental(path: FCPath) -> str:
-        # Extract image name from filename
-        # (e.g., "1234567890w_supplemental.txt" -> "1234567890w")
+    # Sort by product name: the file name less its suffix, the last part of the LID
+    def product_name(path: FCPath) -> str:
+        """Return a supplemental file's product name, its file name less the suffix.
+
+        Parameters:
+            path: The supplemental file, such as ``1234567890w_supplemental.txt``.
+
+        Returns:
+            The product name, such as ``1234567890w``.
+        """
         return path.name.replace('_supplemental.txt', '')
 
-    supplemental_files.sort(key=get_image_name_from_supplemental)
+    supplemental_files.sort(key=product_name)
     logger.info('Found %d supplemental files', len(supplemental_files))
 
     # Collect body and ring statistics, every cell already rendered: both
@@ -504,7 +705,7 @@ def generate_global_index_files(
 
         # Derive pds4_path_stub from supplemental file path
         # Supplemental file is at: bundle_root/data/<pds4_path_stub>_supplemental.txt
-        pds4_path_stub = _product_stub(suppl_file, data_dir)
+        pds4_path_stub = _product_stub(suppl_file, data_dir, _SUPPLEMENTAL_SUFFIX)
 
         lid_part = suppl_file.stem.replace('_supplemental', '')
         image_name = dataset.pds4_lid_part_to_image_name(lid_part)

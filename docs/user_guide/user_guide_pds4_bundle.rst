@@ -38,13 +38,13 @@ The two passes write this directory structure:
 
    <bundle_name>/
    ├── browse/
-   │   ├── collection_browse.tab
+   │   ├── collection_browse.csv
    │   ├── collection_browse.lblx
    │   └── <directory_structure>/
    │       └── <image_name>_summary.lblx
    │       └── <image_name>_summary.png
    ├── data/
-   │   ├── collection_data.tab
+   │   ├── collection_data.csv
    │   ├── collection_data.lblx
    │   └── <directory_structure>/
    │       └── <image_name>_backplanes.lblx
@@ -271,12 +271,12 @@ The summary pass generates:
 
 * **Collection Data Files**:
 
-  * ``collection_data.tab``: CSV file listing all data products in the bundle
+  * ``collection_data.csv``: CSV file listing all data products in the bundle
   * ``collection_data.lblx``: PDS4 label for the data collection
 
 * **Collection Browse Files**:
 
-  * ``collection_browse.tab``: CSV file listing all browse products in the bundle
+  * ``collection_browse.csv``: CSV file listing all browse products in the bundle
   * ``collection_browse.lblx``: PDS4 label for the browse collection
 
 * **Global Index Files**:
@@ -324,9 +324,14 @@ with exit status 2 before it does anything.
 
 * ``sd_create_bundle summary`` exits 1 without writing anything if a template is
   missing, or if the bundle has no ``data/`` directory: run the labels pass
-  first, or check ``--bundle-results-root``. It exits 1 if ``data/`` holds no
-  products (the labels pass labeled no image): check the labels pass's closing
-  count. It exits 1 if a collection or index label cannot be written. If a
+  first, or check ``--bundle-results-root``. It exits 1 if a collection has no
+  products, as when the labels pass labeled no image, and writes no files for
+  that collection: check the labels pass's closing count. It exits 1 if an
+  image's products disagree -- a data label with no browse label, or a browse
+  label or supplemental file with no data label -- naming each such image. That
+  is what an image the labels pass failed leaves: fix the image or drop it from
+  the selection, then run both passes again into an empty directory. It exits 1
+  if a collection or index label cannot be written. If a
   supplemental file holds such a statistic, it exits 1 and leaves none of its
   tables and labels: regenerate the backplanes, then the bundle, into an empty
   directory.
@@ -338,9 +343,9 @@ with exit status 2 before it does anything.
   instead, and is not retried unless the worker is set to retry on an exception
   (``--retry-on-exception``, or ``retry_on_exception`` in the run configuration).
 
-A summary pass indexes whatever is in the bundle's ``data/`` tree, so its exit
-status says nothing about the labels pass; the labels pass's closing line says
-what the bundle covers.
+A summary pass describes whatever is in the bundle, so its exit status says
+nothing about images the labels pass skipped; the labels pass's closing line
+says what the bundle covers.
 
 Configuration
 =============
@@ -475,6 +480,11 @@ Common Issues
 
 * **Collection files incomplete**: Ensure all images have been processed in the labels
   pass before running the summary pass.
+
+* **Products disagree**: the summary pass names each image that has a data label
+  and no browse label, or a browse label or supplemental file and no data label.
+  The labels pass failed that image, and its log says why. Fix the image or drop
+  it from the selection, clear the bundle directory, and run both passes again.
 
 * **Bundle root already holds files**: clear the bundle's directory under the
   bundle results root, or point ``--bundle-results-root`` somewhere else, and
