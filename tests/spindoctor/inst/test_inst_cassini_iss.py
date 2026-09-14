@@ -10,6 +10,7 @@ from tests.spindoctor.inst.conftest import (
     bare_observation,
     published_clock_counts,
 )
+from tests.spindoctor.public_metadata_cassini_iss import CASSINI_ISS_PUBLIC_METADATA
 
 import spindoctor.obs.obs_inst_cassini_iss as obstcoiss
 from spindoctor.obs.obs_inst_cassini_iss import ObsCassiniISS, _sclk_count
@@ -487,6 +488,17 @@ def test_the_label_facts_are_published_as_the_label_states_them(
     """
     public = build().get_public_metadata()
     assert {key: public[key] for key in facts} == facts
+
+
+def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
+    """The metadata chapter's Cassini fixture holds the host's keys, in the host's order.
+
+    The chapter's staleness guard takes the Cassini facts from that fixture, so a fact the
+    host gains has to reach the fixture, and through it the chapter, rather than pass
+    unexamined.
+    """
+    public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
+    assert list(public) == list(CASSINI_ISS_PUBLIC_METADATA)
 
 
 def test_a_keyword_the_label_lacks_is_published_as_null() -> None:
