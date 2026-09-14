@@ -121,20 +121,24 @@ def test_the_ring_geometry_states_each_ring_statistic_and_the_incidence_angle(
     assert geometry is not None
     stated = _stated(geometry)
 
-    def ends(plane: str, attribute: str, unit: str) -> list[tuple[str, str, str]]:
+    def ends(
+        plane: str, attribute: str, unit: str, keys: tuple[str, str] = ('min', 'max')
+    ) -> list[tuple[str, str, str]]:
         """Return the two attributes one plane's statistic is stated as.
 
         Parameters:
             plane: The plane's configured name.
             attribute: The attribute, less its ``minimum_`` or ``maximum_``.
             unit: The unit the label states it in.
+            keys: The statistic's keys for the minimum and the maximum.
 
         Returns:
-            Its least value and its greatest.
+            Its minimum and its maximum.
         """
+        minimum, maximum = keys
         return [
-            (f'minimum_{attribute}', unit, _written(statistics[plane], 'min')),
-            (f'maximum_{attribute}', unit, _written(statistics[plane], 'max')),
+            (f'minimum_{attribute}', unit, _written(statistics[plane], minimum)),
+            (f'maximum_{attribute}', unit, _written(statistics[plane], maximum)),
         ]
 
     assert stated[4:-1] == [
@@ -143,7 +147,7 @@ def test_the_ring_geometry_states_each_ring_statistic_and_the_incidence_angle(
         ('minimum_incidence_angle', 'deg', incidence),
         ('maximum_incidence_angle', 'deg', incidence),
         *ends('ring_emission_angle', 'emission_angle', 'deg'),
-        *ends('ring_longitude', 'inertial_ring_longitude', 'deg'),
+        *ends('ring_longitude', 'inertial_ring_longitude', 'deg', ('wrapped_min', 'wrapped_max')),
         *ends('ring_radius', 'ring_radius', 'km'),
     ]
     grid = geometry.find('rings:Reprojection_Grid_Parameters', NAMESPACES)

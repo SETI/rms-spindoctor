@@ -244,6 +244,11 @@ Each minimum and maximum is taken over the pixels where the FITS plane has a val
 A body's are taken over the pixels ``BODY_ID_MAP`` gives that body, so a part of a
 body, or of the rings, that a nearer body covers does not count.
 
+The ring longitude's statistic also records ``wrapped_min`` and ``wrapped_max``, in
+degrees: the arc of longitude the image's ring pixels cover, from where it starts to
+where it ends. Where the arc crosses zero, ``wrapped_min`` is greater than
+``wrapped_max``. An image covering the whole circle records 0 and 360.
+
 The metadata file's ``rings`` block names the ring target the ring backplanes are
 computed for, as ``target``, and records ``incidence_angle``: the angle between the
 direction sunlight arrives from and the normal to the ring plane on its sunlit side,

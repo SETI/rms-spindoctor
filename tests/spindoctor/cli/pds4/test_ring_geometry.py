@@ -28,7 +28,11 @@ def _statistic(minimum: float, maximum: float, units: str) -> dict[str, Any]:
 
 STATISTICS = {
     'ring_radius': _statistic(74658.04, 136780.0, 'km'),
-    'ring_longitude': _statistic(0.5, 359.5, 'deg'),
+    'ring_longitude': {
+        **_statistic(0.5, 359.5, 'deg'),
+        'wrapped_min': 350.25,
+        'wrapped_max': 10.75,
+    },
     'ring_emission_angle': _statistic(10.0, 20.0, 'deg'),
     'ring_phase_angle': _statistic(30.0, 40.0, 'deg'),
     'ring_radial_resolution': _statistic(2.11, 9.04, 'km/pixel'),
@@ -59,7 +63,9 @@ def test_an_image_with_no_ring_statistic_has_no_ring_geometry() -> None:
 def test_the_geometry_states_each_range_and_the_incidence_angle_in_the_schema_s_order() -> None:
     """Phase, incidence, emission, longitude and radius, each written as the tables write it.
 
-    The incidence angle is one value, stated as the mean, the minimum and the maximum.
+    The ring longitude's range is the one its statistic records wrapped at zero, here
+    across it.  The incidence angle is one value, stated as the mean, the minimum and the
+    maximum.
     """
     stated = [(each.name, each.unit, each.value) for each in _stated(STATISTICS).geometry]
     assert stated == [
@@ -70,8 +76,8 @@ def test_the_geometry_states_each_range_and_the_incidence_angle_in_the_schema_s_
         ('maximum_incidence_angle', 'deg', '64.600'),
         ('minimum_emission_angle', 'deg', '10.000'),
         ('maximum_emission_angle', 'deg', '20.000'),
-        ('minimum_inertial_ring_longitude', 'deg', '0.500'),
-        ('maximum_inertial_ring_longitude', 'deg', '359.500'),
+        ('minimum_inertial_ring_longitude', 'deg', '350.250'),
+        ('maximum_inertial_ring_longitude', 'deg', '10.750'),
         ('minimum_ring_radius', 'km', '74658.0'),
         ('maximum_ring_radius', 'km', '136780.0'),
     ]

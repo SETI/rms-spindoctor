@@ -636,12 +636,16 @@ longitude, angles and resolutions.
 each configured ring plane's least and greatest value are stated as.  The attributes
 come in the schema's order, and each value is written with the format
 :data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives the statistic's unit,
-a size per pixel stated in the length or the angle a pixel spans.  The incidence angle
+a size per pixel stated in the length or the angle a pixel spans.  The ring longitude's
+pair is its statistic's range wrapped at zero, ``wrapped_min`` and ``wrapped_max``, since
+the rings dictionary defines a longitude range as wrapped at the prime meridian, its
+minimum above its maximum across it; the global index tables keep the plain least and
+greatest.  The incidence angle
 the backplane metadata records is stated as the mean, the minimum and the maximum alike,
 since it is one angle over the image.  The template states the rest: the planet's
 equatorial plane, no co-rotating frame, the image's midtime as the basis epoch, and a
-description saying that the arrays are not reprojected and that the longitude range is
-not wrapped.  The labels pass fails an image whose backplane metadata holds ring
+description saying that the arrays are not reprojected and how the longitude range is
+wrapped.  The labels pass fails an image whose backplane metadata holds ring
 statistics and no incidence angle, as backplanes an earlier version generated do,
 before anything is written for it.
 

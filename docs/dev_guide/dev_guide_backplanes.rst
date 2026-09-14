@@ -267,6 +267,17 @@ body covers holds the nearer body's value, so it counts for the nearer body alon
 and a body a nearer body hides entirely is recorded with no statistic.  The body
 and ring steps compute none of their own.
 
+The ring longitude's statistic, the plane
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDE` names, also
+records its range wrapped at zero, ``wrapped_min`` and ``wrapped_max``, which
+:func:`~spindoctor.cli.backplanes.statistics.wrapped_range` finds over the same
+pixels.  The widest gap between the longitudes, the gap across zero among them, is
+the part of the circle the image does not cover, and the arc runs from the longitude
+after it to the one before it, so the arc's start is the greater where it crosses
+zero.  Longitudes that leave no gap wider than the coarsest value of the plane
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION`
+names cover the whole circle, recorded as 0 to 360.
+
 The PDS4 bundle generator (:doc:`dev_guide_pds4`) reads this sidecar
 when rendering the per-image data label.
 

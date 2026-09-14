@@ -7,6 +7,20 @@ from spindoctor.cli.backplanes.statistics import DEGREES
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 
+RING_LONGITUDE = 'ring_longitude'
+"""The configured ring plane holding the ring longitude.
+
+Its statistic also records its range wrapped at zero, the arc of longitude the image's
+ring pixels cover.
+"""
+
+RING_LONGITUDINAL_RESOLUTION = 'ring_longitudinal_resolution'
+"""The configured ring plane holding the longitudinal size of a pixel on the rings.
+
+Its coarsest value over an image is the widest gap between the image's ring longitudes
+that still leaves the circle covered.
+"""
+
 
 class RingIncidenceAngle(TypedDict):
     """The incidence angle of sunlight on the ring plane, as the backplane metadata records it.

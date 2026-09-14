@@ -323,18 +323,20 @@ product by its logical identifier, as the targets table identifies it (see
 The data label of an image with ring backplanes also states the image's ring geometry,
 in the rings dictionary's ``Reprojection_Geometry``:
 
-* the least and the greatest phase angle, emission angle, ring longitude and ring radius,
-  and the least and the greatest radial and longitudinal size of a pixel in the ring
-  plane, each over the pixels where its backplane has a value, written as the global
-  index tables write it (see `Global Index Tables`_). A size per pixel is stated in the
-  length or the angle a pixel spans, ``km`` or ``deg``.
+* the least and the greatest phase angle, emission angle and ring radius, and the least
+  and the greatest radial and longitudinal size of a pixel in the ring plane, each over
+  the pixels where its backplane has a value, written as the global index tables write
+  it (see `Global Index Tables`_). A size per pixel is stated in the length or the angle
+  a pixel spans, ``km`` or ``deg``.
+* the range of ring longitude the image covers, from where its arc of the ring plane
+  starts to where it ends, so the minimum is greater than the maximum where the arc
+  crosses zero longitude. An image covering the whole circle states 0 and 360. The global
+  index tables give the plain least and greatest longitude instead.
 * the incidence angle of sunlight on the ring plane, which is the same over the whole
   image and which the backplane stage records for it (see :doc:`user_guide_backplanes`),
   stated as the mean, the minimum and the maximum incidence angle alike.
 
-The longitude range is a plain least and greatest, so rings seen across zero longitude
-span from near 0 to near 360 degrees. The backplane arrays are not reprojected, and the
-block's description says so.
+The backplane arrays are not reprojected, and the block's description says so.
 
 Each data label, the data collection label and the bundle label declare one set of
 science facets: the ``Visible`` wavelength range and the ``Ring-Moon Systems``

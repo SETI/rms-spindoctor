@@ -19,8 +19,10 @@ import pytest
 from astropy.io import fits
 from filecache import FCPath
 
+from spindoctor.cli.backplanes.backplanes_rings import RING_LONGITUDE, RING_LONGITUDINAL_RESOLUTION
 from spindoctor.cli.backplanes.merge import body_naif_id, merge_sources_into_master
 from spindoctor.cli.backplanes.writer import write_fits
+from spindoctor.config import DEFAULT_CONFIG
 
 from .conftest import (
     MASKED_VALUE,
@@ -415,6 +417,19 @@ COVERED_LATITUDE = 1.5
 COVERED_RADIUS = 50000.0
 """The rings' radius, in km, where MOON_A covers them: no pixel of the rings shows it."""
 
+COVERED_LONGITUDE = 200.0
+"""The rings' longitude, in degrees, where MOON_A covers them; 10 everywhere else."""
+
+LONGITUDE_PLANES = [
+    {'name': RING_LONGITUDE, 'method': 'ring_longitude', 'units': 'rad'},
+    {
+        'name': RING_LONGITUDINAL_RESOLUTION,
+        'method': 'ring_angular_resolution',
+        'units': 'rad/pixel',
+    },
+]
+"""The ring longitude and the longitudinal size of a pixel, as the configuration declares them."""
+
 
 def _rows(first: int, stop: int) -> np.ndarray:
     """Return a mask true on the frame's rows from ``first`` up to ``stop``.
@@ -488,20 +503,28 @@ def _covered_metadata(tmp_path: Path) -> dict[str, Any]:
         'PLANET': body(planet, _plane(planet, 0.5, COVERED_LATITUDE), 1.0e6),
         'MOON_B': body(near, _plane(near, 0.7, 0.7), 2.0e6),
     }
+    ring_planes = {
+        'ring_radius': _plane(rings, 100000.0, COVERED_RADIUS),
+        RING_LONGITUDE: _plane(rings, math.radians(10.0), math.radians(COVERED_LONGITUDE)),
+        RING_LONGITUDINAL_RESOLUTION: _plane(rings, 1.0e-4, 1.0e-4),
+    }
     rings_result = {
         **RINGS_RESULT,
-        'arrays': {'ring_radius': _plane(rings, 100000.0, COVERED_RADIUS)},
-        'masks': {'ring_radius': rings},
+        'arrays': ring_planes,
+        'masks': dict.fromkeys(ring_planes, rings),
         'distance': np.full(SHAPE_VU, 5.0e5, dtype=np.float32),
     }
     master, id_map = merge_sources_into_master(
         snap, bodies_result=bodies_result, rings_result=rings_result
     )
+    config = _default_config()
+    config.backplanes.rings.extend(LONGITUDE_PLANES)
     _, sidecar = _write(
         tmp_path,
         master=master,
         id_map=id_map,
         snapshot=snap,
+        config=config,
         bodies_result=bodies_result,
         rings_result=rings_result,
     )
@@ -531,6 +554,57 @@ def test_a_body_s_statistics_leave_out_what_a_nearer_body_covers(tmp_path: Path)
         'max': pytest.approx(expected),
         'units': 'deg',
     }
+
+
+def test_the_wrapped_ring_longitude_leaves_out_the_rings_a_nearer_body_covers(
+    tmp_path: Path,
+) -> None:
+    """The arc of longitude the rings cover is the merged plane's, as its range is.
+
+    Counting the covered pixels, at 200 degrees, beside the rest, at 10, would give an arc
+    from 200 across zero to 10.
+
+    Parameters:
+        tmp_path: pytest-provided temporary directory.
+    """
+    longitude = _covered_metadata(tmp_path)['rings']['backplanes'][RING_LONGITUDE]
+    wrapped = (longitude['wrapped_min'], longitude['wrapped_max'])
+    assert wrapped == (pytest.approx(10.0), pytest.approx(10.0))
+
+
+def test_the_ring_longitude_s_wrapped_range_measures_gaps_against_the_coarsest_pixel(
+    tmp_path: Path,
+) -> None:
+    """Longitudes 6 degrees apart all round cover the circle where a pixel spans 6.5.
+
+    The frame's other pixels span 3 degrees, against which the same longitudes would
+    leave gaps: the coarsest pixel is the one the gaps are measured against.
+
+    Parameters:
+        tmp_path: pytest-provided temporary directory.
+    """
+    longitude = np.full(SHAPE_VU, MASKED_VALUE, dtype=np.float32)
+    longitude.flat[:60] = np.radians(np.arange(60) * 6.0)
+    resolution = np.where(longitude != MASKED_VALUE, math.radians(3.0), MASKED_VALUE)
+    resolution.flat[0] = math.radians(6.5)
+    _, sidecar = _write(
+        tmp_path,
+        master={
+            RING_LONGITUDE: longitude,
+            RING_LONGITUDINAL_RESOLUTION: resolution.astype(np.float32),
+        },
+        id_map=_id_map(),
+        config=FakeBackplanesConfig(bodies=[], rings=LONGITUDE_PLANES),
+        rings_result=RINGS_RESULT,
+    )
+    statistic = json.loads(sidecar.read_text())['rings']['backplanes'][RING_LONGITUDE]
+    assert (statistic['wrapped_min'], statistic['wrapped_max']) == (0.0, 360.0)
+
+
+def test_the_shipped_ring_longitude_and_its_resolution_are_in_radians() -> None:
+    """The wrapped range is found in degrees, from these two planes' statistics."""
+    units = {entry['name']: entry['units'] for entry in DEFAULT_CONFIG.backplanes.rings}
+    assert (units[RING_LONGITUDE], units[RING_LONGITUDINAL_RESOLUTION]) == ('rad', 'rad/pixel')
 
 
 def test_a_body_a_nearer_body_hides_entirely_has_no_statistic(tmp_path: Path) -> None:

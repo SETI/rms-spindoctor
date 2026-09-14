@@ -150,12 +150,13 @@
                             the plane of Saturn's equator. The minimum and the maximum of each
                             quantity are the least and the greatest value of its backplane: the
                             phase angle; the emission angle, measured from the normal to the
-                            ring plane on its sunlit side; the ring longitude, measured from
-                            the ascending node of the ring plane on the J2000 equator; the ring
-                            radius; and the radial and the longitudinal size of a pixel in the
-                            ring plane. The longitude range is a plain least and greatest
-                            rather than one wrapped at zero, so rings seen across zero
-                            longitude span from near 0 to near 360 degrees. Sunlight falls on
+                            ring plane on its sunlit side; the ring radius; and the radial and
+                            the longitudinal size of a pixel in the ring plane. The ring
+                            longitude is measured from the ascending node of the ring plane on
+                            the J2000 equator, and its minimum and maximum bound the arc of
+                            longitude the image covers, so the minimum is greater than the
+                            maximum where that arc crosses zero, and an image covering the
+                            whole circle states 0 and 360. Sunlight falls on
                             the ring plane at one angle over the whole image, so the incidence
                             angle is taken once, at the center of Saturn's ring system, for the
                             light that reached the camera at the observation's midtime, and the
