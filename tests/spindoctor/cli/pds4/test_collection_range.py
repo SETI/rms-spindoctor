@@ -3,10 +3,10 @@
 The summary pass reads every supplemental file once, in the global index generator, and
 takes the range of the products' exposure epochs in that read.  The collection
 generator, run after it, states the range in the data collection label, or, with no
-range to state, writes neither that label nor the collection's inventory.  These run the
-two generators in that order,
-over plumbing supplemental files.  What the range comes to over a bundle's shipped
-templates is tested in a module named for that bundle.
+range to state, writes neither that label nor the collection's inventory.  These run
+the two generators in that order, over plumbing supplemental files.  What the range
+comes to over a bundle's shipped templates is tested in a module named for that
+bundle.
 """
 
 from pathlib import Path

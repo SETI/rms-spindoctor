@@ -96,7 +96,7 @@ def test_an_empty_data_tree_writes_neither_collection(
 
 
 def test_a_collection_with_no_member_is_not_written_beside_one_that_has(tmp_path: Path) -> None:
-    """Each collection is judged by its own members: no browse label, no browse collection.
+    """A collection is judged by its own members: no browse label, no browse collection.
 
     The data collection has a member and a range, so it is written; the browse
     collection has no member of its own, so neither its inventory nor its label is,
@@ -222,7 +222,7 @@ def test_a_data_label_with_no_browse_label_is_an_image_whose_products_disagree(
 def test_a_browse_label_with_no_data_label_is_an_image_whose_products_disagree(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An image with a browse label and no data label is logged by name and counted once."""
+    """An image with a browse label and no data label is logged and counted once."""
     env = make_bundle_env(tmp_path)
     touch_label(env.bundle_dir / 'data', 'shard0/1111111111n')
     touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
