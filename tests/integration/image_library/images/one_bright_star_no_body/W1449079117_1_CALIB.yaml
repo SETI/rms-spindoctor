@@ -22,7 +22,7 @@ ground_truth:
   notes: |
     Single star (Vega) in FOV.
     RED filter.
-    Tier ratchet 2026-07-14: the single-inlier tier cap now holds a one-star, no-cross-check solution at success/medium (fused (2.577, -0.332), confidence 0.502); operator confirmed Vega sits in its predicted box. Ratcheted low -> medium.
+    The single-inlier tier cap holds this one-star, no-cross-check solution at success/medium (fused (2.577, -0.332), confidence 0.502); the operator confirmed Vega sits in its predicted box.
 
 expected:
   status: success                           # success | failed | conflicted

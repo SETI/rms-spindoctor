@@ -20,10 +20,8 @@ ground_truth:
     Selection: TETHYS | 60-90 | -0.0; {"apparent_diameter_px": 83.5, "center_phase_deg": 87.242, "filter": "CL1", "ring_edges_in_frame": ["huygens_gap.inner", "huygens_gap.outer", "huygens_ringlet.inner", "huygens_ringlet.outer", "strange_ringlet.inner", "strange_ringlet.outer"], "ring_opening_deg": -4.163, "target": "TETHYS", "year": "2005"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
     Pipeline: status=success, confidence=0.39, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [10.3047, -6.1016], "BodyLimbNav": [10.0362, -5.974], "RingEdgeNav": [-9.9986, 57.0368]}.
-    Primary ratchet 2026-07-16: RingEdgeNav is the highest-confidence technique and the ring edge is the legitimate primary for this ring_plus_body scene; applies the 2026-07-13 D6 reconciliation decision, which was documented at the time but never committed. Ratcheted BodyDiscCorrelateNav -> RingEdgeNav.
-    Tier ratchet 2026-07-16: the fused tier is now high with the navigation itself unchanged, consistent with the 2026-07-14 NCC-covariance rederivation tightening the fused sigma. Ratcheted medium -> high to the measured tier.
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/high/RingEdgeNav -> measured success/medium/BodyDiscCorrelateNav. Tier high->medium: pre-boundary demotion carried from the refit (fused sigma above the 0.5 px high-tier cap / mid-band fused confidence). Offset unchanged and within slack. Primary also moves to BodyDiscCorrelateNav with the recalibrated confidences.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium: fused sigma sits above the 0.5 px high-tier cap and the fused confidence is mid-band. The primary is BodyDiscCorrelateNav, the highest-confidence contributor.
 expected:
   status: success
   confidence_tier: medium

@@ -39,31 +39,29 @@ ground_truth:
     confidence=0.952, rank=high, status_reason=rank_1_only; RingEdgeNav
     raw fit (-48.1864, 9.4187) projects to -27.4128 px along the normal,
     identical to the voted representative point.
-    Tier ratchet 2026-07-16: the 2026-07-14 rank-aware ensemble policy caps a fused result with rank-deficient covariance at medium (the unobservable along-edge axis is an assumption, not a measurement); the RingEdgeNav fit and its projection onto the operator-verified normal are unchanged. Ratcheted high -> medium.
-    Tier ratchet 2026-07-19: the ring radial orbit-uncertainty channel
-    adds each consumed edge's own catalog orbit-solution rms to the
-    reported covariance as a fully-correlated radial term. Measured
-    per-edge contributions on this frame (LM-weight shares, local radial
-    scale ~0.34 km/px):
+    The ring radial orbit-uncertainty channel adds each consumed edge's own
+    catalog orbit-solution rms to the reported covariance as a
+    fully-correlated radial term. Measured per-edge contributions on this
+    frame (LM-weight shares, local radial scale ~0.34 km/px):
       Keeler gap IEG      weight 87.5%, rms 3.62 km -> 10.66 px, contributes 9.33 px
       Keeler-A OE IER     weight 12.1%, rms 1.01 km ->  2.97 px, contributes 0.36 px
       Keeler-A OE OER     weight  0.4%, rms 10.18 km -> 31.16 px, contributes 0.11 px
-    Effective 9.80 px; fused sigma 6.93 px/axis, far above the medium
-    tier's 2 px cap. The dominant contributor is the Keeler GAP inner
-    edge, not the higher-rms Keeler-A OE outer edge: the latter carries
-    almost no LM weight. The RingEdgeNav fit (-48.1864, 9.4187) and its
-    projection onto the operator-verified normal are unchanged; the
-    reported confidence falls 0.952 -> 0.706. Ratcheted medium -> low.
+    Effective 9.80 px; fused sigma 6.93 px/axis, far above the medium tier's
+    2 px cap. The dominant contributor is the Keeler GAP inner edge, not the
+    higher-rms Keeler-A OE outer edge: the latter carries almost no LM
+    weight. The RingEdgeNav fit (-48.1864, 9.4187) and its projection onto
+    the operator-verified normal are those recorded above; the reported
+    confidence is 0.706.
     CONTESTED, not settled: this prices catalog rms as a fully-correlated
     whole-edge displacement, but rms is an orbit-fit residual that mixes a
     coherent radius error with longitude-varying resonant wander which does
     not displace an edge coherently (the same A-ring outer edge measures
     10.18 km unfitted and 1.78 km with nine m-modes fitted -- 5.7x). The
     severity here is therefore an upper bound, plausibly several-fold
-    over-severe, and this operator-verified frame has now moved high ->
-    medium -> low on an unvalidated correlation model. A mode-aware
-    decomposition, which would price only the m=0 part coherently, is the
-    principled fix and is not implemented.
+    over-severe, and this operator-verified frame is priced low on an
+    unvalidated correlation model. A mode-aware decomposition, which would
+    price only the m=0 part coherently, is the principled fix and is not
+    implemented.
 expected:
   status: success
   confidence_tier: low
