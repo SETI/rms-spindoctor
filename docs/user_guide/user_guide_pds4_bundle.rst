@@ -319,8 +319,10 @@ The summary pass generates:
   * ``readme.txt``: the bundle's readme, copied from the dataset's template directory
 
 * **Context, Document, SPICE Kernel and XML Schema Collections**: for each, a
-  ``collection_<name>.csv`` listing its members, copied from the dataset's template
-  directory, and its PDS4 label, ``collection_<name>.lblx``
+  ``collection_<name>.csv`` listing its members and its PDS4 label,
+  ``collection_<name>.lblx``. Each list is the one in the dataset's template directory,
+  except that the user guide and the metakernel are listed only when their labels are
+  written.
 
 * **Metakernel**: ``spice_kernels/kernels.ker``, the SPICE metakernel every data label
   names, and its PDS4 label, ``kernels.lblx``. It lists no SPICE kernels, and its label

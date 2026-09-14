@@ -120,8 +120,9 @@ def _bundle_product_paths(bundle_root: FCPath, dataset: DataSet) -> tuple[FCPath
 def clear_bundle_products(bundle_root: FCPath, dataset: DataSet) -> None:
     """Remove every file :func:`generate_bundle_products` can write into one bundle.
 
-    The global index generator, which the summary pass runs first, calls this before it
-    reads anything, so that a run-level product on disk is always one the run wrote.
+    The global index generator, which the summary pass runs first, calls this once it
+    has found the bundle's data directory and before it reads any supplemental file, so
+    that a run-level product on disk after a summary pass is one that pass wrote.
     When the user guide's directory, in a bundle on the local file system, is left holding
     nothing, it is removed as well, so a run over a template directory without the guide
     leaves no ``document/user_guide/``.  A remote store holds no directory apart from the
@@ -150,8 +151,9 @@ class BundleProductsOutcome:
 
     Attributes:
         failed_labels: The number of run-level labels not written: each that could not be
-            rendered, and the bundle label when there is no time range for it to state or
-            the bundle holds no label for a collection it declares.
+            rendered; each static collection left with no member, whose inventory and
+            label are not written; and the bundle label when there is no time range for
+            it to state or the bundle holds no label for a collection it declares.
     """
 
     failed_labels: int
@@ -355,11 +357,14 @@ def generate_bundle_products(
       label not written.
 
     Every label is attempted, whichever of them fail, and a label that fails to render
-    is counted; a file copied stays whether or not its label renders.  This clears
-    nothing else: the summary pass clears an earlier run's products, through
-    :func:`clear_bundle_products`, before any of its generators runs, so called on its
-    own over an earlier run's bundle this leaves whatever of that run's products it does
-    not write itself.
+    is counted; a file copied stays whether or not its label renders.  What this removes
+    itself is each label just before it renders it, as ``write_label`` does for every
+    label, and what is said above of a collection left with no member and of the bundle
+    label.  The summary pass clears the rest of an earlier run's products through
+    :func:`clear_bundle_products`, which the global index generator, the first the pass
+    runs, calls once it has found the bundle's data directory; so called on its own over
+    an earlier run's bundle this leaves whatever of that run's products it neither
+    writes nor removes, such as a user guide the template directory no longer holds.
 
     Parameters:
         bundle_results_root: Root directory of the bundle.
