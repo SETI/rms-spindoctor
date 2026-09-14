@@ -1357,8 +1357,8 @@ Titan-only frame is manual-nav feasible with a rendered drag overlay.
   `NavModelTitan`. A separate coordinate-convention finding came out
   of the same work and is recorded in
   `BODY_CENTER_INDEX_OFFSET_PX`: the sim BODY renderer treats a stated
-  body centre as a corner coordinate (index centre = `center - 0.5`)
-  while the sim STAR renderer uses pixel centres, so the simulated
+  body center as a corner coordinate (index center = `center - 0.5`)
+  while the sim STAR renderer uses pixel centers, so the simulated
   haze model applies the half-pixel shift and the simulated star model
   does not. Measured directly: without the shift every sim frame
   carried a flat 0.500 px cross-track error, half the clean-scene
@@ -1465,7 +1465,7 @@ carried forward rather than smoothed over:
    would suggest, because the arc-side gates take over where this one
    relents (`arc_radius` alone accounts for 85 of the 240 refusals,
    against 31 for `second_peak`). Phase E owns the threshold; the base
-   scene sits at phase 60 so the standing sweeps characterise the
+   scene sits at phase 60 so the standing sweeps characterize the
    estimator rather than the gate.
 3. **The along-track tail is a small-body-at-high-phase property of
    the estimator itself, present in CLEAN scenes, and it is not the
@@ -1870,8 +1870,8 @@ than left as surprises:
 
 1. **A stale docstring was corrected in code.** `TitanHazeGeometry`'s
    `predicted_center_vu` still described "the midpoint of the predicted
-   bounding box", which the Phase B centre revision replaced with the
-   projected field-of-view centre. The API reference publishes that
+   bounding box", which the Phase B center revision replaced with the
+   projected field-of-view center. The API reference publishes that
    docstring, so it is a documentation defect and was fixed in
    `src/spindoctor/feature/geometry.py`.
 2. **The API reference gained more than the two named entries.**

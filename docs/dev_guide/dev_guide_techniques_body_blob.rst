@@ -36,7 +36,7 @@ bounding box, so the bare centroid's capture range is just the box -- a few pixe
 per-body slop. Once the SPICE pointing error exceeds that slop the body drifts out of the
 box, the moment is taken over a clipped fragment, and the technique reports a *silently*
 biased centroid (no spurious or at-edge flag fires). To extend the capture range to the full
-extended-FOV search window, each blob first runs a coarse acquisition that re-centres its
+extended-FOV search window, each blob first runs a coarse acquisition that re-centers its
 bounding box on the body before the centroid is taken:
 
 - If a pass-1 prior offset is installed on the context (another technique already located the
@@ -45,7 +45,7 @@ bounding box on the body before the centroid is taken:
 - Otherwise the technique correlates a matched-filter template of the predicted *lit
   silhouette* against the lit-signal image (background subtracted, clipped at zero,
   sky-masked) over ``predicted_center +/- margin``. The response peaks where a body of that
-  shape is best centered; the integer peak offset re-centres the box. The template depends on
+  shape is best centered; the integer peak offset re-centers the box. The template depends on
   phase (:data:`~spindoctor.nav_technique.nav_technique_body_blob._COARSE_CORRELATION_MAX_PHASE_DEG`,
   90 deg):
 
@@ -76,14 +76,14 @@ and geometric centroids coincide), where the disc kernel is used anyway, and is 
 ``(0, 0)`` then. If a body is past half phase yet carries no direction (its illumination
 geometry was not populated), the coarse stage makes no relocation and keeps the predicted box
 (an installed prior still applies). The coarse offset is integer; the sub-pixel precision
-comes entirely from the brightness-weighted moment below, computed inside the re-centred box,
+comes entirely from the brightness-weighted moment below, computed inside the re-centered box,
 so the recovered ``observed - predicted`` residual already includes the coarse shift.
 
 Per-blob centroid
 -----------------
 
 For each consumed body, the technique computes the brightness-weighted moment over the
-(coarse-re-centred) predicted bounding box:
+(coarse-re-centered) predicted bounding box:
 
 .. math::
 
@@ -154,7 +154,7 @@ covariance.
 Restrictions and assumptions
 ----------------------------
 
-- Per-blob centroids assume the (coarse-re-centred) bounding box truly contains the body's
+- Per-blob centroids assume the (coarse-re-centered) bounding box truly contains the body's
   flux. When a cosmic-ray hit, an in-band stellar source, or a neighboring body's halo lands
   inside the box, the moment skews and the technique reports a wrong centroid. The upstream
   ``BODY_BLOB`` emission gates filter pathological cases (see

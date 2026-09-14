@@ -66,7 +66,7 @@ Two steps:
 
 - **Directional non-maximum suppression.**  Each candidate pixel is kept only if its
   magnitude is at least as large as both of its neighbors along the local gradient
-  direction. The gradient direction is quantised to four 45-degree sectors (boundaries at
+  direction. The gradient direction is quantized to four 45-degree sectors (boundaries at
   22.5, 67.5, 112.5, and 157.5 degrees from the u-axis) so the lookup reduces to a small
   fixed set of 3 × 3 shifts. The standard Canny rule keeps the full edge length intact while
   thinning the gradient ridge to one pixel wide — the right input for both the integer

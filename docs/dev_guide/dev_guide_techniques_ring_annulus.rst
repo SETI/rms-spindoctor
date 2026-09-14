@@ -79,7 +79,7 @@ The shared pyramid-NCC entry point
 top ``k`` peaks at each level, and reports the per-level consistency. See
 :doc:`dev_guide_techniques_body_disc` for the pyramid-NCC mechanics that the body-disc
 technique shares. Rotation fitting is disabled for ring annuli (the rotation pivot
-of a ring system is its planet-centre, which is well outside the rendered template's
+of a ring system is its planet-center, which is well outside the rendered template's
 support; an outer rotation search would have to rotate the template about a far-off-template
 pivot and the NCC peak's rotation curvature is degenerate for symmetric annuli).
 

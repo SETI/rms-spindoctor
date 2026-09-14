@@ -115,7 +115,7 @@ the model records:
   contributes a +1 in the outward direction, an off-body neighbor contributes a -1, and the
   resulting two-component vector is normalized.
 - The local incidence angle at the vertex (radians).
-- The local kilometres-per-pixel scale at the vertex, queried from the SPICE backplane.
+- The local kilometers-per-pixel scale at the vertex, queried from the SPICE backplane.
 
 The km/px scale at the limb sets the sensitivity that converts physical km uncertainties into
 pixel sigmas. An empty mask collapses the sampler to zero-length arrays so the downstream
@@ -640,7 +640,7 @@ to surface in the per-image JSON sidecar:
 - ``sub_solar_lon_deg`` / ``sub_solar_lat_deg`` — sub-solar coordinates of the body at
   midtime.
 - ``sub_observer_lon_deg`` / ``sub_observer_lat_deg`` — sub-observer coordinates.
-- ``phase_angle_deg`` — centre-pixel phase angle.
+- ``phase_angle_deg`` — center-pixel phase angle.
 - ``bbox_area_px`` / ``size_ok`` — predicted bounding-box area and the
   ``min_bounding_box_area`` test result.
 - ``guaranteed_visible_in_fov`` — bool; True iff the inflated bounding box lies fully inside

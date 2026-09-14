@@ -24,7 +24,7 @@ Theory
 
 The technique solves the global star-pattern-matching problem from scratch — without a prior
 offset — by reducing translation- and rotation-invariant pattern matching to a high-dimensional
-nearest-neighbour search.
+nearest-neighbor search.
 
 Triplet hashing
 ---------------
