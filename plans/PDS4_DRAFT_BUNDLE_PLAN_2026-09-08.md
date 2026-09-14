@@ -1432,8 +1432,9 @@ check and section 3.5's empty-collection rule are one rule at two scales:
 each image holds all its products, and each collection at least one member.
 A data label with no
 supplemental file is not checked, since the labels pass writes the
-supplemental file first. The global index tables are still built from the
-supplemental files (Phase 7). Tests: the browse inventory lists the browse
+supplemental file first. Phase 7 makes the global index rows exactly the data
+inventory's members, which settles #602's question of where the index takes
+its images from. Tests: the browse inventory lists the browse
 labels on disk and not the data labels; each collection is judged empty by
 its own members; one test per disagreement, each counting the one image it
 names with the label it lacks; and the summary pass exits 1 on a
@@ -1535,18 +1536,22 @@ with an explicit version (section 3.5): the two index products at the
 bundle's version, the context products at theirs, and the ISS data user guide
 at `::2.0` (section 3.6).
 
-The global index tables are still built from the supplemental files, not
-from the labels. Since Phase 5 a run in which a supplemental file has no data
-label beside it fails, the image counted as one whose products disagree
-(section 3.5), so no delivered bundle carries an index row for a product that
-is not there. Whether to build the tables from the labels instead is this
-phase's to settle.
+**The index rows are exactly the data inventory's members.** The tables
+index the images the data inventory lists, each with the rows its
+supplemental file gives -- a bodies row per body, a rings row where it has
+ring backplanes -- and no other image. The tables are read from the
+supplemental files, so a supplemental file with no data label beside it,
+which Phase 5's check reports as an image whose products disagree (section
+3.5), adds no row. That settles #602's question of where the index takes its
+images from, and the index half of #602 is this phase's to implement.
 
 Tests: adding a backplane to the config adds a column to the table and a
 `Field_Character` to the label; `fields` matches the column count; every
 `Field_Character` offset and length lands on the column it names in a
-generated row; and the inventory's two LIDVIDs each resolve to a label in
-the same collection.
+generated row; the inventory's two LIDVIDs each resolve to a label in the
+same collection; and a supplemental file with no data label beside it adds
+no row to either table, so every row's LID is that of a data inventory
+member.
 
 Closes #76.
 
