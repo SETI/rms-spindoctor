@@ -657,7 +657,7 @@ _GAIN_MODE_IDS = {
 
 _SHARED_LABEL_ITEMS: dict[str, Any] = {
     'MISSION_PHASE_NAME': 'TOUR',
-    'ANTIBLOOMING_STATE_FLAG': 'ON',
+    'ANTIBLOOMING_STATE_FLAG': 'OFF',
     'BIAS_STRIP_MEAN': 7.32844,
     'COMMAND_FILE_NAME': 'trigger_24820_2.ioi',
     'COMMAND_SEQUENCE_NUMBER': 24820,
@@ -702,6 +702,8 @@ _SHARED_LABEL_ITEMS: dict[str, Any] = {
 They are N1635282917_1_CALIB's, a narrow angle frame of 2009, except for six items a 2005
 image of Iapetus writes otherwise: ``MISSION_PHASE_NAME``, ``SOFTWARE_VERSION_ID``,
 ``SEQUENCE_ID``, ``SEQUENCE_TITLE``, ``TARGET_DESC`` and ``TARGET_NAME``.
+``ANTIBLOOMING_STATE_FLAG`` is ``OFF`` rather than ``ON`` as well, so that it differs from
+``LIGHT_FLOOD_STATE_FLAG``, as it does on many real labels.
 """
 
 _CAMERA_LABEL_ITEMS: dict[str, dict[str, Any]] = {

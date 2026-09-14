@@ -34,7 +34,7 @@
     "spacecraft_clock_count_partition": 1,
     "spacecraft_clock_start_count": "1294561202.077",
     "spacecraft_clock_stop_count": "1294561202.195",
-    "antiblooming_state_flag": "ON",
+    "antiblooming_state_flag": "OFF",
     "bias_strip_mean": 7.32844,
     "calibration_lamp_state_flag": "OFF",
     "command_file_name": "trigger_24820_2.ioi",
