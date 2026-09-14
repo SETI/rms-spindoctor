@@ -57,7 +57,7 @@ def _summarize(env: BundleEnv) -> tuple[GlobalIndexOutcome, int]:
     dataset = env.dataset.as_dataset()
     index = generate_global_index_files(bundle_results_root, dataset, MAIN_LOGGER)
     collections = generate_collection_files(
-        bundle_results_root, dataset, MAIN_LOGGER, epochs=index.epochs
+        bundle_results_root, dataset, MAIN_LOGGER, epochs=index.epochs, targets=index.targets
     )
     return index, collections.failed_labels
 

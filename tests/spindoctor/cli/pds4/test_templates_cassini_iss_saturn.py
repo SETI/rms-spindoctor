@@ -347,7 +347,9 @@ def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
     bundle_results_root = tmp_path / 'bundle'
     bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
     touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
-    generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=A_RANGE)
+    generate_collection_files(
+        FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=A_RANGE, targets=()
+    )
     rows = read_csv_rows(bundle_dir / 'data' / 'collection_data.csv')
     inventory_lid = rows[0][1].split('::')[0]
     label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')

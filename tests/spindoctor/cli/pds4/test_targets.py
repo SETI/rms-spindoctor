@@ -4,13 +4,24 @@ What the shipped targets table holds, and what the shipped templates make of it,
 tested in ``test_targets_cassini_iss_saturn.py``.
 """
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from filecache import FCPath
 
+from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.cli.pds4.targets import Pds4Target, TargetScan, image_targets, target_table
-from spindoctor.config import Config
+from spindoctor.config import MAIN_LOGGER, Config
+
+from .conftest import (
+    PLUMBING_RING_TARGET,
+    make_bundle_env,
+    ring_metadata,
+    touch_label,
+    write_supplemental,
+)
 
 
 def _target(key: str) -> Pds4Target:
@@ -93,6 +104,27 @@ def test_a_scan_refuses_a_target_with_no_table_entry_at_the_product_naming_it() 
     scan = TargetScan(TABLE)
     with pytest.raises(KeyError, match='MOON_C'):
         scan.include(_metadata('MOON_C'))
+
+
+def test_the_index_takes_the_targets_the_data_collection_s_members_name(tmp_path: Path) -> None:
+    """The summary pass's read takes the targets of the images the data collection holds.
+
+    The first image has a data label beside its supplemental file and names a body and
+    the rings.  The second has a supplemental file and no data label, which is not a
+    member, and names a body the first does not, which is not among the targets.
+    """
+    env = make_bundle_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    touch_label(data_dir, 'shard0/1111111111n')
+    radii = ring_metadata({'radius': {'min': 81000.0, 'max': 125000.0, 'units': 'km'}})
+    write_supplemental(
+        data_dir, 'shard0/1111111111n', bodies={'MOON_B': {'backplanes': {}}}, rings=radii
+    )
+    write_supplemental(data_dir, 'shard0/2222222222w', bodies={'MOON_A': {'backplanes': {}}})
+    dataset = env.dataset.as_dataset()
+    index = generate_global_index_files(FCPath(env.bundle_results_root), dataset, MAIN_LOGGER)
+    table = target_table(dataset.config)
+    assert index.targets == (table['MOON_B'], table[PLUMBING_RING_TARGET])
 
 
 def test_the_table_s_entries_become_targets_in_order_each_version_as_text() -> None:

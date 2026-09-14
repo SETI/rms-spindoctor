@@ -5,7 +5,8 @@ builds two tables from them: one row for each body of each image the data collec
 holds, and one row for each such image with ring backplanes, each giving the image's
 exposure start and stop and the minimum and maximum every configured plane spans.  The
 same read takes the range of the products' epochs, which the data collection label and
-the bundle label state.
+the bundle label state, and the targets the products name, which the data collection,
+bundle and metakernel labels name and the context inventory lists.
 
 Each table is fixed width, as the reference bundle's index tables are: a header line
 naming the columns, separated by commas, and then the rows, each field padded to the
@@ -45,6 +46,7 @@ from spindoctor.cli.pds4.collections import (
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan, exposure_times
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
+from spindoctor.cli.pds4.targets import Pds4Target, TargetScan, target_table
 from spindoctor.dataset.dataset import DataSet, pds4_label_name
 
 
@@ -532,10 +534,15 @@ class GlobalIndexOutcome:
             images the data collection holds, the ones the tables' rows are of, as
             their supplemental files record them, which the data collection label
             states, or None when no such image has a supplemental file.
+        targets: Every target the backplane metadata of those same images names, each
+            once, in the targets table's order, which the data collection, bundle and
+            metakernel labels name and the context inventory lists; none when no such
+            image has a supplemental file.
     """
 
     failed_labels: int
     epochs: EpochRange | None
+    targets: tuple[Pds4Target, ...]
 
 
 def generate_global_index_files(
@@ -591,7 +598,10 @@ def generate_global_index_files(
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
     :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, over the same images as the
-    rows, and returned for the labels that state it.
+    rows, and returned for the labels that state it; and so are the targets those images'
+    backplane metadata names, through a :class:`~spindoctor.cli.pds4.targets.TargetScan`
+    over the configuration's targets table, for the labels that name them and the context
+    inventory that lists them.
 
     Both index tables and both index labels, and the miscellaneous collection's
     inventory and label, are cleared before any supplemental file is read, as
@@ -620,9 +630,9 @@ def generate_global_index_files(
     Returns:
         The number of labels not written -- each index label that could not be
         rendered, and the miscellaneous collection's label when the collection could
-        not be written or its label could not be rendered -- and the range of the
+        not be written or its label could not be rendered -- the range of the
         epochs of the images the data collection holds, or None when none of them has
-        a supplemental file.
+        a supplemental file, and the targets those images name.
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, which is
@@ -631,7 +641,9 @@ def generate_global_index_files(
             template directory; or if the template directory holds no document
             inventory to take the miscellaneous collection's secondary members from.
         KeyError: If a configured plane's statistic is in a unit the index has no
-            column format for.
+            column format for, or if the targets table has no entry for a target the
+            backplane metadata of an image the data collection holds names; the message
+            names the target.  Both are raised before either table is opened.
         ValueError: If a supplemental file holds a statistic no column can: one in
             a unit other than the one the configuration gives its plane, or with a
             minimum or maximum that is NaN or infinite.  The message names the
@@ -695,8 +707,10 @@ def generate_global_index_files(
     body_index_rows: list[list[str]] = []
     ring_index_rows: list[list[str]] = []
     # The range of the epochs of the images the data collection holds, the images the
-    # rows are of, taken in this same read of their files.
+    # rows are of, and the targets those images name, taken in this same read of their
+    # files.
     epochs = EpochRangeScan()
+    targets = TargetScan(target_table(config))
 
     for pds4_path_stub, suppl_file in supplementals.items():
         metadata = json.loads(suppl_file.read_text())
@@ -722,6 +736,7 @@ def generate_global_index_files(
         if pds4_path_stub not in members:
             continue
         epochs.include(metadata['navigation'])
+        targets.include(backplanes)
         start, stop = exposure_times(metadata['navigation'])
         bodies = backplanes.get('bodies', {})
         rings = backplanes.get('rings', {})
@@ -825,4 +840,6 @@ def generate_global_index_files(
         len(body_index_rows),
         len(ring_index_rows),
     )
-    return GlobalIndexOutcome(failed_labels=failed_labels, epochs=epochs.result())
+    return GlobalIndexOutcome(
+        failed_labels=failed_labels, epochs=epochs.result(), targets=targets.result()
+    )

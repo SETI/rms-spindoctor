@@ -35,6 +35,7 @@ from .conftest import (
     index_entry,
     make_bundle_env,
     read_csv_rows,
+    ring_metadata,
     touch_label,
     write_cohort_bundle,
     write_supplemental,
@@ -458,7 +459,7 @@ LATITUDE_ONLY = {'MOON': {'backplanes': {'latitude': {'min': -10.0, 'max': 20.0,
 """One body's statistics: a latitude, in degrees as a radian plane's statistic is, alone."""
 
 
-RADIUS_ONLY = {'backplanes': {'radius': {'min': 80000.0, 'max': 90000.0, 'units': 'km'}}}
+RADIUS_ONLY = ring_metadata({'radius': {'min': 80000.0, 'max': 90000.0, 'units': 'km'}})
 """The rings' statistics: a radius, in kilometers, alone."""
 
 

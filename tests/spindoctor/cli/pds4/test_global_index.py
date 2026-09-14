@@ -37,6 +37,7 @@ from .conftest import (
     make_bundle_env,
     read_csv_rows,
     read_index_rows,
+    ring_metadata,
     run_collections,
     touch_label,
     write_supplemental,
@@ -47,7 +48,7 @@ BODY_STATS = {
     'MOON_A': {'backplanes': {'latitude': {'min': 1.234567891, 'max': 2, 'units': 'deg'}}}
 }
 """A body's statistics, in the unit the default configuration's latitude plane takes."""
-RING_STATS = {'backplanes': {'radius': {'min': 81000.0, 'max': 125000.987654, 'units': 'km'}}}
+RING_STATS = ring_metadata({'radius': {'min': 81000.0, 'max': 125000.987654, 'units': 'km'}})
 """Ring statistics, in the unit the default configuration's radius plane takes."""
 
 
@@ -228,7 +229,7 @@ def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
     hundredths of a kilometer, so a second decimal would print noise.
     """
     env = _index_env(tmp_path)
-    radii = {'backplanes': {'radius': {'min': 81000.04, 'max': 125000.96, 'units': 'km'}}}
+    radii = ring_metadata({'radius': {'min': 81000.04, 'max': 125000.96, 'units': 'km'}})
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
@@ -248,11 +249,9 @@ def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path:
     half-rounds.
     """
     env = _index_env(tmp_path, rings=[index_entry('longitudinal_resolution', 'rad/pixel')])
-    fine = {
-        'backplanes': {
-            'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}
-        }
-    }
+    fine = ring_metadata(
+        {'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}}
+    )
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=fine)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
@@ -355,7 +354,7 @@ def _ring_resolution_stats(units: str) -> dict[str, Any]:
         The ``backplanes.rings`` payload of a supplemental file.
     """
     statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
-    return {'backplanes': {'longitudinal_resolution': statistic}}
+    return ring_metadata({'longitudinal_resolution': statistic})
 
 
 def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(

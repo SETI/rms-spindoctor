@@ -17,6 +17,7 @@ template in the dataset's template directory or copied from it:
 """
 
 import contextlib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.labels import write_label
+from spindoctor.cli.pds4.targets import Pds4Target
 from spindoctor.dataset.dataset import DataSet, pds4_label_name
 
 PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
@@ -302,12 +304,13 @@ def _write_bundle_label(
     *,
     bundle_name: str,
     epochs: EpochRange | None,
+    targets: Sequence[Pds4Target],
     logger: PdsLogger,
 ) -> bool:
     """Write the bundle label, but only over a bundle holding every collection it declares.
 
-    The label states the range of the products' epochs, so with no range it is not
-    rendered.  Rendered, it is kept only when every ``Bundle_Member_Entry`` names a
+    The label states the range of the products' epochs and names their targets, so with
+    no range it is not rendered.  Rendered, it is kept only when every ``Bundle_Member_Entry`` names a
     collection whose label is in the bundle, one declaring that LID as its logical
     identifier; otherwise it is removed.  Either way whatever an earlier run left at the
     path is gone, and one error names the label and the reason.
@@ -318,6 +321,7 @@ def _write_bundle_label(
         bundle_name: The bundle's name, the last part of its LID.
         epochs: The earliest start and the latest stop of the products' exposures, or
             None when no data label in the data tree has a supplemental file beside it.
+        targets: Every target the products name, handed to the template as ``TARGETS``.
         logger: Logger for diagnostic messages.
 
     Returns:
@@ -332,9 +336,10 @@ def _write_bundle_label(
             label,
         )
         return False
-    template_vars = {
+    template_vars: dict[str, Any] = {
         'BUNDLE_LID': f'urn:nasa:pds:{bundle_name}',
         'README_PATH': (bundle_root / _README).as_posix(),
+        'TARGETS': targets,
     } | epochs.template_variables()
     template = pdstemplate.PdsTemplate((template_dir / _BUNDLE_LABEL).as_posix())
     if not write_label(template, template_vars, label, logger=logger):
@@ -362,6 +367,7 @@ def generate_bundle_products(
     logger: PdsLogger,
     *,
     epochs: EpochRange | None,
+    targets: Sequence[Pds4Target],
 ) -> BundleProductsOutcome:
     """Write the readme, the static collections, the user guide and the bundle label.
 
@@ -377,7 +383,8 @@ def generate_bundle_products(
       ``.lblx``, handed the copy's path as ``USER_GUIDE_PATH``.  When the template
       directory does not hold it, neither is written and one warning names the file.
     - ``kernels.ker`` is copied into ``spice_kernels/``, and ``kernels.lblx`` rendered
-      beside it, handed the copy's path as ``METAKERNEL_PATH``.
+      beside it, handed the copy's path as ``METAKERNEL_PATH`` and the products' targets
+      as ``TARGETS``, since a SPICE kernel label names its targets.
     - For each of the context, document, SPICE kernel and XML schema collections, the
       inventory ``collection_<name>.csv`` is written into the collection's directory
       and the label ``collection_<name>.lblx`` rendered beside it, handed the
@@ -391,8 +398,9 @@ def generate_bundle_products(
       collection, whose one member is the metakernel, is not written when the
       metakernel's label is not.
     - ``bundle.lblx`` is rendered last, at the bundle's root, handed ``BUNDLE_LID``,
-      ``urn:nasa:pds:<bundle name>``, ``README_PATH``, and the range of the products'
-      epochs as the data collection label states it.  With no range it is not
+      ``urn:nasa:pds:<bundle name>``, ``README_PATH``, the range of the products'
+      epochs as the data collection label states it, and the products' targets as
+      ``TARGETS``, as the data collection label names them.  With no range it is not
       rendered.  Rendered, it is kept only when every collection it declares in a
       ``Bundle_Member_Entry`` has a label one directory below the bundle's root,
       ``collection_*.lblx``, declaring that LID as its logical identifier; otherwise it
@@ -417,6 +425,8 @@ def generate_bundle_products(
         epochs: The earliest start and the latest stop of the products' exposures, as
             :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` took them,
             or None when no data label in the data tree has a supplemental file beside it.
+        targets: Every target the products name, in the targets table's order, as the
+            same generator took them.
 
     Returns:
         The number of run-level labels not written.
@@ -456,7 +466,7 @@ def generate_bundle_products(
 
     metakernel = bundle_root / 'spice_kernels' / _METAKERNEL
     _copy(template_dir / _METAKERNEL, metakernel, logger=logger)
-    metakernel_vars = {'METAKERNEL_PATH': metakernel.as_posix()}
+    metakernel_vars = {'METAKERNEL_PATH': metakernel.as_posix(), 'TARGETS': targets}
     metakernel_labeled = _render(
         template_dir, _label_beside(metakernel), metakernel_vars, logger=logger
     )
@@ -503,7 +513,12 @@ def generate_bundle_products(
             failed_labels += 1
 
     if not _write_bundle_label(
-        template_dir, bundle_root, bundle_name=bundle_name, epochs=epochs, logger=logger
+        template_dir,
+        bundle_root,
+        bundle_name=bundle_name,
+        epochs=epochs,
+        targets=targets,
+        logger=logger,
     ):
         failed_labels += 1
 

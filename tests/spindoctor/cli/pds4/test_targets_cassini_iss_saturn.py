@@ -24,7 +24,7 @@ from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.targets import target_table
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
-from .conftest import label_cohort_images, make_cohort_bundle_env
+from .conftest import label_cohort_images, make_cohort_bundle_env, write_cohort_bundle
 
 PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
 """The PDS4 common dictionary's namespace, under the prefix the paths below use."""
@@ -151,3 +151,25 @@ def test_the_data_label_of_an_image_with_two_bodies_names_both(
     )
     named = _targets_named(_data_label(env.bundle_dir), 'Observation_Area')
     assert [name for name, *_ in named] == ['Enceladus', 'Mimas']
+
+
+@pytest.mark.parametrize(
+    ('label', 'reference_type'),
+    [
+        ('bundle.lblx', 'bundle_to_target'),
+        ('data/collection_data.lblx', 'collection_to_target'),
+        ('spice_kernels/kernels.lblx', 'data_to_target'),
+    ],
+    ids=['bundle', 'data collection', 'metakernel'],
+)
+def test_a_run_level_label_names_every_target_the_data_labels_name(
+    cassini_cohort: Cohort, tmp_path: Path, label: str, reference_type: str
+) -> None:
+    """The bundle, data collection and metakernel labels each name the cohort's targets.
+
+    Every target a data label names, each once, in the targets table's order, with the
+    reference type the Schematron allows under that kind of product's context area.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, (LIMB_STUB, RINGS_STUB))
+    named = _targets_named(env.bundle_dir / label, 'Context_Area')
+    assert named == [(*target, reference_type) for target in (SATURN, ENCELADUS, SATURN_RINGS)]
