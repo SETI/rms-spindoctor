@@ -137,15 +137,20 @@ def _instrument_chapter_key_literals(stem: str) -> set[str]:
     """Every key a table row's key cell names in one instrument's chapter.
 
     A key counts only in its own row's key cell: another row's meaning may mention it, as
-    the ``stop_time_doy`` row mentions ``image_time``, without documenting it.
+    the ``stop_time_doy`` row mentions ``image_time``, without documenting it. A key cell
+    names one key, so that no row documents another fact by naming it beside its own.
 
     Parameters:
         stem: The chapter's file stem, such as ``cassini_iss``.
     """
     chapter = _INSTRUMENT_CHAPTERS / f'{stem}.rst'
     assert chapter.is_file(), f'instrument chapter missing at {chapter}'
-    cells = _KEY_CELL.findall(chapter.read_text(encoding='utf-8'))
-    return set().union(*(_key_literals(cell) for cell in cells))
+    keys: set[str] = set()
+    for cell in _KEY_CELL.findall(chapter.read_text(encoding='utf-8')):
+        named = _key_literals(cell)
+        assert len(named) <= 1, f'{chapter.name}: a key cell names {sorted(named)}'
+        keys |= named
+    return keys
 
 
 def _leaf_key_names(node: Any) -> set[str]:
