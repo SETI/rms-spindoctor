@@ -52,7 +52,7 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` writes
    the bundle's run-level products: the readme, the context, document, SPICE
    kernel and XML schema collections, the user guide when the template directory
-   holds it, and the bundle label, which states the same range and is kept only
+   holds its PDF, and the bundle label, which states the same range and is kept only
    over a bundle holding every collection it declares (see `The bundle's
    run-level products`_).
 
@@ -154,8 +154,8 @@ fails to render.  The bundle label counts when it is not written: it is kept onl
 over a bundle holding a label for every collection it declares, and with no range
 to state it is not rendered (see `The bundle's run-level products`_).  A metakernel
 label that fails to render leaves the SPICE kernel collection with no member, so that
-collection is not written and counts as well, and so does the bundle label.  A user
-guide the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what PDS4 requires of it is not
+collection is not written and counts as well, and so does the bundle label.  A user-guide
+PDF the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what PDS4 requires of it is not
 written at all -- neither its inventory nor its label, and whatever an earlier run
 left at either path is removed -- and counts once among the labels not written,
 with an error naming the collection and each reason.  A collection label states at
@@ -252,8 +252,8 @@ The full extension-point set:
   files it copies: ``labels`` for the per-image pass and ``summary`` for the pass
   writing the collections, the index and the run-level products. Each pass checks
   them before it processes anything and refuses to run when one is not there, so
-  this is where a dataset says what its template tree carries.  The user guide is
-  not among them, since a bundle is written without it.
+  this is where a dataset says what its template tree carries.  The user-guide PDF
+  is not among them, since a bundle is written without it; its label's template is.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name` — the file
   name of the bundle's user guide, a PDF, in the template directory. Its label's
   template is the name :func:`~spindoctor.dataset.dataset.pds4_label_name` gives it,
@@ -441,12 +441,12 @@ layout:
      global_index_bodies.lblx                 # per-bundle bodies summary
      global_index_rings.lblx                  # per-bundle rings summary
      cassini-iss-saturn-backplanes-user-guide.lblx  # user-guide label
-     cassini-iss-saturn-backplanes-user-guide.pdf   # the user guide, when it exists
+     cassini-iss-saturn-backplanes-user-guide.pdf   # the user-guide PDF, when it exists
 
 The labels pass renders ``data.lblx`` and ``browse.lblx`` for each image.  The
 summary pass renders every other label and copies the files marked copied, the
-user guide among them when the directory holds it; the directory ships no user
-guide.
+user-guide PDF among them when the directory holds it; the directory ships no
+user-guide PDF.
 
 The FITS and its data objects
 =============================
