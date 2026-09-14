@@ -1626,8 +1626,10 @@ Closes #71.
 ### Phase 10 — Validation, the integrity pass, and the draft run
 
 Schema validation as a repeatable command: `xmlschema` against the five
-schemas the labels declare, plus their Schematron rules, over a generated
-tree, added to `scripts/run-all-checks.sh` and to CI. The rules cannot be
+schemas the labels declare and `PDS4_CART_1O00_1970.xsd`, which the geometry
+schema imports -- run offline without it, `xmlschema` warns that the
+`cart/v1` import failed and validates without it -- plus their Schematron
+rules, over a generated tree, added to `scripts/run-all-checks.sh` and to CI. The rules cannot be
 run by `lxml`'s ISO Schematron: on 2026-09-14 the product reviewer found
 that `lxml.isoschematron` refuses the PDS4 1O00 Schematron, reporting that
 it "does not work with schemas using the xslt2 query language".
