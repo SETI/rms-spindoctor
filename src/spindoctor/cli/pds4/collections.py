@@ -10,7 +10,7 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
-from spindoctor.cli.pds4.bundle_products import bundle_product_paths
+from spindoctor.cli.pds4.bundle_products import clear_bundle_products
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
@@ -656,9 +656,9 @@ def generate_global_index_files(
     rings_label = supplemental_dir / 'global_index_rings.lblx'
     index_products = (bodies_tab, bodies_label, rings_tab, rings_label)
     collection_products = _CollectionProducts.in_bundle(bundle_root).paths()
-    run_level_products = bundle_product_paths(bundle_root, dataset)
-    for summary_product in (*index_products, *collection_products, *run_level_products):
+    for summary_product in (*index_products, *collection_products):
         summary_product.unlink(missing_ok=True)
+    clear_bundle_products(bundle_root, dataset)
 
     # Scan for all supplemental files
     supplemental_files: list[FCPath] = []

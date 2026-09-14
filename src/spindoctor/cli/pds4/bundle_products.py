@@ -16,6 +16,7 @@ template in the dataset's template directory or copied from it:
 - ``bundle.lblx``, rendered last.
 """
 
+import contextlib
 from dataclasses import dataclass
 from typing import Any
 from xml.etree import ElementTree
@@ -26,7 +27,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.labels import write_label
-from spindoctor.dataset.dataset import DataSet
+from spindoctor.dataset.dataset import DataSet, pds4_label_name
 
 PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
 """The PDS4 common dictionary's namespace, under the prefix the element paths use."""
@@ -47,9 +48,6 @@ _BUNDLE_LABEL = 'bundle.lblx'
 
 _METAKERNEL = 'kernels.ker'
 """The metakernel's name, in the template directory and in ``spice_kernels/``."""
-
-_LABEL_SUFFIX = '.lblx'
-"""What a label's name ends in, beside the file of the same stem that it describes."""
 
 _PRIMARY_MEMBER = b'P,'
 """How an inventory line naming a primary member begins."""
@@ -88,12 +86,13 @@ def _label_beside(path: FCPath) -> FCPath:
         path: The file the label describes.
 
     Returns:
-        The path with its suffix replaced by ``.lblx``.
+        The path in the same directory named by
+        :func:`~spindoctor.dataset.dataset.pds4_label_name`.
     """
-    return path.with_suffix(_LABEL_SUFFIX)
+    return path.parent / pds4_label_name(path.name)
 
 
-def bundle_product_paths(bundle_root: FCPath, dataset: DataSet) -> tuple[FCPath, ...]:
+def _bundle_product_paths(bundle_root: FCPath, dataset: DataSet) -> tuple[FCPath, ...]:
     """Return every file :func:`generate_bundle_products` can write into one bundle.
 
     Parameters:
@@ -116,6 +115,28 @@ def bundle_product_paths(bundle_root: FCPath, dataset: DataSet) -> tuple[FCPath,
         user_guide,
         _label_beside(user_guide),
     )
+
+
+def clear_bundle_products(bundle_root: FCPath, dataset: DataSet) -> None:
+    """Remove every file :func:`generate_bundle_products` can write into one bundle.
+
+    The global index generator, which the summary pass runs first, calls this before it
+    reads anything, so that a run-level product on disk is always one the run wrote.
+    When the user guide's directory is left holding nothing, it is removed as well, so a
+    run over a template directory without the guide leaves no ``document/user_guide/``.
+
+    Parameters:
+        bundle_root: The bundle's own directory.
+        dataset: The dataset whose user guide the bundle can hold.
+    """
+    for path in _bundle_product_paths(bundle_root, dataset):
+        path.unlink(missing_ok=True)
+    user_guide_dir = _user_guide(bundle_root, dataset).parent
+    # glob rather than iterdir, which refuses a bundle root given relative to the working
+    # directory; a bundle that never held the guide has no such directory to remove.
+    with contextlib.suppress(FileNotFoundError):
+        if next(iter(user_guide_dir.glob('*')), None) is None:
+            user_guide_dir.rmdir()
 
 
 @dataclass(frozen=True)
@@ -261,7 +282,10 @@ def _write_bundle_label(
             label,
         )
         return False
-    template_vars = {'BUNDLE_LID': f'urn:nasa:pds:{bundle_name}'} | epochs.template_variables()
+    template_vars = {
+        'BUNDLE_LID': f'urn:nasa:pds:{bundle_name}',
+        'README_PATH': (bundle_root / _README).as_posix(),
+    } | epochs.template_variables()
     template = pdstemplate.PdsTemplate((template_dir / _BUNDLE_LABEL).as_posix())
     if not write_label(template, template_vars, label, logger=logger):
         return False
@@ -308,22 +332,29 @@ def generate_bundle_products(
       inventory ``collection_<name>.csv`` is written into the collection's directory
       and the label ``collection_<name>.lblx`` rendered beside it, handed the
       inventory's path as ``COLLECTION_<NAME>_CSV_PATH``.  Each inventory is the
-      template directory's, as it is, except the document inventory when the template
-      directory holds no user guide: its primary members are the documents the bundle
-      holds, so it is written without its ``P`` lines.
+      template directory's, as it is, except that its primary members, the products of
+      this bundle it lists as ``P`` -- the user guide in the document collection, the
+      metakernel in the SPICE kernel collection -- are listed only when their labels
+      are in the bundle.  A collection left with no member is not written at all,
+      neither its inventory nor its label, whatever is at either path is removed, and
+      it counts once as a label not written, with an error naming it: the SPICE kernel
+      collection, whose one member is the metakernel, is not written when the
+      metakernel's label is not.
     - ``bundle.lblx`` is rendered last, at the bundle's root, handed ``BUNDLE_LID``,
-      ``urn:nasa:pds:<bundle name>``, and the range of the products' epochs as the data
-      collection label states it.  With no range it is not rendered.  Rendered, it is
-      kept only when every collection it declares in a ``Bundle_Member_Entry`` has a
-      label one directory below the bundle's root, ``collection_*.lblx``, declaring
-      that LID as its logical identifier; otherwise it is removed.  Either way one error
-      names it and the reason, and it counts as a label not written.
+      ``urn:nasa:pds:<bundle name>``, ``README_PATH``, and the range of the products'
+      epochs as the data collection label states it.  With no range it is not
+      rendered.  Rendered, it is kept only when every collection it declares in a
+      ``Bundle_Member_Entry`` has a label one directory below the bundle's root,
+      ``collection_*.lblx``, declaring that LID as its logical identifier; otherwise it
+      is removed.  Either way one error names it and the reason, and it counts as a
+      label not written.
 
     Every label is attempted, whichever of them fail, and a label that fails to render
-    is counted; a file copied or an inventory written stays whether or not its label
-    renders.  The summary pass clears every path this writes before it reads anything,
-    through :func:`bundle_product_paths`, so a product on disk is always one this run
-    wrote.
+    is counted; a file copied stays whether or not its label renders.  This clears
+    nothing else: the summary pass clears an earlier run's products, through
+    :func:`clear_bundle_products`, before any of its generators runs, so called on its
+    own over an earlier run's bundle this leaves whatever of that run's products it does
+    not write itself.
 
     Parameters:
         bundle_results_root: Root directory of the bundle.
@@ -352,42 +383,69 @@ def generate_bundle_products(
     # a bundle without it holds no guide and its document inventory lists none.
     user_guide = _user_guide(bundle_root, dataset)
     guide_source = template_dir / user_guide.name
+    guide_labeled = False
     try:
         guide = guide_source.read_bytes()
     except FileNotFoundError:
-        guide = None
         logger.warning(
             'The user guide %s is not in the template directory: the bundle holds no user '
             'guide, and its document inventory lists none',
             guide_source,
         )
-    if guide is not None:
+    else:
         user_guide.write_bytes(guide)
         logger.info('Copied "%s": %s', user_guide.name, user_guide)
-        guide_vars = {'USER_GUIDE_PATH': str(user_guide)}
-        if not _render(template_dir, _label_beside(user_guide), guide_vars, logger=logger):
+        guide_vars = {'USER_GUIDE_PATH': user_guide.as_posix()}
+        guide_labeled = _render(template_dir, _label_beside(user_guide), guide_vars, logger=logger)
+        if not guide_labeled:
             failed_labels += 1
 
     metakernel = bundle_root / 'spice_kernels' / _METAKERNEL
     _copy(template_dir / _METAKERNEL, metakernel, logger=logger)
-    metakernel_vars = {'METAKERNEL_PATH': str(metakernel)}
-    if not _render(template_dir, _label_beside(metakernel), metakernel_vars, logger=logger):
+    metakernel_vars = {'METAKERNEL_PATH': metakernel.as_posix()}
+    metakernel_labeled = _render(
+        template_dir, _label_beside(metakernel), metakernel_vars, logger=logger
+    )
+    if not metakernel_labeled:
         failed_labels += 1
 
     # Each collection's members are on disk before its inventory lists them, as the data
-    # inventory follows the data labels.
-    inventories = {
-        name: bytes((template_dir / _inventory(bundle_root, name).name).read_bytes())
-        for name in _STATIC_COLLECTIONS
+    # inventory follows the data labels.  A static inventory's primary members are
+    # products of this bundle, the document collection's the user guide and the SPICE
+    # kernel collection's the metakernel, and it lists one only when that product's label
+    # is in the bundle; the context and XML schema inventories list no primary member.
+    keeps_primaries = {
+        'context': True,
+        'document': guide_labeled,
+        'spice_kernels': metakernel_labeled,
+        'xml_schema': True,
     }
-    if guide is None:
-        inventories['document'] = _without_primary_members(inventories['document'])
-    for name, content in inventories.items():
+    for name in _STATIC_COLLECTIONS:
         inventory = _inventory(bundle_root, name)
+        label = _label_beside(inventory)
+        content = bytes((template_dir / inventory.name).read_bytes())
+        if not keeps_primaries[name]:
+            content = _without_primary_members(content)
+        if len(content) == 0:
+            # As for the data and browse collections, a collection with no member gets
+            # neither an inventory nor a label: the label would state no record, which
+            # the schema refuses.
+            inventory.unlink(missing_ok=True)
+            label.unlink(missing_ok=True)
+            logger.error(
+                'The %s collection was not written, neither its inventory %s nor its '
+                'label %s: none of its members has a label in the bundle, and a '
+                'collection label has to state at least one record',
+                name,
+                inventory,
+                label,
+            )
+            failed_labels += 1
+            continue
         inventory.write_bytes(content)
         logger.info('Generated "%s": %s', inventory.name, inventory)
-        inventory_vars = {f'COLLECTION_{name.upper()}_CSV_PATH': str(inventory)}
-        if not _render(template_dir, _label_beside(inventory), inventory_vars, logger=logger):
+        inventory_vars = {f'COLLECTION_{name.upper()}_CSV_PATH': inventory.as_posix()}
+        if not _render(template_dir, label, inventory_vars, logger=logger):
             failed_labels += 1
 
     if not _write_bundle_label(
