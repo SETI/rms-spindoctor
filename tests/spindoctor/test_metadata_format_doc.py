@@ -7,8 +7,10 @@ and structurally match real writer output. Two directions are enforced:
 1. Writer-to-chapter: every key name any writer emits -- across a fully
    populated success result (with and without a fitted rotation), a failed
    result, a load-error document, and an early-return document -- appears in
-   the chapter as an inline ``key`` literal. A writer gaining a key the
-   chapter lacks fails here.
+   the chapter as an inline ``key`` literal. The one exception is a fact an
+   instrument's host publishes into the ``observation`` block, which the
+   chapter leaves to that instrument's user-guide chapter, so it may appear
+   there instead. A writer gaining a key neither documents fails here.
 2. Chapter-to-writer: each example's key structure equals the corresponding
    writer output's key structure, block by block, and the open-vocabulary
    sub-objects (diagnostics, reliability_reasons, feature_count_by_type) use
@@ -54,6 +56,9 @@ from spindoctor.support.status_reason import NavStatusReason
 _CHAPTER_PATH = (
     Path(__file__).resolve().parents[2] / 'docs' / 'user_guide' / 'user_guide_metadata.rst'
 )
+
+_INSTRUMENT_CHAPTERS = _CHAPTER_PATH.parent / 'instruments'
+"""Where the user guide's instrument chapters are, each listing its host's own facts."""
 
 # Keys whose object values carry open-vocabulary content (feature-type
 # counts, per-file hashes, per-catalog paths, per-technique diagnostics,
@@ -104,9 +109,25 @@ def _example_json_blocks() -> list[dict[str, Any]]:
     return blocks
 
 
+def _key_literals(text: str) -> set[str]:
+    """Every inline ``literal`` in a document that is shaped like a JSON key.
+
+    A key starts with a lowercase letter or an underscore; later letters may be capitals,
+    as in a Cassini dictionary name such as ``valid_maximum_DN_sat``.
+    """
+    return set(re.findall(r'``([a-z_][A-Za-z0-9_]*)``', text))
+
+
 def _documented_key_literals() -> set[str]:
     """Every inline ``literal`` in the chapter that is shaped like a JSON key."""
-    return set(re.findall(r'``([a-z_][a-z0-9_]*)``', _chapter_text()))
+    return _key_literals(_chapter_text())
+
+
+def _instrument_chapter_key_literals() -> set[str]:
+    """Every inline ``literal`` shaped like a JSON key in any instrument chapter."""
+    chapters = sorted(_INSTRUMENT_CHAPTERS.glob('*.rst'))
+    assert chapters, f'no instrument chapters under {_INSTRUMENT_CHAPTERS}'
+    return set().union(*(_key_literals(path.read_text(encoding='utf-8')) for path in chapters))
 
 
 def _leaf_key_names(node: Any) -> set[str]:
@@ -439,19 +460,28 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
     """Every key any writer emits appears in the chapter as a literal.
 
     This is the staleness guard's forward direction: a writer gaining a key
-    the chapter does not document fails here, naming the missing keys.
+    the chapter does not document fails here, naming the missing keys.  A key
+    of the ``observation`` block may be documented in an instrument chapter
+    instead, since that is where a host's own facts are listed.
     """
-    emitted: set[str] = set()
-    emitted |= _leaf_key_names(_success_document())
-    emitted |= _leaf_key_names(_rotation_document())
-    emitted |= _leaf_key_names(_failed_document())
-    emitted |= _leaf_key_names(_internal_error_document())
-    emitted |= _leaf_key_names(_load_error_document(tmp_path))
-    emitted |= _leaf_key_names(_early_return_document(tmp_path))
-    missing = emitted - _documented_key_literals()
+    documents = [
+        _success_document(),
+        _rotation_document(),
+        _failed_document(),
+        _internal_error_document(),
+        _load_error_document(tmp_path),
+        _early_return_document(tmp_path),
+    ]
+    emitted = set().union(*(_leaf_key_names(document) for document in documents))
+    observation_keys = set().union(*(document['observation'] for document in documents))
+    documented = _documented_key_literals() | (
+        observation_keys & _instrument_chapter_key_literals()
+    )
+    missing = emitted - documented
     assert not missing, (
         f'writer emits keys the metadata chapter never documents: {sorted(missing)}; '
-        f'update docs/user_guide/user_guide_metadata.rst'
+        f'update docs/user_guide/user_guide_metadata.rst, or, for a fact a host '
+        f'publishes, its instrument chapter'
     )
 
 
