@@ -170,6 +170,28 @@ def test_the_context_inventory_lists_each_target_after_the_template_directory_s_
     ]
 
 
+def test_the_miscellaneous_inventory_cites_the_document_inventory_s_members_as_they_render(
+    tmp_path: Path,
+) -> None:
+    """The miscellaneous inventory's ``S`` lines are the document inventory's, as it renders.
+
+    The document inventory the template directory ships is a template, and one of its
+    ``S`` lines here names the bundle through the bundle's variables; the miscellaneous
+    inventory cites each ``S`` line as the document collection's own inventory is
+    written, so the two cannot disagree.
+    """
+    document = (
+        'S,urn:nasa:pds:context:instrument:fake::1.0\n'
+        'S,$BUNDLE_LID$:document:fake-cited-document::$BUNDLE_VERSION$\n'
+        f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0\n'
+    )
+    env = _bundle_env(tmp_path, template_contents={'collection_document.csv': document})
+    _run(env)
+    cited = read_csv_rows(env.bundle_dir / 'miscellaneous' / 'collection_miscellaneous.csv')
+    listed = read_csv_rows(env.bundle_dir / 'document' / 'collection_document.csv')
+    assert [row for row in cited if row[0] == 'S'] == [row for row in listed if row[0] == 'S']
+
+
 def test_a_user_guide_the_template_directory_holds_is_copied_labeled_and_listed(
     tmp_path: Path,
 ) -> None:

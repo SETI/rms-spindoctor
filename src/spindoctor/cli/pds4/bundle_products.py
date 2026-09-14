@@ -24,7 +24,7 @@ bundle beside its own.
 """
 
 import contextlib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -92,25 +92,31 @@ def _inventory(bundle_root: FCPath, collection: str) -> FCPath:
     return bundle_root / collection / _inventory_name(collection)
 
 
-def secondary_members(template_dir: FCPath) -> list[str]:
+def secondary_members(template_dir: FCPath, variables: Mapping[str, Any]) -> list[str]:
     """Return the secondary members the bundle's collections cite, as LIDVIDs.
 
     The document inventory the template directory ships lists them beside the user
     guide: the external documents and the context products the bundle cites, each at
     its version.  The miscellaneous collection cites the same ones and takes them from
-    here, so that the two inventories cannot disagree about them.
+    here, from that inventory rendered with the variables every template of the bundle
+    is handed, as the document collection's own inventory is written, so that the two
+    inventories cannot disagree about them.
 
     Parameters:
         template_dir: The dataset's template directory.
+        variables: The variables every template of the bundle resolves against, as
+            :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` gives them.
 
     Returns:
-        The LIDVID of each line of the template directory's ``collection_document.csv``
-        that names a secondary member, beginning ``S,``, in the order it lists them.
+        The LIDVID of each line of the rendered ``collection_document.csv`` that names a
+        secondary member, beginning ``S,``, in the order it lists them.
 
     Raises:
         FileNotFoundError: If the template directory holds no document inventory.
+        NameError: If the inventory names a variable ``variables`` does not give.
     """
-    inventory = (template_dir / _inventory_name('document')).read_bytes()
+    template = pdstemplate.PdsTemplate((template_dir / _inventory_name('document')).as_posix())
+    inventory = template.generate(dict(variables), raise_exceptions=True).encode('ascii')
     return [
         line.removeprefix(_SECONDARY_MEMBER).decode('ascii')
         for line in inventory.splitlines()

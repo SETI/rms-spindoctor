@@ -826,8 +826,9 @@ as the data inventory is written after its labels, through
 :func:`~spindoctor.cli.pds4.collections.write_collection`, the one writer of the
 generated collections: a ``P`` line for each index product whose label is on disk, then
 an ``S`` line for each secondary member of the document inventory the template directory
-ships, taken through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`, so
-that the two inventories cite the same context products and ISS data user guide.  The
+ships, as that inventory renders with the bundle's variables, taken through
+:func:`~spindoctor.cli.pds4.bundle_products.secondary_members`, so that the two
+inventories cite the same context products and ISS data user guide.  The
 collection label, ``collection_miscellaneous.lblx``, has ``collection_type``
 ``Miscellaneous``.  The collection takes its members from the index labels, as the data
 and browse collections take theirs from labels of their own kind, so with neither index
