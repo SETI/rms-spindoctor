@@ -25,8 +25,8 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-7 have run, Part A of Phase 8 and Phase 9; Part B of Phase 8, the mission area,
-and Phase 10 have not. Two changes landed ahead of
+Phases 1-7 have run, Part A of Phase 8, Phase 9 and Part A of Phase 10; Part B of Phase 8,
+the mission area, and Part B of Phase 10, the draft run over a real volume, have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -60,7 +60,7 @@ this table first and trusts it over any recollection.
 | 7 — The miscellaneous collection and its global index labels | **done** | `rf_pds4_phase7`, sections 3.1, 3.4, 3.5, 3.8 and 3.13; #76, #601 and #678 are closed by hand when its PR merges (section 8), #601 and #678 by the operator's rulings of 2026-09-14 (section 3.13) |
 | 8 — Targets, mission area, ring geometry | **Part A done**; Part B not started | Part A, the targets and the ring geometry, on `rf_pds4_phase8`, sections 3.5, 3.7 and 3.13; #73, #75, #47 and #72 are closed by hand when its PR merges (section 8). Part B, `cassini:ISS_Specific_Attributes`, is read from the navigation document's `observation` block, which #684 adds on a branch against `main` by the operator's direction; it reaches this stack once #684 merges and `main` is merged into `rf_pds4_draft_bundle` (section 3.7) |
 | 9 — Parameterize the bundle name and version | **done** | `rf_pds4_phase9`, sections 3.9, 3.10 and 3.13; #71 is closed by hand when its PR merges (section 8) |
-| 10 — Validation, the integrity pass, and the draft run | not started | |
+| 10 — Validation, the integrity pass, and the draft run | **Part A done**; Part B not started | Part A, the bundle check, the test that gates it and `--check-only`, on `rf_pds4_phase10`, sections 3.1, 3.6, 3.11 and Phase 10; #66 and #265 are closed by hand when its PR merges (section 8). Part B, the draft run over a real COISS volume, waits on the Cassini label facts reaching `main` (#684), a fresh navigation of the volume, and the DOIs |
 
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
@@ -91,10 +91,10 @@ which found every data label's start and stop empty, closes with Phase 3
 (section 3.4). #69, which asked for the FITS to be described in its data label,
 closes with Phase 4 (section 3.3).
 
-Open questions, none blocking Phases 1-9: #600; whether this information
-model build's dictionaries are registered, with the Engineering Node
-(section 3.9); the cohort choice and the user-guide PDF for Phase 10; and which
-kernels the metakernel lists (#677).
+Open questions, none blocking Phases 1-9 or Part A of Phase 10: #600; whether this
+information model build's dictionaries are registered, with the Engineering Node
+(section 3.9); the cohort choice and the user-guide PDF for Part B of Phase 10; and
+which kernels the metakernel lists (#677).
 
 ---
 
@@ -205,9 +205,9 @@ plan).
 | 2 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list; Part B of Phase 8 fills it from the navigation document's `observation` block (#684, section 3.7) |
 | 3 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label, in the data collection label (a Mission Science Data collection, whose references are `collection_to_target`) and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. Fixed by Part A of Phase 8: the table is filled, every label the schemas require a target of names its targets from it, a data label states its ring geometry and the incidence angle the backplane stage now records, and the context inventory lists the targets (section 3.7). | `data.lblx:93,130`, `bundle.lblx`, `collection_data.lblx`, `kernels.lblx` | #73, #75 and #47, closed by Phase 8; #79 stays open |
 | 4 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71; fixed by Phase 9, which sets the name, the version and the schema locations in the configuration and has every template take them as variables (section 3.10) |
-| 5 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 5 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list; fixed by Part A of Phase 10: `sd_create_bundle check` holds a written bundle to the shipped XML schemas and Schematron, reads each table through its label and checks the tree as a whole, with `lxml`, `elementpath` and `xmlschema` runtime dependencies, and a test in the default suite gates it over the synthetic cohort; `validate` 4.2.0, run by hand over the same cohort, agrees with it |
 | 6 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; fixed by Phase 7, whose labels pass reads them from there, and fails the image of a document an earlier version wrote, which records none there, until it is navigated again (section 3.4) |
-| 7 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
+| 7 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; `validate` 4.2.0 accepts the last line as it is, with data-content validation on. | `bundle_data.py`, `data.lblx` | Phase 10; not a defect, by `validate` 4.2.0's run over the cohort (Part A of Phase 10), so nothing changes |
 
 No row but 1 and 6 gets its own tracking issue. Each of the others is fixed by a
 named phase of this plan, which carries the evidence and the disposition together;
@@ -248,8 +248,9 @@ tell a label it rendered from one it did not.
 This is the authoritative layout. Both guides,
 `docs/dev_guide/dev_guide_pds4.rst` and
 `docs/user_guide/user_guide_pds4_bundle.rst`, describe the tree the two
-passes write, which is this one. Phase 10 reconciles both to it again after
-the draft run.
+passes write, which is this one, in this order. Part A of Phase 10 reconciled
+both to it; Part B reconciles them again after the draft run, should the run
+change it.
 
 ```text
 <bundle_name>/
@@ -719,6 +720,12 @@ has it, given the one warning and a delivery note recording the absence; a
 bundle delivered to the Node is not, since criterion 6 requires every
 reference to resolve.
 
+The guide delivered has to be a PDF that `validate`'s VeraPDF library can
+read, and presumably a PDF/A: `validate` reads the user guide's content with
+VeraPDF, and over the cohort bundle built with the tests' stand-in guide, an
+18-byte file that is not a PDF, it reported an internal error for that reason
+(Part A of Phase 10). The stand-in is for label tests only.
+
 The LID has its `:document:` segment in every label and inventory that names
 it (Phase 6).
 
@@ -1117,7 +1124,11 @@ per selected image, whether the navigation document, the summary PNG, the
 backplane FITS and the backplane metadata all exist and whether the
 navigation succeeded, and exits non-zero if any selected image is
 incomplete. Choosing a cohort for the draft run is exactly this question,
-so the flag pays for itself before the plan ends.
+so the flag pays for itself before the plan ends. Part A of Phase 10 added
+it: `sd_create_bundle labels --check-only` prints one line per selected image
+and then a count, writes nothing, neither needs nor creates a bundle root,
+and takes the four paths from `image_inputs`, the one function the labels
+pass takes them from.
 
 ### 3.12 The synthetic cohort the tests run on
 
@@ -1337,9 +1348,10 @@ enumeration reads a volume's index table out of
 `<holdings>/metadata/<set>/<vol>/`, and the cohort writes no index label
 and no index table, so a selection by volume matches nothing. Growing
 the cohort a minimal holdings tree -- a parseable index label and table,
-and an image stub per row -- belongs to Phase 10, which is where the CLI
-and `validate` workflow is actually needed, and is tracked as an issue
-of its own.
+and an image stub per row -- belongs to Part B of Phase 10, which is where
+the CLI workflow over a whole volume is actually needed, and is tracked as
+an issue of its own. Part A did not need it: its gate builds the cohort's
+bundle through the library entry points and runs the check over it.
 
 ### 3.13 The reference implementation, and where this bundle differs
 
@@ -2830,11 +2842,39 @@ Closes #71, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
 ### Phase 10 — Validation, the integrity pass, and the draft run
 
-Schema validation as a repeatable command: `xmlschema` against the five
-schemas the labels declare and `PDS4_CART_1O00_1970.xsd`, which the Cassini
-mission schema imports -- run offline without it, `xmlschema` warns that the
-`cart/v1` import failed and validates without it -- plus their Schematron
-rules, over a generated tree, added to `scripts/run-all-checks.sh` and to CI. The rules cannot be
+In two parts. Part A is what the synthetic cohort alone makes possible: the
+bundle check, the test that gates it, and `--check-only`. Part B is the draft
+run over a real COISS volume, and waits on the Cassini label facts reaching
+`main`, a fresh navigation, and the DOIs.
+
+#### Part A — The bundle check, its gate and `--check-only`
+
+Schema validation as a repeatable command: `sd_create_bundle check <dataset>`,
+a third subcommand, the `spindoctor.cli.pds4.check` package. It checks a
+bundle tree that has already been written, reading only that tree and the
+shipped schemas, and writes nothing, not even a log. It prints one line per
+finding -- the file, the check that found it, where in the file, and the
+message -- then a count, and exits non-zero on any finding. It takes the
+dataset, `--config-file` and `--bundle-results-root`, since one of its checks
+reads the configuration. `lxml`, `elementpath` and `xmlschema` are runtime
+dependencies, their floors the versions tested on Python 3.11 and 3.12: 6.0.4,
+5.0.4 and 4.1.0.
+
+The schemas are shipped: the six XSD and six Schematron files of the five
+dictionaries the labels declare and of `PDS4_CART_1O00_1970`, which the
+Cassini mission schema imports, in `src/spindoctor/cli/pds4/schemas/`, as
+package data beside the templates. Nothing is fetched. Each
+`xsi:schemaLocation` URL and each `xml-model` `href` maps to its shipped copy
+by file name, and a URL with no shipped copy is a finding that names it.
+Imports resolve through the shipped directory as a catalog, each shipped XSD
+offered for its own `targetNamespace`, so no namespace is named in code; run
+offline without it, `xmlschema` warns that the `cart/v1` import failed and
+validates without it, and every warning `xmlschema` raises while building a
+schema set is a finding, so an import that fails cannot pass silently. A test
+over the shipped configuration holds every schema in each dataset's
+`pds4.<dataset>.schemas` to having its `.xsd` and its `.sch` shipped.
+
+The rules cannot be
 run by `lxml`'s ISO Schematron: on 2026-09-14 the product reviewer found
 that `lxml.isoschematron` refuses the PDS4 1O00 Schematron, reporting that
 it "does not work with schemas using the xslt2 query language".
@@ -2848,23 +2888,57 @@ it runs 116, skipping 267 of the PDS dictionary's 343, 101 of the Cassini
 dictionary's 102, 5 of the display dictionary's 7, 225 of the geometry
 dictionary's 251 and 209 of the rings dictionary's 220. 57 of the rules it
 skips match something in our labels, and a control `kernels.lblx` whose
-`kernel_type` is `XX` passes both it and the XSD. The gate therefore evaluates
+`kernel_type` is `XX` passes both it and the XSD. The check therefore evaluates
 the rules with XSLT match semantics, the ISO skeleton's: a node matches a rule
 when it is in `//(context)` from the document node, only the first matching
-rule in a pattern fires, and pattern variables are evaluated at the document
-node. An evaluator written that way for Phase 6's reviews agrees with
-pyschematron on the 116 rules pyschematron runs, catches every control, and
-covers the cohort bundle's labels in seconds; this phase puts one like it in
-the repository. The NASA PDS
+rule in a pattern fires, schema and pattern variables are evaluated at the
+document node, and a rule's variables at the node it matched. Its evaluator is
+a port of the one written that way for Phase 6's reviews, which agrees with
+pyschematron on the 116 rules pyschematron runs and catches every control.
+It selects a rule's nodes as `//` before each branch of the context's union,
+which by the definition of `//` is the same node set as `//(context)`: over
+the Phase 9 review's two cohort builds the two agree for all 12,953 (label,
+rule) pairs. The check then covers the cohort bundle's labels in a few
+seconds, where `//(context)`, evaluating the context afresh at every node,
+took 22 and 55 s over the two data labels alone. The NASA PDS
 `validate` tool is the authority for the draft acceptance and additionally
 checks referential integrity, but it is Java and does not belong in this
 repository's CI; the Python check is the gate that runs on every PR, and
-`validate` is run once by hand for the draft.
+`validate` is run by hand for the draft.
 
-Until the DOIs are registered, the check over the synthetic cohort is expected to
-report exactly the `TODO DOI` placeholders in `bundle.lblx` and the user guide's
-label (section 3.13), from the XSD, and nothing else. Part A of Phase 8 removed
-the rest: each data label's missing `Target_Identification`, and the Schematron's
+**The integrity checks**, from acceptance criteria 5-7: every `<file_name>`
+names a file beside its label; every file in the tree is a label or is named
+by exactly one label; no label holds a `[[[` marker; no element is empty
+unless it carries `xsi:nil`; and every `lid_reference` and `lidvid_reference`
+under the bundle's own LID resolves to a product in the tree, and a LIDVID to
+that product's version. External references are left to `validate`, which
+checks them against the registered context products.
+
+**The gate is a test in the default suite**,
+`tests/spindoctor/cli/pds4/check/test_check_cassini_iss_saturn.py`, so pytest
+runs it both in `scripts/run-all-checks.sh` and in CI, with no script step of
+its own. It builds the cohort bundle twice through
+`tests/spindoctor/cli/pds4/cohort_bundle.py`, plain and with the stand-in
+guide, runs the check over each, and asserts that the findings are exactly
+these:
+
+- the `TODO DOI` placeholders, from the XSD, until the DOIs are registered
+  (section 3.13): `bundle.lblx`'s one in both builds, and the guide label's
+  two in the guide build;
+- each data label's empty `cassini:ISS_Specific_Attributes`, from the
+  integrity check, in both builds, until Part B of Phase 8 fills it (section
+  2.2, row 2);
+- in the plain build, the seven references to the user guide's LID -- from
+  the two data labels, the two browse labels, the data collection label, the
+  metakernel label and the bundle label -- which a bundle without the PDF does
+  not hold (section 3.6, criterion 9), and which `validate` reports as
+  warnings.
+
+The check was expected to report the DOI placeholders alone. It reports the
+other two because each is true of the bundle -- an element with nothing in it,
+a reference to a product the tree does not hold -- and each leaves the list
+when what it records changes. Part A of Phase 8 removed every other finding:
+each data label's missing `Target_Identification`, and the Schematron's
 five failures, all targets -- `bundle.lblx`'s two, for its targets' name and type;
 `collection_data.lblx`'s two, under `pds:Product_Collection/pds:Context_Area`,
 which requires a Mission Science Data collection's targets' name and type; and
@@ -2877,7 +2951,9 @@ the product is: over Phase 6's cohort bundle the evaluator refuses a
 collection typed `Document`, and its member entry typed
 `bundle_has_document_collection`, each a value the vocabulary holds. A value
 that is wrong but allowed is left to the tests and to `validate`; a cohort
-test pins those three.
+test pins those three. Part A's controls repeat all six over the cohort's
+bundle: each `XX` fails, `kernel_type` `XX` by the rule on
+`pds:SPICE_Kernel/pds:kernel_type`, and each wrong-but-allowed value passes.
 
 **The command reads each table through its own label.** Neither schema can see
 whether a table agrees with the label describing it. Of eleven deliberate
@@ -2891,29 +2967,103 @@ respelled constant too, since `-999.000` is a valid real and is never compared
 with the constant. So the command gains a check that reads each table by its
 label alone: the `Header` and `Table_Character` offsets and lengths, `records`,
 `fields`, each field's location, length and data type, its unit against the
-configuration, and each missing cell against its declared constant. The
-product review's `check_misc.py` (its `check_table`, about 150 lines) is one
-such reader.
+configuration, and each missing cell against its declared constant.
+`spindoctor.cli.pds4.check.tables` is a port of the product review's
+`check_table` and `check_units`, over every table-bearing label in the tree,
+not only the two global indexes: the index tables' `Table_Character`, with its
+`Header`, and the inventories' `Inventory`, a `Table_Delimited`. The objects
+of the file area are held to tile the file, and each value to the simple type
+of its `data_type` in the common dictionary the label declares. The fields of
+a group, a `Table_Binary` -- none is in the tree -- and a file area that also
+holds an object of another class are left to the XSD and to `validate`. The
+seven breaks are its controls, each failing its test, with an inventory whose
+`records` is one too many and a missing cell spelled otherwise than its
+constant.
 
 `--check-only` on the labels pass, per section 3.11.
+
+Part A reconciled `docs/dev_guide/dev_guide_pds4.rst` and
+`docs/user_guide/user_guide_pds4_bundle.rst` to section 3.1: both trees are
+section 3.1's, in its order, and neither names a file it does not hold.
+
+**NASA PDS `validate` over the cohort, 2026-09-14.** `validate` 4.2.0, from
+the release's `validate-4.2.0-bin.tar.gz`, needs Java 17 or newer: its
+changelog says so, and the system `java`, OpenJDK 1.8, is too old, so it runs
+with `JAVA_HOME` naming a newer JDK, which its launcher reads first. The
+command, over each bundle root:
+
+```text
+JAVA_HOME=<JDK 17 or newer> validate -R pds4.bundle -e lblx \
+    [--pdf-error-dir DIR] -r REPORT -t BUNDLE_ROOT
+```
+
+`--pdf-error-dir` has to name a directory that exists; otherwise `validate`
+stops with "Could not parse dir ... as a directory" and writes no report. A
+run over the cohort takes about 5 s, with data-content validation on, and
+takes the schemas from the labels' `schemaLocation` URLs, which needs the
+network. Over the Phase 9 review's builds of the cohort bundle:
+
+- **Plain:** 15 products, 14 passing. Two errors, both from `bundle.lblx`'s
+  `TODO DOI` placeholder, one element giving two messages (`cvc-pattern-valid`
+  and `cvc-type.3.1.3`). Seven `warning.integrity.reference_not_found`, the
+  seven labels citing the user guide's LID, which a build without the PDF does
+  not hold. Referential integrity: 15 checks, all passing, every context
+  product reference registered.
+- **With a stand-in guide:** 16 products, 14 passing. Six schema errors from
+  the three `TODO DOI` placeholders, and one `error.validation.internal_error`:
+  `validate` reads the PDF with VeraPDF, which cannot parse the 18-byte stand-in
+  (section 3.6). No warnings. Referential integrity: 16 checks, all passing.
+
+Over the cohort, then, `validate`'s only errors are the DOI placeholders, and
+it raises nothing `sd_create_bundle check` does not. The supplemental file's
+last line (section 2.2, row 7) is accepted by `validate` 4.2.0: no product
+failed content validation. A plain build's guide references are warnings, not
+errors, in line with criterion 9: they are the missing-PDF signal. Criterion 2
+is then blocked only by the DOIs, in both builds.
+
+Over Part A's own builds of the cohort bundle, at `06247cd9`, `validate` gives
+the same results: plain, 15 products, 2 errors (the one placeholder, twice),
+7 warnings, and 15 integrity checks passing; with the stand-in guide, 16
+products, 6 schema errors from the three placeholders and the VeraPDF error,
+no warnings, and 16 integrity checks passing. `sd_create_bundle check` makes
+10 findings over the plain build -- the placeholder, the two empty
+`cassini:ISS_Specific_Attributes`, and the seven references `validate` warns
+of -- and 5 over the build with the guide: the three placeholders and the two
+empty blocks. The two agree on everything both look at. Each of `validate`'s
+schema errors is a placeholder the check reports once, and each of its
+warnings is a reference the check reports. The empty blocks are the check's
+alone, since the XSD lets `cassini:ISS_Specific_Attributes` be empty, and the
+unreadable PDF is `validate`'s alone, since the check does not read a
+document's content.
+
+#### Part B — The draft run over a real volume
 
 Then the draft run itself. Run it twice: first over the synthetic cohort,
 which needs nothing but the repository and is where every schema error
 should already have been found, and then over the real one. For the real
-run: choose a cohort, navigate it, generate backplanes, generate the bundle,
-run `validate`, and record the result. The
+run: choose a cohort with `--check-only`, navigate it, generate backplanes,
+generate the bundle, run `sd_create_bundle check` and `validate`, and record
+the result. The
 cohort should be one COISS volume — large enough that the collection
 machinery is exercised over more than one directory, small enough to
 regenerate in an afternoon when a review comment lands. The local tree at
 `/data/nav-offset-results` is not it: 75 documents of which 17 are
 `status == "success"`, and 2 backplane products.
 
-Finally, reconcile `docs/dev_guide/dev_guide_pds4.rst` and
-`docs/user_guide/user_guide_pds4_bundle.rst` to section 3.1, and the four
-plan files as if this branch had merged.
+Part B waits on three things. The Cassini ISS label facts have to reach
+`main` (#684), from which Part B of Phase 8 fills
+`cassini:ISS_Specific_Attributes`. The volume has to be navigated afresh,
+since a navigation by an earlier version recorded no exposure times in its
+`observation` block (section 3.4). And the DOIs have to be registered, since
+criterion 2 cannot hold while the placeholders stand. A delivered bundle also
+needs the user-guide PDF (section 3.6).
 
-Closes the dev-guide output-layout part of #265, the last of its three
-parts, and #66; contributes to #53.
+Finally, reconcile both guides to what the draft run produces, should it
+differ from section 3.1, and the four plan files as if this branch had
+merged.
+
+Part A closes the dev-guide output-layout part of #265, the last of its three
+parts, and #66; Part B contributes to #53.
 
 ---
 
@@ -2924,8 +3074,13 @@ parts, and #66; contributes to #53.
    test that walks the tree, not by inspection.
 2. The NASA PDS `validate` tool reports zero errors over that tree. The
    command and its output are recorded in the branch's final PR.
-3. The Python schema check in `scripts/run-all-checks.sh` reports zero
-   errors over a bundle built from the synthetic cohort, and runs in CI.
+3. `sd_create_bundle check` reports, over a bundle built from the synthetic
+   cohort, exactly the findings Part A of Phase 10 lists as known -- the
+   `TODO DOI` placeholders until the DOIs are registered, each data label's
+   empty `cassini:ISS_Specific_Attributes` until Part B of Phase 8, and, in a
+   build without the user guide, the references to it -- and nothing else. A
+   test in the default suite asserts it over a plain build and one with a
+   stand-in guide, so pytest runs it in `scripts/run-all-checks.sh` and in CI.
 4. The whole suite passes with no holdings mounted, no `SPICE_PATH`, and no
    network — the cohort supplies every input the PDS4 tests read.
 5. Every `<file_name>` in every generated label names a file that exists in
@@ -3122,9 +3277,10 @@ planes and one line of numpy over an existing FITS would have shown it.
 And read the whole path before concluding: that same finding missed
 `merge.py`, where the ID map is written.
 
-Phase 10's draft run needs the operator's cohort choice, and the user-guide
-PDF if the draft is to be delivered rather than reviewed internally
-(sections 3.6 and 10 of Phase 10). Neither blocks Phases 1-9. One question
+Part B of Phase 10, the draft run, needs the operator's cohort choice, and
+the user-guide PDF if the draft is to be delivered rather than reviewed
+internally (section 3.6 and Phase 10). Neither blocks Phases 1-9 or Part A of
+Phase 10. One question
 is open and is not the operator's to answer alone: whether this information
 model build's dictionaries are registered (section 3.9), which the
 Engineering Node is being asked. It bears on acceptance criterion 6 and on
