@@ -2,16 +2,20 @@
 
 What each index label says of its table: its ``Header`` is the table's header line and its
 ``Table_Character`` begins where that line ends; it counts the table's rows as its
-records and its columns as its fields; each ``Field_Character`` lands on the column it
-names in every record; and each row's exposure start and stop are the ones its data label
-states.  Those are asked of the cohort's bundle.  Two more questions need a
+records and its columns as its fields; each ``Field_Character`` is numbered by its
+position and lands on the column it names in every record; each statistic field states
+the data type, unit and description its configuration gives it; each label names the
+table beside it; and each row's exposure start and stop are the ones its data label
+states.  The miscellaneous collection and the bundle's entry for it state the
+miscellaneous types.  Those are asked of the cohort's bundle.  Two more questions need a
 configuration the test chooses, and are asked of the shipped templates over plumbing
 inputs: that a plane added to the configuration adds a column to the table and a
-``Field_Character`` to the label, and that a missing statistic's cell holds the constant
-its field declares, in the spelling the label declares it.  The plumbing is tested over
-stand-in templates in ``test_global_index.py``.
+``Field_Character`` to the label, and that a missing statistic's cell, in either table,
+holds the constant its field declares, in the spelling the label declares it.  The
+plumbing is tested over stand-in templates in ``test_global_index.py``.
 """
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +26,7 @@ from filecache import FCPath
 from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
+from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
@@ -69,14 +74,22 @@ class _FieldCharacter:
 
     Attributes:
         name: Its name.
+        number: Its ``field_number``.
         location: The byte its field begins at in a record, counted from 1.
         length: Its field's length in bytes.
+        data_type: Its data type.
+        unit: Its unit, or an empty string.
+        description: Its description, its whitespace collapsed to single spaces.
         missing_constant: The missing constant it declares, or an empty string.
     """
 
     name: str
+    number: int
     location: int
     length: int
+    data_type: str
+    unit: str
+    description: str
     missing_constant: str
 
     def value(self, record: str) -> str:
@@ -116,8 +129,12 @@ def _field_characters(root: ElementTree.Element) -> list[_FieldCharacter]:
     return [
         _FieldCharacter(
             name=_text(field, 'pds:name'),
+            number=int(_text(field, 'pds:field_number')),
             location=int(_text(field, 'pds:field_location')),
             length=int(_text(field, 'pds:field_length')),
+            data_type=_text(field, 'pds:data_type'),
+            unit=_text(field, 'pds:unit'),
+            description=' '.join(_text(field, 'pds:description').split()),
             missing_constant=_text(field, 'pds:Special_Constants/pds:missing_constant'),
         )
         for field in root.iterfind(f'{RECORD}/pds:Field_Character', PDS4_NAMESPACES)
@@ -250,14 +267,16 @@ def test_every_field_character_lands_on_the_column_it_names(
 ) -> None:
     """Each ``Field_Character`` names a column, and its location and length are that column's.
 
-    The fields a label states, in order, name the columns the header line names.  Laid
-    end to end with a comma between them, the fields' bytes rebuild every record exactly,
-    so each field begins where its column's value begins and ends where it ends, and
-    every record is the ``record_length`` the label states.
+    The fields a label states, in order, name the columns the header line names, each
+    numbered by its position from 1.  Laid end to end with a comma between them, the
+    fields' bytes rebuild every record exactly, so each field begins where its column's
+    value begins and ends where it ends, and every record is the ``record_length`` the
+    label states.
     """
     products = _cohort_index_products(cassini_cohort, tmp_path)
     described = {name: _field_characters(product.label) for name, product in products.items()}
     names = {name: [field.name for field in fields] for name, fields in described.items()}
+    numbers = {name: [field.number for field in fields] for name, fields in described.items()}
     rebuilt = {
         name: [
             ','.join(field.value(record) for field in described[name]) + '\n'
@@ -273,8 +292,91 @@ def test_every_field_character_lands_on_the_column_it_names(
         for name, product in products.items()
     }
     assert names == {name: product.header_names for name, product in products.items()}
+    assert numbers == {name: list(range(1, len(fields) + 1)) for name, fields in described.items()}
     assert rebuilt == {name: product.records for name, product in products.items()}
     assert lengths == record_lengths
+
+
+FIXED_COLUMNS = frozenset(
+    {
+        'pds:logical_identifier',
+        'body_name',
+        'file_spec',
+        'pds:start_date_time',
+        'pds:stop_date_time',
+    }
+)
+"""The columns an index table gives whatever planes the configuration declares."""
+
+
+def _configured_statistic_fields(
+    entries: Sequence[Mapping[str, Any]],
+) -> list[tuple[str, str, str, str]]:
+    """Return what each statistic field of a table has to state, from its configuration.
+
+    Parameters:
+        entries: The table's configured planes, ``backplanes.bodies`` or
+            ``backplanes.rings``, in order.
+
+    Returns:
+        For each plane its minimum column and then its maximum: the column's name, the
+        data type its entry gives, the unit its statistic is in, and the description its
+        own entry gives, its whitespace collapsed to single spaces.
+    """
+    return [
+        (
+            entry['index'][end]['name'],
+            entry['index']['data_type'],
+            statistics_units(entry['units']),
+            ' '.join(entry['index'][end]['description'].split()),
+        )
+        for entry in entries
+        for end in ('minimum', 'maximum')
+    ]
+
+
+def test_every_statistic_field_states_its_configured_type_unit_and_description(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """Each statistic field states the data type, unit and description of its column.
+
+    The data type and the description are the ones the column's own entry in the
+    configuration gives, and the unit is the one its plane's statistic is in: the plane's
+    unit restated through ``statistics_units``, so an angle in radians is a column in
+    degrees.  Every field after the fixed columns is held, in order, to the configured
+    planes' minimum and maximum columns, in both tables.
+    """
+    products = _cohort_index_products(cassini_cohort, tmp_path)
+    backplanes = cassini_cohort.dataset().config.backplanes
+    configured = {
+        'global_bodies_index': _configured_statistic_fields(backplanes.bodies),
+        'global_rings_index': _configured_statistic_fields(backplanes.rings),
+    }
+    stated = {
+        name: [
+            (field.name, field.data_type, field.unit, field.description)
+            for field in _field_characters(product.label)
+            if field.name not in FIXED_COLUMNS
+        ]
+        for name, product in products.items()
+    }
+    assert stated == configured
+
+
+def test_each_index_label_names_the_table_beside_it(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """Each index label's ``file_name`` is the table of its own stem, beside it.
+
+    A PDS4 label names its file with no directory part, so the file it names has to be
+    the table in the label's own directory, which is the one read here.
+    """
+    products = _cohort_index_products(cassini_cohort, tmp_path)
+    named = {
+        name: _text(product.label, f'{AREA}/pds:File/pds:file_name')
+        for name, product in products.items()
+    }
+    assert named == {name: f'{name}.tab' for name in INDEX_NAMES}
 
 
 TIME_COORDINATES = 'pds:Observation_Area/pds:Time_Coordinates'
@@ -330,29 +432,41 @@ LATITUDE_ONLY = {'MOON': {'backplanes': {'latitude': {'min': -10.0, 'max': 20.0,
 """One body's statistics: a latitude, in degrees as a radian plane's statistic is, alone."""
 
 
-def _bodies_index_over(
-    tmp_path: Path, templates: dict[str, str], bodies: list[dict[str, Any]]
-) -> _IndexProduct:
-    """Write one image's bodies table and its label, under the given body planes.
+RADIUS_ONLY = {'backplanes': {'radius': {'min': 80000.0, 'max': 90000.0, 'units': 'km'}}}
+"""The rings' statistics: a radius, in kilometers, alone."""
 
-    The image's one body has a latitude statistic and no other, so any other plane the
-    configuration declares has no statistic for it.
+
+def _index_products_over(
+    tmp_path: Path,
+    templates: dict[str, str],
+    *,
+    bodies: list[dict[str, Any]],
+    rings: list[dict[str, Any]],
+) -> dict[str, _IndexProduct]:
+    """Write one image's index tables and their labels, under the given planes.
+
+    The image's one body has a latitude statistic and no other, and its rings a radius
+    statistic and no other, so any other plane the configuration declares has no
+    statistic in either table.
 
     Parameters:
         tmp_path: The directory the bundle environment is built in.
         templates: The index label templates to render, by name.
         bodies: The ``backplanes.bodies`` entries the configuration declares.
+        rings: The ``backplanes.rings`` entries the configuration declares.
 
     Returns:
-        The bodies table and its label.
+        Both tables and their labels, by name.
     """
-    env = make_bundle_env(tmp_path, template_contents=templates, bodies=bodies)
+    env = make_bundle_env(tmp_path, template_contents=templates, bodies=bodies, rings=rings)
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=LATITUDE_ONLY)
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', bodies=LATITUDE_ONLY, rings=RADIUS_ONLY
+    )
     generate_global_index_files(
         FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
     )
-    return _index_product(env.bundle_dir / 'miscellaneous', 'global_bodies_index')
+    return _index_products(env.bundle_dir / 'miscellaneous')
 
 
 def test_a_plane_added_to_the_configuration_adds_a_column_and_a_field_character(
@@ -367,8 +481,13 @@ def test_a_plane_added_to_the_configuration_adds_a_column_and_a_field_character(
     templates = _shipped_index_templates(cassini_cohort)
     latitude = index_entry('latitude', 'rad')
     resolution = index_entry('resolution', 'km/pixel')
-    before = _bodies_index_over(tmp_path / 'before', templates, [latitude])
-    after = _bodies_index_over(tmp_path / 'after', templates, [latitude, resolution])
+    radius = [index_entry('radius', 'km')]
+    before = _index_products_over(tmp_path / 'before', templates, bodies=[latitude], rings=radius)[
+        'global_bodies_index'
+    ]
+    after = _index_products_over(
+        tmp_path / 'after', templates, bodies=[latitude, resolution], rings=radius
+    )['global_bodies_index']
     added = ['minimum_resolution', 'maximum_resolution']
     fields_before = [field.name for field in _field_characters(before.label)]
     fields_after = [field.name for field in _field_characters(after.label)]
@@ -376,21 +495,31 @@ def test_a_plane_added_to_the_configuration_adds_a_column_and_a_field_character(
     assert fields_after == fields_before + added
 
 
+@pytest.mark.parametrize('index', INDEX_NAMES, ids=['bodies', 'rings'])
 def test_a_missing_statistic_s_cell_holds_the_constant_its_field_declares(
-    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path, index: str
 ) -> None:
     """A cell whose plane has no statistic holds its field's missing constant, as declared.
 
-    The body has no resolution statistic, so both of its resolution cells hold the
-    configured masked value.  Each of those fields declares that value as its missing
-    constant in the spelling its cells have, which is the text the NASA PDS ``validate``
-    tool compares a field's trimmed value to.
+    Neither the body nor the rings have a resolution statistic, so both resolution cells
+    of each table hold the configured masked value.  Each of those fields declares that
+    value as its missing constant in the spelling its cells have.  The NASA PDS
+    ``validate`` tool accepts such a cell as a real, as it would any number, so it is the
+    declaration that tells a reader the value means the plane has no statistic there.
+
+    Parameters:
+        cassini_cohort: The session's Cassini ISS Saturn cohort, whose dataset ships the
+            templates.
+        tmp_path: Base temporary directory for this test's bundle.
+        index: The table whose resolution cells are read.
     """
-    product = _bodies_index_over(
+    products = _index_products_over(
         tmp_path,
         _shipped_index_templates(cassini_cohort),
-        [index_entry('latitude', 'rad'), index_entry('resolution', 'km/pixel')],
+        bodies=[index_entry('latitude', 'rad'), index_entry('resolution', 'km/pixel')],
+        rings=[index_entry('radius', 'km'), index_entry('resolution', 'km/pixel')],
     )
+    product = products[index]
     fields = {field.name: field for field in _field_characters(product.label)}
     missing = [fields['minimum_resolution'], fields['maximum_resolution']]
     cells = [field.value(product.records[0]).strip() for field in missing]
@@ -425,3 +554,26 @@ def test_each_primary_member_of_the_miscellaneous_inventory_is_a_label_beside_it
     )
     assert len(primaries) == len(INDEX_NAMES)
     assert primaries == labels
+
+
+def test_the_miscellaneous_labels_state_the_miscellaneous_types(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """The collection and the bundle's entry for it state the miscellaneous types.
+
+    Each field's schema permits other collections' values as well, so a label carrying
+    another collection's type passes every schema check: the collection's type, and the
+    reference type of the bundle's member entry naming the collection.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
+    collection_label = env.bundle_dir / 'miscellaneous' / 'collection_miscellaneous.lblx'
+    collection = ElementTree.parse(collection_label).getroot()
+    lid = _text(collection, 'pds:Identification_Area/pds:logical_identifier')
+    bundle = ElementTree.parse(env.bundle_dir / 'bundle.lblx').getroot()
+    reference_types = [
+        _text(entry, 'pds:reference_type')
+        for entry in bundle.iterfind('pds:Bundle_Member_Entry', PDS4_NAMESPACES)
+        if _text(entry, 'pds:lid_reference') == lid
+    ]
+    assert _text(collection, 'pds:Collection/pds:collection_type') == 'Miscellaneous'
+    assert reference_types == ['bundle_has_miscellaneous_collection']
