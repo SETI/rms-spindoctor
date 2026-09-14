@@ -151,6 +151,8 @@ def test_bodies_index_header_from_configured_backplane_types(tmp_path: Path) -> 
         'pds:logical_identifier',
         'body_name',
         'file_spec',
+        'pds:start_date_time',
+        'pds:stop_date_time',
         'minimum_latitude',
         'maximum_latitude',
         'minimum_resolution',
@@ -193,10 +195,13 @@ def test_each_field_is_as_long_as_the_longest_value_in_its_column(tmp_path: Path
     table = env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab'
     lid = 'urn:nasa:pds:fake_bundle:data:1111111111n'
     path = 'data/shard0/1111111111n_backplanes.lblx'
+    # The exposure's start and stop, NAVIGATED_TIMES, as SPICE writes them to the millisecond
+    times = '2004-02-07T04:25:35.585Z,2004-02-07T04:25:36.045Z'
     assert table.read_bytes().decode('ascii').splitlines(keepends=True) == [
-        'pds:logical_identifier,body_name,file_spec,minimum_latitude,maximum_latitude\n',
-        f'{lid},A     ,{path},  1.000, 2.000\n',
-        f'{lid},MOON_B,{path},-12.500,45.250\n',
+        'pds:logical_identifier,body_name,file_spec,pds:start_date_time,pds:stop_date_time,'
+        'minimum_latitude,maximum_latitude\n',
+        f'{lid},A     ,{path},{times},  1.000, 2.000\n',
+        f'{lid},MOON_B,{path},{times},-12.500,45.250\n',
     ]
 
 
@@ -211,8 +216,8 @@ def test_a_degrees_column_is_written_to_three_decimals(tmp_path: Path) -> None:
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
-    assert rows[1][3] == '1.235'
-    assert rows[1][4] == '2.000'
+    assert rows[1][5] == '1.235'
+    assert rows[1][6] == '2.000'
 
 
 def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
@@ -226,8 +231,8 @@ def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
-    assert rows[1][2] == '81000.0'
-    assert rows[1][3] == '125001.0'
+    assert rows[1][4] == '81000.0'
+    assert rows[1][5] == '125001.0'
 
 
 def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path: Path) -> None:
@@ -250,8 +255,8 @@ def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path:
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=fine)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
-    assert rows[1][2] == '0.00015470'
-    assert rows[1][3] == '0.00080214'
+    assert rows[1][4] == '0.00015470'
+    assert rows[1][5] == '0.00080214'
 
 
 def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
@@ -284,11 +289,11 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
-    assert rows[1][5] == '0.00060000'
-    assert rows[1][6] == '4200.0'
-    assert rows[2][5] == '70853'
-    assert rows[2][6] == '123456'
-    assert rows[3][5] == '0.0000'
+    assert rows[1][7] == '0.00060000'
+    assert rows[1][8] == '4200.0'
+    assert rows[2][7] == '70853'
+    assert rows[2][8] == '123456'
+    assert rows[3][7] == '0.0000'
 
 
 @pytest.mark.parametrize(
@@ -505,7 +510,7 @@ def test_a_missing_statistic_is_the_masked_value_in_its_column_s_format(tmp_path
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
-    assert rows[1][5:7] == ['-999.00', '-999.00']
+    assert rows[1][7:9] == ['-999.00', '-999.00']
 
 
 def test_index_path_to_image_file_is_data_relative(tmp_path: Path) -> None:
@@ -550,11 +555,18 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
     _write_image(env.bundle_dir / 'data', 'shard0/2222222222w', rings=RING_STATS)
     _run_global_index(env)
     rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
-    assert rows[0] == ['pds:logical_identifier', 'file_spec', 'minimum_radius', 'maximum_radius']
+    assert rows[0] == [
+        'pds:logical_identifier',
+        'file_spec',
+        'pds:start_date_time',
+        'pds:stop_date_time',
+        'minimum_radius',
+        'maximum_radius',
+    ]
     assert len(rows) == 2
     assert rows[1][1] == 'data/shard0/2222222222w_backplanes.lblx'
-    assert rows[1][2] == '81000.0'
-    assert rows[1][3] == '125001.0'
+    assert rows[1][4] == '81000.0'
+    assert rows[1][5] == '125001.0'
 
 
 def test_an_index_table_no_image_gives_a_row_is_left_out(

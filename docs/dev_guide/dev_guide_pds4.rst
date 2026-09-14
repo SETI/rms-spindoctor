@@ -609,6 +609,10 @@ through ``FCPath.open``.
 **The columns.**  The bodies table begins with ``pds:logical_identifier``
 (``ASCII_LID``), ``body_name`` and ``file_spec``, the path of the data label relative to
 the bundle's root; the rings table with ``pds:logical_identifier`` and ``file_spec``.
+Both then give ``pds:start_date_time`` and ``pds:stop_date_time``
+(``ASCII_Date_Time_YMD_UTC``), the image's exposure start and stop, which
+:func:`~spindoctor.cli.pds4.epochs.exposure_times` writes from the epochs the
+supplemental file records, to the millisecond, as the data label states them.
 Then each configured plane gives its table two columns, the least and the greatest value
 its statistic spans, as :class:`~spindoctor.cli.pds4.global_index.IndexColumn` entries
 built from the plane's entry in ``config_900_backplanes.yaml``, whose ``index`` block
@@ -962,6 +966,8 @@ documented above.
   :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome` — the range of the
   products' epochs, taken in the global index's read of the supplemental files
   and handed to the collection generator.
+- :func:`~spindoctor.cli.pds4.epochs.exposure_times` — an image's exposure start and
+  stop as the index tables write them, to the millisecond, as its data label does.
 - :func:`~spindoctor.support.time.et_to_pds4_utc` — the PDS4 spelling of an epoch,
   beside :func:`~spindoctor.support.time.et_to_utc`, in the one conversion, and
   :func:`~spindoctor.support.time.pds4_utc_midpoint`, the midpoint of two times so

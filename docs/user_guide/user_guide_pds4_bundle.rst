@@ -370,7 +370,9 @@ gives every column's name, position, width, data type, unit and description.
 
 A row's first column, ``pds:logical_identifier``, is the logical identifier of the
 image's data product, and its ``file_spec`` column is the path of that product's label
-in the bundle. The bodies table's ``body_name`` column names the body. The other
+in the bundle. Its ``pds:start_date_time`` and ``pds:stop_date_time`` columns give when
+the exposure began and ended, in UTC to the millisecond, as that label does. The bodies
+table's ``body_name`` column names the body. The other
 columns come in pairs, the least and the greatest value one backplane takes over the
 pixels where it has a value, named as the configuration names them, as in
 ``geom:minimum_latitude`` and ``geom:maximum_latitude``.

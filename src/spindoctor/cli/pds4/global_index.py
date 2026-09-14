@@ -2,9 +2,10 @@
 
 The summary pass reads every supplemental file the labels pass wrote once, here, and
 builds two tables from them: one row for each body of each image the data collection
-holds, and one row for each such image with ring backplanes, each giving the minimum and
-maximum every configured plane spans.  The same read takes the range of the products'
-epochs, which the data collection label and the bundle label state.
+holds, and one row for each such image with ring backplanes, each giving the image's
+exposure start and stop and the minimum and maximum every configured plane spans.  The
+same read takes the range of the products' epochs, which the data collection label and
+the bundle label state.
 
 Each table is fixed width, as the reference bundle's index tables are: a header line
 naming the columns, separated by commas, and then the rows, each field padded to the
@@ -41,7 +42,7 @@ from spindoctor.cli.pds4.collections import (
     supplemental_files,
     write_collection,
 )
-from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan
+from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan, exposure_times
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.dataset.dataset import DataSet, pds4_label_name
@@ -223,6 +224,26 @@ _FILE_COLUMN = IndexColumn(
     description="The path of the data product's label, relative to the bundle's directory.",
 )
 """The column naming each row's data label, under the reference bundle's name for it."""
+
+_START_COLUMN = IndexColumn(
+    name='pds:start_date_time',
+    data_type='ASCII_Date_Time_YMD_UTC',
+    description=(
+        "When the image's exposure began, in UTC to the millisecond, as the data product's "
+        'label states it.'
+    ),
+)
+"""The column giving each row's exposure start, under the PDS4 attribute's name."""
+
+_STOP_COLUMN = IndexColumn(
+    name='pds:stop_date_time',
+    data_type='ASCII_Date_Time_YMD_UTC',
+    description=(
+        "When the image's exposure ended, in UTC to the millisecond, as the data product's "
+        'label states it.'
+    ),
+)
+"""The column giving each row's exposure stop, under the PDS4 attribute's name."""
 
 
 @dataclass(frozen=True)
@@ -541,6 +562,11 @@ def generate_global_index_files(
     epochs are not taken into the range; its statistics are still checked, as every
     supplemental file's are.
 
+    Each row gives, after its data product's LID and, in the bodies table, the body, the
+    path of the data label and the start and stop of the image's exposure, which
+    :func:`~spindoctor.cli.pds4.epochs.exposure_times` writes from the epochs the
+    supplemental file records, to the millisecond, as the data label states them.
+
     Each label describes the table beside it: a ``Header`` over the header line, and a
     ``Table_Character`` over the records, with one ``Field_Character`` per column at the
     location and length the table was laid out with.  A configured plane gives each
@@ -695,6 +721,7 @@ def generate_global_index_files(
         if pds4_path_stub not in members:
             continue
         epochs.include(metadata['navigation'])
+        start, stop = exposure_times(metadata['navigation'])
         bodies = backplanes.get('bodies', {})
         rings = backplanes.get('rings', {})
 
@@ -707,7 +734,7 @@ def generate_global_index_files(
         # Body index: one line per image per body
         for body_name, body_data in bodies.items():
             body_backplanes = body_data.get('backplanes', {})
-            body_row: list[str] = [lid, body_name, path_to_image]
+            body_row: list[str] = [lid, body_name, path_to_image, start, stop]
             for plane in body_planes:
                 body_row.extend(plane.cells(body_backplanes.get(plane.name)))
             body_index_rows.append(body_row)
@@ -715,7 +742,7 @@ def generate_global_index_files(
         # Ring index: one line per image
         ring_backplanes = rings.get('backplanes', {})
         if ring_backplanes:
-            ring_row: list[str] = [lid, path_to_image]
+            ring_row: list[str] = [lid, path_to_image, start, stop]
             for plane in ring_planes:
                 ring_row.extend(plane.cells(ring_backplanes.get(plane.name)))
             ring_index_rows.append(ring_row)
@@ -727,25 +754,38 @@ def generate_global_index_files(
     rings_template = pdstemplate.PdsTemplate((template_dir / rings_label.name).as_posix())
     collection_template = pdstemplate.PdsTemplate((template_dir / collection_label.name).as_posix())
 
-    # The bodies table: the data product, the body and the data label, then the least
-    # and the greatest value of each configured body plane
+    # The bodies table: the data product, the body, the data label and the exposure's
+    # start and stop, then the least and the greatest value of each configured body plane
     bodies_written = _write_index(
         bodies_tab,
         bodies_label,
-        [_LID_COLUMN, _BODY_COLUMN, _FILE_COLUMN, *_statistic_columns(body_planes)],
+        [
+            _LID_COLUMN,
+            _BODY_COLUMN,
+            _FILE_COLUMN,
+            _START_COLUMN,
+            _STOP_COLUMN,
+            *_statistic_columns(body_planes),
+        ],
         body_index_rows,
         lid=index_lid(bundle_name, BODIES_INDEX),
         template=bodies_template,
         logger=logger,
     )
 
-    # The rings table: the data product and the data label, then the least and the
-    # greatest value of each configured ring plane
+    # The rings table: the data product, the data label and the exposure's start and
+    # stop, then the least and the greatest value of each configured ring plane
     # TODO Add planet name to rings table
     rings_written = _write_index(
         rings_tab,
         rings_label,
-        [_LID_COLUMN, _FILE_COLUMN, *_statistic_columns(ring_planes)],
+        [
+            _LID_COLUMN,
+            _FILE_COLUMN,
+            _START_COLUMN,
+            _STOP_COLUMN,
+            *_statistic_columns(ring_planes),
+        ],
         ring_index_rows,
         lid=index_lid(bundle_name, RINGS_INDEX),
         template=rings_template,
