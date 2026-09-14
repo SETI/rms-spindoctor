@@ -37,7 +37,11 @@ from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
-from spindoctor.cli.pds4.collections import generate_collection_files, generate_global_index_files
+from spindoctor.cli.pds4.collections import (
+    CollectionOutcome,
+    generate_collection_files,
+    generate_global_index_files,
+)
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
@@ -71,6 +75,8 @@ COLLECTION_BROWSE_TEMPLATE = (
     '<Collection_Browse>\n  <csv>$COLLECTION_BROWSE_CSV_PATH$</csv>\n</Collection_Browse>\n'
 )
 GLOBAL_INDEX_TEMPLATE = '<Index>\n  <records>$FILE_RECORDS$</records>\n</Index>\n'
+BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
+"""A template naming a variable no caller defines, so the render errors."""
 
 LABELS_TEMPLATES = {'data.lblx': DATA_TEMPLATE, 'browse.lblx': BROWSE_TEMPLATE}
 """The templates the per-image labels pass renders, and their fake bodies."""
@@ -439,6 +445,22 @@ SPICE's ``et2utc`` writes the two epochs as ``2004-02-07T04:25:35.585`` and
 ``2004-02-22T05:32:16.355``, so a label states the range as ``2004-02-07T04:25:35Z``
 to ``2004-02-22T05:32:17Z``.
 """
+
+
+def run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> CollectionOutcome:
+    """Run generate_collection_files against the environment's bundle root.
+
+    Parameters:
+        env: The hermetic bundle environment to process.
+        epochs: The range of the products' epochs to hand the generator.
+
+    Returns:
+        What the generation came to: the collection labels not written, and the images
+        whose products disagree.
+    """
+    return generate_collection_files(
+        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER, epochs=epochs
+    )
 
 
 def write_nav_inputs(
