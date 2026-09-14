@@ -699,9 +699,9 @@ _SHARED_LABEL_ITEMS: dict[str, Any] = {
 }
 """The label items every Cassini image of this tree shares.
 
-They are N1635282917_1_CALIB's, a narrow angle tour frame, with the target made the
-Iapetus every image here was taken of and the ground software version one a 2005 label
-writes.
+They are N1635282917_1_CALIB's, a narrow angle frame of 2009, except for six items a 2005
+image of Iapetus writes otherwise: ``MISSION_PHASE_NAME``, ``SOFTWARE_VERSION_ID``,
+``SEQUENCE_ID``, ``SEQUENCE_TITLE``, ``TARGET_DESC`` and ``TARGET_NAME``.
 """
 
 _CAMERA_LABEL_ITEMS: dict[str, dict[str, Any]] = {
@@ -738,6 +738,19 @@ def _label_time(et: float) -> str:
     return utc.strftime('%Y-%jT%H:%M:%S.%f')[:-3] + 'Z'
 
 
+def _build_time(et: float) -> str:
+    """Spell a build time the way a tour label writes its ``PRODUCT_CREATION_TIME``.
+
+    Parameters:
+        et: The epoch, in TDB seconds.
+
+    Returns:
+        The UTC year, day of year and time of day to the whole second, then ``.000``,
+        with no ``Z``.
+    """
+    return _label_time(et)[: -len('.000Z')] + '.000'
+
+
 def _label(
     exposure: AttitudeBaseline, *, camera: str, gain_mode: int, observation_id: str
 ) -> dict[str, Any]:
@@ -749,7 +762,8 @@ def _label(
     milliseconds, its gain is the text oops reads the gain state out of, and its shutter
     open, midtime and shutter close are the recorded epochs in the label's day-of-year
     text.  It reached Earth and was built on the ground after its shutter
-    closed, and the label writes its build time without the ``Z``, as a tour label does.
+    closed, and the label writes its build time to the whole second, as a tour label
+    does (see :func:`_build_time`).
     The rest is :data:`_SHARED_LABEL_ITEMS` and the camera's :data:`_CAMERA_LABEL_ITEMS`.
 
     Parameters:
@@ -780,7 +794,7 @@ def _label(
         'STOP_TIME': _label_time(exposure.stop_et),
         'EARTH_RECEIVED_START_TIME': _label_time(received),
         'EARTH_RECEIVED_STOP_TIME': _label_time(received + _DOWNLINK_S),
-        'PRODUCT_CREATION_TIME': _label_time(exposure.stop_et + _BUILT_AFTER_S).removesuffix('Z'),
+        'PRODUCT_CREATION_TIME': _build_time(exposure.stop_et + _BUILT_AFTER_S),
     }
 
 
