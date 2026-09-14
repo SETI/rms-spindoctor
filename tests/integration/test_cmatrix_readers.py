@@ -486,7 +486,7 @@ _RING_LONGITUDE_RESOLUTION_RAD = 0.1 * math.pi / 180.0
 # Pins on the consumer-level agreement, measured 2026-08-07 with this module
 # on the local holdings and pinned at measured-plus-margin (the measured
 # values are in the comments and the PR).  The two ring products came out
-# bit-identical (every geometry difference is metres against 25 km cells, so
+# bit-identical (every geometry difference is meters against 25 km cells, so
 # no pixel changed bins); the pins leave room for a handful of bin-boundary
 # flips under numerical drift without letting a directional error -- which
 # shifts the whole pattern by roughly twice the offset -- pass.
@@ -636,7 +636,7 @@ def test_the_ring_reprojections_agree_on_common_cells(ring_agreement: GridAgreem
     """Where both paths populate a cell, they put the same brightness in it.
 
     The derived pixel-space bound carried through the projection's local
-    scale moves each source pixel by metres against 25 km cells, so away
+    scale moves each source pixel by meters against 25 km cells, so away
     from a brightness boundary the binned values cannot move, and at a
     boundary only a bin-flip-thin population can; the counted quantity is
     that population's size against the product's own amplitude.

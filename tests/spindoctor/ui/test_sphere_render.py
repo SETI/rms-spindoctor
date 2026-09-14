@@ -528,7 +528,7 @@ def test_out_of_extent_valid_pixels_render_as_dark_red() -> None:
 
 
 def _one_pixel_grey(lon: float, lat: float, data: np.ndarray) -> int:
-    """Render one ray at ``(lon, lat)`` over ``data`` and return its grey level."""
+    """Render one ray at ``(lon, lat)`` over ``data`` and return its gray level."""
     image_ma = ma.MaskedArray(data, mask=False)
     qimg = _render(
         image_ma,
@@ -559,23 +559,23 @@ def test_latitude_past_the_midpoint_reads_the_nearer_row() -> None:
     Row ``r`` is the point sample taken at ``lat_min + r * d_lat``, so a ray 0.6
     of a row above row 0 is nearest row 1 and must read it.
     """
-    grey = _one_pixel_grey(0.0, _LAT_MIN + 0.6 * _D_LAT, _row_marked_data(1))
-    assert grey == 255
+    gray = _one_pixel_grey(0.0, _LAT_MIN + 0.6 * _D_LAT, _row_marked_data(1))
+    assert gray == 255
 
 
 def test_latitude_short_of_the_midpoint_reads_the_lower_row() -> None:
     """A ray short of the midpoint between two rows samples the lower row."""
-    grey = _one_pixel_grey(0.0, _LAT_MIN + 0.4 * _D_LAT, _row_marked_data(0))
-    assert grey == 255
+    gray = _one_pixel_grey(0.0, _LAT_MIN + 0.4 * _D_LAT, _row_marked_data(0))
+    assert gray == 255
 
 
 def test_longitude_past_the_midpoint_reads_the_nearer_column() -> None:
     """A ray past the midpoint between two columns samples the nearer column."""
-    grey = _one_pixel_grey(1.6 * _D_LON, 0.0, _col_marked_data(2))
-    assert grey == 255
+    gray = _one_pixel_grey(1.6 * _D_LON, 0.0, _col_marked_data(2))
+    assert gray == 255
 
 
 def test_longitude_short_of_the_midpoint_reads_the_lower_column() -> None:
     """A ray short of the midpoint between two columns samples the lower column."""
-    grey = _one_pixel_grey(1.4 * _D_LON, 0.0, _col_marked_data(1))
-    assert grey == 255
+    gray = _one_pixel_grey(1.4 * _D_LON, 0.0, _col_marked_data(1))
+    assert gray == 255

@@ -11,7 +11,7 @@ exposure_sec: 1.0
 # template locks onto the off-center crescent arc, so it is gated off, and a
 # brightness-weighted centroid only sees the body inside its predicted box.
 # Without the phase-aware coarse acquisition the recovered offset is biased by
-# several pixels (the body has left the box); BodyBlobNav instead synthesises a
+# several pixels (the body has left the box); BodyBlobNav instead synthesizes a
 # crescent template at the body's phase and sub-solar direction (carried on the
 # BODY_BLOB feature) and correlates it over the search window, re-centring the
 # box on the displaced body.  Recovering the planted offset here guards that

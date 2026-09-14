@@ -23,11 +23,11 @@ exposure_sec: 1.0
 # Phase 60 deg is chosen, not incidental.  A smooth haze disc near full
 # illumination is close to rotationally symmetric, so the mirror-correlation
 # scan grows side lobes about 15 px either side of the true axis whose
-# normalised height approaches the 0.90 competing-peak threshold; the technique
+# normalized height approaches the 0.90 competing-peak threshold; the technique
 # then refuses the frame rather than risk locking onto one.  Measured at this
 # body size, the strongest rival lobe runs 0.91 at phase 20, 0.89 at phase 40,
 # 0.74 at phase 60, and vanishes by phase 90 -- so a base scene at low phase
-# would characterise the gate, not the estimator.  The phase dependence itself
+# would characterize the gate, not the estimator.  The phase dependence itself
 # is a real property of the method and is swept in the util/ campaign.
 bodies:
   - name: TITAN

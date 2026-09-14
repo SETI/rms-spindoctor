@@ -191,14 +191,14 @@ def test_explicit_noise_override_beats_instrument_defaults() -> None:
 
 
 def _flat_defaults_scene(**noise_extra: Any) -> dict[str, Any]:
-    """A generic instrument_defaults scene whose disc centre is flat and bright.
+    """A generic instrument_defaults scene whose disc center is flat and bright.
 
     The generic detector has unit gain (electrons == DN) and a clean catalog
     chain (no dark, hot pixels, or banding), so the variance of the rendered
-    frame in the flat centre region isolates the shot term.
+    frame in the flat center region isolates the shot term.
     """
     scene = _disc('generic', size=128, oversample=1, artifacts={'instrument_defaults': True})
-    # A disc much larger than the frame makes the centre region flat; the
+    # A disc much larger than the frame makes the center region flat; the
     # signal clips at 1.0, which only flattens it further.
     scene['bodies'][0].update({'axis1': 400.0, 'axis2': 400.0, 'axis3': 400.0})
     if noise_extra:

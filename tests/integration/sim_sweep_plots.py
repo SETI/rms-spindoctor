@@ -187,7 +187,7 @@ def _mesh_pose_figure() -> None:
 # The Section 8 model-mismatch axes: (sweep name, x-axis label, panel title).
 # Each walks one render-vs-navigate mismatch from a self-consistency floor (the
 # first sweep value) into the mismatched regime; the recovery-error-vs-mismatch
-# curve is the product.  The floor point is drawn distinctly and labelled.
+# curve is the product.  The floor point is drawn distinctly and labeled.
 _MISMATCH_AXES = [
     ('psf_limb_mismatch', 'rendered PSF sigma (px)', 'PSF core mismatch (limb)'),
     ('psf_limb_wings', 'rendered PSF wing energy fraction', 'PSF wing mismatch (limb)'),
@@ -200,7 +200,7 @@ _MISMATCH_AXES = [
 
 
 def _mismatch_axes_figure() -> None:
-    """Grid the Section 8 recovery-error-vs-mismatch curves, floor point labelled.
+    """Grid the Section 8 recovery-error-vs-mismatch curves, floor point labeled.
 
     One panel per mismatch axis: recovered-offset error versus the swept
     mismatch parameter.  The zero-mismatch point (equality with the navigator's

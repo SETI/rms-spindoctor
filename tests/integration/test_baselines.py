@@ -88,7 +88,7 @@ def test_baseline_from_run_rounds_confidence_to_3_decimals() -> None:
 
 
 def test_baseline_json_roundtrip(tmp_path: Path) -> None:
-    """A baseline serialised and reloaded from disk compares equal."""
+    """A baseline serialized and reloaded from disk compares equal."""
     b = Baseline(
         image_id='ROUNDTRIP_001',
         offset_dv_px=12.3456,
