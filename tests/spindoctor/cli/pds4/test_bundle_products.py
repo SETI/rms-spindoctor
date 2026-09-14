@@ -1,16 +1,16 @@
 """Spec-first tests for the bundle's run-level products (phase 6).
 
 Contract under test (docs/dev_guide/dev_guide_pds4.rst "The bundle's run-level products"
-and "Exit status"): ``generate_bundle_products`` copies the readme, the user guide when
-the template directory holds it, the metakernel and the static collections' inventories
-from the template directory into the bundle, renders a label beside each, and renders the
-bundle label last, keeping it only over a bundle holding a label for every collection it
-declares.  An inventory lists a product of the bundle only when that product's label is in
-the bundle, and a collection left with no member is not written.  A bundle without the
-user guide is one warning naming the file rather than a label not written.  Every label is
-attempted, and each one not written is counted.  The summary pass clears an earlier run's
-products before it writes, and, in a bundle on the local file system, the user guide's
-directory with them when it is left empty.
+and "Exit status"): ``generate_bundle_products`` renders the readme and the static
+collections' inventories from the template directory into the bundle and copies the user
+guide when the template directory holds it and the metakernel, renders a label beside
+each, and renders the bundle label last, keeping it only over a bundle holding a label for
+every collection it declares.  An inventory lists a product of the bundle only when that
+product's label is in the bundle, and a collection left with no member is not written.  A
+bundle without the user guide is one warning naming the file rather than a label not
+written.  Every label is attempted, and each one not written is counted.  The summary pass
+clears an earlier run's products before it writes, and, in a bundle on the local file
+system, the user guide's directory with them when it is left empty.
 
 What the shipped Cassini templates say is tested over the cohort in
 ``test_bundle_products_cassini_iss_saturn.py``.
@@ -128,14 +128,18 @@ COPIES = {
     'spice_kernels/collection_spice_kernels.csv': 'collection_spice_kernels.csv',
     'xml_schema/collection_xml_schema.csv': 'collection_xml_schema.csv',
 }
-"""Each file the bundle takes from the template directory as it is, and its name there."""
+"""Each file the bundle takes from the template directory as it is, and its name there.
+
+The readme and the inventories are rendered, and their stand-ins name no variable, so each
+is the template directory's file as it is, as the copied metakernel is.
+"""
 
 
-def test_the_copied_products_are_the_template_directory_s_files(tmp_path: Path) -> None:
+def test_the_products_taken_from_the_template_directory_are_its_files(tmp_path: Path) -> None:
     """The readme, the metakernel and each static inventory are the template directory's.
 
-    The template directory holds the user guide, so the document inventory is copied as
-    it is too.
+    The template directory holds the user guide, so the document inventory is written as
+    it renders too.
     """
     env = _bundle_env(tmp_path)
     _run(env)
@@ -369,27 +373,34 @@ def test_a_bundle_label_with_no_range_to_state_is_not_written(
             3,
         ),
         ('collection_context.lblx', {'context/collection_context.lblx', 'bundle.lblx'}, 2),
+        (
+            'collection_context.csv',
+            {'context/collection_context.csv', 'context/collection_context.lblx', 'bundle.lblx'},
+            2,
+        ),
+        ('readme.txt', {'readme.txt'}, 1),
         ('bundle.lblx', {'bundle.lblx'}, 1),
     ],
-    ids=['user guide', 'metakernel', 'static collection', 'bundle'],
+    ids=['user guide', 'metakernel', 'static collection', 'static inventory', 'readme', 'bundle'],
 )
-def test_a_run_level_label_that_fails_to_render_is_counted(
+def test_a_run_level_product_that_fails_to_render_is_counted(
     tmp_path: Path, broken: str, absent: set[str], failed: int
 ) -> None:
-    """A run-level label that fails is counted, and every other run-level product is written.
+    """A run-level render that fails is counted, and every other run-level product is written.
 
     Each is a case of its own because each is counted by a statement of its own.  Every
-    label is attempted whichever fail, so each case holds every run-level product but the
-    failed label and what its failure takes with it.  The metakernel's takes the SPICE
-    kernel collection, which then has no member; a static collection's leaves that
-    collection without its label; and either takes the bundle label, which declares the
-    collection.  Each of those counts.
+    template is attempted whichever fail, so each case holds every run-level product but
+    the failed one and what its failure takes with it.  The metakernel's label takes the
+    SPICE kernel collection, which then has no member; a static collection's label leaves
+    that collection without its label; its inventory leaves it with neither; and each of
+    these takes the bundle label, which declares the collection.  Each of those counts,
+    and so does the readme.
 
     Parameters:
         tmp_path: Base temporary directory.
         broken: The template whose render errors in this case.
         absent: The run-level products not on disk afterwards.
-        failed: The labels not written.
+        failed: The labels, and the readme, not written.
     """
     env = _bundle_env(tmp_path, template_contents={broken: BROKEN_TEMPLATE})
     assert _run(env) == failed
