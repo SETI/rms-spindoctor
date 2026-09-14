@@ -31,8 +31,9 @@ from tests.spindoctor.cli.sd_create_bundle_helpers import BUNDLE_NAME, stub_data
 
 from spindoctor.cli import sd_create_bundle
 from spindoctor.cli.pds4.bundle_products import BundleProductsOutcome
-from spindoctor.cli.pds4.collections import CollectionOutcome, GlobalIndexOutcome
+from spindoctor.cli.pds4.collections import CollectionOutcome
 from spindoctor.cli.pds4.epochs import EpochRange
+from spindoctor.cli.pds4.global_index import GlobalIndexOutcome
 
 SUMMARY_PRODUCTS = (
     'data/collection_data.csv',

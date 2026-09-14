@@ -374,7 +374,7 @@ def generate_bundle_products(
             products come from.
         logger: Logger for diagnostic messages.
         epochs: The earliest start and the latest stop of the products' exposures, as
-            :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` took them,
+            :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` took them,
             or None when the data tree holds no supplemental file.
 
     Returns:

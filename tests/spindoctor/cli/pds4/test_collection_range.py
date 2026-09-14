@@ -15,12 +15,9 @@ from typing import Any
 import pytest
 from filecache import FCPath
 
-from spindoctor.cli.pds4.collections import (
-    GlobalIndexOutcome,
-    generate_collection_files,
-    generate_global_index_files,
-)
+from spindoctor.cli.pds4.collections import generate_collection_files
 from spindoctor.cli.pds4.epochs import EpochRange
+from spindoctor.cli.pds4.global_index import GlobalIndexOutcome, generate_global_index_files
 from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (

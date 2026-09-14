@@ -38,12 +38,9 @@ from tests.mini_nav_results.cohort import Cohort
 
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.bundle_products import generate_bundle_products
-from spindoctor.cli.pds4.collections import (
-    CollectionOutcome,
-    generate_collection_files,
-    generate_global_index_files,
-)
+from spindoctor.cli.pds4.collections import CollectionOutcome, generate_collection_files
 from spindoctor.cli.pds4.epochs import EpochRange
+from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 

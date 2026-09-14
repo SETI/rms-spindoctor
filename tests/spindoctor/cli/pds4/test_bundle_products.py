@@ -25,8 +25,8 @@ from filecache import file_cache as file_cache_module
 from filecache.file_cache_source import FileCacheSourceFake
 
 from spindoctor.cli.pds4.bundle_products import clear_bundle_products, generate_bundle_products
-from spindoctor.cli.pds4.collections import generate_global_index_files
 from spindoctor.cli.pds4.epochs import EpochRange
+from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (
