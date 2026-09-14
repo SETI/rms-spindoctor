@@ -564,7 +564,8 @@ Members carry an explicit version: the reference writes
 `S,urn:nasa:pds:context:instrument:issna.co::1.2`, naming the actual
 published version of each secondary product rather than leaving it open. Our
 `collection_context.csv` currently has no `::` at all on any line, which has
-to be filled in from the context products as they are registered. The one
+to be filled in from the context products as they are registered; Phase 6
+does so. The one
 exception the reference itself makes is its own `collection_context.csv`,
 which is LID-only; both forms appear to pass, so prefer the versioned one
 and let validation say otherwise.
@@ -1473,12 +1474,15 @@ The document collection's guide moves into a `user_guide/` subdirectory, per
 section 3.1. And `readme.txt` loses the clause placing the index files in
 the document collection, which section 3.1 moved.
 
-**The document inventory's members follow section 3.5.** As the reference's
+**The static inventories' members follow section 3.5.** As the reference's
 does, `collection_document.csv` lists beside its own primary the context
 products and the external ISS data user guide as `S` members, every member
 with an explicit version: the mission, the spacecraft and the two cameras at
 the versions their context products carry, and the ISS data user guide at
-`::2.0` (section 3.6).
+`::2.0` (section 3.6). `collection_context.csv`'s own four lines -- the
+mission, the spacecraft and the two cameras -- gain the same versions, the
+versioned form section 3.5 prefers over the reference's LID-only context
+inventory; Phase 8 adds the targets in that form.
 
 Tests: the summary pass over a one-image bundle produces every file section
 3.1 lists; the seven `Bundle_Member_Entry` LIDs each resolve to a
