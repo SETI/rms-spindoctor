@@ -541,6 +541,12 @@ whose products disagree. A collection label that fails
 to render is Phase 1's case, not this one: its inventory is written and
 stays, as the index tables do.
 
+A summary that exits 1 cleans up nothing, by the operator's Phase 1 ruling
+that the generator complains rather than repairs. After one, the index
+tables can hold rows for an image with no data label, and the browse labels
+can name a data collection that was not written. The directory is cleared
+and the bundle regenerated into it, as after a labels pass that exits 1.
+
 Three inventories are **generated**, because their membership depends on
 what the run produced: `collection_data.csv`, `collection_browse.csv`, and
 `collection_miscellaneous.csv`, whose two members are the global-index
