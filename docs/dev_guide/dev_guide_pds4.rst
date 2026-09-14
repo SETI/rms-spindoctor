@@ -43,7 +43,8 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    label stating the range it is handed.  An inventory lists one product per
    line, as ``P,<LIDVID>``, with no header, and every line, the last included,
    ends in a line feed alone, so the record count its label states is the
-   number of products the collection holds.
+   number of products the collection holds.  A collection with no product gets
+   neither an inventory nor a label (see `Exit status`_).
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
@@ -137,10 +138,18 @@ so it counts nothing against the run, including a batch it reports it could not
 have processed.
 
 ``sd_create_bundle summary`` counts the collection and index labels it did not
-write, over both generators, and exits 1 the same way.  The inventories and the
-index tables are written either way.  The data collection label counts as not
-written when the data tree holds no supplemental file, and so no range for it to
-state (see `Epochs`_).  The global index is generated first, and it refuses a
+write, over both generators, and exits 1 the same way.  The index tables are
+written either way, and so is the inventory of a collection whose label fails to
+render.  A collection whose label cannot state what PDS4 requires of it is not
+written at all -- neither its inventory nor its label, and whatever an earlier run
+left at either path is removed -- and counts once among the labels not written,
+with an error naming the collection and each reason.  A collection label states at
+least one record, so a collection with no member is never written; both
+collections take their members from the data labels, so a data tree holding no
+data label writes neither, whether or not it holds supplemental files.  The data
+collection label also states the range of its products' epochs, so a data tree
+holding no supplemental file writes no data collection (see `Epochs`_).  The
+global index is generated first, and it refuses a
 bundle with no ``data/`` directory, naming the directory, before any product of
 the pass is cleared or written.  The pass also exits 1 when a supplemental file
 holds a statistic no index column can -- one in a unit other than the one the
@@ -488,9 +497,9 @@ index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
 its :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome`.  That is why the
 summary pass runs the index first and hands the range to
 :func:`~spindoctor.cli.pds4.collections.generate_collection_files`.  A scan that
-read no supplemental file yields no range, and the
-data collection label is then counted as not written rather than rendered with empty
-dates.
+read no supplemental file yields no range, and the data collection is then not
+written, neither its inventory nor its label, rather than labeled with empty dates
+(see `Exit status`_).
 
 Output layout
 =============
