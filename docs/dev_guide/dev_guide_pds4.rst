@@ -620,9 +620,9 @@ targets of the data collection's members in its one read of the supplemental fil
 and :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns them in
 its :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome`; the driver hands them
 to the collection generator and to the run-level products.  The data collection label
-names them with ``collection_to_target``, the bundle label with ``bundle_to_target`` and
-the metakernel label with ``data_to_target``, the values the Schematron allows under
-each kind of product, and the context inventory lists each, after the members the
+names them with ``collection_to_target``, as the SPICE kernel collection label does, the
+bundle label with ``bundle_to_target`` and the metakernel label with ``data_to_target``,
+the values the Schematron allows under each kind of product, and the context inventory lists each, after the members the
 template directory ships, as ``S,<lidvid>``.  The document and miscellaneous inventories
 list no target, since no label of their collections names one.
 
