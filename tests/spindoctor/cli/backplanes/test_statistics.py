@@ -79,6 +79,16 @@ def test_statistics_of_a_non_angular_plane_keep_their_values_and_unit() -> None:
     assert stats['units'] == 'km'
 
 
+def test_a_statistic_is_restated_in_degrees_in_double_precision() -> None:
+    """A float32 plane's radians become degrees without losing the eighth decimal.
+
+    0.004730729 radians per pixel, as float32 holds it, is 0.27105080 degrees per pixel in
+    double precision and 0.27105078 in single.
+    """
+    stats = plane_statistics(np.array([0.004730729], dtype=np.float32), units='rad/pixel')
+    assert f'{stats["max"]:.8f}' == '0.27105080'
+
+
 CROSSING = np.array([359.7, 0.1, 359.9, 0.4])
 """Longitudes in degrees either side of zero, an arc 0.7 degrees wide, in no order."""
 
