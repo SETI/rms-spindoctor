@@ -245,6 +245,18 @@ def test_both_passes_take_no_file_the_dataset_does_not_declare(
     assert (env.bundle_dir / 'bundle.lblx').is_file()
 
 
+def _modified(path: Path) -> str:
+    """Return a file's modification time as a label states a creation time.
+
+    Parameters:
+        path: The file.
+
+    Returns:
+        Its modification time in UTC, to the second, as ``YYYY-MM-DDThh:mm:ssZ``.
+    """
+    return datetime.fromtimestamp(path.stat().st_mtime, UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
 def test_the_metakernel_label_describes_the_metakernel_beside_it(
     cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
 ) -> None:
@@ -261,8 +273,23 @@ def test_the_metakernel_label_describes_the_metakernel_beside_it(
     created = root.findtext(f'{stated}creation_date_time', '', PDS4_NAMESPACES)
     assert int(size) == metakernel.stat().st_size
     assert md5.strip() == hashlib.md5(metakernel.read_bytes(), usedforsecurity=False).hexdigest()
-    modified = datetime.fromtimestamp(metakernel.stat().st_mtime, UTC)
-    assert created.strip() == modified.strftime('%Y-%m-%dT%H:%M:%SZ')
+    assert created.strip() == _modified(metakernel)
+
+
+def test_the_bundle_label_gives_the_time_of_the_readme_beside_it(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """bundle.lblx states the time of the readme.txt beside it, to the second.
+
+    The file it names is the bundle's copy, whose bytes are the template directory's, so
+    only its time tells the two apart.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
+    root = ElementTree.parse(env.bundle_dir / 'bundle.lblx').getroot()
+    created = root.findtext(
+        'pds:File_Area_Text/pds:File/pds:creation_date_time', '', PDS4_NAMESPACES
+    )
+    assert created.strip() == _modified(env.bundle_dir / 'readme.txt')
 
 
 def test_the_spice_kernel_inventory_lists_the_metakernel_by_its_label_s_lid_and_version(
