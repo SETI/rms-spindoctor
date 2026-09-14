@@ -130,7 +130,9 @@ COLLECTION_DATA_TEMPLATE = collection_template(
 COLLECTION_BROWSE_TEMPLATE = collection_template(
     'browse', '  <csv>$COLLECTION_BROWSE_CSV_PATH$</csv>\n'
 )
-GLOBAL_INDEX_TEMPLATE = '<Index>\n  <records>$FILE_RECORDS$</records>\n</Index>\n'
+GLOBAL_INDEX_TEMPLATE = (
+    '<Index>\n  <lid>$INDEX_LID$</lid>\n  <records>$FILE_RECORDS$</records>\n</Index>\n'
+)
 BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
 """A template naming a variable no caller defines, so the render errors."""
 
@@ -203,8 +205,8 @@ LABELS_TEMPLATES = {'data.lblx': DATA_TEMPLATE, 'browse.lblx': BROWSE_TEMPLATE}
 SUMMARY_TEMPLATES = {
     'collection_data.lblx': COLLECTION_DATA_TEMPLATE,
     'collection_browse.lblx': COLLECTION_BROWSE_TEMPLATE,
-    'global_index_bodies.lblx': GLOBAL_INDEX_TEMPLATE,
-    'global_index_rings.lblx': GLOBAL_INDEX_TEMPLATE,
+    'global_bodies_index.lblx': GLOBAL_INDEX_TEMPLATE,
+    'global_rings_index.lblx': GLOBAL_INDEX_TEMPLATE,
     **RUN_LEVEL_FILES,
 }
 """The files the summary pass takes from the template directory, and their fake content."""

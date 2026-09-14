@@ -43,6 +43,7 @@ BUNDLE_TOP_LEVEL = {
     'context',
     'data',
     'document',
+    'miscellaneous',
     'spice_kernels',
     'xml_schema',
 }
@@ -59,10 +60,10 @@ SUMMARY_LAYOUT = {
     'data/collection_data.lblx',
     'document/collection_document.csv',
     'document/collection_document.lblx',
-    'document/supplemental/global_index_bodies.tab',
-    'document/supplemental/global_index_bodies.lblx',
-    'document/supplemental/global_index_rings.tab',
-    'document/supplemental/global_index_rings.lblx',
+    'miscellaneous/global_bodies_index.tab',
+    'miscellaneous/global_bodies_index.lblx',
+    'miscellaneous/global_rings_index.tab',
+    'miscellaneous/global_rings_index.lblx',
     'spice_kernels/collection_spice_kernels.csv',
     'spice_kernels/collection_spice_kernels.lblx',
     'spice_kernels/kernels.ker',
@@ -70,11 +71,7 @@ SUMMARY_LAYOUT = {
     'xml_schema/collection_xml_schema.csv',
     'xml_schema/collection_xml_schema.lblx',
 }
-"""Every file the summary pass writes into a bundle whose template directory has no guide.
-
-The global index tables are under ``document/supplemental/`` until they have a collection
-of their own.
-"""
+"""Every file the summary pass writes into a bundle whose template directory has no guide."""
 
 
 @pytest.fixture
