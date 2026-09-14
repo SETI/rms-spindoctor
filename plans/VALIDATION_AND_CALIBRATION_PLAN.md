@@ -139,6 +139,21 @@ carry the methodology and acceptance criteria):
 > - **Legacy comparison** is same-lineage and the old subpixel layer was never
 > trusted (it is why the rewrite exists). It catches pixel-scale regressions; it
 > has no authority on subpixel truth.
+> - **An independently navigated archive answer** exists for a few observations:
+> the published F ring bundle records, beside every reprojected product, the
+> boresight that project navigated the frame to and how it navigated it, and it
+> is the one real-frame comparison this pipeline had no hand in. It is not truth
+> either. Its own file labels each frame Stars, Ring and/or Satellite Models, or
+> Manual, and only the first is worth believing to well under a pixel, so a
+> disagreement with one of the others is a disagreement rather than an error; and
+> it covers a handful of observations rather than a cohort. What it does supply
+> is a per-frame check that a run's own confidence cannot give, which is why it
+> is worth running where it reaches: `util/nav_verification/` holds the
+> comparison. Any comparison against it has to separate the constant from the
+> per-frame part before quoting a number, because the two pipelines disagree by
+> a fixed half pixel in both camera axes on every frame of every observation
+> checked -- a difference of pixel datum rather than of pointing, which left in
+> makes the per-frame disagreement look ten times larger than it is.
 >
 > Therefore the strategy is: **measure absolute accuracy only in a simulation that
 > is (a) independent of the navigator and (b) proven realistic against real
@@ -1138,7 +1153,16 @@ seam through a downstream bug; none of that is tested for accuracy today.
  vs the navigated ring geometry).
 - **Mosaics:** quantify seam registration where overlapping reprojections meet
  (this is WS-1b's reprojection-consistency check applied to the mosaic product),
- and confirm the BEST_RESOLUTION/coverage merge picks the right pixel.
+ and confirm the BEST_RESOLUTION/coverage merge picks the right pixel. A first
+ measurement of this exists for ring mosaics in
+ `util/nav_verification/measure_core_radius.py`, which reads the ring core's
+ radial placement out of the assembled product against the orbit model it was
+ built on: a displacement common to every column is a systematic to chase, and
+ one that steps between adjacent columns is two neighboring frames navigated
+ differently from each other, with the step's longitude naming the frame. It
+ needs nothing outside the mosaic, so it reaches observations no other project
+ has navigated, but it reads one known feature rather than matching surface
+ features across a seam, which is what the task above asks for.
 - **PDS4:** beyond schema validation (WS-8), spot-check that label geometry values
  match the backplane metadata they are derived from.
 
