@@ -122,8 +122,10 @@ def clear_bundle_products(bundle_root: FCPath, dataset: DataSet) -> None:
 
     The global index generator, which the summary pass runs first, calls this before it
     reads anything, so that a run-level product on disk is always one the run wrote.
-    When the user guide's directory is left holding nothing, it is removed as well, so a
-    run over a template directory without the guide leaves no ``document/user_guide/``.
+    When the user guide's directory, in a bundle on the local file system, is left holding
+    nothing, it is removed as well, so a run over a template directory without the guide
+    leaves no ``document/user_guide/``.  A remote store holds no directory apart from the
+    files in it, so there is none to remove there.
 
     Parameters:
         bundle_root: The bundle's own directory.
@@ -132,6 +134,9 @@ def clear_bundle_products(bundle_root: FCPath, dataset: DataSet) -> None:
     for path in _bundle_product_paths(bundle_root, dataset):
         path.unlink(missing_ok=True)
     user_guide_dir = _user_guide(bundle_root, dataset).parent
+    if not user_guide_dir.is_local():
+        # FCPath refuses rmdir on a remote path, which has no directory to remove.
+        return
     # glob rather than iterdir, which refuses a bundle root given relative to the working
     # directory; a bundle that never held the guide has no such directory to remove.
     with contextlib.suppress(FileNotFoundError):

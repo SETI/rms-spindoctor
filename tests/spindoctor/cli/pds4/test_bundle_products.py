@@ -9,17 +9,20 @@ declares.  An inventory lists a product of the bundle only when that product's l
 the bundle, and a collection left with no member is not written.  A bundle without the
 user guide is one warning naming the file rather than a label not written.  Every label is
 attempted, and each one not written is counted.  The summary pass clears an earlier run's
-products before it writes, and the user guide's directory with them when it is left
-empty.
+products before it writes, and, in a bundle on the local file system, the user guide's
+directory with them when it is left empty.
 
 What the shipped Cassini templates say is tested over the cohort in
 ``test_bundle_products_cassini_iss_saturn.py``.
 """
 
+import shutil
 from pathlib import Path
 
 import pytest
 from filecache import FCPath
+from filecache import file_cache as file_cache_module
+from filecache.file_cache_source import FileCacheSourceFake
 
 from spindoctor.cli.pds4.bundle_products import clear_bundle_products, generate_bundle_products
 from spindoctor.cli.pds4.collections import generate_global_index_files
@@ -225,6 +228,29 @@ def test_clearing_takes_a_bundle_root_relative_to_the_working_directory(
     monkeypatch.chdir(env.bundle_results_root)
     clear_bundle_products(FCPath(DEFAULT_BUNDLE_NAME), env.dataset.as_dataset())
     assert not (env.bundle_dir / 'document' / 'user_guide').exists()
+
+
+def test_clearing_takes_a_bundle_root_in_a_remote_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The run-level products clear under a bundle root that is not on the local disk.
+
+    A ``fake://`` URL is served out of a local directory but answers as a remote store
+    does, so the clearing takes the branch a bucket takes: every run-level product is
+    removed, and no directory is, a remote store holding none.  The storage directory is
+    installed through ``monkeypatch``, with the storage layer's memory of the backends it
+    has built, since a backend keeps the directory it was built with.
+    """
+    env = _bundle_env(tmp_path)
+    _run(env)
+    storage = tmp_path / 'remote'
+    monkeypatch.setattr(FileCacheSourceFake, '_DEFAULT_STORAGE_DIR', storage)
+    monkeypatch.setattr(file_cache_module, '_SOURCE_CACHE', {})
+    shutil.copytree(env.bundle_results_root, storage / 'bucket' / 'bundles')
+    remote_root = FCPath(f'fake://bucket/bundles/{DEFAULT_BUNDLE_NAME}')
+    clear_bundle_products(remote_root, env.dataset.as_dataset())
+    backing = storage / 'bucket' / 'bundles' / DEFAULT_BUNDLE_NAME
+    assert [product for product in RUN_LEVEL_PRODUCTS if (backing / product).exists()] == []
 
 
 def test_the_bundle_label_states_the_bundle_s_lid_and_the_range_it_is_handed(
