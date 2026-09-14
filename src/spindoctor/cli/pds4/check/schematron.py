@@ -17,7 +17,8 @@ elementpath's XPath 2.0 engine and matched the way the skeleton's XSLT matches t
 
 An assert fails when its test is false, and a report fires when its test is true.  Each
 is a finding, with the message its rule writes, its ``value-of`` and ``name`` parts
-evaluated at the node.
+evaluated at the node.  Strings are compared by the Unicode code point collation,
+XPath's default, whatever locale the process runs under.
 """
 
 import functools
@@ -26,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from elementpath import AttributeNode, ElementNode, XPath2Parser, XPathContext, XPathToken
+from elementpath.collations import UNICODE_CODEPOINT_COLLATION
 from elementpath.tree_builders import get_node_tree
 from lxml import etree
 
@@ -281,7 +283,11 @@ def _compiled(path: Path) -> _Schematron:
     """
     root = etree.parse(str(path)).getroot()
     namespaces = {str(ns.get('prefix')): str(ns.get('uri')) for ns in root.iterfind(f'{_S}ns')}
-    parser = XPath2Parser(namespaces=namespaces)
+    # A parser given no collation takes the process's at construction, and a UTF-8 locale
+    # makes contains() and starts-with() compare collation keys, which fails the LID
+    # prefix rules; a Qt application sets the locale from the environment.  XPath's own
+    # default, and the ISO skeleton's, is the code point collation.
+    parser = XPath2Parser(namespaces=namespaces, default_collation=UNICODE_CODEPOINT_COLLATION)
     return _Schematron(
         name=path.name,
         namespaces=tuple(namespaces.items()),

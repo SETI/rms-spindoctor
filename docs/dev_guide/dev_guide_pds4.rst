@@ -996,7 +996,9 @@ label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_l
   nodes are selected as ``//`` before each branch of the context's union, which selects
   the same nodes without evaluating the context again at every node of the label.  An
   assert whose test is false and a report whose test is true are each a finding, with
-  the rule's message.  The rules cannot be run by ``lxml``'s ISO Schematron, which does
+  the rule's message.  Strings are compared by the Unicode code point collation, XPath's
+  default, whatever locale the process runs under.  The rules cannot be run by ``lxml``'s
+  ISO Schematron, which does
   not take their XSLT 2.0 query language, nor by an evaluator that matches a rule from a
   node's parent, which never fires a rule whose context has several steps, such as the
   one on ``pds:SPICE_Kernel/pds:kernel_type``.
