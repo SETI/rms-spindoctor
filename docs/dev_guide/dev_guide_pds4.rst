@@ -608,16 +608,23 @@ the bundle's root whose logical identifier is that LID.  When one is missing -- 
 collection whose label failed to render or was not written, or one the template declares
 before any pass writes it -- the label is removed, one error names each LID it lacks, and
 it counts as a label not written.  With no range to state it is not rendered at all.
-Either way whatever an earlier run left at the path is gone, so the bundle never holds a
-bundle label naming a collection that is not there.
+Either way whatever an earlier run left at the path is gone, so a summary pass that
+reaches the bundle label leaves none naming a collection that is not there; a pass
+refused before it cleared anything leaves an earlier run's (see `Exit status`_).
 
 Every label is attempted, whichever of them fail, and each one not written is counted
 (see `Exit status`_); a file copied stays whether or not its label renders.  The
-generator clears nothing itself.
-:func:`~spindoctor.cli.pds4.bundle_products.clear_bundle_products` removes every path it
-can write, and ``document/user_guide/`` when that leaves the directory empty; the global
-index generator calls it with its own clearing, before it reads any supplemental file,
-so a run-level product on disk after a summary pass is one that pass wrote.
+generator itself removes three things: each label, just before it renders it; the
+inventory and label of a collection left with no member; and the bundle label, when it
+has no range to state or declares a collection the bundle lacks.  Everything else an
+earlier run wrote is cleared by
+:func:`~spindoctor.cli.pds4.bundle_products.clear_bundle_products`, which removes every
+path the generator can write, and ``document/user_guide/`` when that leaves the
+directory empty in a bundle on the local file system; a remote store holds no directory
+apart from the files in it.  The global index generator, which the summary pass runs
+first, calls it with its own clearing, once it has found the bundle's data directory and
+before it reads any supplemental file, so a run-level product on disk after a summary
+pass that got past that check is one that pass wrote.
 
 Output layout
 =============
