@@ -1444,7 +1444,13 @@ its images from. Tests: the browse inventory lists the browse
 labels on disk and not the data labels; each collection is judged empty by
 its own members; one test per disagreement, each counting the one image it
 names with the label it lacks; and the summary pass exits 1 on a
-disagreeing image alone.
+disagreeing image alone. A re-review's mutation run then pinned six more
+behaviors: an image holding a browse label and a supplemental file with no
+data label counts once, its one error naming both; two disagreeing images
+count two; a collection label that fails to render keeps its inventory; and
+each collection template, when missing, raises over a data tree holding no
+label. The global index tests moved to `test_global_index.py`, keeping every
+test module under 1000 lines.
 
 Closes #602, by hand when its PR merges into `rf_pds4_draft_bundle` (section
 8). The inventory-filename part of #265 is done, and #265 stays open for its
