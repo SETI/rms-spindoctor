@@ -17,11 +17,11 @@ from spindoctor.nav_orchestrator.image_derivatives import (
 
 
 def _step_image(shape: tuple[int, int], step_v: int) -> np.ndarray:
-    """Return an image with a single horizontal bright bar centred on ``step_v``.
+    """Return an image with a single horizontal bright bar centered on ``step_v``.
 
     The bar is 8 pixels tall so the borders of the image stay in the same
-    background as their interior neighbours, suppressing the
-    sobel-with-constant-padding boundary artefact that would otherwise
+    background as their interior neighbors, suppressing the
+    sobel-with-constant-padding boundary artifact that would otherwise
     dominate the gradient image on a small test fixture.
     """
     img = np.zeros(shape, dtype=np.float64)
@@ -50,7 +50,7 @@ def _subpixel_bar_image(leading_v: float, trailing_v: float) -> np.ndarray:
     Row ``i`` covers ``[i - 0.5, i + 0.5]`` in pixel-centric coordinates, so a
     row holds the fraction of its own extent that the bar covers.  The bar is
     dark at both ends of the v axis, keeping the sobel-with-constant-padding
-    boundary artefact out of the frame, and is uniform along u.
+    boundary artifact out of the frame, and is uniform along u.
 
     Parameters:
         leading_v: Pixel-centric row of the bar's low-v boundary.
@@ -171,7 +171,7 @@ def test_build_image_edge_dt_falls_back_when_no_pixel_exceeds_threshold() -> Non
     gradient, edge_dt = build_image_edge_dt(img, image_noise_sigma=10.0, config=cfg)
     # No edge pixels survive the very high threshold; DT saturates at the
     # half width even though the gradient itself has small boundary
-    # artefacts from the constant-padded Sobel.
+    # artifacts from the constant-padded Sobel.
     threshold = cfg.edge_threshold_k_sigma * 10.0
     assert (gradient <= threshold).all()
     assert np.allclose(edge_dt, cfg.dt_half_width_px, atol=1e-12)
@@ -276,7 +276,7 @@ def test_build_image_edge_dt_handles_minimal_4x4_image() -> None:
 
     The Gaussian smooth, Sobel, NMS, and DT pipeline must all tolerate
     a 4x4 input without raising or producing degenerate-shape arrays.
-    Sobel-with-constant-padding boundary artefacts may produce a few
+    Sobel-with-constant-padding boundary artifacts may produce a few
     edge pixels at the corners; what we verify is that the pipeline
     completes and returns 2-D float64 arrays of the right shape with
     finite values throughout.

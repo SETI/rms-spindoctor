@@ -1214,7 +1214,7 @@ def test_orchestrator_skips_fallback_when_primary_covers_body() -> None:
     """A non-spurious primary suppresses the fallback technique on the same body.
 
     Operators expect the fallback to run only when the primary fails;
-    the prior behaviour ran every feasible technique and dropped the
+    the prior behavior ran every feasible technique and dropped the
     fallback in the ensemble post-hoc, wasting its compute.  This
     regression test verifies the primary-then-fallback scheduling
     actually skips the fallback's ``navigate`` call.
@@ -1281,7 +1281,7 @@ def test_orchestrator_calibrated_if_nan_pixels_do_not_raise() -> None:
     """A calibrated-IF image with NaN missing-data markers navigates without raising.
 
     For ``calibrated_if`` instruments the missing-data sentinel is NaN.
-    The orchestrator must sanitise those NaN before the finite-only
+    The orchestrator must sanitize those NaN before the finite-only
     derivative path runs; otherwise ``_smooth_and_compute_gradients``
     raises a ValueError that would propagate out of ``navigate`` and
     violate the never-raise contract.
@@ -1301,7 +1301,7 @@ def test_orchestrator_calibrated_if_missing_frac_reflects_nan() -> None:
     """The classifier verdict's missing_frac reflects the NaN fraction.
 
     The orchestrator threads the true missing fraction (computed from the
-    NaN mask before sanitisation) into the classifier rather than relying
+    NaN mask before sanitization) into the classifier rather than relying
     on ``sensor == marker`` (which can never match NaN).
     """
     image = np.full((64, 64), 0.5, np.float64)

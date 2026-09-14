@@ -479,7 +479,7 @@ def test_to_annotations_skips_stars_blocked_by_body_or_ring() -> None:
 
 
 def test_to_annotations_keeps_stars_with_star_only_conflict() -> None:
-    """A star tagged with the ``'STAR'`` conflict is still labelled."""
+    """A star tagged with the ``'STAR'`` conflict is still labeled."""
     model, _obs = _make_model()
     star = _FakeMutableStar(unique_number=1, vmag=4.0, u=50.0, v=60.0, conflicts='STAR')
     model._stars = [cast(MutableStar, star)]

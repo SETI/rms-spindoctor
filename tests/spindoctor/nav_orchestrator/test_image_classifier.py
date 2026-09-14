@@ -141,7 +141,7 @@ def test_classifier_explicit_missing_frac_overrides_internal() -> None:
     """A caller-supplied missing_frac drives the verdict instead of the marker count.
 
     The orchestrator computes the true missing fraction from the raw
-    image before NaN sanitisation and threads it in; the classifier must
+    image before NaN sanitization and threads it in; the classifier must
     use that value rather than recomputing from the (already-filled)
     sensor pixels.
     """

@@ -380,7 +380,7 @@ def test_draw_circle() -> None:
 
 
 def test_apply_linear_gamma_stretch_linear_gamma_one() -> None:
-    """gamma=1.0 is a simple linear normalisation."""
+    """gamma=1.0 is a simple linear normalization."""
     data = np.array([0.0, 0.5, 1.0])
     result = apply_linear_gamma_stretch(data, black=0.0, white=1.0, gamma=1.0)
     np.testing.assert_allclose(result, [0.0, 0.5, 1.0])

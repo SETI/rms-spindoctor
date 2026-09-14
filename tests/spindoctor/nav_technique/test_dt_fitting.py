@@ -920,7 +920,7 @@ def test_lm_subpixel_refine_recovers_planted_rotation_and_translation() -> None:
     cv = shape[0] / 2.0
     cu = shape[1] / 2.0
     # Use a four-arm cross template: well-constrained for translation in both
-    # axes and for in-plane rotation about the cross centre.
+    # axes and for in-plane rotation about the cross center.
     arm_length_px = 60.0
     arm_density = 60
     arm_offsets_along = np.linspace(8.0, arm_length_px, arm_density)
@@ -1242,7 +1242,7 @@ def test_gradient_ridge_refine_recovers_small_rotation() -> None:
         pivot_vu=(cv, cu),
         pivot_distance_px=float(math.hypot(cv, cu)),
     )
-    # A centred circle is rotationally symmetric, so the fit stays put and
+    # A centered circle is rotationally symmetric, so the fit stays put and
     # exercises the rotation Jacobian path without diverging.
     assert result.offset_vu[0] == pytest.approx(0.0, abs=0.05)
     assert result.offset_vu[1] == pytest.approx(0.0, abs=0.05)
