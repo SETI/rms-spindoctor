@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import numpy as np
 import pytest
@@ -180,12 +180,26 @@ class _FakeBackplane:
 
 
 class _FakeMeshgrid:
-    """Stand-in for ``oops.Meshgrid`` construction."""
+    """Stand-in for ``oops.Meshgrid``, keeping the window it was asked for.
 
-    @staticmethod
-    def for_fov(fov: Any, *, origin: Any, limit: Any) -> None:
-        """Accept the call; the fake backplane ignores the meshgrid."""
-        del fov, origin, limit
+    The fake backplane serves canned radii and does not need a grid, but the
+    origin and limit are the one place the conflict check states where it is
+    looking, so they are recorded for a test to read back.
+    """
+
+    windows: ClassVar[list[tuple[tuple[float, float], tuple[float, float]]]] = []
+
+    @classmethod
+    def for_fov(cls, fov: Any, *, origin: Any, limit: Any) -> None:
+        """Record the window and accept the call.
+
+        Parameters:
+            fov: Field of view (unused).
+            origin: ``(u, v)`` low corner of the conflict window.
+            limit: ``(u, v)`` high corner of the conflict window.
+        """
+        del fov
+        cls.windows.append((tuple(origin), tuple(limit)))
         return None
 
 
@@ -222,6 +236,32 @@ def _run_check_one_star(
         ring_min_opaque_fraction=min_opaque_fraction,
     )
     return star
+
+
+def test_the_conflict_window_is_centred_on_the_star_record_position(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The window brackets the uv the star record carries, unconverted.
+
+    ``Meshgrid.for_fov`` takes the pixel corner coordinates a star record is
+    written in, so the conflict window is the record's own numbers plus and
+    minus the margin with no half pixel in between.  The anchor is the record
+    the test wrote, not anything the checker computed, so a conversion applied
+    here would move the window off the star it is meant to cover.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
+    _FakeMeshgrid.windows.clear()
+    star = _run_check_one_star(
+        monkeypatch,
+        np.array([[60000.0, 70000.0], [95000.0, 100000.0]]),
+        min_opaque_fraction=0.25,
+    )
+    assert len(_FakeMeshgrid.windows) == 1
+    origin, limit = _FakeMeshgrid.windows[0]
+    assert origin == (star.u - 2.0, star.v - 2.0)
+    assert limit == (star.u + 2.0, star.v + 2.0)
 
 
 def test_check_one_star_flags_star_straddling_annulus_edge(

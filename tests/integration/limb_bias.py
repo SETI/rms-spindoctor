@@ -11,24 +11,28 @@ Two independent ground-truth channels are supported:
 * Simulator planted truth.  A sim scene renders a body at
   ``center + planted_offset``; the simulated body NavModel predicts the
   unshifted geometry, so the navigator should recover ``planted_offset``
-  exactly.  Because the simulator sets the spacecraft position, the body
-  ephemeris, and the pointing by construction, any residual limb-fit error
-  on a sim scene is a genuine algorithmic / optical-model bias with no
-  geometry-error component.  :func:`measure_sim_limb_bias` returns the
-  signed per-axis error against that planted truth.
+  exactly.  The simulator sets the spacecraft position, the body ephemeris,
+  and the pointing by construction, so a residual limb-fit error on a sim
+  scene carries no spacecraft-position and no body-ephemeris component.
+  What it does carry is the limb fit read against the scene description the
+  renderer and the model both work from: it is a difference between two
+  sides of one description, so a coordinate convention the two apply alike
+  cancels exactly and cannot show up here.
+  :func:`measure_sim_limb_bias` returns the signed per-axis error against
+  that planted truth.
 
 * Real-frame star navigation.  On a real frame that also carries several
   navigable stars, the star techniques provide an independent, usually more
   precise, offset.  The limb-minus-star gap on a real frame mixes the
-  algorithmic limb bias with any spacecraft-position or body-ephemeris
-  error, so it must be read together with the sim-isolated algorithmic
-  component.  :func:`measure_real_limb_vs_star` returns both offsets and
-  their signed gap.
+  limb-fit residual with any spacecraft-position or body-ephemeris error,
+  so it must be read together with the sim measurement above.
+  :func:`measure_real_limb_vs_star` returns both offsets and their signed
+  gap.
 
-A third function, :func:`renderer_centroid_offset`, validates that the
-simulator's own body renderer does not embed a positional bias, so the sim
-can be trusted as ground truth.  It calls the renderer directly and never
-touches the navigation code path.
+A third function, :func:`renderer_centroid_offset`, measures the simulator's
+own body renderer against the centre it was asked for, which anchors the
+renderer side on its own and needs no agreement from the model side.  It
+calls the renderer directly and never touches the navigation code path.
 
 Offset convention (matches the rest of the pipeline): a predicted position
 ``(v, u)`` means the actual position is ``(v + dv, u + du)``, so the signed
@@ -163,7 +167,7 @@ def build_body_scene(
     The scene is a well-resolved, centred sphere on black sky with a planted
     offset, sized with room to spare so the whole limb stays on the frame
     under the offset.  Noise is off by default so the measured limb-fit error
-    is the deterministic algorithmic bias rather than a per-frame noise draw.
+    is deterministic rather than a per-frame noise draw.
 
     Parameters:
         diameter_px: Full body diameter in pixels (all three axes equal, so

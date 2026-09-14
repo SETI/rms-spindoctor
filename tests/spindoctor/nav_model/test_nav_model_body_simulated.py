@@ -19,6 +19,7 @@ from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _SIZE = 96
 
@@ -121,7 +122,14 @@ def test_mesh_prediction_pose_disagreement_changes_mask() -> None:
 
 
 def test_mesh_prediction_matches_rendered_data() -> None:
-    """With identical params, the predicted mesh reproduces the rendered shape."""
+    """With identical params the predicted mesh is the rendered shape, pixel for pixel.
+
+    Both sides call the same mesh renderer, so this is a round trip: it pins
+    that the model passes the scene's params through unaltered and lands the
+    result on the same grid, and it is blind to a coordinate convention the
+    two sides get wrong together.  Being a round trip, it can be exact, and an
+    overlap ratio would only hide the pixels that a placement error moves.
+    """
     obs = _obs()
     body = _mesh_params()
     predicted = _data_region(obs, _predicted_mask(obs, body))
@@ -136,9 +144,25 @@ def test_mesh_prediction_matches_rendered_data() -> None:
         }
     )
     rendered = img > 0
-    intersection = int((predicted & rendered).sum())
-    union = int((predicted | rendered).sum())
-    assert intersection / union > 0.98
+    assert np.array_equal(predicted, rendered)
+
+
+def test_prediction_centres_on_the_centre_the_scene_states() -> None:
+    """The predicted silhouette's centroid is the scene's own centre.
+
+    The anchor is outside both sides of the round trip above: the scene states
+    a pixel corner centre, the mask is addressed by rows and columns, and the
+    ellipsoid is symmetric about its centre, so the centroid of the marked
+    pixels is the stated number less the half pixel that converts between the
+    two coordinate systems, exactly.  A model reading the scene's centre pixel
+    centric fails here by that half pixel.
+    """
+    obs = _obs()
+    predicted = _data_region(obs, _predicted_mask(obs, _body_params()))
+    vs, us = np.where(predicted)
+    expected = _SIZE / 2.0 - PIXEL_CENTER_TO_CORNER_PX
+    assert float(vs.mean()) == pytest.approx(expected, abs=1e-12)
+    assert float(us.mean()) == pytest.approx(expected, abs=1e-12)
 
 
 def test_mesh_prediction_is_deterministic() -> None:

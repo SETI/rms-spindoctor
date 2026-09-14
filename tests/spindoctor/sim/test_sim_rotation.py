@@ -3,11 +3,12 @@
 A planted camera roll rotates the rendered scene about the boresight before the
 translation offset; the simulated star NavModel predicts the unrolled geometry,
 so a star technique recovers the roll.  These tests cover the renderer geometry
-(a star lands at its analytically rotated position; a ring system's center and
-node angle roll together; a star, a ring and a body placed alike turn about one
-point, the frame's uv centre) and the scene-level ``fit_camera_rotation``
-override that lets a scene exercise the 3-DoF path on any emulated camera,
-independent of that camera's real rotation-fitting flag.
+(a star lands at its analytically rotated position; a ring system's rendered
+pattern turns with the roll, measured against a quarter turn of the array
+itself; a star, a ring and a body placed alike turn about one point, the
+frame's uv centre) and the scene-level ``fit_camera_rotation`` override that
+lets a scene exercise the 3-DoF path on any emulated camera, independent of
+that camera's real rotation-fitting flag.
 """
 
 from collections.abc import Callable
@@ -20,7 +21,6 @@ from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
 
 _SIZE = 128
-_CENTER = _SIZE / 2.0
 
 
 def _noiseless_params(**overrides: object) -> dict[str, object]:
@@ -96,59 +96,55 @@ def test_star_record_keeps_unrolled_position() -> None:
     assert star.u == 90.5
 
 
-def test_roll_rotates_ring_center_and_node_together() -> None:
-    """A camera roll rotates the ring center about the boresight and adds to the node.
-
-    Rendering an off-center inclined ring system under a +30 deg roll must
-    equal rendering the same system with no roll but the roll pre-applied by
-    hand -- the center rotated about the frame center by the same rotation
-    matrix the body and star paths use, and the roll added to the node angle.
-    The comparison is bitwise: both paths must feed identical placement into
-    the shared projection.
-    """
-    roll_deg = 30.0
-    center_v, center_u = 44.0, 76.0
-    node_deg = 20.0
-    geometry: dict[str, float] = {
-        'center_v': center_v,
-        'center_u': center_u,
+_CHIRAL_RING_SYSTEM: dict[str, object] = {
+    'geometry': {
+        'center_v': 44.0,
+        'center_u': 76.0,
         'opening_deg_obs': 35.0,
         'opening_deg_sun': 35.0,
-        'node_deg': node_deg,
-    }
-    features: list[dict[str, object]] = [
+        'node_deg': 20.0,
+    },
+    'features': [
         {
             'kind': 'ringlet',
             'tau': 1.0,
             'width': 6.0,
             'orbit': {'a': 25.0, 'ae': 1.0, 'long_peri': 15.0, 'rate_peri': 0.0},
         }
-    ]
-    rolled_params = _noiseless_params(
-        offset_rotation_deg=roll_deg,
-        ring_system={'geometry': geometry, 'features': features},
-    )
-    rolled, _meta = render_combined_model(rolled_params)
+    ],
+}
 
-    # Pre-apply the roll by hand, with the same float operations the renderer
-    # uses for bodies and stars: rotate the center about the boresight and
-    # add the roll to the node angle.
-    roll_cos = float(np.cos(np.radians(roll_deg)))
-    roll_sin = float(np.sin(np.radians(roll_deg)))
-    rel_v = center_v - _CENTER
-    rel_u = center_u - _CENTER
-    pre_rolled_geometry: dict[str, float] = {
-        **geometry,
-        'center_v': _CENTER + roll_cos * rel_v - roll_sin * rel_u,
-        'center_u': _CENTER + roll_sin * rel_v + roll_cos * rel_u,
-        'node_deg': node_deg + roll_deg,
-    }
-    unrolled_params = _noiseless_params(
-        offset_rotation_deg=0.0,
-        ring_system={'geometry': pre_rolled_geometry, 'features': features},
+
+def test_roll_turns_the_whole_ring_pattern_a_quarter_turn() -> None:
+    """A +90 deg roll of a ring system reproduces a quarter turn of the rendered array.
+
+    ``np.rot90`` turns an array a quarter turn about its own centre, the pixel
+    centric coordinate ``(size - 1) / 2``.  That is the same point in the frame
+    as the geometry layer's pixel corner frame centre ``size / 2``, because both
+    the pivot and every rotated position carry the same half pixel between the
+    two coordinate systems and a pivot rotation is unchanged by translating
+    pivot and point alike.  So the anchor is numpy's own array rotation rather
+    than any arithmetic the renderer owns: a +90 deg roll must land the rendered
+    ring on the quarter turned unrolled render, bit for bit.
+
+    The equality is exact because the detector emits whole DN and a quarter turn
+    maps the pixel lattice onto itself.  It pins the sense of the rotation (the
+    other quarter turn is ``np.rot90(..., 3)``), the pivot (moving it half a
+    pixel displaces the pattern a whole pixel at this angle), and that the roll
+    turns the ring's node angle along with its center -- rotating the center
+    alone leaves the pattern's orientation behind and the arrays part company.
+    The ringlet is inclined and eccentric so that the fixture is chiral, which
+    the second assertion states outright: a pattern equal to its own half turn
+    would satisfy the first assertion under either sense of the roll.
+    """
+    rolled, _rolled_meta = render_combined_model(
+        _noiseless_params(offset_rotation_deg=90.0, ring_system=_CHIRAL_RING_SYSTEM)
     )
-    unrolled, _meta2 = render_combined_model(unrolled_params)
-    np.testing.assert_array_equal(rolled, unrolled)
+    unrolled, _unrolled_meta = render_combined_model(
+        _noiseless_params(offset_rotation_deg=0.0, ring_system=_CHIRAL_RING_SYSTEM)
+    )
+    assert not np.array_equal(unrolled, np.rot90(unrolled, 2))
+    np.testing.assert_array_equal(rolled, np.rot90(unrolled, 1))
 
 
 def _ring_system_at(center_v: float, center_u: float) -> dict[str, object]:
