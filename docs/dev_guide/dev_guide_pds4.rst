@@ -165,8 +165,9 @@ generator since it runs first.  Every supplemental file is read, and every value
 both index tables rendered, before either table is opened, so a run refused over a
 supplemental file leaves no product of the pass, neither this run's nor an earlier
 run's.  The pass reads each
-supplemental file as the labels pass wrote it and checks nothing about it but the
-statistics; anything else unexpected raises, and the run ends with exit status 1.
+supplemental file as the labels pass wrote it and checks nothing in it but the
+statistics; whether a data label is beside it is the product check that follows.
+Anything else unexpected raises, and the run ends with exit status 1.
 
 The summary pass inventories each collection from the labels of its own kind, the
 data collection from the data labels in ``data/`` and the browse collection from
@@ -508,8 +509,8 @@ or the instrument has no SPICE camera frame mapped.
 :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails such an
 image before anything is written for it, the log naming the image; it checks only
 that ``navigation_result.times`` is there, and where it is, the epochs are read as
-recorded.  The summary pass needs no check of its own: the labels pass writes no
-supplemental file for an image it failed.
+recorded.  The summary pass needs no check of the times: the labels pass fails such
+an image before it writes anything for it, its supplemental file included.
 
 The data collection label states the range of the products' epochs: the least
 start and the greatest stop over every supplemental file, written to whole seconds
