@@ -4,8 +4,9 @@ What a label rendered from the templates the package ships for the Cassini ISS
 Saturn bundle says, over the bundle's cohort or over hand-made inputs: that the
 shipped draft templates render without substitution errors, that the cohort's
 navigated images land in their shards and the one that did not navigate is
-skipped, that a data label states its exposure's start and stop and an image
-whose navigation recorded none fails, that a data label describes the backplane
+skipped, that a data label states its exposure's start and stop, an image whose
+navigation recorded no pointing included, and cites the calibrated image it was
+computed from, that a data label describes the backplane
 FITS beside it, HDU by HDU and byte for byte, that the collection inventory names
 the LIDs the labels do, that each collection label names the inventory beside it
 and counts its products, and that the inventories the template directory ships
@@ -795,6 +796,30 @@ def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
         if f'holds the missing constant, {constant!r}.' not in text
     ]
     assert without_constant == []
+
+
+SOURCE_PRODUCT = 'pds:Reference_List/pds:Source_Product_External'
+"""Where a data label cites the product its backplanes were computed from."""
+
+
+def test_a_cohort_data_label_cites_the_calibrated_image_it_was_computed_from(
+    cassini_cohort: Cohort, tmp_path: Path
+) -> None:
+    """The data label cites the calibrated image as an external source product.
+
+    No PDS4 bundle holds calibrated Cassini ISS images yet, so the label names the image
+    the navigation read as the Ring-Moon Systems Node holds it: by its volume and the
+    file specification of its label within that volume, as a calibrated product, and
+    with the node as its curating facility.
+    """
+    label = _label_cohort_image(cassini_cohort, tmp_path, LIMB_STUB, LIMB_IMAGE_NAME)
+    root = ElementTree.parse(label).getroot()
+    identifier = _text(root, f'{SOURCE_PRODUCT}/pds:external_source_product_identifier')
+    reference_type = _text(root, f'{SOURCE_PRODUCT}/pds:reference_type')
+    curating_facility = _text(root, f'{SOURCE_PRODUCT}/pds:curating_facility')
+    assert identifier == f'COISS_2001:data/1454725799_1455008789/{LIMB_IMAGE_NAME}.LBL'
+    assert reference_type == 'data_to_calibrated_source_product'
+    assert curating_facility == 'PDS Ring-Moon Systems Node'
 
 
 # ---------------------------------------------------------------------------

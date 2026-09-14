@@ -2,7 +2,7 @@ import argparse
 from collections.abc import Generator
 from contextlib import closing
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, ClassVar, cast
 
 from filecache import FCPath, FileCache
@@ -17,6 +17,17 @@ from spindoctor.support.time import (
 
 from .dataset import ImageFile, ImageFiles, Pds4Pass, pds4_label_name
 from .dataset_pds3 import DataSetPDS3
+
+_SOURCE_PRODUCT_REFERENCE_TYPE = 'data_to_calibrated_source_product'
+"""What a data label says of the product it was computed from: a calibrated product.
+
+The image the navigation read is the calibrated image, and this is the value of the five
+the ``PDS4_PDS_1O00`` Schematron allows for a ``Source_Product_External``'s
+``reference_type`` that names a calibrated source.
+"""
+
+_SOURCE_PRODUCT_CURATING_FACILITY = 'PDS Ring-Moon Systems Node'
+"""The facility that holds the calibrated image a data label cites as its source."""
 
 
 class DataSetPDS3CassiniISS(DataSetPDS3):
@@ -623,6 +634,14 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         milliseconds long has its midtime on a half millisecond, where the recorded
         midtime epoch lands a few nanoseconds to either side of it.
 
+        ``SOURCE_PRODUCT_IDENTIFIER``, ``SOURCE_PRODUCT_REFERENCE_TYPE`` and
+        ``SOURCE_PRODUCT_CURATING_FACILITY`` cite the calibrated image the navigation
+        read as an external source product, since no PDS4 bundle holds calibrated Cassini
+        ISS images yet: by its volume and the file specification of its label within that
+        volume, both taken from the image's results path stub, as in
+        ``COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL``; as a calibrated
+        product; held by the PDS Ring-Moon Systems Node.
+
         Parameters:
             image_file: The image file being processed.
             nav_metadata: Navigation metadata dictionary: a success document whose
@@ -688,9 +707,17 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         vars_dict['TITLE'] = f'Backplanes for {image_file.image_file_name}'
         vars_dict['DESCRIPTION'] = f'Backplanes for navigated image {image_file.image_file_name}'
         vars_dict['COMMENT'] = 'Generated from navigated image data'
-        vars_dict['SOURCE_IMAGE_LIDVID'] = (
-            f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}::1.0'
-        )
+
+        # The calibrated image the navigation read, cited as an external source product
+        # until a PDS4 bundle holds calibrated Cassini ISS images: by the volume the
+        # Ring-Moon Systems Node holds it under and the file specification of its label
+        # within that volume, both from the results path stub the dataset gave the image,
+        # '<volume>/<directory>/<image>', so that no label is opened for it.
+        volume_id, _, image_path = image_file.results_path_stub.partition('/')
+        label_filespec = PurePosixPath(image_path).with_name(image_file.label_file_url.name)
+        vars_dict['SOURCE_PRODUCT_IDENTIFIER'] = f'{volume_id}:{label_filespec.as_posix()}'
+        vars_dict['SOURCE_PRODUCT_REFERENCE_TYPE'] = _SOURCE_PRODUCT_REFERENCE_TYPE
+        vars_dict['SOURCE_PRODUCT_CURATING_FACILITY'] = _SOURCE_PRODUCT_CURATING_FACILITY
 
         # Extract from index_file_row if available
         index_row = image_file.index_file_row
