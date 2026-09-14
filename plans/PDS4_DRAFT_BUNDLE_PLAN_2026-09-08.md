@@ -542,11 +542,14 @@ whose products disagree. A collection label that fails
 to render is Phase 1's case, not this one: its inventory is written and
 stays, as the index tables do.
 
-A summary that exits 1 cleans up nothing, by the operator's Phase 1 ruling
-that the generator complains rather than repairs. After one, the index
-tables can hold rows for an image with no data label, and the browse labels
-can name a data collection that was not written. The directory is cleared
-and the bundle regenerated into it, as after a labels pass that exits 1.
+A summary that exits 1 removes nothing it wrote: the generators report what
+they cannot describe rather than repair the bundle, and a bundle is written
+into an empty directory (the operator's ruling on #605, recorded in Phase 1's
+text). After one, the index tables can hold rows for an image with no data
+label, until Phase 7 limits them to the data inventory's members; the browse
+labels can name a data collection that was not written, and the data labels
+a browse collection that was not written. The directory is cleared and the
+bundle regenerated into it, as after a labels pass that exits 1.
 
 Three inventories are **generated**, because their membership depends on
 what the run produced: `collection_data.csv`, `collection_browse.csv`, and
@@ -1203,10 +1206,11 @@ not, and the run exits 1.
 
 Both per-image labels are attempted before failed is returned, and so is
 every collection and index label, so one run reports every label it could not
-write rather than one per run. `generate_global_index_files` returns the
-number of labels that failed, and `generate_collection_files`, since Phase 5,
-a `CollectionOutcome` carrying that number beside the images whose products
-disagree. The index tables are written either way, and so is the inventory
+write rather than one per run. `generate_global_index_files` returns a
+`GlobalIndexOutcome` carrying the number of labels that failed, beside the
+epoch range it gained in Phase 3, and `generate_collection_files`, since
+Phase 5, a `CollectionOutcome` carrying that number beside the images whose
+products disagree. The index tables are written either way, and so is the inventory
 of a collection whose label fails to render; a collection that cannot be
 written at all gets neither inventory nor label (section 3.5).
 
@@ -1554,11 +1558,15 @@ at `::2.0` (section 3.6).
 **The index rows are exactly the data inventory's members.** The tables
 index the images the data inventory lists, each with the rows its
 supplemental file gives -- a bodies row per body, a rings row where it has
-ring backplanes -- and no other image. The tables are read from the
-supplemental files, so a supplemental file with no data label beside it,
+ring backplanes -- and no other image. The values still come from the
+supplemental files, but a supplemental file with no data label beside it,
 which Phase 5's check reports as an image whose products disagree (section
-3.5), adds no row. That settles #602's question of where the index takes its
-images from, and the index half of #602 is this phase's to implement.
+3.5), adds no row, where today it adds one. That settles #602's question of
+where the index takes its images from, and the index half of #602 is this
+phase's to implement. Landing it corrects the two sentences that describe
+today's behavior: section 3.5's, that after a summary exits 1 the index
+tables can hold rows for an image with no data label, and the same sentence
+in the dev guide's account of exit status.
 
 Tests: adding a backplane to the config adds a column to the table and a
 `Field_Character` to the label; `fields` matches the column count; every
@@ -1632,8 +1640,8 @@ Closes #71.
 ### Phase 10 — Validation, the integrity pass, and the draft run
 
 Schema validation as a repeatable command: `xmlschema` against the five
-schemas the labels declare and `PDS4_CART_1O00_1970.xsd`, which the geometry
-schema imports -- run offline without it, `xmlschema` warns that the
+schemas the labels declare and `PDS4_CART_1O00_1970.xsd`, which the Cassini
+mission schema imports -- run offline without it, `xmlschema` warns that the
 `cart/v1` import failed and validates without it -- plus their Schematron
 rules, over a generated tree, added to `scripts/run-all-checks.sh` and to CI. The rules cannot be
 run by `lxml`'s ISO Schematron: on 2026-09-14 the product reviewer found
