@@ -36,8 +36,12 @@ from tests.mini_nav_results.cohort_cassini import (  # noqa: E402  (guarded impo
     CohortCassiniISSSaturn,
 )
 
-_EPOCH_KEYS = ('start_et', 'midtime_et', 'stop_et')
-"""The epochs a navigation document records for an exposure."""
+_EPOCH_KEYS = ('start_time_et', 'midtime_et', 'end_time_et')
+"""The epochs a navigation document's observation block records for an exposure.
+
+The bundle's labels state the start and the end; the midtime is held too, since the
+host publishes it beside them.
+"""
 
 _MILLISECOND = 0.001
 """One step of the last digit a product's time is written to, in seconds."""
@@ -90,9 +94,9 @@ def test_every_cohort_epoch_is_written_as_the_kernel_rounds_it(
     """
     disagreeing: list[str] = []
     for image in CohortCassiniISSSaturn.images():
-        times = image.document['navigation_result']['times']
+        observation = image.document['observation']
         for key in _EPOCH_KEYS:
-            et = float(times[key])
+            et = float(observation[key])
             written = et_to_pds4_utc(et, rounding=rounding)
             expected = _from_the_kernel(et, rounding)
             if written != expected:

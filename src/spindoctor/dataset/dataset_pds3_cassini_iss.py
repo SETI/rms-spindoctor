@@ -608,9 +608,11 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         """Returns template variables for PDS4 label generation.
 
         ``START_DATE_TIME`` and ``STOP_DATE_TIME`` are the exposure's start and stop,
-        read from the epochs the navigation recorded under ``navigation_result.times``
-        and written the way a PDS4 label writes a UTC time, to the millisecond, with a
-        trailing ``Z``, each rounded to the nearest millisecond.  An image's start and
+        read from the ``start_time_et`` and ``end_time_et`` the navigation document's
+        ``observation`` block records, which the host publishes for every image whose
+        navigation ran to a result, pointing or not, and written the way a PDS4 label
+        writes a UTC time, to the millisecond, with a trailing ``Z``, each rounded to
+        the nearest millisecond.  An image's start and
         stop are recorded to the millisecond in its PDS3 label and index, and the
         epochs are computed from those values, so each epoch lies within a few
         nanoseconds of a millisecond, on one side of it or the other: the nearest
@@ -623,8 +625,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
 
         Parameters:
             image_file: The image file being processed.
-            nav_metadata: Navigation metadata dictionary: a success document recording
-                the exposure's epochs under ``navigation_result.times``.
+            nav_metadata: Navigation metadata dictionary: a success document whose
+                ``observation`` block records the exposure's ``start_time_et`` and
+                ``end_time_et``.
             backplane_metadata: Backplane metadata dictionary.
 
         Returns:
@@ -632,9 +635,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             substitution.
 
         Raises:
-            KeyError: If ``nav_metadata`` records no ``navigation_result.times``, as
-                a navigation that recorded no pointing leaves it.  The labels pass
-                fails such an image before it asks for these variables.
+            KeyError: If ``nav_metadata`` has no ``observation`` block holding
+                ``start_time_et`` and ``end_time_et``, which a document the navigation
+                wrote for a result always has.
         """
         vars_dict: dict[str, Any] = {}
 
@@ -653,18 +656,20 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             vars_dict['CAMERA_WN_UC'] = ''
             vars_dict['CAMERA_WN_LC'] = ''
 
-        # The exposure's start and stop, from the epochs its navigation recorded, each
-        # at the nearest millisecond: the epochs are computed from times recorded to the
-        # millisecond, so the nearest is the one recorded, where a floor or a ceiling
-        # would lose it whenever the float lands a few nanoseconds on its far side.  The
-        # midtime is their midpoint as written, a half rounding up as PDS3's does; the
-        # midtime epoch of an odd-millisecond exposure sits on the half, either side.
-        times = nav_metadata['navigation_result']['times']
+        # The exposure's start and stop, from the observation block the navigation
+        # document holds for every image whose navigation ran to a result, pointing or
+        # not, each at the nearest millisecond: the epochs are computed from times
+        # recorded to the millisecond, so the nearest is the one recorded, where a floor
+        # or a ceiling would lose it whenever the float lands a few nanoseconds on its
+        # far side.  The midtime is their midpoint as written, a half rounding up as
+        # PDS3's does; the midtime epoch of an odd-millisecond exposure sits on the half,
+        # either side.
+        observation = nav_metadata['observation']
         vars_dict['START_DATE_TIME'] = et_to_pds4_utc(
-            times['start_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
+            observation['start_time_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
         )
         vars_dict['STOP_DATE_TIME'] = et_to_pds4_utc(
-            times['stop_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
+            observation['end_time_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
         )
         vars_dict['IMAGE_MID_TIME'] = pds4_utc_midpoint(
             vars_dict['START_DATE_TIME'], vars_dict['STOP_DATE_TIME']

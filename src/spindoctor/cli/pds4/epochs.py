@@ -1,13 +1,14 @@
 """When a bundle label says an exposure was taken, and what it reads that from.
 
-A navigation document records an exposure's epochs under ``navigation_result.times``:
-``start_et``, ``stop_et`` and ``midtime_et``, in TDB seconds past J2000, beside the
-spacecraft clock readings taken at them.  Every exposure time a label or an index table
-states (``start_date_time``, ``stop_date_time``, and the collection's range) comes from
-these, written through :func:`~spindoctor.support.time.et_to_pds4_utc`: a data label
-states its own exposure's start and stop, each index table row the start and stop of
-its image, and the data collection label the earliest start and the latest stop of the
-products the collection holds.
+A navigation document records the exposure in its ``observation`` block, the metadata
+the instrument host publishes for every image whose navigation ran to a result, whether
+or not it solved a pointing: ``start_time_et`` and ``end_time_et``, in TDB seconds past
+J2000.  Every exposure time a label or an index table states (``start_date_time``,
+``stop_date_time``, and the collection's range) comes from these, written through
+:func:`~spindoctor.support.time.et_to_pds4_utc`: a data label states its own exposure's
+start and stop, each index table row the start and stop of its image, and the data
+collection label the earliest start and the latest stop of the products the collection
+holds.
 """
 
 from dataclasses import dataclass
@@ -79,12 +80,13 @@ class EpochRangeScan:
         """Take one product's exposure into the range.
 
         Parameters:
-            navigation_document: The product's navigation document, which records the
-                exposure's ``start_et`` and ``stop_et`` under ``navigation_result.times``.
+            navigation_document: The product's navigation document, whose
+                ``observation`` block records the exposure's ``start_time_et`` and
+                ``end_time_et``.
         """
-        times = navigation_document['navigation_result']['times']
-        start_et: float = times['start_et']
-        stop_et: float = times['stop_et']
+        observation = navigation_document['observation']
+        start_et: float = observation['start_time_et']
+        stop_et: float = observation['end_time_et']
         self._start_et = start_et if self._start_et is None else min(self._start_et, start_et)
         self._stop_et = stop_et if self._stop_et is None else max(self._stop_et, stop_et)
 
@@ -104,18 +106,22 @@ def exposure_times(navigation_document: dict[str, Any]) -> tuple[str, str]:
 
     Each is written through :func:`~spindoctor.support.time.et_to_pds4_utc` to
     :data:`~spindoctor.support.time.PDS4_EXPOSURE_TIME_DIGITS` decimals, rounded to the
-    nearest, as in
-    ``2004-02-07T04:25:35.585Z``, which is how a data label states its own exposure.
+    nearest, as in ``2004-02-07T04:25:35.585Z``, which is how a data label states its
+    own exposure.
 
     Parameters:
-        navigation_document: The product's navigation document, which records the
-            exposure's ``start_et`` and ``stop_et`` under ``navigation_result.times``.
+        navigation_document: The product's navigation document, whose ``observation``
+            block records the exposure's ``start_time_et`` and ``end_time_et``.
 
     Returns:
         The start and the stop, in that order.
     """
-    times = navigation_document['navigation_result']['times']
+    observation = navigation_document['observation']
     return (
-        et_to_pds4_utc(times['start_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'),
-        et_to_pds4_utc(times['stop_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'),
+        et_to_pds4_utc(
+            observation['start_time_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
+        ),
+        et_to_pds4_utc(
+            observation['end_time_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
+        ),
     )

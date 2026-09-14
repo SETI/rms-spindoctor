@@ -122,8 +122,8 @@ an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or
-infinite), an image whose navigation recorded no pointing (see `Epochs`_),
-and an image whose processing raised an error -- and exits 1 when that count is not
+infinite), and an image whose processing raised an error -- and exits 1 when that
+count is not
 zero.  An image with such a statistic is failed before anything is
 written for it, and the log names the image, the plane and what the document
 records there.  The run closes with a line giving that count alongside the
@@ -518,10 +518,12 @@ so the source's description is the copy's.
 Epochs
 ======
 
-Every exposure time a label states (``start_date_time``, ``stop_date_time``, and
-the collection's range) comes from the epochs the navigation recorded:
-``start_et``, ``stop_et`` and ``midtime_et`` under ``navigation_result.times``, in
-TDB seconds past J2000.  They are turned into UTC by one rule, in
+Every exposure time a label or an index table states (``start_date_time``,
+``stop_date_time``, and the collection's range) comes from the exposure the
+navigation document's ``observation`` block records: ``start_time_et`` and
+``end_time_et``, in TDB seconds past J2000, which the instrument host publishes for
+every image whose navigation ran to a result, whether or not it solved a pointing.
+They are turned into UTC by one rule, in
 :mod:`spindoctor.support.time`: :func:`~spindoctor.support.time.et_to_utc` writes
 the plain ISO spelling the observation metadata and the statistics report use,
 and :func:`~spindoctor.support.time.et_to_pds4_utc` the spelling a PDS4 label
@@ -546,14 +548,11 @@ midpoint of the two as written, a half millisecond rounding up, through
 :func:`~spindoctor.support.time.pds4_utc_midpoint`: an exposure an odd number of
 milliseconds long has its midtime on a half millisecond, where the recorded midtime
 epoch lands a few nanoseconds to either side, and PDS3's ``IMAGE_MID_TIME`` takes the
-half up.  The navigation writes ``navigation_result.times`` only beside the pointing
-it solved, and records a success with no pointing when the attitude cannot be computed
-or the instrument has no SPICE camera frame mapped.
-:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails such an
-image before anything is written for it, the log naming the image; it checks only
-that ``navigation_result.times`` is there, and where it is, the epochs are read as
-recorded.  The summary pass needs no check of the times: the labels pass fails such
-an image before it writes anything for it, its supplemental file included.
+half up.  The navigation records a success with no pointing when the attitude cannot
+be computed or the instrument has no SPICE camera frame mapped, and the document's
+``observation`` block records the exposure all the same, so such an image is bundled
+like any other.  The epochs are read as recorded, and the supplemental file carries
+the whole navigation document, so the summary pass reads the same block.
 
 The data collection label states the range of the products' epochs: the least
 start and the greatest stop over the images the data collection holds, as their

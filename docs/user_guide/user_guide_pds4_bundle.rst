@@ -287,7 +287,8 @@ its unit. Each float array declares the masked value (``backplanes.masked_value`
 ``-999.0`` as shipped) as its missing constant.
 
 Each data label states when its image's exposure began and ended, in its
-``Time_Coordinates``: the start and stop in UTC, to the millisecond, as in
+``Time_Coordinates``: the start and stop the navigation recorded for the exposure,
+whether or not it found the pointing, in UTC, to the millisecond, as in
 ``2004-02-07T04:25:35.585Z``.
 
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
@@ -401,12 +402,12 @@ with exit status 2 before it does anything.
   and skipped, and, when any failed, the number whose labels were not written.
 
   An image with nothing to describe (never navigated, navigation failed, or no
-  backplanes) is skipped, which is not an error. An image fails if a label
-  cannot be written, its summary PNG is missing, its navigation recorded no
-  pointing, or its backplane metadata holds a statistic the index tables
-  cannot hold (one in a unit other than the configured one, or a minimum or
-  maximum that is NaN or infinite). For such a statistic, regenerate that image's
-  backplanes.
+  backplanes) is skipped, which is not an error. An image whose navigation
+  recorded no pointing is bundled like any other. An image fails if a label
+  cannot be written, its summary PNG is missing, or its backplane metadata holds
+  a statistic the index tables cannot hold (one in a unit other than the
+  configured one, or a minimum or maximum that is NaN or infinite). For such a
+  statistic, regenerate that image's backplanes.
 
   ``--dry-run`` writes nothing and ends with the number of images it would
   process. It exits 0 if the bundle directory is empty and every template is
