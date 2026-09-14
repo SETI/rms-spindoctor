@@ -59,7 +59,7 @@ class NavContext:
         image_edge_dt_ext: Optional shared Euclidean distance transform of
             the thresholded gradient image.  It is not signed: the values are
             non-negative everywhere and the zero locus is the edge pixels
-            themselves, at their own centres, not an oriented boundary
+            themselves, at their own centers, not an oriented boundary
             running along pixel edges half a pixel away.
         prior_offset_px: Prior offset from pass 1, ``None`` on pass 1.
         prior_covariance_px2: Prior offset covariance from pass 1.

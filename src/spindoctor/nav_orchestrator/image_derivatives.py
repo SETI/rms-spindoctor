@@ -26,7 +26,7 @@ Three quantities are produced and attached to the per-image
     is truncated at :data:`DEFAULT_DT_HALF_WIDTH_PX` so the per-pixel cost is
     bounded for the DT-based techniques' Levenberg-Marquardt step.  It is not
     signed: the values are non-negative everywhere and the zero locus is the
-    edge pixels themselves, at their own centres, not an oriented boundary
+    edge pixels themselves, at their own centers, not an oriented boundary
     running along pixel edges half a pixel away.
 
 The thresholding intentionally treats *every* edge pixel as a candidate; the
