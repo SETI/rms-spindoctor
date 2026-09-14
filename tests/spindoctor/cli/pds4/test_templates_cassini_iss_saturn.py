@@ -926,9 +926,10 @@ VERSIONED_MEMBER = re.compile(r'.*::\d+\.\d+')
 def test_the_shipped_inventories_list_only_members_each_ending_in_a_line_feed(
     tmp_path: Path,
 ) -> None:
-    """Every line of each shipped inventory, rendered, is a versioned member ending in a line feed.
+    """Every line of each shipped inventory is a versioned member, ending in a line feed.
 
-    A collection label counts its inventory's lines as its records, so a header, a
+    Each inventory is read as it renders, with the bundle's variables.  A collection
+    label counts its inventory's lines as its records, so a header, a
     comment or a blank line is a record that names no member.  Every member is named at
     an explicit version, the bundle's for its own products and the published one of each
     secondary product.  The label declares its records delimited by a line feed, and the

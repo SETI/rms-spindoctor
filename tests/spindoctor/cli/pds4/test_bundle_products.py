@@ -407,7 +407,7 @@ def test_a_bundle_label_with_no_range_to_state_is_not_written(
 def test_a_run_level_product_that_fails_to_render_is_counted(
     tmp_path: Path, broken: str, absent: set[str], failed: int
 ) -> None:
-    """A run-level render that fails is counted, and every other run-level product is written.
+    """A failed run-level render counts, and every other run-level product is written.
 
     Each is a case of its own because each is counted by a statement of its own.  Every
     template is attempted whichever fail, so each case holds every run-level product but

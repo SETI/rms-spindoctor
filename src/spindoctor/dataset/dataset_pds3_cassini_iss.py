@@ -455,7 +455,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         return self._default_pds4_bundle_name()
 
     def pds4_bundle_version(self) -> str:
-        """Returns the version of the bundle, which each of the bundle's own products carries.
+        """Returns the bundle's version, which each of the bundle's own products carries.
 
         Reads ``config.pds4.<dataset>.bundle_version``, which has no default: the shipped
         configuration sets it for the dataset that bundles.
@@ -625,8 +625,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             image_name: The image name to convert to a browse LID.
 
         Returns:
-            The browse LIDVID: the browse LID at the bundle's version,
-            :meth:`pds4_bundle_version`.
+            The browse LID at the bundle's version, :meth:`pds4_bundle_version`.
         """
         return f'{self.pds4_image_name_to_browse_lid(image_name)}::{self.pds4_bundle_version()}'
 
@@ -650,8 +649,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             image_name: The image name to convert to a data LID.
 
         Returns:
-            The data LIDVID: the data LID at the bundle's version,
-            :meth:`pds4_bundle_version`.
+            The data LID at the bundle's version, :meth:`pds4_bundle_version`.
         """
         return f'{self.pds4_image_name_to_data_lid(image_name)}::{self.pds4_bundle_version()}'
 
