@@ -6,8 +6,8 @@ provides an overview of the contents of this bundle and how to use it.
 
 Index tables summarize the backplanes for ease of use in automated pipelines: a
 bodies table, with a row for each body in each image's backplanes, and a rings
-table, with a row for each image with ring backplanes. A table no image gives a
-row is left out. The tables are in the miscellaneous collection.
+table, with a row for each image with ring backplanes. A table is omitted when
+no image contributes a row. The tables are in the miscellaneous collection.
 
 The most current version of the entire bundle may be obtained from the PDS using
 the logical identifier:

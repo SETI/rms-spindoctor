@@ -2,7 +2,7 @@ import argparse
 from collections.abc import Generator
 from contextlib import closing
 from datetime import UTC, datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, ClassVar, cast
 
 from filecache import FCPath, FileCache
@@ -716,7 +716,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         # '<volume>/<directory>/<image>', gives the volume and the directory, and the
         # label's URL the file name, so that no label is opened for it.
         volume_id, _, image_path = image_file.results_path_stub.partition('/')
-        label_filespec = PurePosixPath(image_path).with_name(image_file.label_file_url.name)
+        label_filespec = FCPath(image_path).with_name(image_file.label_file_url.name)
         vars_dict['SOURCE_PRODUCT_IDENTIFIER'] = f'{volume_id}:{label_filespec.as_posix()}'
         vars_dict['SOURCE_PRODUCT_REFERENCE_TYPE'] = _SOURCE_PRODUCT_REFERENCE_TYPE
         vars_dict['SOURCE_PRODUCT_CURATING_FACILITY'] = _SOURCE_PRODUCT_CURATING_FACILITY
