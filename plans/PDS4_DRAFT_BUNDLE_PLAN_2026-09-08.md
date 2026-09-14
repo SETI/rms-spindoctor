@@ -54,7 +54,7 @@ this table first and trusts it over any recollection.
 | Landed with Phase 2: statistics compared by measure, each carrying its unit | **done** | `rf_pds4_phase2`, section 3.8 |
 | 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
 | 4 — The FITS in the bundle, with its data objects | **done** | `rf_pds4_phase4`, sections 3.3 and 3.13; #69 is closed by hand when its PR merges (section 8) |
-| 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; no issue closes, #265 staying open for its Phase 10 part |
+| 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; #602 is closed by hand when its PR merges (section 8), #265 staying open for its Phase 10 part |
 | 6 — Bundle-level and static products | not started | |
 | 7 — The miscellaneous collection and its global index labels | not started | |
 | 8 — Targets, mission area, ring geometry | not started | |
@@ -66,8 +66,9 @@ guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the masked value, whose
 `Special_Constants` declaration Phase 4 made; what remains of it is the
 index tables' missing value, which Phase 7 settles), #602 (a
-skipped or failed product leaves the bundle inconsistent, given to Phases 5
-and 6; Phase 5 did not take it up, see Phase 5), #611 (the backplane viewer
+skipped or failed product leaves the bundle inconsistent), which is Phase 5's
+by the operator's ruling of 2026-09-14 that every data product needs a browse
+product, and is closed by hand when Phase 5 merges, #611 (the backplane viewer
 decides degrees from `BUNIT` and the plane's name rather than through
 `statistics_units`, so it shows the `rad/pixel` plane in radians per pixel),
 #614 (a dataset without PDS4 support
@@ -521,11 +522,19 @@ data collection the range of its members' epochs. One that cannot is not
 written at all, neither its inventory nor its label, whatever an earlier run
 left at either path is removed, and it counts once among the labels not
 written, with an error naming the collection and every reason, so the summary
-pass exits 1. The data and browse collections both take their members from
-the data labels, so they go together: over an empty `data/`, and over
-supplemental files with no data label -- what a labels pass leaves when every
-data label fails to render, since it writes the supplemental file first --
-the summary pass writes neither and counts two. A collection label that fails
+pass exits 1. Each generated collection takes its members from the labels of
+its own kind on disk -- the data collection from the data labels, the browse
+collection from the browse labels -- and the summary pass holds each image's
+products against each other, since every data product has a browse product
+(#602, Phase 5): an image with a data label and no browse label, or a browse
+label or supplemental file and no data label, disagrees, is logged by name
+and counted, and the pass exits 1. An empty collection is that rule's
+limiting case, where no image has a product of the collection's kind. Over
+an empty `data/` the summary pass writes neither collection and counts two
+labels; over supplemental files and no label -- what a labels pass leaves
+when every label fails to render, since it writes the supplemental file
+first -- it writes neither, counts two labels, and counts every image as one
+whose products disagree. A collection label that fails
 to render is Phase 1's case, not this one: its inventory is written and
 stays, as the index tables do.
 
@@ -1211,7 +1220,8 @@ their content. And an image that got a data label and no browse label still
 leaves the bundle internally inconsistent, because the browse inventory is
 built from the data labels and so lists a product that is not on disk; the
 labels pass counts that image, but the summary pass that follows inspects
-nothing. That is #602, and Phases 5 and 6 own it. A skipped image is not that
+nothing. That is #602, which the operator's ruling of 2026-09-14 gave to
+Phase 5 (see Phase 5). A skipped image is not that
 case: it has no data label, so it is in none of the inventories, and what it
 leaves is a bundle covering fewer images than the selection named.
 
@@ -1391,16 +1401,30 @@ supplemental file the data collection is not written and the browse
 collection is; and a summary pass over supplemental files and no data label
 exits 1, naming both collections, with neither written.
 
-#602, which section 0.1 and Phase 1 give to Phases 5 and 6, is not in this
-phase's text and was not taken up: the browse inventory is still built from
-the data labels, so an image with a data label and no browse label is listed
-in the browse inventory with no product on disk. What #602 asks has
-decisions in it -- whether every data product must have a browse product --
-that are the operator's.
+#602 is this phase's, by the operator's ruling of 2026-09-14 that every data
+product needs a browse product. Each inventory lists the labels of its own
+kind on disk -- the data inventory the data labels, the browse inventory the
+browse labels, where before both were built from the data labels -- and the
+summary pass holds each image's products against each other: a data label
+with no browse label, or a browse label or supplemental file with no data
+label, is an image whose products disagree. Each gets one error naming the
+image, the files of it that are there and the label it lacks, and is
+counted, and the pass exits 1, its closing line giving those images beside
+the labels not written. The inventories still list what is on disk. It is
+one rule with section 3.5's empty collection, which is its limiting case: no
+image has a product of the collection's kind. A data label with no
+supplemental file is not checked, since the labels pass writes the
+supplemental file first. The global index tables are still built from the
+supplemental files (Phase 7). Tests: the browse inventory lists the browse
+labels on disk and not the data labels; each collection is judged empty by
+its own members; one test per disagreement, each counting the one image it
+names with the label it lacks; and the summary pass exits 1 on a
+disagreeing image alone.
 
-No issue closes here. The inventory-filename part of #265 is done, and #265
-stays open for its dev-guide output-layout part (Phase 10). The header and
-line-ending defects it fixed were never filed as issues (section 7).
+Closes #602, by hand when its PR merges into `rf_pds4_draft_bundle` (section
+8). The inventory-filename part of #265 is done, and #265 stays open for its
+dev-guide output-layout part (Phase 10). The header and line-ending defects
+it fixed were never filed as issues (section 7).
 
 ### Phase 6 — Bundle-level and static products
 
@@ -1480,6 +1504,13 @@ Then the collection itself: a `collection_miscellaneous.lblx` template with
 `collection_type` `Miscellaneous`, and a generated
 `collection_miscellaneous.csv` listing the two products, written after them
 for the same reason the data inventory is written after the labels it lists.
+
+The global index tables are still built from the supplemental files, not
+from the labels. Since Phase 5 a run in which a supplemental file has no data
+label beside it fails, the image counted as one whose products disagree
+(section 3.5), so no delivered bundle carries an index row for a product that
+is not there. Whether to build the tables from the labels instead is this
+phase's to settle.
 
 Tests: adding a backplane to the config adds a column to the table and a
 `Field_Character` to the label; `fields` matches the column count; every
