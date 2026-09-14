@@ -7,8 +7,8 @@ image_url: pds3://volumes/VGISS_8xxx/VGISS_8210/DATA/C12050XX/C1205021_GEOMED.IM
 scene_tags:
 - star_dominated
 ground_truth:
-  offset_dv_px: -49.1959
-  offset_du_px: -1.7803
+  offset_dv_px: -48.6959
+  offset_du_px: -1.2803
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench

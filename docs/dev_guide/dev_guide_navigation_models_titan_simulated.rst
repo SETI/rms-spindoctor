@@ -66,13 +66,11 @@ Each real-frame quantity has a deliberate simulated analog:
 Coordinate convention
 ---------------------
 
-The simulated body renderer treats a stated body centre as a CORNER coordinate -- ``(0.0, 0.0)``
-is the top-left corner of pixel ``(0, 0)`` -- so a body stated at ``center_v`` paints its
-silhouette centred on pixel index ``center_v - 0.5``. The simulated star renderer uses the other
-convention, integer index ``i`` at coordinate ``i``, which is why the simulated star model adds
-the extended-FOV margin and stops there. Predicted positions in this pipeline are pixel indices,
-so this model applies the half-pixel shift, captured as
-:data:`~spindoctor.nav_model.nav_model_titan_simulated.BODY_CENTER_INDEX_OFFSET_PX`. Measured
+A scene states every position in pixel-corner coordinates (see
+:ref:`sim-pixel-convention`), so a body stated at ``center_v`` paints its silhouette centred
+at ``center_v - 0.5`` in pixel-centric coordinates. A predicted position at this stage is
+pixel-centric, so this model converts, by
+:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`. Measured
 directly: without the shift every simulated frame carries a flat 0.500 px cross-track error,
 half the method's entire clean-scene cross-track budget spent on a coordinate convention.
 
@@ -130,8 +128,7 @@ Public members (autodocumented at :doc:`/api_reference/api_nav_model`):
   and an empty list for a real observation.
 - :attr:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated.geometry_inputs`
   -- the geometry dataclass built from operator parameters on first access.
-- :data:`~spindoctor.nav_model.nav_model_titan_simulated.REQUIRED_SIM_PARAMS` and
-  :data:`~spindoctor.nav_model.nav_model_titan_simulated.BODY_CENTER_INDEX_OFFSET_PX`.
+- :data:`~spindoctor.nav_model.nav_model_titan_simulated.REQUIRED_SIM_PARAMS`.
 
 ``create_model``, ``to_features``, and ``to_annotations`` are inherited without override.
 

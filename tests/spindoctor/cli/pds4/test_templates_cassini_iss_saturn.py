@@ -296,15 +296,15 @@ def test_a_cohort_data_label_states_its_exposure_s_start_and_stop(
     assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == [stop]
 
 
-def test_a_navigated_image_that_recorded_no_exposure_times_fails_with_nothing_written(
+def test_a_navigated_image_that_recorded_no_pointing_fails_with_nothing_written(
     cassini_cohort: Cohort, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A success document with no times fails its image, and the bundle stays as it was.
 
-    A navigation that recorded no pointing recorded no exposure times either, and a data
-    label states when its exposure began and ended.  The document is the cohort's limb
-    image's as written, its times and pointing taken out, under a navigation root of the
-    test's own.
+    A navigation that recorded no pointing has no ``navigation_result.times`` either, and
+    a data label takes its exposure's start and end from those.  The document is the
+    cohort's limb image's as written, its times and pointing taken out, under a navigation
+    root of the test's own.
     """
     cohort_document = cassini_cohort.nav_results_root / f'{LIMB_STUB}_metadata.json'
     document = json.loads(cohort_document.read_text(encoding='utf-8'))
@@ -324,7 +324,7 @@ def test_a_navigated_image_that_recorded_no_exposure_times_fails_with_nothing_wr
     )
     assert outcome is BundleDataOutcome.FAILED
     assert not env.bundle_dir.exists()
-    assert 'its navigation recorded no exposure times' in capsys.readouterr().out
+    assert 'its navigation recorded no pointing' in capsys.readouterr().out
 
 
 def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:

@@ -21,10 +21,10 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import TitanHazeGeometry
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
 from spindoctor.nav_model.nav_model_titan_simulated import (
-    BODY_CENTER_INDEX_OFFSET_PX,
     NavModelTitanSimulated,
 )
 from spindoctor.obs.obs_inst_sim import ObsSim
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _SIZE = 300
 _CENTER = 150.0
@@ -90,7 +90,7 @@ def test_predicted_center_is_the_rendered_disc_centre() -> None:
     """
     geometry = _model([_titan()]).geometry_inputs
     margin_v = int(_obs([_titan()]).extfov_margin_v)
-    expected = _CENTER + BODY_CENTER_INDEX_OFFSET_PX + margin_v
+    expected = _CENTER - PIXEL_CENTER_TO_CORNER_PX + margin_v
     assert geometry.predicted_center_vu[0] == pytest.approx(expected)
     assert geometry.predicted_center_vu[1] == pytest.approx(expected)
 
