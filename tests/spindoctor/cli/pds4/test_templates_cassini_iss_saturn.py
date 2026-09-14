@@ -801,6 +801,19 @@ def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
 SOURCE_PRODUCT = 'pds:Reference_List/pds:Source_Product_External'
 """Where a data label cites the product its backplanes were computed from."""
 
+SOURCE_PRODUCT_CHILDREN = [
+    'external_source_product_identifier',
+    'reference_type',
+    'curating_facility',
+    'description',
+]
+"""The source-product block's elements, in the order the XSD's sequence gives them.
+
+``PDS4_PDS_1O00.xsd`` orders a ``Source_Product_External`` as the identifier, the
+reference type, a ``doi``, the curating facility and a description; the block gives no
+``doi``.
+"""
+
 
 def test_a_cohort_data_label_cites_the_calibrated_image_it_was_computed_from(
     cassini_cohort: Cohort, tmp_path: Path
@@ -810,16 +823,26 @@ def test_a_cohort_data_label_cites_the_calibrated_image_it_was_computed_from(
     No PDS4 bundle holds calibrated Cassini ISS images yet, so the label names the image
     the navigation read as the Ring-Moon Systems Node holds it: by its volume and the
     file specification of its label within that volume, as a calibrated product, and
-    with the node as its curating facility.
+    with the node as its curating facility.  Its elements come in the order the schema's
+    sequence gives them, which a test of the values alone would not notice, and its
+    description says what the product is.
     """
     label = _label_cohort_image(cassini_cohort, tmp_path, LIMB_STUB, LIMB_IMAGE_NAME)
     root = ElementTree.parse(label).getroot()
     identifier = _text(root, f'{SOURCE_PRODUCT}/pds:external_source_product_identifier')
     reference_type = _text(root, f'{SOURCE_PRODUCT}/pds:reference_type')
     curating_facility = _text(root, f'{SOURCE_PRODUCT}/pds:curating_facility')
+    description = ' '.join(_text(root, f'{SOURCE_PRODUCT}/pds:description').split())
+    block = root.find(SOURCE_PRODUCT, PDS4_NAMESPACES)
+    children = [] if block is None else [child.tag.rpartition('}')[2] for child in block]
     assert identifier == f'COISS_2001:data/1454725799_1455008789/{LIMB_IMAGE_NAME}.LBL'
     assert reference_type == 'data_to_calibrated_source_product'
     assert curating_facility == 'PDS Ring-Moon Systems Node'
+    assert children == SOURCE_PRODUCT_CHILDREN
+    assert description == (
+        'The calibrated image the backplanes were computed from, named by its volume and '
+        'the file specification of its label within that volume.'
+    )
 
 
 # ---------------------------------------------------------------------------
