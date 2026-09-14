@@ -736,6 +736,14 @@ def test_a_missing_index_template_raises(tmp_path: Path) -> None:
         _run_global_index(env)
 
 
+def test_the_index_takes_a_bundle_root_given_as_a_string(tmp_path: Path) -> None:
+    """The index is written under a bundle results root given as a plain string."""
+    env = _index_env(tmp_path)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    generate_global_index_files(str(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER)
+    assert (env.bundle_dir / 'miscellaneous' / 'global_bodies_index.lblx').is_file()
+
+
 # ---------------------------------------------------------------------------
 # LID cross-referencing and round trips: regression coverage for #139 and #256
 # ---------------------------------------------------------------------------

@@ -44,7 +44,7 @@ from spindoctor.cli.pds4.collections import (
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
-from spindoctor.dataset.dataset import DataSet
+from spindoctor.dataset.dataset import DataSet, pds4_label_name
 
 
 @dataclass(frozen=True)
@@ -512,7 +512,7 @@ class GlobalIndexOutcome:
 
 
 def generate_global_index_files(
-    bundle_results_root: FCPath,
+    bundle_results_root: str | Path | FCPath,
     dataset: DataSet,
     logger: PdsLogger,
 ) -> GlobalIndexOutcome:
@@ -554,37 +554,43 @@ def generate_global_index_files(
     :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and returned for the labels
     that state it.
 
-    Both index tables and both index labels are cleared before any supplemental
-    file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
-    label before it renders, and so are the two collection inventories and two
-    collection labels :func:`~spindoctor.cli.pds4.collections.generate_collection_files`
-    writes after the index, and
-    every run-level product
+    Both index tables and both index labels, and the miscellaneous collection's
+    inventory and label, are cleared before any supplemental file is read, as
+    :func:`~spindoctor.cli.pds4.labels.write_label` clears a label before it renders,
+    and so are the data and browse collections' inventories and labels, which
+    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` writes after the
+    index, and every run-level product
     :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` writes last.
     A run refused over what a supplemental file holds therefore leaves no product of
     the summary pass, neither this run's nor an earlier run's: no index still
     describing the bundle as it was, no inventory beside no index, and no bundle label
     declaring collections that are not there.
 
-    Both index templates the dataset declares are required.  The caller is
-    expected to have checked them before processing anything, so one that is
-    missing here raises rather than being passed over.
+    The three templates the dataset declares for these products, both index labels'
+    and ``collection_miscellaneous.lblx``, are required.  The caller is expected to
+    have checked them before processing anything, so one that is missing here raises
+    rather than being passed over.
 
     Parameters:
-        bundle_results_root: Root directory of the bundle. The bundle data directory
-            will be scanned for all supplemental text files.
+        bundle_results_root: Root directory of the bundle, a local path or a URL.  The
+            bundle's data directory is scanned for its supplemental files and its data
+            labels.
         dataset: The dataset instance for bundle-specific methods.
         logger: Logger for diagnostic messages.
 
     Returns:
-        The number of index labels that could not be rendered, and the range of the
+        The number of labels not written -- each index label that could not be
+        rendered, and the miscellaneous collection's label when the collection could
+        not be written or its label could not be rendered -- and the range of the
         products' epochs over every supplemental file read, or None when there is no
         supplemental file.
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, which is
-            checked before any product of the pass is cleared or written, or an
-            index template is not in the dataset's template directory.
+            checked before any product of the pass is cleared or written; if an index
+            template or ``collection_miscellaneous.lblx`` is not in the dataset's
+            template directory; or if the template directory holds no document
+            inventory to take the miscellaneous collection's secondary members from.
         KeyError: If a configured plane's statistic is in a unit the index has no
             column format for.
         ValueError: If a supplemental file holds a statistic no column can: one in
@@ -596,8 +602,9 @@ def generate_global_index_files(
             leaves a table half-written.
     """
 
+    bundle_results_root = FCPath(bundle_results_root)
     bundle_name = dataset.pds4_bundle_name()
-    template_dir = dataset.pds4_bundle_template_dir()
+    template_dir = FCPath(dataset.pds4_bundle_template_dir())
     bundle_root = bundle_results_root / bundle_name
     config = dataset.config
 
@@ -626,11 +633,11 @@ def generate_global_index_files(
     # bundle as it was, nor an earlier run's inventory and its label beside no index.
     miscellaneous_dir = bundle_root / MISCELLANEOUS_COLLECTION
     bodies_tab = miscellaneous_dir / f'{BODIES_INDEX}.tab'
-    bodies_label = miscellaneous_dir / f'{BODIES_INDEX}.lblx'
+    bodies_label = miscellaneous_dir / pds4_label_name(bodies_tab.name)
     rings_tab = miscellaneous_dir / f'{RINGS_INDEX}.tab'
-    rings_label = miscellaneous_dir / f'{RINGS_INDEX}.lblx'
+    rings_label = miscellaneous_dir / pds4_label_name(rings_tab.name)
     collection_inventory = miscellaneous_dir / f'collection_{MISCELLANEOUS_COLLECTION}.csv'
-    collection_label = miscellaneous_dir / f'collection_{MISCELLANEOUS_COLLECTION}.lblx'
+    collection_label = miscellaneous_dir / pds4_label_name(collection_inventory.name)
     index_products = (bodies_tab, bodies_label, rings_tab, rings_label)
     for index_product in (*index_products, collection_inventory, collection_label):
         index_product.unlink(missing_ok=True)
@@ -702,10 +709,9 @@ def generate_global_index_files(
     # Each label renders from the template of its own name.  Both are parsed before
     # either table is written, whether or not the table has a row, so a template
     # missing from the tree raises rather than being passed over.
-    template_base = Path(template_dir)
-    bodies_template = pdstemplate.PdsTemplate(str(template_base / bodies_label.name))
-    rings_template = pdstemplate.PdsTemplate(str(template_base / rings_label.name))
-    collection_template = pdstemplate.PdsTemplate(str(template_base / collection_label.name))
+    bodies_template = pdstemplate.PdsTemplate((template_dir / bodies_label.name).as_posix())
+    rings_template = pdstemplate.PdsTemplate((template_dir / rings_label.name).as_posix())
+    collection_template = pdstemplate.PdsTemplate((template_dir / collection_label.name).as_posix())
 
     # The bodies table: the data product, the body and the data label, then the least
     # and the greatest value of each configured body plane
@@ -748,7 +754,7 @@ def generate_global_index_files(
         collection_inventory,
         collection_label,
         primaries=primaries,
-        secondaries=secondary_members(FCPath(template_dir)),
+        secondaries=secondary_members(template_dir),
         template=collection_template,
         template_vars={'COLLECTION_MISCELLANEOUS_CSV_PATH': collection_inventory.as_posix()},
         reasons_not_written=[],
