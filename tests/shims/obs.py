@@ -415,7 +415,7 @@ class FakeObs:
         When ``self.radec_to_uv`` is set, the callable is invoked once per
         ``(ra, dec)`` point with ``(ra, dec, tfrac)`` and must return
         ``(u, v)``.  Otherwise the shim places every requested point at
-        the FOV centre with a small ``tfrac``-driven shift so the
+        the FOV center with a small ``tfrac``-driven shift so the
         smear-bracket calculation produces a deterministic non-zero
         displacement when desired.
 
@@ -424,6 +424,11 @@ class FakeObs:
             dec: Scalar or polymath-Scalar DEC.
             tfrac: Fraction along the exposure window.
             apparent: Accepted for API parity; ignored by the shim.
+
+        Returns:
+            A :class:`FakeUV` carrying one ``(u, v)`` per input point, in the
+            pixel corner coordinates the real call answers in, broadcast to the
+            longer of the two inputs.
         """
         ra_arr = np.atleast_1d(np.asarray(_extract_vals(ra), dtype=np.float64))
         dec_arr = np.atleast_1d(np.asarray(_extract_vals(dec), dtype=np.float64))

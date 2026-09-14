@@ -280,6 +280,10 @@ def _analytic_disc(obs: FakeObs, spec: _SphereSpec) -> NDArrayBoolType:
     Parameters:
         obs: Observation defining the extfov grid.
         spec: Sphere geometry.
+
+    Returns:
+        A boolean array of the extfov shape, true at every pixel whose centre
+        lies within the sphere's radius of its centre.
     """
     shape = obs.extdata_shape_vu
     vv, uu = np.indices(shape, dtype=np.float64)
