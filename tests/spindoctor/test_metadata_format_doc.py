@@ -61,6 +61,9 @@ _CHAPTER_PATH = (
 _INSTRUMENT_CHAPTERS = _CHAPTER_PATH.parent / 'instruments'
 """Where the user guide's instrument chapters are, each listing its host's own facts."""
 
+_KEY_CELL = re.compile(r'^\s*\* - (.+)$', re.MULTILINE)
+"""The first cell of a ``list-table`` row, which names the key that row documents."""
+
 _HOST_FACTS: tuple[tuple[str, dict[str, Any]], ...] = (
     ('cassini_iss', CASSINI_ISS_PUBLIC_METADATA),
     ('galileo_ssi', GALILEO_SSI_PUBLIC_METADATA),
@@ -131,14 +134,18 @@ def _documented_key_literals() -> set[str]:
 
 
 def _instrument_chapter_key_literals(stem: str) -> set[str]:
-    """Every inline ``literal`` shaped like a JSON key in one instrument's chapter.
+    """Every key a table row's key cell names in one instrument's chapter.
+
+    A key counts only in its own row's key cell: another row's meaning may mention it, as
+    the ``stop_time_doy`` row mentions ``image_time``, without documenting it.
 
     Parameters:
         stem: The chapter's file stem, such as ``cassini_iss``.
     """
     chapter = _INSTRUMENT_CHAPTERS / f'{stem}.rst'
     assert chapter.is_file(), f'instrument chapter missing at {chapter}'
-    return _key_literals(chapter.read_text(encoding='utf-8'))
+    cells = _KEY_CELL.findall(chapter.read_text(encoding='utf-8'))
+    return set().union(*(_key_literals(cell) for cell in cells))
 
 
 def _leaf_key_names(node: Any) -> set[str]:
@@ -472,9 +479,9 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
 
     This is the staleness guard's forward direction: a writer gaining a key
     the chapter does not document fails here, naming the missing keys.  A fact a
-    host publishes may be documented in that host's own instrument chapter
-    instead, since that is where a host's own facts are listed; another
-    instrument's chapter does not count.
+    host publishes may be documented in its own row of that host's instrument
+    chapter instead, since that is where a host's own facts are listed; another
+    instrument's chapter, or another row's mention of it, does not count.
     """
     documents = [
         _success_document(),
