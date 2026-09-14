@@ -1,8 +1,10 @@
-"""The Cassini ISS Saturn bundle as its configuration names and versions it.
+"""The Cassini ISS Saturn bundle as its configuration names, versions and declares it.
 
-The bundle's name and version are each set in one place, the dataset's ``pds4``
-configuration block.  These tests build the cohort's bundle under a configuration that
-changes them, from the templates the package ships, and read every file it wrote.
+The bundle's name and version, the information model its labels are written against and
+the schema of each dictionary they declare are each set in one place, the dataset's
+``pds4`` configuration block.  These tests build the cohort's bundle under a
+configuration that changes them, from the templates the package ships, and read every
+file it wrote; and hold the shipped configuration's schemas to the shipped templates.
 """
 
 import re
@@ -19,7 +21,7 @@ from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortC
 from spindoctor.config import DEFAULT_CONFIG, Config
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
-from .conftest import CohortBundleEnv, label_cohort_images, summarize_bundle
+from .conftest import CohortBundleEnv, label_cohort_images, read_csv_rows, summarize_bundle
 
 PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
 """The PDS4 common dictionary's namespace, under the prefix the paths below use."""
@@ -42,6 +44,27 @@ LIDVID = re.compile(r'(urn:nasa:pds:[a-z0-9._:-]+?)::([0-9]+\.[0-9]+)')
 
 UNRENDERED = re.compile(r'\$[A-Za-z_][A-Za-z0-9_]*\$')
 """A template variable a render left in place."""
+
+NAMESPACES = {
+    'pds': 'http://pds.nasa.gov/pds4/pds/v1',
+    'disp': 'http://pds.nasa.gov/pds4/disp/v1',
+    'geom': 'http://pds.nasa.gov/pds4/geom/v1',
+    'rings': 'http://pds.nasa.gov/pds4/rings/v1',
+    'cassini': 'http://pds.nasa.gov/pds4/mission/cassini/v1',
+}
+"""The namespace of each dictionary the bundle's labels declare, by its prefix."""
+
+XML_MODEL = re.compile(r'<\?xml-model href="([^"]+)"')
+"""The Schematron an ``xml-model`` instruction names."""
+
+XSI_SCHEMA_LOCATION = '{http://www.w3.org/2001/XMLSchema-instance}schemaLocation'
+"""The attribute pairing each namespace a label declares with its XML schema."""
+
+SCHEMA_VARIABLE = re.compile(r'\$PDS4_([A-Z]+)_SCHEMA(?:_XSD)?\$')
+"""A template variable naming a dictionary's schema, the dictionary's prefix captured."""
+
+OTHER_INFORMATION_MODEL_VERSION = '9.8.7.6'
+"""An information model version the tests configure in place of the shipped one."""
 
 
 @pytest.fixture
@@ -129,6 +152,34 @@ def _is_under(lid: str, bundle_lid: str) -> bool:
     return lid == bundle_lid or lid.startswith(f'{bundle_lid}:')
 
 
+def _labels(bundle_dir: Path) -> dict[str, str]:
+    """Return every label of a bundle, by its path relative to the bundle.
+
+    Parameters:
+        bundle_dir: The bundle's own directory.
+
+    Returns:
+        The text of each ``.lblx`` file under it.
+    """
+    return {
+        label.relative_to(bundle_dir).as_posix(): label.read_text(encoding='utf-8')
+        for label in sorted(bundle_dir.rglob('*.lblx'))
+    }
+
+
+def _schema_locations(label: Path) -> dict[str, str]:
+    """Return the XML schema a label's ``xsi:schemaLocation`` gives each namespace.
+
+    Parameters:
+        label: The label.
+
+    Returns:
+        Each namespace the attribute names, mapped to the schema it names beside it.
+    """
+    pairs = ElementTree.parse(label).getroot().get(XSI_SCHEMA_LOCATION, '').split()
+    return dict(zip(pairs[::2], pairs[1::2], strict=True))
+
+
 def test_the_bundle_takes_the_configured_name_and_version(
     cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
 ) -> None:
@@ -182,3 +233,85 @@ def test_the_bundle_takes_the_configured_name_and_version(
     assert version_ids == []
     assert identifiers == []
     assert [path for path, text in texts.items() if UNRENDERED.search(text)] == []
+
+
+@pytest.mark.parametrize('prefix', list(NAMESPACES))
+def test_a_schema_moved_in_the_configuration_moves_in_every_label_declaring_it(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path, prefix: str
+) -> None:
+    """A dictionary's schema moved in the configuration moves in every label declaring it.
+
+    The schema's location and LIDVID are changed in the one place the configuration
+    gives them.  Every label declaring the dictionary's namespace names the moved
+    Schematron in an ``xml-model`` instruction and the moved XML schema for that
+    namespace in its ``xsi:schemaLocation``; no label names the shipped location; and the
+    XML schema inventory lists the moved LIDVID in the shipped one's place.
+
+    Parameters:
+        cassini_cohort: The cohort the bundle is built over.
+        tmp_path: Base temporary directory.
+        prefix: The dictionary whose schema is moved, by its namespace's prefix.
+    """
+    shipped = DEFAULT_CONFIG.pds4['coiss_saturn']['schemas']
+    moved = {
+        'location': f'https://example.invalid/{prefix}/v1/PDS4_MOVED',
+        'lidvid': f'urn:nasa:pds:system_bundle:xml_schema:{prefix}-moved::9.9',
+    }
+    env = _bundle_under(cassini_cohort, tmp_path, {'schemas': {prefix: moved}})
+    labels = _labels(env.bundle_dir)
+    declaring = [path for path, text in labels.items() if f'="{NAMESPACES[prefix]}"' in text]
+    without_schematron = [
+        path
+        for path in declaring
+        if f'{moved["location"]}.sch' not in XML_MODEL.findall(labels[path])
+    ]
+    without_schema = [
+        path
+        for path in declaring
+        if _schema_locations(env.bundle_dir / path).get(NAMESPACES[prefix])
+        != f'{moved["location"]}.xsd'
+    ]
+    inventory = read_csv_rows(env.bundle_dir / 'xml_schema' / 'collection_xml_schema.csv')
+    assert declaring != []
+    assert without_schematron == []
+    assert without_schema == []
+    assert [path for path, text in labels.items() if shipped[prefix]['location'] in text] == []
+    assert [lidvid for _, lidvid in inventory] == [
+        moved['lidvid'] if name == prefix else entry['lidvid'] for name, entry in shipped.items()
+    ]
+
+
+def test_every_label_states_the_configured_information_model_version(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """Every label of the bundle states the information model version the configuration gives."""
+    env = _bundle_under(
+        cassini_cohort, tmp_path, {'information_model_version': OTHER_INFORMATION_MODEL_VERSION}
+    )
+    stated = {
+        path: ElementTree.parse(env.bundle_dir / path)
+        .getroot()
+        .findtext('pds:Identification_Area/pds:information_model_version', '', PDS4_NAMESPACES)
+        for path in _labels(env.bundle_dir)
+    }
+    assert (env.bundle_dir / 'bundle.lblx').is_file()
+    assert {path: v for path, v in stated.items() if v != OTHER_INFORMATION_MODEL_VERSION} == {}
+
+
+def test_the_shipped_configuration_gives_a_schema_for_each_dictionary_the_templates_declare(
+    tmp_path: Path,
+) -> None:
+    """The shipped configuration gives a schema for exactly the dictionaries declared.
+
+    The XML schema collection lists every schema the configuration gives, so one no
+    template declares would be listed for no label, and a template declaring a dictionary
+    the configuration gives no schema for would not render.
+    """
+    dataset = DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings')
+    template_dir = Path(dataset.pds4_bundle_template_dir())
+    declared = {
+        prefix.lower()
+        for template in template_dir.glob('*.lblx')
+        for prefix in SCHEMA_VARIABLE.findall(template.read_text(encoding='utf-8'))
+    }
+    assert set(DEFAULT_CONFIG.pds4['coiss_saturn']['schemas']) == declared

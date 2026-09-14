@@ -15,7 +15,7 @@ from spindoctor.support.time import (
     pds4_utc_midpoint,
 )
 
-from .dataset import ImageFile, ImageFiles, Pds4Pass, pds4_label_name
+from .dataset import ImageFile, ImageFiles, Pds4Pass, Pds4Schema, pds4_label_name
 from .dataset_pds3 import DataSetPDS3
 
 _SOURCE_PRODUCT_REFERENCE_TYPE = 'data_to_calibrated_source_product'
@@ -467,6 +467,40 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             KeyError: If the configuration gives the dataset no ``bundle_version``.
         """
         return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_version'])
+
+    def pds4_information_model_version(self) -> str:
+        """Returns the information model version the bundle's labels are written against.
+
+        Reads ``config.pds4.<dataset>.information_model_version``, which has no default.
+
+        Returns:
+            The version, in the PDS4 four-part form.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no information model version.
+        """
+        dataset_config = self.config.pds4[self._dataset_name_for_pds4_config()]
+        return str(dataset_config['information_model_version'])
+
+    def pds4_schemas(self) -> dict[str, Pds4Schema]:
+        """Returns the schema of each PDS4 dictionary the bundle's labels declare.
+
+        Reads ``config.pds4.<dataset>.schemas``, which has no default: a mapping from each
+        dictionary's namespace prefix to its schema's ``location`` and ``lidvid``.
+
+        Returns:
+            Each dictionary's schema, by its namespace prefix, in the order the
+            configuration gives them.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no schemas, or a schema no
+                location or LIDVID.
+        """
+        dataset_config = self.config.pds4[self._dataset_name_for_pds4_config()]
+        return {
+            str(prefix): Pds4Schema(location=str(entry['location']), lidvid=str(entry['lidvid']))
+            for prefix, entry in dataset_config['schemas'].items()
+        }
 
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Returns the file names one bundle pass must find in the template directory.

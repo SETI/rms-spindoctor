@@ -485,27 +485,37 @@ RADIUS_ONLY = ring_metadata({'radius': {'min': 80000.0, 'max': 90000.0, 'units':
 
 def _index_products_over(
     tmp_path: Path,
-    templates: dict[str, str],
+    cohort: CohortCassiniISSSaturn,
     *,
     bodies: list[dict[str, Any]],
     rings: list[dict[str, Any]],
 ) -> dict[str, _IndexProduct]:
     """Write one image's index tables and their labels, under the given planes.
 
-    The image's one body has a latitude statistic and no other, and its rings a radius
-    statistic and no other, so any other plane the configuration declares has no
-    statistic in either table.
+    The labels render from the index label templates the cohort's dataset ships, handed
+    the information model version and the dictionary schemas that dataset gives, which
+    those templates declare.  The image's one body has a latitude statistic and no
+    other, and its rings a radius statistic and no other, so any other plane the
+    configuration declares has no statistic in either table.
 
     Parameters:
         tmp_path: The directory the bundle environment is built in.
-        templates: The index label templates to render, by name.
+        cohort: The Cassini ISS Saturn cohort, whose dataset ships the templates.
         bodies: The ``backplanes.bodies`` entries the configuration declares.
         rings: The ``backplanes.rings`` entries the configuration declares.
 
     Returns:
         Both tables and their labels, by name.
     """
-    env = make_bundle_env(tmp_path, template_contents=templates, bodies=bodies, rings=rings)
+    shipped = cohort.dataset()
+    env = make_bundle_env(
+        tmp_path,
+        template_contents=_shipped_index_templates(cohort),
+        bodies=bodies,
+        rings=rings,
+        information_model_version=shipped.pds4_information_model_version(),
+        schemas=shipped.pds4_schemas(),
+    )
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     write_supplemental(
         env.bundle_dir / 'data', 'shard0/1234567890w', bodies=LATITUDE_ONLY, rings=RADIUS_ONLY
@@ -525,15 +535,14 @@ def test_a_plane_added_to_the_configuration_adds_a_column_and_a_field_character(
     configured list, so the added plane's minimum and maximum follow the columns before
     them in both, under the names its entry gives them, and nothing else changes.
     """
-    templates = _shipped_index_templates(cassini_cohort)
     latitude = index_entry('latitude', 'rad')
     resolution = index_entry('resolution', 'km/pixel')
     radius = [index_entry('radius', 'km')]
-    before = _index_products_over(tmp_path / 'before', templates, bodies=[latitude], rings=radius)[
-        'global_bodies_index'
-    ]
+    before = _index_products_over(
+        tmp_path / 'before', cassini_cohort, bodies=[latitude], rings=radius
+    )['global_bodies_index']
     after = _index_products_over(
-        tmp_path / 'after', templates, bodies=[latitude, resolution], rings=radius
+        tmp_path / 'after', cassini_cohort, bodies=[latitude, resolution], rings=radius
     )['global_bodies_index']
     added = ['minimum_resolution', 'maximum_resolution']
     fields_before = [field.name for field in _field_characters(before.label)]
@@ -562,7 +571,7 @@ def test_a_missing_statistic_s_cell_holds_the_constant_its_field_declares(
     """
     products = _index_products_over(
         tmp_path,
-        _shipped_index_templates(cassini_cohort),
+        cassini_cohort,
         bodies=[index_entry('latitude', 'rad'), index_entry('resolution', 'km/pixel')],
         rings=[index_entry('radius', 'km'), index_entry('resolution', 'km/pixel')],
     )
