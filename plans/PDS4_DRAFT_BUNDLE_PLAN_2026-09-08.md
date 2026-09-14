@@ -25,8 +25,8 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-7 have run, and Part A of Phase 8; Part B of Phase 8, the mission area, and
-Phases 9-10 have not. Two changes landed ahead of
+Phases 1-7 have run, Part A of Phase 8 and Phase 9; Part B of Phase 8, the mission area,
+and Phase 10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -59,7 +59,7 @@ this table first and trusts it over any recollection.
 | 6 — Bundle-level and static products | **done** | `rf_pds4_phase6`, sections 3.1, 3.2, 3.5, 3.6, 3.9 and 3.13; #74 is closed by hand when its PR merges (section 8), #72 staying open for Phase 8's targets; the operator has since ruled on the source product, and Phase 7 applies the ruling (#678, section 3.13) |
 | 7 — The miscellaneous collection and its global index labels | **done** | `rf_pds4_phase7`, sections 3.1, 3.4, 3.5, 3.8 and 3.13; #76, #601 and #678 are closed by hand when its PR merges (section 8), #601 and #678 by the operator's rulings of 2026-09-14 (section 3.13) |
 | 8 — Targets, mission area, ring geometry | **Part A done**; Part B not started | Part A, the targets and the ring geometry, on `rf_pds4_phase8`, sections 3.5, 3.7 and 3.13; #73, #75, #47 and #72 are closed by hand when its PR merges (section 8). Part B, `cassini:ISS_Specific_Attributes`, is read from the navigation document's `observation` block, which #684 adds on a branch against `main` by the operator's direction; it reaches this stack once #684 merges and `main` is merged into `rf_pds4_draft_bundle` (section 3.7) |
-| 9 — Parameterize the bundle name and version | not started | |
+| 9 — Parameterize the bundle name and version | **done** | `rf_pds4_phase9`, sections 3.9, 3.10 and 3.13; #71 is closed by hand when its PR merges (section 8) |
 | 10 — Validation, the integrity pass, and the draft run | not started | |
 
 Issues opened by this work, all open: #595 (LaTeX template for the user
@@ -204,7 +204,7 @@ plan).
 | 1 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. The calibrated image the navigation reads has no PDS4 counterpart to name instead (section 3.13). | `dataset_pds3_cassini_iss.py:688` | #678; fixed by Phase 7, which applies the operator's ruling and cites the calibrated image as a `Source_Product_External` (section 3.13) |
 | 2 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list; Part B of Phase 8 fills it from the navigation document's `observation` block (#684, section 3.7) |
 | 3 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label, in the data collection label (a Mission Science Data collection, whose references are `collection_to_target`) and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. Fixed by Part A of Phase 8: the table is filled, every label the schemas require a target of names its targets from it, a data label states its ring geometry and the incidence angle the backplane stage now records, and the context inventory lists the targets (section 3.7). | `data.lblx:93,130`, `bundle.lblx`, `collection_data.lblx`, `kernels.lblx` | #73, #75 and #47, closed by Phase 8; #79 stays open |
-| 4 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 4 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71; fixed by Phase 9, which sets the name, the version and the schema locations in the configuration and has every template take them as variables (section 3.10) |
 | 5 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
 | 6 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; fixed by Phase 7, whose labels pass reads them from there, and fails the image of a document an earlier version wrote, which records none there, until it is navigated again (section 3.4) |
 | 7 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
@@ -354,16 +354,19 @@ understands only the first.
 
 **Rendered** — a template plus variables, one per image or one per run:
 `data.lblx`, `browse.lblx`, the seven collection labels, the two global-index
-labels, `kernels.lblx`, the user-guide label, `bundle.lblx`.
+labels, `kernels.lblx`, the user-guide label, `bundle.lblx`; and `readme.txt` and
+the four inventories the template directory ships, `collection_context.csv`,
+`collection_document.csv`, `collection_spice_kernels.csv` and
+`collection_xml_schema.csv`, which name the bundle's own products through the
+variables every template is handed (section 3.10), the XML schema inventory
+listing the configured schemas (section 3.9). `collection_document.csv` and
+`collection_spice_kernels.csv` are written as they render when the label of their
+primary member -- the user guide's, the metakernel's -- is written, and without
+their `P` lines when it is not (section 3.6); the SPICE kernel inventory, then
+empty, is not written at all (section 3.5).
 
 **Copied** — a file that ships in the template directory and belongs in the
-bundle verbatim: `readme.txt`, `collection_context.csv`,
-`collection_xml_schema.csv`, `kernels.ker`, and the user-guide PDF when it
-exists. `collection_document.csv` and `collection_spice_kernels.csv` are
-copied verbatim when the label of their primary member -- the user guide's,
-the metakernel's -- is written, and without their `P` lines when it is not
-(section 3.6); the SPICE kernel inventory, then empty, is not written at all
-(section 3.5).
+bundle verbatim: `kernels.ker`, and the user-guide PDF when it exists.
 
 `src/spindoctor/cli/pds4/bundle_products.py` owns both for the run-level
 products, so `collections.py` keeps to collection inventories and does not
@@ -625,8 +628,9 @@ written, whatever an earlier run left at either path is removed, it counts
 once among the labels not written, and the bundle label, which declares it, is
 removed by its member check, so the summary pass exits 1.
 
-Three are **copied** from the template directory (section 3.2), because
-their membership is fixed: document, spice_kernels and schema. The fourth,
+Three are **rendered** from the template directory (section 3.2), because
+their membership is fixed: document, spice_kernels and schema, the last from the
+configured schemas (section 3.9). The fourth,
 context, is **written** from the members the template directory ships and every
 target the data labels name (Phase 8). An inventory lists its `P` line, a
 product of this bundle, only when that product's label is in the bundle: the document inventory leaves out the user
@@ -709,8 +713,8 @@ either way: it holds the bundle's documents and lists the external ones the
 bundle cites. The references to the user guide in the data, browse, data
 collection, metakernel and bundle labels stay in every case, since they carry
 the LID the delivered bundle will contain; with the PDF absent they do not
-resolve, and the readme's sentences about the guide, copied with it, are
-untrue of the draft. A draft is acceptable so, as acceptance criterion 9
+resolve, and the readme's sentences about the guide are untrue of the
+draft. A draft is acceptable so, as acceptance criterion 9
 has it, given the one warning and a delivery note recording the absence; a
 bundle delivered to the Node is not, since criterion 6 requires every
 reference to resolve.
@@ -1044,14 +1048,40 @@ and `cassini-xml_schema` 1.0, 1.14 and 1.17. The lines are unchanged, since
 the reference's spelling resolves no better, and the question stays the
 Engineering Node's.
 
+**Declared once, since Phase 9.** The information model version and the schema of each
+dictionary are set in the dataset's entry in `config_950_pds4.yaml`:
+`information_model_version`, and under `schemas` each dictionary's location less the
+extension and its `xml_schema` LIDVID, keyed by the prefix its namespace takes in a
+label. Every template takes them as variables (section 3.13), and the XML schema
+inventory is a template listing the LIDVIDs, their spelling unchanged. The bump above
+would now be one edit, of the `rings` entry; a move to another information model build,
+one edit of the entry. The information model version is there because the
+`PDS4_PDS_1O00` Schematron requires `1.24.0.0` of every label, so it moves with the
+`pds` schema. A test over the shipped configuration holds it to the shipped templates: it
+gives a schema for exactly the dictionaries they declare.
+
 ### 3.10 Bundle name and version
 
-`pds4_bundle_name()` already reads config. The templates hardcode the same
-string in about a dozen LIDs, and `version_id` `1.0` alongside it. Both
-become template variables supplied from config — `bundle_name` exists;
-`bundle_version` is added beside it in `config_950_pds4.yaml`. This is #71,
-and it lands late because doing it early means re-editing every template
-touched by the earlier phases.
+`bundle_name` and `bundle_version` sit side by side in the dataset's entry in
+`config_950_pds4.yaml`, read through `pds4_bundle_name()` and `pds4_bundle_version()`;
+the version has no default. This was #71, which Phase 9 closes; it landed late because
+doing it early would have meant re-editing every template the earlier phases touched.
+
+Following #71's single version number, `bundle_version` is the `version_id` of the
+bundle, of every collection and of every product the bundle writes, and the version in
+every LIDVID citing one of them: in labels, in inventories, and in the metakernel's
+line of the SPICE kernel inventory. External references keep their own versions: the
+context products, the ISS data user guide at `::2.0`, the calibrated source products
+and the schemas. No template spells the name or the version: each writes `$BUNDLE_LID$`,
+which it extends into each collection's and product's LID, and `$BUNDLE_VERSION$`. Only
+the bundle's own name moves; the source bundle `cassini_iss_saturn`, the template
+directory `cassini_iss_saturn_1.0` and the user guide's file name keep theirs (the Phase 9
+record gives every occurrence).
+
+On a later revision each product would carry its own version: a product unchanged between
+two deliveries keeps its version while its collection's and the bundle's move, and its
+`Modification_History` lists each. This draft gives every product the bundle's version,
+and one `Modification_Detail` at it, "Initial version".
 
 ### 3.11 Images that were never navigated
 
@@ -1312,11 +1342,15 @@ Four more things worth taking:
 
 **Every schema URL is a template variable.** `BASIC_XML_METADATA` holds
 `PDS4_RINGS_SCHEMA_XSD`, `PDS4_PDS_SCHEMA` and the rest in one dictionary,
-and the templates substitute them. Our templates hardcode each URL in each
+and the templates substitute them. Our templates hardcoded each URL in each
 file, which is why the section 3.9 dictionary bump had to be a search and
-replace across two files rather than a one-line edit. Fold this into Phase 9
-with the bundle name and version, since it is the same parameterization
-problem.
+replace across two files rather than a one-line edit. Adopted in Phase 9, under the
+reference's names -- `PDS4_<PREFIX>_SCHEMA` for a Schematron, `PDS4_<PREFIX>_SCHEMA_XSD`
+for an XML schema, and `INFORMATION_MODEL_VERSION` -- with the values in the dataset's
+configuration entry beside the bundle's name and version rather than in a module: each
+bundle's templates are written for its own dictionaries (the reference's declare rings
+`1E00` where ours declare `1F00`), and the Cassini dictionary is then in the Cassini
+entry (section 3.9).
 
 **A declared sentinel for absent data, and we are adopting it.** The
 reference fills invalid pixels with `-999`, passes it to the label as a
@@ -2630,7 +2664,9 @@ Cassini facts the navigation document's `observation` block records, which #684 
 a branch against `main`, by the operator's direction.  It reaches this stack after #684
 merges and `main` is merged into `rf_pds4_draft_bundle`, and it replaces the source the
 `cassini:*` mapping of `pds4_template_variables` reads rather than declaring that
-source's columns.
+source's columns.  The template content it adds names the bundle, its version and any
+schema through the variables every template is handed (sections 3.10 and 3.13), never by
+spelling them.
 
 *History: the index row.*  The mapping reads the image's PDS3 index row, and a run hands
 over a row of two columns: the enumeration reads only the columns it declares --
@@ -2655,19 +2691,83 @@ it contributes to #53's template list.  #79 and #618 stay open.
 
 ### Phase 9 — Parameterize the bundle name and version
 
-`bundle_version` in `config_950_pds4.yaml`; every hardcoded bundle name and
-`version_id` in every template becomes a variable.
+Done on `rf_pds4_phase9`. The bundle's name and version, and the schemas its labels
+declare, are each set in one place, the dataset's entry in `config_950_pds4.yaml`, and
+every template takes them from there (sections 3.9, 3.10 and 3.13).
 
-The five schema URLs go the same way, per section 3.13: one place holding
-`PDS4_PDS_SCHEMA`, `PDS4_RINGS_SCHEMA_XSD` and the rest, substituted into
-every template that declares them, so a future dictionary bump is one edit
-rather than the search-and-replace section 3.9 needed.
+**One set of variables for every template.** `src/spindoctor/cli/pds4/bundle_variables.py`
+gives the variables every template of a bundle is handed beside its own: `BUNDLE_LID`,
+`BUNDLE_VERSION`, `INFORMATION_MODEL_VERSION`, `PDS4_<PREFIX>_SCHEMA` and
+`PDS4_<PREFIX>_SCHEMA_XSD` for each dictionary, and `XML_SCHEMA_LIDVIDS`. Every render
+takes them: the data and browse labels, the collection and index labels, the run-level
+labels, and the readme and the four static inventories, which are now rendered from the
+template directory rather than copied. A readme or an inventory that does not render
+counts, as a label does, and a static collection whose inventory does not render is not
+written, nor its label.
 
-Tests: a config naming a different bundle produces that name in every LID in
-every rendered label — one test that walks the generated tree and asserts no
-label contains the default name.
+**The version.** `bundle_version` beside `bundle_name`, read through
+`pds4_bundle_version()`, which has no default, is the `version_id` of the bundle, of
+every collection and of every product the bundle writes, each label's
+`Modification_Detail` included, and the version in every LIDVID citing one of them: the
+data and browse LIDVIDs the dataset builds, the index products the miscellaneous
+inventory lists (`INDEX_VERSION` is gone), and the primary members of the document and
+SPICE kernel inventories (section 3.10). The dataset's template variables build the
+product LIDVIDs through its own hooks and no longer carry `BUNDLE_LID` or the unused
+`BUNDLE_LIDVID`, which every template now takes from the bundle's variables.
 
-Closes #71.
+**The name.** Every place a template spelled the bundle's name takes `$BUNDLE_LID$`: 31
+spellings in 15 files, each collection's and product's LID, every reference to a
+collection or to the user guide, the bundle label's seven member entries, the primary
+members of the document and SPICE kernel inventories, and the readme's two identifiers.
+The code spelled it as the configuration's value and as `_default_pds4_bundle_name`'s
+fallback, and both stay. Lookalikes that stay as they are: the source bundle
+`cassini_iss_saturn` in the ISS data user guide's LID, in five templates, an external
+product at its own version; the template directory's name, `cassini_iss_saturn_1.0`; and
+the user guide's file name, `cassini-iss-saturn-backplanes-user-guide.pdf`, which the
+dataset names.
+
+**The schema locations.** `information_model_version` and `schemas` in the same entry,
+read through `pds4_information_model_version()` and `pds4_schemas()` (section 3.9). The
+fourteen templates' PDS declarations, the data label's other four and the fourteen
+information model versions are variables, and the XML schema inventory is a template over
+`XML_SCHEMA_LIDVIDS`, its LIDVID spelling unchanged. The schemas sit with the bundle's
+name in the dataset's entry rather than in a shared place or a module (section 3.13).
+
+Tests. Over the cohort (`test_configured_bundle_cassini_iss_saturn.py`), built with a
+stand-in user guide from a configuration naming the bundle
+`saturn_backplanes_other_bundle` at version `3.7`: the bundle is written under that name
+with every collection its label declares; no label, inventory, table, metakernel or
+readme holds the shipped name; every LIDVID of the bundle's own products carries `3.7`,
+every `version_id` is `3.7`, and every logical identifier is under the configured name;
+and no template variable is left unrendered. Moving any one of the five dictionaries'
+schemas in the configuration moves it in every label declaring that namespace, in the
+`xml-model` instruction and in `xsi:schemaLocation`, leaves the shipped location in no
+label, and puts the moved LIDVID in its place in the XML schema inventory; every label
+states a configured information model version; and the shipped configuration gives a
+schema for exactly the dictionaries the shipped templates declare. Over the shipped
+configuration, `bundle_version` is set, as text a `version_id` can hold, and a LIDVID
+carries a configured version. Over stand-ins, a readme and a static inventory that fail
+to render are counted, and the inventory's collection is left with neither file, what an
+earlier run left at either path removed. The stand-in datasets gained the three hooks,
+the one rendering the shipped index templates handed the shipped schemas; the shipped
+inventories are judged as they render; and the cohort bundle helpers moved from the
+conftest to `cohort_bundle.py`, keeping it under a thousand lines. Each new test was
+driven red by a mutation: twenty-five, all killed, one of them (a failed inventory's
+label left from an earlier run) only once a test was added for it.
+
+Checks. At `faa5dc32`, ruff and format clean (799 files), mypy clean (800 source files),
+sphinx and pymarkdown clean; the unit suite passes, 12659 and 6 xfailed. Integration,
+one file at a time: the cohort's epochs and clock files pass, and `test_cmatrix_readers.py`
+(2 of 28) and `test_results_index_consumers.py` (4 of 21) fail as Phase 8 recorded, the
+Galileo fitted-rotation tests. The cohort bundle, rebuilt with and without a stand-in
+guide under the shipped configuration, is byte-identical to the `88f19f57` build but for
+timestamps (17 files identical and 15 differing only in timestamps without the guide, 18
+and 16 with it); the XSD finds only the `TODO DOI` placeholders, two and six; every
+Schematron rule finds nothing; and the table check finds nothing with the guide and,
+without it, the seven references to the guide's LID it found before. Built under the
+other name and version, the bundle checks the same.
+
+Closes #71, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 
 ### Phase 10 — Validation, the integrity pass, and the draft run
 
@@ -2798,8 +2898,9 @@ out. What is not ruled out is the registry: `pds-xml_schema_1.24.0.0`
 returns 404 where 1.23.0.0 resolves, and every LIDVID in the xml_schema
 collection is that kind of product. If the Engineering Node's answer is that
 this build's dictionaries are not registered, the bundle moves to one whose
-are, and every declaration moves together. That is a Phase 1 edit repeated,
-not a redesign, but it invalidates any label generated before it.
+are, and every declaration moves together. Since Phase 9 that is one edit of the
+dataset's configuration entry (section 3.9), not a redesign, but it invalidates any
+label generated before it.
 
 **Validation will find more than this plan lists.** Nineteen defects were
 found by reading and running; a validator reads the schemas too. Phase 10
