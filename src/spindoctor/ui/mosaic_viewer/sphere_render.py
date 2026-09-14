@@ -111,9 +111,13 @@ def render_to_image(
     # nearest-neighbour lookup this renderer promises is a round, not a floor:
     # a floor picks the bin below whenever the ray falls in the upper half of a
     # bin, which is half the sphere.
+    # The longitude axis is circular, so the reduction is a modulo and not a
+    # clamp: a ray in the upper half of the last bin rounds up to ``n_full_lon``,
+    # which is bin 0 once round again.  Clamping it to the last bin would show
+    # that bin's column, or no data at all where it is absent, in a seam at the
+    # prime meridian.
     lon_r_mod = np.mod(lon_r, twopi)
-    k = np.round(lon_r_mod / lon_res_rad).astype(np.int64)
-    k = np.clip(k, 0, n_full_lon - 1)
+    k = np.mod(np.round(lon_r_mod / lon_res_rad).astype(np.int64), n_full_lon)
     dc = lon_bin_to_dc[k]  # data column, -1 if absent
 
     dr = np.round((lat_deg - lat_min_deg) / d_lat_deg).astype(np.int64)

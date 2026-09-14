@@ -421,8 +421,9 @@ def add_ring_args(parser: argparse.ArgumentParser) -> None:
         default='1',
         metavar='N or R,L',
         help=(
-            'Number of sub-samples taken per output cell, which are averaged into that '
-            'cell. The image is not interpolated: each sub-sample reads the one pixel '
+            'Sub-samples taken per output cell along each axis, averaged into that '
+            'cell, so a scalar N takes N by N of them. The image is not interpolated: '
+            'each sub-sample reads the one pixel '
             'containing it. Raising this smooths the output and fills cells a single '
             'sample would miss, and costs run time as the product of the radial and '
             'longitudinal factors. An integer applies uniformly, so the cost is its '

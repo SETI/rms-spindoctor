@@ -897,10 +897,10 @@ class StarFieldFromCatalogNav(NavTechnique):
                 continue
             if result is None:
                 continue
-            # ``find_position`` reports the position in ``eval_rect`` convention
-            # (offset measured from the pixel's lower edge, which is a pixel corner
-            # coordinate); this technique measures the image array, so the half pixel
-            # comes off here to match the moment centroids it replaces.
+            # ``find_position`` measures its offset from a pixel's lower edge,
+            # so it works in pixel corner coordinates; this technique measures
+            # the image array and works pixel centric, so the half pixel comes
+            # off here to match the moment centroids it replaces.
             refined[i, 0] = result[0] - PIXEL_CENTER_TO_CORNER_PX
             refined[i, 1] = result[1] - PIXEL_CENTER_TO_CORNER_PX
             n_refined += 1

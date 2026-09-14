@@ -32,3 +32,23 @@ offset is a difference between a predicted position and a measured one, so an
 error common to both cancels in everything computed from the same pair and
 survives only in the absolute answer.
 """
+
+
+def containing_pixel(position: float) -> int:
+    """Return the pixel a pixel centric position falls in.
+
+    A pixel centric position runs from ``i - 0.5`` to ``i + 0.5`` over pixel
+    ``i``, so the pixel containing it is the nearest whole number.  A position
+    of exactly ``i + 0.5`` is on the boundary and belongs to neither; it is
+    given to the upper pixel, consistently.  ``round`` would not do that: it
+    breaks a tie to the even neighbour, so it hands ``40.5`` down to 40 and
+    ``41.5`` up to 42, and two sites rounding two ends of the same box can then
+    disagree about where the box starts.
+
+    Parameters:
+        position: A pixel centric coordinate along one axis.
+
+    Returns:
+        The whole-numbered pixel containing it.
+    """
+    return math.floor(position + PIXEL_CENTER_TO_CORNER_PX)
