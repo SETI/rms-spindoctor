@@ -205,7 +205,7 @@ plan).
 | 3 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label, in the data collection label (a Mission Science Data collection, whose references are `collection_to_target`) and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,130`, `bundle.lblx`, `collection_data.lblx`, `kernels.lblx` | #73, #79, #75, #47 |
 | 4 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
 | 5 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 6 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; fixed by Phase 7, whose labels pass reads them from there (section 3.4) |
+| 6 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; fixed by Phase 7, whose labels pass reads them from there, and fails the image of a document an earlier version wrote, which records none there, until it is navigated again (section 3.4) |
 | 7 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
 No row but 1 and 6 gets its own tracking issue. Each of the others is fixed by a
@@ -504,17 +504,35 @@ stop; section 3.13 says what it does at whole seconds and for the midtime,
 and which of its rules this bundle follows for which element.
 
 An image whose navigation never reached a result is skipped; section 3.11
-says what happens to it, and the answer is that it never reaches a label. One
-whose navigation reached a result has an `observation` block, pointing or not:
-the navigation records a success with no pointing when `compute_pointing`
-raises `NavPointingError` or the instrument has no SPICE camera frame mapped,
-and the block holds the host's exposure times all the same (section 2.2 row 6).
-Such an image is bundled like any other. Until Phase 7 the labels read
+says what happens to it, and the answer is that it never reaches a label. A
+document written since #624 records the exposure times in its `observation`
+block for every image whose navigation reached a result, pointing or not: the
+navigation records a success with no pointing when `compute_pointing` raises
+`NavPointingError` or the instrument has no SPICE camera frame mapped, and the
+block holds the host's exposure times all the same (section 2.2 row 6). Such an
+image is bundled like any other. Until Phase 7 the labels read
 `navigation_result.times`, which the navigation writes only beside a solved
-pointing, and the labels pass failed such an image with nothing written. The
-epochs are read as recorded, with nothing checked about them (the operator's
-ruling of 2026-09-11 that nothing guards against our own files). The empty
-string is not reachable.
+pointing, and the labels pass failed such an image with nothing written.
+
+A document an earlier version wrote carries no times in its `observation`
+block, which holds only the image's path, name and shape, the instrument, the
+camera and the shutter mode; its times are under `navigation_result.times`,
+beside a solved pointing. The 17 success documents the Phase 7 review sampled
+under `/data/nav-offset-results`, written 2026-08-10 to 08-27, are all of that
+vintage. The labels pass fails such an image before anything is written for
+it, in one line saying the navigation document records no exposure times in
+its observation block and the image has to be navigated again. It checks only
+`start_time_et`, since the host publishes the start, the midtime and the end
+together. That is a document of a real, earlier vintage rather than a
+malformed one, as a backplane root of mixed vintage is to the units check. It
+is no fallback to `navigation_result.times`: by the operator's direction every
+time the bundle states comes from the observation block, and a navigation of
+the current version records them there. The summary pass checks nothing, since
+a supplemental file the labels pass wrote always holds the times and a bundle
+is written into an empty directory (the ruling of 2026-09-11). The epochs are
+read as recorded, with nothing else checked about them (the operator's ruling
+of 2026-09-11 that nothing guards against our own files). The empty string is
+not reachable.
 
 The data collection label states the cohort's earliest start and latest stop,
 at whole seconds as the reference's collection and bundle labels do, the start
@@ -1394,12 +1412,17 @@ declined:
     circle, in a frame turning with the F ring's core at its mean rate
     (581.964 deg/day, after Albers et al. 2012) and at one with inertial
     longitude at 2007-01-01T00:00:00Z. That frame is the one the reference's
-    mosaics are reprojected into, and so are its
-    `rings:minimum_inertial_ring_longitude` and `..._maximum_...`, the inertial
-    longitudes "associated with valid corotating longitudes". A backplane
-    measures a ring longitude from the ring plane's J2000 ascending node, which
-    the `minimum_ring_longitude` and `maximum_ring_longitude` columns give, and
-    defines no co-rotating frame.
+    mosaics are reprojected into, the F ring's science, and a backplane defines
+    none. The reference's `rings:minimum_inertial_ring_longitude` and
+    `..._maximum_...` are not declined with them: they are inertial longitudes,
+    the co-rotating pair turned back by the frame's rotation since its epoch
+    (row `1874525875w` of its `global_reproj_img_index.tab` gives co-rotating
+    338.04 to 77.60 and inertial 14.095 to 113.655, the frame having turned
+    36.053 deg), and so the quantity our `minimum_ring_longitude` and
+    `maximum_ring_longitude` give. Ours differ only in the wrap convention, a
+    plain least and greatest where the reference's range is taken on the
+    circle, which is why they carry names of their own (the Phase 7 record's
+    naming table).
   - The F ring's own columns, its core radius, its node, pericenter and true
     anomaly, and Prometheus's and Pandora's longitudes and radii: that
     bundle's science, not a backplane's.
@@ -2109,8 +2132,8 @@ statistic's four missing cells), the rings table 16 in records of 272.
 - the millisecond rule is one constant, `PDS4_EXPOSURE_TIME_DIGITS` in
   `support/time.py`, which the data label and the index tables' time columns
   both import, the dataset still importing nothing from `spindoctor.cli`;
-- section 3.13 declines the reference's co-rotating longitudes, with their
-  inertial companions;
+- section 3.13 declines the reference's co-rotating longitudes, whose inertial
+  companions are the quantity our ring longitude columns give;
 - by the operator's direction, every exposure time the bundle states comes from
   the navigation document's `observation` block (`start_time_et`,
   `end_time_et`) rather than `navigation_result.times`: the data label's start
@@ -2128,6 +2151,23 @@ statistic's four missing cells), the rings table 16 in records of 272.
   a `Source_Product_External` (section 3.13), which a cohort test pins;
 - by the operator's ruling on #601, the tables' missing value stands, section
   3.13 showing for each column that `-999` is no value it can hold.
+
+**The review's fixes**, after the last round's adversarial review:
+- an image whose navigation document records no exposure times in its
+  observation block, as a navigation by an earlier version left it, fails the
+  labels pass in one line, with no traceback and nothing written, until it is
+  navigated again, with no fallback to `navigation_result.times` (section 3.4);
+  a test pins it over a document in that version's shape;
+- the source-product block's element order, the XSD's, and its description are
+  pinned;
+- the note on the block's future is a `$NOTE`, which `pdstemplate` does not
+  render, so no data label carries it;
+- the identifier's comment and docstring say that the results path stub gives
+  the volume and the directory and the label's URL the file name;
+- `et_to_pds4_utc`'s default is `PDS4_EXPOSURE_TIME_DIGITS`, and the
+  integration test passes the constant and derives its own precision from it,
+  so a change to the constant changes what that test compares;
+- section 3.13 no longer declines the reference's inertial longitudes.
 
 Closes #76, #601 and #678, by hand when its PR merges into
 `rf_pds4_draft_bundle` (section 8).
