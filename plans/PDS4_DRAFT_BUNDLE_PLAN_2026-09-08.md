@@ -1449,6 +1449,13 @@ The document collection's guide moves into a `user_guide/` subdirectory, per
 section 3.1. And `readme.txt` loses the clause placing the index files in
 the document collection, which section 3.1 moved.
 
+**The document inventory's members follow section 3.5.** As the reference's
+does, `collection_document.csv` lists beside its own primary the context
+products and the external ISS data user guide as `S` members, every member
+with an explicit version: the mission, the spacecraft and the two cameras at
+the versions their context products carry, and the ISS data user guide at
+`::2.0` (section 3.6).
+
 Tests: the summary pass over a one-image bundle produces every file section
 3.1 lists; the seven `Bundle_Member_Entry` LIDs each resolve to a
 `collection_*.lblx` that exists.
@@ -1504,6 +1511,11 @@ Then the collection itself: a `collection_miscellaneous.lblx` template with
 `collection_type` `Miscellaneous`, and a generated
 `collection_miscellaneous.csv` listing the two products, written after them
 for the same reason the data inventory is written after the labels it lists.
+As the reference's does, it lists beside those two `P` members the context
+products and the external ISS data user guide as `S` members, every member
+with an explicit version (section 3.5): the two index products at the
+bundle's version, the context products at theirs, and the ISS data user guide
+at `::2.0` (section 3.6).
 
 The global index tables are still built from the supplemental files, not
 from the labels. Since Phase 5 a run in which a supplemental file has no data
