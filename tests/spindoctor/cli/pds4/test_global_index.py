@@ -15,7 +15,7 @@ Both generators recover the original image name from each on-disk product stem
 via ``DataSet.pds4_lid_part_to_image_name`` before building LIDs, so the stem
 (which is already in LID-part form) is not fed back through the image-name
 transform.  This is what keeps the inventory LIDVIDs and global-index LIDs
-matching the product labels' DATA_LID (regression coverage for #139 and #256).
+matching the product labels' DATA_LID.
 """
 
 import math
@@ -550,7 +550,7 @@ def test_a_missing_index_template_raises(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# LID cross-referencing (known bug #139 and LID round trips)
+# LID cross-referencing and round trips: regression coverage for #139 and #256
 # ---------------------------------------------------------------------------
 
 
@@ -572,7 +572,7 @@ def _cross_reference_env(tmp_path: Path) -> BundleEnv:
 
 
 def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) -> None:
-    """#139 round trip: the bodies-index LID equals the collection inventory LID."""
+    """Round trip: thebodies-index LID equals the collection inventory LID."""
     env = _cross_reference_env(tmp_path)
     _run_global_index(env)
     run_collections(env)
@@ -585,7 +585,7 @@ def test_global_index_bodies_lid_matches_collection_inventory(tmp_path: Path) ->
 
 
 def test_global_index_rings_lid_matches_collection_inventory(tmp_path: Path) -> None:
-    """#139 round trip: the rings-index LID equals the collection inventory LID."""
+    """Round trip: therings-index LID equals the collection inventory LID."""
     env = _cross_reference_env(tmp_path)
     _run_global_index(env)
     run_collections(env)
