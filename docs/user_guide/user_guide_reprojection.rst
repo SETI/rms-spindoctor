@@ -857,7 +857,11 @@ Ring-specific options
      - Edge pixels to exclude.
    * - ``--zoom N or R,L``
      - ``1``
-     - Zoom factor for sub-pixel interpolation.
+     - Sub-samples taken per output cell and averaged into it. The image
+       itself is not interpolated. Raising it smooths the mosaic and fills
+       cells a single sample would miss, and costs run time as the product of
+       the radial and longitudinal factors -- the square of a single ``N``.
+       ``R,L`` sets the two separately.
    * - ``--no-omit-shadow``
      - *(flag; default: shadow masked)*
      - Include pixels inside the planet shadow.
