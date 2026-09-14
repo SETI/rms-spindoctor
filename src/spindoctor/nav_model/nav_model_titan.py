@@ -531,13 +531,14 @@ class NavModelTitan(NavModel):
         self._metadata['body'] = TITAN_BODY_NAME
         with self.log_section('TITAN MODEL'):
             geometry = self.geometry_inputs
-            # The geometry works in pixel centric coordinates because the fit
-            # measures the image array.  What is reported stays where it was,
-            # in the pixel corner coordinates the geometry layer states a
-            # position in, so the half pixel goes back on here.
+            # The geometry works in extended-frame pixel-centric coordinates
+            # because the fit measures the image array.  What is reported is
+            # the position in the nominal frame in pixel-corner coordinates, so
+            # the half pixel goes back on and the margin comes off.
+            margin_v, margin_u = geometry.extfov_margin_vu
             reported_center_vu = (
-                geometry.predicted_center_vu[0] + PIXEL_CENTER_TO_CORNER_PX,
-                geometry.predicted_center_vu[1] + PIXEL_CENTER_TO_CORNER_PX,
+                geometry.predicted_center_vu[0] + PIXEL_CENTER_TO_CORNER_PX - margin_v,
+                geometry.predicted_center_vu[1] + PIXEL_CENTER_TO_CORNER_PX - margin_u,
             )
             self._metadata['predicted_center_vu'] = list(reported_center_vu)
             self._metadata['km_per_pixel'] = geometry.km_per_px

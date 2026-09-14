@@ -46,6 +46,29 @@ def test_star_unique_match_one_star_recovers_planted_offset(
     assert result.confidence <= 0.7 + 1e-12
 
 
+def test_the_matched_star_is_logged_in_the_image_frame(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The logged match names a pixel of the image, not of the padded array.
+
+    The star is drawn on the centre of row 100 and column 100 of the padded
+    array, which sits 32 rows and columns of padding in from the image's own
+    first row and column, so its light is on the centre of image row 68.  A
+    position stated to a person names a row's centre by that row's number
+    plus a half, so the line has to read 68.5000.  The offset beside it is a
+    difference and stays as it is.
+    """
+    image = np.zeros((200, 200), dtype=np.float64)
+    drawn_vu = (100.0, 100.0)
+    draw_gaussian_star(image, drawn_vu, peak_dn=200.0, sigma=1.2)
+    feature = make_star_feature('star:UCAC4:1', predicted_vu=drawn_vu, predicted_snr=40.0)
+    StarUniqueMatchNav().navigate([feature], make_nav_context(image, extfov_margin_vu=(32, 32)))
+    assert 'matched star:UCAC4:1 at (68.5000, 68.5000)' in capsys.readouterr().out
+
+
 def test_star_unique_match_two_star_recovers_planted_offset(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,

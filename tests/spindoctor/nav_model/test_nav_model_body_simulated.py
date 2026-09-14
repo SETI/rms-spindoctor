@@ -6,12 +6,14 @@ cover the mesh-vs-ellipsoid prediction split, the pose-disagreement fixture, and
 that the predicted mesh reproduces the rendered data when the params agree.
 """
 
+import math
 from typing import Any
 
 import numpy as np
 import pytest
 from tests.shims import bare_nav_context
 
+from spindoctor.annotation import Annotations
 from spindoctor.feature.feature import NavFeature
 from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
@@ -65,6 +67,41 @@ def _mesh_params(**overrides: Any) -> dict[str, Any]:
     return _body_params(
         shape_model='polyhedral_mesh', mesh_lumpiness=0.45, mesh_seed=2, **overrides
     )
+
+
+def test_the_label_anchors_on_the_pixel_the_body_centre_falls_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The label is anchored on the row and column holding the body's centre.
+
+    A scene states a centre as a pixel corner, so row 40 spans 40.0 to 41.0
+    and a centre of 40.7 falls inside it.  The anchor addresses a pixel of the
+    image, so it is that row, whatever the fraction is.
+
+    Parameters:
+        monkeypatch: Records the anchor the annotation builder is handed.
+    """
+    anchors: list[tuple[int, int]] = []
+
+    def _record(
+        self: NavModelBodySimulated,
+        u_center: int,
+        v_center: int,
+        model: np.ndarray,
+        limb_mask: np.ndarray,
+        body_mask: np.ndarray,
+    ) -> Annotations:
+        """Stand in for the annotation builder, keeping its anchor."""
+        anchors.append((v_center, u_center))
+        return Annotations()
+
+    monkeypatch.setattr(NavModelBodySimulated, '_create_annotations', _record)
+    obs = _obs()
+    params = _body_params(center_v=40.7, center_u=52.7)
+    model = NavModelBodySimulated('body', obs, params['name'], params)
+    model.create_model()
+    model.to_annotations(bare_nav_context(obs))
+    assert anchors[0] == (math.floor(params['center_v']), math.floor(params['center_u']))
 
 
 def test_mesh_prediction_differs_from_ellipsoid() -> None:

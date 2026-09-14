@@ -37,6 +37,7 @@ from spindoctor.nav_technique.nav_technique import (
     embed_rotation_unobservable,
     load_ncc_covariance_tuning,
     log_confidence_breakdown,
+    reported_position_vu,
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
@@ -522,16 +523,20 @@ def _collect_per_blob_residuals(
         flags_factor = float(getattr(feature.flags, 'phase_irregularity_factor', 0.0))
         phase_angles_deg.append(flags_phase)
         phase_irregularity_factors.append(max(0.0, flags_factor))
+        # The offsets are differences and stay as they are; the two
+        # positions beside them are stated the way a person reads one.
+        reported_pred = reported_position_vu((pred_v, pred_u), margin_vu)
+        reported_obs = reported_position_vu((obs_v, obs_u), margin_vu)
         logger.debug(
             'Blob %s: predicted (%.2f, %.2f), coarse offset (%d, %d), observed (%.2f, %.2f), '
             'background %.2f DN, SNR %.2f, N_lit %d, weight %.3g',
             feature.feature_id,
-            pred_v,
-            pred_u,
+            reported_pred[0],
+            reported_pred[1],
             coarse_offset[0],
             coarse_offset[1],
-            obs_v,
-            obs_u,
+            reported_obs[0],
+            reported_obs[1],
             background,
             snr,
             n_lit,
