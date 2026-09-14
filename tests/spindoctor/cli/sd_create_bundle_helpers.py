@@ -1,16 +1,17 @@
 """Shared stand-ins for the ``sd_create_bundle`` driver tests.
 
-The driver is exercised from two test files -- one for the labels pass and the
-cloud-task worker, one for the summary pass -- and both stand it up on the same stub
-dataset, which serves the ``pds4_*`` hooks the driver calls over a template directory
-holding what it declares, and enumerates chosen batches of images.  It lives here, in a
-plain module, so neither test file imports the other.
+The driver is exercised from a test file for each thing it does -- the labels pass and
+the cloud-task worker, the summary pass, and the check -- and each stands it up on the
+same stub dataset, which serves the ``pds4_*`` hooks the driver calls over a template
+directory holding what it declares, and enumerates chosen batches of images.  It lives
+here, in a plain module, so no test file imports another.
 """
 
 import argparse
 from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, NoReturn
 
 from filecache import FCPath
 
@@ -53,6 +54,20 @@ def batch_image_name(batch: int, index: int) -> str:
 
 BUNDLE_NAME = 'fake_bundle'
 """The bundle the stub dataset names, and so the directory a run writes into."""
+
+
+def refuse(*args: Any, **kwargs: Any) -> NoReturn:
+    """Stand in for something a run must not call.
+
+    Parameters:
+        *args: Whatever the run passed.
+        **kwargs: Whatever the run passed by keyword.
+
+    Raises:
+        AssertionError: Always, naming what it was passed.
+    """
+    raise AssertionError(f'called with {args!r} and {kwargs!r}, which the run must not do')
+
 
 STAND_IN_INFORMATION_MODEL_VERSION = '1.0.0.0'
 """The information model version the stub datasets give their labels."""

@@ -1,0 +1,143 @@
+"""The ``check`` subcommand, stood up on stubs.
+
+The subcommand writes nothing and reports through what it prints and its exit status,
+which is what is under test here; the check itself is tested in
+``tests/spindoctor/cli/pds4/check``.
+"""
+
+import argparse
+import sys
+from pathlib import Path
+from typing import Any, NoReturn
+
+import pytest
+from tests.spindoctor.cli.sd_create_bundle_helpers import BUNDLE_NAME, refuse, stub_dataset
+
+from spindoctor.cli import sd_create_bundle
+from spindoctor.cli.pds4.check import CheckName, Finding
+
+FINDINGS = [
+    Finding(
+        'bundle.lblx',
+        CheckName.XSD,
+        '/Product_Bundle/Identification_Area/Citation_Information/doi',
+        "value doesn't match any pattern (line 17)",
+    ),
+    Finding('readme.txt', CheckName.INTEGRITY, '', 'no label names it'),
+]
+"""Two findings a stand-in check reports."""
+
+
+@pytest.fixture
+def check_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Stand the check subcommand up on stubs, over an empty bundle directory.
+
+    Parameters:
+        tmp_path: Base temporary directory served as the bundle results root.
+        monkeypatch: Fixture the stand-ins are installed through.
+
+    Returns:
+        The bundle directory.
+    """
+    monkeypatch.setattr(
+        sd_create_bundle, 'parse_args_check', lambda _: argparse.Namespace(dataset_name='stub')
+    )
+    monkeypatch.setattr(sd_create_bundle, 'load_default_and_user_config', lambda *a: None)
+    monkeypatch.setattr(sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
+    dataset = stub_dataset(tmp_path)
+    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
+    bundle_dir = tmp_path / BUNDLE_NAME
+    bundle_dir.mkdir()
+    return bundle_dir
+
+
+def _check_finds(monkeypatch: pytest.MonkeyPatch, findings: list[Finding]) -> None:
+    """Make the check report the given findings.
+
+    Parameters:
+        monkeypatch: Fixture the stand-in is installed through.
+        findings: What the check reports.
+    """
+    monkeypatch.setattr(sd_create_bundle, 'check_bundle', lambda *a, **k: findings)
+
+
+def test_the_check_prints_each_finding_then_a_count_and_exits_one(
+    check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Every finding is one line, then the count, and any finding ends the run with 1."""
+    _check_finds(monkeypatch, FINDINGS)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_check()
+    assert excinfo.value.code == 1
+    assert capsys.readouterr().out.splitlines() == [
+        *(finding.line() for finding in FINDINGS),
+        f'Bundle check of {check_run}: 2 finding(s)',
+    ]
+
+
+def test_the_check_exits_zero_over_a_bundle_with_no_finding(
+    check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A bundle with no finding ends the run normally, with the count."""
+    _check_finds(monkeypatch, [])
+    sd_create_bundle.main_check()
+    assert capsys.readouterr().out.splitlines() == [f'Bundle check of {check_run}: 0 finding(s)']
+
+
+def test_the_check_exits_one_without_a_bundle_directory(
+    check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With no bundle directory there is nothing to check, and the run says where it looked."""
+    check_run.rmdir()
+    monkeypatch.setattr(sd_create_bundle, 'check_bundle', refuse)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_check()
+    assert excinfo.value.code == 1
+    assert f'No bundle directory at {check_run}' in capsys.readouterr().out
+
+
+def test_the_check_exits_one_with_the_traceback_of_a_check_that_stops(
+    check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A check that raises ends the run with status 1 and its traceback, and no count."""
+
+    def _stops(*args: Any, **kwargs: Any) -> NoReturn:
+        """Stand in for a check that stops part way.
+
+        Parameters:
+            *args: The bundle directory.
+            **kwargs: The configuration.
+
+        Raises:
+            RuntimeError: Always.
+        """
+        raise RuntimeError('the check stopped here')
+
+    monkeypatch.setattr(sd_create_bundle, 'check_bundle', _stops)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_check()
+    assert excinfo.value.code == 1
+    assert 'RuntimeError: the check stopped here' in capsys.readouterr().out
+
+
+def test_the_check_takes_the_configuration_arguments(tmp_path: Path) -> None:
+    """The check takes a dataset, configuration files and a bundle results root."""
+    arguments = sd_create_bundle.parse_args_check(
+        ['coiss_saturn', '--config-file', 'a.yaml', '--bundle-results-root', str(tmp_path)]
+    )
+    assert (arguments.dataset_name, arguments.config_file, arguments.bundle_results_root) == (
+        'coiss_saturn',
+        ['a.yaml'],
+        str(tmp_path),
+    )
+
+
+def test_the_program_runs_the_check_for_its_check_subcommand(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``sd_create_bundle check`` runs the check subcommand."""
+    calls: list[str] = []
+    monkeypatch.setattr(sd_create_bundle, 'main_check', lambda: calls.append('check'))
+    monkeypatch.setattr(sys, 'argv', ['sd_create_bundle', 'check'])
+    sd_create_bundle.main()
+    assert calls == ['check']

@@ -7,6 +7,7 @@ is how a question about what a label *says* is asked -- an epoch, a target, a de
 data object, a name or a version.
 """
 
+import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,9 @@ from spindoctor.cli.pds4.collections import generate_collection_files
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet
+
+STAND_IN_USER_GUIDE = b'%PDF-1.4 a stand-in user guide\n'
+"""What stands in for a bundle's user guide in a test: enough for the guide's label to render."""
 
 
 @dataclass
@@ -71,6 +75,25 @@ def make_cohort_bundle_env(cohort: Cohort, tmp_path: Path) -> CohortBundleEnv:
         bundle_results_root=bundle_results_root,
         bundle_dir=bundle_results_root / dataset.pds4_bundle_name(),
     )
+
+
+def stand_in_guide_templates(dataset: DataSet, directory: Path) -> Path:
+    """Copy a dataset's template directory, with a stand-in user guide in the copy.
+
+    A bundle holds its user guide, and the guide's label, only when the template directory
+    holds the guide's PDF, which the shipped directory does not; a test hands the dataset
+    the copy as its template directory.
+
+    Parameters:
+        dataset: The dataset whose template directory is copied.
+        directory: Where the copy goes; it must not exist yet.
+
+    Returns:
+        The copy.
+    """
+    shutil.copytree(dataset.pds4_bundle_template_dir(), directory)
+    (directory / dataset.pds4_user_guide_file_name()).write_bytes(STAND_IN_USER_GUIDE)
+    return directory
 
 
 def label_cohort_images(env: CohortBundleEnv, stubs: Sequence[str]) -> None:

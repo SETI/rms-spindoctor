@@ -1,1 +1,20 @@
-"""The bundle check: a PDS4 bundle tree that has been written, held to PDS4."""
+"""The bundle check: a PDS4 bundle tree that has been written, held to PDS4.
+
+``sd_create_bundle check`` runs :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`
+over a bundle's directory.  It reads only the tree and the schemas the package ships, and
+reports each way the tree departs from PDS4 as a
+:class:`~spindoctor.cli.pds4.check.findings.Finding`:
+
+- each label against the XML schemas it declares
+  (:mod:`~spindoctor.cli.pds4.check.schemas`) and the Schematron rules it declares
+  (:mod:`~spindoctor.cli.pds4.check.schematron`);
+- each table read through its label alone (:mod:`~spindoctor.cli.pds4.check.tables`),
+  and each statistic column of a global index table against the configuration
+  (:mod:`~spindoctor.cli.pds4.check.statistic_columns`);
+- the tree as a whole (:mod:`~spindoctor.cli.pds4.check.integrity`).
+"""
+
+from spindoctor.cli.pds4.check.bundle import check_bundle, check_label
+from spindoctor.cli.pds4.check.findings import CheckName, Finding
+
+__all__ = ['CheckName', 'Finding', 'check_bundle', 'check_label']
