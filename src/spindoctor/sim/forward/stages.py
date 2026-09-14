@@ -110,8 +110,8 @@ def new_sim_frame(size_v: int, size_u: int, *, oversample: int = 1) -> SimFrame:
 
 
 # Truth-metadata keys carrying a per-pixel array on the render grid.  The
-# masks classify pixels, so they are sampled at each detector pixel's central
-# subsample rather than averaged (an averaged bool has no meaning).
+# masks classify pixels, so they are reduced by how much of each detector
+# pixel they cover rather than averaged (an averaged bool has no meaning).
 _TRUTH_MASK_KEYS: tuple[str, ...] = ('body_masks', 'ring_masks')
 # Truth-metadata inventory-bbox fields in pixel units (scaled back by 1/os);
 # the 'range' entry is a physical distance and is left unscaled.
@@ -134,23 +134,62 @@ _STAR_INFO_PIXEL_KEYS: tuple[str, ...] = (
 )
 
 
-def _center_subsample(array: Any, os: int) -> Any:
-    """Sample the central subsample of each ``os x os`` detector-pixel block.
+def _covering_mask(mask: Any, os: int) -> Any:
+    """Reduce a boolean render-grid mask to the detector grid by coverage.
 
-    Classifying arrays (boolean masks, integer index maps) cannot be averaged,
-    so each detector pixel takes the value of the subsample nearest its centre.
+    A detector pixel is true when at least half of the ``os * os`` subsamples of
+    its block are true.  The count is compared as whole subsamples, so a block
+    covered exactly half is true at every ``os``.  The rule is symmetric about
+    the block, which is what keeps a reduced mask registered with the
+    box-averaged image it describes: no subsample is preferred over the one
+    mirroring it, so a straight edge sweeping across a block turns the pixel on
+    as it passes the block's middle rather than a fixed fraction of a pixel to
+    one side of it.
 
     Parameters:
-        array: A ``(V*os, U*os)`` array on the render grid.
+        mask: A ``(V*os, U*os)`` boolean array on the render grid.
         os: The oversampling factor.
 
     Returns:
-        The ``(V, U)`` detector-grid array.
+        The ``(V, U)`` detector-grid boolean array.
     """
-    size_v = array.shape[0] // os
-    size_u = array.shape[1] // os
-    mid = os // 2
-    return array.reshape(size_v, os, size_u, os)[:, mid, :, mid]
+    size_v = mask.shape[0] // os
+    size_u = mask.shape[1] // os
+    counts = np.count_nonzero(mask.reshape(size_v, os, size_u, os), axis=(1, 3))
+    return 2 * counts >= os * os
+
+
+def _covering_index_map(index_map: Any, os: int) -> Any:
+    """Reduce the body index map to the detector grid by coverage.
+
+    Each detector pixel takes the body covering the most subsamples of its
+    block.  The labels run from 1 upward in near-to-far order with 0 for no
+    body, so a tie between two bodies goes to the nearer one, and the no-body
+    label wins only where it strictly covers more of the block than any single
+    body does.  A block one body covers exactly half therefore comes out as that
+    body, which is the answer :func:`_covering_mask` gives the same block.
+
+    Parameters:
+        index_map: A ``(V*os, U*os)`` integer array on the render grid.
+        os: The oversampling factor.
+
+    Returns:
+        The ``(V, U)`` detector-grid integer array.
+    """
+    size_v = index_map.shape[0] // os
+    size_u = index_map.shape[1] // os
+    dtype = index_map.dtype
+    best_count = np.zeros((size_v, size_u), dtype=np.int64)
+    best_label = np.zeros((size_v, size_u), dtype=dtype)
+    covered = np.zeros((size_v, size_u), dtype=np.int64)
+    for label in sorted(int(value) for value in np.unique(index_map) if int(value) != 0):
+        counts = np.count_nonzero((index_map == label).reshape(size_v, os, size_u, os), axis=(1, 3))
+        covered += counts
+        wins = counts > best_count
+        best_count = np.where(wins, counts, best_count)
+        best_label = np.where(wins, np.asarray(label, dtype=dtype), best_label)
+    empty = os * os - covered
+    return np.where(empty > best_count, np.asarray(0, dtype=dtype), best_label)
 
 
 def downsample_to_detector(
@@ -165,9 +204,10 @@ def downsample_to_detector(
     ``signal`` passes through unchanged in level.  The pixel-space truth
     metadata (body/ring masks, the body index map, inventory bounding boxes,
     and star hit-test records) is returned to the detector grid alongside the
-    image: classifying arrays are sampled at each detector pixel's central
-    subsample, and pixel-unit scalars are divided by ``os``.  At
-    ``oversample == 1`` this stage is a no-op.
+    image: classifying arrays are reduced by coverage (see
+    :func:`_covering_mask` and :func:`_covering_index_map`), and pixel-unit
+    scalars are divided by ``os``.  At ``oversample == 1`` this stage is a
+    no-op.
 
     Parameters:
         frame: The frame to downsample in place.
@@ -192,22 +232,27 @@ def _downsample_truth(truth: dict[str, Any], os: int) -> None:
     """Return the pixel-space truth metadata to the detector grid in place."""
     index_map = truth.get('body_index_map')
     if index_map is not None:
-        truth['body_index_map'] = _center_subsample(index_map, os)
+        truth['body_index_map'] = _covering_index_map(index_map, os)
     for key in _TRUTH_MASK_KEYS:
         masks = truth.get(key)
         if masks is not None:
-            truth[key] = [_center_subsample(mask, os) for mask in masks]
+            truth[key] = [_covering_mask(mask, os) for mask in masks]
     mask_map = truth.get('body_mask_map')
     if isinstance(mask_map, dict):
-        truth['body_mask_map'] = {
-            name: _center_subsample(mask, os) for name, mask in mask_map.items()
-        }
+        truth['body_mask_map'] = {name: _covering_mask(mask, os) for name, mask in mask_map.items()}
     inventory = truth.get('inventory')
     if isinstance(inventory, dict):
         for item in inventory.values():
             for key in _INVENTORY_PIXEL_KEYS:
                 if key in item:
                     item[key] = item[key] / os
+    # Every hit-test entry scales by a pure divide.  The sizes and displacements
+    # do so because that is what a length does.  ``center_v`` and ``center_u``
+    # do so because the renderer states them as the DETECTOR pixel centric
+    # position times ``os`` and lands the deposit on the oversampled grid with
+    # its own half-subsample shift (see render_stars' grid_shift); reading them
+    # as an oversampled-grid pixel centric position and taking a further half
+    # pixel off would move every star by 0.5 * (1 - 1 / os) detector pixels.
     star_info = truth.get('star_info')
     if star_info is not None:
         for info in star_info:
