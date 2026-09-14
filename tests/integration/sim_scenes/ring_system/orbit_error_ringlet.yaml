@@ -32,7 +32,7 @@ exposure_sec: 1.0
 # That covering error bar is the point: the frame reports a radial
 # precision consistent with how far it can actually be from truth.
 # The scalar confidence RISES to 0.99, which is the correlated-witness
-# artifact (#317): both ring techniques observe the same misplaced
+# artifact: both ring techniques observe the same misplaced
 # annulus, so inflating both isotropically re-couples their weights and
 # unlocks the two-member agreement boost.  The tier (governed by the
 # fused sigma, not the scalar) stays medium, and the scalar artifact is

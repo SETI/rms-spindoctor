@@ -8,15 +8,16 @@ offset:
   star_refinement_max_pos_err: 0.5        # reject if 1-sigma position uncertainty exceeds this (pixels)
   log_star_refinement_detail: false       # log all fit metrics and thresholds per star for rejection debugging
   correlation_fft_upsample_factor: 128
-  default_gaussian_blur: 0.25
-  maximum_blur: 100.0
-  maximum_blur_error_bars: 60.0
-  median_filter_size:
-  median_filter_blur: 1.2
+  default_gaussian_blur: 0.25   # (px) reserved; no code reads it
+  maximum_blur: 100.0           # (px) local-maximum mask dilation; reserved, unread
+  maximum_blur_error_bars: 60.0 # (px) as maximum_blur, for the error-bar pass;
+                                # reserved, unread
+  median_filter_size:           # (px) median window; no value set, and unread
+  median_filter_blur: 1.2       # (px) reserved; no code reads it
   median_filter_footprint: circle
   num_bodies_threshold: 3
   bodies_cov_threshold: 0.0005
-  model_cov_threshold: 25
+  model_cov_threshold: 25       # reserved; no code reads it and no unit is recorded
   model_edge_pixels: 5
   secondary_corr_search_size: [15, 15]
   lowest_confidence: 0.01

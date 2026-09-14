@@ -22,35 +22,16 @@ ground_truth:
   notes: |
     Dione and Rhea both visible and overlapping. Phase angle ~90 deg.
 
-    Phase-5 status: BodyDiscCorrelateNav and BodyLimbNav both converge
-    within ~1 px of the operator's ground truth (disc: (6.76, -17.71)
-    confidence 0.246; limb: (7.00, -18.00) confidence 0.239).
-    BodyTerminatorNav, however, latches onto a wrong local minimum at
-    (11.58, +12.64) — about 31 px off in the U axis — and reports
-    sub-pixel RMS with 76 % inliers, scoring confidence 0.744 on the
-    wrong answer.  The combined-edge-mask coarse NCC for the two
-    bodies' concatenated terminator polylines finds an incorrect
-    global maximum at (11, 13) on this high-phase, multi-body
-    crescent geometry, and LM converges near the wrong seed.
+    The geometry is a hazard for BodyTerminatorNav. Its coarse
+    normalized cross-correlation runs over a combined edge mask built
+    from both bodies' concatenated terminator polylines, and on a
+    high-phase multi-body crescent that surface has an incorrect global
+    maximum tens of pixels away in U. Levenberg-Marquardt then converges
+    near the wrong seed and the technique reports sub-pixel RMS with a
+    high inlier fraction on the wrong answer, so it is confidently wrong
+    rather than merely wrong.
 
-    The ensemble correctly refuses to commit: disc + limb sum to 0.485
-    while the lone terminator scores 0.744, gap 0.259, below the
-    agreement_gap threshold (0.5), so the orchestrator returns
-    status=conflicted.  Headline (disc + limb) answer is right; the
-    multi-body terminator coarse-NCC failure plus the
-    summed-confidence-gap conflict-detector rule produce the
-    conflicted verdict.
-
-    Phase 6 / Phase 10 follow-ups: (a) make BodyTerminatorNav's
-    coarse NCC robust to multi-body crescent geometry (e.g.
-    polarity-aware terminator extraction, or per-body coarse search
-    fused only after each body's individual peak passes a sanity
-    test); (b) lower agreement_gap (or replace it with a per-axis
-    offset-disagreement-in-pixels test) so disc + limb agreement
-    weighs more strongly against an isolated wrong-answer
-    high-confidence runner-up.
-
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected conflicted/conflicted/BodyTerminatorNav -> measured success/medium/BodyDiscCorrelateNav. Status conflicted->success/medium: BodyTerminatorNav no longer latches its wrong high-confidence local minimum (it emits no result after the terminator refit), so the agreeing BodyDiscCorrelateNav + BodyLimbNav pair carries the fuse to the operator offset. BodyTerminatorNav removed from techniques_must_run.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). BodyTerminatorNav emits no result on this frame, so the agreeing BodyDiscCorrelateNav + BodyLimbNav pair carries the fuse to the operator offset at medium tier.
 
 expected:
   status: success

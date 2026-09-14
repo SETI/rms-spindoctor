@@ -1,6 +1,6 @@
 stars:
   catalogs: [ucac4, tycho2, ybsc]  # Order of most precise to least
-  body_conflict_margin: 5
+  body_conflict_margin: 5  # (px) slop around a star when testing body overlap
   default_star_class: G0
   stellar_aberration: true
   proper_motion: true
@@ -33,13 +33,14 @@ stars:
   psf_gain:
     - 5000
     - 4
-  max_smear: 100
+  max_smear: 100  # (px) smear length above which a star is dropped
   min_vmag: 5.0
   max_vmag: 15.0
   vmag_increment: 0.5
   max_star_dn: 100000.0
   min_dn_force_one_star: 25000.0
-  star_body_conflict_margin: 3
+  star_body_conflict_margin: 3  # (px) smaller-than-body conflict margin; reserved,
+                                # no code reads it
   too_bright_dn: 1000
   too_bright_factor: 1  # TODO
   ring_occlusion_enabled: true

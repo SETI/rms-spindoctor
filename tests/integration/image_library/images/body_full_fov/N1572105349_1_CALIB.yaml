@@ -27,16 +27,14 @@ ground_truth:
   notes: |
     Regular body filling the FOV, navigable via its limb and disc:
     BodyLimbNav lands on this offset at (8.94, -17.36), operator-verified
-    (2026-07-13). An earlier version of this entry expected status failed
-    (from a period when only the disc correlator ran and could not close
-    the frame); ground truth and expected were re-saved to success.
+    (2026-07-13).
 
-    Known caveat (issue #222): the pass-2 single-inlier StarRefine,
-    seeded from the disc/limb consensus, sits ~2 px off and pulls the
-    fused answer to (9.77, -15.97) - about 1.8 px from this ground truth
-    - while still reporting a high tier. The fused offset therefore stays
-    outside slack until #222 is fixed; the underlying body fix (disc +
-    limb) is correct.
+    Known caveat: the pass-2 single-inlier StarRefine, seeded from the
+    disc/limb consensus, sits ~2 px off and pulls the fused answer to
+    (9.77, -15.97) - about 1.8 px from this ground truth - while still
+    reporting a high tier. The fused offset therefore stays outside
+    slack until that is fixed; the underlying body fix (disc + limb)
+    is correct.
 
 expected:
   # success | failed | conflicted

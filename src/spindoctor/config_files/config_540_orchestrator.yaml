@@ -56,7 +56,7 @@ orchestrator:
     # is measured relative to the winner (conflict only when
     # best - runner_up < agreement_gap * best), so an excluded
     # low-confidence dissenter cannot veto a clearly stronger singleton.
-    agreement_gap: 0.5
+    agreement_gap: 0.5  # (dimensionless fraction)
     # Multiplier on combined confidence when more than one group existed.
     disagreement_penalty: 0.7
     # Additional multiplier when the conflicted branch fires.
