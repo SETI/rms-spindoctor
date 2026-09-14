@@ -1310,21 +1310,71 @@ class TestOrbitPixels:
         """
         margin = 4
         probes = np.array(
-            [-margin - 0.5, -margin + 0.0, 0.0, _N - 0.5, _N + margin - 0.5, _N + margin + 0.5]
+            [
+                -margin - 0.5,
+                -margin + 0.0,
+                0.0,
+                _N - 0.5,
+                _N + margin - 0.5,
+                _N + margin + 0.0,
+                _N + margin + 0.5,
+            ]
         )
 
-        def _probe(
+        # The other axis is parked well inside its own bounds.  Sweeping both
+        # axes together would let each one's containment test hide a regression
+        # in the other's, since the two are combined with ``and``: the probe at
+        # the exclusive upper bound is dropped by whichever comparison is still
+        # correct, and the test passes with the other one broken.
+        inside = np.zeros_like(probes)
+
+        def _probe_u(
             obs: Any, longitude: Any, radius: Any, **kwargs: Any
         ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-            """Return the probe positions regardless of what was asked for."""
-            return probes.copy(), probes.copy()
+            """Sweep u across both bounds, holding v inside."""
+            return probes.copy(), inside.copy()
 
-        monkeypatch.setattr(RingMosaic, 'longitude_radius_to_pixels', staticmethod(_probe))
+        monkeypatch.setattr(RingMosaic, 'longitude_radius_to_pixels', staticmethod(_probe_u))
         u_pix, _v_pix = RingMosaic.orbit_pixels(_FakeExtBpObs(margin=margin), _make_model())
         # -4.5 is outside the padded frame; -4.0 is its first pixel's own
-        # coordinate; N + margin - 0.5 is the center of its last pixel; the
-        # boundary past that is not in it.
+        # coordinate, and the inclusive lower bound; N + margin - 0.5 is the
+        # center of the last pixel.  N + margin is the exclusive upper bound
+        # itself, so it is the probe that separates ``<`` from ``<=`` and it
+        # must come back dropped; N + margin + 0.5 is past it either way.
         np.testing.assert_allclose(u_pix, probes[1:5])
+
+    def test_the_v_frame_bounds_are_the_padded_frame_in_nominal_coordinates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The v containment test admits the margin and stops at the padded edge.
+
+        The u sibling above states the reasoning; this holds u inside and sweeps
+        v, so that each axis's bounds are asserted with the other unable to
+        supply the answer.
+        """
+        margin = 4
+        probes = np.array(
+            [
+                -margin - 0.5,
+                -margin + 0.0,
+                0.0,
+                _N - 0.5,
+                _N + margin - 0.5,
+                _N + margin + 0.0,
+                _N + margin + 0.5,
+            ]
+        )
+        inside = np.zeros_like(probes)
+
+        def _probe_v(
+            obs: Any, longitude: Any, radius: Any, **kwargs: Any
+        ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+            """Sweep v across both bounds, holding u inside."""
+            return inside.copy(), probes.copy()
+
+        monkeypatch.setattr(RingMosaic, 'longitude_radius_to_pixels', staticmethod(_probe_v))
+        _u_pix, v_pix = RingMosaic.orbit_pixels(_FakeExtBpObs(margin=margin), _make_model())
+        np.testing.assert_allclose(v_pix, probes[1:5])
 
     def test_last_column_is_not_dropped(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A point past the last column's left edge is kept, not rejected.
