@@ -367,7 +367,11 @@ own templates were written for.  The name, the version, the information model ve
 and the schemas have no default, and the shipped configuration is held to the shipped
 templates by tests rather than checked when it is loaded: it names the bundle, sets the
 version, gives a schema for exactly the dictionaries the templates declare, and gives
-the ``pds`` schema of the build the information model version names.  See
+the ``pds`` schema of the build the information model version names.  The entries are
+kept in this file, a registry keyed by dataset, rather than in an instrument's
+``config_4*`` file: every navigation document records a hash of each of those files'
+bytes as the instrument's static data, and a new bundle version or a moved schema there
+would read as a change of that data.  See
 :doc:`dev_guide_config_and_static_data` for the loader contract; the file
 is loaded by the standard numeric-prefix order at the ``9xx`` "downstream
 products" tier.
