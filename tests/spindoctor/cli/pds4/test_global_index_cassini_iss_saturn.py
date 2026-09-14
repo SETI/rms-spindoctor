@@ -2,8 +2,9 @@
 
 What each index label says of its table: its ``Header`` is the table's header line and its
 ``Table_Character`` begins where that line ends; it counts the table's rows as its
-records and its columns as its fields; and each ``Field_Character`` lands on the column it
-names in every record.  Those are asked of the cohort's bundle.  Two more questions need a
+records and its columns as its fields; each ``Field_Character`` lands on the column it
+names in every record; and each row's exposure start and stop are the ones its data label
+states.  Those are asked of the cohort's bundle.  Two more questions need a
 configuration the test chooses, and are asked of the shipped templates over plumbing
 inputs: that a plane added to the configuration adds a column to the table and a
 ``Field_Character`` to the label, and that a missing statistic's cell holds the constant
@@ -274,6 +275,39 @@ def test_every_field_character_lands_on_the_column_it_names(
     assert names == {name: product.header_names for name, product in products.items()}
     assert rebuilt == {name: product.records for name, product in products.items()}
     assert lengths == record_lengths
+
+
+TIME_COORDINATES = 'pds:Observation_Area/pds:Time_Coordinates'
+"""Where a data label states its exposure's start and stop."""
+
+TIME_FIELDS = ('pds:start_date_time', 'pds:stop_date_time')
+"""The two fields of each index table giving a row's exposure start and stop."""
+
+
+def test_each_row_s_times_are_the_start_and_stop_its_data_label_states(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """A row's exposure start and stop are the ones the data label of its product states.
+
+    Each table is read by the fields its label states, and each row's two times are held
+    to the ``start_date_time`` and ``stop_date_time`` of the data label whose LID the row
+    gives: two rows of the bodies table and one of the rings table.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
+    stated: dict[str, tuple[str, ...]] = {}
+    for data_label in (env.bundle_dir / 'data').rglob('*_backplanes.lblx'):
+        root = ElementTree.parse(data_label).getroot()
+        lid = _text(root, 'pds:Identification_Area/pds:logical_identifier')
+        stated[lid] = tuple(_text(root, f'{TIME_COORDINATES}/{name}') for name in TIME_FIELDS)
+    rows: list[tuple[str, tuple[str, ...]]] = []
+    for product in _index_products(env.bundle_dir / 'miscellaneous').values():
+        fields = {field.name: field for field in _field_characters(product.label)}
+        for record in product.records:
+            lid = fields['pds:logical_identifier'].value(record).strip()
+            times = tuple(fields[name].value(record).strip() for name in TIME_FIELDS)
+            rows.append((lid, times))
+    assert len(rows) == 3
+    assert rows == [(lid, stated[lid]) for lid, _ in rows]
 
 
 def _shipped_index_templates(cohort: CohortCassiniISSSaturn) -> dict[str, str]:

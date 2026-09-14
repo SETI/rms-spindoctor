@@ -142,11 +142,12 @@
             <records>$FILE_RECORDS(INDEX_TABLE_PATH)-1$</records>
             <description>
                 One row for each image the data collection holds that has ring backplanes,
-                giving the least and the greatest value each ring backplane takes over the
-                pixels where it has a value. Every field is padded with spaces to its
-                length and followed by a comma, the last by the line feed. Angles are in
-                degrees, although the backplane arrays are in radians. A field holding its
-                missing constant marks a ring backplane that has no value in that image.
+                giving the image's data product, the start and stop of its exposure, and
+                the least and the greatest value each ring backplane takes over the pixels
+                where it has a value. Every field is padded with spaces to its length and
+                followed by a comma, the last by the line feed. Angles are in degrees,
+                although the backplane arrays are in radians. A field holding its missing
+                constant marks a ring backplane that has no value in that image.
             </description>
             <record_delimiter>Line-Feed</record_delimiter>
             <Record_Character>

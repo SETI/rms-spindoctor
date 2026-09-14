@@ -141,12 +141,12 @@
             <records>$FILE_RECORDS(INDEX_TABLE_PATH)-1$</records>
             <description>
                 One row for each body of each image the data collection holds, giving the
-                least and the greatest value each body backplane takes over the pixels
-                where it has a value for that body. Every field is padded with spaces to
-                its length and followed by a comma, the last by the line feed. Angles are
-                in degrees, although the backplane arrays are in radians. A field holding
-                its missing constant marks a backplane that has no value for the body in
-                that image.
+                image's data product, the start and stop of its exposure, and the least
+                and the greatest value each body backplane takes over the pixels where it
+                has a value for that body. Every field is padded with spaces to its length
+                and followed by a comma, the last by the line feed. Angles are in degrees,
+                although the backplane arrays are in radians. A field holding its missing
+                constant marks a backplane that has no value for the body in that image.
             </description>
             <record_delimiter>Line-Feed</record_delimiter>
             <Record_Character>
