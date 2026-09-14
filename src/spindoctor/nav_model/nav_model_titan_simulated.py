@@ -371,9 +371,16 @@ class NavModelTitanSimulated(NavModelTitan):
         for star in self._star_records:
             if float(star.get('vmag', 99.0)) > vmag_limit:
                 continue
+            # A scene states a star's position as a pixel corner and the disc is
+            # painted against pixel centric grids, so the half pixel comes off
+            # before the extfov margins go on -- the same conversion the
+            # catalog-driven model makes for its own star discs.
             paint_disc(
                 contaminant_ext,
-                (float(star['v']) + margin_vu[0], float(star['u']) + margin_vu[1]),
+                (
+                    float(star['v']) - PIXEL_CENTER_TO_CORNER_PX + margin_vu[0],
+                    float(star['u']) - PIXEL_CENTER_TO_CORNER_PX + margin_vu[1],
+                ),
                 radius_px,
             )
         fraction = occluded_disc_fraction(occluder_ext, center_vu, r_env_px)
