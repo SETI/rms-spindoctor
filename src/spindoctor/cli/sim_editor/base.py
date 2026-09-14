@@ -100,6 +100,7 @@ class SimEditorBase(QMainWindow):
     _stray_amplitude_spin: QDoubleSpinBox
     _stray_direction_spin: QDoubleSpinBox
     _stray_model_combo: QComboBox
+    _stray_center_check: QCheckBox
     _stray_center_v_spin: QDoubleSpinBox
     _stray_center_u_spin: QDoubleSpinBox
 
@@ -258,7 +259,15 @@ class SimEditorBase(QMainWindow):
         raise NotImplementedError
 
     def _on_stray_center(self, key: str, value: float) -> None:
-        """Set or omit a stray-light centre (implemented in StrayLightMixin)."""
+        """Write a stray-light centre key (implemented in StrayLightMixin)."""
+        raise NotImplementedError
+
+    def _stray_has_center(self) -> bool:
+        """True when a stray-light centre key is authored (StrayLightMixin)."""
+        raise NotImplementedError
+
+    def _stray_center_defaults(self) -> tuple[float, float]:
+        """The effective stray-light centre default (StrayLightMixin)."""
         raise NotImplementedError
 
     def _build_optics_tab(self) -> QWidget:

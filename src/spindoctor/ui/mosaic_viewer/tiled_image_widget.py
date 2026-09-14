@@ -6,8 +6,18 @@ support alternate 2-D projections (Polar Stereographic N/S, Mollweide) and a
 3-D orthographic sphere view via :meth:`set_projection`.
 
 Image pixel coordinate convention (ring mode):
-    pixel_x  0 .. n_cols-1   increasing right  = increasing longitude
-    pixel_y  0 .. n_rows-1   increasing DOWN   = DECREASING radius / latitude
+    pixel_x  0 .. n_cols   increasing right  = increasing longitude
+    pixel_y  0 .. n_rows   increasing DOWN   = DECREASING radius / latitude
+
+Display positions (``pixel_x`` / ``pixel_y``) are pixel corner: a whole number
+falls on the boundary between two display cells, so display cell ``k`` occupies
+``[k, k + 1)`` and its centre is at ``k + 0.5``.  That is the same measure
+``QPainter`` uses, and the measure a cursor position arrives in.
+
+Both reprojectors define grid cell ``k`` as the point sample taken at
+``origin + k * resolution``, not as an interval covering it, so the physical
+coordinate of a display position is ``origin + (pixel - 0.5) * resolution`` and
+the cell nearest a physical coordinate is found by rounding, not flooring.
 
 When ``y_flip=True`` (the default for ring mosaics) the underlying numpy array
 has row 0 = inner/south, which is displayed flipped.  Set ``y_flip=False`` for
@@ -39,6 +49,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QAbstractScrollArea, QRubberBand, QScrollBar, QSizePolicy, QWidget
 
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.image import apply_linear_gamma_stretch
 from spindoctor.ui.mosaic_viewer.graticule import graticule_label_anchors, graticule_polylines
 from spindoctor.ui.mosaic_viewer.projections import (
@@ -553,6 +564,9 @@ class TiledImageWidget(QAbstractScrollArea):
     def body_sphere_data_indices(self, lon_deg: float, lat_deg: float) -> tuple[int, int, bool]:
         """Map display lon/lat (deg) to ``(data_col, data_row, inside)`` for full-sphere body.
 
+        Grid bin ``k`` is the sample taken at ``k * resolution``, so the bin a
+        coordinate names is the one whose sample is nearest it.
+
         Returns ``(data_col, data_row, inside)``.
         """
         if not self._body_sphere or self._body_lon_bin_to_dc is None:
@@ -564,10 +578,10 @@ class TiledImageWidget(QAbstractScrollArea):
         if lon_rad >= twopi - 1e-15:
             lon_rad = math.fmod(lon_rad, twopi)
         lr = self._body_lon_res_rad
-        k = math.floor(min(lon_rad / lr, twopi / lr - 1e-15))
+        k = round(lon_rad / lr)
         k = max(0, min(k, self._body_n_full_lon - 1))
         dc = int(self._body_lon_bin_to_dc[k])
-        dr = math.floor((float(lat_deg) - self._body_lat_min) / self._y_interval)
+        dr = round((float(lat_deg) - self._body_lat_min) / self._y_interval)
         inside = dc >= 0 and 0 <= dr < self._body_data_n_rows and 0 <= dc < self._body_data_n_cols
         return dc, dr, inside
 
@@ -707,15 +721,15 @@ class TiledImageWidget(QAbstractScrollArea):
         xz, yz = self.get_zoom()
         self.zoom_changed.emit(xz, yz)
 
-    def viewport_to_lonlat(self, vx: int, vy: int) -> tuple[float, float, bool]:
-        """Convert a viewport pixel to (lon_deg, lat_deg, on_surface).
+    def viewport_to_lonlat(self, vx: float, vy: float) -> tuple[float, float, bool]:
+        """Convert a viewport position to (lon_deg, lat_deg, on_surface).
 
         Works for all non-RECT projection kinds.  For RECT use
         :meth:`pixel_to_physical` combined with :meth:`viewport_to_pixel`.
 
         Parameters:
-            vx: Viewport X in pixels.
-            vy: Viewport Y in pixels.
+            vx: Viewport X in pixel corner coordinates.
+            vy: Viewport Y in pixel corner coordinates.
 
         Returns:
             Tuple ``(lon_deg, lat_deg, on_surface)`` where ``on_surface`` is
@@ -802,14 +816,36 @@ class TiledImageWidget(QAbstractScrollArea):
         self._y_tick_labels_absolute = bool(y_tick_labels_absolute)
         self.viewport().update()
 
-    def viewport_to_pixel(self, vx: int, vy: int) -> tuple[float, float]:
-        """Convert viewport screen coords to image pixel coords."""
+    def viewport_to_pixel(self, vx: float, vy: float) -> tuple[float, float]:
+        """Convert a pixel-corner viewport position to a pixel-corner display one.
+
+        Both measures are pixel corner and the zoom is a pure scale, so a
+        continuous viewport position stays continuous; taking a whole number on
+        the way in would quantize every display coordinate to a multiple of
+        ``1 / zoom``, and at zoom 1 no cursor could then name a cell's centre.
+        """
         hv = self.horizontalScrollBar().value()
         vv = self.verticalScrollBar().value()
         return (hv + vx) / self._x_zoom - self._ring_x_col_offset, (vv + vy) / self._y_zoom
 
+    def _pixel_x_to_x_physical(self, pixel_x: float) -> float:
+        """Unclipped physical X at pixel-corner display position ``pixel_x``.
+
+        Column 0 of the display carries the sample taken at ``_x_origin_deg``, and
+        that sample sits at the centre of the column, which is pixel corner 0.5.
+        """
+        return float(self._x_origin_deg + (pixel_x - PIXEL_CENTER_TO_CORNER_PX) * self._x_interval)
+
+    def _x_physical_to_pixel_x(self, x_phys: float) -> float:
+        """Pixel-corner display position of a physical X value.
+
+        The exact inverse of :meth:`_pixel_x_to_x_physical`, so a tick lands on the
+        column whose label it carries.
+        """
+        return float((x_phys - self._x_origin_deg) / self._x_interval + PIXEL_CENTER_TO_CORNER_PX)
+
     def pixel_to_physical(self, pixel_x: float, pixel_y: float) -> tuple[float, float]:
-        """Return ``(x_physical, y_physical)`` from image pixel coords.
+        """Return ``(x_physical, y_physical)`` from pixel-corner display coords.
 
         For ring mosaics (y_flip=True): x = longitude (deg).  When
         ``ring_radial_axis_absolute`` was set in :meth:`set_image`, y is absolute
@@ -817,20 +853,22 @@ class TiledImageWidget(QAbstractScrollArea):
         For body mosaics (y_flip=False): x = longitude (deg), y = latitude from top (deg).
         """
         if self._body_sphere:
-            x_phys = float(np.mod(self._x_origin_deg + pixel_x * self._x_interval, 360.0))
-            y_phys = float(90.0 - pixel_y * self._y_interval)
+            x_phys = float(np.mod(self._pixel_x_to_x_physical(pixel_x), 360.0))
+            y_phys = float(90.0 - (pixel_y - PIXEL_CENTER_TO_CORNER_PX) * self._y_interval)
             y_phys = float(np.clip(y_phys, -90.0, 90.0))
             return x_phys, y_phys
-        x_phys = float(self._x_origin_deg + pixel_x * self._x_interval)
+        x_phys = self._pixel_x_to_x_physical(pixel_x)
         x_phys = float(np.clip(x_phys, self._x_origin_deg, self._x_axis_max_val()))
         if self._y_flip:
-            rel = ((self._n_rows - 1) / 2.0 - pixel_y) * self._y_interval
+            rel = (
+                (self._n_rows - 1) / 2.0 - (pixel_y - PIXEL_CENTER_TO_CORNER_PX)
+            ) * self._y_interval
             if self._ring_pixel_y_absolute:
                 y_phys = rel + self._ring_radial_mid_km
             else:
                 y_phys = rel
         else:
-            y_phys = pixel_y * self._y_interval
+            y_phys = (pixel_y - PIXEL_CENTER_TO_CORNER_PX) * self._y_interval
         return x_phys, y_phys
 
     def pixel_y_to_arr_row(self, pixel_y: float) -> int:
@@ -854,8 +892,12 @@ class TiledImageWidget(QAbstractScrollArea):
         (including ring virtual-column offset and zoom). For rectangular ring/body
         images this uses the configured X origin and column pitch; for
         ``body_full_sphere_canvas`` it uses :meth:`body_sphere_data_indices` when the
-        cursor lies on data, otherwise falls back to rounding ``pixel_x`` in virtual
-        column space.
+        cursor lies on data, otherwise falls back to flooring ``pixel_x`` into its
+        containing virtual column.
+
+        Column ``c`` carries the sample taken at ``_x_origin_deg + c * _x_interval``,
+        so the column a longitude belongs to is the one whose sample is nearest it:
+        the boundaries lie half a column either side of each sample.
         """
         if self._n_cols < 1:
             return 0
@@ -864,11 +906,11 @@ class TiledImageWidget(QAbstractScrollArea):
             dc, _dr, inside = self.body_sphere_data_indices(lon_deg, lat_deg)
             if inside and dc >= 0:
                 return int(np.clip(dc, 0, self._body_data_n_cols - 1))
-            return int(np.clip(round(pixel_x), 0, self._n_cols - 1))
+            return int(np.clip(math.floor(pixel_x), 0, self._n_cols - 1))
         lo = float(self._x_origin_deg)
         res = float(self._x_interval)
         n_c = self._n_cols
-        edges = lo + np.arange(n_c + 1, dtype=np.float64) * res
+        edges = lo + (np.arange(n_c + 1, dtype=np.float64) - PIXEL_CENTER_TO_CORNER_PX) * res
         ix = int(np.searchsorted(edges, lon_deg, side='right') - 1)
         return int(np.clip(ix, 0, n_c - 1))
 
@@ -1064,18 +1106,22 @@ class TiledImageWidget(QAbstractScrollArea):
         gy_grid, gx_grid = np.meshgrid(gy, gx, indexing='ij')
         d_lon = self._x_interval
         d_lat = self._y_interval
-        lon_m = (gx_grid + 0.5) * d_lon
-        lat_m = 90.0 - (gy_grid + 0.5) * d_lat
+        # ``gx_grid`` / ``gy_grid`` number the virtual canvas cells, and a cell
+        # carries the sample at its own coordinate, so cell ``g`` is the sample
+        # ``g`` steps from the canvas origin -- the same coordinate
+        # :meth:`pixel_to_physical` reports at that cell's centre, corner
+        # ``g + 0.5``.  Rounding then lands on the data bin exactly.
+        lon_m = gx_grid * d_lon
+        lat_m = 90.0 - gy_grid * d_lat
         lon_rad = np.mod(lon_m, 360.0) * (math.pi / 180.0)
         lr = self._body_lon_res_rad
-        twopi = 2 * math.pi
-        k = np.floor(np.minimum(lon_rad / lr, twopi / lr - 1e-15)).astype(np.int64)
+        k = np.round(lon_rad / lr).astype(np.int64)
         k = np.clip(k, 0, self._body_n_full_lon - 1)
         bmap = self._body_lon_bin_to_dc
         if bmap is None:
             return
         dc = bmap[k]
-        dr = np.floor((lat_m - self._body_lat_min) / d_lat).astype(np.int64)
+        dr = np.round((lat_m - self._body_lat_min) / d_lat).astype(np.int64)
         valid_lon = dc >= 0
         valid = (
             valid_lon & (dc < self._body_data_n_cols) & (dr >= 0) & (dr < self._body_data_n_rows)
@@ -1277,11 +1323,14 @@ class TiledImageWidget(QAbstractScrollArea):
         pen.setCosmetic(True)
         painter.setPen(pen)
 
+        # A named parallel or meridian belongs on the row or column that carries
+        # its sample, which is the centre of that display cell -- half a cell in
+        # from the boundary the cell coordinate alone names.
         if self._body_geo_parallels:
             step = _nice_sphere_overlay_degree_step(180.0, max_lines=8)
             lat = math.ceil(-90.0 / step) * step
             while lat <= 90.0 + 1e-9:
-                py = (90.0 - lat) / self._y_interval
+                py = (90.0 - lat) / self._y_interval + PIXEL_CENTER_TO_CORNER_PX
                 sy = float(py * yz - vv)
                 if -1.0 <= sy <= float(vh) + 1.0:
                     y = round(sy)
@@ -1292,7 +1341,7 @@ class TiledImageWidget(QAbstractScrollArea):
             step = _nice_sphere_overlay_degree_step(360.0, max_lines=12)
             lon = 0.0
             while lon < 360.0 - 1e-6:
-                px = (lon - self._x_origin_deg) / self._x_interval
+                px = self._x_physical_to_pixel_x(lon)
                 sx = float(px * xz - hv)
                 if -1.0 <= sx <= float(vw) + 1.0:
                     x = round(sx)
@@ -1321,9 +1370,14 @@ class TiledImageWidget(QAbstractScrollArea):
 
         params = self._make_proj_params()
 
-        # Build lon/lat grids for every viewport pixel
-        xs = np.arange(vw, dtype=np.float64)
-        ys = np.arange(vh, dtype=np.float64)
+        # Build lon/lat grids for every viewport pixel.  ``display_to_lonlat``
+        # measures from ``cx`` / ``cy``, which are pixel corner (``vw / 2``), and
+        # the graticule drawn over the result goes through QPainter, which is
+        # pixel corner too.  Screen pixel ``j`` therefore has to be asked for the
+        # ray through its centre, corner ``j + 0.5``, or the texture sits half a
+        # screen pixel from the overlay at every zoom.
+        xs = np.arange(vw, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+        ys = np.arange(vh, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
         vx_grid, vy_grid = np.meshgrid(xs, ys)  # (vh, vw)
 
         lon_deg, lat_deg, valid = display_to_lonlat(vx_grid, vy_grid, params)
@@ -1462,24 +1516,27 @@ class TiledImageWidget(QAbstractScrollArea):
             tty = text_baseline - fm_x.ascent()
 
             if self._body_sphere:
-                raw0 = self._x_origin_deg + px0 * self._x_interval
-                raw1 = self._x_origin_deg + px1 * self._x_interval
+                raw0 = self._pixel_x_to_x_physical(px0)
+                raw1 = self._pixel_x_to_x_physical(px1)
                 tick_iter = _nice_longitude_ticks_wrapped_0_360(raw0, raw1, 14)
             elif self._ring_x_col_offset > 0:
                 # Full-360 virtual canvas: virtual column vp = data_col + offset,
-                # so longitude at left-viewport virtual column px0 = px0 * x_interval.
-                c0 = float(np.clip(px0 * self._x_interval, 0.0, 360.0))
-                c1 = float(np.clip(px1 * self._x_interval, 0.0, 360.0))
+                # and the offset was chosen as x_origin_deg / x_interval, so the
+                # data origin cancels and virtual column vp carries the sample at
+                # vp * x_interval.
+                half = PIXEL_CENTER_TO_CORNER_PX
+                c0 = float(np.clip((px0 - half) * self._x_interval, 0.0, 360.0))
+                c1 = float(np.clip((px1 - half) * self._x_interval, 0.0, 360.0))
                 tick_iter = _nice_longitude_tick_degrees(c0, c1, 14)
             else:
                 hi = self._x_axis_max_val()
                 lo = float(self._x_origin_deg)
-                c0 = float(np.clip(self._x_origin_deg + px0 * self._x_interval, lo, hi))
-                c1 = float(np.clip(self._x_origin_deg + px1 * self._x_interval, lo, hi))
+                c0 = float(np.clip(self._pixel_x_to_x_physical(px0), lo, hi))
+                c1 = float(np.clip(self._pixel_x_to_x_physical(px1), lo, hi))
                 tick_iter = _nice_longitude_tick_degrees(c0, c1, 14)
 
             for val in tick_iter:
-                img_x = (val - self._x_origin_deg) / self._x_interval
+                img_x = self._x_physical_to_pixel_x(val)
                 sx = float((img_x + self._ring_x_col_offset) * xz - hv)
                 if not (-20 < sx < vp_w + 20):
                     continue
@@ -1567,25 +1624,34 @@ class TiledImageWidget(QAbstractScrollArea):
                 )
 
     def _pixel_y_to_y_physical(self, pixel_y: float) -> float:
-        """Convert display pixel_y to Y physical value."""
+        """Convert a pixel-corner display ``pixel_y`` to its Y physical value.
+
+        Row ``r`` carries the sample at its own coordinate and that sample sits at
+        the row's centre, so the pixel-corner position is converted to the pixel
+        centric one the row grid is numbered in before it is scaled.
+        """
+        centric_y = pixel_y - PIXEL_CENTER_TO_CORNER_PX
         if self._body_sphere:
-            return float(90.0 - pixel_y * self._y_interval)
+            return float(90.0 - centric_y * self._y_interval)
         if self._y_flip:
-            rel = ((self._n_rows - 1) / 2.0 - pixel_y) * self._y_interval
+            rel = ((self._n_rows - 1) / 2.0 - centric_y) * self._y_interval
             return rel + self._y_tick_center
-        return pixel_y * self._y_interval
+        return centric_y * self._y_interval
 
     def _y_physical_to_screen_y(self, y_phys: float, yz: float, vv: int) -> float:
-        """Convert a physical Y value to screen y coordinate."""
+        """Convert a physical Y value to screen y coordinate.
+
+        The exact inverse of :meth:`_pixel_y_to_y_physical`, so a tick lands on the
+        row whose label it carries.
+        """
         if self._body_sphere:
-            pixel_y = (90.0 - y_phys) / self._y_interval
-            return pixel_y * yz - vv
-        if self._y_flip:
+            centric_y = (90.0 - y_phys) / self._y_interval
+        elif self._y_flip:
             rel = y_phys - self._y_tick_center
-            pixel_y = (self._n_rows - 1) / 2.0 - rel / self._y_interval
+            centric_y = (self._n_rows - 1) / 2.0 - rel / self._y_interval
         else:
-            pixel_y = y_phys / self._y_interval
-        return pixel_y * yz - vv
+            centric_y = y_phys / self._y_interval
+        return (centric_y + PIXEL_CENTER_TO_CORNER_PX) * yz - vv
 
     # ------------------------------------------------------------------ #
     #  Mouse events                                                        #
@@ -1594,8 +1660,14 @@ class TiledImageWidget(QAbstractScrollArea):
     def _mouse_press(self, event: QMouseEvent) -> None:
         btn = event.button()
         mods = event.modifiers()
-        vx = int(event.position().x())
-        vy = int(event.position().y())
+        # ``fx`` / ``fy`` are the cursor's own continuous pixel corner position and
+        # are what any coordinate is derived from; ``vx`` / ``vy`` are the whole
+        # viewport pixel the Qt bookkeeping below needs (rubber-band origin, drag
+        # anchor), which are screen widget positions and not coordinates.
+        fx = float(event.position().x())
+        fy = float(event.position().y())
+        vx = int(fx)
+        vy = int(fy)
 
         # Non-RECT projections handle left-drag for yaw/pitch or pan
         if self._proj_kind != ProjectionKind.RECT:
@@ -1637,7 +1709,7 @@ class TiledImageWidget(QAbstractScrollArea):
                     self.viewport().setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
             return
 
-        px, py = self.viewport_to_pixel(vx, vy)
+        px, py = self.viewport_to_pixel(fx, fy)
         in_bounds = self._image_ma is not None and 0 <= px < self._n_cols and 0 <= py < self._n_rows
 
         if btn == Qt.MouseButton.RightButton:
@@ -1669,14 +1741,16 @@ class TiledImageWidget(QAbstractScrollArea):
             self.viewport().setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
 
     def _mouse_move(self, event: QMouseEvent) -> None:
-        vx = int(event.position().x())
-        vy = int(event.position().y())
+        fx = float(event.position().x())
+        fy = float(event.position().y())
+        vx = int(fx)
+        vy = int(fy)
         mods = event.modifiers()
 
         if self._proj_kind != ProjectionKind.RECT:
             # Emit viewport coords; body_window.py calls viewport_to_lonlat for geo lookup
-            _, _, on_surface = self.viewport_to_lonlat(vx, vy)
-            self.mouse_moved.emit(float(vx), float(vy), on_surface)
+            _, _, on_surface = self.viewport_to_lonlat(fx, fy)
+            self.mouse_moved.emit(fx, fy, on_surface)
 
             # Handle rubber-band (2D non-RECT Shift+left)
             if (
@@ -1706,7 +1780,7 @@ class TiledImageWidget(QAbstractScrollArea):
                 self.viewport().update()
             return
 
-        px, py = self.viewport_to_pixel(vx, vy)
+        px, py = self.viewport_to_pixel(fx, fy)
         in_bounds = self._image_ma is not None and 0 <= px < self._n_cols and 0 <= py < self._n_rows
         self.mouse_moved.emit(px, py, in_bounds)
 

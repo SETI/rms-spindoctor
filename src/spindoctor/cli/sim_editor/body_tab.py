@@ -3,6 +3,12 @@
 Builds the per-body editing tab (geometry, shape model, mesh parameters, pose,
 lighting, crater relief, anti-aliasing, and the navigation-override group) and
 owns the handlers that write body fields back into the data model.
+
+The centre spin boxes write the scene's ``center_v`` / ``center_u``
+unchanged, so they carry the scene's own convention: every position in a scene
+is a pixel corner, and the centre of pixel ``N`` is ``N + 0.5``.  The row
+labels name that convention rather than leaving the reader to infer it from a
+rendered frame.
 """
 
 from typing import Any
@@ -24,6 +30,12 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+
+# Tooltip for the centre spin boxes, which write the scene value directly.
+_CENTER_TOOLTIP = (
+    'Body centre {axis} position as a pixel corner: integer N is the boundary '
+    'between pixel N-1 and pixel N, so the centre of pixel N is N + 0.5.'
+)
 
 
 class BodyTabMixin(SimEditorBase):
@@ -47,14 +59,16 @@ class BodyTabMixin(SimEditorBase):
         center_v.setRange(-10000.0, 20000.0)
         center_v.setDecimals(1)
         center_v.setValue(p.get('center_v', 0.0))
+        center_v.setToolTip(_CENTER_TOOLTIP.format(axis='V'))
         center_v.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'center_v', v))
-        fl.addRow('Center V:', center_v)
+        fl.addRow('Center V (pixel corner):', center_v)
         center_u = QDoubleSpinBox()
         center_u.setRange(-10000.0, 20000.0)
         center_u.setDecimals(1)
         center_u.setValue(p.get('center_u', 0.0))
+        center_u.setToolTip(_CENTER_TOOLTIP.format(axis='U'))
         center_u.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'center_u', v))
-        fl.addRow('Center U:', center_u)
+        fl.addRow('Center U (pixel corner):', center_u)
         # Keep references so drag updates can sync the UI
         w.center_v_spin = center_v  # type: ignore[attr-defined]
         w.center_u_spin = center_u  # type: ignore[attr-defined]
