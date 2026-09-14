@@ -663,12 +663,18 @@ def generate_global_index_files(
         supplemental_files.append(suppl_file)
 
     # Sort by product name: the file name less its suffix, the last part of the LID
-    def get_image_name_from_supplemental(path: FCPath) -> str:
-        # Extract image name from filename
-        # (e.g., "1234567890w_supplemental.txt" -> "1234567890w")
+    def product_name(path: FCPath) -> str:
+        """Returns a supplemental file's product name, its file name less the suffix.
+
+        Parameters:
+            path: The supplemental file, such as ``1234567890w_supplemental.txt``.
+
+        Returns:
+            The product name, such as ``1234567890w``.
+        """
         return path.name.replace('_supplemental.txt', '')
 
-    supplemental_files.sort(key=get_image_name_from_supplemental)
+    supplemental_files.sort(key=product_name)
     logger.info('Found %d supplemental files', len(supplemental_files))
 
     # Collect body and ring statistics, every cell already rendered: both
