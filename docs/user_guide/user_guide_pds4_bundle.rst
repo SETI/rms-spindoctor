@@ -434,7 +434,7 @@ with exit status 2 before it does anything.
   if a label cannot be written, the bundle label included: that label is written
   only when every collection it names is in the bundle, so a collection that was not
   written leaves the bundle without it. A missing user-guide PDF is a warning, not
-  a failure. An index table no image gives a row is not written; the log records
+  a failure. An index table with no rows is not written; the log records
   that, and it is not a failure. When neither table is written, though, the
   miscellaneous collection has no products, and the pass exits 1 as for any
   collection with none.
