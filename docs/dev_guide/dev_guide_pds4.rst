@@ -192,9 +192,10 @@ supplemental file before its data label.
 A summary pass that exits 1 cleans up nothing it wrote: the generators report what
 they cannot describe rather than repair the bundle.  After one, the index tables
 can hold rows for an image with no data label, since they are built from the
-supplemental files, and the browse labels can name a data collection that was not
-written.  Clear the bundle directory and regenerate the bundle into it, as after a
-labels pass that exits 1.
+supplemental files; the browse labels can name a data collection that was not
+written, and the data labels a browse collection that was not written.  Clear the
+bundle directory and regenerate the bundle into it, as after a labels pass that
+exits 1.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
