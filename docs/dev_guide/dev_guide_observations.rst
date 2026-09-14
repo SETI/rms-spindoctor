@@ -42,18 +42,15 @@ differ by half a pixel.
 
 In **pixel-corner coordinates** a whole number falls on the boundary between
 two pixels, so the first pixel spans 0.0 to 1.0 and its center is at 0.5. The
-geometry layer works this way: ``ObsSnapshot.uv_from_ra_and_dec`` returns
-positions in it, FOV and backplane methods take and return them, and a meshgrid
-built for a field of view is laid out in it.
+geometry layer works this way.
 
 In **pixel-centric coordinates** a whole number falls on the center of a pixel,
-so the first pixel spans -0.5 to 0.5 and its center is at 0.0. Sampling and
-measurement work this way: a technique that builds a coordinate array with
-``np.arange`` over the rows it reads out of the image is working in
-pixel-centric coordinates, and so is anything that draws into an array.
+so the first pixel spans -0.5 to 0.5 and its center is at 0.0. Anything that
+draws into an array or measures out of one works this way.
 
-Both are continuous: a position in either system is a floating-point number,
-and the systems say only where the whole numbers fall.
+Both are continuous: a position in either system is a floating-point number
+like any other, and the systems say only where the whole numbers fall. Neither
+is a system of whole numbers, so a position in one is not an index.
 
 Converting between them adds or subtracts
 :data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`::
@@ -61,27 +58,131 @@ Converting between them adds or subtracts
     pixel_centric = pixel_corner  - PIXEL_CENTER_TO_CORNER_PX
     pixel_corner  = pixel_centric + PIXEL_CENTER_TO_CORNER_PX
 
-The half pixel appears wherever a value crosses between the two, which follows
-from which coordinate system is in use at that stage rather than from anything
-about the value itself. A navigation model asks the geometry layer where
-something is and receives pixel-corner coordinates; it then draws the model or
-emits a predicted position for a technique to compare against a measurement,
-and both of those are pixel-centric. Every model therefore converts. Where a
-model converts differs: the body, ring and Titan models convert as they build
-their sampling grids, so what they emit is already pixel-centric, while a star
-record outlives the model that produced it and is converted at each point of
-use instead.
+Spell a conversion with that name rather than a bare ``0.5``, so that the
+crossing can be found and so that a reader can tell it from the several other
+reasons a half appears in this code -- an anti-aliasing ramp's midpoint, a
+coverage fraction, a Minnaert exponent, a threshold on a distance.
 
-Every position the pipeline states to a person -- in a log line, in a
-navigation document, on an overlay label -- is pixel-corner in the nominal
-(unpadded) frame. That is the one form that compares directly against a scene
-file, an image viewer, or another program's output: a position in the extended
-frame would need the reader to know the margin too, and a pixel-centric one
-would need them to know the convention. A position inside the extended-FOV
-margin is reported as a negative number, which is where it is. Displacements
-are not positions and carry no conversion: an offset, a sigma, a smear, a
-separation, a radius, a width and a margin are the same number in either
-system.
+Where each one is used
+----------------------
+
+Which system applies follows from the stage, so the question to ask of any
+number is what produced it and what will consume it.
+
+**Pixel-corner coordinates** are what the geometry layer answers in and what a
+person writes and reads:
+
+- Every field-of-view call: the observation's ``uv_from_ra_and_dec``, the field
+  of view's ``uv_from_los`` and ``los_from_uv``, and its ``uv_los`` attribute,
+  which names where the boresight falls on the detector. For the Cassini
+  narrow-angle camera at full resolution that is ``(512.0, 512.0)`` on a
+  1024-square detector -- the corner where the four central pixels meet -- and
+  it halves with each summation mode, to 256.0 at 512 and 128.0 at 256.
+- The ``origin`` and ``limit`` of a ``Meshgrid`` built for a field of view, and
+  therefore the sample positions a ``Backplane`` is evaluated at. An
+  unqualified backplane samples the center of every pixel, so cell ``(i, j)``
+  holds the geometry of the point ``(i + 0.5, j + 0.5)``.
+- The ``oops`` inventory: a body's ``center_uv``, and the unclipped bounds,
+  which are the floor and ceiling of that body's projected extent.
+- A :class:`~spindoctor.support.types.MutableStar` record's ``v`` and ``u``,
+  which outlive the model that produced them.
+- Every position a simulator scene states: a star's ``v`` / ``u``, a body's
+  ``center_v`` / ``center_u``, the ring system's ``geometry.center_v`` /
+  ``center_u``, and the distortion and stray-light centers in the ``optics``
+  block. The center of a ``size_v`` by ``size_u`` frame is ``(size_v / 2,
+  size_u / 2)``.
+- Every position the pipeline reports: the positions in a navigation document,
+  the coordinates in a log line, a coordinate readout in the mosaic viewer, the
+  scene editor or the manual-navigation dialog, and a body center in a
+  backplane sidecar.
+
+**Pixel-centric coordinates** are what anything addressing an array works in:
+
+- A coordinate grid built with ``np.arange``, ``np.mgrid``, ``np.meshgrid`` or
+  ``np.indices`` over an image, and anything compared against one.
+- Anything measured out of an array: a centroid, a peak located with ``argmax``
+  and ``unravel_index``, a moment, a sub-pixel refinement added to one of
+  those.
+- Coordinates handed to ``scipy.ndimage`` for sampling, such as
+  ``map_coordinates``.
+- The edge distance transform on
+  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.image_edge_dt_ext`,
+  whose zero locus is the centers of the detected edge pixels, and
+  :func:`~spindoctor.support.distance_transform.sample_dt_bilinear`, which
+  samples it.
+- Every position a :class:`~spindoctor.feature.feature.NavFeature` carries:
+  :attr:`~spindoctor.feature.geometry.StarGeometry.predicted_vu`, the
+  ``vertices_vu`` of a limb, terminator or ring-edge polyline, and
+  ``predicted_center_vu`` on every payload that has one. A technique compares
+  these against something it measured in the image, so both ends of that
+  comparison are in one system.
+- The extended-FOV bounds --
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extfov_v_min` and its three
+  siblings -- which name the first and last pixel of the padded frame, and
+  every clip and slice built from them.
+- The simulator's render grids, including the oversampled plane a scene is
+  drawn into before it is reduced to the detector.
+
+**Displacements carry no coordinate system at all**, because they are
+differences between two positions in one of them: a navigated offset
+``(dv, du)`` and its sigmas and covariance, a star's per-exposure smear vector,
+a separation, a radius, a width, a search window, and the extended-FOV margin
+itself. None of them converts, and adding a half pixel to one is always
+wrong.
+
+A **half-open bounding box** is a third case that needs no conversion. The four
+integers of ``bbox_extfov_vu`` are a slice range, so ``arr[v_min:v_max]``
+covers rows ``v_min`` through ``v_max - 1``; those same integers are the
+pixel-corner rectangle that covers exactly those pixels, because pixel ``i``
+spans ``[i, i + 1)``. The two readings coincide.
+
+A **mosaic grid** is not a pixel grid and answers the question differently
+again: row ``r`` of a ring mosaic is the sample taken at radius
+``radius_inner + r * radius_resolution``, and column ``c`` of a body mosaic is
+the sample taken at longitude ``c * longitude_resolution``. A row names a
+point, not the interval around it.
+
+Where the conversion happens
+----------------------------
+
+A navigation model asks the geometry layer where something is and receives
+pixel-corner coordinates; what it emits for a technique is pixel-centric,
+because the technique compares it against something measured in the image
+array. The crossing therefore happens inside every model, and where a model
+writes it follows from where the value came from.
+
+The body, ring and Titan models build their model images by asking for a
+sampling grid over the extended frame. That frame's bounds are the array's, so
+the half pixel goes on there, and a position later read back out of the
+resulting array is already in the array's coordinates. A position that does not
+come out of that array converts where it is taken: the body's and Titan's
+predicted center, which the ``oops`` inventory states exactly, and the Titan
+model's sunward pixel, which is read off the grid's own ``uv``. The ring
+model's predicted center is the extended frame's own center, computed in the
+array's coordinates, so it converts nothing.
+
+A star record is different: it is handed on to several consumers and outlives
+the model that produced it, so it keeps the geometry layer's coordinates and
+each point of use converts --
+:class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` where it
+emits a feature and where it draws its overlay, the Titan model where it paints
+a bright star into a contaminant mask, and the star catalog's edge cull, which
+converts the four frame bounds once rather than the six positions of every
+star.
+
+A number crosses back at the boundary where it becomes a reader's. Every
+position the pipeline states to a person -- in a log line, in a navigation
+document, on an overlay label -- is pixel-corner in the nominal (unpadded)
+frame, which is what compares directly against a scene file, an image viewer,
+or another program's output. A position inside the extended-FOV margin is
+reported as a negative number, which is where it is.
+
+Three packages outside this repository have a convention of their own, and the
+pipeline meets each of them. ``QPainter`` places a whole number on a pixel
+boundary, so a widget coordinate is directly comparable with a pixel-corner
+position. ``PIL.ImageDraw`` addresses cells, so it takes a pixel-centric one.
+``psfmodel`` measures its evaluation offset from a pixel's lower edge, which is
+the pixel-corner reading.
 
 Getting this wrong is hard to detect from inside the pipeline. A navigated
 offset is the difference between a predicted position and a measured one, so a
@@ -98,18 +199,27 @@ ObsSnapshot
 around an ``oops`` snapshot. It exposes three families of helpers:
 
 - **FOV / extended-FOV geometry.**
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.data_shape_uv` /
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.data_shape_vu`
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.data_shape_uv` /
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.data_shape_vu`
   report the sensor shape;
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.fov_v_min` /
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.fov_v_max` /
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.fov_u_min` /
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.fov_u_max` give the in-sensor pixel bounds;
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extfov_margin_v` /
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extfov_margin_u` give the per-axis margin
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.fov_v_min` /
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.fov_v_max` /
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.fov_u_min` /
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.fov_u_max` name the first and last
+  pixel of the sensor as whole numbers, pixel-centric (see
+  :ref:`coordinate-systems`), so they run 0 to ``data_shape - 1``;
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extfov_margin_v` /
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extfov_margin_u` give the per-axis margin
   appended by :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`;
-  the corresponding ``extfov_*`` accessors give the extended bounds and
-  shape. :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.clip_fov` /
+  the corresponding ``extfov_*`` accessors name the first and last pixel of the
+  padded frame the same way, so
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extfov_v_min` is
+  ``-extfov_margin_v`` and
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extfov_v_max` is
+  ``data_shape_v + extfov_margin_v - 1``.  The padded array's shape comes from
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extdata_shape_vu` /
+  :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extdata_shape_uv`.
+  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.clip_fov` /
   :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.clip_extfov` clamp ``(u, v)`` coordinates
   into either grid;
   :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.clip_rect_fov` /
@@ -121,8 +231,10 @@ around an ``oops`` snapshot. It exposes three families of helpers:
   the right shape;
   :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.make_extfov_false` allocates the boolean
   equivalent;
-  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.unpad_array_to_extfov` crops a sensor-shaped
-  array down to the extended-FOV grid.
+  :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.unpad_array_to_extfov` trims an array
+  that is at least as large as the extended-FOV grid down to it, keeping the
+  top-left region; the caller it exists for is ``np.unpackbits``, which rounds
+  its length up to a multiple of eight.
   :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.extfov_data_sensor_mask` returns a boolean
   mask that is ``True`` where the extended-FOV pixel corresponds to a
   real sensor pixel and ``False`` in the margin.
@@ -141,8 +253,12 @@ Backplane caching and thread safety
 Backplanes are cached in the underlying ``oops`` snapshot, so repeated
 queries of the same backplane on the same
 :class:`~spindoctor.obs.obs_snapshot.ObsSnapshot` reuse the prior computation.
-The cache is mutating state attached to the snapshot itself: every call
-to :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.backplane` (or to any helper
+The cache is mutating state attached to the snapshot itself: every read of
+:attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.bp`,
+:attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.ext_bp`,
+:attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.corner_bp`,
+:attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.ext_corner_bp` or
+:attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.center_bp` (or any helper
 that builds an ``oops.Backplane`` from the snapshot, including
 :meth:`~spindoctor.reproj.bodies.BodyMosaic.reproject` and
 :func:`~spindoctor.reproj.cartographic_model.create_cartographic_model`)

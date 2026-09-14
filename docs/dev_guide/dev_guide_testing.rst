@@ -46,8 +46,8 @@ Running the suite
    pytest -m ""                        # full suite, every tier
    pytest -m integration               # only the integration tier
    pytest -m postgres                  # only the postgres tier
-   pytest -n auto --dist=loadfile      # parallel, matching CI (loadfile avoids
-                                       #   PyQt6 worker crashes)
+   pytest -n 4 --dist=loadfile         # parallel (loadfile avoids PyQt6
+                                       #   worker crashes)
    pytest tests/spindoctor/sim/test_sim_noise.py            # one file
    pytest tests/spindoctor/sim/test_sim_noise.py::test_foo  # one test
    pytest --cov                        # with coverage
@@ -69,8 +69,14 @@ works, and the tier masks it out of every message, but the URL itself is then a
 secret in the environment of every process the shell starts.
 
 ``pytest-xdist`` must run with ``--dist=loadfile``; the default scheduling
-crashes PyQt6 workers when tests from one file split across processes. Multi-test
-integration runs should always use ``-n auto --dist=loadfile``.
+crashes PyQt6 workers when tests from one file split across processes. Run it at
+``-n 4``, never ``-n auto``, and pin the BLAS / OpenMP thread counts first:
+
+.. code-block:: bash
+
+   export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
+
+Integration runs take the same flags.
 
 **The suite opens no results index it was not handed.** An index URL resolves
 from an argument, then from the ``environment.results_index_db`` configuration

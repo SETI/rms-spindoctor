@@ -70,9 +70,7 @@ A scene states every position in pixel-corner coordinates (see
 :ref:`sim-pixel-convention`), so a body stated at ``center_v`` paints its silhouette centred
 at ``center_v - 0.5`` in pixel-centric coordinates. A predicted position at this stage is
 pixel-centric, so this model converts, by
-:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`. Measured
-directly: without the shift every simulated frame carries a flat 0.500 px cross-track error,
-half the method's entire clean-scene cross-track budget spent on a coordinate convention.
+:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`.
 
 Restrictions and assumptions
 ----------------------------

@@ -800,7 +800,7 @@ Interpreting Results
 
 The key information in the results is:
 
-1. **Offset Values**: The u,v pixel offsets that should be applied to the nominal pointing to match the observed features
+1. **Offset Values**: The ``(dv, du)`` pixel offset -- v first, then u -- that should be applied to the nominal pointing to match the observed features
 2. **Correlation Quality**: How well the models matched the observed features
 3. **Annotations**: Identifications of specific features in the image
 4. **Status**: Whether the navigation was successful, and if not, why

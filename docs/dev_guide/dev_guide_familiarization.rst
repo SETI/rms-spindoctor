@@ -408,10 +408,10 @@ mosaics / reprojections, per-pixel backplanes, and PDS4 bundles.
   - :mod:`spindoctor.reproj.ring_orbit_model`
 
 - ``src/spindoctor/cli/reproj/`` — CLI-only helpers shared by the mosaic drivers
-  (not part of the importable ``nav`` API and not autodoc'd).
+  (not part of the importable ``spindoctor`` API and not autodoc'd).
 - :doc:`dev_guide_backplanes` — per-pixel geometry product generation.
 - ``src/spindoctor/cli/backplanes/`` — driven by ``sd_backplanes`` (not autodoc'd in
-  the ``nav`` API surface).
+  the ``spindoctor`` API surface).
 - :doc:`dev_guide_pds4` — PDS4 bundle assembly.
 - ``src/spindoctor/cli/pds4/`` — driven by ``sd_create_bundle``; per-dataset hooks
   live on the :class:`~spindoctor.dataset.dataset.DataSet` subclasses
