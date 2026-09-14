@@ -589,11 +589,11 @@ library votes and the decision gates, not by any implementation.
 ## 7. Issue index (open work by track)
 
 Every open issue, listed exactly once by the track that owns it. 239 issues
-as of 2026-09-03; the nine the PDS4 plan tracks that were filed after it,
-added on 2026-09-14 (#595-#601, #611, #614); and #687, filed the same day;
-less #601 and #678, which Phase 7 of the PDS4 plan closes: 247 in all. The
-counts are given so a reader can tell a stale index from a current one at a
-glance.
+as of 2026-09-03, then eleven added (#595-#600, #611, #614, #628, #677,
+#687) and three removed (#13, closed; #74 and #76, which Phases 6 and 7 of
+the PDS4 plan close): 247 in all. #601 and #678 were added and removed in
+the same period, since Phase 7 closes them too. The counts are given so a
+reader can tell a stale index from a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
