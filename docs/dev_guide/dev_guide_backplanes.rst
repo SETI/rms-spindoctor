@@ -199,7 +199,10 @@ midtime, measured from the normal on the plane's sunlit side, converted to degre
 on a ring plane at one angle over an image -- on a real frame the angle at the center
 differs from every ring pixel's by a few thousandths of a degree -- so no backplane
 holds it.  The stage records the target and the angle for every image with a closest
-planet, whether or not any pixel is on the rings.
+planet, whether or not any pixel is on the rings.  It also keeps the angle at each
+pixel, ``oops``'s ``ring_incidence_angle`` on the same target and measured the same
+way, which no plane holds either: the writer records its least, greatest and mean over
+the ring pixels the merged planes hold, beside the angle at the center.
 
 Distance-aware merge
 ====================
@@ -258,7 +261,9 @@ and ``rings``:
   in km, and ``size_uv``, the body's ``[u, v]`` pixel diameters.
 - ``rings`` holds the ring target the ring backplanes were computed for
   (``target``), the incidence angle of sunlight on its plane
-  (``incidence_angle``, a value in degrees with its unit), and a
+  (``incidence_angle``: its ``value`` at the ring system's center and, when
+  a ring plane has a value anywhere, its ``min``, ``max`` and ``mean`` over
+  the pixels where one does, in degrees with their unit), and a
   ``backplanes`` sub-dict of the same per-backplane statistics.
 
 A ``backplanes`` sub-dict is keyed by backplane name, and each entry gives

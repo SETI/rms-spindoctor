@@ -639,14 +639,16 @@ a size per pixel stated in the length or the angle a pixel spans.  The ring long
 pair is its statistic's range wrapped at zero, ``wrapped_min`` and ``wrapped_max``, since
 the rings dictionary defines a longitude range as wrapped at the prime meridian, its
 minimum above its maximum across it; the global index tables keep the plain least and
-greatest.  The incidence angle
-the backplane metadata records is stated as the mean, the minimum and the maximum alike,
-since it is one angle over the image.  The template states the rest: the planet's
+greatest.  The incidence angle's
+mean, least and greatest over the image's ring pixels, which the backplane metadata
+records beside the angle at the ring center, are stated as the mean, the minimum and the
+maximum.  The template states the rest: the planet's
 equatorial plane, no co-rotating frame, the image's midtime as the basis epoch, and a
 description saying that the arrays are not reprojected and how the longitude range is
 wrapped.  The labels pass fails an image whose backplane metadata holds ring
-statistics and no incidence angle, as backplanes an earlier version generated do,
-before anything is written for it.
+statistics and no incidence angle over the ring pixels, as backplanes an earlier version
+generated do, before anything is written for it: those took their statistics before the
+merge, too.
 
 The data, data collection and bundle labels each declare one ``Science_Facets``,
 ``Visible`` and ``Ring-Moon Systems``, fixed in their templates.

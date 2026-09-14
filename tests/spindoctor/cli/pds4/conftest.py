@@ -263,12 +263,18 @@ def ring_metadata(statistics: dict[str, Any]) -> dict[str, Any]:
 
     Returns:
         The block in the shape the backplane writer leaves on disk: the ring target
-        :data:`PLUMBING_RING_TARGET`, the incidence angle of sunlight on its plane, and
-        the statistics under ``backplanes``.
+        :data:`PLUMBING_RING_TARGET`, the incidence angle of sunlight on its plane at
+        its center and over its pixels, and the statistics under ``backplanes``.
     """
     return {
         'target': PLUMBING_RING_TARGET,
-        'incidence_angle': {'value': 45.0, 'units': 'deg'},
+        'incidence_angle': {
+            'value': 45.0,
+            'min': 44.75,
+            'max': 45.5,
+            'mean': 45.125,
+            'units': 'deg',
+        },
         'backplanes': statistics,
     }
 

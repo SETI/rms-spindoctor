@@ -1,4 +1,4 @@
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 import numpy as np
 from pdslogger import PdsLogger
@@ -25,13 +25,23 @@ that still leaves the circle covered.
 class RingIncidenceAngle(TypedDict):
     """The incidence angle of sunlight on the ring plane, as the backplane metadata records it.
 
+    Each angle is the one between the direction the sunlight arrives from and the normal to
+    the ring plane on its sunlit side, from 0 to 90 degrees.
+
     Attributes:
-        value: The angle between the direction the sunlight arrives from and the normal to
-            the ring plane on its sunlit side, from 0 to 90 degrees.
-        units: The unit ``value`` is in, ``deg``.
+        value: The angle at the ring system's center, recorded for every image with a
+            closest planet.
+        min: The least angle over the image's ring pixels, the pixels where a ring plane
+            the FITS holds has a value; recorded when there are any.
+        max: The greatest angle over those pixels.
+        mean: The mean angle over those pixels.
+        units: The unit the angles are in, ``deg``.
     """
 
     value: float
+    min: NotRequired[float]
+    max: NotRequired[float]
+    mean: NotRequired[float]
     units: str
 
 
@@ -79,6 +89,12 @@ def create_ring_backplanes(
           center, for the light that reaches the camera at the observation's
           midtime, measured from the normal on the plane's sunlit side.  It is
           recorded whether or not any pixel of the image is on the rings.
+        - "pixel_incidence": The incidence angle at each pixel, oops's
+          ``ring_incidence_angle`` on the ring target, measured the same way, in the
+          radians oops gives it and the masked value where the pixel is not on the
+          rings.  No backplane holds it either: the writer records its least, greatest
+          and mean over the ring pixels the merge leaves, beside the angle at the
+          center.
         - "arrays": The ring backplane arrays.
         - "masks": The ring backplane masks.
         - "distance": The ring backplane distance.
@@ -123,6 +139,10 @@ def create_ring_backplanes(
     result['incidence_angle'] = RingIncidenceAngle(
         value=float(np.degrees(center_incidence.vals)), units=DEGREES
     )
+    # And at each pixel, which the writer summarizes over the ring pixels the product holds
+    # once the merge has decided which those are
+    pixel_incidence = bp.ring_incidence_angle(target_key)
+    result['pixel_incidence'] = np.ma.filled(pixel_incidence.mvals, fill_value=masked_value)
 
     for bp_cfg in rings_cfg:
         bp_name = bp_cfg['name']

@@ -159,6 +159,14 @@ def _bounds_for(name: str, plane_bounds: Mapping[str, tuple[float, float]]) -> t
     return plane_bounds[name]
 
 
+_RING_INCIDENCE_SPREAD_DEG = 0.002
+"""How far the incidence angle ranges over a frame's ring pixels, in degrees.
+
+Sunlight falls on a ring plane at nearly one angle over a frame: at the ring pixels the
+incidence spans a few thousandths of a degree about the angle at the ring system's center.
+"""
+
+
 def _disc_mask(body: CohortBody) -> NDArrayBoolType:
     """Return the pixels a body's disc claims.
 
@@ -230,8 +238,10 @@ def write_backplanes(
         ring_target: The ring target the ring result names, as the ring stage
             names the one it computes for the image's planet.
         ring_incidence_angle: The incidence angle of sunlight on the ring
-            plane, in degrees, which the ring result records whether or not the
-            frame has ring backplanes, as the ring stage does.
+            plane at the ring system's center, in degrees, which the ring result
+            records whether or not the frame has ring backplanes, as the ring stage
+            does.  The angle at each ring pixel ramps a few thousandths of a degree
+            either side of it.
         plane_bounds: What the cohort gives a plane of each configured name to
             span, in the units the configuration declares.
         config: The configuration whose declared planes, units and masked value
@@ -289,9 +299,18 @@ def write_backplanes(
         else {}
     )
     ring_masks = dict.fromkeys(ring_planes, ring_mask)
+    # The incidence angle at each pixel, in radians as the ring stage keeps it: a ramp
+    # either side of the angle at the ring center, over the ring pixels, and none where
+    # the frame has no rings
+    incidence_bounds = (
+        float(np.radians(ring_incidence_angle - _RING_INCIDENCE_SPREAD_DEG / 2.0)),
+        float(np.radians(ring_incidence_angle + _RING_INCIDENCE_SPREAD_DEG / 2.0)),
+    )
+    seen_rings = ring_mask if rings else np.zeros_like(ring_mask)
     rings_result: dict[str, Any] = {
         'target_key': ring_target,
         'incidence_angle': RingIncidenceAngle(value=ring_incidence_angle, units=DEGREES),
+        'pixel_incidence': _ramp(incidence_bounds, seen_rings, masked_value),
         'arrays': ring_planes,
         'masks': ring_masks,
         'distance': _ring_distance(bodies),

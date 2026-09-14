@@ -73,11 +73,13 @@ def _ring_arrays(
     longitude = ma.MaskedArray(np.full(SHAPE_VU, 1.5), mask=~valid)
     dist = ma.MaskedArray(np.full(SHAPE_VU, distance), mask=~valid)
     incidence = ma.MaskedArray(np.radians(RING_INCIDENCE_DEG))
+    pixel_incidence = ma.MaskedArray(np.full(SHAPE_VU, np.radians(RING_INCIDENCE_DEG)), mask=~valid)
     return valid, {
         'ring_radius': radius,
         'ring_longitude': longitude,
         'distance': dist,
         'ring_center_incidence_angle': incidence,
+        'ring_incidence_angle': pixel_incidence,
     }
 
 
@@ -170,6 +172,26 @@ def test_the_ring_incidence_angle_is_the_ring_center_s_in_degrees() -> None:
     assert result['incidence_angle']['value'] == pytest.approx(RING_INCIDENCE_DEG)
     assert result['incidence_angle']['units'] == 'deg'
     assert ('ring_center_incidence_angle', 'SATURN_MAIN_RINGS', {}) in fake.calls
+
+
+def test_the_incidence_angle_at_each_pixel_is_kept_in_radians_for_the_writer() -> None:
+    """The angle at each pixel is kept as oops gives it, the masked value off the rings.
+
+    The writer summarizes it over the ring pixels the merge leaves; no backplane holds it.
+    """
+    valid, method_values = _ring_arrays()
+    snap, _ = _snapshot_with_fake_bp(method_values)
+    result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
+    assert result is not None
+    expected = np.where(valid, np.radians(RING_INCIDENCE_DEG), MASKED_VALUE)
+    np.testing.assert_allclose(result['pixel_incidence'], expected)
+
+
+def test_the_incidence_angle_at_each_pixel_is_the_ring_target_s_from_its_sunlit_side() -> None:
+    """The angle at each pixel is taken on the ring target, from the sunlit side's normal."""
+    snap, fake = _snapshot_with_fake_bp(_ring_arrays()[1])
+    create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
+    assert ('ring_incidence_angle', 'SATURN_MAIN_RINGS', {}) in fake.calls
 
 
 def test_result_records_planet() -> None:
