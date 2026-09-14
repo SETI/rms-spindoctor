@@ -27,7 +27,7 @@
             <Modification_Detail>
                 <modification_date>$CURRENT_ZULU(date_only=True)$</modification_date>
                 <version_id>1.0</version_id>
-                <description>Initial version.</description>
+                <description>Initial version</description>
             </Modification_Detail>
         </Modification_History>
     </Identification_Area>
@@ -39,6 +39,10 @@
         <Primary_Result_Summary>
             <purpose>Observation Geometry</purpose>
             <processing_level>Derived</processing_level>
+            <description>
+                The SPICE metakernel kernels.ker. It lists no SPICE kernels: which kernels it
+                lists has not been decided.
+            </description>
         </Primary_Result_Summary>
         <Investigation_Area>
             <name>Cassini-Huygens</name>

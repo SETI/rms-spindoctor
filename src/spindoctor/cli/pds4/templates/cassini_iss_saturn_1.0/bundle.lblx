@@ -194,6 +194,7 @@
     <File_Area_Text>
         <File>
             <file_name>readme.txt</file_name>
+            <creation_date_time>$FILE_ZULU(README_PATH)$</creation_date_time>
         </File>
         <Stream_Text>
             <offset unit="byte">0</offset>
