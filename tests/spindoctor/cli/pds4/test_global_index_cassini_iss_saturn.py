@@ -16,6 +16,7 @@ holds the constant its field declares, in the spelling the label declares it.  T
 plumbing is tested over stand-in templates in ``test_global_index.py``.
 """
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,13 +29,14 @@ from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
 from spindoctor.cli.backplanes.statistics import statistics_units
-from spindoctor.cli.pds4.global_index import generate_global_index_files
+from spindoctor.cli.pds4.global_index import INDEX_VALUE_FORMATS, generate_global_index_files
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
 from .conftest import (
     index_entry,
     make_bundle_env,
     read_csv_rows,
+    read_index_rows,
     ring_metadata,
     touch_label,
     write_cohort_bundle,
@@ -437,6 +439,24 @@ def test_each_row_s_times_are_the_start_and_stop_its_data_label_states(
             rows.append((lid, times))
     assert len(rows) == 3
     assert rows == [(lid, stated[lid]) for lid, _ in rows]
+
+
+def test_the_rings_index_states_the_plain_ring_longitude_range(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """The ring image's row states the plain least and greatest ring longitude.
+
+    Its data label states the range wrapped at zero, 216.000 to 204.706, and the index
+    columns are named for the plain range, 0 to 360.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
+    header, row = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
+    metadata_path = cassini_cohort.backplane_results_root / f'{RINGS_STUB}_backplane_metadata.json'
+    rings = json.loads(metadata_path.read_text(encoding='utf-8'))['rings']
+    statistic = rings['backplanes']['ring_longitude']
+    plain = [INDEX_VALUE_FORMATS['deg'].render(statistic[end]) for end in ('min', 'max')]
+    stated = [row[header.index(f'{end}_ring_longitude')] for end in ('minimum', 'maximum')]
+    assert stated == plain
 
 
 def _shipped_index_templates(cohort: CohortCassiniISSSaturn) -> dict[str, str]:
