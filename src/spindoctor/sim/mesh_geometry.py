@@ -30,6 +30,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
 # Lambertian floor for the visible-but-unlit side, shared with the ellipsoid
@@ -312,9 +313,12 @@ def render_polyhedral_body(
         area = (xs[1] - xs[0]) * (ys[2] - ys[0]) - (xs[2] - xs[0]) * (ys[1] - ys[0])
         if abs(area) < 1e-9:
             continue
+        # The face's box is named by array rows and columns and the projected
+        # vertices are in the geometry layer's pixel corner coordinates, so the
+        # half pixel goes on here.
         gx, gy = np.meshgrid(
-            np.arange(min_x, max_x + 1) + 0.5,
-            np.arange(min_y, max_y + 1) + 0.5,
+            np.arange(min_x, max_x + 1) + PIXEL_CENTER_TO_CORNER_PX,
+            np.arange(min_y, max_y + 1) + PIXEL_CENTER_TO_CORNER_PX,
         )
         w0 = ((xs[1] - xs[0]) * (gy - ys[0]) - (ys[1] - ys[0]) * (gx - xs[0])) / area
         w1 = ((xs[2] - xs[1]) * (gy - ys[1]) - (ys[2] - ys[1]) * (gx - xs[1])) / area

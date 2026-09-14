@@ -39,6 +39,7 @@ from spindoctor.sim.forward.body_texture import (
 )
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['create_simulated_body', 'render_single_body']
@@ -406,17 +407,15 @@ def carve_crater_heights(
             rng, R_min * aa_scale, R_max * aa_scale, alpha=crater_power_law_exponent
         )
 
-        # Compute distances from crater center.
-        # v_coords/u_coords are in centered pixel coordinates: (index + 0.5 - work_center_*).
-        # Convert crater center (array indices) to the same coordinate system.
-        # Compute distances in absolute pixel-index coordinates to avoid frame mismatches:
-        # v_coords/u_coords are in centered coords: (idx + 0.5 - work_center_*).
-        # Convert them back to absolute index coords by adding work_center_*,
-        # then subtract the crater center at (idx_crater + 0.5).
+        # Distances from the crater centre, taken in the frame's own pixel
+        # corner coordinates so the two frames cannot disagree.  v_coords and
+        # u_coords are pixel corner coordinates with the body centre already
+        # taken off, so adding it back restores them.  The crater centre picked
+        # above is an array row and column, so the half pixel goes on here.
         v_abs = v_coords + work_center_v
         u_abs = u_coords + work_center_u
-        center_v_abs = float(v_crater) + 0.5
-        center_u_abs = float(u_crater) + 0.5
+        center_v_abs = float(v_crater) + PIXEL_CENTER_TO_CORNER_PX
+        center_u_abs = float(u_crater) + PIXEL_CENTER_TO_CORNER_PX
         v_dist = v_abs - center_v_abs
         u_dist = u_abs - center_u_abs
         crater_dist = np.sqrt(v_dist**2 + u_dist**2)

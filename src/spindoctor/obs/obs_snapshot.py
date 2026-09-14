@@ -7,6 +7,7 @@ from oops.meshgrid import Meshgrid
 from oops.observation.snapshot import Snapshot
 
 from spindoctor.config import Config
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.image import pad_array
 from spindoctor.support.types import (
     DTypeLike,
@@ -397,10 +398,19 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
             if self._extfov_margin_vu == (0, 0):
                 self._ext_bp = self.bp
             else:
+                # The extended-frame bounds are array bounds; the meshgrid
+                # reads the geometry layer's pixel corner coordinates, so the
+                # half pixel goes on here.
                 ext_meshgrid = Meshgrid.for_fov(
                     self.fov,
-                    origin=(self.extfov_u_min + 0.5, self.extfov_v_min + 0.5),
-                    limit=(self.extfov_u_max + 0.5, self.extfov_v_max + 0.5),
+                    origin=(
+                        self.extfov_u_min + PIXEL_CENTER_TO_CORNER_PX,
+                        self.extfov_v_min + PIXEL_CENTER_TO_CORNER_PX,
+                    ),
+                    limit=(
+                        self.extfov_u_max + PIXEL_CENTER_TO_CORNER_PX,
+                        self.extfov_v_max + PIXEL_CENTER_TO_CORNER_PX,
+                    ),
                     swap=True,
                 )
                 self._ext_bp = Backplane(self, meshgrid=ext_meshgrid)

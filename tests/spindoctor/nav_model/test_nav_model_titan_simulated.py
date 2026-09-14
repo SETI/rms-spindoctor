@@ -4,11 +4,11 @@ The model's whole job is to build the same
 :class:`~spindoctor.nav_model.titan_geometry.TitanGeometryInputs` the
 catalog-driven model builds, from a simulated scene's idealized body
 parameters instead of from ``oops``.  These tests pin that translation --
-the pixel-index convention, the radii, the symmetry axis and its degenerate
-branch, and the three contaminant-mask components -- plus the fact that
-everything downstream (the emitted feature, its reliability, the overlay) is
-inherited rather than reimplemented, so a simulated haze frame cannot mean
-something different from a real one.
+the crossing between the two pixel coordinate systems, the radii, the
+symmetry axis and its degenerate branch, and the three contaminant-mask
+components -- plus the fact that everything downstream (the emitted feature,
+its reliability, the overlay) is inherited rather than reimplemented, so a
+simulated haze frame cannot mean something different from a real one.
 """
 
 import math
@@ -81,10 +81,10 @@ def _model(bodies: list[dict[str, Any]], stars: list[dict[str, Any]] | None = No
 
 
 def test_predicted_center_is_the_rendered_disc_centre() -> None:
-    """The predicted centre is the rendered silhouette's pixel-index centre.
+    """The predicted centre is the rendered silhouette's centre, pixel centric.
 
-    The body renderer treats a stated centre as a corner coordinate, so a
-    body at ``center_v`` paints about index ``center_v - 0.5``.  Predicting
+    The body renderer reads a stated centre in pixel corner coordinates, so a
+    body at ``center_v`` paints about ``center_v - 0.5`` pixel centric.  Predicting
     the stated value instead would plant a flat half-pixel cross-track error
     in every simulated haze frame.
     """

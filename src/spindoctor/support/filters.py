@@ -52,9 +52,13 @@ class NavFilterKind(Enum):
     - ``BANDPASS_DOG``: difference-of-Gaussians bandpass; subtract a heavy-blur
       from a light-blur of the input to suppress low-frequency content while
       preserving sharper detail.
-    - ``DISTANCE_TRANSFORM``: signed distance transform of a thresholded edge
-      map; only meaningful as a precomputed image-side quantity, not a generic
-      operator.  ``apply_filter`` raises if asked to apply it to a non-binary
+    - ``DISTANCE_TRANSFORM``: Euclidean distance transform of a thresholded
+      edge map, truncated at ``dt_half_width_px``.  It is NOT signed: the
+      values are non-negative everywhere and the zero locus is the edge pixels
+      themselves, at their own centres, not an oriented boundary running along
+      pixel edges half a pixel away.  Only meaningful as a precomputed
+      image-side quantity, not a generic operator.  ``apply_filter`` thresholds
+      whatever it is handed at ``!= 0`` rather than rejecting a non-binary
       array.
     - ``GRADIENT_OF_GAUSSIAN``: gradient magnitude of a Gaussian-smoothed
       input; isotropic blur followed by Sobel.

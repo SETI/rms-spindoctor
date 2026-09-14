@@ -94,7 +94,9 @@ Public fields (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
   ``(H, W, 2)`` per-pixel gradient-vector image; ``[..., 0]`` is ``g_v``, ``[..., 1]`` is
   ``g_u``.
 - :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.image_edge_dt_ext` — Optional shared
-  signed distance transform of the thresholded gradient image.
+  Euclidean distance transform of the thresholded gradient image. It is not signed: the values are
+  non-negative everywhere and the zero locus is the edge pixels themselves, at their own centres,
+  not an oriented boundary running along pixel edges half a pixel away.
 - :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.prior_offset_px` — pass-2 prior
   offset; ``None`` on pass 1.
 - :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.prior_covariance_px2` — pass-2 prior

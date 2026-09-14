@@ -57,6 +57,7 @@ from spindoctor.nav_model.rings import (
     RingsRenderContext,
     validate_no_date_overlaps,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.time import now_dt, utc_to_et
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
@@ -689,10 +690,19 @@ class NavModelRings(NavModelRingsBase):
         v_min = obs.extfov_v_min
         for start in range(0, rows, BACKPLANE_STRIP_ROWS):
             stop = min(start + BACKPLANE_STRIP_ROWS, rows)
+            # The strip is named by array rows; the meshgrid reads the
+            # geometry layer's pixel corner coordinates, so the half pixel
+            # goes on here.
             meshgrid = Meshgrid.for_fov(
                 obs.fov,
-                origin=(obs.extfov_u_min + 0.5, v_min + start + 0.5),
-                limit=(obs.extfov_u_max + 0.5, v_min + stop - 1 + 0.5),
+                origin=(
+                    obs.extfov_u_min + PIXEL_CENTER_TO_CORNER_PX,
+                    v_min + start + PIXEL_CENTER_TO_CORNER_PX,
+                ),
+                limit=(
+                    obs.extfov_u_max + PIXEL_CENTER_TO_CORNER_PX,
+                    v_min + stop - 1 + PIXEL_CENTER_TO_CORNER_PX,
+                ),
                 swap=True,
             )
             backplane = Backplane(obs, meshgrid=meshgrid)
@@ -747,10 +757,19 @@ class NavModelRings(NavModelRingsBase):
         v_extent = obs.extfov_v_max - obs.extfov_v_min + 1
         u_step = max(1, u_extent // SPARSE_VISIBILITY_GRID_SIZE)
         v_step = max(1, v_extent // SPARSE_VISIBILITY_GRID_SIZE)
+        # The extended-frame bounds are array bounds; the meshgrid reads the
+        # geometry layer's pixel corner coordinates, so the half pixel goes on
+        # here.
         sparse_meshgrid = Meshgrid.for_fov(
             obs.fov,
-            origin=(obs.extfov_u_min + 0.5, obs.extfov_v_min + 0.5),
-            limit=(obs.extfov_u_max + 0.5, obs.extfov_v_max + 0.5),
+            origin=(
+                obs.extfov_u_min + PIXEL_CENTER_TO_CORNER_PX,
+                obs.extfov_v_min + PIXEL_CENTER_TO_CORNER_PX,
+            ),
+            limit=(
+                obs.extfov_u_max + PIXEL_CENTER_TO_CORNER_PX,
+                obs.extfov_v_max + PIXEL_CENTER_TO_CORNER_PX,
+            ),
             undersample=(u_step, v_step),
             swap=True,
         )
