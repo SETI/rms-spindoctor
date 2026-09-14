@@ -3,13 +3,24 @@ import numpy as np
 from spindoctor.support.correlate import navigate_with_pyramid_kpeaks
 
 
-def gaussian_patch(shape: tuple[int, int], sigma: float, offset: tuple[float, float]) -> np.ndarray:
-    # ``offset`` follows psfmodel's ``eval_rect``: it is measured from the upper
-    # left corner of the center pixel, so (0.5, 0.5) puts the peak on that
-    # pixel's center and a whole number puts it on a pixel boundary.  That is
-    # the pixel corner convention, and it is the one check_corr_offset.py gets
-    # from eval_rect; all three scripts in this directory now name their shifts
-    # the same way.
+def gaussian_patch(
+    shape: tuple[int, int], sigma: float, offset: tuple[float, float]
+) -> np.ndarray:
+    """Return a Gaussian patch whose peak sits at ``offset`` from the center.
+
+    Parameters:
+        shape: The ``(v, u)`` patch size in pixels.
+        sigma: The Gaussian standard deviation in pixels.
+        offset: The ``(v, u)`` peak displacement from the patch center, in
+            pixel corner coordinates -- the convention psfmodel's ``eval_rect``
+            uses, measured from the upper left corner of the center pixel, so
+            ``(0.5, 0.5)`` puts the peak on that pixel's center and a whole
+            number puts it on a pixel boundary.  All three scripts in this
+            directory name their shifts this way.
+
+    Returns:
+        The patch, peak-normalized to 1.0.
+    """
     v_size, u_size = shape
     ov, ou = offset
     cv = (v_size - 1) / 2.0 - 0.5

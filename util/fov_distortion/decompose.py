@@ -21,10 +21,15 @@ predicted-to-measured displacement into three physically distinct parts:
 Coordinates are image ``(v, u)`` = ``(row, column)`` throughout.  The axis order
 is all this module fixes: the star positions, ``center_vu`` and ``pivot_vu`` need
 only be in one continuous pixel coordinate system, whichever the caller works in.
-:mod:`measure` passes pixel corner positions, because that is what the star
-catalog records and what ``psf.find_position`` returns.  Everything here is pure
-numpy: the module carries no navigation dependency so it can be exercised on
-synthetic point clouds.
+:mod:`measure` passes pixel corner star positions, because that is what the star
+catalog records and what ``psf.find_position`` returns.  It passes a pixel
+centric ``center_vu``, half a pixel up and left of where those positions put the
+frame center, and says at the call site why: against a half-diagonal normalizing
+radius that half pixel moves the fitted ``k1`` by four parts in ten thousand and
+the twist by a microdegree, an order of magnitude inside the fit's own error on a
+known distortion.  It is the one place a caller here mixes the two, and it is
+deliberate.  Everything here is pure numpy: the module carries no navigation
+dependency so it can be exercised on synthetic point clouds.
 """
 
 from __future__ import annotations
