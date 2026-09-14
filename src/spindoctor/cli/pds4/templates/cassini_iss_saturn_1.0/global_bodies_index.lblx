@@ -20,8 +20,8 @@
             <keyword>index</keyword>
             <description>
                 A table indexing the backplanes for navigated images from Cassini ISS at
-                Saturn, with one row for each body of each image the data collection
-                holds.
+                Saturn, with one row for each body seen in each image the data
+                collection holds.
             </description>
             <List_Author>
                 <Person>
@@ -140,7 +140,7 @@
             <offset unit="byte">$HEADER_LENGTH$</offset>
             <records>$FILE_RECORDS(INDEX_TABLE_PATH)-1$</records>
             <description>
-                One row for each body of each image the data collection holds, giving the
+                One row for each body seen in each image the data collection holds, giving the
                 image's data product, the start and stop of its exposure, and the least
                 and the greatest value each body backplane takes over the pixels where it
                 has a value for that body. Every field is padded with spaces to its length

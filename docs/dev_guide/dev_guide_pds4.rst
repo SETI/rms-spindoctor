@@ -672,8 +672,8 @@ The global index and the miscellaneous collection
 into the bundle's ``miscellaneous/`` directory, each with its label beside it, and then
 the collection that holds them:
 
-- ``global_bodies_index.tab``, one row for each body of each image the data collection
-  holds;
+- ``global_bodies_index.tab``, one row for each body with geometry in each image the data
+  collection holds;
 - ``global_rings_index.tab``, one row for each such image with ring backplanes;
 - ``collection_miscellaneous.csv`` and ``collection_miscellaneous.lblx``.
 
