@@ -131,7 +131,8 @@ COLLECTION_BROWSE_TEMPLATE = collection_template(
     'browse', '  <csv>$COLLECTION_BROWSE_CSV_PATH$</csv>\n'
 )
 GLOBAL_INDEX_TEMPLATE = (
-    '<Index>\n  <lid>$INDEX_LID$</lid>\n  <records>$FILE_RECORDS$</records>\n</Index>\n'
+    '<Index>\n  <lid>$INDEX_LID$</lid>\n'
+    '  <records>$FILE_RECORDS(INDEX_TABLE_PATH)-1$</records>\n</Index>\n'
 )
 BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
 """A template naming a variable no caller defines, so the render errors."""
@@ -440,6 +441,28 @@ def write_templates(template_dir: Path, contents: dict[str, str]) -> None:
     template_dir.mkdir(parents=True, exist_ok=True)
     for filename, content in contents.items():
         (template_dir / filename).write_text(content, encoding='utf-8')
+
+
+def index_entry(name: str, units: str) -> dict[str, Any]:
+    """Return a backplane configuration entry, with the index block the index tables read.
+
+    Parameters:
+        name: The plane's name.
+        units: The unit its array carries.
+
+    Returns:
+        The entry: its name and units, and an ``index`` block naming its two columns
+        ``minimum_<name>`` and ``maximum_<name>``, each ``ASCII_Real`` and described.
+    """
+    return {
+        'name': name,
+        'units': units,
+        'index': {
+            'data_type': 'ASCII_Real',
+            'minimum': {'name': f'minimum_{name}', 'description': f'The least {name}.'},
+            'maximum': {'name': f'maximum_{name}', 'description': f'The greatest {name}.'},
+        },
+    }
 
 
 @dataclass

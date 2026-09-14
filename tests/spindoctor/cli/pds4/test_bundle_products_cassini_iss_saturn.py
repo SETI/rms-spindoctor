@@ -161,9 +161,6 @@ def _documents_named(label: Path, bundle_lid: str) -> set[str]:
         Each LID an ``Internal_Reference`` of a ``..._to_document`` type names that is a
         product of the bundle.
     """
-    if label.stat().st_size == 0:
-        # The global index labels render from empty templates, so they name nothing.
-        return set()
     references = (
         ElementTree.parse(label).getroot().iter(f'{{{PDS4_NAMESPACES["pds"]}}}Internal_Reference')
     )

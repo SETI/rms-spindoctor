@@ -11,15 +11,22 @@ naming the columns, separated by commas, and then the rows, each field padded to
 longest value written in its column, with a comma between fields.  Where an image has
 no statistic for a plane, its two cells hold the configured masked value,
 ``backplanes.masked_value``, written in the column's format.
+
+Each table's label describes it as the reference bundle's index labels do: a ``Header``
+over the header line, then a ``Table_Character`` over the records with one
+``Field_Character`` per column, at the location and length the table was laid out with.
+The columns a configured plane gives both are built from its configuration entry, which
+names each column, its data type and its description; its unit is the unit the plane's
+statistic is in, and its missing constant the masked value as the column writes it.
 """
 
 import json
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import pdstemplate
 from filecache import FCPath
@@ -136,31 +143,6 @@ def index_value_format(units: str) -> IndexValueFormat:
     return INDEX_VALUE_FORMATS[statistics_units(units)]
 
 
-def _index_cells(
-    statistic: dict[str, Any] | None, value_format: IndexValueFormat, missing: str
-) -> list[str]:
-    """Write one plane's minimum and maximum as the two cells an index row gives it.
-
-    Parameters:
-        statistic: The plane's statistic as a supplemental file records it, its
-            minimum and maximum already checked as finite numbers, or None when
-            the file records none for the plane.
-        value_format: The format the plane's column is written in.
-        missing: What each of the two cells holds when there is no statistic: the
-            masked value, written in ``value_format``.
-
-    Returns:
-        The minimum and the maximum, rendered, or ``missing`` twice when there is no
-        statistic, which is what a plane that measured nothing leaves.
-
-    Raises:
-        ValueError: If the minimum or the maximum is not a finite number.
-    """
-    if statistic is None:
-        return [missing, missing]
-    return [value_format.render(statistic['min']), value_format.render(statistic['max'])]
-
-
 MISCELLANEOUS_COLLECTION = 'miscellaneous'
 """The collection the global index tables are in, and the bundle directory it has."""
 
@@ -186,17 +168,164 @@ def index_lid(bundle_name: str, index_name: str) -> str:
 
 @dataclass(frozen=True)
 class IndexColumn:
-    """One column of a global index table.
+    """One column of a global index table: how its values are written, and its label.
 
     Attributes:
-        name: The column's name, as the header line gives it.
+        name: The field's name, as the header line and the label give it: a PDS4
+            dictionary attribute's name with the dictionary's prefix, as in
+            ``pds:logical_identifier``, where the column holds that attribute, and a
+            name of its own otherwise.
+        data_type: The PDS4 data type of its values, as in ``ASCII_Real``.
+        description: What its values are.
+        unit: The unit of its values, or None for a column that has none.
         value_format: The format each statistic in the column is written in, or None
             for a column of text.  A statistic is right-justified in its field, and
             text left-justified.
+        missing_constant: What a cell of the column holds where an image has no
+            statistic for its plane, spelled as the cell spells it, or None for a column
+            no cell of which is ever missing.
     """
 
     name: str
+    data_type: str
+    description: str
+    unit: str | None = None
     value_format: IndexValueFormat | None = None
+    missing_constant: str | None = None
+
+
+_LID_COLUMN = IndexColumn(
+    name='pds:logical_identifier',
+    data_type='ASCII_LID',
+    description='The logical identifier of the data product whose statistics the row gives.',
+)
+"""The first column of both tables: the data product each row is about."""
+
+_BODY_COLUMN = IndexColumn(
+    name='body_name',
+    data_type='ASCII_String',
+    description='The body whose statistics the row gives, by the name the backplanes use.',
+)
+"""The bodies table's second column: the body each row is about."""
+
+_FILE_COLUMN = IndexColumn(
+    name='file_spec',
+    data_type='ASCII_String',
+    description="The path of the data product's label, relative to the bundle's directory.",
+)
+"""The column naming each row's data label, under the reference bundle's name for it."""
+
+
+@dataclass(frozen=True)
+class _IndexPlane:
+    """One configured plane, and the two columns of an index table its statistic fills.
+
+    Attributes:
+        name: The plane's name, under which a supplemental file records its statistic.
+        value_format: The format its statistic is written in.
+        missing: What each of its two cells holds where an image has no statistic for
+            it: the masked value, written in ``value_format``.
+        minimum: The column of its least value.
+        maximum: The column of its greatest value.
+    """
+
+    name: str
+    value_format: IndexValueFormat
+    missing: str
+    minimum: IndexColumn
+    maximum: IndexColumn
+
+    @classmethod
+    def from_entry(cls, entry: Mapping[str, Any], *, masked_value: float) -> Self:
+        """Return a configured plane and its two columns, as its entry describes them.
+
+        Each column takes its name and its description from the entry's ``index``
+        block, and the data type the block gives both.  Its unit is the unit the plane's
+        statistic is in, the entry's ``units`` restated through
+        :func:`~spindoctor.cli.backplanes.statistics.statistics_units`, and its format
+        the one :data:`INDEX_VALUE_FORMATS` gives that unit, so that a label states the
+        unit and the format its column's values are written in.  Its missing constant
+        is the masked value written in that format.
+
+        Parameters:
+            entry: The plane's configuration entry, from ``backplanes.bodies`` or
+                ``backplanes.rings``.
+            masked_value: The configured masked value, ``backplanes.masked_value``.
+
+        Returns:
+            The plane.
+
+        Raises:
+            KeyError: If the plane's statistic is in a unit the index has no format for.
+        """
+        value_format = index_value_format(entry['units'])
+        unit = statistics_units(entry['units'])
+        # The value every masked pixel of the arrays holds, in the column's own format,
+        # so every value of a column, a missing one included, is written in one form
+        # and the label declares it in that form (#601).
+        missing = value_format.render(masked_value)
+        index = entry['index']
+
+        def column(end: str) -> IndexColumn:
+            """Return the column of the plane's least or greatest value.
+
+            Parameters:
+                end: ``minimum`` or ``maximum``, the key of the column in the entry's
+                    ``index`` block.
+
+            Returns:
+                The column.
+            """
+            return IndexColumn(
+                name=index[end]['name'],
+                data_type=index['data_type'],
+                description=index[end]['description'],
+                unit=unit,
+                value_format=value_format,
+                missing_constant=missing,
+            )
+
+        return cls(
+            name=entry['name'],
+            value_format=value_format,
+            missing=missing,
+            minimum=column('minimum'),
+            maximum=column('maximum'),
+        )
+
+    def cells(self, statistic: Mapping[str, Any] | None) -> list[str]:
+        """Write the plane's statistic as the two cells an index row gives it.
+
+        Parameters:
+            statistic: The plane's statistic as a supplemental file records it, its
+                minimum and maximum already checked as finite numbers, or None when
+                the file records none for the plane.
+
+        Returns:
+            The minimum and the maximum, rendered, or :attr:`missing` twice when there
+            is no statistic, which is what a plane that measured nothing leaves.
+
+        Raises:
+            ValueError: If the minimum or the maximum is not a finite number.
+        """
+        if statistic is None:
+            return [self.missing, self.missing]
+        return [
+            self.value_format.render(statistic['min']),
+            self.value_format.render(statistic['max']),
+        ]
+
+
+def _statistic_columns(planes: Sequence[_IndexPlane]) -> list[IndexColumn]:
+    """Return the columns the configured planes give an index table, in order.
+
+    Parameters:
+        planes: The configured planes, in the configuration's order.
+
+    Returns:
+        Each plane's minimum column and then its maximum column.
+    """
+    return [column for plane in planes for column in (plane.minimum, plane.maximum)]
 
 
 @dataclass(frozen=True)
@@ -298,8 +427,8 @@ def _write_index(
     columns: list[IndexColumn],
     rows: list[list[str]],
     *,
+    lid: str,
     template: pdstemplate.PdsTemplate,
-    template_vars: dict[str, Any],
     logger: PdsLogger,
 ) -> IndexWritten:
     """Write one index table and then its label, or neither when the table has no row.
@@ -309,16 +438,27 @@ def _write_index(
     cannot be described: neither it nor its label is written.  That is no failure, since
     a bundle can hold no image with ring backplanes, and the log says so at info level.
     Otherwise the table is laid out by :func:`lay_out_table` and written as ASCII, and
-    then its label is rendered, which reads the table's size, checksum and record count
-    from the file; the table stays whether or not the label renders.
+    then its label is rendered from ``template``, handed:
+
+    - ``INDEX_LID``, the product's LID;
+    - ``INDEX_TABLE_PATH``, the table's path, from which the label reads its size,
+      checksum, time and number of lines;
+    - ``HEADER_LENGTH``, the header line's length in bytes, its line feed included,
+      which is where the records begin;
+    - ``RECORD_LENGTH``, every record's length in bytes, its line feed included;
+    - ``FIELDS``, one :class:`IndexField` per column, in order, laid out from the same
+      columns the table was written from, so that the label cannot describe a table
+      other than the one beside it.
+
+    The table stays whether or not the label renders.
 
     Parameters:
         table: Where the table goes.
         label: Where its label goes.
         columns: The table's columns, in order.
         rows: The table's rows, each holding one rendered cell per column.
+        lid: The product's LID.
         template: The parsed template the label renders from.
-        template_vars: The variables the label's template resolves against.
         logger: Logger for diagnostic messages.
 
     Returns:
@@ -337,6 +477,13 @@ def _write_index(
         f.write(laid_out.header)
         f.writelines(laid_out.records)
     logger.info('Generated "%s" with %d rows', table.name, len(rows))
+    template_vars = {
+        'INDEX_LID': lid,
+        'INDEX_TABLE_PATH': table.as_posix(),
+        'HEADER_LENGTH': len(laid_out.header),
+        'RECORD_LENGTH': laid_out.record_length,
+        'FIELDS': laid_out.fields,
+    }
     if not write_label(template, template_vars, label, logger=logger):
         return IndexWritten.UNLABELED
     logger.info('Generated "%s"', label.name)
@@ -379,6 +526,14 @@ def generate_global_index_files(
     tables and the inventory cannot disagree about what the bundle holds.  Its
     statistics are still checked and its epochs still taken, as every supplemental
     file's are.
+
+    Each label describes the table beside it: a ``Header`` over the header line, and a
+    ``Table_Character`` over the records, with one ``Field_Character`` per column at the
+    location and length the table was laid out with.  A configured plane gives each
+    table two columns, its least and its greatest value, whose names, data type and
+    descriptions come from the plane's configuration entry, whose unit is the unit its
+    statistic is in, and whose missing constant is the masked value in the column's
+    format, the text a cell holds where an image has no statistic for the plane.
 
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
@@ -432,19 +587,18 @@ def generate_global_index_files(
     bundle_root = bundle_results_root / bundle_name
     config = dataset.config
 
-    # Get configured backplane types from config
-    bodies_cfg = config.backplanes.bodies
-    body_backplane_types = [bp['name'] for bp in bodies_cfg]
-    rings_cfg = config.backplanes.rings
-    ring_backplane_types = [bp['name'] for bp in rings_cfg]
-    body_formats = {bp['name']: index_value_format(bp['units']) for bp in bodies_cfg}
-    ring_formats = {bp['name']: index_value_format(bp['units']) for bp in rings_cfg}
-    # What a cell holds where an image has no statistic for the plane: the value every
-    # masked pixel of the arrays holds, written in the column's own format, so every
-    # value of a column, a missing one included, is written in one form (#601).
+    # Each configured plane and the two columns its statistic fills, from its
+    # configuration entry: the cells are written by these and the labels describe these,
+    # so a change to the configuration moves a table and its label together.
     masked_value = float(config.backplanes.masked_value)
-    body_missing = {name: fmt.render(masked_value) for name, fmt in body_formats.items()}
-    ring_missing = {name: fmt.render(masked_value) for name, fmt in ring_formats.items()}
+    body_planes = [
+        _IndexPlane.from_entry(entry, masked_value=masked_value)
+        for entry in config.backplanes.bodies
+    ]
+    ring_planes = [
+        _IndexPlane.from_entry(entry, masked_value=masked_value)
+        for entry in config.backplanes.rings
+    ]
 
     # A bundle with no data directory is not one a labels pass wrote.  The summary
     # pass runs this generator first, so the check is made here, before any product
@@ -514,30 +668,18 @@ def generate_global_index_files(
 
         # Body index: one line per image per body
         for body_name, body_data in bodies.items():
-            body_row: list[str] = [lid, body_name, path_to_image]
             body_backplanes = body_data.get('backplanes', {})
-            # Add min/max columns for each configured backplane type
-            for bp_type in body_backplane_types:
-                body_row.extend(
-                    _index_cells(
-                        body_backplanes.get(bp_type), body_formats[bp_type], body_missing[bp_type]
-                    )
-                )
+            body_row: list[str] = [lid, body_name, path_to_image]
+            for plane in body_planes:
+                body_row.extend(plane.cells(body_backplanes.get(plane.name)))
             body_index_rows.append(body_row)
 
         # Ring index: one line per image
         ring_backplanes = rings.get('backplanes', {})
         if ring_backplanes:
             ring_row: list[str] = [lid, path_to_image]
-            # Add min/max columns for each configured ring backplane type
-            for ring_type in ring_backplane_types:
-                ring_row.extend(
-                    _index_cells(
-                        ring_backplanes.get(ring_type),
-                        ring_formats[ring_type],
-                        ring_missing[ring_type],
-                    )
-                )
+            for plane in ring_planes:
+                ring_row.extend(plane.cells(ring_backplanes.get(plane.name)))
             ring_index_rows.append(ring_row)
 
     # Each label renders from the template of its own name.  Both are parsed before
@@ -547,45 +689,28 @@ def generate_global_index_files(
     bodies_template = pdstemplate.PdsTemplate(str(template_base / bodies_label.name))
     rings_template = pdstemplate.PdsTemplate(str(template_base / rings_label.name))
 
-    # The bodies table: LID, body_name, path_to_image_file, then min/max for each
-    # backplane type
-    bodies_columns = [
-        IndexColumn('LID'),
-        IndexColumn('body_name'),
-        IndexColumn('path_to_image_file'),
-    ]
-    for bp_type in body_backplane_types:
-        bodies_columns.append(IndexColumn(f'{bp_type}_min', body_formats[bp_type]))
-        bodies_columns.append(IndexColumn(f'{bp_type}_max', body_formats[bp_type]))
+    # The bodies table: the data product, the body and the data label, then the least
+    # and the greatest value of each configured body plane
     bodies_written = _write_index(
         bodies_tab,
         bodies_label,
-        bodies_columns,
+        [_LID_COLUMN, _BODY_COLUMN, _FILE_COLUMN, *_statistic_columns(body_planes)],
         body_index_rows,
+        lid=index_lid(bundle_name, BODIES_INDEX),
         template=bodies_template,
-        template_vars={
-            'INDEX_LID': index_lid(bundle_name, BODIES_INDEX),
-            'FILE_RECORDS': len(body_index_rows),
-        },
         logger=logger,
     )
 
-    # The rings table: LID, path_to_image_file, then min/max for each ring type
-    rings_columns = [IndexColumn('LID'), IndexColumn('path_to_image_file')]
+    # The rings table: the data product and the data label, then the least and the
+    # greatest value of each configured ring plane
     # TODO Add planet name to rings table
-    for ring_type in ring_backplane_types:
-        rings_columns.append(IndexColumn(f'{ring_type}_min', ring_formats[ring_type]))
-        rings_columns.append(IndexColumn(f'{ring_type}_max', ring_formats[ring_type]))
     rings_written = _write_index(
         rings_tab,
         rings_label,
-        rings_columns,
+        [_LID_COLUMN, _FILE_COLUMN, *_statistic_columns(ring_planes)],
         ring_index_rows,
+        lid=index_lid(bundle_name, RINGS_INDEX),
         template=rings_template,
-        template_vars={
-            'INDEX_LID': index_lid(bundle_name, RINGS_INDEX),
-            'FILE_RECORDS': len(ring_index_rows),
-        },
         logger=logger,
     )
     failed_labels = [bodies_written, rings_written].count(IndexWritten.UNLABELED)
