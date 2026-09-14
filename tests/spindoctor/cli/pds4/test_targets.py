@@ -18,6 +18,7 @@ from spindoctor.config import MAIN_LOGGER, Config
 from .conftest import (
     PLUMBING_RING_TARGET,
     make_bundle_env,
+    measured_body,
     ring_metadata,
     touch_label,
     write_supplemental,
@@ -49,7 +50,7 @@ def _metadata(*bodies: str, rings: bool = False) -> dict[str, Any]:
     """Return backplane metadata naming some bodies and the ring target.
 
     Parameters:
-        *bodies: The bodies the ``bodies`` block names, in order, none with a statistic.
+        *bodies: The bodies the ``bodies`` block names, in order, each with a statistic.
         rings: Whether the ``rings`` block holds a ring statistic.
 
     Returns:
@@ -57,7 +58,7 @@ def _metadata(*bodies: str, rings: bool = False) -> dict[str, Any]:
     """
     ring_statistics = {'ring_radius': {'min': 1.0, 'max': 2.0, 'units': 'km'}} if rings else {}
     return {
-        'bodies': {body: {'backplanes': {}} for body in bodies},
+        'bodies': {body: measured_body() for body in bodies},
         'rings': {
             'target': 'PLANET_RINGS',
             'incidence_angle': {'value': 45.0, 'units': 'deg'},
@@ -69,11 +70,18 @@ def _metadata(*bodies: str, rings: bool = False) -> dict[str, Any]:
 def test_an_image_s_targets_are_its_bodies_and_its_rings_in_the_table_s_order() -> None:
     """Every body the metadata names, and the ring target, each in the table's order.
 
-    The metadata names the bodies in an order other than the table's, and neither body
-    has a statistic, which does not keep a body from being a target.
+    The metadata names the bodies, each with a statistic, in an order other than the
+    table's.
     """
     targets = image_targets(_metadata('MOON_B', 'PLANET', rings=True), TABLE)
     assert targets == (TABLE['PLANET'], TABLE['MOON_B'], TABLE['PLANET_RINGS'])
+
+
+def test_a_body_with_no_statistic_is_no_target_of_an_image() -> None:
+    """A body the metadata names with nothing measured, one that shows at no pixel, is none."""
+    metadata = _metadata('PLANET')
+    metadata['bodies']['MOON_A'] = {'backplanes': {}}
+    assert image_targets(metadata, TABLE) == (TABLE['PLANET'],)
 
 
 def test_rings_with_no_ring_statistic_are_no_target_of_an_image() -> None:
@@ -118,9 +126,9 @@ def test_the_index_takes_the_targets_the_data_collection_s_members_name(tmp_path
     touch_label(data_dir, 'shard0/1111111111n')
     radii = ring_metadata({'radius': {'min': 81000.0, 'max': 125000.0, 'units': 'km'}})
     write_supplemental(
-        data_dir, 'shard0/1111111111n', bodies={'MOON_B': {'backplanes': {}}}, rings=radii
+        data_dir, 'shard0/1111111111n', bodies={'MOON_B': measured_body()}, rings=radii
     )
-    write_supplemental(data_dir, 'shard0/2222222222w', bodies={'MOON_A': {'backplanes': {}}})
+    write_supplemental(data_dir, 'shard0/2222222222w', bodies={'MOON_A': measured_body()})
     dataset = env.dataset.as_dataset()
     index = generate_global_index_files(FCPath(env.bundle_results_root), dataset, MAIN_LOGGER)
     table = target_table(dataset.config)

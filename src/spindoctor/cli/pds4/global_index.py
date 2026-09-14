@@ -46,7 +46,7 @@ from spindoctor.cli.pds4.collections import (
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan, exposure_times
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
-from spindoctor.cli.pds4.targets import Pds4Target, TargetScan, target_table
+from spindoctor.cli.pds4.targets import Pds4Target, TargetScan, has_geometry, target_table
 from spindoctor.dataset.dataset import DataSet, pds4_label_name
 
 
@@ -563,8 +563,9 @@ def generate_global_index_files(
     The tables index exactly the images the data inventory lists, the data labels in
     the data tree that :func:`~spindoctor.cli.pds4.collections.data_products` names,
     each with the rows its supplemental file gives: a row in the bodies table for each
-    body its backplane document names, whether or not the body has any statistic, and a
-    row in the rings table when it has ring statistics.  A supplemental file with no data
+    body its backplane document names that has geometry, a statistic at least, as
+    :func:`~spindoctor.cli.pds4.targets.has_geometry` decides, and a row in the rings
+    table when it has ring statistics.  A supplemental file with no data
     label beside it adds no row, so the
     tables and the inventory cannot disagree about what the bundle holds, and its
     epochs are not taken into the range; its statistics are still checked, as every
@@ -747,8 +748,11 @@ def generate_global_index_files(
         # The data label, by its path relative to the bundle's own directory
         path_to_image = members[pds4_path_stub].relative_to(bundle_root).as_posix()
 
-        # Body index: one line per image per body
+        # Body index: one line per image per body with geometry; a body the image's
+        # inventory found that shows at no pixel has no statistic, and no row
         for body_name, body_data in bodies.items():
+            if not has_geometry(body_data):
+                continue
             body_backplanes = body_data.get('backplanes', {})
             body_row: list[str] = [lid, body_name, path_to_image, start, stop]
             for plane in body_planes:

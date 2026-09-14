@@ -259,9 +259,11 @@ out, without counting it as an error:
 
 * an image that was never navigated, or whose navigation did not succeed;
 * an image whose backplanes were never generated;
-* an image whose backplanes cover no body and no rings, such as a frame of stars alone,
-  or a frame of a body or a ring the backplanes are not computed for. Its backplanes hold
-  no geometry, so a data label would have nothing to describe.
+* an image in which no body and no rings the backplanes are computed for show at any
+  pixel, such as a frame of stars alone, or a frame of a body or a ring the backplanes
+  are not computed for. Its backplanes hold no geometry, so a data label would have
+  nothing to describe. A body in the field of view that shows at no pixel, such as one
+  hidden behind a nearer body, does not count.
 
 The log names each image left out and says why, and the labels pass's closing line
 counts them as skipped. The instrument chapters say which bodies and rings each
@@ -313,9 +315,10 @@ and the path of its label within that volume, as in
 ``COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL``.
 
 Each data label names its targets, the bodies and rings its backplanes cover: one
-``Target_Identification`` for each body the image's backplane metadata names, whether or
-not any of its backplanes has a value there, and one for the rings when the image has
-ring backplanes. Each gives the target's name and type and refers to its PDS4 context
+``Target_Identification`` for each body that shows at a pixel of the image, where at
+least one of its backplanes has a value, and one for the rings when the image has ring
+backplanes. A body in the field of view that shows at no pixel, such as one hidden
+behind a nearer body, is not named. Each gives the target's name and type and refers to its PDS4 context
 product by its logical identifier, as the targets table identifies it (see
 `Targets`_): for example ``Saturn``, of type ``Planet``, at
 ``urn:nasa:pds:context:target:planet.saturn``.
@@ -362,8 +365,8 @@ The summary pass generates:
 
 * **Miscellaneous Collection**, in ``miscellaneous/`` (see `Global Index Tables`_):
 
-  * ``global_bodies_index.tab``: a table with one row for each body of each image in
-    the bundle, giving the least and the greatest value of each body backplane
+  * ``global_bodies_index.tab``: a table with one row for each body seen in each image
+    of the bundle, giving the least and the greatest value of each body backplane
   * ``global_bodies_index.lblx``: PDS4 label for the bodies index
   * ``global_rings_index.tab``: a table with one row for each image with ring
     backplanes, giving the least and the greatest value of each ring backplane
@@ -413,7 +416,9 @@ The two index tables in ``miscellaneous/`` summarize the backplanes of every ima
 bundle's data collection holds, so that a program can choose images without opening a
 FITS file.
 
-* ``global_bodies_index.tab`` has one row for each body of each image.
+* ``global_bodies_index.tab`` has one row for each body seen in each image, a body that
+  shows at one pixel at least. A body with no value for some backplane holds the masked
+  value in that backplane's columns.
 * ``global_rings_index.tab`` has one row for each image that has ring backplanes. When
   no image has ring backplanes, neither this table nor its label is written.
 

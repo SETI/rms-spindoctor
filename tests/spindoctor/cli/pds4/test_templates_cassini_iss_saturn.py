@@ -56,6 +56,9 @@ from .conftest import (
     write_cohort_bundle,
 )
 
+SATURN_LATITUDE = {'backplanes': {'body_latitude': {'min': -10.0, 'max': 20.0, 'units': 'deg'}}}
+"""Saturn's entry in a backplane document, with a latitude statistic, so it has geometry."""
+
 
 def _cassini_dataset(tmp_path: Path) -> DataSetPDS3CassiniISSSaturn:
     """Construct the registered Cassini ISS Saturn dataset over an empty holdings root.
@@ -106,7 +109,7 @@ def _label_with_the_shipped_templates(
     nav_metadata = navigated_document()
     (nav_root / f'{stub}_metadata.json').write_text(json.dumps(nav_metadata), encoding='utf-8')
     (backplane_root / f'{stub}_backplane_metadata.json').write_text(
-        json.dumps({'bodies': {'SATURN': {'backplanes': {}}}, 'rings': {}}), encoding='utf-8'
+        json.dumps({'bodies': {'SATURN': SATURN_LATITUDE}, 'rings': {}}), encoding='utf-8'
     )
     write_backplane_fits(backplane_root / f'{stub}_backplanes.fits', shape=fits_shape)
     (nav_root / f'{stub}_summary.png').write_bytes(b'\x89PNG fake bytes')

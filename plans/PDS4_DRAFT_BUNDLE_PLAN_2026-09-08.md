@@ -778,8 +778,11 @@ name with no entry raises, naming it, which fails that image.  Scraping the cont
 products to maintain the table stays #79.
 
 **Which labels name which targets.**  A data label names one `Target_Identification` for
-each body its image's backplane metadata names, whether or not the body has a
-statistic, and one for the rings when the metadata holds a ring statistic, each with
+each body its image's backplane metadata names that has geometry -- a statistic at
+least, as `targets.has_geometry` decides; a body the inventory found in the field of
+view that shows at no pixel is named with no statistic, and is no target (Phase 8's last
+round; Part A named it, and W1479724035 names nine bodies, seven with no pixel) -- and
+one for the rings when the metadata holds a ring statistic, each with
 the name and type its context product gives and an `Internal_Reference` to its LID of
 type `data_to_target`, in the table's order.  An image whose metadata names no body and
 holds no ring statistic has no target, which `PDS4_PDS_1O00.xsd` requires of a data
@@ -2234,12 +2237,16 @@ and the range of the epochs the data collection and bundle labels state is taken
 over the members alone, the same images as the rows, so that a supplemental file
 with no data label cannot widen it. That is the index half of #602.
 
-A body the backplane document names gets a bodies row whether or not it has any
-statistic, since the backplane writer records a body from the image's inventory
-alone when none of its planes has a value, and every statistic cell of that row
-is the masked value; rings with no statistic get no rings row, since the writer
-records the rings only with their statistics. Both predate this phase and are
-left as they are; the dev guide says so.
+A body the backplane document names gets a bodies row only when it has geometry,
+a statistic at least, as `targets.has_geometry` decides: the backplane writer
+records a body from the image's inventory alone when none of its planes has a
+value, and a row for it would measure nothing. This phase gave such a body a row
+of masked values; Phase 8's last round reversed that, since on real frames the
+table would fill with rows that measured nothing (W1479724035 names nine bodies,
+seven with no pixel). A body with statistics for some planes and not others still
+has its row, the masked value in the columns it has none for. Rings with no
+statistic get no rings row, since the writer records the rings only with their
+statistics. The dev guide says both.
 
 **The tables are fixed width**, as the reference's are: a comma-separated header
 line, then rows each field of which is padded to the longest value written in
@@ -2458,8 +2465,9 @@ and waits on #684.
   `rings:Reprojection_Geometry` from the ring statistics and the angle, which `data.lblx`
   states for an image with ring backplanes and not for one without.
 
-Tests.  Over stand-ins: an image's targets are its bodies, with or without a statistic,
-and the ring target only beside a ring statistic, in the table's order; a name with no
+Tests.  Over stand-ins: an image's targets are its bodies with geometry (Part A's test
+held a body with no statistic a target too; the last round reversed it), and the ring
+target only beside a ring statistic, in the table's order; a name with no
 entry is refused by name, by the scan too as it reads; a scan's targets are every
 product's, once each; the global index takes only the data collection's members'
 targets; the table's entries become targets in order, a version as text; the data label

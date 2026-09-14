@@ -178,6 +178,20 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
     assert body_names == ['MOON_A', 'MOON_B', 'MOON_A']
 
 
+def test_a_body_with_no_statistic_has_no_row(tmp_path: Path) -> None:
+    """Of two bodies a supplemental file names, only the one with a statistic has a row.
+
+    The other is a body the image's inventory found that shows at no pixel, so it measured
+    nothing, and a row of it would say nothing.
+    """
+    env = _index_env(tmp_path)
+    bodies = {'MOON_B': {'backplanes': {}}, **BODY_STATS}
+    _write_image(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=bodies)
+    _run_global_index(env)
+    rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
+    assert [row[1] for row in rows[1:]] == ['MOON_A']
+
+
 def test_each_field_is_as_long_as_the_longest_value_in_its_column(tmp_path: Path) -> None:
     """The table is fixed width, each field padded to the longest value in its column.
 

@@ -602,8 +602,11 @@ target, keyed by the name the backplane metadata gives the target: a body by the
 under, and the rings by the target
 :func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` computes their backplanes
 for.  An image's targets, as :func:`~spindoctor.cli.pds4.targets.image_targets` finds
-them, are every body its backplane metadata names, with or without a statistic, and the
-ring target when the metadata holds a ring statistic, in the table's order.  A name the
+them, are every body its backplane metadata names that has geometry -- a statistic at
+least, as :func:`~spindoctor.cli.pds4.targets.has_geometry` decides -- and the ring
+target when the metadata holds a ring statistic, in the table's order.  A body the
+image's inventory found that shows at no pixel is named with no statistic, and is no
+target.  A name the
 table has no entry for raises :exc:`KeyError`, naming it.  Nothing checks the table when
 a run starts; a test over the shipped configuration holds it to the stage's own body
 list and ring target.
@@ -686,11 +689,13 @@ supplemental file.  A supplemental file with no data label beside it adds no row
 its epochs are not in the range the data collection label states; its statistics are
 still checked, as every supplemental file's are.
 
-A body gets a row of the bodies table whether or not it has any statistic: the backplane
-writer records a body in the backplane document from the image's inventory alone when
-none of its planes has a value there, and each of that row's statistic cells is then the
-masked value.  The rings are recorded only with their statistics, so an image whose rings
-have none gets no row of the rings table.
+A body gets a row of the bodies table only when it has geometry, as
+:func:`~spindoctor.cli.pds4.targets.has_geometry` decides: the backplane writer records a
+body in the backplane document from the image's inventory alone when none of its planes
+has a value there, and a row for it would measure nothing.  A body with statistics for
+some planes and not others has its row, the masked value in the columns of the planes
+it has none for.  The rings are recorded only with their statistics, so an image whose
+rings have none gets no row of the rings table.
 
 **The table.**  Each table is fixed width, as the reference bundle's index tables are:
 a header line naming the fields, separated by commas, and then the rows.

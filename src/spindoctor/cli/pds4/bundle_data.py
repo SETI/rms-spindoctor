@@ -63,9 +63,12 @@ def generate_bundle_data_files(
     a navigation document that is not there, a navigation that did not succeed,
     and backplane metadata that is not there are all cases of a selection
     naming more images than the bundle covers, which is the ordinary state of a
-    selection made by volume.  So is backplane metadata that names no body and
-    holds no ring statistic, as a star field's does: its backplanes hold no
-    geometry for a data label to describe, and a data label has to name a target.
+    selection made by volume.  So is backplane metadata that names no body with
+    geometry and holds no ring statistic, as a star field's does: its backplanes
+    hold no geometry for a data label to describe, and a data label has to name a
+    target.  A body has geometry when its backplanes hold a statistic, as
+    :func:`~spindoctor.cli.pds4.targets.has_geometry` decides, so a body the image's
+    inventory found that shows at no pixel does not count.
     A document that is there but cannot be read is not one of them, and still
     raises.
 
@@ -95,9 +98,10 @@ def generate_bundle_data_files(
     A data label names every target the image's backplanes cover, as
     :func:`~spindoctor.cli.pds4.targets.image_targets` finds them in its backplane
     metadata and the configuration's targets table identifies them: each body the
-    metadata names, and the ring target when it holds a ring statistic, handed to the
-    template as ``TARGETS`` in the table's order.  An image whose metadata names no body
-    and holds no ring statistic is skipped before anything is written for it, whatever
+    metadata names that has geometry, and the ring target when it holds a ring statistic,
+    handed to the template as ``TARGETS`` in the table's order.  An image whose metadata
+    names no body with geometry and holds no ring statistic is skipped before anything is
+    written for it, whatever
     its navigation document records, since nothing would be written for it however that
     document were read.
 
@@ -207,12 +211,12 @@ def generate_bundle_data_files(
             return BundleDataOutcome.SKIPPED
         bp_stats = cast(dict[str, Any], json.loads(backplane_metadata_text))
 
-        # Backplanes naming no body and holding no ring statistic, as a star field's do,
-        # hold no geometry for a data label to describe, and a data label has to name a
-        # target, so the image is skipped before anything is written for it, as one with
-        # no backplanes is: an absent input is a skip (#600).  It comes before the checks
-        # that fail an image, since nothing would be written for this one however they
-        # came out.
+        # Backplanes naming no body with geometry and holding no ring statistic, as a star
+        # field's do, hold no geometry for a data label to describe, and a data label has
+        # to name a target, so the image is skipped before anything is written for it, as
+        # one with no backplanes is: an absent input is a skip (#600).  It comes before
+        # the checks that fail an image, since nothing would be written for this one
+        # however they came out.
         if not covers_a_target(bp_stats):
             logger.warning(
                 'Skipping bundle generation for "%s": its backplanes hold no body and no '

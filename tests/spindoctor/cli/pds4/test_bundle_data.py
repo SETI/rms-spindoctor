@@ -39,6 +39,7 @@ from .conftest import (
     NoPds4DataSet,
     make_bundle_env,
     make_image_file,
+    measured_body,
     navigated_document,
     ring_metadata,
     write_nav_inputs,
@@ -121,7 +122,7 @@ def test_supplemental_combines_navigation_and_backplane_metadata(tmp_path: Path)
     nav_metadata, backplane_metadata = write_nav_inputs(
         env,
         nav_extra={'offset': {'dv': 1.5, 'du': -2.0}},
-        backplane_metadata={'bodies': {'MOON_A': {'backplanes': {}}}, 'rings': {}},
+        backplane_metadata={'bodies': {'MOON_A': measured_body()}, 'rings': {}},
     )
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
@@ -188,7 +189,7 @@ def test_the_data_label_is_handed_each_target_the_backplane_metadata_names(
     write_nav_inputs(
         env,
         backplane_metadata={
-            'bodies': {'MOON_A': {'backplanes': {}}, 'PLANET': {'backplanes': {}}},
+            'bodies': {'MOON_A': measured_body(), 'PLANET': measured_body()},
             'rings': ring_metadata(ring_statistics),
         },
     )
@@ -196,6 +197,25 @@ def test_the_data_label_is_handed_each_target_the_backplane_metadata_names(
     table = target_table(env.dataset.as_dataset().config)
     expected = (table['PLANET'], table['MOON_A'], table[PLUMBING_RING_TARGET])
     assert env.dataset.template_variables['TARGETS'] == expected
+
+
+def test_the_data_label_names_only_the_bodies_with_geometry(tmp_path: Path) -> None:
+    """Of two bodies the metadata names, the one with no statistic is not a target.
+
+    It is a body the image's inventory found that shows at no pixel, so the label would
+    name a target it does not describe.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(
+        env,
+        backplane_metadata={
+            'bodies': {'MOON_A': {'backplanes': {}}, 'PLANET': measured_body()},
+            'rings': {},
+        },
+    )
+    _generate(env)
+    table = target_table(env.dataset.as_dataset().config)
+    assert env.dataset.template_variables['TARGETS'] == (table['PLANET'],)
 
 
 def test_browse_png_copied_byte_identical(tmp_path: Path) -> None:
@@ -482,6 +502,20 @@ def test_an_image_whose_backplanes_cover_no_target_is_skipped_with_nothing_writt
     assert expected in capsys.readouterr().out
 
 
+def test_an_image_whose_only_body_shows_at_no_pixel_is_skipped(tmp_path: Path) -> None:
+    """A body the metadata names with no statistic gives its image no geometry.
+
+    The backplane stage names every body the image's inventory finds in its field of
+    view, so a body that shows at no pixel is named with nothing measured.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(
+        env,
+        backplane_metadata={'bodies': {'MOON': {'backplanes': {}}}, 'rings': ring_metadata({})},
+    )
+    assert _generate(env) is BundleDataOutcome.SKIPPED
+
+
 def test_an_image_covering_no_target_is_skipped_whatever_its_navigation_document_records(
     tmp_path: Path,
 ) -> None:
@@ -530,7 +564,7 @@ def test_ring_statistics_with_no_incidence_range_fail_the_image_with_nothing_wri
 def test_a_target_the_table_has_no_entry_for_raises_with_nothing_written(tmp_path: Path) -> None:
     """A body the targets table does not identify is refused by name, nothing written."""
     env = make_bundle_env(tmp_path)
-    write_nav_inputs(env, backplane_metadata={'bodies': {'MOON_C': {}}, 'rings': {}})
+    write_nav_inputs(env, backplane_metadata={'bodies': {'MOON_C': measured_body()}, 'rings': {}})
     with pytest.raises(KeyError, match='no entry for MOON_C'):
         _generate(env)
     assert not env.bundle_dir.exists()

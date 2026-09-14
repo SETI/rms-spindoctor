@@ -7,10 +7,10 @@ per target, keyed by the name the backplane metadata gives it: a body by the nam
 backplane stage looks for it under, and the rings by the ring target their backplanes are
 computed for.
 
-An image's targets are every body its backplane metadata names and, when the metadata
-holds ring statistics, its ring target.  Every list of targets here is in the table's
-order, whatever order the metadata names them in, so that the labels of a bundle list
-them alike.
+An image's targets are every body its backplane metadata names that has geometry, a
+statistic at least, and, when the metadata holds ring statistics, its ring target.  Every
+list of targets here is in the table's order, whatever order the metadata names them in,
+so that the labels of a bundle list them alike.
 """
 
 from collections.abc import Iterable, Mapping
@@ -23,6 +23,7 @@ __all__ = [
     'Pds4Target',
     'TargetScan',
     'covers_a_target',
+    'has_geometry',
     'image_targets',
     'target_keys',
     'target_table',
@@ -73,6 +74,24 @@ def target_table(config: Config) -> dict[str, Pds4Target]:
     }
 
 
+def has_geometry(body: Mapping[str, Any]) -> bool:
+    """Return whether a body an image's backplane metadata names has geometry there.
+
+    A body has geometry when its backplanes hold at least one statistic, which they do when
+    one of its planes has a value at one pixel at least.  The backplane stage names every
+    body the image's inventory finds in its field of view, so a body that shows at no
+    pixel, one hidden behind a nearer body among them, is named with no statistic.  Only a
+    body with geometry is one of the image's targets or has a row of the bodies index.
+
+    Parameters:
+        body: The body's entry in the metadata's ``bodies`` block.
+
+    Returns:
+        True when the entry's ``backplanes`` hold a statistic.
+    """
+    return len(body.get('backplanes', {})) > 0
+
+
 def target_keys(backplane_metadata: Mapping[str, Any]) -> list[str]:
     """Return the names an image's backplane metadata gives the targets it covers.
 
@@ -82,11 +101,12 @@ def target_keys(backplane_metadata: Mapping[str, Any]) -> list[str]:
             ring target as ``target`` beside the ring statistics in ``backplanes``.
 
     Returns:
-        Each body the ``bodies`` block names, in the block's order, whether or not the
-        body has a statistic, and then the ring target when the ``rings`` block holds at
-        least one ring statistic.
+        Each body the ``bodies`` block names that has geometry, as :func:`has_geometry`
+        decides, in the block's order, and then the ring target when the ``rings`` block
+        holds at least one ring statistic.
     """
-    keys = list(backplane_metadata.get('bodies', {}))
+    bodies = backplane_metadata.get('bodies', {})
+    keys = [name for name, body in bodies.items() if has_geometry(body)]
     if _holds_ring_statistics(backplane_metadata):
         keys.append(backplane_metadata['rings']['target'])
     return keys
@@ -111,13 +131,13 @@ def covers_a_target(backplane_metadata: Mapping[str, Any]) -> bool:
         backplane_metadata: The image's backplane metadata.
 
     Returns:
-        True when the metadata names a body or holds a ring statistic, the two things
+        True when a body the metadata names has geometry, as :func:`has_geometry`
+        decides, or the metadata holds a ring statistic: the two things
         :func:`target_keys` takes targets from.  Answering reads no ring target, so it
         answers for backplanes an earlier version generated, which record none.
     """
-    return len(backplane_metadata.get('bodies', {})) > 0 or _holds_ring_statistics(
-        backplane_metadata
-    )
+    bodies = backplane_metadata.get('bodies', {}).values()
+    return any(has_geometry(body) for body in bodies) or _holds_ring_statistics(backplane_metadata)
 
 
 def _in_table_order(keys: Iterable[str], table: Mapping[str, Pds4Target]) -> tuple[Pds4Target, ...]:
@@ -156,8 +176,8 @@ def image_targets(
 
     Returns:
         The target of each name :func:`target_keys` returns for the metadata, in the
-        table's order.  An image whose metadata names no body and holds no ring statistic
-        has none.
+        table's order.  An image whose metadata names no body with geometry and holds no
+        ring statistic has none.
 
     Raises:
         KeyError: If the table has no entry for a name the metadata gives a target.  The
