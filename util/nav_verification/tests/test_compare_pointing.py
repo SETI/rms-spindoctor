@@ -10,10 +10,12 @@ from typing import Any
 import pytest
 from util.nav_verification.bundle_cassini_fring import NAC_PLATE_SCALE_URAD
 from util.nav_verification.compare_pointing import (
+    COMMON_OFFSET_TOLERANCE_PX,
     FrameComparison,
     compare,
     consensus_spread,
     remove_common_offset,
+    report,
 )
 
 from spindoctor.nav_records import METADATA_SUFFIX
@@ -161,6 +163,84 @@ def test_a_tolerance_that_is_not_a_distance_is_refused(tolerance: float) -> None
     """No frame is inside such a tolerance, so every statistic drawn from it is nonsense."""
     with pytest.raises(ValueError, match='a tolerance is a distance in pixels'):
         remove_common_offset([comparison(0.5, 0.5, 0.707)], tolerance_px=tolerance)
+
+
+def reported(rows: list[FrameComparison]) -> None:
+    """Measure the constant over the given comparisons and print the report.
+
+    The caller reads what was printed from ``capsys``.
+
+    Parameters:
+        rows: The comparisons to report on.
+    """
+    common = remove_common_offset(rows, tolerance_px=2.0)
+    report(rows, common=common, tolerance_px=2.0)
+
+
+def test_a_constant_larger_than_the_tolerance_is_called_out(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run-wide constant is a coordinate system error, and reads as loudly as a wrong frame."""
+    step = COMMON_OFFSET_TOLERANCE_PX * 2.0
+    reported([comparison(step, 0.0, step) for _ in range(10)])
+    assert f'WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis)' in capsys.readouterr().out
+
+
+def test_the_constant_measured_on_the_f_ring_bundle_is_called_out(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The half pixel this tool actually found on ISS_006RI must not pass unremarked.
+
+    It is the only constant of this kind anyone has measured with this tool, so
+    it is what the tolerance has to be small enough to catch; the numbers are the
+    ones the run reported, +0.494 and +0.491 px along the camera's two axes.
+    """
+    rows = [comparison(0.494, 0.491, math.hypot(0.494, 0.491)) for _ in range(10)]
+    reported(rows)
+    assert f'WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis)' in capsys.readouterr().out
+
+
+def test_a_constant_in_one_axis_alone_is_called_out(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One axis is enough: a row-versus-column error moves only one of them."""
+    step = COMMON_OFFSET_TOLERANCE_PX * 2.0
+    reported([comparison(0.0, step, step) for _ in range(10)])
+    assert f'WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis)' in capsys.readouterr().out
+
+
+def test_a_constant_inside_the_tolerance_is_not_called_out(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The median of a run that shares a coordinate system lands inside its own noise."""
+    step = COMMON_OFFSET_TOLERANCE_PX / 2.0
+    reported([comparison(step, step, step * math.sqrt(2.0)) for _ in range(10)])
+    assert 'WRONG (over' not in capsys.readouterr().out.split('disagreement with')[0]
+
+
+def test_a_called_out_constant_qualifies_the_summary_line(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The line the report leads with says the constant it removed should not be there."""
+    step = COMMON_OFFSET_TOLERANCE_PX * 2.0
+    reported([comparison(step, 0.0, step) for _ in range(10)])
+    assert 'less a constant that should not be there' in capsys.readouterr().out
+
+
+def test_an_unmeasured_constant_is_said_to_be_unmeasured(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Too few agreeing frames prints no constant, which must not read as a zero one."""
+    reported([comparison(0.5, 0.5, 0.707) for _ in range(3)])
+    assert 'common offset     not measured' in capsys.readouterr().out
+
+
+def test_an_unmeasured_constant_says_it_is_still_in_the_numbers(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run too small to measure a constant still carries one in every residual."""
+    reported([comparison(0.5, 0.5, 0.707) for _ in range(3)])
+    assert 'still inside every number below' in capsys.readouterr().out
 
 
 def results_tree(root: Path, stubs: dict[str, str]) -> Path:
