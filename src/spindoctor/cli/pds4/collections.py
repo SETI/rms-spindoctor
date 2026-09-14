@@ -662,7 +662,7 @@ def generate_global_index_files(
 
     # Sort by product name: the file name less its suffix, the last part of the LID
     def product_name(path: FCPath) -> str:
-        """Returns a supplemental file's product name, its file name less the suffix.
+        """Return a supplemental file's product name, its file name less the suffix.
 
         Parameters:
             path: The supplemental file, such as ``1234567890w_supplemental.txt``.
