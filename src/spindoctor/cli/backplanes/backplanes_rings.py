@@ -8,6 +8,23 @@ from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 
 
+def ring_target(planet: str) -> str:
+    """Return the ring target an image's ring backplanes are computed for.
+
+    Parameters:
+        planet: The image's closest planet, as the observation names it.
+
+    Returns:
+        ``SATURN_MAIN_RINGS`` for Saturn, whose main rings the ring backplanes cover, and
+        ``<PLANET>_RING_SYSTEM`` for any other planet.
+    """
+    # Saturn's ring backplanes cover its main rings: a rule about one planet in a module
+    # whose name names none, which moving the choice into configuration would end (#618).
+    if planet == 'SATURN':
+        return 'SATURN_MAIN_RINGS'
+    return f'{planet}_RING_SYSTEM'
+
+
 def create_ring_backplanes(
     snapshot: ObsSnapshot, config: Config, *, logger: PdsLogger
 ) -> dict[str, Any] | None:
@@ -58,10 +75,7 @@ def create_ring_backplanes(
     if rings_cfg is None:
         raise ValueError('Configuration has no rings section for backplanes')
 
-    # Use planet name - this is a bit of a kludge to handle Saturn's main rings TODO
-    target_key = f'{closest_planet}_RING_SYSTEM'
-    if closest_planet == 'SATURN':
-        target_key = 'SATURN_MAIN_RINGS'
+    target_key = ring_target(closest_planet)
 
     bp = snapshot.bp
 

@@ -71,6 +71,23 @@ def _create_simulated_body_backplane(
     return full, full_mask
 
 
+def backplane_body_names(planet: str, config: Config) -> list[str]:
+    """Return the bodies the backplane stage looks for in an image of one planet's system.
+
+    An image gets body backplanes for each of these its inventory finds in the field of
+    view, and its backplane metadata names each by the name returned here.
+
+    Parameters:
+        planet: The image's closest planet, as the observation names it.
+        config: The configuration whose satellite list for the planet is read.
+
+    Returns:
+        The planet, then each satellite the configuration lists for it, in the
+        configuration's order.
+    """
+    return [planet, *config.satellites(planet)]
+
+
 def create_body_backplanes(
     snapshot: ObsSnapshot, config: Config, *, logger: PdsLogger
 ) -> dict[str, Any]:
@@ -109,7 +126,7 @@ def create_body_backplanes(
         if closest_planet is None:
             # No planet, no bodies
             return result
-        body_list = [closest_planet, *config.satellites(closest_planet)]
+        body_list = backplane_body_names(closest_planet, config)
         inv = snapshot.inventory(body_list, return_type='full')
 
     candidate_names = list(inv.keys())
