@@ -378,7 +378,8 @@ form:
      - none
    * - ``inst_cmprs_param_malgo``
      - The lossy compression algorithm; ``N/A`` when the image was not lossy
-       compressed, as for the next three keys.
+       compressed or its parameters were not recorded, as for the next three
+       keys.
      - ``INST_CMPRS_PARAM``, first value
      - none
    * - ``inst_cmprs_param_tb``
@@ -416,8 +417,8 @@ form:
      - ``METHOD_DESC``
      - none
    * - ``missing_lines``
-     - The number of missing or incomplete image lines; ``N/A`` for a lossy
-       compressed image.
+     - The number of missing or incomplete image lines; ``N/A``, or on a few
+       images ``UNK``, for a lossy compressed image.
      - ``MISSING_LINES``
      - lines
    * - ``missing_packet_flag``
