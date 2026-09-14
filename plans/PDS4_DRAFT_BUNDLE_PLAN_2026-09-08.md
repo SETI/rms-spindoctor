@@ -25,7 +25,7 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-6 have run; Phases 7-10 have not. Two changes landed ahead of
+Phases 1-7 have run; Phases 8-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -56,7 +56,7 @@ this table first and trusts it over any recollection.
 | 4 — The FITS in the bundle, with its data objects | **done** | `rf_pds4_phase4`, sections 3.3 and 3.13; #69 is closed by hand when its PR merges (section 8) |
 | 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; #602 is closed by hand when its PR merges (section 8), #265 staying open for its Phase 10 part |
 | 6 — Bundle-level and static products | **done** | `rf_pds4_phase6`, sections 3.1, 3.2, 3.5, 3.6, 3.9 and 3.13; #74 is closed by hand when its PR merges (section 8), #72 staying open for Phase 8's targets; the source product awaits the operator (#678, section 3.13) |
-| 7 — The miscellaneous collection and its global index labels | not started | |
+| 7 — The miscellaneous collection and its global index labels | **done** | `rf_pds4_phase7`, sections 3.1, 3.5, 3.8 and 3.13; #76 is closed by hand when its PR merges (section 8); #601 stays open for the operator's choice of the index tables' missing value (section 3.13) |
 | 8 — Targets, mission area, ring geometry | not started | |
 | 9 — Parameterize the bundle name and version | not started | |
 | 10 — Validation, the integrity pass, and the draft run | not started | |
@@ -64,8 +64,9 @@ this table first and trusts it over any recollection.
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
 about images that did not navigate), #601 (the masked value, whose
-`Special_Constants` declaration Phase 4 made; what remains of it is the
-index tables' missing value, which Phase 7 settles), #602 (a
+`Special_Constants` declaration Phase 4 made on the arrays and Phase 7 on the
+index tables' statistic fields, which hold it where an image has no statistic;
+it closes if the operator accepts that sentinel for the tables), #602 (a
 skipped or failed product leaves the bundle inconsistent), which is Phase 5's
 by the operator's ruling of 2026-09-14 that every data product needs a browse
 product, and is closed by hand when Phase 5 merges, #611 (the backplane viewer
@@ -80,7 +81,8 @@ counterpart; the operator's choice). #603, the two passes
 disagreeing about a missing template, was closed by hand on 2026-09-11, after
 #605, Phase 1's PR, merged. #607, the index tables written to one precision
 whatever the column's unit, closes in Phase 2 with a format per unit (section
-3.8); the missing-value sentinel it raised beside that is Phase 7's. #519,
+3.8); the missing-value sentinel it raised beside that is the masked value
+Phase 7 writes (section 3.13), the operator's to accept on #601. #519,
 which found every data label's start and stop empty, closes with Phase 3
 (section 3.4). #69, which asked for the FITS to be described in its data label,
 closes with Phase 4 (section 3.3).
@@ -197,22 +199,20 @@ plan).
 
 | # | Defect | Location | Tracked as |
 |---|---|---|---|
-| 1 | The global index tables are written under `document/supplemental/`, and no pass writes a `miscellaneous` collection, which the bundle label does not declare. Section 3.1 moves the tables into that collection. | `collections.py` | #76 |
-| 2 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. The calibrated image the navigation reads has no PDS4 counterpart to name instead (section 3.13). | `dataset_pds3_cassini_iss.py:688` | #678, the operator's choice (section 3.13) |
-| 3 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
-| 4 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 5 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label, in the data collection label (a Mission Science Data collection, whose references are `collection_to_target`) and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,130`, `bundle.lblx`, `collection_data.lblx`, `kernels.lblx` | #73, #79, #75, #47 |
-| 6 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 7 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 8 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; no phase (navigation) |
-| 9 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
+| 1 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. The calibrated image the navigation reads has no PDS4 counterpart to name instead (section 3.13). | `dataset_pds3_cassini_iss.py:688` | #678, the operator's choice (section 3.13) |
+| 2 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
+| 3 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label, in the data collection label (a Mission Science Data collection, whose references are `collection_to_target`) and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,130`, `bundle.lblx`, `collection_data.lblx`, `kernels.lblx` | #73, #79, #75, #47 |
+| 4 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 5 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 6 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; no phase (navigation) |
+| 7 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
-No row but 2 and 8 gets its own tracking issue. Each of the others is fixed by a
+No row but 1 and 6 gets its own tracking issue. Each of the others is fixed by a
 named phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
-every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 8 is the
-navigation's, owned by no phase, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. Row 2 was Phase 6's, which stopped on it: the image the
+every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 6 is the
+navigation's, owned by no phase, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. Row 1 was Phase 6's, which stopped on it: the image the
 navigation reads has no PDS4 counterpart to name, and what a data label names
 instead is a decision for the operator, tracked as #678 (section 3.13). The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
@@ -242,9 +242,8 @@ tell a label it rendered from one it did not.
 This is the authoritative layout. Both guides,
 `docs/dev_guide/dev_guide_pds4.rst` and
 `docs/user_guide/user_guide_pds4_bundle.rst`, describe the tree the two
-passes write, which is this one but for the `miscellaneous` collection: the
-global index tables are under `document/supplemental/` until Phase 7 moves
-them. Phase 10 reconciles both to this tree.
+passes write, which is this one. Phase 10 reconciles both to it again after
+the draft run.
 
 ```text
 <bundle_name>/
@@ -304,7 +303,8 @@ part. And the document collection puts its guide in a `user_guide/`
 subdirectory rather than loose in the collection root.
 
 The global index tables live in a **`miscellaneous` collection of their
-own**, not under `document/supplemental/` where the code writes them today.
+own**, not under `document/supplemental/`, where the code wrote them until
+Phase 7.
 They are not documents: they are derived tables a pipeline reads to select
 images without opening a FITS, and PDS4 has a collection type for exactly
 that. Checked against `PDS4_PDS_1O00`: `collection_type` must be one of ten
@@ -320,7 +320,9 @@ label, because a collection inventory lists its members:
 naming -- underscores, and `index` last. And `readme.txt` told a
 reader that the document collection holds the user guide "along with index
 files that summarize information about all backplanes"; Phase 6 removed that
-clause, and Phase 7 adds what the readme says of the miscellaneous collection.
+clause, and Phase 7 added a sentence saying that the miscellaneous collection
+holds two index tables, one of the bodies and one of the rings, that summarize
+the backplanes of every image in the bundle.
 
 A **`spice_kernels` collection** is the other addition, and it closed a TODO
 rather than adding scope: the data label named a metakernel `kernels.ker` in
@@ -333,11 +335,11 @@ metakernel names is a question for the navigation side, not for this plan
 the question is answered, the metakernel lists no kernels and every label
 describing it says so.
 
-So the bundle has **seven collections**, and `bundle.lblx` grows two more
+So the bundle has **seven collections**, and `bundle.lblx` grew two more
 `Bundle_Member_Entry` blocks, each with the collection it names:
 `bundle_has_spice_kernel_collection` in Phase 6 and
 `bundle_has_miscellaneous_collection` in Phase 7, so that every entry the
-bundle label declares resolves at every phase.
+bundle label declares resolves at every phase; all seven do.
 
 ### 3.2 Rendered products versus copied products
 
@@ -359,7 +361,8 @@ the metakernel's -- is written, and without their `P` lines when it is not
 
 `src/spindoctor/cli/pds4/bundle_products.py` owns both for the run-level
 products, so `collections.py` keeps to collection inventories and does not
-grow past its purpose. The summary pass calls it last, after
+grow past its purpose; `global_index.py` writes the global index tables, their
+labels and the miscellaneous collection. The summary pass calls it last, after
 `generate_global_index_files` and `generate_collection_files`, and the index
 generator clears its products with its own once it has found the bundle's
 data directory, before it reads any supplemental file.
@@ -442,7 +445,7 @@ The Schematron allows both values. The file is written as the ASCII bytes
 lines in a line feed, so the line feeds stay line feeds on any platform. The
 reference describes its supplemental text files as a `Header` of `UTF-8 Text`
 over their heading, followed by a table; ours is JSON with no heading. It ends
-without a line feed after its last line, which section 2.2 row 9 leaves to
+without a line feed after its last line, which section 2.2 row 7 leaves to
 Phase 10's `validate` run.
 
 ### 3.4 Epochs
@@ -494,7 +497,7 @@ a label. A success document has one only beside a pointing: `build_metadata_dict
 writes `times` with the pointing, and the navigation records a success with no
 pointing when `compute_pointing` raises `NavPointingError` or the instrument has
 no SPICE camera frame mapped (its `observation` block holds the host's exposure
-times regardless, which this pass does not read; section 2.2 row 8). That is a
+times regardless, which this pass does not read; section 2.2 row 6). That is a
 document this package's navigation
 writes, so the labels pass fails such an image before anything is written for
 it, its log saying the navigation recorded no pointing. It checks only
@@ -544,7 +547,8 @@ left at either path is removed, and it counts once among the labels not
 written, with an error naming the collection and every reason, so the summary
 pass exits 1. Each generated collection takes its members from the labels of
 its own kind on disk -- the data collection from the data labels, the browse
-collection from the browse labels -- and the summary pass holds each image's
+collection from the browse labels, the miscellaneous collection from the index
+labels -- and the summary pass holds each image's
 products against each other, since every data product has a browse product
 (#602, Phase 5): an image with a data label and no browse label, or a browse
 label or supplemental file and no data label, disagrees, is logged by name
@@ -567,8 +571,7 @@ what they cannot describe, and a bundle is written into an empty directory
 stays, but for two things: a collection that cannot be written has whatever
 an earlier run left at its paths removed, and the bundle label, rendered and
 then found to name a collection the bundle does not hold, is removed in the
-same run. After one, the index tables can hold rows for an image with no data
-label, until Phase 7 limits them to the data inventory's members; the browse
+same run. After one, the browse
 labels can name a data collection that was not written, and the data labels
 a browse collection that was not written; a user guide whose label failed is
 in `document/user_guide/` unlabeled and unlisted, and a metakernel whose label
@@ -582,8 +585,9 @@ pass that exits 1.
 
 Three inventories are **generated**, because their membership depends on
 what the run produced: `collection_data.csv`, `collection_browse.csv`, and
-`collection_miscellaneous.csv`, whose two members are the global-index
-products of section 3.1.
+`collection_miscellaneous.csv`, whose primary members are the global-index
+products of section 3.1 whose labels are on disk, and whose secondary members
+are the document inventory's (below).
 
 Four are **copied** from the template directory (section 3.2), because
 their membership is fixed: context, document, spice_kernels and schema. An
@@ -619,7 +623,11 @@ A collection inventory also carries **`S` members**, not only `P`. The
 reference's document and miscellaneous inventories both list the context
 products and the external ISS data user guide as secondaries alongside their
 own primaries, so an inventory is a statement about everything the
-collection references, not just what it owns.
+collection references, not just what it owns. Ours do the same: the document
+inventory the template directory ships lists the four context products and the
+ISS data user guide at `::2.0` as `S` members, and the miscellaneous inventory
+takes its `S` members from that one file (`bundle_products.secondary_members`),
+so the two cannot disagree about them.
 
 ### 3.6 The document collection
 
@@ -703,13 +711,14 @@ people, and the operator's ruling of 2026-09-09 is that everything in them is
 degrees.
 
 The tables are written with a format per unit (#607), from
-`INDEX_VALUE_FORMATS` in `collections.py`: three decimals for `deg`, one for
+`INDEX_VALUE_FORMATS` in `global_index.py`: three decimals for `deg`, one for
 `km`, eight for `deg/pixel`, and five significant figures for `km/pixel`,
 written positionally, never in exponent form. The arrays are float32, so a
 statistic carries about seven significant digits; each format is chosen within
 that from what one pixel resolves, the eight decimals of `deg/pixel` reaching
-its edge. No format fixes a column's width, so Phase 7 sizes each field from the widest
-value its column holds. Nothing checks the configured units when a bundle is
+its edge. No format fixes a column's width, so each field is sized from the widest
+value its column holds, the masked value included where the column holds it
+(Phase 7). Nothing checks the configured units when a bundle is
 written (the operator's ruling of 2026-09-11): two tests over the shipped
 configuration are the guard, one holding each measure to the ones
 `statistics_units` converts or passes through and the other each unit to
@@ -748,7 +757,8 @@ What follows for the labels, and what a later reader must not "fix":
   their `unit` from the same config entry the column was built from, mapped
   through `statistics_units`, the function that produced the column's values,
   so a label and the column it describes cannot disagree: an angular column is
-  labelled `deg`, a resolution in radians per pixel `deg/pixel`.
+  labelled `deg`, a resolution in radians per pixel `deg/pixel`. Its missing
+  constant is the masked value in the column's own format (section 3.13).
 - So one bundle carries `unit="rad"` on an array and `unit="deg"` on the
   table summarizing it, deliberately: each label is correct about the file it
   describes.
@@ -1145,8 +1155,49 @@ read from the configuration, and `BODY_ID_MAP`'s array carries none and says
 what its `0` means instead (section 3.3).
 
 `collections.py`'s "TODO Need an appropriate sentinel value for missing
-data" is the table-cell half of the same question. The same `-999` is the
-obvious answer there and should be settled with it.
+data" was the table-cell half of the same question, and Phase 7 answered it
+with the same value, subject to the operator's acceptance on #601: a cell whose
+image has no statistic for its plane holds `backplanes.masked_value` written in
+the column's own format -- `-999.000` in a `deg` column, `-999.0` in `km`,
+`-999.00000000` in `deg/pixel`, `-999.00` in `km/pixel` -- and every statistic
+`Field_Character` declares that text as its `missing_constant`. The evidence,
+gathered 2026-09-14:
+
+- **The schema allows it.** `PDS4_PDS_1O00.xsd` (the cached copy, the
+  `Field_Character` type at line 1285) gives `Field_Character` an optional
+  `Special_Constants` (`minOccurs="0"`) after its `description`, so a table
+  field can declare a missing constant.
+- **`validate` accepts a blank, and matches a constant as text or as a
+  number.** In the NASA PDS `validate` tool (https://github.com/NASA-PDS/validate,
+  at `fe7e30ba`), `FieldValueValidator.validate`
+  (`src/main/java/gov/nasa/pds/tools/validate/content/table/FieldValueValidator.java`)
+  reports a field of a fixed-width record whose trimmed value is empty at debug
+  level only, "Field is blank." (lines 352-357), so a blank `ASCII_Real` would
+  pass. Any other value is checked against its data type first (line 361);
+  `-999.000` matches `asciiReal` (lines 84-85), so it passes as a real and is not
+  compared with the constant at all. A value that fails its type is still
+  accepted when it equals a declared constant as text:
+  `SpecialConstantChecker.isNonConformantSpecialConstant`
+  (`src/main/java/gov/nasa/pds/tools/validate/SpecialConstantChecker.java`, lines
+  31-46) compares `value.equals(constants.getMissingConstant())` (called at
+  `FieldValueValidator.java` line 367). Where a field declares a minimum or a
+  maximum, `checkSpecialMinMax` (`FieldValueValidator.java` lines 457-594)
+  compares it as a number through `SpecialConstantChecker.sameContent` (lines
+  165-213): the text first, then `BigDecimal.compareTo` when the constant has a
+  decimal point. The record is read by field location and length: `pds4-jparser`
+  (https://github.com/NASA-PDS/pds4-jparser, at `a5d61745`) builds a
+  `FixedTableRecord` for a `Table_Character` (`objectAccess/TableReader.java`
+  line 283), each field's description carrying its `Special_Constants`
+  (`objectAccess/table/TableCharacterAdapter.java` line 95).
+- **The reference's blank column is a string.** The reference declares no
+  `Special_Constants` anywhere. Its `global_mosaic_index.tab` column 54, blank in
+  151 of its 305 rows, is `notes`, an `ASCII_String` of 4 bytes, so it shows
+  `validate` accepting a blank string field and says nothing of a blank real.
+
+So a declared constant can work and a blank is not required. A cell written
+exactly as its field declares the constant matches under the textual comparison
+and the numeric one alike, and keeps every value of a column in the column's
+format.
 
 **DOIs are products of their own.** The reference carries `BUNDLE_DOI` and a
 separate `USERGUIDE_DOI`, and its user-guide label fills a real `<doi>`
@@ -1193,7 +1244,7 @@ own PDS3 source through `Source_Product_External`,
 `reference_type` `data_to_raw_source_product`. With nothing calibrated to
 name, Phase 6 stopped rather than choose, leaving `SOURCE_IMAGE_LIDVID` the
 product's own LIDVID under `data_to_calibrated_source_product` and its `TODO`
-in place (section 2.2 row 2). The choices are the operator's, tracked as
+in place (section 2.2 row 1). The choices are the operator's, tracked as
 #678: name the raw product, `data_to_raw_source_product` at `::1.0`, which is
 what the calibrated image was made from but not what the navigation read; name
 the calibrated PDS3 product through `Source_Product_External`, as the raw PDS4
@@ -1281,7 +1332,9 @@ Six places where this plan deliberately does **not** follow the reference:
 - The missing constant is written `-999.0`: the value every masked pixel
   holds, as the shortest decimal that reads back as that value when parsed as
   a 64-bit float, so a reader comparing in either precision finds it; the reference writes `-999` for
-  its float array. They are the same number.
+  its float array. They are the same number. The index tables write it in each
+  column's own format instead, since a cell is text: `-999.000` in a column of
+  degrees, and each `Field_Character` declares it in that spelling.
 - Every `Header` carries a `<name>`, the HDU's `EXTNAME` (`PRIMARY` for the
   first), which is the optional first child the schema gives a `Header`, so
   that a reader can tell which HDU a header belongs to. The reference's image
@@ -1689,7 +1742,7 @@ miscellaneous collection. Five templates were CRLF and are LF, as every label
 now is, and the smaller differences from the reference the product review
 found are adopted or declined in section 3.13.
 
-**Not done: the source product** (section 2.2 row 2). The navigation reads the
+**Not done: the source product** (section 2.2 row 1). The navigation reads the
 calibrated image, and the PDS4 Cassini ISS archive has no calibrated product
 for it to name (section 3.13, with the registry's answers). Phase 6 stopped
 rather than invent one: `SOURCE_IMAGE_LIDVID` still names the product itself,
@@ -1751,89 +1804,119 @@ Closes #74, by hand when its PR merges into `rf_pds4_draft_bundle` (section
 
 ### Phase 7 — The miscellaneous collection and its global index labels
 
-Move the global index tables out of `document/supplemental/` into a
-`miscellaneous` collection of their own (section 3.1), and make them
-products rather than loose files: each gets a LID
-(`urn:nasa:pds:<bundle>:miscellaneous:global_bodies_index` and
-`...:global_rings_index`) built from the bundle name beside the data and
-browse LID builders.
+Done on `rf_pds4_phase7`. The global index tables are products of a
+`miscellaneous` collection of their own (section 3.1), written by
+`src/spindoctor/cli/pds4/global_index.py`, a module of their own, so that
+`collections.py` keeps to the inventories: `global_bodies_index.{tab,lblx}` and
+`global_rings_index.{tab,lblx}` in `miscellaneous/`, whose LIDs,
+`urn:nasa:pds:<bundle>:miscellaneous:global_bodies_index` and
+`...:global_rings_index`, are built from the bundle name as the bundle's own LID
+is. The old location is no longer written.
 
-The tables become **fixed-width `.tab`**, which is what the reference does
-and what the label class requires. `global_mosaic_index.tab` there has a
-comma-separated header line and data rows padded to a constant length (761
-bytes, against a 1530-byte header), described by a `Table_Character` with
-one `Field_Character` per column, a `Header` object of `$HEADER_LENGTH$`
-bytes at offset 0, the table at that offset, and
-`<records>$FILE_RECORDS(...)-1$</records>` so the header is not counted.
-This is more work than emitting CSV -- the generator has to size every
-column, pad to it, and carry byte offsets into the label -- and it is the
-cost of matching the product the Node already has.
+**The rows are exactly the data inventory's members.** The index and the data
+inventory take the data labels from one function, `collections.data_products`,
+so the tables and the inventory cannot disagree about what the bundle holds. The
+supplemental file stays the source of the values, and one with no data label
+beside it adds no row, where before it added one naming a data label the bundle
+does not hold. Every supplemental file is still read for the epochs and the
+statistics check. That is the index half of #602.
 
-Replace the two 0-byte templates accordingly: `Field_Character` blocks from
-a `$FOR` over the configured backplane list, the same list `collections.py`
-builds the header from, so a config change moves table and label together.
-Field `name`, `data_type`, `unit` and `description` come from the config
-entry. Follow the reference's naming: namespace-prefixed where a field is a
-dictionary attribute (`pds:logical_identifier`, `cassini:observation_id`,
-`rings:minimum_corotating_ring_longitude`), bare where it is local to the
-table (`percent_coverage`). `unit` is the degrees spelling per section 3.8,
-which is not the unit the arrays carry. Data types come from the reference's
-vocabulary: `ASCII_LID`, `ASCII_String`, `ASCII_Real`,
-`ASCII_NonNegative_Integer`, `ASCII_Date_Time_YMD_UTC`.
+**The tables are fixed width**, as the reference's are: a comma-separated header
+line, then rows each field of which is padded to the longest value written in
+its column -- statistics right-justified, text left-justified -- with a comma
+between fields. A field's length comes from its column's values, not from its
+format (section 3.8). The tables are written as ASCII through
+`FCPath.open('w')`, where the CSV writer went through `get_local_path()` and
+`upload()`.
 
-A field's width comes from the widest value written in its column, not from
-the format: the per-unit formats section 3.8 records fix a column's decimals
-or significant figures, and values under one format differ in length
-(`1.235` and `-89.999`; `0.00060000` and `70853`), so the generator sizes
-each field by scanning the column it wrote. The column's unit and its format
--- a number of decimals, or a number of significant figures written
-positionally -- come from the same public mapping in `collections.py` that
-wrote it, so a field cannot describe the column in a form other than the one
-it was written in. What a column says where an image has no statistic for a
-plane -- the missing-value sentinel #607 raised beside the precision -- is
-decided here as well, since it is the label that has to declare it; the
-generator writes a blank there until then.
+**The labels** replace the two zero-byte templates, following the reference's: a
+`Product_Ancillary` whose `File_Area_Ancillary` holds a `Header` over the header
+line (`7-Bit ASCII Text`, since every value is ASCII) and a `Table_Character` at
+the header's length, with `records` the table's line count less one,
+`record_delimiter` `Line-Feed`, and a `Record_Character` whose `fields`,
+`record_length` and `Field_Character` blocks come from the same column list the
+table was written from, through a `$FOR` over `FIELDS`. The generator computes
+each field's number, location and length and hands them to the template with
+`INDEX_LID`, `INDEX_TABLE_PATH`, `HEADER_LENGTH` and `RECORD_LENGTH`. Each
+configured plane's entry in `config_900_backplanes.yaml` gained an `index` block
+naming its two columns, their data type (`ASCII_Real`) and their descriptions; a
+column's `unit` is the plane's restated through `statistics_units` (section 3.8)
+and its format the one `INDEX_VALUE_FORMATS` gives that unit, both of which moved
+with the tables to `global_index.py`. The fixed columns take the reference's
+names: `pds:logical_identifier` (`ASCII_LID`), `file_spec` for the data label's
+path (it was `path_to_image_file`), and `body_name`, local to the bodies table
+since its values are the backplanes' body names rather than PDS target names.
 
-Then the collection itself: a `collection_miscellaneous.lblx` template with
-`collection_type` `Miscellaneous`, and a generated
-`collection_miscellaneous.csv` listing the two products, written after them
-for the same reason the data inventory is written after the labels it lists.
-As the reference's does, it lists beside those two `P` members the context
-products and the external ISS data user guide as `S` members, every member
-with an explicit version (section 3.5): the two index products at the
-bundle's version, the context products at theirs, and the ISS data user guide
-at `::2.0` (section 3.6).
+**Naming.** A column takes a dictionary attribute's name, with the dictionary's
+prefix, where it holds the quantity that attribute defines, and a name of its own
+otherwise:
 
-**The bundle label declares the collection** with a
-`bundle_has_miscellaneous_collection` `Bundle_Member_Entry`, taking it to
-seven. Phase 6 held the entry back until the collection it names exists,
-since the bundle label is kept only over a bundle holding a label for every
-collection it declares (section 3.2). `readme.txt` says what the
-miscellaneous collection holds, as the reference's does.
+| Plane | Columns | Why |
+|---|---|---|
+| body latitude, incidence, emission and phase angles | `geom:minimum_*` and `geom:maximum_*` | geom's `Surface_Geometry_Min_Max` and `Illumination_Min_Max` attributes; the latitude is planetocentric (`oops` `latitude` defaults to `lat_type='centric'`) |
+| ring radius, emission and phase angles, radial and longitudinal resolutions | `rings:minimum_*` and `rings:maximum_*` | as the reference names its columns; the rings emission angle is measured from the normal on the lit side, `oops` `ring_emission_angle`'s default `pole='sunward'` |
+| body and ring longitudes | `minimum_body_longitude`, `minimum_ring_longitude` and their maxima | geom and rings define a longitude range as wrapped at the prime meridian, its minimum above its maximum across it, and these statistics are a plain least and greatest |
+| body finest and coarsest resolutions | `minimum_body_finest_resolution` and so on | no dictionary names them |
 
-**The index rows are exactly the data inventory's members.** The tables
-index the images the data inventory lists, each with the rows its
-supplemental file gives -- a bodies row per body, a rings row where it has
-ring backplanes -- and no other image. The values still come from the
-supplemental files, but a supplemental file with no data label beside it,
-which Phase 5's check reports as an image whose products disagree (section
-3.5), adds no row, where today it adds one. That settles #602's question of
-where the index takes its images from, and the index half of #602 is this
-phase's to implement. Landing it corrects the two sentences that describe
-today's behavior: section 3.5's, that after a summary exits 1 the index
-tables can hold rows for an image with no data label, and the same sentence
-in the dev guide's account of exit status.
+The rings dictionary says of its radial and longitudinal resolutions "Not
+intended to be used as a table field"; the reference uses them as table fields,
+and so does this bundle, the quantity being the attribute's.
 
-Tests: adding a backplane to the config adds a column to the table and a
-`Field_Character` to the label; `fields` matches the column count; every
-`Field_Character` offset and length lands on the column it names in a
-generated row; the inventory's two LIDVIDs each resolve to a label in the
-same collection; and a supplemental file with no data label beside it adds
-no row to either table, so every row's LID is that of a data inventory
-member; and the bundle label's seven `Bundle_Member_Entry` LIDs each resolve
-to a `collection_*.lblx` in the bundle whose logical identifier is that LID.
+**The missing value** is decided, and put to the operator on #601: where an image
+has no statistic for a plane, both of its cells hold the masked value, read from
+`backplanes.masked_value`, in the column's own format, and every statistic
+`Field_Character` declares that text as its `missing_constant` (section 3.13,
+which holds the evidence).
 
-Closes #76.
+**A table with no row** is not written, nor its label, and is not listed:
+`records` has a minimum of 1 in `PDS4_PDS_1O00.xsd`, so no label can describe
+it. That is not a failure, since a cohort with no rings is a real state, and the
+run says so at info level. Both guides state the rule.
+
+**The collection.** `collection_miscellaneous.lblx`, with `collection_type`
+`Miscellaneous`, over a generated `collection_miscellaneous.csv` written after
+the tables: a `P` line for each index product whose label is on disk, by its LID
+and `INDEX_VERSION` (`1.0`), and then the `S` lines of the document inventory the
+template directory ships -- the four versioned context products and the ISS data
+user guide at `::2.0` -- read from that one file through
+`bundle_products.secondary_members`, so the two inventories cannot disagree. The
+three generated inventories share one writer, `collections.write_collection`,
+which itself refuses a collection with no member (Phase 5's rule). The bundle
+label gained `bundle_has_miscellaneous_collection`, so all seven of its entries
+resolve to collection labels in the bundle, and the readme says what the
+miscellaneous collection holds. The summary pass clears the index products and
+the collection with the rest of its products before it reads a supplemental
+file. The rings table's `TODO Add planet name to rings table` stays.
+
+Tests. `test_sd_create_bundle.py` was split first, the summary pass's tests
+moving to `test_sd_create_bundle_summary.py` and the stub dataset to
+`sd_create_bundle_helpers.py`. Over stand-ins (`test_global_index.py`): the rows
+are exactly the data inventory's members; each field is as long as the longest
+value in its column, statistics right-justified; a missing statistic is the
+masked value in its column's format; a table no image gives a row is left out,
+logged at info and not listed; a product whose label failed is not listed; the
+inventory's `S` lines are the document inventory's, in its order; a collection
+with no member is not written and counts; a refused run leaves none of the index
+products or collection files an earlier run wrote; and each label is handed its
+LID. Over the shipped templates (`test_global_index_cassini_iss_saturn.py`): the
+`Header` is the header line and the table follows it; `records` counts the rows
+and `fields` the columns; every `Field_Character` lands on the column it names; a
+plane added to the configuration adds a column and a `Field_Character`; a missing
+statistic's cell holds the constant its field declares, spelled as declared; and
+each `P` LIDVID of the inventory resolves to a label beside it. The bundle label's
+test says seven. Each new test was driven red by a mutation.
+
+Schema checks over the cohort bundle -- with and without a stand-in guide, with a
+statistic dropped from every body, and with no ring statistic -- offline, as in
+Phase 6: the XSD finds the data labels' missing `Target_Identification` and the
+`TODO DOI` placeholders, and nothing in the two index labels or the collection
+label; every Schematron rule of the five dictionaries finds Phase 6's five
+targets failures and nothing in the three new labels; and each table, read by
+its label's field locations and lengths, gives every value as its data type, the
+dropped statistic's cells equal to the constant their fields declare.
+
+Closes #76, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
+#601 stays open until the operator accepts the tables' missing value.
 
 ### Phase 8 — Targets, mission area, ring geometry
 
@@ -1848,7 +1931,7 @@ PDS4 Schematron requires a `Target_Identification` in the bundle label, in a
 `Product_SPICE_Kernel`'s `Context_Area`, and in the data collection label's,
 since a Mission Science Data collection names its targets, there with
 `collection_to_target` references. `bundle.lblx`, `collection_data.lblx` and
-`kernels.lblx` have none, as the data labels have none (section 2.2 row 5).
+`kernels.lblx` have none, as the data labels have none (section 2.2 row 3).
 This phase also decides the `Science_Facets` the reference's bundle and data
 collection labels carry and ours only ask about in a comment (section 3.13),
 with the rest of the `Context_Area`.
@@ -2037,17 +2120,6 @@ rather than silently disagreeing, and criterion 2 is asserted on a real
 cohort, not the synthetic one. Whether the values in the label are
 *correct* is #232 and is not settled by anything in this plan.
 
-**A zero-byte template legitimately produces a zero-byte label.**
-`global_index_bodies.lblx` and `global_index_rings.lblx` ship as zero-byte
-files and stay that way through Phase 6 by decision, so for that stretch
-`sd_create_bundle summary` exiting 0 does not mean those two labels are real: a
-healthy run writes both at zero bytes, `pdstemplate` reports no warnings and no
-errors, and the run reports the labels as generated. That is honest reporting
-of a template that renders to nothing, and it is deliberately not worked around
-in the label writer -- having the writer second-guess its own template would
-hide the defect rather than fix it. Phase 7 gives those two labels their
-content and closes it.
-
 **Two guides and four plan files change.** Every PR in this branch edits
 `plans/PROGRAM_PLAN.md`, so each merge re-conflicts the rest. Take both
 removals on a two-sided conflict.
@@ -2056,11 +2128,11 @@ removals on a two-sided conflict.
 
 ## 7. Follow-ups
 
-**No issues are filed for section 2.2's rows other than 2 and 8.** Each is assigned to a
+**No issues are filed for section 2.2's rows other than 1 and 6.** Each is assigned to a
 named phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
-adds a close to reconcile and no reader. Row 8 is the navigation's, not a
-phase's, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. Row 2 is a decision
+adds a close to reconcile and no reader. Row 6 is the navigation's, not a
+phase's, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. Row 1 is a decision
 Phase 6 could not make for want of a source product to name, tracked as #678.
 
 The one row that would have outlived this plan was the angular-unit
@@ -2070,8 +2142,8 @@ turned out not to be a defect: section 3.8 records it as the design, decided
 What was a defect was the conversion recognising only the literal `rad`,
 leaving `ring_longitudinal_resolution` in radians per pixel in a table of
 degrees; that is fixed, and the formatting half of #607 closes on the same
-branch, with a format per unit that section 3.8 records; Phase 7 sizes its
-columns from those formats. Nothing else there is left for someone else to
+branch, with a format per unit that section 3.8 records; Phase 7 sized its
+columns from the values those formats write. Nothing else there is left for someone else to
 pick up.
 
 If this branch is abandoned, section 2.2 is where the findings live. That is
@@ -2089,10 +2161,13 @@ branch.
   section 3.11 when it is decided; nothing before Phase 10 depends on it.
 - #601 — masked backplane values are `-999` as of 2026-09-09, applied on
   this branch (section 3.13), so one comparison masks every plane, and Phase 4
-  declares it on every float array of the data label. What remains of it is
-  the index tables' missing value, `collections.py`'s "TODO Need an
-  appropriate sentinel value for missing data", which Phase 7 settles; it
-  stays open for that unless the operator closes it with Phase 4. The ring
+  declares it on every float array of the data label. Phase 7 decided the
+  index tables' missing value the same way: a cell whose image has no
+  statistic for its plane holds `-999` in the column's own format, and every
+  statistic field declares that spelling as its `missing_constant`, which the
+  `validate` tool matches (section 3.13). The Phase 7 PR puts that choice to
+  the operator; #601 closes if the operator accepts it, and stays open until
+  then. The ring
   half of the original finding turned
   out to duplicate #251, which is the `xfail`-pinned record that ring-won
   pixels get no `BODY_ID_MAP` entry; the sentinel makes that gap harmless
