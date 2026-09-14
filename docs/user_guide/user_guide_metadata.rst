@@ -64,8 +64,10 @@ coordinates in the image frame, measured from the image's upper-left corner, so
 a whole number falls on the boundary between two pixels and the center of row
 ``n`` is ``n + 0.5``. A star at ``v = 64.5`` sits in the middle of row 64.
 Positions are measured in the image itself, not in the padded frame the
-navigation searches, so something just outside the image is stated at a negative
-coordinate. See :ref:`coordinate-systems`.
+navigation searches, so something just outside the image is stated outside the
+image's range: past the top or left edge that is a negative coordinate, and past
+the bottom or right edge it is a coordinate larger than the image is wide or
+tall. See :ref:`coordinate-systems`.
 
 The same measured offset appears twice, at two precisions:
 
