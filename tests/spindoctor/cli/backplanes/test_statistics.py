@@ -8,7 +8,7 @@ unit its minimum and maximum ended up in.
 
 ``rad/pixel`` is the case that matters.  It is a unit the shipped configuration
 declares, it is radians, and an equality against the whole string does not
-recognise it, so a rule written that way puts one column of a degrees table in
+recognize it, so a rule written that way puts one column of a degrees table in
 radians per pixel.
 """
 
@@ -40,14 +40,14 @@ def test_a_unit_only_spelled_like_radians_is_left_alone() -> None:
 
 
 def test_a_compound_non_radian_unit_is_left_alone() -> None:
-    """A resolution in kilometres per pixel is not angular and does not convert."""
+    """A resolution in kilometers per pixel is not angular and does not convert."""
     assert statistics_units('km/pixel') == 'km/pixel'
 
 
 def test_a_radian_unit_in_another_case_is_left_alone() -> None:
     """RAD is not the vocabulary's spelling, so it is not radians here and is kept as typed.
 
-    Folding case would recognise it, and would corrupt the vocabulary's own
+    Folding case would recognize it, and would corrupt the vocabulary's own
     upper-case tokens; the tests over the shipped configuration refuse the
     spelling instead.
     """

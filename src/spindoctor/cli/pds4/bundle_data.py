@@ -8,6 +8,7 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.data_objects import configured_methods, describe_backplane_fits
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.ring_geometry import ring_geometry
@@ -121,6 +122,11 @@ def generate_bundle_data_files(
     :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`, which reads the
     source before the copy is made; the copy is byte-identical, so the source's
     description is the copy's.
+
+    Both labels are handed the variables the dataset's
+    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_template_variables` gives, and those
+    :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` gives every template of
+    the bundle.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -327,7 +333,9 @@ def generate_bundle_data_files(
         fits_file_path.upload()
         logger.info('Copied backplane FITS: %s', fits_file_path)
 
-        # Add file path variables to template_vars
+        # Add the bundle's own variables, which every template of it is handed, and the
+        # file path variables to template_vars
+        template_vars.update(bundle_variables(dataset))
         summary_png_source = nav_results_root / (results_path_stub + '_summary.png')
         template_vars['BACKPLANE_FILENAME'] = fits_file_path.name
         template_vars['BACKPLANE_PATH'] = str(fits_file_path)

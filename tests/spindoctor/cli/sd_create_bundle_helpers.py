@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
+from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass, Pds4Schema
 
 
 def image_file(name: str, *, base_dir: Path | None = None) -> ImageFile:
@@ -53,6 +53,17 @@ def batch_image_name(batch: int, index: int) -> str:
 
 BUNDLE_NAME = 'fake_bundle'
 """The bundle the stub dataset names, and so the directory a run writes into."""
+
+STAND_IN_INFORMATION_MODEL_VERSION = '1.0.0.0'
+"""The information model version the stub datasets give their labels."""
+
+STAND_IN_SCHEMAS = {
+    'fake': Pds4Schema(
+        location='https://example.invalid/fake/v1/PDS4_FAKE',
+        lidvid='urn:nasa:pds:system_bundle:xml_schema:fake-xml_schema::1.0',
+    )
+}
+"""The dictionary schemas the stub datasets give their labels: one neutral stand-in."""
 
 REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
     'labels': ['data.lblx', 'browse.lblx'],
@@ -106,6 +117,18 @@ class StubDataset:
     def pds4_bundle_name(self) -> str:
         """Return the bundle name whose directory the run writes into."""
         return BUNDLE_NAME
+
+    def pds4_bundle_version(self) -> str:
+        """Return the bundle's version, which each of its products carries."""
+        return '1.0'
+
+    def pds4_information_model_version(self) -> str:
+        """Return the information model version the labels are written against."""
+        return STAND_IN_INFORMATION_MODEL_VERSION
+
+    def pds4_schemas(self) -> dict[str, Pds4Schema]:
+        """Return the dictionary schemas the labels declare."""
+        return dict(STAND_IN_SCHEMAS)
 
     def pds4_bundle_template_dir(self) -> str:
         """Return the template directory the declared templates are looked for in."""

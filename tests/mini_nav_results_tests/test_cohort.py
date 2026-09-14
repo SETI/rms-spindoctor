@@ -151,7 +151,7 @@ def test_no_backplane_statistic_is_left_in_radians(cohort: Cohort) -> None:
     columns of degrees, saying nothing about which it is unless the reader
     happens to know the plane.  A plane declared in radians per pixel is the
     one exposed to it, its unit not being one an equality against ``rad``
-    recognises.
+    recognizes.
     """
     in_radians: list[str] = []
     for image in cohort.images():

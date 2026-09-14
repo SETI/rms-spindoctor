@@ -33,6 +33,35 @@ def pds4_label_name(file_name: str) -> str:
     return PurePosixPath(file_name).with_suffix('.lblx').name
 
 
+@dataclass(frozen=True)
+class Pds4Schema:
+    """The schema of one PDS4 dictionary a bundle's labels declare.
+
+    A dictionary is published as an XML schema and a Schematron at one location, the two
+    differing only in their extensions, and registered as a product of the PDS system
+    bundle, which the bundle's XML schema collection lists.
+
+    Attributes:
+        location: The URL of the dictionary's XML schema and Schematron less their
+            extension, as in ``https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1F00``.
+        lidvid: The LIDVID of the dictionary's schema product, as the XML schema
+            collection lists it.
+    """
+
+    location: str
+    lidvid: str
+
+    @property
+    def xsd(self) -> str:
+        """The URL of the dictionary's XML schema, its location ending in ``.xsd``."""
+        return f'{self.location}.xsd'
+
+    @property
+    def sch(self) -> str:
+        """The URL of the dictionary's Schematron, its location ending in ``.sch``."""
+        return f'{self.location}.sch'
+
+
 @dataclass
 class ImageFile:
     """Represents a single image file with its metadata and lazy-loaded paths.
@@ -277,6 +306,48 @@ class DataSet(ABC, NavBase):
 
         Returns:
             Bundle name (e.g., "cassini_iss_saturn_backplanes_rsfrench2027").
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_bundle_version(self) -> str:
+        """Returns the bundle's version, which each of the bundle's own products carries.
+
+        The bundle, each of its collections and each product it writes states it as its
+        ``version_id``, and every LIDVID naming one of them carries it.  A reference to a
+        product outside the bundle keeps that product's own version.
+
+        Returns:
+            The version, in the PDS4 ``<major>.<minor>`` form (e.g., "1.0").
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_information_model_version(self) -> str:
+        """Returns the information model version the bundle's labels are written against.
+
+        Every label states it, and the common dictionary's Schematron requires the version
+        its own build is of, so it moves with the ``pds`` schema
+        :meth:`~spindoctor.dataset.dataset.DataSet.pds4_schemas` gives.
+
+        Returns:
+            The version, in the PDS4 four-part form (e.g., "1.24.0.0").
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_schemas(self) -> dict[str, Pds4Schema]:
+        """Returns the schema of each PDS4 dictionary the bundle's labels declare.
+
+        Each label declares the schema of every dictionary whose namespace it uses, and
+        the bundle's XML schema collection lists all of them.
+
+        Returns:
+            Each dictionary's schema, by the prefix its namespace takes in a label (e.g.,
+            "rings"), in the order the XML schema collection lists them.
         """
         # We don't make PDS4 methods as @abstractmethod because it's possible to make
         # a DataSet that doesn't support PDS4 bundle generation
