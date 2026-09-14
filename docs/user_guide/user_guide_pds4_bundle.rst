@@ -378,14 +378,17 @@ The summary pass generates:
 * **Bundle Files**:
 
   * ``bundle.lblx``: PDS4 label for the bundle, naming each collection the bundle holds
-  * ``readme.txt``: the bundle's readme, copied from the dataset's template directory
+  * ``readme.txt``: the bundle's readme, written from the dataset's template directory,
+    giving the logical identifiers of the bundle and of its user guide
 
 * **Context, Document, SPICE Kernel and XML Schema Collections**: for each, a
   ``collection_<name>.csv`` listing its members and its PDS4 label,
-  ``collection_<name>.lblx``. Each list is the one in the dataset's template directory,
-  except that the user guide and the metakernel are listed only when their labels are
+  ``collection_<name>.lblx``. Each list is the one the dataset's template directory
+  gives, naming the bundle's own products under the bundle's name and version, except
+  that the user guide and the metakernel are listed only when their labels are
   written, and that the context collection's list also names every target the data
-  labels name, each at the version of its context product.
+  labels name, each at the version of its context product. The XML schema collection
+  lists each dictionary schema the configuration gives (see `Configuration`_).
 
 * **Metakernel**: ``spice_kernels/kernels.ker``, the SPICE metakernel every data label
   names, and its PDS4 label, ``kernels.lblx``. It lists no SPICE kernels, and its label
@@ -518,7 +521,8 @@ Configuration
 =============
 
 PDS4 bundle generation is configured through the ``pds4:`` section in configuration
-files. Each dataset can have its own configuration:
+files. Each dataset can have its own configuration, and it is where the bundle's name
+and version are set, and where the schemas its labels declare are found:
 
 .. code-block:: yaml
 
@@ -526,12 +530,22 @@ files. Each dataset can have its own configuration:
      coiss_saturn:
        template_dir: cassini_iss_saturn_1.0
        bundle_name: cassini_iss_saturn_backplanes_rsfrench2027
+       bundle_version: '1.0'
+       information_model_version: '1.24.0.0'
+       schemas:
+         pds:
+           location: https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00
+           lidvid: urn:nasa:pds:system_bundle:xml_schema:pds-xml_schema::1.24
+         rings:
+           location: https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1F00
+           lidvid: urn:nasa:pds:system_bundle:xml_schema:rings-xml_schema::1.15
+         # and one entry for each other dictionary the labels declare
 
 The ``cassini_iss_saturn_1.0`` template directory ships with the package. The
 ``coiss_cruise`` dataset's does not; to bundle it, add an entry whose
 ``template_dir`` points at a template directory you create yourself, holding
 the files listed under `Templates`_ (by name inside the package template root,
-or as an absolute path).
+or as an absolute path), and which gives every other key below.
 
 Configuration Options
 ---------------------
@@ -540,7 +554,34 @@ Configuration Options
   is resolved relative to ``src/spindoctor/cli/pds4/templates/`` in the ``rms-spindoctor`` package.
   If an absolute path, it is used as-is.
 
-* ``bundle_name``: Name of the bundle directory (e.g., ``cassini_iss_saturn_backplanes_rsfrench2027``).
+* ``bundle_name``: The bundle's name (e.g., ``cassini_iss_saturn_backplanes_rsfrench2027``):
+  the name of its directory, and the last part of its logical identifier,
+  ``urn:nasa:pds:<bundle_name>``, which the logical identifier of each of its
+  collections and products extends. Every label, every list of members and the readme
+  name the bundle by it.
+
+* ``bundle_version``: The bundle's version, as ``<major>.<minor>`` in quotes (e.g.,
+  ``'1.0'``). It is the version of the bundle, of each of its collections and of each
+  product it holds, and the version every label and list of members names one of them
+  at. A product outside the bundle that a label names, such as a context product, keeps
+  its own version.
+
+* ``information_model_version``: The version of the PDS4 information model the labels
+  are written against, which every label states. It is the version of the build the
+  ``pds`` schema belongs to, and changes when that schema does.
+
+* ``schemas``: The schema of each dictionary the labels declare, keyed by the prefix
+  its namespace takes in a label (``pds``, ``rings``, and so on). ``location`` is the
+  web address of the dictionary's XML schema and Schematron without the extension, to
+  which ``.xsd`` and ``.sch`` are added, and ``lidvid`` is the logical identifier and
+  version the XML schema collection lists the dictionary by. Every label declaring the
+  dictionary takes its schema from here, so moving a dictionary to another version is
+  one change. Give an entry for exactly the dictionaries the templates declare: a
+  template declaring one with no entry is not written, and an entry no template
+  declares is still listed by the XML schema collection.
+
+``bundle_version``, ``information_model_version`` and ``schemas`` have no default, so an
+entry for a dataset that is bundled gives all three.
 
 Targets
 -------
@@ -592,11 +633,12 @@ Each dataset has its own template directory containing:
   index tables' labels
 * ``collection_miscellaneous.lblx``: Template for the miscellaneous collection label
 * ``bundle.lblx``: Template for the bundle label
-* ``readme.txt``: The bundle's readme, copied into the bundle as it is
+* ``readme.txt``: The bundle's readme, written into the bundle from this template
 * ``collection_context.csv``, ``collection_document.csv``,
   ``collection_spice_kernels.csv`` and ``collection_xml_schema.csv``: The members of the
-  context, document, SPICE kernel and XML schema collections, copied into the bundle,
-  the context collection's with every target the data labels name added after them;
+  context, document, SPICE kernel and XML schema collections, written into the bundle
+  from these templates, the context collection's with every target the data labels name
+  added after them;
   and ``collection_context.lblx``, ``collection_document.lblx``,
   ``collection_spice_kernels.lblx`` and ``collection_xml_schema.lblx``, the templates
   for their labels
@@ -611,7 +653,17 @@ Each dataset has its own template directory containing:
 The document collection's list of members names the user guide; when the template
 directory does not hold the guide, the summary pass leaves that line out.
 
-Each dataset supplies its own values for the variables its templates use.
+No template spells the bundle's name or version, a schema's location or the
+information model version. Every template, the readme's and the lists of members
+among them, takes them from the configuration (see `Configuration`_):
+``BUNDLE_LID`` is the bundle's logical identifier, ``urn:nasa:pds:<bundle_name>``;
+``BUNDLE_VERSION`` its version; ``INFORMATION_MODEL_VERSION`` the information model
+version; ``PDS4_<PREFIX>_SCHEMA`` and ``PDS4_<PREFIX>_SCHEMA_XSD`` the Schematron and
+the XML schema of each dictionary, ``<PREFIX>`` being its prefix in upper case, as in
+``PDS4_RINGS_SCHEMA_XSD``; and ``XML_SCHEMA_LIDVIDS`` the list the XML schema
+collection gives.
+
+Each dataset supplies its own values for the other variables its templates use.
 :doc:`/dev_guide/dev_guide_pds4` describes how a dataset does that, and what a
 new one has to provide.
 

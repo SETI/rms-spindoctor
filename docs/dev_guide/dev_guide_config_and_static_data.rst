@@ -189,8 +189,10 @@ Each shipping file and what it holds:
   arc lengths) plus the planet-specific ``feature_emission.ring_annulus`` block
   that decides RING_EDGE vs RING_ANNULUS emission.
 - ``config_900_backplanes`` — backplane-generation settings.
-- ``config_950_pds4`` — PDS4 metadata and export settings for generated products,
-  PDS4 label-template overrides, and the mapping of internal fields to PDS4 keys.
+- ``config_950_pds4`` — PDS4 bundle settings, one entry per dataset that bundles: its
+  template directory, the bundle's name and version (``bundle_name``,
+  ``bundle_version``), and the information model version and the dictionary schemas
+  its labels are written against (``information_model_version``, ``schemas``).
 - ``config_960_results_tree`` — how much of a pass over a navigation results
   tree runs at once; see :doc:`dev_guide_results_index`.
 
