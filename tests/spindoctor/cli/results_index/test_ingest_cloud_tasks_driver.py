@@ -391,7 +391,8 @@ def completing_a_mistyped_root(
         The exit status of the completion, and one entry per line it wrote to
         the main log.
     """
-    mistyped = tmp_path / 'nav-offset-reuslts'
+    # The mistyping of 'results' is the subject of this test.
+    mistyped = tmp_path / 'nav-offset-reslts'
     url = index_url(tmp_path / 'index.sqlite3')
     run_driver(
         [

@@ -480,7 +480,7 @@ def test_reduce_catalogs_collapses_saturated_ucac4_onto_ybsc_twin(
     """A saturated UCAC4 bright star collapses onto its native YBSC twin.
 
     UCAC4 reports the star three-plus magnitudes too faint (mirroring the
-    Pleiades Eta Tau, catalogued near V6.7 against a true V2.9), so the
+    Pleiades Eta Tau, cataloged near V6.7 against a true V2.9), so the
     merge kept both records; the reduction resolves the field to the single
     YBSC record, which carries the true magnitude and accurate astrometry.
     """

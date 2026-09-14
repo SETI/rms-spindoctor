@@ -219,9 +219,9 @@ def similarity_transform_fit(
     det_c_u = float(np.sum(w * det[:, 1]) / total)
     cat_c_v = float(np.sum(w * cat[:, 0]) / total)
     cat_c_u = float(np.sum(w * cat[:, 1]) / total)
-    det_centred = det - np.asarray([det_c_v, det_c_u], np.float64)[None, :]
-    cat_centred = cat - np.asarray([cat_c_v, cat_c_u], np.float64)[None, :]
-    cross = (w[:, None] * det_centred).T @ cat_centred
+    det_centered = det - np.asarray([det_c_v, det_c_u], np.float64)[None, :]
+    cat_centered = cat - np.asarray([cat_c_v, cat_c_u], np.float64)[None, :]
+    cross = (w[:, None] * det_centered).T @ cat_centered
     u_mat, _s, vt = np.linalg.svd(cross)
     det_correction = float(np.linalg.det(u_mat @ vt))
     sign_diag = np.eye(2, dtype=np.float64)

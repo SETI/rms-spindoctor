@@ -1,6 +1,6 @@
 sweep_name: blob_offset_wide
 # Blob offset across the navigable range.  The blob-shaped-disc coarse acquisition
-# re-centres each blob's bbox on the body before the centroid, so recovery now holds
+# re-centers each blob's bbox on the body before the centroid, so recovery now holds
 # to the extfov margin (was a ~6 px small-offset technique before the coarse stage).
 base_scene: phase_sweep_regular_body/small_sphere_base.yaml
 parameters: [offset_v]

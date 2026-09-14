@@ -205,7 +205,7 @@ def test_the_named_stubs_really_do_cross_a_batch_boundary() -> None:
     assert len(_NAMES_CROSSING_A_BATCH) > STUBS_PER_STATEMENT
 
 
-def test_named_stubs_still_honour_the_mission(two_roots: TwoRoots) -> None:
+def test_named_stubs_still_honor_the_mission(two_roots: TwoRoots) -> None:
     """A selection is a narrowing whatever else it names.
 
     Parameters:
@@ -216,7 +216,7 @@ def test_named_stubs_still_honour_the_mission(two_roots: TwoRoots) -> None:
     assert [stub_of(one) for one in found] == [SUCCESS_STUB]
 
 
-def test_named_stubs_still_honour_a_time_bound(two_roots: TwoRoots) -> None:
+def test_named_stubs_still_honor_a_time_bound(two_roots: TwoRoots) -> None:
     """The other half of what a selection restricts a named read by.
 
     Parameters:

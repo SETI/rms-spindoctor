@@ -87,15 +87,15 @@ def _build_body(
     model = NavModelBody(f'body:{body_name}', cast(Any, obs), body_name, inventory=inv)
     rows, cols = obs.extdata_shape_vu
     body_mask = np.zeros((rows, cols), dtype=bool)
-    centre_v = rows // 2
-    centre_u = cols // 2
+    center_v = rows // 2
+    center_u = cols // 2
     radius = int(diameter_px // 2)
     vv, uu = np.meshgrid(
         np.arange(rows, dtype=np.float64),
         np.arange(cols, dtype=np.float64),
         indexing='ij',
     )
-    body_mask[(vv - centre_v) ** 2 + (uu - centre_u) ** 2 <= radius * radius] = True
+    body_mask[(vv - center_v) ** 2 + (uu - center_u) ** 2 <= radius * radius] = True
     model_img = body_mask.astype(np.float64)
     limb_mask = body_mask.copy()
     terminator_mask = np.zeros_like(body_mask)
@@ -109,12 +109,12 @@ def _build_body(
     )
     model._km_per_pixel_at_limb = km_per_pixel_at_limb
     model._predicted_diameter_px = diameter_px
-    model._predicted_center_vu = (float(centre_v), float(centre_u))
+    model._predicted_center_vu = (float(center_v), float(center_u))
     model._bbox_extfov_vu = (
-        centre_v - radius,
-        centre_u - radius,
-        centre_v + radius + 1,
-        centre_u + radius + 1,
+        center_v - radius,
+        center_u - radius,
+        center_v + radius + 1,
+        center_u + radius + 1,
     )
     model._subject_range_km = 1.0e6
     model._visible_lit_fraction = visible_lit_fraction

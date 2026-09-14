@@ -52,7 +52,7 @@ def estimate_image_noise_sigma(
         sensor_mask: Optional boolean mask with ``True`` for sensor pixels and
             ``False`` for extfov padding.  If ``None``, every pixel of
             ``image`` is treated as sensor data.  Only response pixels whose
-            full 3x3 neighbourhood lies inside the mask contribute.
+            full 3x3 neighborhood lies inside the mask contribute.
 
     Returns:
         Robust noise sigma in the same DN units as ``image``.
@@ -110,7 +110,7 @@ def estimate_image_noise_sigma(
         fallback = img[sensor_mask].ravel()
 
     # A second difference touching a NaN missing-data marker is NaN, so drop
-    # non-finite responses.  If none survive (no fully-finite 3x3 neighbourhood,
+    # non-finite responses.  If none survive (no fully-finite 3x3 neighborhood,
     # e.g. an image that is almost entirely markers), fall back to a global MAD
     # over the finite sensor pixels rather than failing.
     finite = samples[np.isfinite(samples)]

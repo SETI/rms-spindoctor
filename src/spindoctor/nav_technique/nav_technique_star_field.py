@@ -520,7 +520,7 @@ def _optimal_inlier_assignment(
     are masked with a cost large enough that the solver never trades an
     in-tolerance pair for masked ones, and masked pairs the solver is
     still forced to emit are dropped afterwards.  Unlike a greedy
-    nearest-neighbour sweep, the result is independent of detection
+    nearest-neighbor sweep, the result is independent of detection
     ordering: when two detections compete for the same catalog star the
     globally best one-to-one pairing wins.
 

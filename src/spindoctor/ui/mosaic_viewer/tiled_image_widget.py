@@ -1242,7 +1242,7 @@ class TiledImageWidget(QAbstractScrollArea):
         ).astype(np.float32)
         gray = (stretched * 255.0).astype(np.uint8)
 
-        # Build RGB (apply per-pixel colour-by tinting if active)
+        # Build RGB (apply per-pixel color-by tinting if active)
         if self._color_tint is not None:
             n_r, n_c = self._n_rows, self._n_cols
             rows = np.clip(np.arange(py_start, py_end + 1, dtype=np.intp), 0, n_r - 1)

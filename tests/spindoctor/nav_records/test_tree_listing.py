@@ -501,7 +501,7 @@ def test_the_root_is_listed_before_any_pool_is_built(
         pytest.param(Selection(stop_et=1.0), 'stop_et', id='stop_et'),
     ],
 )
-def test_a_listing_refuses_a_restriction_it_cannot_honour(
+def test_a_listing_refuses_a_restriction_it_cannot_honor(
     selection: Selection,
     named: str,
     tmp_path: Path,

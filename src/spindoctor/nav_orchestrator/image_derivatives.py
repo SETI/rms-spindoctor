@@ -287,7 +287,7 @@ def _directional_nms(
 
     Each pixel above ``threshold`` is kept only if its magnitude is at
     least as large as both of its neighbors along the local gradient
-    direction.  The gradient direction is quantised to four cardinal
+    direction.  The gradient direction is quantized to four cardinal
     sectors (0, 45, 90, 135 degrees from horizontal) so the lookup
     reduces to a small fixed set of shifts.
 
