@@ -1,10 +1,10 @@
 """The global index tables of a PDS4 bundle, and the formats their values are written in.
 
 The summary pass reads every supplemental file the labels pass wrote once, here, and
-builds two tables from them: one row for each body of each image, and one row for each
-image with ring backplanes, each giving the minimum and maximum every configured plane
-spans.  The same read takes the range of the products' epochs, which the data collection
-label and the bundle label state.
+builds two tables from them: one row for each body of each image the data collection
+holds, and one row for each such image with ring backplanes, each giving the minimum and
+maximum every configured plane spans.  The same read takes the range of the products'
+epochs, which the data collection label and the bundle label state.
 """
 
 import csv
@@ -23,6 +23,7 @@ from spindoctor.cli.pds4.bundle_products import clear_bundle_products
 from spindoctor.cli.pds4.collections import (
     clear_collection_products,
     data_directory,
+    data_products,
     supplemental_files,
 )
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan
@@ -175,6 +176,15 @@ def generate_global_index_files(
     Both index labels are attempted, whichever of them fail, and the index
     tables are written whether or not the labels that describe them render.
 
+    The tables index exactly the images the data inventory lists, the data labels in
+    the data tree that :func:`~spindoctor.cli.pds4.collections.data_products` names,
+    each with the rows its supplemental file gives: a row in the bodies table for each
+    body it has statistics for, and a row in the rings table when it has ring
+    statistics.  A supplemental file with no data label beside it adds no row, so the
+    tables and the inventory cannot disagree about what the bundle holds.  Its
+    statistics are still checked and its epochs still taken, as every supplemental
+    file's are.
+
     Its read of the supplemental files is the one the summary pass makes, so the
     range of the products' epochs is taken in the same read, through an
     :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and returned for the labels
@@ -259,7 +269,8 @@ def generate_global_index_files(
     # Every supplemental file, in the order of the products' names, the last part of
     # each LID
     supplementals = supplemental_files(data_dir)
-    logger.info('Found %d supplemental files', len(supplementals))
+    members = data_products(data_dir)
+    logger.info('Found %d supplemental files and %d data labels', len(supplementals), len(members))
 
     # Collect body and ring statistics, every cell already rendered: both
     # tables are opened only once every value in them has been written out, so
@@ -286,15 +297,20 @@ def generate_global_index_files(
                 'directory, where the labels pass fails any image whose document still '
                 'records such a statistic'
             )
+        # The rows are the data inventory's members, so the tables and the inventory
+        # cannot disagree about what the bundle holds: a supplemental file with no data
+        # label beside it, which the collection generator reports as an image whose
+        # products disagree, adds none (#602).
+        if pds4_path_stub not in members:
+            continue
         bodies = backplanes.get('bodies', {})
         rings = backplanes.get('rings', {})
 
         # The stub's last part is the product's name, the last part of its LID
         image_name = dataset.pds4_lid_part_to_image_name(pds4_path_stub.rsplit('/', 1)[-1])
         lid = dataset.pds4_image_name_to_data_lid(image_name)
-        # pds4_path_stub includes path and filename prefix
-        # Path relative to data directory
-        path_to_image = f'data/{pds4_path_stub}_backplanes.lblx'
+        # The data label, by its path relative to the bundle's own directory
+        path_to_image = members[pds4_path_stub].relative_to(bundle_root).as_posix()
 
         # Body index: one line per image per body
         for body_name, body_data in bodies.items():

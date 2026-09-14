@@ -91,6 +91,31 @@ def _index_env(
     return make_bundle_env(tmp_path, bodies=bodies, rings=rings)
 
 
+def _write_image(
+    data_dir: Path,
+    stub: str,
+    *,
+    bodies: dict[str, Any] | None = None,
+    rings: dict[str, Any] | None = None,
+) -> Path:
+    """Write what the labels pass leaves for one image the index is to have rows for.
+
+    The tables index the images the data inventory lists, which are the data labels in
+    the data tree, so the image gets a data label beside its supplemental file.
+
+    Parameters:
+        data_dir: The bundle's ``data`` directory.
+        stub: The image's path stub.
+        bodies: ``backplanes.bodies`` payload keyed by body name.
+        rings: ``backplanes.rings`` payload.
+
+    Returns:
+        The path of the supplemental file.
+    """
+    touch_label(data_dir, stub)
+    return write_supplemental(data_dir, stub, bodies=bodies, rings=rings)
+
+
 # ---------------------------------------------------------------------------
 # generate_global_index_files: tables
 # ---------------------------------------------------------------------------
@@ -99,7 +124,7 @@ def _index_env(
 def test_bodies_index_header_from_configured_backplane_types(tmp_path: Path) -> None:
     """The bodies index header lists min/max columns per configured body backplane."""
     env = _index_env(tmp_path)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_csv_rows(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert rows[0] == [
@@ -120,8 +145,8 @@ def test_bodies_index_one_row_per_image_body(tmp_path: Path) -> None:
         'MOON_A': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
         'MOON_B': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
     }
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=two_bodies)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=two_bodies)
+    _write_image(env.bundle_dir / 'data', 'shard0/2222222222w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_csv_rows(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert len(rows) == 4
@@ -137,7 +162,7 @@ def test_a_degrees_column_is_written_to_three_decimals(tmp_path: Path) -> None:
     the unit the statistic is in rather than the one the plane was declared in.
     """
     env = _index_env(tmp_path)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_csv_rows(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert rows[1][3] == '1.235'
@@ -152,7 +177,7 @@ def test_a_kilometers_column_is_written_to_one_decimal(tmp_path: Path) -> None:
     """
     env = _index_env(tmp_path)
     radii = {'backplanes': {'radius': {'min': 81000.04, 'max': 125000.96, 'units': 'km'}}}
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=radii)
     _run_global_index(env)
     rows = read_csv_rows(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
     assert rows[1][2] == '81000.0'
@@ -176,7 +201,7 @@ def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path:
             'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}
         }
     }
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', rings=fine)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=fine)
     _run_global_index(env)
     rows = read_csv_rows(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
     assert rows[1][2] == '0.00015470'
@@ -210,7 +235,7 @@ def test_a_kilometers_per_pixel_column_keeps_five_figures_without_an_exponent(
         },
         'MOON_C': {'backplanes': {'resolution': {'min': 0.0, 'max': 1.0, 'units': 'km/pixel'}}},
     }
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=resolutions)
     _run_global_index(env)
     rows = read_csv_rows(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert rows[1][5] == '0.00060000'
@@ -290,7 +315,7 @@ def test_a_supplemental_file_in_another_unit_is_refused_with_nothing_written(
     plane and both units and says what to regenerate, and no table is written.
     """
     env = _ring_resolution_env(tmp_path)
-    write_supplemental(
+    _write_image(
         env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats('rad/pixel')
     )
     with pytest.raises(ValueError) as excinfo:
@@ -314,7 +339,7 @@ def test_a_supplemental_file_with_a_body_statistic_in_another_unit_is_refused(
     """
     env = _index_env(tmp_path)
     radians = {'MOON_A': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': 'rad'}}}}
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=radians)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=radians)
     with pytest.raises(ValueError) as excinfo:
         _run_global_index(env)
     assert 'the latitude statistic in rad where the configuration expects deg' in str(excinfo.value)
@@ -331,8 +356,8 @@ def test_a_disagreeing_supplemental_file_anywhere_is_refused_before_the_first_ta
     would carry, and the second is the one refused.
     """
     env = _ring_resolution_env(tmp_path)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=BODY_STATS)
-    write_supplemental(
+    _write_image(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=BODY_STATS)
+    _write_image(
         env.bundle_dir / 'data', 'shard0/2222222222w', rings=_ring_resolution_stats('rad/pixel')
     )
     with pytest.raises(ValueError, match='2222222222w_supplemental'):
@@ -354,7 +379,7 @@ def test_a_supplemental_file_holding_an_infinite_maximum_is_refused_with_nothing
             'backplanes': {'resolution': {'min': 60.0, 'max': math.inf, 'units': 'km/pixel'}}
         }
     }
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=unholdable)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=unholdable)
     with pytest.raises(ValueError) as excinfo:
         _run_global_index(env)
     message = str(excinfo.value)
@@ -386,7 +411,7 @@ def test_a_render_that_fails_leaves_no_table(
         raise ValueError(f'cannot render {value!r}')
 
     env = _index_env(tmp_path)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     monkeypatch.setattr(IndexValueFormat, 'render', _refuse)
     with pytest.raises(ValueError, match='cannot render'):
         _run_global_index(env)
@@ -412,7 +437,7 @@ def test_a_refused_run_leaves_none_of_the_index_products_an_earlier_run_wrote(
     supplemental_dir.mkdir(parents=True)
     for product in products:
         (supplemental_dir / product).write_text('an earlier run\n', encoding='utf-8')
-    write_supplemental(
+    _write_image(
         env.bundle_dir / 'data', 'shard0/1234567890w', rings=_ring_resolution_stats('rad/pixel')
     )
     with pytest.raises(ValueError, match='1234567890w_supplemental'):
@@ -423,7 +448,7 @@ def test_a_refused_run_leaves_none_of_the_index_products_an_earlier_run_wrote(
 def test_bodies_index_missing_backplane_values_blank(tmp_path: Path) -> None:
     """Backplane types absent from a body's stats produce empty columns."""
     env = _index_env(tmp_path)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     _run_global_index(env)
     rows = read_csv_rows(env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab')
     assert rows[1][5] == ''
@@ -433,9 +458,7 @@ def test_bodies_index_missing_backplane_values_blank(tmp_path: Path) -> None:
 def test_index_path_to_image_file_is_data_relative(tmp_path: Path) -> None:
     """The path_to_image_file column points at data/<stub>_backplanes.lblx."""
     env = _index_env(tmp_path)
-    write_supplemental(
-        env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS
-    )
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS)
     _run_global_index(env)
     bodies_rows = read_csv_rows(
         env.bundle_dir / 'document' / 'supplemental' / 'global_index_bodies.tab'
@@ -447,11 +470,35 @@ def test_index_path_to_image_file_is_data_relative(tmp_path: Path) -> None:
     assert rings_rows[1][1] == 'data/shard0/1234567890w_backplanes.lblx'
 
 
+def test_the_rows_are_the_data_inventory_s_members(tmp_path: Path) -> None:
+    """Each table indexes exactly the images the data inventory lists, and no other.
+
+    The third image has a supplemental file whose statistics would give it a row in
+    each table, and no data label, which is what a labels pass leaves when an image's
+    data label fails to render.  It adds no row, so the tables and the inventory cannot
+    disagree about what the bundle holds.
+    """
+    env = _index_env(tmp_path)
+    data_dir = env.bundle_dir / 'data'
+    _write_image(data_dir, 'shard0/1111111111n', bodies=BODY_STATS, rings=RING_STATS)
+    _write_image(data_dir, 'shard1/2222222222w', bodies=BODY_STATS, rings=RING_STATS)
+    write_supplemental(data_dir, 'shard0/3333333333n', bodies=BODY_STATS, rings=RING_STATS)
+    _run_global_index(env)
+    run_collections(env)
+    inventory = read_csv_rows(data_dir / 'collection_data.csv')
+    members = [lidvid.split('::')[0] for _, lidvid in inventory]
+    tables = env.bundle_dir / 'document' / 'supplemental'
+    bodies = read_csv_rows(tables / 'global_index_bodies.tab')
+    rings = read_csv_rows(tables / 'global_index_rings.tab')
+    assert [row[0] for row in bodies[1:]] == members
+    assert [row[0] for row in rings[1:]] == members
+
+
 def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) -> None:
     """Images without ring backplanes are omitted from the rings index."""
     env = _index_env(tmp_path)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=BODY_STATS)
-    write_supplemental(env.bundle_dir / 'data', 'shard0/2222222222w', rings=RING_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/1111111111n', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/2222222222w', rings=RING_STATS)
     _run_global_index(env)
     rows = read_csv_rows(env.bundle_dir / 'document' / 'supplemental' / 'global_index_rings.tab')
     assert rows[0] == ['LID', 'path_to_image_file', 'radius_min', 'radius_max']
@@ -490,9 +537,7 @@ def test_global_index_labels_rendered_with_file_records(tmp_path: Path) -> None:
         'MOON_A': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
         'MOON_B': {'backplanes': {'latitude': {'min': 3.0, 'max': 4.0, 'units': 'deg'}}},
     }
-    write_supplemental(
-        env.bundle_dir / 'data', 'shard0/1234567890w', bodies=two_bodies, rings=RING_STATS
-    )
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=two_bodies, rings=RING_STATS)
     failed = _run_global_index(env)
     assert failed == 0
     supplemental_dir = env.bundle_dir / 'document' / 'supplemental'
@@ -525,9 +570,7 @@ def test_a_broken_index_template_is_counted_and_leaves_the_other(
         Path(env.dataset.pds4_bundle_template_dir()),
         {broken: BROKEN_TEMPLATE, intact: GLOBAL_INDEX_TEMPLATE},
     )
-    write_supplemental(
-        env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS
-    )
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS)
     failed = _run_global_index(env)
     assert failed == 1
     supplemental_dir = env.bundle_dir / 'document' / 'supplemental'
@@ -544,7 +587,7 @@ def test_a_missing_index_template_raises(tmp_path: Path) -> None:
     """
     env = _index_env(tmp_path)
     (Path(env.dataset.pds4_bundle_template_dir()) / 'global_index_bodies.lblx').unlink()
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS)
     with pytest.raises(FileNotFoundError, match=r'global_index_bodies\.lblx'):
         _run_global_index(env)
 
@@ -564,10 +607,7 @@ def _cross_reference_env(tmp_path: Path) -> BundleEnv:
         The environment, ready for both phase-2 generators.
     """
     env = _index_env(tmp_path)
-    touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
-    write_supplemental(
-        env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS
-    )
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS)
     return env
 
 
