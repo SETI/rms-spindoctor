@@ -729,16 +729,33 @@ def touch_browse_label(browse_dir: Path, stub: str) -> Path:
 
 
 def read_csv_rows(path: Path) -> list[list[str]]:
-    """Read a collection inventory or a global index table as comma-separated rows.
+    """Read a collection inventory as comma-separated rows.
 
     Parameters:
-        path: The inventory or table to read.
+        path: The inventory to read.
 
     Returns:
         Every row, in file order, as lists of strings.
     """
     with path.open(newline='', encoding='utf-8') as f:
         return list(csv.reader(f))
+
+
+def read_index_rows(path: Path) -> list[list[str]]:
+    """Read a global index table as its header line and its rows, each cell unpadded.
+
+    Every field of a record is padded to its column's length and the fields are
+    separated by commas, which no value holds, so a line's cells are its parts between
+    commas with the padding stripped.
+
+    Parameters:
+        path: The table to read.
+
+    Returns:
+        The header line's names, then each record's values, in file order.
+    """
+    lines = path.read_bytes().decode('ascii').splitlines()
+    return [[cell.strip() for cell in line.split(',')] for line in lines]
 
 
 @dataclass

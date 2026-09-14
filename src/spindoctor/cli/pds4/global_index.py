@@ -5,15 +5,19 @@ builds two tables from them: one row for each body of each image the data collec
 holds, and one row for each such image with ring backplanes, each giving the minimum and
 maximum every configured plane spans.  The same read takes the range of the products'
 epochs, which the data collection label and the bundle label state.
+
+Each table is fixed width, as the reference bundle's index tables are: a header line
+naming the columns, separated by commas, and then the rows, each field padded to the
+longest value written in its column, with a comma between fields.
 """
 
-import csv
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pdstemplate
 from filecache import FCPath
@@ -175,6 +179,100 @@ def index_lid(bundle_name: str, index_name: str) -> str:
     return f'urn:nasa:pds:{bundle_name}:{MISCELLANEOUS_COLLECTION}:{index_name}'
 
 
+@dataclass(frozen=True)
+class IndexColumn:
+    """One column of a global index table.
+
+    Attributes:
+        name: The column's name, as the header line gives it.
+        value_format: The format each statistic in the column is written in, or None
+            for a column of text.  A statistic is right-justified in its field, and
+            text left-justified.
+    """
+
+    name: str
+    value_format: IndexValueFormat | None = None
+
+
+@dataclass(frozen=True)
+class IndexField:
+    """Where one column lies in every record of a fixed-width global index table.
+
+    Attributes:
+        column: The column the field holds.
+        number: The field's position in a record, counted from 1.
+        location: The byte a record's field begins at, counted from 1.
+        length: The field's length in bytes, which is the length of the longest value
+            written in the column.
+    """
+
+    column: IndexColumn
+    number: int
+    location: int
+    length: int
+
+
+@dataclass(frozen=True)
+class IndexTable:
+    """A global index table laid out fixed width, as it is written and described.
+
+    Attributes:
+        header: The header line: the columns' names, in order, separated by commas,
+            ending in a line feed.
+        records: The records, one per row: each field padded to its length, the fields
+            separated by commas, ending in a line feed.
+        fields: Where each column lies in a record, in the columns' order.
+    """
+
+    header: str
+    records: tuple[str, ...]
+    fields: tuple[IndexField, ...]
+
+    @property
+    def record_length(self) -> int:
+        """The length of every record in bytes, its commas and line feed included."""
+        return sum(field.length for field in self.fields) + len(self.fields)
+
+
+def lay_out_table(columns: Sequence[IndexColumn], rows: Sequence[Sequence[str]]) -> IndexTable:
+    """Lay a global index table out fixed width, each field as long as its longest value.
+
+    Values under one format differ in length -- ``1.000`` and ``-12.500`` are both three
+    decimals -- so a field's length is the length of the longest value written in its
+    column rather than a length its format implies, and is known only once the column
+    is.  Each field is padded to that length with spaces, a statistic on the left and
+    text on the right, and the fields are separated by commas.  The header line names
+    the columns, unpadded.
+
+    Parameters:
+        columns: The table's columns, in order.
+        rows: The table's rows, each holding one rendered cell per column.  There is at
+            least one, since a table with no row is not written.
+
+    Returns:
+        The table, its header line, its records and where each field lies in them.
+    """
+    lengths = [max(len(row[number]) for row in rows) for number in range(len(columns))]
+    fields: list[IndexField] = []
+    location = 1
+    for number, (column, length) in enumerate(zip(columns, lengths, strict=True), start=1):
+        fields.append(IndexField(column=column, number=number, location=location, length=length))
+        # A comma follows every field but the last, which the line feed follows.
+        location += length + 1
+    records = tuple(
+        ','.join(
+            cell.rjust(field.length)
+            if field.column.value_format is not None
+            else cell.ljust(field.length)
+            for cell, field in zip(row, fields, strict=True)
+        )
+        + '\n'
+        for row in rows
+    )
+    header = ','.join(column.name for column in columns) + '\n'
+    return IndexTable(header=header, records=records, fields=tuple(fields))
+
+
 class IndexWritten(Enum):
     """What writing one global index product came to.
 
@@ -192,7 +290,7 @@ class IndexWritten(Enum):
 def _write_index(
     table: FCPath,
     label: FCPath,
-    header: list[str],
+    columns: list[IndexColumn],
     rows: list[list[str]],
     *,
     template: pdstemplate.PdsTemplate,
@@ -205,15 +303,15 @@ def _write_index(
     (``records`` has a minimum of 1 in ``PDS4_PDS_1O00.xsd``), so a table with no row
     cannot be described: neither it nor its label is written.  That is no failure, since
     a bundle can hold no image with ring backplanes, and the log says so at info level.
-    Otherwise the table is written, and then its label, which reads the table's size,
-    checksum and record count from the file; the table stays whether or not the label
-    renders.
+    Otherwise the table is laid out by :func:`lay_out_table` and written as ASCII, and
+    then its label is rendered, which reads the table's size, checksum and record count
+    from the file; the table stays whether or not the label renders.
 
     Parameters:
         table: Where the table goes.
         label: Where its label goes.
-        header: The table's column names, in order.
-        rows: The table's rows, every cell already rendered.
+        columns: The table's columns, in order.
+        rows: The table's rows, each holding one rendered cell per column.
         template: The parsed template the label renders from.
         template_vars: The variables the label's template resolves against.
         logger: Logger for diagnostic messages.
@@ -229,12 +327,10 @@ def _write_index(
             table,
         )
         return IndexWritten.OMITTED
-    table_local = cast(Path, table.get_local_path())
-    with table_local.open('w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        writer.writerows(rows)
-    table.upload()
+    laid_out = lay_out_table(columns, rows)
+    with table.open('w', encoding='ascii', newline='') as f:
+        f.write(laid_out.header)
+        f.writelines(laid_out.records)
     logger.info('Generated "%s" with %d rows', table.name, len(rows))
     if not write_label(template, template_vars, label, logger=logger):
         return IndexWritten.UNLABELED
@@ -434,14 +530,18 @@ def generate_global_index_files(
 
     # The bodies table: LID, body_name, path_to_image_file, then min/max for each
     # backplane type
-    bodies_header = ['LID', 'body_name', 'path_to_image_file']
+    bodies_columns = [
+        IndexColumn('LID'),
+        IndexColumn('body_name'),
+        IndexColumn('path_to_image_file'),
+    ]
     for bp_type in body_backplane_types:
-        bodies_header.append(f'{bp_type}_min')
-        bodies_header.append(f'{bp_type}_max')
+        bodies_columns.append(IndexColumn(f'{bp_type}_min', body_formats[bp_type]))
+        bodies_columns.append(IndexColumn(f'{bp_type}_max', body_formats[bp_type]))
     bodies_written = _write_index(
         bodies_tab,
         bodies_label,
-        bodies_header,
+        bodies_columns,
         body_index_rows,
         template=bodies_template,
         template_vars={
@@ -452,15 +552,15 @@ def generate_global_index_files(
     )
 
     # The rings table: LID, path_to_image_file, then min/max for each ring type
-    rings_header = ['LID', 'path_to_image_file']
+    rings_columns = [IndexColumn('LID'), IndexColumn('path_to_image_file')]
     # TODO Add planet name to rings table
     for ring_type in ring_backplane_types:
-        rings_header.append(f'{ring_type}_min')
-        rings_header.append(f'{ring_type}_max')
+        rings_columns.append(IndexColumn(f'{ring_type}_min', ring_formats[ring_type]))
+        rings_columns.append(IndexColumn(f'{ring_type}_max', ring_formats[ring_type]))
     rings_written = _write_index(
         rings_tab,
         rings_label,
-        rings_header,
+        rings_columns,
         ring_index_rows,
         template=rings_template,
         template_vars={
