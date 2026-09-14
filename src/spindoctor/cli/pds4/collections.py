@@ -224,8 +224,7 @@ def _write_inventory(inventory: FCPath, lidvids: list[str]) -> None:
     The inventory is comma-separated with no header: one ``P,<lidvid>`` line per
     member, in the order given, each line ending in a line feed alone, the last
     included.  Its number of lines is therefore its number of members, which is
-    what the collection label states as its records.  With no members the file
-    is empty.
+    what the collection label states as its records.
 
     Parameters:
         inventory: Where the inventory goes.
@@ -235,6 +234,75 @@ def _write_inventory(inventory: FCPath, lidvids: list[str]) -> None:
     with local_path.open('w', newline='', encoding='utf-8') as f:
         csv.writer(f, lineterminator='\n').writerows(['P', lidvid] for lidvid in lidvids)
     inventory.upload()
+
+
+_NO_MEMBER = (
+    'the data tree holds no data label, so the collection has no member, and its label '
+    'has to state at least one record'
+)
+"""Why a collection is not written when the data tree holds no data label.
+
+Both generated collections take their members from the data labels, and the PDS4 schema
+requires a collection inventory to hold at least one record.
+"""
+
+_NO_RANGE = (
+    'the data tree holds no supplemental file, so there is no time range for its label to state'
+)
+"""Why the data collection is not written when the data tree holds no supplemental file."""
+
+
+def _write_collection(
+    name: str,
+    inventory: FCPath,
+    label: FCPath,
+    *,
+    lidvids: list[str],
+    template: pdstemplate.PdsTemplate,
+    template_vars: dict[str, Any],
+    reasons_not_written: list[str],
+    logger: PdsLogger,
+) -> bool:
+    """Write one collection's inventory and then its label, or neither of them.
+
+    A collection with a reason not to be written is not written at all: whatever is at
+    either path is removed, so that a collection on disk is always one this run wrote,
+    and one error names the collection, both paths and every reason.  Otherwise the
+    inventory is written, and then the label, which reads the inventory's size, checksum
+    and record count from the file; the inventory stays whether or not the label
+    renders.
+
+    Parameters:
+        name: The collection's name, as the error gives it: ``data`` or ``browse``.
+        inventory: Where the collection's inventory goes.
+        label: Where the collection's label goes.
+        lidvids: The members' LIDVIDs, in the order the inventory lists them.
+        template: The parsed template the label renders from.
+        template_vars: The variables the label's template resolves against.
+        reasons_not_written: Why the collection cannot be written, one phrase each, or
+            an empty list when it can be.
+        logger: Logger for diagnostic messages.
+
+    Returns:
+        True if the collection's label is on disk, False if it is not.
+    """
+    if len(reasons_not_written) > 0:
+        inventory.unlink(missing_ok=True)
+        label.unlink(missing_ok=True)
+        logger.error(
+            'The %s collection was not written, neither its inventory %s nor its label %s: %s',
+            name,
+            inventory,
+            label,
+            '; and '.join(reasons_not_written),
+        )
+        return False
+    _write_inventory(inventory, lidvids)
+    logger.info('Generated "%s": %s', inventory.name, inventory)
+    if not write_label(template, template_vars, label, logger=logger):
+        return False
+    logger.info('Generated "%s"', label.name)
+    return True
 
 
 def generate_collection_files(
@@ -251,25 +319,32 @@ def generate_collection_files(
     ``browse/collection_browse.csv`` the browse products, both found by the data
     labels in the data tree.  An inventory has no header, and every line, the last
     included, ends in a line feed alone, so the records its label counts are its
-    products; with no data label in the tree, both inventories are empty.
-
-    Every collection label is attempted, whichever of them fail: a broken data
-    collection template must not hide a broken browse collection one.  The
-    inventories are written whether or not the labels that describe them render.
+    products.
 
     The data collection label states the time range of the products the collection
     holds, which is ``epochs``: the range :func:`generate_global_index_files` takes in
     its read of the supplemental files, which is why the summary pass runs that
     first.  The label writes it to whole seconds, the start rounded down and the stop
-    up.  With no range to state, because the data tree holds no supplemental file,
-    the data collection label is counted as not written, with an error saying so,
-    rather than rendered with empty dates, which PDS4 does not accept; whatever an
-    earlier run left at its path is removed, so a label on disk is always one this
-    run wrote.
+    up.
+
+    A collection is written only when its label can state what PDS4 requires of it:
+    at least one record, and, for the data collection, the time range.  One that
+    cannot is not written at all, neither its inventory nor its label, and counts once
+    as a label not written, with one error naming the collection and every reason:
+    both collections when the data tree holds no data label, since both take their
+    members from the data labels, and the data collection when ``epochs`` is None.
+    Whatever an earlier run left at either of its paths is removed, so a collection on
+    disk is always one this run wrote.
+
+    Every collection label that can be written is attempted, whichever of them fail: a
+    broken data collection template must not hide a broken browse collection one.  An
+    inventory is written before its label, which reads the inventory's size, checksum
+    and record count, and stays whether or not the label renders.
 
     Every collection template the dataset declares is required.  The caller is
     expected to have checked them before processing anything, so one that is
-    missing here raises rather than being passed over.
+    missing here raises rather than being passed over, whether or not its collection
+    can be written.
 
     Parameters:
         bundle_results_root: Root directory of the bundle. The bundle data directory
@@ -280,8 +355,9 @@ def generate_collection_files(
             or None when the data tree holds no supplemental file.
 
     Returns:
-        The number of collection labels that could not be rendered, the data
-        collection label counted among them when there is no range for it to state.
+        The number of collection labels not written: each label that could not be
+        rendered, and each collection that could not be written, counted once whatever
+        its number of reasons.
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, or a
@@ -314,60 +390,47 @@ def generate_collection_files(
         for label_file in label_files
     ]
 
-    # The data collection's inventory.  Each inventory is written before its label,
-    # which reads the inventory's size, checksum and record count from the file.
-    collection_data_csv = products.data_inventory
-    _write_inventory(
-        collection_data_csv, [dataset.pds4_image_name_to_data_lidvid(name) for name in image_names]
-    )
-    logger.info('Generated "collection_data.csv": %s', collection_data_csv)
-
-    # Generate collection label files using template
+    # A collection label states at least one record, as the PDS4 schema requires of an
+    # inventory, so a collection with no member is not written.  Both collections take
+    # their members from the data labels, so they have members or lack them together.
+    no_member = [] if len(image_names) > 0 else [_NO_MEMBER]
     template_base = Path(template_dir)
 
-    # Collection data label.  It states the range of the products' epochs, so a
-    # collection with no range is a label not written rather than one stating
-    # empty dates.  The path is cleared either way, as write_label clears it, so
-    # an earlier run's label never describes this run's inventory.
-    collection_data_template = template_base / 'collection_data.lblx'
-    template = pdstemplate.PdsTemplate(str(collection_data_template))
-    collection_data_label = products.data_label
+    # The data collection, whose label also states the range of the products' epochs,
+    # so with no range it is not written rather than labeled with empty dates.  Each
+    # template is parsed whether or not its collection is written, so one missing from
+    # the tree raises rather than being passed over.
+    data_template = pdstemplate.PdsTemplate(str(template_base / 'collection_data.lblx'))
+    data_vars: dict[str, Any] = {'COLLECTION_DATA_CSV_PATH': str(products.data_inventory)}
+    data_reasons = list(no_member)
     if epochs is None:
-        collection_data_label.unlink(missing_ok=True)
-        logger.error(
-            'The data collection label %s was not written: the data tree holds no '
-            'supplemental file, so there is no time range for it to state',
-            collection_data_label,
-        )
+        data_reasons.append(_NO_RANGE)
+    else:
+        data_vars |= epochs.template_variables()
+    if not _write_collection(
+        'data',
+        products.data_inventory,
+        products.data_label,
+        lidvids=[dataset.pds4_image_name_to_data_lidvid(name) for name in image_names],
+        template=data_template,
+        template_vars=data_vars,
+        reasons_not_written=data_reasons,
+        logger=logger,
+    ):
         failed_labels += 1
-    else:
-        template_vars = {
-            'COLLECTION_DATA_CSV_PATH': str(collection_data_csv),
-            **epochs.template_variables(),
-        }
-        if write_label(template, template_vars, collection_data_label, logger=logger):
-            logger.info('Generated "collection_data.lblx"')
-        else:
-            failed_labels += 1
 
-    # The browse collection's inventory
-    collection_browse_csv = products.browse_inventory
-    _write_inventory(
-        collection_browse_csv,
-        [dataset.pds4_image_name_to_browse_lidvid(name) for name in image_names],
-    )
-    logger.info('Generated "collection_browse.csv": %s', collection_browse_csv)
-
-    # Collection browse label
-    collection_browse_template = template_base / 'collection_browse.lblx'
-    template = pdstemplate.PdsTemplate(str(collection_browse_template))
-    collection_browse_label = products.browse_label
-    template_vars = {
-        'COLLECTION_BROWSE_CSV_PATH': str(collection_browse_csv),
-    }
-    if write_label(template, template_vars, collection_browse_label, logger=logger):
-        logger.info('Generated "collection_browse.lblx"')
-    else:
+    # The browse collection
+    browse_template = pdstemplate.PdsTemplate(str(template_base / 'collection_browse.lblx'))
+    if not _write_collection(
+        'browse',
+        products.browse_inventory,
+        products.browse_label,
+        lidvids=[dataset.pds4_image_name_to_browse_lidvid(name) for name in image_names],
+        template=browse_template,
+        template_vars={'COLLECTION_BROWSE_CSV_PATH': str(products.browse_inventory)},
+        reasons_not_written=no_member,
+        logger=logger,
+    ):
         failed_labels += 1
 
     logger.info('Generated collection files: %d products', len(label_files))

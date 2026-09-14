@@ -647,6 +647,39 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     assert expected in capsys.readouterr().out
 
 
+def test_a_summary_over_no_data_label_exits_one_and_writes_neither_collection(
+    summary_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Supplemental files and no data label end the summary non-zero, with no collection.
+
+    This is the tree a labels pass leaves when every data label fails to render, since
+    it writes an image's supplemental file before the image's data label.  The index
+    then has a range to hand on, but neither collection has a member, and a collection
+    label states at least one record, so neither collection is written, each counts
+    among the labels not written, and the log names each.  Both generators are the
+    real ones.
+    """
+    env = make_bundle_env(tmp_path / 'env')
+    dataset = env.dataset.as_dataset()
+    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
+    monkeypatch.setattr(
+        sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(env.bundle_results_root)
+    )
+    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n')
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_summary()
+    assert excinfo.value.code == 1
+    collections = [env.bundle_dir / name for name in SUMMARY_PRODUCTS if 'collection_' in name]
+    assert [product for product in collections if product.exists()] == []
+    out = capsys.readouterr().out
+    assert 'Summary generation incomplete: 2 label(s) were not written' in out
+    assert 'The data collection was not written' in out
+    assert 'The browse collection was not written' in out
+
+
 @pytest.mark.parametrize(
     ('collections', 'index'), [(1, 0), (0, 1)], ids=['collection label', 'index label']
 )
