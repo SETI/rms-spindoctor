@@ -523,16 +523,19 @@ def main() -> None:
     args = parser.parse_args()
 
     images = None
+    bundle_frames = None
     if args.images is not None:
         images = [n.split('_')[0] for n in args.images.read_text().split()]
-    # One listing is both the default selection and the report's denominator.
-    held = bundle_image_names(observation_id=args.observation, bundle_dir=args.bundle_dir)
+    else:
+        # One listing is both the default selection and the report's denominator.
+        images = bundle_image_names(observation_id=args.observation, bundle_dir=args.bundle_dir)
+        bundle_frames = len(images)
 
     rows, duplicated, unreadable = compare(
         args.nav_results_root,
         observation_id=args.observation,
         bundle_dir=args.bundle_dir,
-        images=held if images is None else images,
+        images=images,
     )
     common = remove_common_offset(rows, tolerance_px=args.tolerance_px)
 
@@ -541,7 +544,7 @@ def main() -> None:
         rows,
         common=common,
         tolerance_px=args.tolerance_px,
-        bundle_frames=len(held) if images is None else None,
+        bundle_frames=bundle_frames,
         duplicated=duplicated,
         unreadable=unreadable,
     )
