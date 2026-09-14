@@ -796,6 +796,7 @@ COLLECTION_INVENTORIES = {
     'browse/collection_browse.lblx': 'collection_browse.csv',
     'context/collection_context.lblx': 'collection_context.csv',
     'document/collection_document.lblx': 'collection_document.csv',
+    'miscellaneous/collection_miscellaneous.lblx': 'collection_miscellaneous.csv',
     'spice_kernels/collection_spice_kernels.lblx': 'collection_spice_kernels.csv',
     'xml_schema/collection_xml_schema.lblx': 'collection_xml_schema.csv',
 }

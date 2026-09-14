@@ -53,6 +53,21 @@ _METAKERNEL = 'kernels.ker'
 _PRIMARY_MEMBER = b'P,'
 """How an inventory line naming a primary member begins."""
 
+_SECONDARY_MEMBER = b'S,'
+"""How an inventory line naming a secondary member begins."""
+
+
+def _inventory_name(collection: str) -> str:
+    """Return the name of a collection's inventory, in the template directory and a bundle.
+
+    Parameters:
+        collection: The collection's name.
+
+    Returns:
+        ``collection_<collection>.csv``.
+    """
+    return f'collection_{collection}.csv'
+
 
 def _inventory(bundle_root: FCPath, collection: str) -> FCPath:
     """Return where a static collection's inventory goes in a bundle.
@@ -64,7 +79,33 @@ def _inventory(bundle_root: FCPath, collection: str) -> FCPath:
     Returns:
         ``<bundle_root>/<collection>/collection_<collection>.csv``.
     """
-    return bundle_root / collection / f'collection_{collection}.csv'
+    return bundle_root / collection / _inventory_name(collection)
+
+
+def secondary_members(template_dir: FCPath) -> list[str]:
+    """Return the secondary members the bundle's collections cite, as LIDVIDs.
+
+    The document inventory the template directory ships lists them beside the user
+    guide: the external documents and the context products the bundle cites, each at
+    its version.  The miscellaneous collection cites the same ones and takes them from
+    here, so that the two inventories cannot disagree about them.
+
+    Parameters:
+        template_dir: The dataset's template directory.
+
+    Returns:
+        The LIDVID of each line of the template directory's ``collection_document.csv``
+        that names a secondary member, beginning ``S,``, in the order it lists them.
+
+    Raises:
+        FileNotFoundError: If the template directory holds no document inventory.
+    """
+    inventory = (template_dir / _inventory_name('document')).read_bytes()
+    return [
+        line.removeprefix(_SECONDARY_MEMBER).decode('ascii')
+        for line in inventory.splitlines()
+        if line.startswith(_SECONDARY_MEMBER)
+    ]
 
 
 def _user_guide(bundle_root: FCPath, dataset: DataSet) -> FCPath:
