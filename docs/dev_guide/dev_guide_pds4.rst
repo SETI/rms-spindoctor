@@ -37,10 +37,12 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    under ``document/supplemental/``, and takes the range of the products'
    exposure epochs in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
-   ``data/`` tree, collects every ``_backplanes.lblx`` it finds, sorts them by
-   image name, and writes the ``collection_data.csv`` and
-   ``collection_browse.csv`` inventories and their labels, the data collection
-   label stating the range it is handed.  An inventory lists one product per
+   ``data/`` and ``browse/`` trees, collects every ``_backplanes.lblx`` and
+   ``_summary.lblx`` it finds, sorts each set by image name, checks that each
+   image's products agree, and writes the ``collection_data.csv`` inventory from
+   the data labels and the ``collection_browse.csv`` inventory from the browse
+   labels, and their labels, the data collection label stating the range it is
+   handed.  An inventory lists one product per
    line, as ``P,<LIDVID>``, with no header, and every line, the last included,
    ends in a line feed alone, so the record count its label states is the
    number of products the collection holds.  A collection with no product gets
@@ -144,10 +146,9 @@ render.  A collection whose label cannot state what PDS4 requires of it is not
 written at all -- neither its inventory nor its label, and whatever an earlier run
 left at either path is removed -- and counts once among the labels not written,
 with an error naming the collection and each reason.  A collection label states at
-least one record, so a collection with no member is never written; both
-collections take their members from the data labels, so a data tree holding no
-data label writes neither, whether or not it holds supplemental files.  The data
-collection label also states the range of its products' epochs, so a data tree
+least one record, so a collection with no label of its kind on disk -- no data
+label, or no browse label -- is never written.  The data collection label also
+states the range of its products' epochs, so a data tree
 holding no supplemental file writes no data collection (see `Epochs`_).  The
 global index is generated first, and it refuses a
 bundle with no ``data/`` directory, naming the directory, before any product of
@@ -166,11 +167,22 @@ run's.  The pass reads each
 supplemental file as the labels pass wrote it and checks nothing about it but the
 statistics; anything else unexpected raises, and the run ends with exit status 1.
 
-The summary pass builds both inventories from the data labels in the bundle's
-``data/`` tree and does not check that tree for completeness, so it can exit 0
-over a bundle the labels pass failed images in.  An image that got a data label
-but no browse label, its summary PNG missing, leaves ``collection_browse.csv``
-listing a browse product that is not on disk.
+The summary pass inventories each collection from the labels of its own kind, the
+data collection from the data labels in ``data/`` and the browse collection from
+the browse labels in ``browse/``, and holds each image's products against each
+other, since every data product has a browse product.  An image with a data label
+and no browse label, or with a browse label or a supplemental file and no data
+label, disagrees: the pass logs one error naming the image, the files of it that
+are there and the label it lacks, counts it, and exits 1, its closing line giving
+the images whose products disagree beside the labels not written.  Such an image
+is still listed in whichever inventory holds a product of it.  These are the states
+a labels pass that failed an image leaves -- an image whose summary PNG was missing
+has a data label and no browse label, and one whose data label failed to render has
+its supplemental file, written first, and perhaps a browse label -- so a summary
+pass over that bundle exits 1 as the labels pass did.  An empty collection is the
+limiting case, where no image has a product of its kind.  A data label with no
+supplemental file is not checked, since the labels pass writes an image's
+supplemental file before its data label.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
