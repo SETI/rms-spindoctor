@@ -38,7 +38,8 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    exposure epochs in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
    ``data/`` and ``browse/`` trees, collects every ``_backplanes.lblx`` and
-   ``_summary.lblx`` it finds, sorts each set by image name, checks that each
+   ``_summary.lblx`` it finds, sorts each set by product name -- the file name
+   less its suffix, which is the last part of the member's LID -- checks that each
    image's products agree, and writes the ``collection_data.csv`` inventory from
    the data labels and the ``collection_browse.csv`` inventory from the browse
    labels, and their labels, the data collection label stating the range it is

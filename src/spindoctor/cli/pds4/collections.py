@@ -189,7 +189,8 @@ def _products_by_stub(tree: FCPath, suffix: str) -> dict[str, FCPath]:
 
     Returns:
         Every file under ``tree`` whose name ends in ``suffix``, keyed by its path
-        stub, in the order of the images' names whatever directory each is in.
+        stub, in the order of the products' names -- each file's name less ``suffix``,
+        which is the last part of the product's LID -- whatever directory each is in.
     """
     files = sorted(tree.rglob(f'*{suffix}'), key=lambda path: path.name.removesuffix(suffix))
     return {_product_stub(path, tree, suffix): path for path in files}
@@ -417,7 +418,8 @@ def generate_collection_files(
 
     The collections describe what is on disk, and what they cannot describe is counted
     against the run.  Each inventory lists one product per line, ``P,<lidvid>``, in the
-    order of the images' names: ``data/collection_data.csv`` the data products, found
+    order of the products' names, the last part of each member's LID, whatever
+    directory each is in: ``data/collection_data.csv`` the data products, found
     by the data labels in the data tree, and ``browse/collection_browse.csv`` the
     browse products, found by the browse labels in the browse tree.  An inventory has
     no header, and every line, the last included, ends in a line feed alone, so the
@@ -658,7 +660,7 @@ def generate_global_index_files(
     for suppl_file in data_dir.rglob(f'*{_SUPPLEMENTAL_SUFFIX}'):
         supplemental_files.append(suppl_file)
 
-    # Sort by image name (extracted from filename)
+    # Sort by product name: the file name less its suffix, the last part of the LID
     def get_image_name_from_supplemental(path: FCPath) -> str:
         # Extract image name from filename
         # (e.g., "1234567890w_supplemental.txt" -> "1234567890w")

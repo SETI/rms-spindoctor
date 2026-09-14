@@ -4,7 +4,7 @@ Contract under test (docs/user_guide/user_guide_pds4_bundle.rst "Summary Pass" /
 "Summary Pass Outputs" and docs/dev_guide/dev_guide_pds4.rst "Pipeline overview"):
 ``generate_collection_files`` scans the bundle's ``data/`` tree for
 ``*_backplanes.lblx`` labels and its ``browse/`` tree for ``*_summary.lblx``
-labels, sorts each by image name, and writes from them the
+labels, sorts each by product name, and writes from them the
 ``collection_data.csv`` / ``collection_browse.csv`` inventories (no header, one
 ``P,<lidvid>`` line per product ending in a line feed alone, LIDVIDs from the
 dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
@@ -140,8 +140,8 @@ def test_the_browse_inventory_lists_the_browse_labels_on_disk(tmp_path: Path) ->
     ]
 
 
-def test_inventory_rows_sorted_by_image_name_not_path(tmp_path: Path) -> None:
-    """Inventory rows sort by extracted image name, ignoring shard directories."""
+def test_inventory_rows_sorted_by_product_name_not_path(tmp_path: Path) -> None:
+    """Inventory rows sort by product name, the last part of each LID, not by path."""
     env = make_bundle_env(tmp_path)
     touch_label(env.bundle_dir / 'data', 'zz9/1111111111n')
     touch_label(env.bundle_dir / 'data', 'aa0/2222222222w')
