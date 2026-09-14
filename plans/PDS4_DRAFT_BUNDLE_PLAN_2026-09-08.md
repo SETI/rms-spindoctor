@@ -2716,7 +2716,8 @@ takes them: the data and browse labels, the collection and index labels, the run
 labels, and the readme and the four static inventories, which are now rendered from the
 template directory rather than copied. A readme or an inventory that does not render
 counts, as a label does, and a static collection whose inventory does not render is not
-written, nor its label.
+written, nor its label; the document inventory is the exception, since the fix round
+(below).
 
 **The version.** `bundle_version` beside `bundle_name`, read through
 `pds4_bundle_version()`, which has no default, is the `version_id` of the bundle, of
@@ -2787,7 +2788,11 @@ other name and version, the bundle checks the same.
   guide rendered at the bundle's version survived every test.
 - **The document inventory's secondaries** are taken from that inventory as it renders
   with the bundle's variables, so the miscellaneous inventory cannot cite an `S` line the
-  document collection writes otherwise. No shipped `S` line holds a variable.
+  document collection writes otherwise. No shipped `S` line holds a variable. The global
+  index step renders it and raises on one it cannot render, so a document inventory that
+  cannot be rendered stops the summary pass there, with exit status 1 and only the index
+  tables and their labels written, where the other static inventories are counted. The
+  template being our own, that is kept, and the dev guide says so.
 - **The information model version and the `pds` schema are tied** by a test over the
   shipped configuration: the schema's file name carries the version's code, its LIDVID
   the version's first two parts, and every other dictionary's file name the same build's
