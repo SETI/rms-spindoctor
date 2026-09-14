@@ -47,7 +47,7 @@ from .conftest import (
     make_cohort_bundle_env,
     make_image_file,
     navigated_document,
-    read_tab,
+    read_csv_rows,
     touch_label,
     write_backplane_fits,
 )
@@ -334,7 +334,7 @@ def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
     bundle_dir = bundle_results_root / dataset.pds4_bundle_name()
     touch_label(bundle_dir / 'data', '1454xxxxxx/145472xxxx/1454725799n')
     generate_collection_files(FCPath(bundle_results_root), dataset, MAIN_LOGGER, epochs=A_RANGE)
-    rows = read_tab(bundle_dir / 'data' / 'collection_data.tab')
+    rows = read_csv_rows(bundle_dir / 'data' / 'collection_data.tab')
     inventory_lid = rows[1][1].split('::')[0]
     label_lid = dataset.pds4_image_name_to_data_lid('N1454725799')
     assert inventory_lid == label_lid

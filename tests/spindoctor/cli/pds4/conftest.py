@@ -555,14 +555,14 @@ def touch_label(data_dir: Path, stub: str) -> Path:
     return path
 
 
-def read_tab(path: Path) -> list[list[str]]:
-    """Read a collection or index ``.tab`` file as CSV rows.
+def read_csv_rows(path: Path) -> list[list[str]]:
+    """Read a collection inventory or a global index table as comma-separated rows.
 
     Parameters:
-        path: The ``.tab`` file to read.
+        path: The inventory or table to read.
 
     Returns:
-        All rows, header first, as lists of strings.
+        Every row, in file order, as lists of strings.
     """
     with path.open(newline='', encoding='utf-8') as f:
         return list(csv.reader(f))
