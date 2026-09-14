@@ -68,10 +68,19 @@ Displacements carry no origin convention and need no such care: offset_v /
 offset_u, move_v / move_u, catalog_error_v / catalog_error_u, and a
 companion's sep_px are differences between two positions.
 
-The planted offset_rotation_deg turns the scene about ONE point in that same
-convention: the frame's center (size_v / 2, size_u / 2).  The stars, the bodies,
-and the ring system all pivot there, so a rolled scene plants a truth its three
-families of content agree on.
+The planted offset_rotation_deg turns POSITIONS about ONE point in that same
+convention: the frame's center (size_v / 2, size_u / 2).  Catalog star
+positions, body centers, and the ring system's center all pivot there, so a
+rolled scene plants a truth its three families of content agree on.  The two
+orientations describing a whole projected pattern take the roll as well: a
+body's rotation_z and the ring system's node_deg.
+
+It does not turn the per-object quantities already stated in the detector
+frame: move_v / move_u and a companion's angle_deg render at the angle the
+scene wrote, whatever the roll, so stating them as they are to appear on the
+detector is what a scene author does.  The sky_counts background field is not
+rotated either -- its positions are drawn uniformly at random, so it carries no
+orientation to turn.
 
 The two centers inside the optics block -- distortion.center_v / center_u and
 stray_light.center_v / center_u -- are pixel corners too.  What they name is
@@ -158,7 +167,8 @@ Fields
                                      dv_px/du_px/object_class), distortion (k1, k2,
                                      center_v, center_u, nonradial_rms_px), ghosts (list
                                      of dv_px/du_px/amplitude/defocus_sigma), stray_light
-                                     (amplitude, direction_deg, model linear|radial)
+                                     (amplitude, direction_deg, center_v, center_u,
+                                     model linear|radial)
   detector         (mapping, opt)    detector-chain override: gain_state (must be
                                      cataloged for the instrument), detector_model
                                      (ccd | vidicon), exposure_ref_sec, quantization
