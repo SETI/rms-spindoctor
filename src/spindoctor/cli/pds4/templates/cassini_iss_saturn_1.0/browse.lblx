@@ -35,7 +35,7 @@
     </Identification_Area>
     <Reference_List>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:backplanes-user-guide</lid_reference>
+            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide</lid_reference>
             <reference_type>browse_to_document</reference_type>
             <comment>
                 This is the user guide for the backplanes for navigated images from
