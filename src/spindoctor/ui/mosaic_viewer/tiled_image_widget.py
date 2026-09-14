@@ -578,8 +578,10 @@ class TiledImageWidget(QAbstractScrollArea):
         if lon_rad >= twopi - 1e-15:
             lon_rad = math.fmod(lon_rad, twopi)
         lr = self._body_lon_res_rad
-        k = round(lon_rad / lr)
-        k = max(0, min(k, self._body_n_full_lon - 1))
+        # Circular axis: the last bin's upper half rounds up to the bin count,
+        # which is bin 0 again.  Clamping would return the wrong column at the
+        # prime meridian.
+        k = round(lon_rad / lr) % self._body_n_full_lon
         dc = int(self._body_lon_bin_to_dc[k])
         dr = round((float(lat_deg) - self._body_lat_min) / self._y_interval)
         inside = dc >= 0 and 0 <= dr < self._body_data_n_rows and 0 <= dc < self._body_data_n_cols
