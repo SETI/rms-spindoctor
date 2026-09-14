@@ -528,8 +528,11 @@ collection from the browse labels -- and the summary pass holds each image's
 products against each other, since every data product has a browse product
 (#602, Phase 5): an image with a data label and no browse label, or a browse
 label or supplemental file and no data label, disagrees, is logged by name
-and counted, and the pass exits 1. An empty collection is that rule's
-limiting case, where no image has a product of the collection's kind. Over
+and counted, and the pass exits 1. The check and the empty-collection rule
+are one rule at two scales -- each image holds all its products, and each
+collection at least one member -- and the collection rule refuses an empty
+collection even over a bundle with no image, where the check has nothing to
+count. Over
 an empty `data/` the summary pass writes neither collection and counts two
 labels; over supplemental files and no label -- what a labels pass leaves
 when every label fails to render, since it writes the supplemental file
@@ -1418,9 +1421,10 @@ with no browse label, or a browse label or supplemental file with no data
 label, is an image whose products disagree. Each gets one error naming the
 image, the files of it that are there and the label it lacks, and is
 counted, and the pass exits 1, its closing line giving those images beside
-the labels not written. The inventories still list what is on disk. It is
-one rule with section 3.5's empty collection, which is its limiting case: no
-image has a product of the collection's kind. A data label with no
+the labels not written. The inventories still list what is on disk. The
+check and section 3.5's empty-collection rule are one rule at two scales:
+each image holds all its products, and each collection at least one member.
+A data label with no
 supplemental file is not checked, since the labels pass writes the
 supplemental file first. The global index tables are still built from the
 supplemental files (Phase 7). Tests: the browse inventory lists the browse

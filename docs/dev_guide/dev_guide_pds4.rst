@@ -180,8 +180,11 @@ is still listed in whichever inventory holds a product of it.  These are the sta
 a labels pass that failed an image leaves -- an image whose summary PNG was missing
 has a data label and no browse label, and one whose data label failed to render has
 its supplemental file, written first, and perhaps a browse label -- so a summary
-pass over that bundle exits 1 as the labels pass did.  An empty collection is the
-limiting case, where no image has a product of its kind.  A data label with no
+pass over that bundle exits 1 as the labels pass did.  The check and the
+empty-collection rule are one rule at two scales -- each image holds all its
+products, and each collection at least one member -- and the collection rule
+refuses an empty collection even over a bundle with no image, where the check has
+nothing to count.  A data label with no
 supplemental file is not checked, since the labels pass writes an image's
 supplemental file before its data label.
 
