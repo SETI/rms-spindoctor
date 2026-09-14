@@ -57,18 +57,18 @@ def _evaluate(directory: Path, monkeypatch: pytest.MonkeyPatch, rules: str, body
 def test_a_rule_of_several_steps_fires_at_the_node_it_selects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A context of two steps matches its node, and the message is evaluated there."""
+    """A two-step context matches its node below the root; its message is evaluated there."""
     rules = (
-        '<sch:pattern><sch:rule context="x:a/x:b">'
-        '<sch:assert test="@ok = \'yes\'"><title>x:a/x:b</title>b is <sch:value-of '
+        '<sch:pattern><sch:rule context="x:c/x:b">'
+        '<sch:assert test="@ok = \'yes\'"><title>x:c/x:b</title>b is <sch:value-of '
         'select="@ok"/></sch:assert></sch:rule></sch:pattern>'
     )
-    findings = _evaluate(tmp_path, monkeypatch, rules, '<x:b ok="no"/>')
+    findings = _evaluate(tmp_path, monkeypatch, rules, '<x:c><x:b ok="no"/></x:c>')
     expected = Finding(
         'label.lblx',
         CheckName.SCHEMATRON,
-        '/x:a/x:b',
-        f'x:a/x:b: b is no (assert of the rule on x:a/x:b in {SCHEMATRON_NAME})',
+        '/x:a/x:c/x:b',
+        f'x:c/x:b: b is no (assert of the rule on x:c/x:b in {SCHEMATRON_NAME})',
     )
     assert findings == [expected]
 
