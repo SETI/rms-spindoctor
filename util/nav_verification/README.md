@@ -44,10 +44,14 @@ bad ones, and on the observations checked so far they do not.
 ### The constant comes out first
 
 Two pipelines can disagree by the same small vector on every frame, which is not a
-disagreement about pointing at all but about which corner of a pixel its coordinate
-names. On this bundle that constant is real and it is large enough to matter:
-`+0.494, +0.491` px on ISS_006RI, and within a hundredth of that on four other
-observations spanning the mission. Left in, it sits inside every number the report
+disagreement about pointing at all but about where each side puts the whole numbers
+of its pixel coordinates. On this bundle that constant is real and it is large
+enough to matter: `+0.494, +0.491` px on ISS_006RI, and within a hundredth of that
+on four other observations spanning the mission. Those components are resolved onto
+the camera frame's axes, not the detector's rows and columns, so what they establish
+is a constant of about half a pixel in magnitude; which way to correct it is a
+separate question, settled by the pipeline's own arithmetic and then confirmed by
+re-measuring. Left in, it sits inside every number the report
 prints and makes a good pass look ten times worse than it is.
 
 So the difference is resolved onto the camera's axes, the part common to the run is

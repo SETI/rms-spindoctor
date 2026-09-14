@@ -96,7 +96,7 @@ def comparison(x: float, y: float, error: float) -> FrameComparison:
 
 
 def test_a_constant_offset_is_measured_and_removed() -> None:
-    """A difference every frame shares is a datum, and comes out of the errors."""
+    """A difference every frame shares is a constant, and comes out of the errors."""
     rows = [comparison(0.5, 0.5, 0.707) for _ in range(10)]
     common = remove_common_offset(rows, tolerance_px=2.0)
     assert common == pytest.approx((0.5, 0.5))
@@ -126,13 +126,13 @@ def test_a_badly_navigated_frame_keeps_its_error() -> None:
 
 
 def test_too_few_agreeing_frames_measure_no_constant() -> None:
-    """A median over three numbers is three numbers, not a datum."""
+    """A median over three numbers is three numbers, not a constant."""
     rows = [comparison(0.5, 0.5, 0.707) for _ in range(3)]
     assert remove_common_offset(rows, tolerance_px=2.0) is None
 
 
 def test_with_no_constant_the_residual_is_the_error() -> None:
-    """A run too small to measure a datum reports what it measured."""
+    """A run too small to measure a constant reports what it measured."""
     rows = [comparison(0.5, 0.5, 0.707) for _ in range(3)]
     remove_common_offset(rows, tolerance_px=2.0)
     assert rows[0].residual_px == pytest.approx(0.707)

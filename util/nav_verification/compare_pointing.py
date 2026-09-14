@@ -14,11 +14,11 @@ which of a pass's confident answers are wrong is to hold them against an answer
 the pass did not produce.
 
 Two pipelines can also disagree by the same small vector on every frame, which
-is not a disagreement about pointing at all but about which corner of a pixel
-its coordinate names.  A constant like that would otherwise sit inside every
-number here and make a pass look worse than it is, so the disagreement is
-resolved onto the camera's axes, the constant part is measured and reported on
-its own, and what is left is the per-frame disagreement.
+is not a disagreement about pointing at all but about where each side puts the
+whole numbers of its pixel coordinates.  A constant like that would otherwise
+sit inside every number here and make a pass look worse than it is, so the
+disagreement is resolved onto the camera's axes, the constant part is measured
+and reported on its own, and what is left is the per-frame disagreement.
 
 Run after ``source /seti/newnav/setup.sh``, from the repository root::
 
@@ -442,7 +442,8 @@ def report(
         print(
             '                  measured as the median over the frames already agreeing; a constant'
         )
-        print('                  in both axes is a difference of pixel datum, not of pointing')
+        print('                  in both axes says the two answers are working in different')
+        print('                  pixel coordinate systems, not disagreeing about pointing')
 
     if residuals.size:
         print(

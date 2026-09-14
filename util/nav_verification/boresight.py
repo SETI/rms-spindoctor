@@ -10,7 +10,8 @@ another.
 A separation also has a direction, and the direction is what tells a systematic
 apart from a mistake.  Two pipelines that disagree by the same small vector on
 every frame of every observation are not disagreeing about where the camera
-looked; they are using different pixel datums.  So the difference is also
+looked; the two are working in different pixel coordinate systems.  So the
+difference is also
 offered resolved onto the camera's own axes, where a constant is visible as a
 constant.
 
@@ -129,7 +130,8 @@ def offset_in_camera_px(
     answer's direction onto the camera's own axes, where the boresight is the
     third axis and the first two are the detector.  The result is signed, which
     is the point: an offset that keeps its sign and its size across every frame
-    of every observation is a difference of pixel datum rather than of pointing.
+    of every observation says the two are working in different pixel coordinate
+    systems rather than disagreeing about pointing.
 
     The axes are the camera frame's, not the detector's rows and columns.  A
     constant common to a whole run is visible either way, which is what this is
