@@ -158,9 +158,6 @@ BODIES_INDEX = 'global_bodies_index'
 RINGS_INDEX = 'global_rings_index'
 """The rings table's name: the stem of its file and its label, and its LID's last part."""
 
-INDEX_VERSION = '1.0'
-"""The version of each index product, which its label states and its inventory line names."""
-
 _NO_INDEX_PRODUCT = (
     'neither index table was written with its label, so the collection holds no product of its own'
 )
@@ -592,7 +589,8 @@ def generate_global_index_files(
 
     The miscellaneous collection is written after the tables, its inventory
     ``collection_miscellaneous.csv`` and its label beside them: a ``P`` line for each
-    index product whose label is on disk, by its LID and :data:`INDEX_VERSION`, and then
+    index product whose label is on disk, by its LID and the bundle's version,
+    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_version`, and then
     an ``S`` line for each secondary member the template directory's document inventory
     cites, through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`.  It
     takes its members from the index labels, as the data collection takes its members
@@ -830,8 +828,9 @@ def generate_global_index_files(
     # labels of its own kind, so with neither index product labeled it holds nothing of
     # its own and is not written, whatever it would cite: it counts, and the bundle
     # label, which declares it, goes with it.
+    bundle_version = dataset.pds4_bundle_version()
     primaries = [
-        f'{index_lid(bundle_name, name)}::{INDEX_VERSION}'
+        f'{index_lid(bundle_name, name)}::{bundle_version}'
         for name, written in ((BODIES_INDEX, bodies_written), (RINGS_INDEX, rings_written))
         if written is IndexWritten.LABELED
     ]

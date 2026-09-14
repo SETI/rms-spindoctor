@@ -454,6 +454,20 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         # Default
         return self._default_pds4_bundle_name()
 
+    def pds4_bundle_version(self) -> str:
+        """Returns the version of the bundle, which each of the bundle's own products carries.
+
+        Reads ``config.pds4.<dataset>.bundle_version``, which has no default: the shipped
+        configuration sets it for the dataset that bundles.
+
+        Returns:
+            The version, in the PDS4 ``<major>.<minor>`` form.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no ``bundle_version``.
+        """
+        return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_version'])
+
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Returns the file names one bundle pass must find in the template directory.
 
@@ -577,11 +591,10 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             image_name: The image name to convert to a browse LID.
 
         Returns:
-            The browse LIDVID.
+            The browse LIDVID: the browse LID at the bundle's version,
+            :meth:`pds4_bundle_version`.
         """
-        image_name = image_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        return f'urn:nasa:pds:{self.pds4_bundle_name()}:browse:{image_lid_part}::1.0'
+        return f'{self.pds4_image_name_to_browse_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_image_name_to_data_lid(self, image_name: str) -> str:
         """Returns the data LID for the given image name.
@@ -603,11 +616,10 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             image_name: The image name to convert to a data LID.
 
         Returns:
-            The data LIDVID.
+            The data LIDVID: the data LID at the bundle's version,
+            :meth:`pds4_bundle_version`.
         """
-        image_name = image_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        return f'urn:nasa:pds:{self.pds4_bundle_name()}:data:{image_lid_part}::1.0'
+        return f'{self.pds4_image_name_to_data_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_template_variables(
         self,
@@ -695,16 +707,12 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             vars_dict['START_DATE_TIME'], vars_dict['STOP_DATE_TIME']
         )
 
-        # Placeholder values for required template variables
-        pds4_bundle_name = self.pds4_bundle_name()
-        image_name = image_file.image_file_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        vars_dict['BUNDLE_LID'] = f'urn:nasa:pds:{pds4_bundle_name}'
-        vars_dict['BUNDLE_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}::1.0'
-        vars_dict['BROWSE_LID'] = f'urn:nasa:pds:{pds4_bundle_name}:browse:{image_lid_part}'
-        vars_dict['BROWSE_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}:browse:{image_lid_part}::1.0'
-        vars_dict['DATA_LID'] = f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}'
-        vars_dict['DATA_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}::1.0'
+        # The product's own LIDs and LIDVIDs
+        image_name = image_file.image_file_name
+        vars_dict['BROWSE_LID'] = self.pds4_image_name_to_browse_lid(image_name)
+        vars_dict['BROWSE_LIDVID'] = self.pds4_image_name_to_browse_lidvid(image_name)
+        vars_dict['DATA_LID'] = self.pds4_image_name_to_data_lid(image_name)
+        vars_dict['DATA_LIDVID'] = self.pds4_image_name_to_data_lidvid(image_name)
         vars_dict['TITLE'] = f'Backplanes for {image_file.image_file_name}'
         vars_dict['DESCRIPTION'] = f'Backplanes for navigated image {image_file.image_file_name}'
         vars_dict['COMMENT'] = 'Generated from navigated image data'

@@ -2,13 +2,20 @@ pds4:
   coiss_saturn:
     template_dir: cassini_iss_saturn_1.0
     bundle_name: cassini_iss_saturn_backplanes_rsfrench2027
+    # The version the bundle, each of its collections and each of its products carry,
+    # and the version in every LIDVID naming one of them.  Quoted: a version is text,
+    # and 1.10 is not 1.1.
+    bundle_version: '1.0'
   # Add other datasets as needed
   # gossi:
   #   template_dir: galileo_ssi_jupiter_1.0
   #   bundle_name: galileo_ssi_jupiter_backplanes_rsfrench2027
+  #   bundle_version: '1.0'
   # nhlorri:
   #   template_dir: newhorizons_lorri_pluto_1.0
   #   bundle_name: newhorizons_lorri_pluto_backplanes_rsfrench2027
+  #   bundle_version: '1.0'
   # vgiss:
   #   template_dir: voyager_iss_saturn_1.0
   #   bundle_name: voyager_iss_saturn_backplanes_rsfrench2027
+  #   bundle_version: '1.0'

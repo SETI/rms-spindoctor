@@ -680,8 +680,8 @@ the collection that holds them:
 Each product's LID is built from the bundle's name, as the bundle's own is, by
 :func:`~spindoctor.cli.pds4.global_index.index_lid`:
 ``urn:nasa:pds:<bundle>:miscellaneous:global_bodies_index`` and
-``...:global_rings_index``, at the version
-:data:`~spindoctor.cli.pds4.global_index.INDEX_VERSION`.
+``...:global_rings_index``, at the bundle's version,
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_version`.
 
 **Which images get a row.**  The rows are exactly the images the data inventory lists:
 both take the data labels in the data tree from

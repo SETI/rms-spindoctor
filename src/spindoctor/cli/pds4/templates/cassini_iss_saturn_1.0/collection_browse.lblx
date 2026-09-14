@@ -9,7 +9,7 @@
 
     <Identification_Area>
         <logical_identifier>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:browse</logical_identifier>
-        <version_id>1.0</version_id>
+        <version_id>$BUNDLE_VERSION$</version_id>
         <title>
             Collection for the Browse Products for the Backplanes for Navigated Images
             from Cassini ISS at Saturn
@@ -118,7 +118,7 @@
         <Modification_History>
             <Modification_Detail>
                 <modification_date>$CURRENT_ZULU(date_only=True)$</modification_date>
-                <version_id>1.0</version_id>
+                <version_id>$BUNDLE_VERSION$</version_id>
                 <description>Initial version</description>
             </Modification_Detail>
         </Modification_History>

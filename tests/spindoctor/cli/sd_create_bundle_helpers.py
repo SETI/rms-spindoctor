@@ -107,6 +107,10 @@ class StubDataset:
         """Return the bundle name whose directory the run writes into."""
         return BUNDLE_NAME
 
+    def pds4_bundle_version(self) -> str:
+        """Return the bundle's version, which each of its products carries."""
+        return '1.0'
+
     def pds4_bundle_template_dir(self) -> str:
         """Return the template directory the declared templates are looked for in."""
         return str(self._template_dir)

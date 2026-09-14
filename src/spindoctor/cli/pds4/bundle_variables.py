@@ -18,6 +18,10 @@ def bundle_variables(dataset: DataSet) -> dict[str, Any]:
       :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_name` gives, which a
       template extends into the LID of each collection and product of the bundle, as in
       ``$BUNDLE_LID$:browse``.
+    - ``BUNDLE_VERSION``: the bundle's version,
+      :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_version`, which the bundle,
+      each of its collections and each product it writes states as its ``version_id``,
+      and which every LIDVID naming one of them carries.
 
     Parameters:
         dataset: The dataset whose bundle the templates describe.
@@ -25,4 +29,7 @@ def bundle_variables(dataset: DataSet) -> dict[str, Any]:
     Returns:
         The variables, by name.
     """
-    return {'BUNDLE_LID': f'urn:nasa:pds:{dataset.pds4_bundle_name()}'}
+    return {
+        'BUNDLE_LID': f'urn:nasa:pds:{dataset.pds4_bundle_name()}',
+        'BUNDLE_VERSION': dataset.pds4_bundle_version(),
+    }
