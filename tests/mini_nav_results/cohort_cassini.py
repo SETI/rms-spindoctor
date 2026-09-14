@@ -68,6 +68,7 @@ from .host_cassini import (
     COISS_KERNELS,
     cassini_exposure_span,
     cassini_image_number,
+    cassini_public_metadata,
     cassini_sclk_triple,
     with_pointing_from_epoch,
 )
@@ -287,6 +288,50 @@ def _index_row(stub: str, midtime_et: float, *, camera: str, shutter_mode: str) 
     }
 
 
+_GAIN_STATE = {
+    '215 ELECTRONS PER DN': 0,
+    '95 ELECTRONS PER DN': 1,
+    '29 ELECTRONS PER DN': 2,
+    '12 ELECTRONS PER DN': 3,
+}
+"""The gain state oops reads out of each gain mode a Cassini label records."""
+
+
+def _public_metadata(
+    result: NavResult, stub: str, midtime_et: float, *, camera: str, shutter_mode: str
+) -> dict[str, Any]:
+    """Return what the Cassini ISS host publishes about one cohort image.
+
+    The filters, the sampling, the gain, the observation id and the description are
+    taken from the index row the cohort hands on for the same image.  The times, the
+    clock counts and the exposure come from the attitude block, which is stamped from
+    the same epoch the row is counted from.
+
+    Parameters:
+        result: The image's result, carrying its attitude solution.
+        stub: Where the image's results sit under a results root.
+        midtime_et: The exposure midtime, which is the image's epoch.
+        camera: ``NAC`` or ``WAC``, the camera that took the image.
+        shutter_mode: The shutter mode the label records.
+
+    Returns:
+        The published facts.
+    """
+    row = _index_row(stub, midtime_et, camera=camera, shutter_mode=shutter_mode)
+    return cassini_public_metadata(
+        result,
+        image_name=f'{stub.rsplit("/", 1)[1]}{_IMAGE_SUFFIX}',
+        image_path=_image_path(stub),
+        camera=camera,
+        image_shape=COHORT_SHAPE_VU,
+        filters=row['FILTER_NAME'],
+        sampling=row['INSTRUMENT_MODE_ID'],
+        gain_mode=_GAIN_STATE[row['GAIN_MODE_ID']],
+        observation_id=row['OBSERVATION_ID'],
+        description=row['DESCRIPTION'],
+    )
+
+
 def cassini_body_limb() -> dict[str, Any]:
     """A narrow-angle success navigated on the limb of a satellite.
 
@@ -374,6 +419,9 @@ def cassini_body_limb() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='NACONLY',
         image_shape=COHORT_SHAPE_VU,
+        public_metadata=_public_metadata(
+            result, LIMB_STUB, LIMB_MIDTIME_ET, camera='NAC', shutter_mode='NACONLY'
+        ),
         start=datetime(2026, 9, 8, 11, 2, 14, 118304, tzinfo=UTC),
         elapsed_s=9.5,
         peak_memory_bytes=2147483648,
@@ -465,6 +513,9 @@ def cassini_ring_edges() -> dict[str, Any]:
         camera='WAC',
         shutter_mode='WACONLY',
         image_shape=COHORT_SHAPE_VU,
+        public_metadata=_public_metadata(
+            result, RINGS_STUB, RINGS_MIDTIME_ET, camera='WAC', shutter_mode='WACONLY'
+        ),
         start=datetime(2026, 9, 8, 11, 2, 23, 840117, tzinfo=UTC),
         elapsed_s=7.25,
         peak_memory_bytes=3221225472,
@@ -519,6 +570,9 @@ def cassini_all_features_gated() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='NACONLY',
         image_shape=COHORT_SHAPE_VU,
+        public_metadata=_public_metadata(
+            result, GATED_STUB, GATED_MIDTIME_ET, camera='NAC', shutter_mode='NACONLY'
+        ),
         start=datetime(2026, 9, 8, 11, 2, 31, 502776, tzinfo=UTC),
         elapsed_s=5.75,
         peak_memory_bytes=805306368,

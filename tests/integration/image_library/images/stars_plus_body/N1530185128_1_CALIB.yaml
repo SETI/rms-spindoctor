@@ -8,8 +8,8 @@ scene_tags:
 - stars_plus_body
 - hyperion
 ground_truth:
-  offset_dv_px: 18.1585
-  offset_du_px: 0.1291
+  offset_dv_px: 18.6585
+  offset_du_px: 0.6291
   offset_uncertainty_px: 2.0
   source: operator_verified
   operator: rfrench

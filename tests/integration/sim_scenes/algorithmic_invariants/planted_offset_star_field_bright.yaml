@@ -20,12 +20,12 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: B1, v: 30.0, u: 40.0, vmag: 0.0}
-  - {name: B2, v: 80.0, u: 35.0, vmag: 0.6}
-  - {name: B3, v: 55.0, u: 90.0, vmag: 0.3}
-  - {name: B4, v: 95.0, u: 95.0, vmag: 0.8}
-  - {name: B5, v: 40.0, u: 100.0, vmag: 0.7}
-  - {name: B6, v: 100.0, u: 50.0, vmag: 0.5}
+  - {name: B1, v: 30.5, u: 40.5, vmag: 0.0}
+  - {name: B2, v: 80.5, u: 35.5, vmag: 0.6}
+  - {name: B3, v: 55.5, u: 90.5, vmag: 0.3}
+  - {name: B4, v: 95.5, u: 95.5, vmag: 0.8}
+  - {name: B5, v: 40.5, u: 100.5, vmag: 0.7}
+  - {name: B6, v: 100.5, u: 50.5, vmag: 0.5}
 noise:
   poisson: true
   read_noise_dn: 4.0

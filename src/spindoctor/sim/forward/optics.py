@@ -35,6 +35,7 @@ from spindoctor.sim.forward.psf import apply_psf, psf_truncation_for_instrument
 from spindoctor.sim.forward.smear import apply_smear
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.instruments import navigator_matched_psf
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['apply_optics', 'apply_stray_light', 'effective_psf', 'instrument_defaults_on']
@@ -152,10 +153,16 @@ def apply_stray_light(
         span = float(proj.max())
         field = amplitude * (proj / span) if span > 0.0 else np.zeros_like(proj)
     elif model == 'radial':
-        cv = size_v / 2.0 if center_v is None else float(center_v)
-        cu = size_u / 2.0 if center_u is None else float(center_u)
+        # ``vv`` / ``uu`` are pixel-centric, so the frame's centre is
+        # ``(size - 1) / 2`` and its outer corners sit half a pixel outside the
+        # first and last sample.
+        half = PIXEL_CENTER_TO_CORNER_PX
+        cv = (size_v - 1) / 2.0 if center_v is None else float(center_v)
+        cu = (size_u - 1) / 2.0 if center_u is None else float(center_u)
         radius = np.sqrt((vv - cv) ** 2 + (uu - cu) ** 2)
-        corners = [(0.0, 0.0), (0.0, size_u), (size_v, 0.0), (size_v, size_u)]
+        v_lo, v_hi = -half, size_v - half
+        u_lo, u_hi = -half, size_u - half
+        corners = [(v_lo, u_lo), (v_lo, u_hi), (v_hi, u_lo), (v_hi, u_hi)]
         r_max = max(np.hypot(cv - c[0], cu - c[1]) for c in corners)
         if r_max <= 0.0:
             return
@@ -216,15 +223,14 @@ def apply_optics(
 
     stray = optics.get('stray_light')
     if stray:
-        # Scene centre keys are detector coordinates; the signal plane is the
-        # oversampled grid, so scale them like every other pixel-space
-        # parameter (centroid-exact: detector c maps to c*os + (os-1)/2).
+        # A scene states a centre in pixel-corner coordinates on the detector
+        # grid; the signal plane is pixel-centric on the oversampled one.
         center_v = stray.get('center_v')
         center_u = stray.get('center_u')
         if center_v is not None:
-            center_v = float(center_v) * oversample + (oversample - 1) / 2.0
+            center_v = float(center_v) * oversample - PIXEL_CENTER_TO_CORNER_PX
         if center_u is not None:
-            center_u = float(center_u) * oversample + (oversample - 1) / 2.0
+            center_u = float(center_u) * oversample - PIXEL_CENTER_TO_CORNER_PX
         apply_stray_light(
             frame.signal,
             amplitude=float(stray.get('amplitude', 0.0)),

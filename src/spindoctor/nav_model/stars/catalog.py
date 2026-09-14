@@ -48,6 +48,7 @@ from spindoctor.nav_model.stars.saturation import (
     UCAC4_SATURATION_VMAG_LIMIT,
     correct_star_photometry,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.flux import clean_sclass
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
@@ -328,12 +329,17 @@ def _project_stars_to_fov(
     stars: list[MutableStar],
     radec_movement: tuple[float, float] | None,
 ) -> list[MutableStar]:
-    """Project stars into pixel coordinates and drop edge-clipped entries.
+    """Project stars into pixel corner coordinates and drop edge-clipped entries.
 
     Mutates each surviving star to populate ``u``, ``v``, ``move_u``,
-    ``move_v``, ``ra_pm``, ``dec_pm``.  Stars whose PSF support would
-    spill off the extfov are excluded; so are stars whose smear motion
-    would push them off the extfov mid-exposure.
+    ``move_v``, ``ra_pm``, ``dec_pm``.  ``u`` and ``v`` are whatever
+    ``ObsSnapshot.uv_from_ra_and_dec`` returns, which is a pixel corner coordinate -- the
+    convention :class:`~spindoctor.support.types.MutableStar` declares, half
+    a pixel above the index of the pixel the star lands on.  Stars whose PSF
+    support would spill off the extfov are excluded; so are stars whose
+    smear motion would push them off the extfov mid-exposure.  The extfov
+    bounds are whole-numbered, so they are converted before that
+    comparison.
 
     Parameters:
         obs: Observation snapshot (provides FOV math + extfov bounds).
@@ -383,6 +389,16 @@ def _project_stars_to_fov(
     u_end_arr = uv_end.to_scalars()[0].vals
     v_end_arr = uv_end.to_scalars()[1].vals
 
+    # ``extfov_*_min`` / ``_max`` name the first and last pixel of the
+    # padded frame as whole numbers; every position tested
+    # below is pixel corner coordinates.  Convert the four bounds once here rather than the
+    # six positions of every star, so the gate compares uv against uv and no
+    # conversion is spelled out inside the loop.
+    u_min_uv = obs.extfov_u_min + PIXEL_CENTER_TO_CORNER_PX
+    u_max_uv = obs.extfov_u_max + PIXEL_CENTER_TO_CORNER_PX
+    v_min_uv = obs.extfov_v_min + PIXEL_CENTER_TO_CORNER_PX
+    v_max_uv = obs.extfov_v_max + PIXEL_CENTER_TO_CORNER_PX
+
     out: list[MutableStar] = []
     iter_args = zip(
         stars,
@@ -399,20 +415,22 @@ def _project_stars_to_fov(
         psf_half_u = star.psf_size[1] // 2
         psf_half_v = star.psf_size[0] // 2
         if (
-            u <= obs.extfov_u_min + psf_half_u
-            or u >= obs.extfov_u_max - psf_half_u
-            or v <= obs.extfov_v_min + psf_half_v
-            or v >= obs.extfov_v_max - psf_half_v
-            or u_s <= obs.extfov_u_min + psf_half_u
-            or u_s >= obs.extfov_u_max - psf_half_u
-            or v_s <= obs.extfov_v_min + psf_half_v
-            or v_s >= obs.extfov_v_max - psf_half_v
-            or u_e <= obs.extfov_u_min + psf_half_u
-            or u_e >= obs.extfov_u_max - psf_half_u
-            or v_e <= obs.extfov_v_min + psf_half_v
-            or v_e >= obs.extfov_v_max - psf_half_v
+            u <= u_min_uv + psf_half_u
+            or u >= u_max_uv - psf_half_u
+            or v <= v_min_uv + psf_half_v
+            or v >= v_max_uv - psf_half_v
+            or u_s <= u_min_uv + psf_half_u
+            or u_s >= u_max_uv - psf_half_u
+            or v_s <= v_min_uv + psf_half_v
+            or v_s >= v_max_uv - psf_half_v
+            or u_e <= u_min_uv + psf_half_u
+            or u_e >= u_max_uv - psf_half_u
+            or v_e <= v_min_uv + psf_half_v
+            or v_e >= v_max_uv - psf_half_v
         ):
             continue
+        # Straight from ``uv_from_ra_and_dec``: the record's declared
+        # values are pixel-corner coordinates, so nothing is converted here.
         star.u = float(u)
         star.v = float(v)
         star.move_u = float(u_e - u_s)

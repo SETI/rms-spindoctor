@@ -8,8 +8,8 @@ scene_tags:
 - scattered_light
 - moon_glare
 ground_truth:
-  offset_dv_px: 117.9362
-  offset_du_px: 260.2194
+  offset_dv_px: 118.4362
+  offset_du_px: 260.7194
   offset_uncertainty_px: 2.0
   source: operator_verified
   operator: rfrench

@@ -29,7 +29,7 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold (one in a unit other than the one the
             configuration gives its plane, or with a minimum or maximum that is
-            NaN or infinite) or a navigation that recorded no exposure times.
+            NaN or infinite) or a navigation that recorded no pointing.
     """
 
     WRITTEN = 'written'
@@ -74,10 +74,10 @@ def generate_bundle_data_files(
     A plane the document holds that the configuration does not declare is not
     checked.
 
-    So is a navigated image whose navigation recorded no exposure times, again before
-    anything is written for it, the log naming the image: a data label states when its
-    exposure began and ended, and the navigation records the times beside the pointing
-    it solved, so a success it recorded no pointing for has none.  Only the presence of
+    So is a navigated image whose navigation recorded no pointing, again before anything
+    is written for it, the log naming the image: a data label states when its exposure
+    began and ended, and takes both from ``navigation_result.times``, which the
+    navigation writes only beside a pointing it solved.  Only the presence of
     ``navigation_result.times`` is checked; where it is there, it holds all three
     epochs.
 
@@ -95,7 +95,7 @@ def generate_bundle_data_files(
         rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
         minimum or maximum that is NaN or infinite, or the navigation recorded
-        no exposure times.
+        no pointing.
 
     Raises:
         ValueError: If the batch does not hold exactly one image.
@@ -180,16 +180,16 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.FAILED
 
-        # The navigation records the exposure's times beside the pointing it solved, and
-        # records a success with no pointing when the attitude cannot be computed or the
-        # instrument has no SPICE camera frame mapped (#619).  A data label states when
-        # its exposure began and ended, so such an image is failed before anything is
-        # written for it.  Where the times are there, all three epochs are.
+        # The navigation writes navigation_result.times only beside the pointing it
+        # solved, and records a success with no pointing when the attitude cannot be
+        # computed or the instrument has no SPICE camera frame mapped.  A data label takes
+        # its exposure's start and end from those times, so such an image is failed before
+        # anything is written for it.  Where the times are there, all three epochs are.
         if 'times' not in nav_metadata['navigation_result']:
             logger.error(
-                'Failing bundle generation for "%s": its navigation recorded no exposure '
-                'times (a pointing was not recorded), and its data label states when its '
-                'exposure began and ended. Nothing is written for the image',
+                'Failing bundle generation for "%s": its navigation recorded no pointing, '
+                'so its navigation result holds no exposure times, and its data label '
+                'states when its exposure began and ended. Nothing is written for the image',
                 image_path,
             )
             return BundleDataOutcome.FAILED

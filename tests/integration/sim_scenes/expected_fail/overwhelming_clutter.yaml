@@ -19,7 +19,7 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: N1, v: 100.0, u: 110.0, vmag: 3.0}
+  - {name: N1, v: 100.5, u: 110.5, vmag: 3.0}
 sky_counts:
   a: -0.5
   b: 0.34

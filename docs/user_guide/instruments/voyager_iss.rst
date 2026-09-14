@@ -18,8 +18,7 @@ Pipeline support
 
 * **Navigation** -- supported, both spacecraft and both cameras.
 * **Corrected-pointing C-kernels** -- supported. ``sd_create_ck vgiss``. The
-  segments differ in shape from every other instrument's: see
-  `Corrected-pointing C-kernels`_.
+  segments carry one constant attitude: see `Corrected-pointing C-kernels`_.
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
 * **PDS4 bundles** -- not supported. The dataset names a bundle and a label
@@ -175,11 +174,10 @@ Field of view and geometry
 ==========================
 
 **Extended-FOV margins.** A margin of ``[400, 400]`` pixels, declared for an
-image size of 1000, which is what a GEOMED product is. It is the most generous
-margin of any instrument, because the reconstructed attitude carries real
-per-frame error, and it is the largest offset a search can find. The margin
-table has no entry for any other image size, so an image of another size cannot
-be loaded.
+image size of 1000, which is what a GEOMED product is. It is generous because
+the reconstructed attitude carries real per-frame error, and it is the largest
+offset a search can find. The margin table has no entry for any other image
+size, so an image of another size cannot be loaded.
 
 **Camera rotation.** Rotation fitting is **off**, and that is a cost decision
 rather than a statement that there is nothing to fit. These cameras do carry
@@ -198,14 +196,13 @@ pixels. In both cases the scatter is well above the threshold at which a twist
 counts as one common value. The Voyager 1 cameras are unmeasured: no frame of
 the Voyager 1 cohort locked.
 
-**Residual distortion.** The largest of any instrument in the pipeline,
-consistent with the resampled vidicon geometry: the Voyager 2 narrow angle
-camera measures a radial RMS of 0.936 pixels and the wide angle camera 0.345,
-both with a substantial non-radial component that a radial model cannot
-represent, and both against a high centroid-and-astrometry floor of 0.25 to
-0.34 pixels. These figures are therefore lower-confidence than any other
-instrument's. See :doc:`/fov_distortion_report/fov_distortion_report` for the
-coefficients, the method and the figures.
+**Residual distortion.** Consistent with the resampled vidicon geometry, the
+Voyager 2 narrow angle camera measures a radial RMS of 0.936 pixels and the
+wide angle camera 0.345, both with a substantial non-radial component that a
+radial model cannot represent, and both against a high centroid-and-astrometry
+floor of 0.25 to 0.34 pixels. These figures are therefore of low confidence.
+See :doc:`/fov_distortion_report/fov_distortion_report` for the coefficients,
+the method and the figures.
 
 Metadata fields
 ===============
@@ -213,10 +210,20 @@ Metadata fields
 Beyond the keys every instrument writes -- image path and name, the start,
 midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
-a Voyager ISS record carries one filter entry in ``filters``.
+a Voyager ISS record carries one filter entry in ``filters``. Its
+``instrument`` is ``vgiss`` and its ``camera`` is ``NAC`` or ``WAC``. It writes
+no ``shutter_mode``, since its labels carry none.
 
-It writes none of the spacecraft-clock fields (``start_time_scet``,
-``midtime_scet``, ``end_time_scet``), and none of ``sampling``, ``gain_mode``,
+It writes the spacecraft-clock fields ``start_time_sclk`` and ``end_time_sclk``
+from the start and stop counts of the PDS3 label beside the image. The start
+count lies near the shutter opening, but the stop count is the count of the
+frame the image was read out in, which can come minutes after the shutter
+closed. The two do not bracket the exposure, so ``midtime_sclk`` is null. Both
+are counts of the clock's leading field, the first five digits of the image
+number: one unit is 48 minutes, 60 frames of 48 seconds, each 800 lines of 60
+milliseconds, and the frame and the line are a fraction of it. The ``times``
+block's clock strings are computed from the exposure times and can differ from
+these counts by minutes. It writes none of ``sampling``, ``gain_mode``,
 ``description`` or ``observation_id``.
 
 The two LIDs vary by spacecraft and camera, and are the one place the metadata
@@ -265,10 +272,9 @@ reproduces an image's attitude, the tie-break falls through to the
 lexicographically greatest basename. That is a deterministic choice among
 candidates that agree on the attitude, not a quality judgment.
 
-**Segment shape: one constant attitude.** This is the difference that matters
-about Voyager kernels. The navigated attitude comes from a single
-tolerance-snapped pointing lookup that is constant across the exposure, not
-from an evaluated frame chain, so a corrected segment carries **that one
+**Segment shape: one constant attitude.** The navigated attitude comes from a
+single tolerance-snapped pointing lookup that is constant across the exposure,
+not from an evaluated frame chain, so a corrected segment carries **that one
 attitude, constant across its window, with zero angular velocity**. There is
 nothing to interpolate between the records, and therefore no interpolation
 error at all: every epoch inside a Voyager segment is exact.
@@ -280,15 +286,14 @@ skipped by SPICE for ``ckgpav`` and ``sxform``, which would answer those calls
 from the uncorrected original instead.
 
 **Angular velocity in the baselines.** None of the nine -31100 and -32100
-segments in the local baselines carries angular velocity. For every other
-instrument that would refuse a run, since a corrected segment copies the
-baseline's rates. For Voyager it does not matter at all: a frozen segment never
-reads its baseline's attitude history, and writes its own zeros.
+segments in the local baselines carries angular velocity. That does not matter:
+a frozen segment never reads its baseline's attitude history, and writes its
+own zeros.
 
 **Omission reasons this instrument produces.** ``not_eligible`` and
 ``no_reproducing_baseline``. ``rotation_unsupported`` never appears, because
-rotation fitting is off. ``botsim_loser`` cannot appear: it belongs to an
-instrument that exposes two cameras at once, and a Voyager exposure uses one.
+rotation fitting is off. ``botsim_loser`` cannot appear, since it needs two
+cameras exposed at once and a Voyager exposure uses one.
 ``baseline_coverage_gap`` cannot arise from segment building either, since a
 frozen segment never reads the baseline at its record epochs.
 
@@ -318,9 +323,8 @@ Known limitations
 * The per-frame twist these cameras carry is real and is not fitted; it is
   absorbed into the reported translation. The wide angle measurement is over
   four pixels at the field corner.
-* The residual distortion is the largest of any instrument and is not removed,
-  and its measurement floor is high enough that the numbers themselves are
-  lower-confidence than other instruments'.
+* The residual distortion is not removed, and its measurement floor is high
+  enough that the numbers themselves are of low confidence.
 * The Voyager 1 cameras have no twist or distortion measurement at all: the
   cohort holds no Voyager 1 frame that locked.
 * The simulator uses one distortion parameter set for all four cameras, taken
