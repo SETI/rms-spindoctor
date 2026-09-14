@@ -7,9 +7,10 @@ navigated images land in their shards and the one that did not navigate is
 skipped, that a data label states its exposure's start and stop and an image
 whose navigation recorded none fails, that a data label describes the backplane
 FITS beside it, HDU by HDU and byte for byte, that the collection inventory names
-the LIDs the labels do, and that each collection label names the inventory beside
-it and counts its products.  The plumbing these rest on is tested over stand-in
-templates in ``test_bundle_data.py`` and ``test_collections.py``.
+the LIDs the labels do, that each collection label names the inventory beside it
+and counts its products, and that the inventories the template directory ships
+list only members, a line feed ending every line.  The plumbing these rest on is
+tested over stand-in templates in ``test_bundle_data.py`` and ``test_collections.py``.
 
 The shipped templates are drafts.  Apart from the data objects describing the FITS,
 which are held to the file's bytes and to the schema's order, these tests assert
@@ -828,3 +829,36 @@ def test_each_cohort_collection_label_describes_the_inventory_beside_it(
         for label, root in roots.items()
     }
     assert records == dict.fromkeys(COLLECTION_INVENTORIES, len(NAVIGATED_IMAGES))
+
+
+STATIC_INVENTORIES = (
+    'collection_context.csv',
+    'collection_document.csv',
+    'collection_xml_schema.csv',
+)
+"""The inventories the template directory ships, which a bundle takes as they are."""
+
+INVENTORY_RECORD = re.compile(r'[PS],urn:nasa:pds:[a-z0-9._-]+(:[a-z0-9._-]+)*(::\d+\.\d+)?')
+"""One inventory line: a primary or secondary member, and its LID or LIDVID."""
+
+
+def test_the_shipped_inventories_list_only_members_each_ending_in_a_line_feed(
+    tmp_path: Path,
+) -> None:
+    """Every line of each shipped inventory is a member, ending in a line feed and no CR.
+
+    A collection label counts its inventory's lines as its records, so a header, a
+    comment or a blank line is a record that names no member.  The label declares its
+    records delimited by a line feed, and the last record is delimited like the others.
+    """
+    template_dir = Path(_cassini_dataset(tmp_path).pds4_bundle_template_dir())
+    raws = {name: (template_dir / name).read_bytes() for name in STATIC_INVENTORIES}
+    not_members = [
+        (name, line)
+        for name, raw in raws.items()
+        for line in raw.decode('ascii').splitlines()
+        if INVENTORY_RECORD.fullmatch(line) is None
+    ]
+    assert not_members == []
+    assert [name for name, raw in raws.items() if not raw.endswith(b'\n')] == []
+    assert [name for name, raw in raws.items() if b'\r' in raw] == []
