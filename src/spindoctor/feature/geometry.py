@@ -14,7 +14,8 @@ array -- a rotation pivot on a rendered template, a predicted centroid
 differenced against a measured one, a bounding box, an overlay painted into an
 extfov canvas.  A value arriving from the geometry layer, which states
 positions in pixel corner coordinates, converts once where it crosses, by
-:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`.
+subtracting :data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`
+from both axes.
 
 Bounding boxes are whole-numbered and half-open: ``v_min, u_min, v_max,
 u_max`` is the slice range ``arr[v_min:v_max, u_min:u_max]``.  The same four
