@@ -9,8 +9,9 @@ and structurally match real writer output. Two directions are enforced:
    result, a load-error document, and an early-return document -- appears in
    the chapter as an inline ``key`` literal. The one exception is a fact an
    instrument's host publishes into the ``observation`` block, which the
-   chapter leaves to that instrument's user-guide chapter, so it may appear
-   there instead. A writer gaining a key neither documents fails here.
+   chapter leaves to that instrument's own user-guide chapter, so it may appear
+   there instead, and only there. A writer gaining a key neither documents
+   fails here.
 2. Chapter-to-writer: each example's key structure equals the corresponding
    writer output's key structure, block by block, and the open-vocabulary
    sub-objects (diagnostics, reliability_reasons, feature_count_by_type) use
@@ -59,6 +60,12 @@ _CHAPTER_PATH = (
 
 _INSTRUMENT_CHAPTERS = _CHAPTER_PATH.parent / 'instruments'
 """Where the user guide's instrument chapters are, each listing its host's own facts."""
+
+_HOST_FACTS: tuple[tuple[str, dict[str, Any]], ...] = (
+    ('cassini_iss', CASSINI_ISS_PUBLIC_METADATA),
+    ('galileo_ssi', GALILEO_SSI_PUBLIC_METADATA),
+)
+"""What each host the documents here are built from publishes, with its chapter's stem."""
 
 # Keys whose object values carry open-vocabulary content (feature-type
 # counts, per-file hashes, per-catalog paths, per-technique diagnostics,
@@ -123,11 +130,15 @@ def _documented_key_literals() -> set[str]:
     return _key_literals(_chapter_text())
 
 
-def _instrument_chapter_key_literals() -> set[str]:
-    """Every inline ``literal`` shaped like a JSON key in any instrument chapter."""
-    chapters = sorted(_INSTRUMENT_CHAPTERS.glob('*.rst'))
-    assert chapters, f'no instrument chapters under {_INSTRUMENT_CHAPTERS}'
-    return set().union(*(_key_literals(path.read_text(encoding='utf-8')) for path in chapters))
+def _instrument_chapter_key_literals(stem: str) -> set[str]:
+    """Every inline ``literal`` shaped like a JSON key in one instrument's chapter.
+
+    Parameters:
+        stem: The chapter's file stem, such as ``cassini_iss``.
+    """
+    chapter = _INSTRUMENT_CHAPTERS / f'{stem}.rst'
+    assert chapter.is_file(), f'instrument chapter missing at {chapter}'
+    return _key_literals(chapter.read_text(encoding='utf-8'))
 
 
 def _leaf_key_names(node: Any) -> set[str]:
@@ -460,9 +471,10 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
     """Every key any writer emits appears in the chapter as a literal.
 
     This is the staleness guard's forward direction: a writer gaining a key
-    the chapter does not document fails here, naming the missing keys.  A key
-    of the ``observation`` block may be documented in an instrument chapter
-    instead, since that is where a host's own facts are listed.
+    the chapter does not document fails here, naming the missing keys.  A fact a
+    host publishes may be documented in that host's own instrument chapter
+    instead, since that is where a host's own facts are listed; another
+    instrument's chapter does not count.
     """
     documents = [
         _success_document(),
@@ -473,9 +485,8 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
         _early_return_document(tmp_path),
     ]
     emitted = set().union(*(_leaf_key_names(document) for document in documents))
-    observation_keys = set().union(*(document['observation'] for document in documents))
-    documented = _documented_key_literals() | (
-        observation_keys & _instrument_chapter_key_literals()
+    documented = _documented_key_literals().union(
+        *(set(facts) & _instrument_chapter_key_literals(stem) for stem, facts in _HOST_FACTS)
     )
     missing = emitted - documented
     assert not missing, (
