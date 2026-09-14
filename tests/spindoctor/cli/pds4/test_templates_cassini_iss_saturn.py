@@ -886,7 +886,6 @@ def test_the_shipped_inventories_list_only_members_each_ending_in_a_line_feed(
     ]
     assert unversioned == []
     assert [name for name, raw in raws.items() if not raw.endswith(b'\n')] == []
-    assert [name for name, raw in raws.items() if b'\r' in raw] == []
 
 
 def test_no_shipped_template_holds_a_carriage_return(tmp_path: Path) -> None:
