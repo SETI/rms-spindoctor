@@ -113,6 +113,18 @@ def test_a_longitude_of_360_degrees_is_the_one_at_zero() -> None:
     assert wrapped_range(np.array([360.0, 10.0]), resolution=0.01) == (0.0, 10.0)
 
 
+def test_a_nan_among_the_longitudes_is_ignored() -> None:
+    """A NaN leaves the arc as it is, as nanmin and nanmax leave the plain range."""
+    longitudes = np.array([150.0, np.nan, 100.0, 200.0])
+    assert wrapped_range(longitudes, resolution=0.01) == (100.0, 200.0)
+
+
+def test_longitudes_that_are_all_nan_give_no_arc() -> None:
+    """With no longitude that is a number there is no arc, and both its ends are NaN."""
+    start, end = wrapped_range(np.array([np.nan, np.nan]), resolution=0.01)
+    assert np.isnan([start, end]).all()
+
+
 def test_longitudes_leaving_no_gap_wider_than_the_resolution_cover_the_circle() -> None:
     """A gap no wider than the coarsest pixel leaves the circle covered, 0 to 360."""
     assert wrapped_range(np.arange(0.0, 360.0, 1.0), resolution=1.0) == (0.0, 360.0)

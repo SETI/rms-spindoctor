@@ -91,7 +91,9 @@ def wrapped_range(longitudes: NDArrayFloatType, *, resolution: float) -> tuple[f
     cross zero and is the plain least and greatest; when it is another, the arc crosses
     zero and starts at a greater longitude than it ends at.  Of two gaps equally wide the
     one across zero is taken, so that the plain range is kept.  Longitudes leaving no gap
-    wider than ``resolution`` cover the whole circle, which is stated as 0 to 360.
+    wider than ``resolution`` cover the whole circle, which is stated as 0 to 360.  A NaN
+    among the longitudes is ignored, as the plain least and greatest ignore it, and
+    longitudes that are all NaN give NaN for both ends.
 
     Parameters:
         longitudes: The longitudes, in degrees; at least one.
@@ -101,7 +103,11 @@ def wrapped_range(longitudes: NDArrayFloatType, *, resolution: float) -> tuple[f
     Returns:
         The arc's start and its end, in degrees.
     """
-    circle = np.unique(np.mod(np.asarray(longitudes, dtype=np.float64), FULL_CIRCLE))
+    values = np.asarray(longitudes, dtype=np.float64)
+    # NaN is ignored, as the plain least and greatest ignore it
+    circle = np.unique(np.mod(values[~np.isnan(values)], FULL_CIRCLE))
+    if circle.size == 0:
+        return np.nan, np.nan
     # The gap after each longitude, the last one's across zero to the first
     gaps = np.diff(circle, append=circle[0] + FULL_CIRCLE)
     # The last of the widest, so that a tie goes to the gap across zero
