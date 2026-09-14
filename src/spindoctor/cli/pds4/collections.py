@@ -265,10 +265,8 @@ def _write_inventory(inventory: FCPath, lidvids: list[str]) -> None:
         inventory: Where the inventory goes.
         lidvids: The members' LIDVIDs, in the order they are listed.
     """
-    local_path = cast(Path, inventory.get_local_path())
-    with local_path.open('w', newline='', encoding='utf-8') as f:
+    with inventory.open('w', newline='', encoding='utf-8') as f:
         csv.writer(f, lineterminator='\n').writerows(['P', lidvid] for lidvid in lidvids)
-    inventory.upload()
 
 
 _NO_MEMBER = 'the collection has no member, and its label has to state at least one record'
@@ -516,7 +514,7 @@ def generate_collection_files(
     # Each template is parsed whether or not its collection is written, so one missing
     # from the tree raises rather than being passed over.
     data_template = pdstemplate.PdsTemplate(str(template_base / 'collection_data.lblx'))
-    data_vars: dict[str, Any] = {'COLLECTION_DATA_CSV_PATH': str(products.data_inventory)}
+    data_vars: dict[str, Any] = {'COLLECTION_DATA_CSV_PATH': products.data_inventory.as_posix()}
     data_reasons = [] if len(data_names) > 0 else [_NO_MEMBER]
     if epochs is None:
         data_reasons.append(_NO_RANGE)
@@ -542,7 +540,7 @@ def generate_collection_files(
         products.browse_label,
         lidvids=[dataset.pds4_image_name_to_browse_lidvid(name) for name in browse_names],
         template=browse_template,
-        template_vars={'COLLECTION_BROWSE_CSV_PATH': str(products.browse_inventory)},
+        template_vars={'COLLECTION_BROWSE_CSV_PATH': products.browse_inventory.as_posix()},
         reasons_not_written=[] if len(browse_names) > 0 else [_NO_MEMBER],
         logger=logger,
     ):
@@ -669,7 +667,7 @@ def generate_global_index_files(
 
     # Sort by product name: the file name less its suffix, the last part of the LID
     def product_name(path: FCPath) -> str:
-        """Returns a supplemental file's product name, its file name less the suffix.
+        """Return a supplemental file's product name, its file name less the suffix.
 
         Parameters:
             path: The supplemental file, such as ``1234567890w_supplemental.txt``.
