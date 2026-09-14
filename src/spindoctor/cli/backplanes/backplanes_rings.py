@@ -1,11 +1,24 @@
-from typing import Any
+from typing import Any, TypedDict
 
 import numpy as np
 from pdslogger import PdsLogger
 
-from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
+from spindoctor.cli.backplanes.statistics import DEGREES, PlaneStatistics, plane_statistics
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
+
+
+class RingIncidenceAngle(TypedDict):
+    """The incidence angle of sunlight on the ring plane, as the backplane metadata records it.
+
+    Attributes:
+        value: The angle between the direction the sunlight arrives from and the normal to
+            the ring plane on its sunlit side, from 0 to 90 degrees.
+        units: The unit ``value`` is in, ``deg``.
+    """
+
+    value: float
+    units: str
 
 
 def ring_target(planet: str) -> str:
@@ -43,7 +56,15 @@ def create_ring_backplanes(
         not configured.
 
         - "planet": The closest planet name.
-        - "target_key": The target key used for backplane generation.
+        - "target_key": The ring target the backplanes are computed for, as
+          :func:`ring_target` names it.
+        - "incidence_angle": The incidence angle of sunlight on the ring target's
+          plane, as a :class:`RingIncidenceAngle` in degrees.  It is one angle over
+          the whole image, so no backplane holds it: oops's
+          ``ring_center_incidence_angle`` evaluates it once, at the ring system's
+          center, for the light that reaches the camera at the observation's
+          midtime, measured from the normal on the plane's sunlit side.  It is
+          recorded whether or not any pixel of the image is on the rings.
         - "arrays": The ring backplane arrays.
         - "masks": The ring backplane masks.
         - "distance": The ring backplane distance.
@@ -81,6 +102,15 @@ def create_ring_backplanes(
 
     result['planet'] = closest_planet
     result['target_key'] = target_key
+
+    # Sunlight falls on the ring plane at one angle over the whole image, so no backplane
+    # holds it (#47): it is taken once, at the ring system's center, for the light that
+    # reaches the camera at the observation's midtime.
+    center_incidence = bp.ring_center_incidence_angle(target_key)
+    result['incidence_angle'] = RingIncidenceAngle(
+        value=float(np.degrees(center_incidence.vals)), units=DEGREES
+    )
+
     ring_stats: dict[str, PlaneStatistics] = {}
 
     for bp_cfg in rings_cfg:

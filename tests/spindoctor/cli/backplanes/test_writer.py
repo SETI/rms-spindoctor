@@ -388,7 +388,7 @@ def test_write_fits_sidecar_center_range_and_size(tmp_path: Path) -> None:
 
 
 def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
-    """Ring statistics are written under rings.backplanes.
+    """The ring target, its incidence angle and the ring statistics are written under rings.
 
     Parameters:
         tmp_path: pytest-provided temporary directory.
@@ -396,6 +396,7 @@ def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
     rings_result = {
         'planet': 'PLANET',
         'target_key': 'PLANET_RING_SYSTEM',
+        'incidence_angle': {'value': 63.334, 'units': 'deg'},
         'arrays': {},
         'masks': {},
         'distance': None,
@@ -406,7 +407,9 @@ def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
     )
     metadata = json.loads(sidecar.read_text())
     assert metadata['rings'] == {
-        'backplanes': {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}}
+        'target': 'PLANET_RING_SYSTEM',
+        'incidence_angle': {'value': 63.334, 'units': 'deg'},
+        'backplanes': {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}},
     }
 
 

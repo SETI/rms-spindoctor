@@ -42,6 +42,9 @@ RESOLUTION_CFG = {
     'units': 'rad/pixel',
 }
 
+RING_INCIDENCE_DEG = 63.334
+"""The incidence angle of sunlight on the ring plane the fake Backplane serves, in degrees."""
+
 
 def _rings_config(entries: list[dict[str, Any]] | None = None) -> FakeBackplanesConfig:
     """Build a fake config with the given (or default) ring backplane entries.
@@ -57,7 +60,9 @@ def _ring_arrays(
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """Build the ring validity mask and canned per-method masked arrays.
 
-    The ring is valid on rows 2..3 (all columns); everything else is masked.
+    The ring is valid on rows 2..3 (all columns); everything else is masked.  The ring
+    center's incidence angle is one value, :data:`RING_INCIDENCE_DEG` in radians, as oops
+    gives it.
 
     Parameters:
         value: Ring backplane value inside the valid region.
@@ -71,7 +76,13 @@ def _ring_arrays(
     radius = ma.MaskedArray(np.full(SHAPE_VU, value), mask=~valid)
     longitude = ma.MaskedArray(np.full(SHAPE_VU, 1.5), mask=~valid)
     dist = ma.MaskedArray(np.full(SHAPE_VU, distance), mask=~valid)
-    return valid, {'ring_radius': radius, 'ring_longitude': longitude, 'distance': dist}
+    incidence = ma.MaskedArray(np.radians(RING_INCIDENCE_DEG))
+    return valid, {
+        'ring_radius': radius,
+        'ring_longitude': longitude,
+        'distance': dist,
+        'ring_center_incidence_angle': incidence,
+    }
 
 
 def _snapshot_with_fake_bp(
@@ -148,6 +159,21 @@ def test_other_planet_uses_ring_system_target() -> None:
     assert result is not None
     assert result['target_key'] == 'JUPITER_RING_SYSTEM'
     assert all(call[1] == 'JUPITER_RING_SYSTEM' for call in fake.calls)
+
+
+def test_the_ring_incidence_angle_is_the_ring_center_s_in_degrees() -> None:
+    """Sunlight's incidence on the ring plane is taken once, at the ring center, in degrees.
+
+    It is one angle over the whole image, so it is evaluated once, on the ring target the
+    ring backplanes are computed for, and recorded converted from the radians oops gives
+    it, with its unit.
+    """
+    snap, fake = _snapshot_with_fake_bp(_ring_arrays()[1])
+    result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
+    assert result is not None
+    assert result['incidence_angle']['value'] == pytest.approx(RING_INCIDENCE_DEG)
+    assert result['incidence_angle']['units'] == 'deg'
+    assert ('ring_center_incidence_angle', 'SATURN_MAIN_RINGS', {}) in fake.calls
 
 
 def test_result_records_planet() -> None:

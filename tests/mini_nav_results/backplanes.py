@@ -41,8 +41,9 @@ from typing import Any, cast
 import numpy as np
 from filecache import FCPath
 
+from spindoctor.cli.backplanes.backplanes_rings import RingIncidenceAngle
 from spindoctor.cli.backplanes.merge import merge_sources_into_master
-from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
+from spindoctor.cli.backplanes.statistics import DEGREES, PlaneStatistics, plane_statistics
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import MAIN_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
@@ -226,6 +227,8 @@ def write_backplanes(
     *,
     bodies: tuple[CohortBody, ...],
     rings: bool,
+    ring_target: str,
+    ring_incidence_angle: float,
     plane_bounds: Mapping[str, tuple[float, float]],
     config: Config,
 ) -> None:
@@ -249,6 +252,11 @@ def write_backplanes(
             no body does.  A frame with none still carries a ring result with
             nothing in it, as a real frame whose rings are out of the field
             does.
+        ring_target: The ring target the ring result names, as the ring stage
+            names the one it computes for the image's planet.
+        ring_incidence_angle: The incidence angle of sunlight on the ring
+            plane, in degrees, which the ring result records whether or not the
+            frame has ring backplanes, as the ring stage does.
         plane_bounds: What the cohort gives a plane of each configured name to
             span, in the units the configuration declares.
         config: The configuration whose declared planes, units and masked value
@@ -308,6 +316,8 @@ def write_backplanes(
     )
     ring_masks = dict.fromkeys(ring_planes, ring_mask)
     rings_result: dict[str, Any] = {
+        'target_key': ring_target,
+        'incidence_angle': RingIncidenceAngle(value=ring_incidence_angle, units=DEGREES),
         'arrays': ring_planes,
         'masks': ring_masks,
         'distance': _ring_distance(bodies),
