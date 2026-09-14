@@ -1006,6 +1006,20 @@ calibration).
  available. Validate that recovered star covariances pass the WS-5 coverage test.
 - Add a **sensitivity test** that perturbs each constant and asserts results are
  stable within the documented tolerance (flags hidden over-fitting to a constant).
+- **Re-measure the agreement gap, or make it a distance** (#675). `agreement_gap:
+ 0.5` in `config_540_orchestrator.yaml` asks whether the summed-confidence gap
+ between the best result and the runner-up clears a fraction of the best, where
+ the question the name asks is how far apart in pixels the two answers are. Two
+ curation-pass observations point the same way from opposite directions: two
+ techniques agreeing to about a pixel were called conflicted on a gap of 0.045,
+ and a disc and a limb result agreeing to about a pixel summed to 0.485 against
+ a lone wrong technique at 0.744, so their agreement counted for nothing.
+ `agreement_pixel_floor` already sits in the same block, so a per-axis test has
+ somewhere to attach. Both observations predate the current pins and neither has
+ been re-measured, so a current measurement comes first. The second half of the
+ same issue -- `BodyTerminatorNav`'s coarse search finding a confident-wrong
+ global maximum on multi-body crescent geometry -- is the same family of outcome
+ as #223 and unobserved on the current cohort rather than fixed.
 
 **Acceptance criteria.** Every load-bearing constant has a documented derivation
 and a sensitivity bound; star SNR used for covariance derives from measured

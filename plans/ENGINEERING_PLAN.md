@@ -309,6 +309,40 @@ and starts with a design document, not code.
   half a pixel inside the edge it names. Across the 75 library frames one
   star changes state, on `lor_0030713597_0x633_sci`; it lands ten rows into
   the zero-filled extfov margin, so no frame's navigation moves.
+- **The pixel-convention audit** — every use of a pixel coordinate in the
+  repository was read against the two systems the code names with
+  `PIXEL_CENTER_TO_CORNER_PX`: pixel corner, which the geometry layer answers
+  in and which everything a person writes or reads is stated in, and pixel
+  centric, which anything addressing an array works in. Nav core, every GUI
+  program, every command-line program, and the documentation were all in
+  scope.
+
+  The measured fixes: the Titan haze fit converts the inventory position it
+  starts from, worth ~0.71 px on every real Titan frame, and its sub-solar
+  direction no longer mixes the two systems, so its degeneracy gate can fire
+  (#648, #649). The simulator reduces a truth mask by coverage rather than by
+  its center subsample, taking the mask centroid error from 0.142 px to zero
+  (#650). A zoomed ring mosaic puts a cell's sub-samples around that cell's own
+  coordinate, so its radius and longitude metadata are no longer up to half a
+  cell high (#651). The mosaic viewer's readouts and tick labels, the scene
+  editor's markers and hit tests, and every position reported to an operator
+  are stated where the operator supplies them (#652, #653, #654).
+
+  Two structural changes stand behind those. Feature geometry payloads declare
+  their coordinate system on the field, which is what made
+  `predicted_center_vu` able to mean pixel centric on one feature type and
+  pixel corner on three others (#655). The sixteen conversions that were
+  spelled as a bare `0.5` are named (#660).
+
+  The rest is instrumentation and record. The documentation agrees with the
+  code, and the observations guide says where each system is used and where
+  the conversion happens (#657). The tests that looked like convention tests
+  but passed under every candidate convention now fail on a wrong one (#659).
+  The YAML records carry no issue numbers or history (#661). #656 records why
+  none of the three instruments positioned to catch a half-pixel offset did:
+  a navigated offset is a difference, so an error shared by prediction and
+  measurement cancels everywhere except the absolute answer, and the library
+  gate's tolerance carries the defect as its pad.
 - **Titan haze fit** — the haze solar-symmetry method ships and is validated;
   four measured refinements remain: the arc ray reach sized by the search
   window rather than by where the limb can be (#403), the flat arc-residual
