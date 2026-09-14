@@ -17,6 +17,7 @@ What the shipped Cassini templates say is tested over the cohort in
 """
 
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ from filecache.file_cache_source import FileCacheSourceFake
 from spindoctor.cli.pds4.bundle_products import clear_bundle_products, generate_bundle_products
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.global_index import generate_global_index_files
+from spindoctor.cli.pds4.targets import Pds4Target
 from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (
@@ -80,18 +82,28 @@ def _bundle_env(
     return env
 
 
-def _run(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> int:
+def _run(
+    env: BundleEnv,
+    *,
+    epochs: EpochRange | None = A_RANGE,
+    targets: Sequence[Pds4Target] = (),
+) -> int:
     """Run generate_bundle_products over the environment's bundle.
 
     Parameters:
         env: The environment to process.
         epochs: The range of the products' epochs to hand the generator.
+        targets: The targets the products name, to hand the generator.
 
     Returns:
         The number of run-level labels not written.
     """
     return generate_bundle_products(
-        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER, epochs=epochs
+        FCPath(env.bundle_results_root),
+        env.dataset.as_dataset(),
+        MAIN_LOGGER,
+        epochs=epochs,
+        targets=targets,
     ).failed_labels
 
 

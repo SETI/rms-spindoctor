@@ -438,6 +438,7 @@ def main_summary() -> None:
             dataset=dataset,
             logger=MAIN_LOGGER,
             epochs=index.epochs,
+            targets=index.targets,
         )
     except Exception as exc:
         # The logger's exception() writes the frames but not the exception's
@@ -446,13 +447,15 @@ def main_summary() -> None:
         sys.exit(1)
 
     # The run-level products last: the bundle label declares every collection, so it is
-    # kept only once they are all on disk, and it states the range the index took.
+    # kept only once they are all on disk, and it states the range the index took and
+    # names the targets it found.
     try:
         bundle_outcome = generate_bundle_products(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
             epochs=index.epochs,
+            targets=index.targets,
         )
     except Exception as exc:
         # The logger's exception() writes the frames but not the exception's own

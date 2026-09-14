@@ -41,6 +41,7 @@ from spindoctor.cli.pds4.bundle_products import generate_bundle_products
 from spindoctor.cli.pds4.collections import CollectionOutcome, generate_collection_files
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.global_index import generate_global_index_files
+from spindoctor.cli.pds4.targets import Pds4Target
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
@@ -239,6 +240,7 @@ TARGET_LIDS: dict[str, dict[str, str]] = {
     }
     for name, target_type in (
         ('PLANET', 'Planet'),
+        ('A', 'Satellite'),
         ('MOON', 'Satellite'),
         ('MOON_A', 'Satellite'),
         ('MOON_B', 'Satellite'),
@@ -653,19 +655,29 @@ to ``2004-02-22T05:32:17Z``.
 """
 
 
-def run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> CollectionOutcome:
+def run_collections(
+    env: BundleEnv,
+    *,
+    epochs: EpochRange | None = A_RANGE,
+    targets: Sequence[Pds4Target] = (),
+) -> CollectionOutcome:
     """Run generate_collection_files against the environment's bundle root.
 
     Parameters:
         env: The hermetic bundle environment to process.
         epochs: The range of the products' epochs to hand the generator.
+        targets: The targets the products name, to hand the generator.
 
     Returns:
         What the generation came to: the collection labels not written, and the images
         whose products disagree.
     """
     return generate_collection_files(
-        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER, epochs=epochs
+        FCPath(env.bundle_results_root),
+        env.dataset.as_dataset(),
+        MAIN_LOGGER,
+        epochs=epochs,
+        targets=targets,
     )
 
 
@@ -916,16 +928,20 @@ def summarize_bundle(env: CohortBundleEnv) -> None:
     """Run the summary pass's three generators over the environment's bundle.
 
     They run in the order the pass runs them: the global index first, whose range of
-    the products' epochs the collection generator and the run-level products are
-    handed, and the run-level products last.
+    the products' epochs and whose targets the collection generator and the run-level
+    products are handed, and the run-level products last.
 
     Parameters:
         env: The environment whose bundle is summarized.
     """
     bundle_results_root = FCPath(env.bundle_results_root)
     index = generate_global_index_files(bundle_results_root, env.dataset, MAIN_LOGGER)
-    generate_collection_files(bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs)
-    generate_bundle_products(bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs)
+    generate_collection_files(
+        bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs, targets=index.targets
+    )
+    generate_bundle_products(
+        bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs, targets=index.targets
+    )
 
 
 def write_cohort_bundle(cohort: Cohort, tmp_path: Path, stubs: Sequence[str]) -> CohortBundleEnv:

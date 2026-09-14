@@ -69,8 +69,8 @@ REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
 class StubDataset:
     """A dataset serving the pds4_* hooks the drivers call, over chosen batches.
 
-    It carries a configuration declaring no backplanes, as every dataset carries
-    one, for the summary pass's index generator to read.
+    It carries a configuration declaring no backplanes and no targets, as every dataset
+    carries one, for the summary pass's index generator to read.
     """
 
     def __init__(
@@ -96,7 +96,10 @@ class StubDataset:
         self._base_dir = base_dir
         self.config = SimpleNamespace(
             backplanes=SimpleNamespace(
-                bodies=[], rings=[], masked_value=DEFAULT_CONFIG.backplanes.masked_value
+                bodies=[],
+                rings=[],
+                masked_value=DEFAULT_CONFIG.backplanes.masked_value,
+                target_lids={},
             )
         )
 
