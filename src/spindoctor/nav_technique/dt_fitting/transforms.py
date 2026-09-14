@@ -141,7 +141,7 @@ def _weighted_normal_equations(
 
 
 def _weighted_cost(weights: NDArrayFloatType, residuals: NDArrayFloatType) -> float:
-    """Sum of ``w_i * r_i**2`` (the quantity LM minimises)."""
+    """Sum of ``w_i * r_i**2`` (the quantity LM minimizes)."""
     return float(np.sum(weights * residuals * residuals))
 
 

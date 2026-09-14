@@ -1,7 +1,7 @@
 """``RingEdgeNav`` — translation fit from ring-edge polylines.
 
 Consumes every ``RING_EDGE`` feature in the input set and produces a
-single combined translation by minimising the joint distance-transform
+single combined translation by minimizing the joint distance-transform
 cost.  When every input ring edge is flagged ``is_straight_line`` the
 combined Jacobian is rank-deficient — all parallel ring edges share a
 single ring-plane normal, so the along-edge axis is unobservable.  The
@@ -692,7 +692,7 @@ def aggregate_edge_normal_angle_deg(features: list[NavFeature]) -> float | None:
         features: Any feature list; only ``RING_EDGE`` polylines are read.
 
     Returns:
-        The orientation in degrees, normalised to ``(-90, 90]``, or ``None``
+        The orientation in degrees, normalized to ``(-90, 90]``, or ``None``
         unless at least one ring-edge polyline is present and every one is
         straight — the constraint direction is only meaningful for a rank-1
         scene.

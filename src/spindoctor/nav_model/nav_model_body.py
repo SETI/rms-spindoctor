@@ -313,7 +313,7 @@ class _BodyStripArrays:
         incidence: Incidence angle in radians, masked off the silhouette.
         lambert: Lambert reflectance, zero off the silhouette; None when the
             configuration does not ask for it.
-        resolution: Kilometres per pixel, zero off the silhouette.
+        resolution: Kilometers per pixel, zero off the silhouette.
         occluder: Downsampled mask of the pixels a nearer sibling hides; None
             when no sibling hides any.
     """
@@ -368,7 +368,7 @@ def _striped_body_quantities(
         v_range: ``(min, max)`` of its vertical extent.
         oversample: ``(u, v)`` oversample factors of the grid.
         siblings: ``(body_name, range_km)`` for the other bodies in the FOV.
-        subject_range_km: Centre range of the body, against which a sibling
+        subject_range_km: Center range of the body, against which a sibling
             counts as nearer.
         want_lambert: Whether to evaluate the Lambert reflectance at all.
 
@@ -443,7 +443,7 @@ def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
 
     Parameters:
         obs: Observation snapshot, for the extended frame's bounds.
-        inventory: The body's inventory record, as oops builds it: the centre
+        inventory: The body's inventory record, as oops builds it: the center
             and both pixel sizes are always present and finite.
 
     Returns:
@@ -451,9 +451,9 @@ def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
         False for a disc of no extent, which covers nothing and is looked at
         rather than dismissed.
     """
-    centre = inventory['center_uv']
-    u_c = float(centre[0])
-    v_c = float(centre[1])
+    center = inventory['center_uv']
+    u_c = float(center[0])
+    v_c = float(center[1])
     semi_u = float(inventory['u_pixel_size']) / 2.0
     semi_v = float(inventory['v_pixel_size']) / 2.0
     if not (semi_u > 0.0 and semi_v > 0.0):
@@ -1006,7 +1006,7 @@ class NavModelBody(NavModelBodyBase):
         # calibration case.
         geometric_limb_mask: NDArrayBoolType = body_mask_valid & limb_mask_neighbor
         limb_mask_local: NDArrayBoolType = geometric_limb_mask & is_lit
-        # A pixel is on the terminator if it is lit and any neighbour is dark.
+        # A pixel is on the terminator if it is lit and any neighbor is dark.
         terminator_local: NDArrayBoolType = is_lit & (
             shift_array(is_dark, (-1, 0))
             | shift_array(is_dark, (1, 0))
@@ -1109,7 +1109,7 @@ class NavModelBody(NavModelBodyBase):
         # high-phase crescent scores low even when fully framed) as well as
         # with partial framing.  Both regimes make the disc-correlation
         # template poor, which is exactly what the 0.4 gate screens out;
-        # the phase coupling is intentional, not a normalisation bug.
+        # the phase coupling is intentional, not a normalization bug.
         # A lit pixel a nearer sibling hides is not usable disc-template
         # support, so it leaves the numerator while the denominator stays the
         # whole predicted disc: at deep overlap ``visible_lit_fraction`` falls
@@ -1460,7 +1460,7 @@ def _build_polyline_sampler(
     body interior.  With the body-side True / space-side False
     convention, ``n_v = region[v-1, u] - region[v+1, u]`` and
     ``n_u = region[v, u-1] - region[v, u+1]`` point from inside to
-    outside.  Out-of-image neighbours are treated as space (False).
+    outside.  Out-of-image neighbors are treated as space (False).
 
     Parameters:
         local_mask: 1-pixel-wide ridge whose True pixels become vertices.
@@ -1511,7 +1511,7 @@ def _build_polyline_sampler(
     for i, (v, u) in enumerate(zip(vs, us, strict=True)):
         # Outward normal: discrete gradient of the body-side / lit-side
         # mask, pointing from inside (True) to outside (False).  Out-of-
-        # image neighbours count as space (0.0).
+        # image neighbors count as space (0.0).
         up = region[v - 1, u] if v > 0 else 0.0
         down = region[v + 1, u] if v < rows - 1 else 0.0
         left = region[v, u - 1] if u > 0 else 0.0

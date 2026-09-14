@@ -30,7 +30,7 @@ __all__ = [
     'fit_titan_center',
 ]
 
-# Smallest ray spacing worth honouring, guarding a zero or negative step.
+# Smallest ray spacing worth honoring, guarding a zero or negative step.
 _MIN_RAY_STEP_DEG = 1.0e-6
 
 

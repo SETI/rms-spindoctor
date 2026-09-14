@@ -1,6 +1,6 @@
 """Simulated-body NavModel.
 
-Renders a body from operator-supplied geometric parameters (centre, axes,
+Renders a body from operator-supplied geometric parameters (center, axes,
 rotation, lighting) rather than from SPICE.  Used by the simulated-image
 GUI to compose synthetic test scenes; the rendered body becomes a
 ``BODY_DISC`` ``NavFeature`` that the standard pipeline can navigate
@@ -255,7 +255,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         sim_params: Dictionary of simulation parameters.  Expected keys:
 
             - ``name``
-            - ``center_v``, ``center_u`` (pixel coordinates of the centre)
+            - ``center_v``, ``center_u`` (pixel coordinates of the center)
             - ``range_km`` (km; subject distance, defaults to inf)
             - ``axis1``, ``axis2``, ``axis3`` (pixels; full widths of the
               ellipsoid axes)
@@ -317,7 +317,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         an irregular mesh at the true pose yet predicts an ellipsoid (shape
         mismatch, B7 scenario 2), or the same mesh at a different pose
         (chaotic-rotator pose disagreement, B7 scenario 3), without touching
-        the rendered image.  The override never changes the centre, so the
+        the rendered image.  The override never changes the center, so the
         predicted body stays at the unshifted position the planted offset is
         measured from.
 
@@ -401,8 +401,8 @@ class NavModelBodySimulated(NavModelBodyBase):
             size: Optional canvas shape ``(v, u)``; defaults to the obs data
                 shape.  The unclipped whole-body render behind the
                 visible-arc fraction passes a body-sized canvas here.
-            center: Optional body centre ``(v, u)`` on that canvas; defaults
-                to the rendered params' own predicted centre.
+            center: Optional body center ``(v, u)`` on that canvas; defaults
+                to the rendered params' own predicted center.
             params: Optional body-parameter dict to render instead of this
                 model's own ``sim_params``.  The occlusion path renders each
                 nearer sibling's predicted silhouette through this.
@@ -819,7 +819,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         everywhere except the cusp-adjacent vertices of a very thin crescent,
         where terminator and limb meet within a pixel and a few vertices land
         on the silhouette (at phase 150 roughly 9 of 155 vertices; the
-        SPICE-backed model's sampler shares the behaviour).  The outward
+        SPICE-backed model's sampler shares the behavior).  The outward
         normal is the gradient of the lit mask, so it points from the lit side
         toward the unlit side, the convention the SPICE-backed body model's
         terminator sampler uses.

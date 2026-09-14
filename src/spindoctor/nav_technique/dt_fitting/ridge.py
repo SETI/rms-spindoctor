@@ -106,7 +106,7 @@ def _ridge_normal_distances(
     concave = denom < -1.0e-12
     delta = np.where(concave, 0.5 * (y_minus - y_plus) / np.where(concave, denom, -1.0), 0.0)
     # Keep the parabola vertex inside the central cell so a noisy triple cannot
-    # throw ``t*`` past the neighbouring samples.
+    # throw ``t*`` past the neighboring samples.
     delta = np.clip(delta, -0.5, 0.5)
     t_star = t_samples[kc] + delta * sample_step_px
     return cast(NDArrayFloatType, t_star), norms_current, cast(NDArrayFloatType, interior)
@@ -158,7 +158,7 @@ def gradient_ridge_refine(
     """Polish a polyline alignment against the continuous gradient-ridge field.
 
     This is the final, sub-pixel stage after the coarse-NCC + DT
-    Levenberg-Marquardt acquisition.  The DT-LM minimises distance to an
+    Levenberg-Marquardt acquisition.  The DT-LM minimizes distance to an
     integer-quantized edge mask, whose zero-set snaps the recovered edge to
     integer pixels and leaves an SNR-independent sub-pixel-phase bias floor.
     This stage removes that floor by fitting directly to the *continuous*

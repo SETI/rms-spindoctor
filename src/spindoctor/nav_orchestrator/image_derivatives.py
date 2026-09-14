@@ -210,7 +210,7 @@ def _build_edge_dt_from_gradients(
     # non-maximum suppression along the local gradient direction.  A naive
     # 3x3 NMS would discard most edge pixels along a smooth ridge; the
     # directional check compares each candidate only against the two
-    # neighbours along its own gradient direction, leaving the full edge
+    # neighbors along its own gradient direction, leaving the full edge
     # length intact and producing a usable input for both the
     # cross-correlation coarse search and the distance transform.  (On a flat
     # plateau of exactly-equal gradient magnitude the ``>=`` tie-break keeps
@@ -286,7 +286,7 @@ def _directional_nms(
     """Return a Canny-style thin edge mask in float form (0.0 / 1.0).
 
     Each pixel above ``threshold`` is kept only if its magnitude is at
-    least as large as both of its neighbours along the local gradient
+    least as large as both of its neighbors along the local gradient
     direction.  The gradient direction is quantised to four cardinal
     sectors (0, 45, 90, 135 degrees from horizontal) so the lookup
     reduces to a small fixed set of shifts.

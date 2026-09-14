@@ -64,16 +64,16 @@ __all__ = [
 # The star gate is purely magnitude based: the catalog reduction and this
 # model drop any star fainter than ``obs.star_max_usable_vmag()``.  The
 # CRLB-covariance and reliability helpers still want an SNR-like quantity,
-# so we synthesise one from how far below the limiting magnitude the star
+# so we synthesize one from how far below the limiting magnitude the star
 # sits.  A star exactly at the limit gets ``snr_eff == SNR_REF``; every
 # extra magnitude of headroom multiplies the effective SNR by one Pogson
 # ratio (``2.512``), matching the flux ratio per magnitude.
 #
-# ``SNR_REF`` is set to 8.0 — just below the reliability sigmoid centre
+# ``SNR_REF`` is set to 8.0 — just below the reliability sigmoid center
 # (snr=10) so a star at the very edge of usability lands near the steep
 # part of the curve (reliability ~0.34) rather than saturating it, while a
 # star a few magnitudes brighter saturates the curve toward 1.0.
-# ``SNR_FLOOR`` keeps the synthesised SNR strictly positive so the
+# ``SNR_FLOOR`` keeps the synthesized SNR strictly positive so the
 # covariance never degenerates to the zero-SNR huge-variance branch.
 SNR_REF: float = 8.0
 SNR_FLOOR: float = 0.1
@@ -368,7 +368,7 @@ class NavModelStars(NavModel):
         stretch_boxes: list[tuple[int, int, int, int]] = []
         for star in self._stars:
             if star.conflicts and star.conflicts != 'STAR':
-                # Skip body/ring-blocked stars; they are not labelled.
+                # Skip body/ring-blocked stars; they are not labeled.
                 continue
             v_pos, u_pos = self._extfov_position_vu(star)
             # The box marks the pixel the star falls in, selected by the same
@@ -545,7 +545,7 @@ def _snr_reason_score(snr: float, min_snr: float) -> float:
     effective SNR (``SNR_REF * 2.512 ** (mag_limit - vmag)``), not a
     photometric DN SNR.  This helper folds the configured floor in: when
     ``min_snr > 0``, the score is ``snr / min_snr`` capped at 1; when no
-    floor is configured, an SNR of 50 saturates the score (the same centre
+    floor is configured, an SNR of 50 saturates the score (the same center
     the reliability sigmoid uses).
 
     Parameters:
@@ -589,7 +589,7 @@ def _reliability_from_snr(
     """
     if in_body or in_ring or in_saturation:
         return 0.0
-    # Sigmoid centred near snr=10 with a span of ~5 — stars at snr=20 are
+    # Sigmoid centered near snr=10 with a span of ~5 — stars at snr=20 are
     # saturated to ~1, stars at snr=5 are around 0.27.  Coefficients are
     # the calibration starting point; phase-5 fitting will refine them.
     z = 0.2 * (snr - 10.0)

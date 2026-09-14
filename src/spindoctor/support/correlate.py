@@ -841,7 +841,7 @@ def navigate_single_scale_kpeaks(
     image_pad = pad_top_left(image_orig, padded_h, padded_w)
     model_pad = pad_top_left(model_arr, padded_h, padded_w)
     mask_pad = pad_top_left(mask, padded_h, padded_w)
-    # The gradient surfaces localise the integer peak (and drive quality), but the
+    # The gradient surfaces localize the integer peak (and drive quality), but the
     # sub-pixel refinement runs on the raw-intensity surfaces to avoid the
     # gradient-magnitude rectification bias.  Without gradient mode these are the
     # same arrays, so the refinement is unchanged.
@@ -1192,7 +1192,7 @@ def navigate_with_pyramid_kpeaks(
         logger.debug(f'  Max offset V: {max_offset_vu[0]}, U: {max_offset_vu[1]}')
 
     # Coarse-to-fine prior sequence.  Each level passes its result as the prior
-    # for the next finer level so that a bad coarse estimate is penalised at
+    # for the next finer level so that a bad coarse estimate is penalized at
     # the finer scale rather than allowed to set an unconstrained starting point.
     level_shifts = []
     coarser_prior_fullres: tuple[float, float] | None = None

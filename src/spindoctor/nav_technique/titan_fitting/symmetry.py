@@ -54,7 +54,7 @@ class SymmetryFitParams:
             winning shift.
         min_valid_fraction: Smallest acceptable fraction of annulus mirror
             pairs that were usable at the winning shift.
-        max_second_peak_ratio: Largest acceptable normalised height of a
+        max_second_peak_ratio: Largest acceptable normalized height of a
             competing correlation peak.
         cross_sigma_scale: Multiplier applied to the raw cross-track sigma
             estimate.
@@ -89,7 +89,7 @@ class SymmetryFitResult:
             in which case the ``peak_score`` gate fails.
         valid_fraction: Fraction of annulus mirror pairs that were usable at
             the winning integer shift.
-        second_peak_ratio: Normalised height of the strongest competing
+        second_peak_ratio: Normalized height of the strongest competing
             peak; ``0.0`` when the scan has no competing local maximum.
         at_edge: True when the winning integer shift sits on the boundary of
             the search window, so the true shift may lie outside it.
@@ -214,12 +214,12 @@ def _peak_index(scores: NDArrayFloatType, window_int: int) -> int:
 
 
 def _second_peak_ratio(scores: NDArrayFloatType, peak_index: int) -> float:
-    """Return the normalised height of the strongest competing correlation peak.
+    """Return the normalized height of the strongest competing correlation peak.
 
     Competing peaks are local maxima at least
     ``_SECOND_PEAK_MIN_SEPARATION_PX`` away from the winning shift, scored
     as ``(score - min) / (peak - min)``.  The two window-boundary shifts
-    count, compared against their single neighbour, because a rival lobe
+    count, compared against their single neighbor, because a rival lobe
     that happens to peak against the search bound is exactly the ambiguity
     the gate exists to catch.  No-signal candidates are treated as the
     window minimum.  Zero when there is no competing peak.
@@ -270,7 +270,7 @@ def _cross_sigma(
 
     The estimate ``scale * sqrt((1 - s_pk) / (2 |a|))`` is a noise-deficit
     heuristic: a peak that falls short of perfect correlation over a weakly
-    curved score curve is poorly localised.  When no curvature is available
+    curved score curve is poorly localized.  When no curvature is available
     at all -- a peak pinned to the window boundary, or a flat score curve --
     the reported sigma is the whole search window, the most uncertainty this
     fit can express, never the floor: an unrefinable peak is the least
@@ -348,7 +348,7 @@ def symmetry_scan(
     mask_shift_vu: tuple[float, float] = (0.0, 0.0),
     params: SymmetryFitParams,
 ) -> SymmetryFitResult:
-    """Find the cross-track shift that maximises mirror symmetry.
+    """Find the cross-track shift that maximizes mirror symmetry.
 
     The image is resampled onto the axis-aligned grid and, for every integer
     candidate shift ``c`` in ``[-window_px, window_px]``, the mirror pairs
@@ -357,7 +357,7 @@ def symmetry_scan(
     to an affine brightness relation between the two halves, so a
     hemispheric brightness difference across the axis cannot move the peak,
     while structural asymmetry still costs score.  The winning shift is
-    refined by fitting a parabola through its two neighbours.
+    refined by fitting a parabola through its two neighbors.
 
     When ``angle_refine_deg`` is positive the whole scan is repeated for
     axis angles offset by up to that much, and the best of those angles is

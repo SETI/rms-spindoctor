@@ -37,8 +37,8 @@ __all__ = [
 
 
 _STATIC_DATA_PREFIXES: tuple[str, ...] = (
-    'config_220_',  # body shape catalogue (Phase 3+)
-    'config_3',  # ring catalogues (300_*_rings.yaml)
+    'config_220_',  # body shape catalog (Phase 3+)
+    'config_3',  # ring catalogs (300_*_rings.yaml)
     'config_4',  # per-instrument blocks (400_inst_coiss.yaml ...)
 )
 """Filename prefixes counted as static-data YAML for hashing.
@@ -217,7 +217,7 @@ def _resolve_static_data_hashes() -> Mapping[str, str]:
     """Return ``{filename: sha256_hex(raw bytes)}`` for shipped static data.
 
     Walks ``src/nav/config_files`` and hashes any file whose name starts
-    with one of the recognised static-data prefixes
+    with one of the recognized static-data prefixes
     (``config_220_``, ``config_3``, ``config_4``).  Returns the mapping
     sorted by filename so equality testing is stable.
 

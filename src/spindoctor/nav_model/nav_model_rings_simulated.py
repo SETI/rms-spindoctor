@@ -60,14 +60,14 @@ _RING_EDGE_FLAT_CURVATURE_PX: float = 1.0
 def _ring_edge_is_straight(vertices_vu: NDArrayFloatType) -> bool:
     """Return True when the polyline's deviation from a line is below threshold.
 
-    Computed by SVD of the centred vertices: the smaller singular direction's
+    Computed by SVD of the centered vertices: the smaller singular direction's
     spread is the max perpendicular deviation from the best-fit line.
     """
     if vertices_vu.shape[0] < 3:
         return True
-    centred = vertices_vu - vertices_vu.mean(axis=0, keepdims=True)
-    _u, _s, vt = np.linalg.svd(centred, full_matrices=False)
-    deviations = centred @ vt[1]
+    centered = vertices_vu - vertices_vu.mean(axis=0, keepdims=True)
+    _u, _s, vt = np.linalg.svd(centered, full_matrices=False)
+    deviations = centered @ vt[1]
     return bool(float(np.max(np.abs(deviations))) <= _RING_EDGE_FLAT_CURVATURE_PX)
 
 

@@ -38,7 +38,7 @@ newhorizons_lorri:
       '1': {default: 0.0}          # PLACEHOLDER — calibrate in Phase 10
   # ``_sources`` is documentation-only.  ``Config._load_yaml`` strips
   # every key starting with ``_`` at load time, so this block does not
-  # affect runtime behaviour; it exists so reviewers can trace each
+  # affect runtime behavior; it exists so reviewers can trace each
   # value's provenance and so the Phase 10 calibration step has a
   # checklist of references to verify.
   _sources:

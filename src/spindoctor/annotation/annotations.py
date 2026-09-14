@@ -200,7 +200,7 @@ class Annotations(NavBase):
                     )
 
         # ``np.asarray`` views the PIL image directly; ``np.array`` copies
-        # so the result is writeable.  This replaces the deprecated
+        # so the result is writable.  This replaces the deprecated
         # ``Image.getdata()`` flatten + reshape dance.
         text_layer = np.array(text_im, dtype=np.uint8)
         text_layer[graphic_layer != 0] = graphic_layer[graphic_layer != 0]

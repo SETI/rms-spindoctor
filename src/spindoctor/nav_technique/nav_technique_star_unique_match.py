@@ -677,7 +677,7 @@ class StarUniqueMatchNav(NavTechnique):
         # (the 1-star path has no second observation to subtract), it is
         # the only honest measure of how far we travelled to find the
         # detection inside the search window.  The technique reports it
-        # so the confidence formula can penalise large excursions.
+        # so the confidence formula can penalize large excursions.
         diagnostics = StarUniqueMatchDiagnostics(
             mode='one_star',
             predicted_snr=brightest_snr,
