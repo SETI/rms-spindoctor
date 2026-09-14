@@ -187,6 +187,20 @@ the spacecraft to the ring intersection point along the line of sight)
 that the merge step compares to per-body distances to decide which source
 owns each pixel.
 
+The ring target is the one
+:func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` names for the image's
+closest planet: ``SATURN_MAIN_RINGS`` for Saturn, whose main rings the ring backplanes
+cover, and ``<PLANET>_RING_SYSTEM`` for any other.  The ring step also takes the
+incidence angle of sunlight on that target's plane, once for the image, through
+``oops``'s ``ring_center_incidence_angle`` on the same full-frame backplane: the angle
+at the ring system's center, for the light that reaches the camera at the observation's
+midtime, measured from the normal on the plane's sunlit side, converted to degrees as a
+:class:`~spindoctor.cli.backplanes.backplanes_rings.RingIncidenceAngle`.  Sunlight falls
+on a ring plane at one angle over an image -- on a real frame the angle at the center
+differs from every ring pixel's by a few thousandths of a degree -- so no backplane
+holds it.  The stage records the target and the angle for every image with a closest
+planet, whether or not any pixel is on the rings.
+
 Distance-aware merge
 ====================
 
@@ -235,9 +249,12 @@ output FITS file structure:
 Alongside the FITS file the writer drops a companion
 ``<image>_backplane_metadata.json`` containing:
 
-- the per-image dataset / instrument / observation metadata,
-- the per-body inventory (NAIF ID, name, predicted bounding box),
-- the per-backplane min / max / mean / valid-pixel-count statistics.
+- ``bodies``: for each body, its planes' statistics under ``backplanes``, a minimum and
+  a maximum each, and from the inventory its center, range and size in pixels
+  (``center_uv``, ``center_range``, ``size_uv``);
+- ``rings``: the ring target the ring backplanes were computed for (``target``), the
+  incidence angle of sunlight on its plane (``incidence_angle``, a value in degrees
+  with its unit), and the ring planes' statistics (``backplanes``).
 
 Each statistic states the unit its values are in, which for an angular plane
 is not the unit of the array it was taken from.
@@ -371,6 +388,10 @@ below:
   source.
 - :func:`~spindoctor.cli.backplanes.backplanes_rings.create_ring_backplanes` — ring
   source.
+- :func:`~spindoctor.cli.backplanes.backplanes_bodies.backplane_body_names` and
+  :func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` — the bodies the stage
+  looks for in an image of one planet's system, and the ring target it computes that
+  image's ring backplanes for, which name them in the metadata document.
 - :func:`~spindoctor.cli.backplanes.statistics.plane_statistics` — per-plane
   reduction to a minimum, a maximum and the unit they are in, over
   :func:`~spindoctor.cli.backplanes.statistics.statistics_units`.
