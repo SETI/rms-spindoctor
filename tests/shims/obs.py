@@ -60,8 +60,20 @@ class FakeFOV:
 class FakeMeshgrid:
     """Stand-in for ``oops.Meshgrid``.
 
-    The pipeline only passes meshgrids back into ``Backplane(...)`` and
-    never inspects them, so the fake is opaque.
+    The pipeline only passes meshgrids back into ``Backplane(...)``, so the
+    fake computes nothing.  It does keep the ``origin``, ``limit`` and
+    ``oversample`` it was built with, which is where a model states the
+    sample positions it wants: a stand-in backplane rebuilds the sample
+    centres from them, and that is what lets a test pin the coordinate system
+    a model hands the geometry layer rather than only the shape of what comes
+    back.
+
+    Parameters:
+        origin: ``(u, v)`` low corner of the grid, in the pixel corner
+            coordinates the geometry layer reads.
+        limit: ``(u, v)`` high corner, in the same coordinates.
+        oversample: Per-axis sample counts per pixel.
+        swap: Whether arrays are (v, u)-indexed.
     """
 
     def __init__(

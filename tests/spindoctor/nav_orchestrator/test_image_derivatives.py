@@ -29,6 +29,56 @@ def _step_image(shape: tuple[int, int], step_v: int) -> np.ndarray:
     return img
 
 
+# A bar whose two edges sit at stated sub-pixel rows, one below its pixel's
+# centre and one above, so a half pixel added to or subtracted from the whole
+# fixture moves one of the two zero rows whichever way it goes.
+_BAR_SHAPE = (48, 48)
+_BAR_LEADING_V = 12.25
+_BAR_TRAILING_V = 28.75
+_BAR_COLUMN = 24
+
+# The gradient ridge reproduces each planted edge to within 1e-4 px here; the
+# residue is the far edge's gaussian tail leaking into the profile window,
+# which the wide bar keeps small.  The bound is two orders of magnitude below
+# the half pixel these tests exist to resolve.
+_RIDGE_TOLERANCE_PX = 0.005
+
+
+def _subpixel_bar_image(leading_v: float, trailing_v: float) -> np.ndarray:
+    """Return a bright bar whose edges lie at stated pixel-centric rows.
+
+    Row ``i`` covers ``[i - 0.5, i + 0.5]`` in pixel-centric coordinates, so a
+    row holds the fraction of its own extent that the bar covers.  The bar is
+    dark at both ends of the v axis, keeping the sobel-with-constant-padding
+    boundary artefact out of the frame, and is uniform along u.
+
+    Parameters:
+        leading_v: Pixel-centric row of the bar's low-v boundary.
+        trailing_v: Pixel-centric row of the bar's high-v boundary.
+    """
+    v = np.arange(_BAR_SHAPE[0], dtype=np.float64)
+    covered = np.clip(np.minimum(v + 0.5, trailing_v) - np.maximum(v - 0.5, leading_v), 0.0, 1.0)
+    img: np.ndarray = np.repeat(covered[:, np.newaxis], _BAR_SHAPE[1], axis=1) * 100.0
+    return img
+
+
+def _ridge_centroid(gradient: np.ndarray, near_v: float) -> float:
+    """Return the gradient ridge's pixel-centric row near a stated position.
+
+    The magnitude profile down :data:`_BAR_COLUMN` is symmetric about the edge
+    that produced it, so its weighted mean over a window of plus or minus five
+    rows measures where that edge is without restating how the edge was drawn.
+
+    Parameters:
+        gradient: Gradient magnitude image.
+        near_v: Pixel-centric row the window is centred on.
+    """
+    lo = round(near_v) - 5
+    hi = round(near_v) + 6
+    weights = gradient[lo:hi, _BAR_COLUMN]
+    return float((np.arange(lo, hi, dtype=np.float64) * weights).sum() / weights.sum())
+
+
 def test_image_derivatives_config_defaults_match_design() -> None:
     """Default ``ImageDerivativesConfig`` carries the documented constants."""
     cfg = ImageDerivativesConfig()
@@ -55,20 +105,48 @@ def test_image_derivatives_config_rejects_zero_half_width() -> None:
         ImageDerivativesConfig(dt_half_width_px=0.0)
 
 
-def test_build_image_edge_dt_peak_aligns_with_step_edge() -> None:
-    """Gradient peak row matches the leading or trailing edge of a planted bar."""
-    # A horizontal bar centred on row 16 has its leading edge near row 12
-    # and trailing edge near row 19; the gradient row-sum peaks at one of
-    # those rows after Gaussian smoothing.
-    shape = (40, 40)
-    img = _step_image(shape, step_v=16)
+def test_build_image_edge_dt_returns_arrays_shaped_like_the_image() -> None:
+    """Both products come back on the grid of the image they were built from."""
+    img = _step_image((40, 40), step_v=16)
     gradient, edge_dt = build_image_edge_dt(img, image_noise_sigma=1.0)
-    assert gradient.shape == shape
-    assert edge_dt.shape == shape
-    peak_row = int(np.argmax(gradient.sum(axis=1)))
-    leading_edge = 12
-    trailing_edge = 19
-    assert min(abs(peak_row - leading_edge), abs(peak_row - trailing_edge)) <= 1
+    assert gradient.shape == (40, 40)
+    assert edge_dt.shape == (40, 40)
+
+
+def test_gradient_ridge_centres_on_the_planted_edge() -> None:
+    """The smoothed gradient peaks where the bar's boundary was drawn.
+
+    The bar states each boundary as a pixel-centric row and leaves the rows it
+    crosses partly covered, so the ridge the gaussian and sobel pass produces
+    is symmetric about that row and nothing about it is a restatement of the
+    operator.  An operator biased by half a pixel, such as a forward difference
+    in place of the centred one, moves the ridge off the number the fixture
+    stated and fails here.
+    """
+    img = _subpixel_bar_image(_BAR_LEADING_V, _BAR_TRAILING_V)
+    gradient, _edge_dt = build_image_edge_dt(img, image_noise_sigma=1.0)
+    leading = _ridge_centroid(gradient, _BAR_LEADING_V)
+    trailing = _ridge_centroid(gradient, _BAR_TRAILING_V)
+    assert leading == pytest.approx(_BAR_LEADING_V, abs=_RIDGE_TOLERANCE_PX)
+    assert trailing == pytest.approx(_BAR_TRAILING_V, abs=_RIDGE_TOLERANCE_PX)
+
+
+def test_edge_dt_zero_locus_is_the_pixel_whose_centre_is_nearest_the_edge() -> None:
+    """The distance transform reads zero on one row per edge, at that row's centre.
+
+    Every DT-based residual in the pipeline is measured against this zero
+    locus, so where it sits relative to the pixel grid is the reference the
+    limb, terminator and ring-edge fits all inherit.  A bar boundary at pixel
+    centric ``12.25`` puts it on row 12 and one at ``28.75`` on row 29: the
+    pixel whose own centre is nearest the boundary, not the pixel edge the
+    boundary runs along.  Reading the boundary half a pixel high would move the
+    first row to 13, half a pixel low would move the second to 28, so the pair
+    fails whichever way a half pixel goes astray.
+    """
+    img = _subpixel_bar_image(_BAR_LEADING_V, _BAR_TRAILING_V)
+    _gradient, edge_dt = build_image_edge_dt(img, image_noise_sigma=1.0)
+    zero_rows = np.flatnonzero(edge_dt[:, _BAR_COLUMN] == 0.0)
+    assert zero_rows.tolist() == [12, 29]
 
 
 def test_build_image_edge_dt_zeros_edge_dt_on_thresholded_pixels() -> None:

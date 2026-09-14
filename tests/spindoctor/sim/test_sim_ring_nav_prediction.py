@@ -19,10 +19,21 @@ from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulate
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene import validate_sim_params
-from spindoctor.support.types import NDArrayBoolType
+from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 160
 _CENTER = _SIZE / 2.0
+
+# Rows either side of a vertex that the column scan reads.  Three is enough to
+# reach clear of the band's edge on both sides without meeting its other edge.
+_SCAN_HALF_ROWS = 3
+
+# Bound on the mean signed distance between the predicted edge and the
+# rendered boundary.  The per-vertex scatter is about half a pixel and the
+# edges carry hundreds of vertices, so the mean settles two orders of
+# magnitude inside this; half a pixel of convention error lands five times
+# outside it.
+_EDGE_MEAN_BOUND_PX = 0.1
 
 
 def _scene(feature: dict[str, Any], **extra: Any) -> dict[str, Any]:
@@ -88,30 +99,94 @@ def _edge_vertices_data(obs: ObsSim) -> dict[str, Any]:
     return out
 
 
+def _coverage_fractions(obs: ObsSim) -> NDArrayFloatType:
+    """Return the rendered band's per-pixel covered fraction.
+
+    The band renders at one brightness, so dividing by that plateau turns the
+    frame into the fraction of each pixel the band covers, which is what makes
+    a sub-pixel measurement of its boundary possible at all.
+
+    Parameters:
+        obs: Observation carrying the rendered frame.
+    """
+    data = np.asarray(obs.data, dtype=np.float64)
+    plateau = float(np.median(data[data > 0.9 * data.max()]))
+    fractions: NDArrayFloatType = np.clip(data / plateau, 0.0, 1.0)
+    return fractions
+
+
+def _edge_residuals_px(coverage: NDArrayFloatType, vertices: np.ndarray) -> list[float]:
+    """Return each vertex's signed row distance from the rendered boundary.
+
+    A column through a near-horizontal stretch of the band runs from fully
+    covered to fully empty, and the covered length in that column is the sum
+    of its coverage fractions, which puts the boundary at a definite sub-pixel
+    row.  Columns where more than one pixel is partly covered are where the
+    band runs steeply and a column is the wrong direction to measure along, so
+    they are left out rather than measured badly.
+
+    Parameters:
+        coverage: Per-pixel covered fraction of the rendered frame.
+        vertices: Predicted ``(v, u)`` vertices in data coordinates.
+    """
+    residuals: list[float] = []
+    for v, u in vertices:
+        v_i = round(float(v))
+        u_i = round(float(u))
+        low = v_i - _SCAN_HALF_ROWS
+        high = v_i + _SCAN_HALF_ROWS
+        if low < 0 or high >= _SIZE or not 0 <= u_i < _SIZE:
+            continue
+        column = coverage[low : high + 1, u_i]
+        if int(((column > 0.001) & (column < 0.999)).sum()) > 1:
+            continue
+        if column[0] > 0.999 and column[-1] < 0.001:
+            boundary = low - 0.5 + float(column.sum())
+        elif column[0] < 0.001 and column[-1] > 0.999:
+            boundary = high + 0.5 - float(column.sum())
+        else:
+            continue
+        residuals.append(float(v) - boundary)
+    return residuals
+
+
+def test_predicted_edge_vertices_are_whole_pixel_centric_positions() -> None:
+    """Each predicted edge vertex names a pixel, so it carries no fraction.
+
+    The edges are read off a rasterized border mask, so a vertex is a row and
+    a column stated in pixel centric coordinates.  A fraction in one means a
+    conversion reached the polyline that the technique side would then have to
+    undo.
+    """
+    obs = _obs(_scene(_ringlet()))
+    for vertices in _edge_vertices_data(obs).values():
+        assert np.array_equal(vertices, np.rint(vertices))
+
+
 def test_predicted_edges_land_on_the_projected_render() -> None:
     """At B = 35, node = 25 the prediction sits on the rendered boundary.
 
-    Both sides project through the shared opening-angle helpers, so every
-    predicted edge vertex inside the frame must sit on a coverage
-    transition of the rendered (foreshortened, rotated) band.  A frame
-    conflation between the orbit model and the sky rotation would displace
-    the eccentric edge at most longitudes and fail here.
+    Both sides project through the shared opening-angle helpers, so a
+    predicted edge vertex must sit on the boundary of the rendered
+    (foreshortened, rotated) band.  The band renders with partly covered
+    pixels at its edge, so the boundary has a sub-pixel row and the
+    prediction can be measured against it instead of being truncated to a
+    pixel and asked only to land near a transition.
+
+    A single column scan across a curving edge is noisy, so the statistic is
+    the mean signed distance over the edge: its scatter is about half a pixel
+    per vertex and there are hundreds of them, which puts the mean well
+    inside a tenth of a pixel and leaves the half pixel this bound exists to
+    catch five times outside it.
     """
     obs = _obs(_scene(_ringlet()))
-    coverage: NDArrayBoolType = np.asarray(obs.data) > 1e-9
+    coverage = _coverage_fractions(obs)
     edges = _edge_vertices_data(obs)
     assert set(edges) == {'inner', 'outer'}
     for vertices in edges.values():
-        in_frame = [
-            (int(v), int(u))
-            for v, u in vertices.astype(int)
-            if 1 <= v < _SIZE - 1 and 1 <= u < _SIZE - 1
-        ]
-        assert len(in_frame) > 0
-        for v, u in in_frame:
-            window = coverage[v - 1 : v + 2, u - 1 : u + 2]
-            assert window.any()
-            assert not window.all()
+        residuals = _edge_residuals_px(coverage, vertices)
+        assert len(residuals) > 50
+        assert abs(float(np.mean(residuals))) < _EDGE_MEAN_BOUND_PX
 
 
 def test_orbit_error_never_reaches_the_prediction() -> None:
