@@ -170,11 +170,12 @@ def core_offsets(
             profile that is NaN in every column, which reads as a mosaic with
             no measurable core rather than as a value typed wrong.
     """
+    fcpath = FCPath(path)
     if not math.isfinite(window_km):
         raise ValueError(f'a centroid window is a distance in km, not {window_km}')
     if not math.isfinite(search_km) or search_km < 0.0:
         raise ValueError(f'a search band is a distance in km, not {search_km}')
-    local_path = cast(Path, FCPath(path).retrieve())
+    local_path = cast(Path, fcpath.retrieve())
     with fits.open(local_path) as mosaic:
         header = mosaic[0].header
         image = np.where(
