@@ -114,7 +114,7 @@ carry the methodology and acceptance criteria):
 | WS-12 | -- | Per-instrument guide chapters. Delivered; each instrument's workstream now updates its own pair. |
 | WS-13 | #234 (+ #153) | Detector-noise model for the I/F render path. |
 | WS-15 | #236, #103, #134, #126 | Thread safety, profiling, batch-parallel throughput. |
-| WS-18 | #232 (+ #28, #66 partial) | End-product accuracy checks. |
+| WS-18 | #232 (+ #28) | End-product accuracy checks. |
 
 ---
 
