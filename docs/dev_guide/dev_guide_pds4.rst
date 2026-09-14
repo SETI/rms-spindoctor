@@ -172,8 +172,10 @@ the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  The index tables and
 labels an earlier run wrote, its collection inventories and labels, and its
-run-level products are cleared before the first supplemental file is read, all of
-them by the index generator since it runs first.  Every supplemental file is read, and every value in
+run-level products are cleared once the index generator has found the ``data/``
+directory and before the first supplemental file is read, all of them by the index
+generator since it runs first, so a run refused for want of ``data/`` leaves them as
+they were.  Every supplemental file is read, and every value in
 both index tables rendered, before either table is opened, so a run refused over a
 supplemental file leaves no product of the pass, neither this run's nor an earlier
 run's.  The pass reads each
