@@ -5,12 +5,14 @@
 # Top-level driver for PDS4 bundle generation. Enumerates images via datasets
 # and, for each, generates PDS4 labels and metadata files. Also supports
 # generating the global index files, the collection files and the bundle's
-# run-level products.
+# run-level products, and checking a bundle that has been written.
 ################################################################################
 
 import argparse
 import os
 import sys
+import traceback
+from pathlib import Path
 
 import pdstemplate
 from filecache import FCPath, FileCache
@@ -23,6 +25,7 @@ sys.path.insert(0, package_source_path)
 from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.cli.pds4.bundle_products import generate_bundle_products
+from spindoctor.cli.pds4.check import check_bundle
 from spindoctor.cli.pds4.collections import generate_collection_files
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.config import (
@@ -46,13 +49,20 @@ DATASET: DataSet | None = None
 DATASET_NAME: str | None = None
 
 
-def add_common_arguments(parser: argparse.ArgumentParser, *, for_labels: bool = False) -> None:
+def add_common_arguments(
+    parser: argparse.ArgumentParser, *, for_labels: bool = False, with_logging: bool = True
+) -> None:
     """Add common arguments to an argument parser.
 
     Parameters:
         parser: The argument parser to add arguments to.
+        for_labels: Whether to add the navigation and backplane results roots, which the
+            labels pass reads.
+        with_logging: Whether to add the logging arguments.  The check subcommand writes
+            no log, so it takes none.
     """
-    add_logging_arguments(parser, has_image_logger=False)
+    if with_logging:
+        add_logging_arguments(parser, has_image_logger=False)
     environment_group = parser.add_argument_group('Environment')
     environment_group.add_argument(
         '--config-file',
@@ -478,10 +488,91 @@ def main_summary() -> None:
     MAIN_LOGGER.info('Summary generation complete')
 
 
+def parse_args_check(command_list: list[str]) -> argparse.Namespace:
+    """Parse arguments for the check subcommand.
+
+    Parameters:
+        command_list: The subcommand's arguments, the dataset name first.
+
+    Returns:
+        The parsed arguments, with the dataset's name, in lower case, as
+        ``dataset_name``.
+
+    Raises:
+        SystemExit: With status 1, and a usage line on stdout, when no dataset name was
+            given or when the name is not a known dataset.
+    """
+    if len(command_list) < 1:
+        print('Usage: sd_create_bundle check <dataset_name> [args]')
+        sys.exit(1)
+
+    dataset_name = command_list[0].lower()
+
+    if dataset_name not in dataset_names():
+        print(f'Unknown dataset "{dataset_name}"')
+        print(f'Valid datasets are: {", ".join(dataset_names())}')
+        print('Usage: sd_create_bundle check <dataset_name> [args]')
+        sys.exit(1)
+
+    cmdparser = argparse.ArgumentParser(
+        description='PDS4 Bundle Generation - Check',
+        epilog="""Check a bundle the labels and summary passes wrote, reading only the
+        bundle and the schemas the package ships.""",
+    )
+
+    add_common_arguments(cmdparser, with_logging=False)
+
+    arguments = cmdparser.parse_args(command_list[1:])
+    arguments.dataset_name = dataset_name
+    return arguments
+
+
+def main_check() -> None:
+    """Main function for the check subcommand.
+
+    Checks the bundle the labels and summary passes wrote into
+    ``<bundle_results_root>/<pds4_bundle_name()>/``, reading only that tree and the schemas
+    the package ships, as :func:`~spindoctor.cli.pds4.check.bundle.check_bundle` describes.
+    It writes nothing, not even a log: it prints one line per finding and then a count.
+
+    The run ends with exit status 1 when there is any finding, when there is no bundle
+    directory to check, or when the check itself fails, whose traceback it prints.
+    """
+    arguments = parse_args_check(sys.argv[2:])
+
+    with reporting_configuration_errors():
+        load_default_and_user_config(arguments, DEFAULT_CONFIG)
+
+    dataset = dataset_name_to_class(arguments.dataset_name)()
+    bundle_results_root = get_pds4_bundle_results_root(arguments, DEFAULT_CONFIG)
+    bundle_dir = Path(bundle_results_root) / dataset.pds4_bundle_name()
+    if not bundle_dir.is_dir():
+        print(
+            f'No bundle directory at {bundle_dir}: run the labels and summary passes '
+            'first, or check --bundle-results-root'
+        )
+        sys.exit(1)
+
+    try:
+        findings = check_bundle(bundle_dir, config=dataset.config)
+    except Exception:
+        # A check that could not finish has no count to give, and a count of the findings
+        # it made before it stopped would read as one; its traceback is the report.
+        print(f'The check of {bundle_dir} stopped:')
+        traceback.print_exc(file=sys.stdout)
+        sys.exit(1)
+
+    for finding in findings:
+        print(finding.line())
+    print(f'Bundle check of {bundle_dir}: {len(findings)} finding(s)')
+    if len(findings) > 0:
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point with subparsers."""
     if len(sys.argv) < 2:
-        print('Usage: sd_create_bundle <labels|summary> [args]')
+        print('Usage: sd_create_bundle <labels|summary|check> [args]')
         sys.exit(1)
 
     subcommand = sys.argv[1].lower()
@@ -490,9 +581,11 @@ def main() -> None:
         main_labels()
     elif subcommand == 'summary':
         main_summary()
+    elif subcommand == 'check':
+        main_check()
     else:
         print(f'Unknown subcommand "{subcommand}"')
-        print('Usage: sd_create_bundle <labels|summary> [args]')
+        print('Usage: sd_create_bundle <labels|summary|check> [args]')
         sys.exit(1)
 
 
