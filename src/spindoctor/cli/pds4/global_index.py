@@ -592,7 +592,8 @@ def generate_global_index_files(
     index product whose label is on disk, by its LID and the bundle's version,
     :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_version`, and then
     an ``S`` line for each secondary member the template directory's document inventory
-    cites, through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`.  It
+    cites, as that inventory renders with the bundle's variables, through
+    :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`.  It
     takes its members from the index labels, as the data collection takes its members
     from the data labels, so with neither index product labeled -- no image gives either
     table a row, or neither label renders -- it is not written at all, whatever it would
@@ -839,7 +840,7 @@ def generate_global_index_files(
         collection_inventory,
         collection_label,
         primaries=primaries,
-        secondaries=secondary_members(template_dir),
+        secondaries=secondary_members(template_dir, variables),
         template=collection_template,
         template_vars=variables
         | {'COLLECTION_MISCELLANEOUS_CSV_PATH': collection_inventory.as_posix()},
