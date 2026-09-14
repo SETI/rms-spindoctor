@@ -174,7 +174,7 @@ def _build_annulus_feature(
     the vertex-weighted effective orbit-solution uncertainty over those edges.
     Both are carried so ``RingAnnulusNav`` can widen its reported covariance by
     the coherent radial orbit error along the translation its NCC would absorb
-    it into -- the correlation-side analogue of the ``RingEdgeNav`` channel.
+    it into -- the correlation-side analog of the ``RingEdgeNav`` channel.
     """
     feature_id = f'ring_annulus:{planet}:{ring_name}'
     return NavFeature(

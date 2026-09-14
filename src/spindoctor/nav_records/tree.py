@@ -255,7 +255,7 @@ class TreeRecordSource:
         the walk can report an entry's metrics.
 
         What the selection asks for is checked before anything is walked or
-        checked, so a selection this source cannot honour is refused where it is
+        checked, so a selection this source cannot honor is refused where it is
         asked rather than partway through a caller's loop.
 
         Parameters:
@@ -392,7 +392,7 @@ class TreeRecordSource:
         them applies the selection's restrictions itself: the two read different
         things out of one document, and each narrows on what it read.  What the
         selection asks for is checked here rather than inside the generator, so
-        a selection this source cannot honour is refused where a caller asked
+        a selection this source cannot honor is refused where a caller asked
         rather than partway through its loop.
 
         Parameters:

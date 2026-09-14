@@ -102,7 +102,7 @@ def _is_rank_1(covariance: NDArrayFloatType) -> bool:
 
     For both 2x2 (translation-only) and 3x3 (translation + rotation) inputs
     the test runs on the top-left 2x2 block — flat-ring rank-deficiency is
-    a property of the translation parameterisation, regardless of whether
+    a property of the translation parameterization, regardless of whether
     rotation is fit.  Uses the same scale-independent test as the ensemble
     combine: the ratio of the smallest absolute eigenvalue to the largest
     must fall below :data:`_RANK1_NULL_RELATIVE_THRESHOLD`.

@@ -16,7 +16,7 @@ Algorithm — four sub-pieces:
    sources ``{A, B, C}`` the hash ``(d_AB / d_AC, d_BC / d_AC, ∠BAC)``
    is computed.  The vertex order is canonicalised by triangle geometry
    -- ``A`` sits opposite the longest side, ``B`` opposite the next,
-   ``C`` opposite the shortest -- which is the same physical labelling
+   ``C`` opposite the shortest -- which is the same physical labeling
    for a triangle and any translated, rotated, or uniformly scaled copy.
    The same hash is computed for catalog triplets.  The hash is
    similarity-invariant -- translation, rotation, and uniform scale all
@@ -24,7 +24,7 @@ Algorithm — four sub-pieces:
    already knowing the offset.  A purely geometric canonical order is
    used rather than a brightness order because brightness ties on
    equal-magnitude fields, where a brightness-keyed order would flip the
-   labelling between the detection and catalog sides run to run and under
+   labeling between the detection and catalog sides run to run and under
    image rotation.
 3. **RANSAC.**  Each (detection-triplet, catalog-triplet) candidate is
    scored by counting detection-to-catalog inliers under the
@@ -252,7 +252,7 @@ def _wide_offset_false_lock_expectation(
 
 
 def _gaussian_kernel(sigma_px: float, *, size: int) -> NDArrayFloatType:
-    """Return a normalised 2-D isotropic Gaussian matched-filter kernel.
+    """Return a normalized 2-D isotropic Gaussian matched-filter kernel.
 
     Parameters:
         sigma_px: PSF sigma in pixels.  Must be strictly positive.
@@ -513,8 +513,8 @@ def _optimal_inlier_assignment(
 
     Detections are paired one-to-one with catalog stars (after applying
     the offset to catalog positions) so that the number of pairs within
-    ``tolerance_px`` is maximised and, among maximum-cardinality
-    assignments, the total squared residual distance is minimised.  The
+    ``tolerance_px`` is maximized and, among maximum-cardinality
+    assignments, the total squared residual distance is minimized.  The
     detection x catalog squared-distance matrix is solved as a linear
     sum assignment (Hungarian algorithm); entries beyond the tolerance
     are masked with a cost large enough that the solver never trades an
@@ -850,7 +850,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         """Re-centroid each matched inlier with a true PSF fit where it helps.
 
         The moment centroid is unbiased but noise-limited; a maximum-likelihood
-        PSF fit against the instrument's modelled point-spread function reaches
+        PSF fit against the instrument's modeled point-spread function reaches
         the minimum variance and so sharply reduces the per-star error of faint
         detections.  An undersampled PSF fit, however, carries a fixed
         sub-pixel-phase bias floor, so a detection bright enough that its moment

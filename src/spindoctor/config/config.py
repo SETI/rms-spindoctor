@@ -533,7 +533,7 @@ class Config:
 
     @property
     def body_shape(self) -> Any:
-        """Returns the per-body shape catalogue (``config_220_body_shape.yaml``).
+        """Returns the per-body shape catalog (``config_220_body_shape.yaml``).
 
         Each entry is keyed by SPICE body name (e.g. ``MIMAS``) and exposes
         ``radii_km``, ``ellipsoid_rms_residual_km``, ``crater_scale_km``,

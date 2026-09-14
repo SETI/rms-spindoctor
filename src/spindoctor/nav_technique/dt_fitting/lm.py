@@ -335,7 +335,7 @@ def lm_subpixel_refine(
         # Scaled by ``sum(weights)`` so the penalty tracks the data
         # size: ``alpha`` is a dimensionless ratio (penalty per
         # weighted-residual-equivalent at displacement = 1 px).
-        # ``rotation`` is never penalised — only the translation
+        # ``rotation`` is never penalized — only the translation
         # block of the (2 or 3)-DoF Hessian / RHS receives the term.
         if tikhonov_alpha > 0.0:
             tikhonov_lambda = float(tikhonov_alpha) * float(weights.sum())
@@ -390,7 +390,7 @@ def lm_subpixel_refine(
         # Compare ``trial_cost`` against ``cost_before`` using the SAME
         # weights computed at the start of this iteration.  Recomputing
         # Tukey biweights at the trial offset (the alternative)
-        # parameterises the cost function by the offset itself, so an
+        # parameterizes the cost function by the offset itself, so an
         # "improvement" can mean "the trial offset's reweighting found
         # a different inlier set whose sum-of-squares is lower" rather
         # than "the trial offset has smaller residuals at the current
@@ -476,7 +476,7 @@ def lm_subpixel_refine(
                 dtheta=state.dtheta,
                 fit_rotation=fit_rotation,
             )
-    # Final continuous gradient-ridge stage.  The DT-LM above minimised
+    # Final continuous gradient-ridge stage.  The DT-LM above minimized
     # distance to an integer-quantized edge mask, whose zero-set snaps the
     # recovered edge to integer pixels and leaves a sub-pixel-phase bias
     # floor; this stage polishes the offset against the un-quantized

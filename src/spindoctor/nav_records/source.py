@@ -133,7 +133,7 @@ class RecordSource(Protocol):
             One record, or one unreadable file, per file the selection covers.
 
         Raises:
-            ValueError: If the selection cannot be honoured by this source --
+            ValueError: If the selection cannot be honored by this source --
                 naming a root it does not hold, or naming stubs without
                 resolving to the single root a stub is a key under.
         """
@@ -174,7 +174,7 @@ class RecordSource(Protocol):
             file per file no facts could be read out of.
 
         Raises:
-            ValueError: If the selection cannot be honoured by this source --
+            ValueError: If the selection cannot be honored by this source --
                 naming a root it does not hold, or naming stubs without
                 resolving to the single root a stub is a key under.
         """
@@ -187,7 +187,7 @@ class RecordSource(Protocol):
         returns up to a thousand entries with their metrics in one round trip,
         where reading their documents is one round trip apiece.  What it cannot
         do is answer anything a document says, so a selection restricting on
-        what a document says is refused rather than partly honoured.
+        what a document says is refused rather than partly honored.
 
         A selection naming stubs asks about those files and no others, which is
         what a caller enumerating candidates asks: which of the images this run
@@ -353,7 +353,7 @@ def root_for_stubs(roots: Sequence[str], stubs: Sequence[str]) -> str:
 def refuse_what_a_listing_cannot_answer(selection: Selection) -> None:
     """Refuse a selection restricting on anything a document has to be opened for.
 
-    A listing opens no document, so it cannot honour a restriction on what a
+    A listing opens no document, so it cannot honor a restriction on what a
     document says.  The index could answer some of them from its columns, and
     deliberately does not: a call meaning one thing over one storage and another
     over the next is not a seam, and a caller would read a listing of the whole
@@ -381,7 +381,7 @@ def refuse_what_a_listing_cannot_answer(selection: Selection) -> None:
         carried.append('stop_et')
     if carried:
         raise ValueError(
-            f'a listing opens no document, so it cannot honour {", ".join(carried)}. '
+            f'a listing opens no document, so it cannot honor {", ".join(carried)}. '
             f'Ask records() for what a document says, or drop the restriction: a listing '
             f'that ignored one would answer for the whole root as though it were the '
             f'selection.'

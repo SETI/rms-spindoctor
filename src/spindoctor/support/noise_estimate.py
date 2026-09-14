@@ -80,7 +80,7 @@ def estimate_image_noise_sigma(
         return float(mad_std(sensor.ravel()))
 
     # Laplacian response over every interior pixel (corners +1, edges -2,
-    # centre +4), aligned to image pixels [1:-1, 1:-1].
+    # center +4), aligned to image pixels [1:-1, 1:-1].
     response = (
         img[:-2, :-2]
         + img[:-2, 2:]

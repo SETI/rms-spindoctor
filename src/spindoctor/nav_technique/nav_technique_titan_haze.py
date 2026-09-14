@@ -3,7 +3,7 @@
 Absent clouds or visible surface features, a hazy atmosphere is
 mirror-symmetric about the image-plane line through the body center and the
 sub-solar point.  The image displacement perpendicular to that line
-("cross-track") is therefore the shift that maximises mirror symmetry, and
+("cross-track") is therefore the shift that maximizes mirror symmetry, and
 because the limb arc facing the sub-solar point is close to circular, a
 circle fit with FREE radius to that arc pins the displacement along the line
 ("along-track") without assuming a haze altitude.  Together the two

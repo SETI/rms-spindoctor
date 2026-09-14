@@ -346,7 +346,7 @@ class NavModelRings(NavModelRingsBase):
             self._logger.info('Model created in %.3f s', self._metadata['elapsed_time_sec'])
 
     def _log_render_summary(self) -> None:
-        """Emit INFO summary of the surviving ring catalogue + DEBUG detail."""
+        """Emit INFO summary of the surviving ring catalog + DEBUG detail."""
         meta = self._metadata
         planet = meta.get('planet')
         if not planet:

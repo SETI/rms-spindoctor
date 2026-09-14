@@ -3,7 +3,7 @@
 The body-limb, body-terminator, and ring-edge techniques all follow the
 same algorithm: render the model polyline as a binary mask, take a coarse
 2-D NCC against the image edge mask to get an integer offset, then refine
-to sub-pixel precision by Levenberg-Marquardt minimisation against the
+to sub-pixel precision by Levenberg-Marquardt minimization against the
 image distance transform with Tukey-biweight outlier rejection.  After
 convergence the M-estimator information matrix is inverted to produce a
 covariance estimate.

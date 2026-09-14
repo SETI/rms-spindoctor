@@ -130,7 +130,7 @@ def search_window_for_obs(context: NavContext) -> tuple[int, int]:
 
     Every translation-fit technique reads the per-instrument extfov
     margin from ``context.obs.extfov_margin_vu`` to bound its at-edge
-    detection.  Centralising the read in one helper keeps the convention
+    detection.  Centralizing the read in one helper keeps the convention
     uniform: a test obs stand-in that omits the attribute surfaces an
     ``AttributeError`` rather than silently falling through to a
     fabricated default.
@@ -168,7 +168,7 @@ def reported_position_vu(
 def rotation_pivot_distance_px(
     pivot_vu: tuple[float, float], image_shape_vu: tuple[int, int]
 ) -> float:
-    """Return the rotation-pivot's distance from the image centre.
+    """Return the rotation-pivot's distance from the image center.
 
     Used by 3-DoF DT-fit techniques to convert the LM rotation step into a
     pixel-equivalent value for the convergence test.
@@ -178,8 +178,8 @@ def rotation_pivot_distance_px(
         image_shape_vu: Image shape ``(height, width)`` in V/U pixels.
 
     Returns:
-        Euclidean distance from ``pivot_vu`` to the image centre, floored
-        at ``1.0`` so a pivot landing exactly on the image centre still
+        Euclidean distance from ``pivot_vu`` to the image center, floored
+        at ``1.0`` so a pivot landing exactly on the image center still
         yields a non-zero convergence threshold.
     """
     centre_v = float(image_shape_vu[0]) / 2.0
@@ -551,7 +551,7 @@ def technique_tier(technique_name: str) -> str:
     Returns ``'primary'`` for an unregistered name so unknown techniques (test
     stubs, future plug-ins) are treated as primary by construction; an explicit
     ``tier='fallback'`` declaration is required to opt into the fallback-drop
-    behaviour.  Shared by the orchestrator's fallback pre-filter and the
+    behavior.  Shared by the orchestrator's fallback pre-filter and the
     ensemble's fallback-supersession pass so the tier rule lives in one place.
     """
     for cls in NavTechnique._registry:

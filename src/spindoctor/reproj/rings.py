@@ -714,7 +714,7 @@ class RingMosaic:
       orbit, that radial position varies between ``a (1 - e)`` and
       ``a (1 + e)``. The offset semantics make an eccentric ring appear as a
       straight line in the reprojection. A typical 2000 km wide window
-      centred on the orbit uses ``radius_inner = -1000`` and
+      centered on the orbit uses ``radius_inner = -1000`` and
       ``radius_outer = +1000``.
 
     Parameters:

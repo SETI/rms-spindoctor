@@ -210,7 +210,7 @@ def stub_for_document(root: FCPath, path: FCPath) -> str:
     The root comes off a whole component at a time rather than a character at a
     time.  ``/data/res`` is a character prefix of ``/data/results`` and is the
     parent of nothing under it, so taking it off by characters would turn a
-    neighbouring directory's document into something that looks like a key,
+    neighboring directory's document into something that looks like a key,
     reads like a key, and names a file this root does not hold -- silently,
     since nothing downstream can tell such a stub from a real one.
 

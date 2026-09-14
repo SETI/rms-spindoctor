@@ -249,7 +249,7 @@ def _paint_star_marker(
     v_int = round(v_center)
     u_int = round(u_center)
     if v_int < 0 or v_int >= h or u_int < 0 or u_int >= w:
-        return  # marker centre off-image; no painting
+        return  # marker center off-image; no painting
     v_min, u_min, v_max, u_max = geometry.bbox_extfov_vu
     # The bbox is half-open, so its half-extent is one less than the
     # diff.  Clamp to a visible-marker floor and also to the largest

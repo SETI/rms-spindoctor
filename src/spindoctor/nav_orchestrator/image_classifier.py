@@ -92,7 +92,7 @@ class NavImageClassifier:
             missing_frac: Optional pre-computed missing-data fraction over
                 the sensor pixels.  The orchestrator supplies this from the
                 true missing mask (which handles the calibrated-IF
-                ``NaN`` sentinel before the array is sanitised for the
+                ``NaN`` sentinel before the array is sanitized for the
                 finite-only derivative path); when ``None`` the classifier
                 derives the fraction itself from ``missing_data_marker_dn``
                 (using ``np.isnan`` when the marker is itself ``NaN``).
@@ -136,7 +136,7 @@ class NavImageClassifier:
         # marker explicitly via ``np.isnan`` so missing/dropout detection is
         # not silently dead for calibrated images.  When the orchestrator
         # supplies a pre-computed ``missing_frac`` (from the true missing
-        # mask before NaN sanitisation), trust it.
+        # mask before NaN sanitization), trust it.
         if missing_frac is None:
             marker = self.thresholds.missing_data_marker_dn
             if np.isnan(marker):
