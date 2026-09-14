@@ -182,7 +182,7 @@
     </Observation_Area>
     <Reference_List>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide</lid_reference>
+            <lid_reference>$BUNDLE_LID$:document:backplanes-user-guide</lid_reference>
             <reference_type>data_to_document</reference_type>
             <comment>
                 This is the user guide for the backplanes for navigated images from Cassini ISS at Saturn.
@@ -194,7 +194,7 @@
             <comment>The Cassini ISS Data User's Guide (PDS3); DOI: 10.17189/1504135</comment>
         </Internal_Reference>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:browse</lid_reference>
+            <lid_reference>$BUNDLE_LID$:browse</lid_reference>
             <reference_type>data_to_browse</reference_type>
             <comment>
                 The browse images of the backplanes for navigated images from Cassini ISS at Saturn.
