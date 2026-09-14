@@ -32,6 +32,54 @@ The class hierarchy splits responsibility across three axes:
   :class:`~spindoctor.obs.obs_inst.ObsInst`. Per-mission subclasses derive
   from this base.
 
+.. _coordinate-systems:
+
+Coordinate systems
+==================
+
+Positions in a frame are written in one of two coordinate systems, and they
+differ by half a pixel.
+
+In **pixel-corner coordinates** a whole number falls on the boundary between
+two pixels, so the first pixel spans 0.0 to 1.0 and its center is at 0.5. The
+geometry layer works this way: ``ObsSnapshot.uv_from_ra_and_dec`` returns
+positions in it, FOV and backplane methods take and return them, and a meshgrid
+built for a field of view is laid out in it.
+
+In **pixel-centric coordinates** a whole number falls on the center of a pixel,
+so the first pixel spans -0.5 to 0.5 and its center is at 0.0. Sampling and
+measurement work this way: a technique that builds a coordinate array with
+``np.arange`` over the rows it reads out of the image is working in
+pixel-centric coordinates, and so is anything that draws into an array.
+
+Both are continuous: a position in either system is a floating-point number,
+and the systems say only where the whole numbers fall.
+
+Converting between them adds or subtracts
+:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`::
+
+    pixel_centric = pixel_corner  - PIXEL_CENTER_TO_CORNER_PX
+    pixel_corner  = pixel_centric + PIXEL_CENTER_TO_CORNER_PX
+
+The half pixel appears wherever a value crosses between the two, which follows
+from which coordinate system is in use at that stage rather than from anything
+about the value itself. A navigation model asks the geometry layer where
+something is and receives pixel-corner coordinates; it then draws the model or
+emits a predicted position for a technique to compare against a measurement,
+and both of those are pixel-centric. Every model therefore converts. Where a
+model converts differs: the body, ring and Titan models convert as they build
+their sampling grids, so what they emit is already pixel-centric, while a star
+record outlives the model that produced it and is converted at each point of
+use instead.
+
+Getting this wrong is hard to detect from inside the pipeline. A navigated
+offset is the difference between a predicted position and a measured one, so a
+half-pixel error common to both cancels in everything computed from the same
+pair: overlays land on target, residuals look clean, and the reported
+confidence is unaffected. It survives only in the absolute answer, where it can
+be found by comparing against an independently navigated frame or by predicting
+star positions from the recorded attitude and centroiding the image.
+
 ObsSnapshot
 ===========
 

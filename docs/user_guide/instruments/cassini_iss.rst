@@ -25,8 +25,8 @@ Pipeline support
   directory supplied before it will build.
 * **Simulator** -- supported, under four instrument keys: raw and calibrated,
   each per camera.
-* **Statistics** -- supported, and the only instrument with a BOTSIM pair
-  consistency section in the report.
+* **Statistics** -- supported, with a BOTSIM pair consistency section in the
+  report.
 
 Datasets and image selection
 ============================
@@ -34,8 +34,7 @@ Datasets and image selection
 **Dataset names.** ``coiss`` selects the whole archive; ``coiss_cruise`` and
 ``coiss_saturn`` select the two halves of it. Each has a ``_pds3`` alias
 (``coiss_pds3``, ``coiss_cruise_pds3``, ``coiss_saturn_pds3``) naming the same
-class, and all names are case-insensitive. This is the only instrument whose
-archive is split into sub-datasets.
+class, and all names are case-insensitive.
 
 **Volumes.** ``coiss_cruise`` covers COISS_1001 through COISS_1009;
 ``coiss_saturn`` covers COISS_2001 through COISS_2116; ``coiss`` covers both
@@ -83,9 +82,8 @@ before it, so ``--last-image-num`` stops scanning once it passes the range
 rather than reading every remaining volume.
 
 **Cameras and instrument-specific flags.** ``--camera`` takes ``nac`` or
-``wac`` in either case and is available for this instrument only. It filters on
-the image name's leading letter, so it composes with every other selection
-option.
+``wac`` in either case. It filters on the image name's leading letter, so it
+composes with every other selection option.
 
 **Grouping.** ``botsim`` is supported. A BOTSIM ("both simultaneous") command
 fires both shutters at once, and the grouping pairs the two frames into one
@@ -203,18 +201,29 @@ midtime and end of the exposure in UTC and in TDB seconds, the image shape,
 the camera, the exposure time and the instrument host and instrument LIDs --
 a Cassini ISS record carries:
 
-* ``start_time_scet``, ``midtime_scet``, ``end_time_scet`` -- the exposure
-  bounds as spacecraft clock counts, read from the label. This is the only
-  instrument that records them.
-* ``filters`` -- two entries, the two filter wheels, in that order.
-* ``sampling`` -- the on-chip summing mode.
-* ``gain_mode`` -- the commanded gain state.
+* ``shutter_mode`` -- ``NACONLY``, ``WACONLY`` or ``BOTSIM``, the last when
+  both cameras were exposed at once, sharing one spacecraft attitude.
+* ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk`` -- the start,
+  middle and end of the exposure as spacecraft clock counts: the label's own
+  start and stop counts, which mark the start and the end of the exposure, in
+  seconds of the clock with the 1/256-second ticks as a fraction, and the
+  count exactly halfway between them. The ``times`` block's clock strings are
+  computed from the exposure times and can differ from these counts by a
+  fraction of a second.
+* ``filters`` -- two entries, the two filter wheels, in that order, for
+  example ``["CL1", "CL2"]``.
+* ``sampling`` -- the on-chip summing mode: ``FULL``, ``SUM2`` or ``SUM4``.
+* ``gain_mode`` -- the commanded gain state: ``0`` for 215 electrons per DN,
+  ``1`` for 95, ``2`` for 29 and ``3`` for 12, or null for a label naming any
+  other.
 * ``description`` and ``observation_id`` -- the label's free text and the
   observation this frame belongs to; either may be null when the label carries
   none.
 
-The instrument LID encodes the camera: ``...:instrument:issna.co`` for the
-narrow angle camera and ``...:instrument:isswa.co`` for the wide angle camera.
+Its ``instrument`` is ``coiss`` and its ``camera`` is ``NAC`` or ``WAC``. The
+instrument host LID is ``...:instrument_host:spacecraft.co``. The instrument
+LID encodes the camera: ``...:instrument:issna.co`` for the narrow
+angle camera and ``...:instrument:isswa.co`` for the wide angle camera.
 
 Corrected-pointing C-kernels
 ============================
@@ -268,13 +277,13 @@ the baseline's own pointing at each record epoch.
 ``rotation_unsupported`` never appears, because rotation fitting is off for
 both cameras.
 
-``botsim_loser`` is unique to this instrument, and it follows from the
-corrected object being the bus. A BOTSIM exposure produces two frames, one per
-camera, sharing one bus attitude, and one attitude cannot carry two different
-corrections. The narrow angle member keeps its correction and the wide angle
-member yields. A wide angle frame yields only to a partner that actually
-writes: one whose narrow angle partner is ineligible, or has no reproducing
-baseline, keeps its own correction rather than losing it to nothing.
+``botsim_loser`` follows from the corrected object being the bus. A BOTSIM
+exposure produces two frames, one per camera, sharing one bus attitude, and one
+attitude cannot carry two different corrections. The narrow angle member keeps
+its correction and the wide angle member yields. A wide angle frame yields only
+to a partner that actually writes: one whose narrow angle partner is
+ineligible, or has no reproducing baseline, keeps its own correction rather
+than losing it to nothing.
 
 **Interpolation error.** Not yet measured for this instrument. What is known is
 the shape rather than the size: the error is zero at every record epoch, grows

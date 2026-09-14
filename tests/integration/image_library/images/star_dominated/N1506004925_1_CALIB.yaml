@@ -7,8 +7,8 @@ image_url: pds3://calibrated/COISS_2xxx/COISS_2015/data/1505960469_1506046435/N1
 scene_tags:
 - star_dominated
 ground_truth:
-  offset_dv_px: 5.6773
-  offset_du_px: -22.9519
+  offset_dv_px: 6.1773
+  offset_du_px: -22.4519
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench

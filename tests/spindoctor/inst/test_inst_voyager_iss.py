@@ -2,6 +2,11 @@ import math
 
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_VOYAGER_ISS_IO_01
+from tests.spindoctor.inst.conftest import (
+    VicarLabelStandIn,
+    bare_observation,
+    published_clock_counts,
+)
 
 import spindoctor.obs.obs_inst_voyager_iss as obstvgiss
 from spindoctor.obs.obs_inst_voyager_iss import (
@@ -10,7 +15,9 @@ from spindoctor.obs.obs_inst_voyager_iss import (
     _voyager_spacecraft_digit,
 )
 
-pytestmark = REQUIRES_EXTERNAL_DATA
+# The marker is applied per test rather than module-wide: the tests of label strings,
+# clock counts and the star gate fetch nothing, so they run even where the external
+# trees are absent.
 
 # Documented anchor limiting magnitudes (limiting mag at texp = 1 s).
 _VOYAGER_NAC_ANCHOR = 8.3
@@ -37,11 +44,13 @@ _LAB02_V2 = 'VGR-2   FDS 20621.33   PICNO 1326J2-002   SCET 79.189 16:08:47     
 _LABEL3 = 'FOR (I/F)*10000., MULTIPLY DN VALUE BY               1.00000'
 
 
+@REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_basic() -> None:
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
     assert obs.midtime == -646429822.8760977
 
 
+@REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_metadata_spacecraft_lid() -> None:
     """Public metadata derives the instrument-host LID from LAB02."""
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
@@ -140,7 +149,46 @@ def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
     assert obs.star_max_usable_vmag() == pytest.approx(_VOYAGER_NAC_ANCHOR, abs=1e-6)
 
 
+@REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_reports_spacecraft_digit() -> None:
     """The spacecraft digit is read from the image label."""
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
     assert obs.spacecraft_digit == '2'
+
+
+def test_the_published_counts_are_fractional_leading_units_with_no_midtime() -> None:
+    """The label's counts are published in the clock's leading units, with no midtime.
+
+    C1480500_GEOMED's label counts, 14804:59:784 and 14805:00:001, cross a leading
+    unit.  A frame is 1/60 of a leading unit, and a line, counted from 1, is 1/800 of a
+    frame.  The stop count is the readout frame's, so the two do not bracket the
+    exposure.
+    """
+    obs = bare_observation(
+        ObsVoyagerISS,
+        VicarLabelStandIn(LAB02=_LAB02_V1),
+        detector='WAC',
+        filter='CLEAR',
+        _label_clock_counts=('14804:59:784', '14805:00:001'),
+    )
+    start, midtime, end = published_clock_counts(obs)
+    assert start == pytest.approx(14804 + 59 / 60 + (784 - 1) / (60 * 800), abs=1e-9)
+    assert midtime is None
+    assert end == pytest.approx(14805.0, abs=1e-9)
+
+
+@REQUIRES_EXTERNAL_DATA
+def test_voyager_iss_metadata_clock_counts_are_the_pds3_labels() -> None:
+    """The published clock counts are those of the PDS3 label beside the image.
+
+    The IO test image's PDS3 label gives 20621:32:798 and 20621:33:001; the VICAR label
+    the observation keeps carries neither.
+    """
+    obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
+    meta = obs.get_public_metadata()
+    counts = [meta[key] for key in ('start_time_sclk', 'midtime_sclk', 'end_time_sclk')]
+    assert counts == [
+        pytest.approx(20621 + 32 / 60 + (798 - 1) / (60 * 800), abs=1e-9),
+        None,
+        pytest.approx(20621 + 33 / 60, abs=1e-9),
+    ]

@@ -211,6 +211,16 @@ and code review. The guarantee is mechanical for the channel and
 mechanical-plus-review for the consumers; the assessment behind this
 phrasing is recorded in ``critiques/archive/SIM_REALISM_CRITIQUE_2026-07-18.md``.
 
+What a simulated image's navigation document records about the observation
+stays on the idealized side too. Its ``instrument`` is ``sim`` and its
+``camera`` is ``SIM``, and
+:meth:`~spindoctor.obs.obs_inst_sim.ObsSim.get_public_metadata` publishes
+``sim`` as both its Planetary Data System 4 (PDS4) context identifiers and a
+description saying the image was simulated from a scene file. A simulated image
+has no spacecraft and no clock, so its document records no ``shutter_mode`` and
+none of the exposure's start, midtime and end times, clock counts, exposure
+duration or filters that a spacecraft instrument's document records.
+
 Sharing code is fine; sharing information is not
 ------------------------------------------------
 
@@ -1883,6 +1893,47 @@ without a classification fails the import-time completeness assertion in
 :mod:`spindoctor.sim.scene`, so every schema change must extend the boundary in
 the same change.
 
+.. _sim-pixel-convention:
+
+Every position in a scene is a pixel corner
+-------------------------------------------
+
+The two coordinate systems and the half pixel between them are described in
+:ref:`coordinate-systems`. A scene states every position that places something
+in it in **pixel-corner coordinates**: a star's ``v`` / ``u``, a body's
+``center_v`` / ``center_u``, and the ring system's ``geometry.center_v`` /
+``center_u``. So the center of pixel ``N`` is ``N + 0.5``, and the center of a
+``size_v`` by ``size_u`` frame is ``(size_v / 2, size_u / 2)``.
+
+This is what the geometry layer underneath uses, so a position written in a
+scene, a position handed to that layer, and the ``v`` / ``u`` a star record
+carries are one number. The conversion happens where the renderer deposits into
+an array cell, and a scene author never applies it.
+
+Displacements need no conversion, since they are differences between two
+positions: the planted ``offset_v`` / ``offset_u``, a star's ``move_v`` /
+``move_u`` smear vector, a planted ``catalog_error_v`` / ``catalog_error_u``,
+and a companion's ``sep_px``.
+
+The two centers inside the ``optics`` block -- ``distortion.center_v`` /
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- do not follow the
+rule above, and they do not agree with each other either. They name where a
+whole-frame field is centered rather than where an object sits.
+
+``stray_light`` takes its center as pixel-centric and converts it to the
+oversampled grid correctly. ``distortion`` scales its center by the oversample
+factor alone, which is the conversion a pixel-corner value needs, and then uses
+the result against a grid laid out in pixel-centric coordinates; its default
+center, taken when the key is absent, is half an oversampled pixel off for the
+same reason. The size of the disagreement grows with the oversample factor, so
+it is nothing at an oversample of 1 and about a third of a detector pixel at
+the default of 4.
+
+Both fields are smooth on the scale of a pixel, so nothing observable rides on
+this today, and no shipped scene sets a distortion center. It is recorded as an
+open defect rather than as a convention, and an author setting either key
+should expect the two to move relative to one another until it is fixed.
+
 Scene parameter reference
 =========================
 
@@ -2066,7 +2117,8 @@ Common fields:
      - float
      - frame center
      - idealized
-     - Body center in pixels.
+     - Body center in pixels, as a pixel corner (see
+       :ref:`sim-pixel-convention`).
    * - ``axis1`` / ``axis2`` / ``axis3``
      - float
      - 0.0
@@ -2276,8 +2328,10 @@ Star parameters
 ---------------
 
 Each entry of ``stars`` is a dict with ``name`` and an optional
-``catalog_name``, a ``v`` / ``u`` position, a ``vmag`` (visual magnitude; lower
-is brighter), an optional ``spectral_class``, an optional per-star smear vector
+``catalog_name``, a ``v`` / ``u`` position (a pixel corner, like every other
+scene position -- see :ref:`sim-pixel-convention`), a ``vmag`` (visual
+magnitude; lower is brighter), an optional ``spectral_class``, an optional
+per-star smear vector
 ``move_v`` / ``move_u``, an optional PSF fitting-window size ``psf_size`` (a
 two-integer list), and an optional ``navigable`` flag. All of those are
 idealized -- they are the catalog and instrument knowledge a real pipeline has.

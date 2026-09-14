@@ -22,7 +22,7 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: S1, v: 64.0, u: 70.0, vmag: 3.0}
+  - {name: S1, v: 64.5, u: 70.5, vmag: 3.0}
 noise:
   poisson: true
   read_noise_dn: 4.0

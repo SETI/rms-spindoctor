@@ -20,12 +20,26 @@ run because the kernel is not there to furnish.
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import numpy as np
+from filecache import FCPath
 
 from spindoctor.nav_orchestrator.nav_result import NavResult
+from spindoctor.obs.obs_inst_cassini_iss import _published_sclk
 from spindoctor.support.types import NDArrayFloatType
 
-from .shared import Host, elapsed_ticks, exposure_span, sclk_triple, with_pointing
+from .shared import (
+    Host,
+    elapsed_ticks,
+    exposure_span,
+    holdings_path,
+    published_times,
+    recorded_exposure,
+    sclk_triple,
+    with_pointing,
+)
 
 COISS_KERNELS = (
     '05138_05159ra.bc',
@@ -275,3 +289,64 @@ def with_pointing_from_epoch(
         original=original,
         corrected=corrected,
     )
+
+
+def cassini_public_metadata(
+    result: NavResult,
+    *,
+    image_name: str,
+    camera: str,
+    image_shape: tuple[int, int],
+    filters: tuple[str, str],
+    sampling: str,
+    gain_mode: int,
+    observation_id: str,
+    description: str,
+    image_path: Path | FCPath | None = None,
+) -> dict[str, Any]:
+    """Return what the Cassini ISS host publishes about one image.
+
+    The host converts the label's start and stop clock counts to seconds of the
+    clock and publishes them with their exact mean, through its own conversion,
+    which is used here too.  A fixture's clock strings are counted from its label's
+    reading at shutter open (see :func:`cassini_sclk_open`), so here the label's
+    counts are the recorded strings without their partition.  On a real image the
+    two can differ: the counts are the instrument's own, and the strings are SPICE's
+    conversion of the exposure epochs.
+
+    Parameters:
+        result: The image's result, carrying its attitude solution.
+        image_name: Basename of the source image.
+        camera: ``NAC`` or ``WAC``.
+        image_shape: The loaded image's ``(v, u)`` pixel dimensions.
+        filters: The two filter wheel positions the label records.
+        sampling: The label's instrument mode: ``FULL``, ``SUM2`` or ``SUM4``.
+        gain_mode: The gain state oops reads out of the label's gain mode.
+        observation_id: The label's observation id.
+        description: The label's description.
+        image_path: The file the run read.  Defaults to the basename directly under
+            a holdings root.
+
+    Returns:
+        The published facts, in the host's own key order.
+    """
+    exposure = recorded_exposure(result)
+    path = image_path if image_path is not None else holdings_path(image_name)
+    return {
+        'image_path': path.as_posix(),
+        'image_name': image_name,
+        'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
+        'instrument_lid': f'urn:nasa:pds:context:instrument:iss{camera[0].lower()}a.co',
+        **published_times(exposure),
+        **_published_sclk(
+            exposure.sclk_start.partition('/')[2], exposure.sclk_stop.partition('/')[2]
+        ),
+        'image_shape_xy': (image_shape[1], image_shape[0]),
+        'camera': camera,
+        'exposure_time': exposure.exposure_s,
+        'filters': list(filters),
+        'sampling': sampling,
+        'gain_mode': gain_mode,
+        'description': description,
+        'observation_id': observation_id,
+    }

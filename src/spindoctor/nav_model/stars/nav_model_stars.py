@@ -43,6 +43,7 @@ from spindoctor.nav_model.stars.predicted_snr import (
     psf_sigma_px,
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.flux import clean_sclass
 from spindoctor.support.image import draw_rect
 from spindoctor.support.time import now_dt
@@ -409,10 +410,24 @@ class NavModelStars(NavModel):
         return annotations
 
     def _extfov_indices(self, star: MutableStar) -> tuple[float, float]:
-        """Return ``(v, u)`` of ``star`` in extfov coordinates."""
+        """Return ``(v, u)`` of ``star`` in extfov pixel-centric coordinates.
+
+        Converts from the record's pixel corner position (see
+        :class:`~spindoctor.support.types.MutableStar`) to pixel-centric by
+        subtracting the half pixel, then adds the extended-FOV margins, which
+        are whole pixels of padding and so need no conversion.
+        The result is the convention every predicted position in the
+        pipeline uses and the one a technique measures its centroids in.
+
+        Parameters:
+            star: Star record carrying a pixel corner position.
+
+        Returns:
+            ``(v, u)`` in the extended (padded) frame, pixel-centric.
+        """
         return (
-            float(star.v) + float(self.obs.extfov_margin_v),
-            float(star.u) + float(self.obs.extfov_margin_u),
+            float(star.v) - PIXEL_CENTER_TO_CORNER_PX + float(self.obs.extfov_margin_v),
+            float(star.u) - PIXEL_CENTER_TO_CORNER_PX + float(self.obs.extfov_margin_u),
         )
 
 
@@ -582,16 +597,19 @@ def _star_feature_id(star: MutableStar) -> str:
 def _star_short_info(star: MutableStar) -> str:
     """Return a one-line text summary of a star, suitable for INFO logging.
 
-    Mirrors the shape of the legacy ``NavModelStars._star_short_info`` line so
-    the per-image log keeps a familiar listing that operators can grep.
+    The line keeps the shape operators grep for.  The
+    ``U`` and ``V`` values are pixel-centric coordinates in the
+    nominal (unpadded) frame, which is the convention every other position in
+    a navigation log and document uses; the ``+/-`` figure after each is the
+    per-exposure smear amplitude along that axis.
     """
     jb = getattr(star, 'johnson_mag_b', None) or 0.0
     jv = getattr(star, 'johnson_mag_v', None) or 0.0
     temp = getattr(star, 'temperature', None) or 0.0
     return (
         f'Star {star.catalog_name:>6s}/{star.pretty_name:>9s} '
-        f'U {star.u:9.3f}+/-{abs(star.move_u):7.3f} '
-        f'V {star.v:9.3f}+/-{abs(star.move_v):7.3f} '
+        f'U {star.u - PIXEL_CENTER_TO_CORNER_PX:9.3f}+/-{abs(star.move_u):7.3f} '
+        f'V {star.v - PIXEL_CENTER_TO_CORNER_PX:9.3f}+/-{abs(star.move_v):7.3f} '
         f'VMAG {(-1.0 if star.vmag is None else star.vmag):6.3f} '
         f'JBMAG {jb:6.3f} '
         f'JVMAG {jv:6.3f} '
@@ -602,7 +620,16 @@ def _star_short_info(star: MutableStar) -> str:
 
 
 def _star_summary(star: MutableStar) -> dict[str, Any]:
-    """Return a compact JSON-friendly summary of a star (for metadata)."""
+    """Return a compact JSON-friendly summary of a star (for metadata).
+
+    ``u`` and ``v`` are pixel-centric coordinates in the nominal
+    (unpadded) frame, the same numbers the log line carries.  Every position
+    a navigation document records is pixel-centric, so a reader needs to know
+    only which frame it is in: this one is the unpadded frame, and a STAR
+    feature's ``predicted_vu`` is the same point plus the extended-FOV margin.
+    The record itself holds pixel corner coordinates, which is this value plus
+    ``PIXEL_CENTER_TO_CORNER_PX``.
+    """
     return {
         'catalog_name': star.catalog_name,
         'unique_number': star.unique_number,
@@ -612,8 +639,8 @@ def _star_summary(star: MutableStar) -> dict[str, Any]:
         'vmag': star.vmag,
         'photometry_corrected': star.photometry_corrected,
         'photometry_saturated': star.photometry_saturated,
-        'u': star.u,
-        'v': star.v,
+        'u': star.u - PIXEL_CENTER_TO_CORNER_PX,
+        'v': star.v - PIXEL_CENTER_TO_CORNER_PX,
         'move_u': star.move_u,
         'move_v': star.move_v,
         'spectral_class': star.spectral_class,

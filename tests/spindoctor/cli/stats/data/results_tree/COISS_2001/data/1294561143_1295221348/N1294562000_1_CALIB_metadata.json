@@ -9,7 +9,27 @@
     "image_shape": [
       1024,
       1024
-    ]
+    ],
+    "instrument_host_lid": "urn:nasa:pds:context:instrument_host:spacecraft.co",
+    "instrument_lid": "urn:nasa:pds:context:instrument:issna.co",
+    "start_time_utc": "2005-05-22T02:25:35.585",
+    "midtime_utc": "2005-05-22T02:25:35.815",
+    "end_time_utc": "2005-05-22T02:25:36.045",
+    "start_time_et": 170000799.77,
+    "midtime_et": 170000800.0,
+    "end_time_et": 170000800.23,
+    "start_time_sclk": 1294562000.2148438,
+    "midtime_sclk": 1294562000.4453125,
+    "end_time_sclk": 1294562000.6757812,
+    "exposure_time": 0.46,
+    "filters": [
+      "CL1",
+      "GRN"
+    ],
+    "sampling": "FULL",
+    "gain_mode": 3,
+    "description": "Iapetus disc at low phase.",
+    "observation_id": "ISS_00ASA_IAPETUS002_PRIME"
   },
   "navigation_result": {
     "status": "failed",

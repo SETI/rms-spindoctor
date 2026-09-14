@@ -201,7 +201,7 @@ plan).
 | 9 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
 | 10 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
 | 11 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 12 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619; no phase (navigation) |
+| 12 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; no phase (navigation) |
 | 13 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
 No row but 12 gets its own tracking issue. Each of the others is fixed by a
@@ -209,7 +209,7 @@ named phase of this plan, which carries the evidence and the disposition togethe
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
 every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 12 is the
-navigation's, owned by no phase, and is tracked as #619. The rows that *would* have
+navigation's, owned by no phase, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
 difference between the arrays and the tables as settled design rather than a
@@ -474,10 +474,11 @@ section 3.11 says what happens to it, and the answer is that it never reaches
 a label. A success document has one only beside a pointing: `build_metadata_dict`
 writes `times` with the pointing, and the navigation records a success with no
 pointing when `compute_pointing` raises `NavPointingError` or the instrument has
-no SPICE camera frame mapped (#619 proposes recording the times for every
-result; section 2.2 row 12). That is a document this package's navigation
+no SPICE camera frame mapped (its `observation` block holds the host's exposure
+times regardless, which this pass does not read; section 2.2 row 12). That is a
+document this package's navigation
 writes, so the labels pass fails such an image before anything is written for
-it, its log saying the navigation recorded no exposure times. It checks only
+it, its log saying the navigation recorded no pointing. It checks only
 that the block is there, since the block always holds all three epochs, and
 nothing else about them (the operator's ruling of 2026-09-11 that nothing
 guards against our own files). The summary pass needs no check: the labels pass
@@ -1307,7 +1308,7 @@ statistics report's `date_from_image_et` and `datetime_from_image_et` and by
 `pds4_template_variables`. `START_DATE_TIME` and `STOP_DATE_TIME` read
 `navigation_result.times`, each to the nearest millisecond, and
 `IMAGE_MID_TIME` is the midpoint of the two as written, a half rounding up
-(section 3.4); a navigated image whose navigation recorded no exposure times is
+(section 3.4); a navigated image whose navigation recorded no pointing is
 failed before anything is written for it. The data
 collection range is taken in the global index's read of the supplemental files,
 which runs first, and written at whole seconds, rounded outward; with no
@@ -1714,7 +1715,7 @@ removals on a two-sided conflict.
 named phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
 adds a close to reconcile and no reader. Row 12 is the navigation's, not a
-phase's, and is tracked as #619.
+phase's, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block.
 
 The one row that would have outlived this plan was the angular-unit
 difference between the arrays and the tables, and the difference itself

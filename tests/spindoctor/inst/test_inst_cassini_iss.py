@@ -4,9 +4,14 @@ from typing import Any
 
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_CASSINI_ISS_RHEA_01
+from tests.spindoctor.inst.conftest import (
+    VicarLabelStandIn,
+    bare_observation,
+    published_clock_counts,
+)
 
 import spindoctor.obs.obs_inst_cassini_iss as obstcoiss
-from spindoctor.obs.obs_inst_cassini_iss import ObsCassiniISS
+from spindoctor.obs.obs_inst_cassini_iss import ObsCassiniISS, _sclk_count
 
 # The marker is applied per test rather than module-wide: the shutter-mode
 # label tests build a bare observation and fetch nothing, so they run even
@@ -23,6 +28,26 @@ def _obs_with_label(label: dict[str, Any]) -> ObsCassiniISS:
     obs = object.__new__(ObsCassiniISS)
     obs.dict = label
     return obs
+
+
+def _cassini_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
+    """Build a bare narrow-angle observation whose public metadata can be read.
+
+    Parameters:
+        label: The image's VICAR label items.
+
+    Returns:
+        The observation.
+    """
+    return bare_observation(
+        ObsCassiniISS,
+        label,
+        detector='NAC',
+        filter1='CL1',
+        filter2='CL2',
+        sampling='FULL',
+        gain_mode=2,
+    )
 
 
 @REQUIRES_EXTERNAL_DATA
@@ -83,3 +108,42 @@ def test_shutter_mode_non_text_label_value_is_refused() -> None:
     """
     with pytest.raises(ValueError, match='SHUTTER_MODE_ID is not text'):
         _ = _obs_with_label({'SHUTTER_MODE_ID': 42}).shutter_mode
+
+
+def test_the_published_counts_are_fractional_seconds_and_their_exact_mean() -> None:
+    """The label's counts are published as clock seconds, and their mean as the midtime.
+
+    N1459552248_1_CALIB's exposure crosses a second: its label counts, 1459552247.012
+    and 1459552248.137, are 1459552247 + 12/256 and 1459552248 + 137/256 seconds, and
+    the midtime count is exactly halfway between them.  Each count is a whole number of
+    1/512-second steps, which a float holds exactly, so each is compared exactly.
+    """
+    label = VicarLabelStandIn(
+        SPACECRAFT_CLOCK_START_COUNT='1459552247.012',
+        SPACECRAFT_CLOCK_STOP_COUNT='1459552248.137',
+    )
+    start, midtime, end = published_clock_counts(_cassini_observation(label))
+    assert start == 1459552247.046875
+    assert midtime == 1459552247.791015625
+    assert end == 1459552248.53515625
+
+
+def test_a_tick_field_that_lost_its_trailing_zeros_is_padded_back() -> None:
+    """A count whose tick field lost its trailing zeros is read with them restored.
+
+    The COISS index writes N1347929382_3's start count, 1347929382.110, as
+    1347929382.11.
+    """
+    assert _sclk_count('1347929382.11') == 1347929382 + 110 / 256
+
+
+def test_a_label_without_clock_counts_publishes_null_counts() -> None:
+    """A label carrying no clock counts publishes all three as null.
+
+    Some labels, W1294561143_1_CALIB's among them, carry neither
+    SPACECRAFT_CLOCK_START_COUNT nor SPACECRAFT_CLOCK_STOP_COUNT.
+    """
+    start, midtime, end = published_clock_counts(_cassini_observation(VicarLabelStandIn()))
+    assert start is None
+    assert midtime is None
+    assert end is None

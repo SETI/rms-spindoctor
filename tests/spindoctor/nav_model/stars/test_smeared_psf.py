@@ -171,6 +171,21 @@ class _FakeObsForBracket:
         return _FakeUVResult(u=10.0 + self._du * tfrac, v=20.0 + self._dv * tfrac)
 
 
+def test_render_smeared_psf_phases_a_negative_uv_into_the_unit_interval() -> None:
+    """A star in the extended-FOV margin has a negative uv and still phases right.
+
+    ``eval_rect`` measures its offset from the centre pixel's lower edge and
+    wants a fraction in [0, 1).  Truncating toward zero would hand it a negative
+    one and displace the stamp by a whole pixel on that axis.
+    """
+    psf = _FakePSF()
+    star = _FakeStar(psf_size=(5, 5), move_v=0.0, move_u=0.0, u=-0.2, v=-3.75, dn=1.0)
+    render_smeared_psf(psf, star=star, max_movement_steps=50)  # type: ignore[arg-type]
+    offset = psf.calls[0]['offset']
+    assert offset[0] == pytest.approx(0.25)  # type: ignore[index]
+    assert offset[1] == pytest.approx(0.8)  # type: ignore[index]
+
+
 def test_compute_smear_vector_px_returns_bracket_difference() -> None:
     """The smear vector is ``(v_end - v_start, u_end - u_start)`` in pixels."""
     obs: Any = _FakeObsForBracket(du=2.5, dv=1.5)

@@ -24,6 +24,7 @@ from scipy import ndimage
 
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['apply_distortion']
@@ -97,8 +98,19 @@ def apply_distortion(
         return
 
     size_v, size_u = frame.signal.shape
-    center_v = float(distortion.get('center_v', (size_v / oversample) / 2.0)) * oversample
-    center_u = float(distortion.get('center_u', (size_u / oversample) / 2.0)) * oversample
+    # A scene states a centre in pixel-corner coordinates on the detector grid;
+    # the sampling grid below is pixel-centric on the oversampled one.  Scaling
+    # a corner coordinate is a plain multiply, and the half pixel takes it the
+    # rest of the way.  The default is the frame's own centre, which lands on
+    # (size - 1) / 2 by the same route.
+    center_v = (
+        float(distortion.get('center_v', (size_v / oversample) / 2.0)) * oversample
+        - PIXEL_CENTER_TO_CORNER_PX
+    )
+    center_u = (
+        float(distortion.get('center_u', (size_u / oversample) / 2.0)) * oversample
+        - PIXEL_CENTER_TO_CORNER_PX
+    )
     rho_ref = 0.5 * float(np.hypot(size_v, size_u))
 
     vv, uu = np.mgrid[0:size_v, 0:size_u].astype(np.float64)
