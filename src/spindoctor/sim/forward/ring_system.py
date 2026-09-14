@@ -561,7 +561,7 @@ def _moonlet_disc_coverage(
     projected to the sky through the shared projection; the disc is drawn in
     sky coordinates (a body, not a ring-plane band, so it does not
     foreshorten with the ring).  The coverage shade is exactly 0.0 wherever
-    the pixel centre sits half an anti-aliasing window or more outside the
+    the pixel center sits half an anti-aliasing window or more outside the
     disc radius, so the evaluation is restricted to the bounding box of that
     reach (plus one pixel of slack for the half pixel between the coordinates the
     reach is stated in and the cells the box names) and the

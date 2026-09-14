@@ -608,7 +608,7 @@ def build_report(
 
     Raises:
         ValueError: If ``min_image`` or ``max_image`` contains no digits, or if
-            the source cannot honour the selection or cannot be read.
+            the source cannot honor the selection or cannot be read.
         UnlistableDirectoryError: If a selected root, or a directory under one,
             could not be listed.
     """

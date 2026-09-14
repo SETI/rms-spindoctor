@@ -134,8 +134,8 @@ def apply_stray_light(
         direction_deg: Ramp direction for the 'linear' model, in degrees.
         model: 'linear' (a ramp spanning [0, amplitude]) or 'radial' (a bump of
             height amplitude fading to 0 at the farthest corner).
-        center_v: Bump centre v for 'radial'; frame centre when None.
-        center_u: Bump centre u for 'radial'; frame centre when None.
+        center_v: Bump center v for 'radial'; frame center when None.
+        center_u: Bump center u for 'radial'; frame center when None.
 
     Raises:
         ValueError: If ``model`` is not 'linear' or 'radial'.
@@ -153,7 +153,7 @@ def apply_stray_light(
         span = float(proj.max())
         field = amplitude * (proj / span) if span > 0.0 else np.zeros_like(proj)
     elif model == 'radial':
-        # ``vv`` / ``uu`` are pixel-centric, so the frame's centre is
+        # ``vv`` / ``uu`` are pixel-centric, so the frame's center is
         # ``(size - 1) / 2`` and its outer corners sit half a pixel outside the
         # first and last sample.
         half = PIXEL_CENTER_TO_CORNER_PX
@@ -223,7 +223,7 @@ def apply_optics(
 
     stray = optics.get('stray_light')
     if stray:
-        # A scene states a centre in pixel-corner coordinates on the detector
+        # A scene states a center in pixel-corner coordinates on the detector
         # grid; the signal plane is pixel-centric on the oversampled one.
         center_v = stray.get('center_v')
         center_u = stray.get('center_u')

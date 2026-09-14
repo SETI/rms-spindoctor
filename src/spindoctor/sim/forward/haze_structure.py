@@ -1,7 +1,7 @@
 """Symmetry-breaking structure of a rendered haze layer.
 
 The base haze of :mod:`spindoctor.sim.forward.atmosphere` is exactly
-mirror-symmetric about the image-plane line through the body centre and the
+mirror-symmetric about the image-plane line through the body center and the
 sub-solar direction: one exponential column, one illumination weight, no
 azimuthal or hemispheric structure.  A navigator that measures pointing FROM
 that symmetry would therefore be graded against a scene built from its own
@@ -39,7 +39,7 @@ polar axis.  A scene that wants the hemispheric split to be the one the
 mirror maps onto itself orients its illumination perpendicular to that axis
 (``illumination_angle`` 90 with ``rotation_z`` 0, as the committed haze
 scenes do).  Azimuth ``phi`` is measured in the image plane about the disc
-centre and compared against the haze illumination direction, so the
+center and compared against the haze illumination direction, so the
 sharpness gradient is symmetric about the sunward axis.
 """
 
@@ -131,12 +131,12 @@ class CloudBlob:
     """One Gaussian cloud painted on the haze disc.
 
     Parameters:
-        center_v: Cloud centre offset from the body centre along v, in grid
+        center_v: Cloud center offset from the body center along v, in grid
             pixels.
-        center_u: Cloud centre offset from the body centre along u, in grid
+        center_u: Cloud center offset from the body center along u, in grid
             pixels.
         sigma_px: Gaussian standard deviation in grid pixels (> 0).
-        amplitude: Peak brightness added at the cloud centre, in the [0, 1]
+        amplitude: Peak brightness added at the cloud center, in the [0, 1]
             signal plane; negative darkens.
     """
 
@@ -287,8 +287,8 @@ def scale_height_field(
         structure: The haze structure, or None for the base haze.
         scale_height_px: Nominal falloff length in grid pixels.
         v_rot: Body-frame first-axis coordinate of each pixel.
-        v_ctr: Image-frame v offset of each pixel from the body centre.
-        u_ctr: Image-frame u offset of each pixel from the body centre.
+        v_ctr: Image-frame v offset of each pixel from the body center.
+        u_ctr: Image-frame u offset of each pixel from the body center.
         illum_v: V component of the (tilted) in-plane illumination direction.
         illum_u: U component of the same direction.
 
@@ -357,8 +357,8 @@ def apply_disc_structure(
         out_box: Body radiance over the haze bounding box, modified in place.
         structure: The haze structure, or None for the base haze.
         disc: Boolean mask of the box pixels the body silhouette painted.
-        v_ctr: Image-frame v offset of each box pixel from the body centre.
-        u_ctr: Image-frame u offset of each box pixel from the body centre.
+        v_ctr: Image-frame v offset of each box pixel from the body center.
+        u_ctr: Image-frame u offset of each box pixel from the body center.
         r_mean: Mean apparent body radius in grid pixels.
         illum_v: V component of the (tilted) in-plane illumination direction.
         illum_u: U component of the same direction.
@@ -393,10 +393,10 @@ def _add_blob(
     Parameters:
         extra: Box-shaped additive field, modified in place.
         blob: The cloud to add.
-        v_ctr: Image-frame v offsets of the box rows from the body centre,
+        v_ctr: Image-frame v offsets of the box rows from the body center,
             shaped ``(rows, 1)``.
         u_ctr: Image-frame u offsets of the box columns from the body
-            centre, shaped ``(1, cols)``.
+            center, shaped ``(1, cols)``.
     """
     v_axis = v_ctr[:, 0]
     u_axis = u_ctr[0, :]

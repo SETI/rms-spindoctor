@@ -193,10 +193,10 @@ def apply_edited_frame(
     rng: np.random.Generator,
     **_ignored: Any,
 ) -> dict[str, Any]:
-    """Keep only a centred vertical band of each line, or a half-height frame.
+    """Keep only a centered vertical band of each line, or a half-height frame.
 
     An explicit ``half_frame`` keeps one half of the frame height (the 2:1
-    scan modes); otherwise a band width keeps a centred column band and blanks
+    scan modes); otherwise a band width keeps a centered column band and blanks
     the rest of every line (the Voyager edited modes, whose registry default
     of 440 px matches the Voyager IM band widths, so a bare incidence renders
     the band shape).  A commanded mode: activation is by incidence.

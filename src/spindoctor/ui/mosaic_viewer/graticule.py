@@ -105,7 +105,7 @@ def graticule_label_anchors(
 
     Finds the best visible point along each parallel and meridian at which to
     draw a tick label.  For parallels the anchor is the point closest to the
-    screen centre along the line; for meridians similarly.
+    screen center along the line; for meridians similarly.
 
     Parameters:
         params: Current projection parameters.
@@ -156,7 +156,7 @@ def graticule_label_anchors(
             lons = np.full_like(lats, lon)
             vx, vy, vis = lonlat_to_display(lons, lats, params)
             if is_polar:
-                # Meridians converge at the pole (the projection centre), so
+                # Meridians converge at the pole (the projection center), so
                 # nearest-to-centre puts every label on top of every other.
                 # Instead place each label at ~55 % of the projection radius.
                 anchor = _at_target_radius(

@@ -370,7 +370,7 @@ class TiledImageWidget(QAbstractScrollArea):
         self._x_zoom: float = 1.0
         self._y_zoom: float = 1.0
 
-        # Color-by: (n_data_rows, n_data_cols, 3) float32 in [0,1], or None for greyscale
+        # Color-by: (n_data_rows, n_data_cols, 3) float32 in [0,1], or None for grayscale
         self._color_tint: np.ndarray | None = None
 
         # Show-rows overlay (ring: show_radii; body full-sphere uses viewport geo lines)
@@ -406,10 +406,10 @@ class TiledImageWidget(QAbstractScrollArea):
         # For RECT the existing x_zoom/y_zoom/scrollbar path is used instead.
         self._proj_kind: ProjectionKind = ProjectionKind.RECT
         self._proj_scale: float = 200.0  # pixels per normalized unit
-        self._proj_cx: float = 0.0  # viewport-pixel centre X
-        self._proj_cy: float = 0.0  # viewport-pixel centre Y
-        self._yaw_deg: float = 0.0  # SPHERE_3D: longitude at view centre
-        self._pitch_deg: float = 0.0  # SPHERE_3D: latitude at view centre
+        self._proj_cx: float = 0.0  # viewport-pixel center X
+        self._proj_cy: float = 0.0  # viewport-pixel center Y
+        self._yaw_deg: float = 0.0  # SPHERE_3D: longitude at view center
+        self._pitch_deg: float = 0.0  # SPHERE_3D: latitude at view center
         # Mouse state for non-RECT drag
         self._proj_drag_start: QPoint | None = None
         self._proj_drag_start_cx: float = 0.0
@@ -659,7 +659,7 @@ class TiledImageWidget(QAbstractScrollArea):
 
         Parameters:
             color_tint: Array of shape (n_data_rows, n_data_cols, 3) with
-                values in [0, 1], or None to revert to greyscale.
+                values in [0, 1], or None to revert to grayscale.
 
         Raises:
             ValueError: If the array has the wrong shape or values out of range.
@@ -701,7 +701,7 @@ class TiledImageWidget(QAbstractScrollArea):
         Parameters:
             kind: Desired projection.
             preserve_view: If True, keep the current ``_proj_scale`` and
-                centre; otherwise reset to the fit-in-window zoom.
+                center; otherwise reset to the fit-in-window zoom.
         """
         self._proj_kind = kind
         if kind != ProjectionKind.RECT:
@@ -759,7 +759,7 @@ class TiledImageWidget(QAbstractScrollArea):
         self.viewport().update()
 
     def fit_projection_to_window(self) -> None:
-        """Reset the non-RECT projection scale and centre to fit the viewport.
+        """Reset the non-RECT projection scale and center to fit the viewport.
 
         Preserves yaw and pitch (3-D rotation state).  No-op in RECT mode.
         """
@@ -917,7 +917,7 @@ class TiledImageWidget(QAbstractScrollArea):
         return int(np.clip(ix, 0, n_c - 1))
 
     def scroll_to_pixel(self, pixel_x: float, pixel_y: float) -> None:
-        """Scroll so that the given image pixel is centred in the viewport."""
+        """Scroll so that the given image pixel is centered in the viewport."""
         vw = self.viewport().width()
         vh = self.viewport().height()
         hbar = self.horizontalScrollBar()
@@ -1008,7 +1008,7 @@ class TiledImageWidget(QAbstractScrollArea):
 
     def resizeEvent(self, event: QResizeEvent | None) -> None:
         if event is not None and self._proj_kind != ProjectionKind.RECT:
-            # Shift projection centre so it stays at the same relative position
+            # Shift projection center so it stays at the same relative position
             old_w = event.oldSize().width()
             old_h = event.oldSize().height()
             if old_w > 0 and old_h > 0:
@@ -1686,7 +1686,7 @@ class TiledImageWidget(QAbstractScrollArea):
                     self._proj_drag_is_pan = False
                     self.viewport().setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
                 elif is_3d and shift:
-                    # 3D Shift+left-drag: pan sphere centre
+                    # 3D Shift+left-drag: pan sphere center
                     self._proj_drag_start = QPoint(vx, vy)
                     self._proj_drag_start_cx = self._proj_cx
                     self._proj_drag_start_cy = self._proj_cy
@@ -1867,7 +1867,7 @@ class TiledImageWidget(QAbstractScrollArea):
             float(vh) / float(viewport_rect.height()),
         )
         new_scale = float(np.clip(self._proj_scale * ratio, min_s, _PROJ_SCALE_MAX))
-        # Keep the rect centre pinned to the new viewport centre
+        # Keep the rect center pinned to the new viewport center
         rect_cx = float(viewport_rect.center().x())
         rect_cy = float(viewport_rect.center().y())
         norm_cx = (rect_cx - self._proj_cx) / self._proj_scale

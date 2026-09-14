@@ -378,7 +378,7 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
 
     Raises:
         SimSceneValidationError: On any unknown or invalid detector field,
-            including a gain state the instrument does not catalogue.
+            including a gain state the instrument does not catalog.
     """
     if value is None:
         return
@@ -391,7 +391,7 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         gain_state = _require_int(
             {'gain_state': value['gain_state']}, 'gain_state', source=f'{source}: detector'
         )
-        # A gain state the instrument does not catalogue fails here, at
+        # A gain state the instrument does not catalog fails here, at
         # validation, with the catalogued alternatives in the message; the
         # render-time resolver keeps its own guard as a backstop for scenes
         # that bypass validation.

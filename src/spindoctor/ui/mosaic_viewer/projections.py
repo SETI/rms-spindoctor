@@ -6,7 +6,7 @@ between normalized units and viewport pixels uses the linear transform::
     viewport_x = normalized_x * scale + cx
     viewport_y = normalized_y * scale + cy
 
-where ``(cx, cy)`` is the projection centre in viewport pixels and ``scale``
+where ``(cx, cy)`` is the projection center in viewport pixels and ``scale``
 is pixels per normalized unit.  :class:`ProjectionParams` carries these values.
 
 Normalized-unit conventions per kind
@@ -67,11 +67,11 @@ class ProjectionParams:
 
     Parameters:
         kind: Which projection to use.
-        cx: Viewport X coordinate of the projection centre (pixels from left).
-        cy: Viewport Y coordinate of the projection centre (pixels from top).
+        cx: Viewport X coordinate of the projection center (pixels from left).
+        cy: Viewport Y coordinate of the projection center (pixels from top).
         scale: Pixels per normalized unit (see module docstring).
-        yaw_deg: SPHERE_3D only -- longitude at the centre of the view (deg).
-        pitch_deg: SPHERE_3D only -- latitude at the centre of the view (deg).
+        yaw_deg: SPHERE_3D only -- longitude at the center of the view (deg).
+        pitch_deg: SPHERE_3D only -- latitude at the center of the view (deg).
     """
 
     kind: ProjectionKind
@@ -100,12 +100,12 @@ def _sphere_rotation_matrix(yaw_deg: float, pitch_deg: float) -> np.ndarray:
     ``screen_y = -Q[2] * scale``.
 
     With yaw=0 and pitch=0 the camera faces the point at (lon=0, lat=0).
-    Increasing yaw rotates the view to show eastern longitudes at centre.
-    Increasing pitch tilts the view to show higher latitudes at centre.
+    Increasing yaw rotates the view to show eastern longitudes at center.
+    Increasing pitch tilts the view to show higher latitudes at center.
 
     Parameters:
-        yaw_deg: Longitude of the view centre (deg).
-        pitch_deg: Latitude of the view centre (deg).
+        yaw_deg: Longitude of the view center (deg).
+        pitch_deg: Latitude of the view center (deg).
 
     Returns:
         3x3 float64 rotation matrix.
@@ -259,7 +259,7 @@ def lonlat_to_display(
         vis = np.ones(xn.shape, dtype=bool)
 
     elif kind == ProjectionKind.MOLLWEIDE:
-        # Centre on lon=0; shift input to [-180, 180]
+        # Center on lon=0; shift input to [-180, 180]
         lon_r = np.deg2rad(np.mod(lon + 180.0, 360.0) - 180.0)
         lat_r = np.deg2rad(lat)
         theta = _mollweide_theta_forward(lat_r)
