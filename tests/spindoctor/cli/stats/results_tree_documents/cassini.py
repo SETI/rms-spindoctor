@@ -745,9 +745,10 @@ def _label(
 
     What the document chooses for itself is written the way a Cassini ISS label writes
     it: its clock counts are the recorded clock strings without their partition, its
-    exposure is in milliseconds, its gain is the text oops reads the gain state out of,
-    and its shutter open, midtime and shutter close are the recorded epochs in the label's
-    day-of-year text.  It reached Earth and was built on the ground after its shutter
+    image number is the whole seconds of its stop count, its exposure is in
+    milliseconds, its gain is the text oops reads the gain state out of, and its shutter
+    open, midtime and shutter close are the recorded epochs in the label's day-of-year
+    text.  It reached Earth and was built on the ground after its shutter
     closed, and the label writes its build time without the ``Z``, as a tour label does.
     The rest is :data:`_SHARED_LABEL_ITEMS` and the camera's :data:`_CAMERA_LABEL_ITEMS`.
 
@@ -761,13 +762,15 @@ def _label(
         The label items.
     """
     partition, _, start_count = exposure.sclk_start.partition('/')
+    stop_count = exposure.sclk_stop.partition('/')[2]
     received = exposure.stop_et + _EARTH_RECEIVED_AFTER_S
     return {
         **_SHARED_LABEL_ITEMS,
         **_CAMERA_LABEL_ITEMS[camera],
         'SPACECRAFT_CLOCK_CNT_PARTITION': int(partition),
         'SPACECRAFT_CLOCK_START_COUNT': start_count,
-        'SPACECRAFT_CLOCK_STOP_COUNT': exposure.sclk_stop.partition('/')[2],
+        'SPACECRAFT_CLOCK_STOP_COUNT': stop_count,
+        'IMAGE_NUMBER': int(stop_count.partition('.')[0]),
         'EXPOSURE_DURATION': round(exposure.exposure_s * 1000.0, 3),
         'GAIN_MODE_ID': _GAIN_MODE_IDS[gain_mode],
         'METHOD_DESC': f'ISSPT2.5.4;Iapetus;{observation_id}_1',

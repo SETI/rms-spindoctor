@@ -358,6 +358,11 @@ form:
      - The middle of the exposure.
      - ``IMAGE_MID_TIME``
      - UTC
+   * - ``image_number``
+     - The image number: the whole seconds of the spacecraft clock at shutter
+       close, the number in the image's name.
+     - ``IMAGE_NUMBER``
+     - none
    * - ``image_time``
      - Shutter close.
      - ``IMAGE_TIME``

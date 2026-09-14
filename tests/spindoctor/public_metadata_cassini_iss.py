@@ -60,6 +60,7 @@ CASSINI_ISS_PUBLIC_METADATA: dict[str, Any] = {
     'gain_mode_id': '29 ELECTRONS PER DN',
     'ground_software_version_id': 'ISS 11.00 05-24-2006',
     'image_mid_time': '2009-299T20:32:22.134Z',
+    'image_number': 1635282917,
     'image_time': '2009-299T20:32:22.244Z',
     'image_observation_type': 'SCIENCE',
     'instrument_data_rate': 182.784,

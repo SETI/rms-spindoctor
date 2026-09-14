@@ -97,14 +97,16 @@ Label and index dependencies
   ``zip(..., strict=True)``, so a sequence of any other length raises
   ``ValueError`` rather than losing or inventing an element. A keyword the
   label lacks is ``None``, and so is each element of a sequence it lacks.
-  Eight attributes are not in the table. Six the block already states in the
+  Seven attributes are not in the table. Six the block already states in the
   label's own form: ``limitations`` is ``DESCRIPTION``, ``filter_name_1`` and
   ``filter_name_2`` are ``FILTER_NAME`` (``filters``), ``instrument_mode_id``
   is ``INSTRUMENT_MODE_ID`` (``sampling``), and ``observation_id`` and
   ``shutter_mode_id`` are the keys above. ``pre-pds_version_number`` is in the
-  file name and not in the label. ``image_number`` is defined as a value
-  obtained from the start count, while ``IMAGE_NUMBER`` is the seconds of the
-  stop count, so the two differ for any exposure that spans a second.
+  file name and not in the label. ``image_number`` is ``IMAGE_NUMBER``, the
+  whole seconds of the spacecraft clock at shutter close, which is what the
+  archive's own PDS4 labels publish under that name. The dictionary defines
+  it as a value obtained from the start count, which differs for any exposure
+  that spans a second; the table follows the archive.
 
 **Which label is read.** ``obs.dict`` is the VICAR label inside the
 ``_CALIB.IMG`` file, which ``oops.hosts.cassini.iss.from_file`` reads with

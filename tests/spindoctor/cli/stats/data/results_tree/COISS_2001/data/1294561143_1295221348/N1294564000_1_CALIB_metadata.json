@@ -55,6 +55,7 @@
     "gain_mode_id": "12 ELECTRONS PER DN",
     "ground_software_version_id": "ISS 11.00 05-03-2005",
     "image_mid_time": "2005-142T02:58:55.815Z",
+    "image_number": 1294564000,
     "image_time": "2005-142T02:58:56.045Z",
     "image_observation_type": "SCIENCE",
     "instrument_data_rate": 182.784,

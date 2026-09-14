@@ -21,14 +21,15 @@ _SCLK_OFFSETS = (0, 0)
 _SCLK_TICK_DIGITS = 3
 """Digits in the tick field of a spacecraft clock count as an image label writes it."""
 
-# Eight of the dictionary's seventy ISS_Specific_Attributes are left out of this table
+# Seven of the dictionary's seventy ISS_Specific_Attributes are left out of this table
 # (#684).  Six are already in the observation block, as the label states them:
 # limitations is DESCRIPTION (description), filter_name_1 and filter_name_2 are
 # FILTER_NAME (filters), instrument_mode_id is INSTRUMENT_MODE_ID (sampling),
 # observation_id is OBSERVATION_ID, and shutter_mode_id is SHUTTER_MODE_ID
 # (shutter_mode).  pre-pds_version_number is in the file name and not in the label.
-# image_number is defined as a value obtained from the start count, but IMAGE_NUMBER is
-# the seconds of the stop count, so the label's value is not what that name says.
+# image_number is IMAGE_NUMBER, the seconds of the clock at shutter close, as the
+# archive's own PDS4 labels have it; the dictionary's wording, a value obtained from the
+# start count, differs from that for any exposure that spans a second.
 _LABEL_FACTS: tuple[tuple[str, str | tuple[str, ...]], ...] = (
     ('MISSION_PHASE_NAME', 'mission_phase_name'),
     ('SPACECRAFT_CLOCK_CNT_PARTITION', 'spacecraft_clock_count_partition'),
@@ -54,6 +55,7 @@ _LABEL_FACTS: tuple[tuple[str, str | tuple[str, ...]], ...] = (
     ('GAIN_MODE_ID', 'gain_mode_id'),
     ('SOFTWARE_VERSION_ID', 'ground_software_version_id'),
     ('IMAGE_MID_TIME', 'image_mid_time'),
+    ('IMAGE_NUMBER', 'image_number'),
     ('IMAGE_TIME', 'image_time'),
     ('IMAGE_OBSERVATION_TYPE', 'image_observation_type'),
     ('INSTRUMENT_DATA_RATE', 'instrument_data_rate'),

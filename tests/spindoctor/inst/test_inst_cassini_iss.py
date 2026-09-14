@@ -151,6 +151,7 @@ _W1573251410_FACTS: dict[str, Any] = {
     'gain_mode_id': '29 ELECTRONS PER DN',
     'ground_software_version_id': 'ISS 11.00 05-24-2006',
     'image_mid_time': '2007-312T21:41:14.934Z',
+    'image_number': 1573251410,
     'image_time': '2007-312T21:41:14.946Z',
     'image_observation_type': 'SCIENCE',
     'instrument_data_rate': 182.784,
