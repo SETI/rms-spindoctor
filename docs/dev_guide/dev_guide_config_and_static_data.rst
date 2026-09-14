@@ -421,7 +421,7 @@ Validation tests
 
 The same validation pattern extends to per-camera ``noise`` /
 ``mag_offset`` blocks in ``config_4N0_inst_*.yaml`` and to any new entries
-added to ``config_3N0_*_rings.yaml``. Existing ring-catalogue values are
+added to ``config_3N0_*_rings.yaml``. Existing ring-catalog values are
 grandfathered (they were curated by orbit-fitting astronomers and the
 catalogs document their pedigree in the file header) — only *new*
 additions need explicit ``_sources`` entries.

@@ -109,7 +109,7 @@ The reported covariance is the Moore-Penrose pseudoinverse of the M-estimator in
 matrix at convergence, scaled by the per-vertex Tukey weights, with the calibrated
 ``model_error_floor_px`` (4.32 px) added in quadrature to the translation diagonal.
 It does not capture
-systematic biases (an under-modelled per-body albedo gradient propagates straight into the
+systematic biases (an under-modeled per-body albedo gradient propagates straight into the
 covariance) and it does not capture model-side uncertainty in the SPICE prediction itself.
 When the converged offset sits within a small tolerance of any axis bound of the search
 window, or when the rotation parameter is at the configured fraction of its cap, the result
@@ -346,7 +346,7 @@ Call path traced through
 4. Decide whether to fit camera rotation by reading
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`. When rotation
    is fit, the rotation pivot is set to the centroid of the concatenated vertices and the
-   pivot-to-image-centre distance is computed via
+   pivot-to-image-center distance is computed via
    :func:`~spindoctor.nav_technique.nav_technique.rotation_pivot_distance_px`.
 5. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine` with the polyline,
    per-vertex sigmas, the edge DT, the gradient image, the integer seed, and the rotation

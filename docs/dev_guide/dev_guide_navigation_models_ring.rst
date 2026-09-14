@@ -93,7 +93,7 @@ turn of arc now returns the ring radius (geometrically right) where scan-order s
 returned a larger value set by the rasterizer's quadrant bias, and short curved edges
 measure roughly half what they used to.  An edge near the ``max_radial_px`` threshold can
 therefore emit as a ``RING_ANNULUS`` where it previously emitted as a ``RING_EDGE``,
-changing which technique navigates it.  The mask-neighbour test that finds the normal AXIS cannot
+changing which technique navigates it.  The mask-neighbor test that finds the normal AXIS cannot
 distinguish the high-radius side from the low-radius side on its own -- it would emit signs
 that follow scan order and rasterization -- and the orbit-uncertainty channel sums the
 normals, so a random sign per vertex would fabricate coherence on geometry that should
@@ -114,7 +114,7 @@ projected to pixels at the ring's radial scale:
 The numerator is the maximum of the inner-edge and outer-edge ``rms`` values supplied by
 the per-planet ring catalog (``config_3N0_<planet>_rings.yaml``); taking the maximum
 rather than the average is conservative — a feature's overall radial uncertainty is
-dominated by its least well-characterised edge. The denominator is the per-image radial
+dominated by its least well-characterized edge. The denominator is the per-image radial
 km/px scale at the ring (the mean of the per-pixel ring-radial-resolution backplane). A
 single :math:`\sigma_{\mathrm{radial,\,px}}` value is broadcast across every vertex of
 the polyline; spatial variation of the catalog ``rms`` along the ring's longitude is not

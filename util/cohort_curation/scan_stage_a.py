@@ -193,7 +193,7 @@ def _catalog_positions(catalog: Any, ra: float, ra_half: float, dec_min: float,
 
     Parameters:
         catalog: A starcat catalog instance exposing ``find_stars``.
-        ra: Box-centre right ascension in radians.
+        ra: Box-center right ascension in radians.
         ra_half: Half-width of the box in RA (radians, dec-corrected).
         dec_min: Lower declination bound in radians.
         dec_max: Upper declination bound in radians.

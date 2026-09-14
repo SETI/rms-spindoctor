@@ -1326,7 +1326,7 @@ gate is drawn dotted and labeled ``TITAN (low reliability)``.
    * - ``titan.navigation.ring_occlusion_radii_km``
      - ``[inner_km, outer_km]`` ring-plane range treated as opaque.
    * - ``titan.navigation.axis_min_offset_px``
-     - Below this predicted-centre-to-sub-solar distance the disc is
+     - Below this predicted-center-to-sub-solar distance the disc is
        treated as rotationally symmetric and the axis search is skipped.
        Scales with the sampling stride of the incidence backplane.
    * - ``titan.navigation.backplane_max_samples``
