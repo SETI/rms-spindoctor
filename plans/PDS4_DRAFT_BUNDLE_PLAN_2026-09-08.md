@@ -573,7 +573,12 @@ collection references, not just what it owns.
 
 `collection_document.csv` lists the backplanes user guide and the PDS3 ISS
 Data User's Guide. The first is a product this bundle owns and must
-therefore contain; the second is an external reference and stays `S`.
+therefore contain; the second is an external reference and stays `S`. It
+cites the second as
+`urn:nasa:pds:cassini_iss_saturn:document:iss-data-user-guide::2.0`, the
+version the reference bundle cites, by the operator's decision of
+2026-09-14. The PDS registry returned only version 1.1 of that product on
+2026-09-14.
 
 The user-guide PDF is an operator deliverable, tracked as #595 (a shared
 LaTeX template for all four instruments' guides) and #596 (the Cassini guide
@@ -1370,7 +1375,9 @@ line per member, each line ending in a line feed alone, the last included
 of members. The three inventories the template directory ships were already
 headerless and LF, with a line feed after the last line; the phase removed
 `collection_context.csv`'s trailing `# TODO` line, which a label would have
-counted as a record, and left their content otherwise as it was. Versioned
+counted as a record, cited the ISS data user guide in
+`collection_document.csv` at `::2.0` by the operator's decision (section
+3.6), and left their content otherwise as it was. Versioned
 context members and `S` members in the generated inventories (section 3.5),
 the `:document:` segment (Phase 6) and the `xml_schema` LIDVIDs (section
 3.9) are not this phase's. The global index tables stay `.tab`, header and
