@@ -29,7 +29,10 @@ pds4:
       cassini:
         location: https://pds.nasa.gov/pds4/mission/cassini/v1/PDS4_CASSINI_1O00_1800
         lidvid: urn:nasa:pds:system_bundle:xml_schema:cassini-xml_schema::1.18
-  # Add other datasets as needed, each with every key the entry above has
+  # Entries for other datasets, commented out, each giving the dataset's template
+  # directory and its bundle's name and version.  A dataset builds a bundle only once its
+  # entry has every key the coiss_saturn entry has and the dataset implements the PDS4
+  # hooks.
   # gossi:
   #   template_dir: galileo_ssi_jupiter_1.0
   #   bundle_name: galileo_ssi_jupiter_backplanes_rsfrench2027
