@@ -76,8 +76,8 @@ The two passes write this directory structure:
        ├── collection_xml_schema.csv
        └── collection_xml_schema.lblx
 
-``document/user_guide/`` is there only when the dataset's template directory holds the
-user guide (see `Templates`_).
+The user guide and its label are in ``document/user_guide/`` only when the dataset's
+template directory holds the user guide (see `Templates`_).
 
 The directory structure within ``data/`` and ``browse/`` mirrors the structure of the
 original PDS4 dataset (if it existed), with paths derived from image names using
@@ -324,12 +324,15 @@ The summary pass generates:
 
 * **Metakernel**: ``spice_kernels/kernels.ker``, the SPICE metakernel every data label
   names, and its PDS4 label, ``kernels.lblx``. It lists no SPICE kernels, and its label
-  says so.
+  says so. When its label cannot be written, the bundle has no SPICE kernel collection
+  and no bundle label, and the pass exits 1.
 
 * **User Guide**: the bundle's user guide, a PDF, copied into ``document/user_guide/``
   from the dataset's template directory, and its PDS4 label beside it. When the template
   directory does not hold the user guide, the bundle has none, the document collection
-  lists none, and the pass writes a warning naming the file it looked for.
+  lists none, and the pass writes a warning naming the file it looked for. When its
+  label cannot be written, the document collection does not list it either, and the
+  pass exits 1.
 
 The data collection label and the bundle label state the time range of the products
 the data collection holds, in whole seconds: from the earliest exposure start, rounded
@@ -542,8 +545,10 @@ Common Issues
   directory under that name and run the summary pass again.
 
 * **Bundle label not written**: the summary pass names each collection the bundle
-  label names that is not in the bundle. The error for that collection, earlier in
-  the log, says why it was not written.
+  label names that is not in the bundle, and the error for that collection, earlier
+  in the log, says why it was not written. Or it says the data tree holds no
+  supplemental file, so there is no time range for the label to state: the labels
+  pass labeled no image, and has to be run first.
 
 * **Summary PNG not found**: that image is failed. A successfully navigated
   image always has one, so either it was removed from the navigation results or

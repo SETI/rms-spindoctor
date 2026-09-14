@@ -152,8 +152,10 @@ did not write, over its three generators, and exits 1 the same way.  The index
 tables are written either way, and so is the inventory of a collection whose label
 fails to render.  The bundle label counts when it is not written: it is kept only
 over a bundle holding a label for every collection it declares, and with no range
-to state it is not rendered (see `The bundle's run-level products`_).  A user guide
-the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what PDS4 requires of it is not
+to state it is not rendered (see `The bundle's run-level products`_).  A metakernel
+label that fails to render leaves the SPICE kernel collection with no member, so that
+collection is not written and counts as well, and so does the bundle label.  A user
+guide the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what PDS4 requires of it is not
 written at all -- neither its inventory nor its label, and whatever an earlier run
 left at either path is removed -- and counts once among the labels not written,
 with an error naming the collection and each reason.  A collection label states at
@@ -199,13 +201,22 @@ nothing to count.  A data label with no
 supplemental file is not checked, since the labels pass writes an image's
 supplemental file before its data label.
 
-A summary pass that exits 1 cleans up nothing it wrote: the generators report what
-they cannot describe rather than repair the bundle.  After one, the index tables
-can hold rows for an image with no data label, since they are built from the
-supplemental files; the browse labels can name a data collection that was not
-written, and the data labels a browse collection that was not written.  The bundle
-label never names a collection the bundle does not hold.  Clear the bundle
-directory and regenerate the bundle into it, as after a labels pass that exits 1.
+A summary pass that exits 1 does not repair the bundle: the generators report what
+they cannot describe, and what they wrote stays, but for two things.  A collection
+that cannot be written has whatever an earlier run left at its paths removed, and
+the bundle label, rendered and then found to name a collection the bundle does not
+hold, is removed in the same run.  After one, the index tables can hold rows for an
+image with no data label, since they are built from the supplemental files; the
+browse labels can name a data collection that was not written, and the data labels a
+browse collection that was not written; a user guide whose label failed is in
+``document/user_guide/`` unlabeled and unlisted; and a metakernel whose label failed
+is in ``spice_kernels/`` with neither label nor collection.  The bundle label names no
+collection the bundle does not hold, except after a run refused before it cleared
+anything -- over a bundle with no data directory -- which leaves an earlier run's
+products as they were, its bundle label among them.  A run refused after it cleared
+can leave empty collection directories.  None of this is repaired in place: clear the
+bundle directory and regenerate the bundle into it, as after a labels pass that exits
+1.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
@@ -245,7 +256,8 @@ The full extension-point set:
   not among them, since a bundle is written without it.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name` — the file
   name of the bundle's user guide, a PDF, in the template directory. Its label's
-  template is the same name ending in ``.lblx``.
+  template is the name :func:`~spindoctor.dataset.dataset.pds4_label_name` gives it,
+  the same name ending in ``.lblx``, the rule every label beside its file follows.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_path_for_image` — maps an
   image name to its position in the bundle's ``data/`` directory tree
   (typically a sharded path like ``1234xxxxxx/123456xxxx`` to keep per-leaf
@@ -573,15 +585,21 @@ some are copied as they are:
   copy's path as ``USER_GUIDE_PATH``.  When it does not, neither is written and the pass
   logs one warning naming the file; that is not a label the pass failed to write.
 - ``bundle.lblx`` is rendered last, at the bundle's root, handed ``BUNDLE_LID``
-  (``urn:nasa:pds:<bundle name>``) and the range of the products' epochs the data
-  collection label states (see `Epochs`_).
+  (``urn:nasa:pds:<bundle name>``), the readme's path as ``README_PATH``, and the range
+  of the products' epochs the data collection label states (see `Epochs`_).
 
-The document inventory is the one inventory not always copied as it is.  Its primary
-members are the documents the bundle holds, and the only one a template directory can
-hold is the user guide, so the rule is: the template directory's
-``collection_document.csv`` lists the guide as its one ``P`` line and every external
-document and context product as an ``S`` line; the pass writes it as it is when the
-guide's PDF is in the template directory, and without its ``P`` lines when it is not.
+An inventory's primary members are products of this bundle -- the user guide in the
+document collection, the metakernel in the SPICE kernel collection -- and one rule
+covers both: the template directory's inventory lists the product as its ``P`` line,
+beside ``S`` lines for the external documents and context products, and the pass writes
+the inventory as it is when that product's label is in the bundle, and without its
+``P`` lines when it is not, whether because the template directory holds no user guide
+or because the label failed to render.  A collection left with no member is not written
+at all, as the data and browse collections are not: neither its inventory nor its label,
+whatever an earlier run left at either path is removed, and it counts once among the
+labels not written.  The document collection keeps its ``S`` members, so it is always
+written; the SPICE kernel collection, whose one member is the metakernel, is not written
+when the metakernel's label is not, and the bundle label, which declares it, goes too.
 
 The bundle label declares every collection the bundle holds, one ``Bundle_Member_Entry``
 each, so it is kept only over a bundle that holds them all.  The pass renders it, reads
@@ -594,11 +612,12 @@ Either way whatever an earlier run left at the path is gone, so the bundle never
 bundle label naming a collection that is not there.
 
 Every label is attempted, whichever of them fail, and each one not written is counted
-(see `Exit status`_); a file copied or an inventory written stays whether or not its
-label renders.  :func:`~spindoctor.cli.pds4.bundle_products.bundle_product_paths` gives
-every path the generator can write, and the global index generator clears them with its
-own products before it reads any supplemental file, so a product on disk is always one
-this run wrote.
+(see `Exit status`_); a file copied stays whether or not its label renders.  The
+generator clears nothing itself.
+:func:`~spindoctor.cli.pds4.bundle_products.clear_bundle_products` removes every path it
+can write, and ``document/user_guide/`` when that leaves the directory empty; the global
+index generator calls it with its own clearing, before it reads any supplemental file,
+so a run-level product on disk after a summary pass is one that pass wrote.
 
 Output layout
 =============
@@ -788,8 +807,8 @@ documented above.
   / rings global indexes.
 - :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` — phase 2, the
   run-level products: the readme, the static collections, the user guide and the bundle
-  label; and :func:`~spindoctor.cli.pds4.bundle_products.bundle_product_paths`, every
-  path it can write, which the index generator clears first.
+  label; and :func:`~spindoctor.cli.pds4.bundle_products.clear_bundle_products`, which
+  removes every path it can write and which the index generator calls first.
 - :func:`~spindoctor.cli.pds4.labels.write_label` — the one place a label is
   written, shared by both.
 - :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one
