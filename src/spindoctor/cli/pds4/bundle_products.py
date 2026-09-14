@@ -18,6 +18,7 @@ template in the dataset's template directory or copied from it:
 
 import contextlib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
@@ -158,7 +159,7 @@ def _bundle_product_paths(bundle_root: FCPath, dataset: DataSet) -> tuple[FCPath
     )
 
 
-def clear_bundle_products(bundle_root: FCPath, dataset: DataSet) -> None:
+def clear_bundle_products(bundle_root: str | Path | FCPath, dataset: DataSet) -> None:
     """Remove every file :func:`generate_bundle_products` can write into one bundle.
 
     The global index generator, which the summary pass runs first, calls this once it
@@ -170,9 +171,10 @@ def clear_bundle_products(bundle_root: FCPath, dataset: DataSet) -> None:
     files in it, so there is none to remove there.
 
     Parameters:
-        bundle_root: The bundle's own directory.
+        bundle_root: The bundle's own directory, a local path or a URL.
         dataset: The dataset whose user guide the bundle can hold.
     """
+    bundle_root = FCPath(bundle_root)
     for path in _bundle_product_paths(bundle_root, dataset):
         path.unlink(missing_ok=True)
     user_guide_dir = _user_guide(bundle_root, dataset).parent
@@ -355,7 +357,7 @@ def _write_bundle_label(
 
 
 def generate_bundle_products(
-    bundle_results_root: FCPath,
+    bundle_results_root: str | Path | FCPath,
     dataset: DataSet,
     logger: PdsLogger,
     *,
@@ -408,7 +410,7 @@ def generate_bundle_products(
     writes nor removes, such as a user guide the template directory no longer holds.
 
     Parameters:
-        bundle_results_root: Root directory of the bundle.
+        bundle_results_root: Root directory of the bundle, a local path or a URL.
         dataset: The dataset whose template directory, bundle name and user guide the
             products come from.
         logger: Logger for diagnostic messages.
@@ -423,6 +425,7 @@ def generate_bundle_products(
         FileNotFoundError: If a template or a file to copy, other than the user guide, is
             not in the dataset's template directory.
     """
+    bundle_results_root = FCPath(bundle_results_root)
     template_dir = FCPath(dataset.pds4_bundle_template_dir())
     bundle_name = dataset.pds4_bundle_name()
     bundle_root = bundle_results_root / bundle_name

@@ -1779,8 +1779,10 @@ bundle label declaring a collection not written, or with no range, is not
 written, counts, and draws one error; each run-level label that fails is
 counted, and every other run-level product is on disk; the driver exits 1 on a
 run-level count, hands the run-level products the index's range and logs the
-reason one raises; and a refused summary leaves none of the run-level products
-an earlier one wrote.
+reason one raises; and a summary refused after the index generator's `data/`
+check leaves none of the run-level products an earlier one wrote (one refused
+by that check, over a bundle with no `data/`, clears nothing and leaves them
+in place).
 
 Schema checks over the cohort bundle, with and without a stand-in guide,
 offline: xmlschema, with the cartography dictionary the Cassini schema imports

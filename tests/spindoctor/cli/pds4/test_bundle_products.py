@@ -260,6 +260,14 @@ def test_clearing_takes_a_bundle_root_in_a_remote_store(
     assert [product for product in RUN_LEVEL_PRODUCTS if (backing / product).exists()] == []
 
 
+def test_clearing_takes_a_bundle_root_given_as_a_string(tmp_path: Path) -> None:
+    """The run-level products clear under a bundle root given as a plain string."""
+    env = _bundle_env(tmp_path)
+    _run(env)
+    clear_bundle_products(str(env.bundle_dir), env.dataset.as_dataset())
+    assert [product for product in RUN_LEVEL_PRODUCTS if (env.bundle_dir / product).exists()] == []
+
+
 def test_the_bundle_label_states_the_bundle_s_lid_and_the_range_it_is_handed(
     tmp_path: Path,
 ) -> None:
