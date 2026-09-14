@@ -279,6 +279,18 @@ def ring_metadata(statistics: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def measured_body() -> dict[str, Any]:
+    """Return a body's entry in backplane metadata, with a statistic.
+
+    A body with a statistic has geometry, so it is one of its image's targets and has a
+    row of the bodies index; one with none is neither.
+
+    Returns:
+        The entry, its ``backplanes`` holding one statistic, a latitude in degrees.
+    """
+    return {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}}
+
+
 class FakePds4DataSet:
     """Duck-typed ``DataSet`` exposing only the ``pds4_*`` hooks the bundle stage calls.
 
@@ -706,8 +718,8 @@ def write_nav_inputs(
         nav_extra: Extra keys merged into the navigation metadata dict, over the
             ``status`` and ``observation`` it holds otherwise.
         backplane_metadata: Backplane metadata dict; when None, one naming the body
-            ``MOON`` with no statistic, and no ring backplanes, so that its data label
-            has a target to name.
+            ``MOON`` with a statistic, and no ring backplanes, so that its data label has
+            a target to name.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
 
     Returns:
@@ -721,7 +733,7 @@ def write_nav_inputs(
     if nav_extra:
         nav_metadata.update(nav_extra)
     if backplane_metadata is None:
-        backplane_metadata = {'bodies': {'MOON': {'backplanes': {}}}, 'rings': ring_metadata({})}
+        backplane_metadata = {'bodies': {'MOON': measured_body()}, 'rings': ring_metadata({})}
 
     nav_file = env.nav_root / f'{env.results_path_stub}_metadata.json'
     nav_file.parent.mkdir(parents=True, exist_ok=True)

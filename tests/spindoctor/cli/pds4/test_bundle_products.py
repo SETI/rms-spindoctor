@@ -41,6 +41,7 @@ from .conftest import (
     USER_GUIDE_PDF,
     BundleEnv,
     make_bundle_env,
+    measured_body,
     read_csv_rows,
     run_collections,
     touch_browse_label,
@@ -71,7 +72,7 @@ def _bundle_env(
     env = make_bundle_env(tmp_path, template_contents=template_contents)
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     write_supplemental(
-        env.bundle_dir / 'data', 'shard0/1234567890w', bodies={'MOON': {'backplanes': {}}}
+        env.bundle_dir / 'data', 'shard0/1234567890w', bodies={'MOON': measured_body()}
     )
     if browse:
         touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
