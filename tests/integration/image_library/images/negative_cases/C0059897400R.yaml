@@ -14,39 +14,35 @@ ground_truth:
   source: operator_verified
   operator: rfrench
   verified_date: 2026-07-21
-  ui_version: spindoctor 0.1.dev61 (issue #285 wide-offset asterism matching)
+  ui_version: spindoctor 0.1.dev61
   notes: |
-    negative_cases curation for issue #238 (Galileo SSI 'scattered_light'
-    C00598xx quintet).  Instrument: Galileo SSI (GOSSI).  The tracking issue
-    labelled the quintet 'Voyager ISS', but the frames live under the GO_0xxx
-    volumes and carry instrument=gossi, so they are Galileo SSI; the label is
-    imprecise.  GO_0003, target MOON, 1990 Earth/Moon flyby, 0.1 s, CLEAR filter.
+    One of the Galileo SSI 'scattered_light' C00598xx quintet.  Instrument:
+    Galileo SSI (GOSSI): the frames live under the GO_0xxx volumes and carry
+    instrument=gossi.  GO_0003, target MOON, 1990 Earth/Moon flyby, 0.1 s,
+    CLEAR filter.
     Stage-A selected this as a scattered_light surrogate (bright body in
     inventory, unresolved on disc) with a real but gentle Moon-glare gradient
     (prescan gradient_score ~7.4, amplitude ~4.5 DN).  The in-pipeline image
     classifier scores the frame 'clean' (noise ~1 DN), so the glare does not
     swamp detection: there is no photometric-path defect.
-    First triage (2026-07-14): a sparse Pleiades pointing whose brightest member
-    in frame is Eta Tau (~V2.8); the remainder sit at or below the glare-elevated
-    detection limit.  The pipeline failed closed with
-    reason=all_techniques_spurious.  Ground truth was a placeholder (0, 0)
-    pending #285 (sparse-field star nav) and #284 (UCAC4 bright-end photometry).
+    A sparse Pleiades pointing whose brightest member in frame is Eta Tau
+    (~V2.8); the remainder sit at or below the glare-elevated detection
+    limit.  The pipeline fails closed with reason=all_techniques_spurious.
 
-    Re-ratchet 2026-07-21 (issue #285, wide-offset asterism matching; depends on
-    #284).  VALIDATED NEGATIVE under current capability: this frame stays failed,
-    and it is a genuine capability boundary, not a matcher defect.  Unlike the two
-    quintet frames that now navigate, this pointing reaches only TWO tight inliers
+    VALIDATED NEGATIVE under current capability: this frame stays failed, and
+    it is a genuine capability boundary, not a matcher defect.  Unlike the two
+    quintet frames that navigate, this pointing reaches only TWO tight inliers
     (the bright anchor plus one near-detection-limit member) at the true wide
-    offset ~(142, 239) px.  #285's wide-offset asterism matcher does not trust a
+    offset ~(142, 239) px.  The wide-offset asterism matcher does not trust a
     two-inlier lock: with the bright-anchor seeds evaluated, a free two-inlier
-    coincidence has an expected chance-lock count ~4e-2, above the 1e-2 false-lock
-    budget, so accepting it would start passing spurious frames elsewhere in the
-    library.  The matcher therefore requires a third corroborating star, which
-    this frame does not present, and correctly declines to lock.  The residual
-    gap (recovering the third member, e.g. via glare-aware deblending) is tracked
-    in #367; this fixture is carried as pending on that issue and must be
-    re-verified when it lands.  The regression assertion is expected.status=failed
-    with reason=all_techniques_spurious.
+    coincidence has an expected chance-lock count ~4e-2, above the 1e-2
+    false-lock budget, so accepting it would start passing spurious frames
+    elsewhere in the library.  The matcher therefore requires a third
+    corroborating star, which this frame does not present, and correctly
+    declines to lock.  The residual gap (recovering the third member, e.g. via
+    glare-aware deblending) is tracked by the pending issue recorded below;
+    this fixture must be re-verified when it lands.  The regression assertion
+    is expected.status=failed with reason=all_techniques_spurious.
 expected:
   status: failed
   confidence_tier: failed

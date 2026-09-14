@@ -20,9 +20,8 @@ ground_truth:
     Selection: ENCELADUS | <30 | -0.0; {"apparent_diameter_px": 90.3, "center_phase_deg": 17.211, "filter": "CL1", "ring_edges_in_frame": ["huygens_gap.inner", "huygens_gap.outer", "huygens_ringlet.inner", "huygens_ringlet.outer", "strange_ringlet.inner", "strange_ringlet.outer"], "ring_opening_deg": -2.091, "target": "ENCELADUS", "year": "2008"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
     Pipeline: status=success, confidence=0.388, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [6.5703, 17.1875], "BodyLimbNav": [6.7784, 17.1911], "RingEdgeNav": [42.9999, 16.047]}.
-    Primary ratchet 2026-07-16: RingEdgeNav is the highest-confidence technique and the ring edge is the legitimate primary for this ring_plus_body scene; applies the 2026-07-13 D6 reconciliation decision, which was documented at the time but never committed. Ratcheted BodyDiscCorrelateNav -> RingEdgeNav.
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/RingEdgeNav -> measured success/medium/BodyDiscCorrelateNav. Primary re-ratcheted RingEdgeNav->BodyDiscCorrelateNav: the ring-vocabulary refit re-ordered the per-technique confidences and the disc fix is now highest-confidence. Tier and offset unchanged.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is BodyDiscCorrelateNav: the ring-vocabulary refit re-ordered the per-technique confidences and the disc fix is now highest-confidence.
 expected:
   status: success
   confidence_tier: medium

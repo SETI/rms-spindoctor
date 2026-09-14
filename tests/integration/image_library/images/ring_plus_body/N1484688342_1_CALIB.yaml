@@ -20,17 +20,12 @@ ground_truth:
     Selection: MIMAS | >120 | -10.0; {"apparent_diameter_px": 55.5, "center_phase_deg": 126.28, "filter": "P0", "ring_edges_in_frame": ["keeler_a_ring_oe_2005_05_01_2005_08_01.inner", "keeler_a_ring_oe_2005_05_01_2005_08_01.outer", "keeler_a_ring_oe_2006_01_01_2009_07_01.inner", "keeler_a_ring_oe_2006_01_01_2009_07_01.outer", "keeler_a_ring_oe_2010_01_01_2013_08_01.inner", "keeler_a_ring_oe_2010_01_01_2013_08_01.outer"], "ring_opening_deg": -5.01, "target": "MIMAS", "year": "2005"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
     Pipeline: status=success, confidence=0.817, rank=high, techniques=['BodyLimbNav', 'RingEdgeNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyLimbNav": [9.1482, -19.2175], "RingEdgeNav": [10.1821, -26.8157], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [9.6853, -18.4109]}.
-    Primary ratchet 2026-07-16: RingEdgeNav is the highest-confidence technique and the ring edge is the legitimate primary for this ring_plus_body scene; applies the 2026-07-13 D6 reconciliation decision, which was documented at the time but never committed. Ratcheted BodyLimbNav -> RingEdgeNav.
-    Routing re-pin 2026-08-31: Saturn ring scenes at or above 25 km/px
-    radial resolution now emit a RING_ANNULUS composite instead of
-    per-edge RING_EDGE features, so RingEdgeNav no longer runs on this
-    frame and RingAnnulusNav does. Before: primary RingEdgeNav (its fit
-    [10.1821, -26.8157] sat ~7.6 px off the operator ground truth in du).
-    After: primary BodyLimbNav, fused offset (9.620, -18.511), within
-    slack of ground truth; status success and tier medium unchanged.
-    Pins updated: primary_technique RingEdgeNav -> BodyLimbNav,
-    RingAnnulusNav added to techniques_must_run, RingEdgeNav pinned into
-    techniques_must_skip to hold the routing.
+    Saturn ring scenes at or above 25 km/px radial resolution emit a
+    RING_ANNULUS composite instead of per-edge RING_EDGE features, so
+    RingEdgeNav does not run on this frame and RingAnnulusNav does;
+    RingEdgeNav is pinned into techniques_must_skip to hold that routing.
+    BodyLimbNav is the primary and the fused offset (9.620, -18.511) is
+    within slack of ground truth.
 expected:
   status: success
   confidence_tier: medium

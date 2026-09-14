@@ -29,7 +29,7 @@ ground_truth:
     rank=medium, StarUniqueMatchNav (4.0251, -12.46) conf 0.429 and
     StarRefineNav (4.0251, -12.46) conf 0.50 (single-inlier refine cap).
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/StarRefineNav -> measured success/medium/StarUniqueMatchNav. Primary re-ratcheted StarRefineNav->StarUniqueMatchNav: the star refit softened residual_px so the one-star match rides its 0.70 cap above the single-inlier refine 0.50 cap. Status/tier/offset unchanged.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarUniqueMatchNav: the one-star match rides its 0.70 cap above the single-inlier refine 0.50 cap.
 expected:
   status: success
   confidence_tier: medium

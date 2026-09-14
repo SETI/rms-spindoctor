@@ -14,42 +14,34 @@ ground_truth:
   source: operator_verified
   operator: rfrench
   verified_date: 2026-07-21
-  ui_version: spindoctor 0.1.dev61 (issue #285 wide-offset asterism matching)
+  ui_version: spindoctor 0.1.dev61
   notes: |
-    negative_cases curation for issue #238 (Galileo SSI 'scattered_light'
-    C00598xx quintet).  Instrument: Galileo SSI (GOSSI).  The tracking issue
-    labelled the quintet 'Voyager ISS', but the frames live under the GO_0xxx
-    volumes and carry instrument=gossi, so they are Galileo SSI; the label is
-    imprecise.  GO_0003, target MOON, 1990 Earth/Moon flyby, 0.1 s, CLEAR filter.
+    One of the Galileo SSI 'scattered_light' C00598xx quintet.  Instrument:
+    Galileo SSI (GOSSI): the frames live under the GO_0xxx volumes and carry
+    instrument=gossi.  GO_0003, target MOON, 1990 Earth/Moon flyby, 0.1 s,
+    CLEAR filter.
     Stage-A selected this as a scattered_light surrogate (bright body in
     inventory, unresolved on disc) with a real but gentle Moon-glare gradient
     (prescan gradient_score ~7.4, amplitude ~4.5 DN).  The in-pipeline image
     classifier scores the frame 'clean' (noise ~1 DN), so the glare does not
     swamp detection: there is no photometric-path defect.
-    First triage (2026-07-14) recorded the frame as unnavigable: the field is a
-    sparse Pleiades pointing whose only genuinely bright catalog stars are two
-    members (Eta Tau ~V2.8, 23 Tau ~V4.2); the remaining predicted stars are
-    V 6-8, at or below the glare-elevated detection limit.  The star-field
-    pattern matcher detected 30 sources (noise and cosmic-ray hits included) but
-    recovered only 4 inliers against its strong-tier floor of 6, so the pipeline
-    failed closed with reason=all_techniques_spurious.  The ground-truth offset
-    was a placeholder (0, 0) pending #285 (sparse-field star nav) and #284 (UCAC4
-    bright-end photometry).
+    The field is a sparse Pleiades pointing whose only genuinely bright
+    catalog stars are two members (Eta Tau ~V2.8, 23 Tau ~V4.2); the remaining
+    predicted stars are V 6-8, at or below the glare-elevated detection limit.
 
-    Re-ratchet 2026-07-21 (issue #285, wide-offset asterism matching; depends on
-    #284).  This frame now NAVIGATES.  With the UCAC4 bright-end correction in
-    place, Eta Tau (V2.84) is the field's unambiguous bright anchor.  The new
-    wide-offset asterism fallback in StarFieldFromCatalogNav seeds a translation
-    from a handful of trusted bright-anchor pairings and locks on three inliers
-    (Eta Tau plus two fainter members) at offset (dv, du) ~= (118.3, 259.9) px,
-    residual RMS ~1.0 px, with a chance-alignment false-lock expectation ~1.3e-5
-    (budget 1e-2).  The independent pass-2 StarRefineNav converges to
+    This frame navigates.  With the UCAC4 bright-end correction in place, Eta
+    Tau (V2.84) is the field's unambiguous bright anchor.  The wide-offset
+    asterism fallback in StarFieldFromCatalogNav seeds a translation from a
+    handful of trusted bright-anchor pairings and locks on three inliers (Eta
+    Tau plus two fainter members) at offset (dv, du) ~= (118.3, 259.9) px,
+    residual RMS ~1.0 px, with a chance-alignment false-lock expectation
+    ~1.3e-5 (budget 1e-2).  The independent pass-2 StarRefineNav converges to
     (117.4, 260.3) px, within ~0.5 px, corroborating the lock.  The recorded
     ground-truth offset is the fused ensemble offset from this measured,
     self-corroborated lock (not an operator overlay); offset_uncertainty_px
     reflects the fit and inter-technique agreement.  The wide-offset lock is
-    confidence-capped (0.6), so the fused result lands in the medium tier.  The
-    residual single-detectable-star quintet frames stay failed (see
+    confidence-capped (0.6), so the fused result lands in the medium
+    tier.  The residual single-detectable-star quintet frames stay failed (see
     C0059893300R); their capability gap is tracked separately.
 expected:
   status: success
