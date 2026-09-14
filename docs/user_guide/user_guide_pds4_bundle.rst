@@ -291,6 +291,11 @@ Each data label states when its image's exposure began and ended, in its
 whether or not it found the pointing, in UTC, to the millisecond, as in
 ``2004-02-07T04:25:35.585Z``.
 
+Each data label cites, as its source product, the calibrated image its backplanes
+were computed from, as the PDS Ring-Moon Systems Node holds it: by the image's volume
+and the path of its label within that volume, as in
+``COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL``.
+
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
 

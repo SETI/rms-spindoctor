@@ -298,7 +298,12 @@ The full extension-point set:
   parsed from ``<image>_backplane_metadata.json``. The dataset is free to
   derive any per-image quantity the templates reference (target body,
   observer, mid-time, exposure, filters, navigation offset and confidence,
-  per-backplane min/max/units, and so on).
+  per-backplane min/max/units, and so on), and the product the backplanes were
+  computed from: the Cassini hook cites the calibrated image the navigation read
+  as a ``Source_Product_External``, by its volume and the file specification of
+  its label within that volume, since no PDS4 bundle holds calibrated Cassini ISS
+  images yet; the label names it through a ``Source_Product_Internal`` once one
+  does.
 
 Reference implementation:
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS`
