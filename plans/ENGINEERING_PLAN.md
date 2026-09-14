@@ -380,11 +380,12 @@ Work items, in dependency order:
 4. **#79** — scrape the PDS4 context products to maintain the targets
    table, `backplanes.target_lids`, which Part A of the PDS4 plan's Phase 8
    filled by hand from the PDS registry.
-5. **#71** — the parameterized bundle name and version (the PDS4 plan's
-   Phase 9). The other label and collection completeness items -- the
-   context collection's targets (#72), target handling (#73), the ring
-   geometry class fields (#75) and the ring incidence angle (#47) -- are Part
-   A of Phase 8, closed by hand when its PR merges.
+5. **Label and collection completeness** — done: the bundle's name and
+   version and the schema locations, each set once in the configuration (the
+   PDS4 plan's Phase 9, closing #71), and the context collection's targets
+   (#72), target handling (#73), the ring geometry class fields (#75) and the
+   ring incidence angle (#47), which are Part A of its Phase 8; each is closed
+   by hand when its PR merges.
 6. **#66** — integrity-checking pass over a generated bundle.
 7. **#67** — cloud-aware bundle generation (with the Track D cloud
    audit).
