@@ -30,7 +30,8 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold (one in a unit other than the one the
             configuration gives its plane, or with a minimum or maximum that is
-            NaN or infinite).
+            NaN or infinite) or a navigation document whose observation block
+            records no exposure times, as a navigation by an earlier version left.
     """
 
     WRITTEN = 'written'
@@ -78,7 +79,10 @@ def generate_bundle_data_files(
     A data label states when its exposure began and ended, from the ``observation``
     block of the navigation document, which the navigation writes for every image whose
     navigation ran to a result, so an image whose navigation recorded no pointing is
-    bundled like any other.
+    bundled like any other.  A navigation by an earlier version did not record the
+    exposure times in that block, so an image whose block holds no ``start_time_et`` is
+    failed before anything is written for it, the log naming the image, until it is
+    navigated again; the times are taken from nowhere else.
 
     The backplane FITS is copied into the bundle, beside its data label, which names
     it with no directory part, and the label's size, checksum and time are the
@@ -100,9 +104,10 @@ def generate_bundle_data_files(
     Returns:
         WRITTEN when the image's labels are on disk, SKIPPED when the image has
         nothing for the bundle to describe, and FAILED when a label could not be
-        rendered, the summary PNG is not there, or a backplane statistic is in a
+        rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
-        minimum or maximum that is NaN or infinite.
+        minimum or maximum that is NaN or infinite, or the navigation document's
+        observation block records no exposure times.
 
     Raises:
         ValueError: If the batch does not hold exactly one image.
@@ -185,6 +190,21 @@ def generate_bundle_data_files(
                 image_path,
                 unindexable.description,
                 unindexable.reason,
+            )
+            return BundleDataOutcome.FAILED
+
+        # A data label takes the exposure's start and end from the navigation document's
+        # observation block, where a navigation by an earlier version recorded no times.
+        # That is a document of a real, earlier vintage rather than a malformed one, so
+        # the image is failed before anything is written for it, to be navigated again,
+        # and the times are not looked for elsewhere.  The host publishes the start, the
+        # midtime and the end together, so the start alone is checked.
+        if 'start_time_et' not in nav_metadata['observation']:
+            logger.error(
+                'Failing bundle generation for "%s": its navigation document records no '
+                'exposure times in its observation block, which a navigation by an earlier '
+                'version leaves. Nothing is written for the image until it is navigated again',
+                image_path,
             )
             return BundleDataOutcome.FAILED
 
