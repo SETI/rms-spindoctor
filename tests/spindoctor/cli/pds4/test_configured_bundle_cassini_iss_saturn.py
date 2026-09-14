@@ -153,6 +153,26 @@ def _is_under(lid: str, bundle_lid: str) -> bool:
     return lid == bundle_lid or lid.startswith(f'{bundle_lid}:')
 
 
+def _external_lidvids(texts: dict[str, str], bundle_lid: str) -> dict[str, list[str]]:
+    """Return the LIDVIDs each file of a bundle names of products outside the bundle.
+
+    Parameters:
+        texts: The bundle's text files, by path relative to the bundle.
+        bundle_lid: The bundle's LID.
+
+    Returns:
+        For each file, every LIDVID in it whose LID is not under ``bundle_lid``, sorted.
+    """
+    return {
+        path: sorted(
+            match.group(0)
+            for match in LIDVID.finditer(text)
+            if not _is_under(match.group(1), bundle_lid)
+        )
+        for path, text in texts.items()
+    }
+
+
 def _labels(bundle_dir: Path) -> dict[str, str]:
     """Return every label of a bundle, by its path relative to the bundle.
 
@@ -192,15 +212,22 @@ def test_the_bundle_takes_the_configured_name_and_version(
     carries the configured version; every label states it as each of its ``version_id``
     elements, and has a logical identifier under the configured name.  No template
     variable is left unrendered, in the readme and the inventories as in the labels.
+    And every LIDVID naming a product outside the bundle -- a context product, the ISS
+    data user guide, a schema -- is, file by file, the one the bundle built under the
+    shipped configuration names: an external reference keeps its own version.
     """
+    shipped = _bundle_under(cassini_cohort, tmp_path / 'shipped', {})
     env = _bundle_under(
         cassini_cohort,
-        tmp_path,
+        tmp_path / 'other',
         {'bundle_name': OTHER_NAME, 'bundle_version': OTHER_VERSION},
     )
     shipped_name = DEFAULT_CONFIG.pds4['coiss_saturn']['bundle_name']
     bundle_lid = f'urn:nasa:pds:{OTHER_NAME}'
     texts = _texts(env.bundle_dir)
+    shipped_externals = _external_lidvids(
+        _texts(shipped.bundle_dir), f'urn:nasa:pds:{shipped_name}'
+    )
     labels = {
         path: ElementTree.parse(env.bundle_dir / path).getroot()
         for path in texts
@@ -234,6 +261,8 @@ def test_the_bundle_takes_the_configured_name_and_version(
     assert version_ids == []
     assert identifiers == []
     assert [path for path, text in texts.items() if UNRENDERED.search(text)] == []
+    assert [lidvid for lidvids in shipped_externals.values() for lidvid in lidvids] != []
+    assert _external_lidvids(texts, bundle_lid) == shipped_externals
 
 
 @pytest.mark.parametrize('prefix', list(NAMESPACES))
