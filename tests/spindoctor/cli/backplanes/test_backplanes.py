@@ -115,7 +115,7 @@ def test_default_config_angle_backplanes_declare_radians() -> None:
 def test_default_config_declares_only_measures_the_statistics_know(kind: str) -> None:
     """Every shipping entry's measure is one the statistics convert or pass through.
 
-    The statistics are published in degrees and recognise radians spelled
+    The statistics are published in degrees and recognize radians spelled
     ``rad``, alone or qualified; ``deg`` and ``km`` pass through as they are.
     A measure spelled any other way -- milliradians, arcseconds, radians
     spelled out -- would need scaling as well as renaming, so it would pass
