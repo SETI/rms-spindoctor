@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from util.nav_verification.bundle_cassini_fring import NAC_PLATE_SCALE_URAD
 from util.nav_verification.compare_pointing import (
     FrameComparison,
     compare,
@@ -145,6 +146,14 @@ def test_a_frame_with_nothing_to_compare_gets_no_residual() -> None:
     assert rows[-1].residual_px is None
 
 
+def test_a_frame_with_no_axis_values_keeps_its_error_as_its_residual() -> None:
+    """An answer behind the camera is still counted, and still wrong."""
+    rows = [comparison(0.5, 0.5, 0.707) for _ in range(10)]
+    rows.append(FrameComparison(image='N2', error_px=500000.0))
+    remove_common_offset(rows, tolerance_px=2.0)
+    assert rows[-1].residual_px == 500000.0
+
+
 @pytest.mark.parametrize(
     'tolerance', [pytest.param(-1.0, id='negative'), pytest.param(math.nan, id='not-a-number')]
 )
@@ -270,3 +279,29 @@ def test_an_image_with_two_records_is_reported(tmp_path: Path) -> None:
         images=None,
     )
     assert duplicated == ['N1000000001']
+
+
+def test_an_answer_behind_the_camera_is_still_measured(tmp_path: Path) -> None:
+    """A bundle answer pointing the other way is a wrong frame, not a reason to stop."""
+    document = {
+        'status': 'success',
+        'observation': {'image_name': 'N1000000001_1_CALIB'},
+        'navigation_result': {
+            'pointing': {'cmatrix': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]},
+        },
+    }
+    record = tmp_path / 'nav' / f'VOL/N1000000001_1_CALIB{METADATA_SUFFIX}'
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps(document), encoding='utf-8')
+    collection = bundle(tmp_path, ['N1000000001'])
+    (collection / OBSERVATION.lower() / '1000000001n_reproj_img_suppl.txt').write_text(
+        'Navigation Type = Stars\n'
+        'Navigated Boresight RA = 0.0 deg\n'
+        'Navigated Boresight Dec = -90.0 deg\n',
+        encoding='utf-8',
+    )
+    rows, _, _ = compare(
+        tmp_path / 'nav', observation_id=OBSERVATION, bundle_dir=collection, images=None
+    )
+    assert rows[0].error_px == pytest.approx(math.pi / (NAC_PLATE_SCALE_URAD * 1e-6))
+    assert rows[0].error_x_px is None

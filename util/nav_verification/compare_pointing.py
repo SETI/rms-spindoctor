@@ -33,6 +33,7 @@ also holds a frame for.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import math
 import sys
@@ -102,7 +103,9 @@ class FrameComparison:
             which is zero when only one technique contributed.
         error_px: The angle to the independent answer, in pixels, or None when
             there is nothing to compare against.
-        error_x_px: That difference along the camera's first axis, signed.
+        error_x_px: That difference along the camera's first axis, signed, or
+            None when the independent answer lies behind the camera, where it
+            has no place on the detector.
         error_y_px: The same along the camera's second axis.
         residual_px: What is left of ``error_px`` once the offset common to the
             whole run is removed, filled in by ``remove_common_offset``.
@@ -248,9 +251,12 @@ def compare_record(
             independent.boresight,
             plate_scale_urad=NAC_PLATE_SCALE_URAD,
         )
-        row.error_x_px, row.error_y_px = offset_in_camera_px(
-            cmatrix, independent.boresight, plate_scale_urad=NAC_PLATE_SCALE_URAD
-        )
+        # An answer behind the camera has no place on the detector, so it gets no
+        # axis values; its separation alone still marks the frame wrong.
+        with contextlib.suppress(ValueError):
+            row.error_x_px, row.error_y_px = offset_in_camera_px(
+                cmatrix, independent.boresight, plate_scale_urad=NAC_PLATE_SCALE_URAD
+            )
     return row
 
 
