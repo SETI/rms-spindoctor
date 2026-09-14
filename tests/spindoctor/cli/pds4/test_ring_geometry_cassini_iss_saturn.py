@@ -106,7 +106,7 @@ def test_only_the_ring_image_s_data_label_states_the_ring_geometry(
 def test_the_ring_geometry_states_each_ring_statistic_and_the_incidence_angle(
     cassini_cohort: Cohort, tmp_path: Path
 ) -> None:
-    """Each statistic in its attribute, and the incidence angle in three, in the schema's order.
+    """Each statistic in its attribute, and the incidence angle's mean and range, in order.
 
     The values are the image's backplane metadata's, written as the global index tables
     write them, each stated in the unit its attribute takes: a resolution per pixel in the
@@ -116,7 +116,7 @@ def test_the_ring_geometry_states_each_ring_statistic_and_the_incidence_angle(
     metadata_path = cassini_cohort.backplane_results_root / f'{RINGS_STUB}_backplane_metadata.json'
     rings = json.loads(metadata_path.read_text(encoding='utf-8'))['rings']
     statistics = rings['backplanes']
-    incidence = INDEX_VALUE_FORMATS['deg'].render(rings['incidence_angle']['value'])
+    incidence = rings['incidence_angle']
     geometry = _labelled(cassini_cohort, tmp_path, RINGS_STUB).find(GEOMETRY, NAMESPACES)
     assert geometry is not None
     stated = _stated(geometry)
@@ -143,9 +143,9 @@ def test_the_ring_geometry_states_each_ring_statistic_and_the_incidence_angle(
 
     assert stated[4:-1] == [
         *ends('ring_phase_angle', 'phase_angle', 'deg'),
-        ('mean_incidence_angle', 'deg', incidence),
-        ('minimum_incidence_angle', 'deg', incidence),
-        ('maximum_incidence_angle', 'deg', incidence),
+        ('mean_incidence_angle', 'deg', _written(incidence, 'mean')),
+        ('minimum_incidence_angle', 'deg', _written(incidence, 'min')),
+        ('maximum_incidence_angle', 'deg', _written(incidence, 'max')),
         *ends('ring_emission_angle', 'emission_angle', 'deg'),
         *ends('ring_longitude', 'inertial_ring_longitude', 'deg', ('wrapped_min', 'wrapped_max')),
         *ends('ring_radius', 'ring_radius', 'km'),

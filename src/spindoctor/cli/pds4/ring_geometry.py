@@ -5,8 +5,8 @@ The rings dictionary, ``PDS4_RINGS_1O00_1F00``, describes the ring geometry of a
 image with ring backplanes fills it from what the backplane stage records for the image:
 the least and the greatest value of each ring plane, except that the ring longitude's
 range is the one its statistic records wrapped at zero, as the dictionary defines a
-longitude range, and the incidence angle of sunlight on the ring plane, one angle over
-the whole image.  Each value is written as the global
+longitude range, and the mean, the least and the greatest incidence angle of sunlight over
+the image's ring pixels.  Each value is written as the global
 index tables write its statistic, in the format
 :data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives its unit, and stated
 in the unit its attribute is defined in, a size per pixel in the length or the angle a
@@ -43,11 +43,15 @@ _PER_PIXEL = '/pixel'
 """What follows the unit of a size per pixel, which a resolution attribute states without."""
 
 _INCIDENCE_ATTRIBUTES = (
-    'mean_incidence_angle',
-    'minimum_incidence_angle',
-    'maximum_incidence_angle',
+    ('mean_incidence_angle', 'mean'),
+    ('minimum_incidence_angle', 'min'),
+    ('maximum_incidence_angle', 'max'),
 )
-"""The attributes the one incidence angle over an image is stated as, all three alike."""
+"""The attributes the incidence angle over an image's ring pixels is stated as.
+
+Each with the key, in the incidence angle the backplane metadata records, of the value it
+states, in the order the schema gives them.
+"""
 
 
 @dataclass(frozen=True)
@@ -73,8 +77,8 @@ class RingGeometry:
     Attributes:
         geometry: The attributes ``rings:Reprojection_Geometry`` holds before its grid
             parameters, in the order the schema gives them: the phase angle's range, the
-            incidence angle, and the ranges of the emission angle, the inertial ring
-            longitude and the ring radius.
+            incidence angle's mean and range, and the ranges of the emission angle, the
+            inertial ring longitude and the ring radius.
         grid: The attributes ``rings:Reprojection_Grid_Parameters`` holds, in the order
             the schema gives them: the ranges of the radial and the longitudinal
             resolution.
@@ -146,13 +150,15 @@ def ring_geometry(backplane_metadata: Mapping[str, Any]) -> RingGeometry | None:
     statistic.  Each plane the metadata holds a statistic for gives its least and its
     greatest value, the ring longitude its range wrapped at zero; a plane with none gives
     neither, so its pair is left out.  The
-    incidence angle the metadata's ``rings`` block records is stated as the mean, the
-    minimum and the maximum incidence angle alike, since it is one angle over the image.
+    mean, the least and the greatest incidence angle over the image's ring pixels, which
+    the metadata's ``rings`` block records beside the angle at the ring center, are
+    stated as the mean, the minimum and the maximum incidence angle.
 
     Parameters:
         backplane_metadata: The image's backplane metadata, whose ``rings`` block holds
             the ring statistics under ``backplanes`` and the incidence angle as
-            ``incidence_angle``, a value with its unit.
+            ``incidence_angle``: its ``mean``, ``min`` and ``max`` over the ring pixels,
+            with their unit.
 
     Returns:
         The geometry, or None when the metadata holds no ring statistic, so that the
@@ -163,13 +169,13 @@ def ring_geometry(backplane_metadata: Mapping[str, Any]) -> RingGeometry | None:
     if len(statistics) == 0:
         return None
     incidence = rings['incidence_angle']
-    incidence_value = _written(incidence['value'], incidence['units'])
+    unit = incidence['units']
     return RingGeometry(
         geometry=(
             *_range(statistics, 'ring_phase_angle'),
             *(
-                RingAttribute(name=name, unit=incidence['units'], value=incidence_value)
-                for name in _INCIDENCE_ATTRIBUTES
+                RingAttribute(name=name, unit=unit, value=_written(incidence[key], unit))
+                for name, key in _INCIDENCE_ATTRIBUTES
             ),
             *_range(statistics, 'ring_emission_angle'),
             *_range(statistics, 'ring_longitude', ends=_WRAPPED),

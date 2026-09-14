@@ -256,15 +256,20 @@ from 0 to 90 degrees, with its unit. Sunlight falls on the ring plane at one ang
 the whole image, so no backplane holds it; it is taken once, at the center of the ring
 system, for the light that reached the camera at the observation's midtime. Both are
 recorded for every image that has a closest planet, whether or not any of its pixels is
-on the rings. The ring statistics are under ``backplanes``:
+on the rings. Where the image's ring backplanes have values, ``incidence_angle`` also
+records the least, the greatest and the mean angle over those pixels, as ``min``,
+``max`` and ``mean``, which differ from the angle at the center by thousandths of a
+degree. The ring statistics are under ``backplanes``:
 
 .. code-block:: json
 
    {
      "rings": {
        "target": "SATURN_MAIN_RINGS",
-       "incidence_angle": {"value": 63.334, "units": "deg"},
-       "backplanes": {"ring_radius": {"min": 74658.0, "max": 136780.0, "units": "km"}}
+       "incidence_angle": {
+         "value": 82.57158, "min": 82.57085, "max": 82.57104, "mean": 82.57096, "units": "deg"
+       },
+       "backplanes": {"ring_radius": {"min": 74659.8, "max": 136779.0, "units": "km"}}
      }
    }
 

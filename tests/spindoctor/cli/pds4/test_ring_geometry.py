@@ -64,16 +64,16 @@ def test_the_geometry_states_each_range_and_the_incidence_angle_in_the_schema_s_
     """Phase, incidence, emission, longitude and radius, each written as the tables write it.
 
     The ring longitude's range is the one its statistic records wrapped at zero, here
-    across it.  The incidence angle is one value, stated as the mean, the minimum and the
-    maximum.
+    across it.  The incidence angle is stated by its mean, its least and its greatest
+    value over the ring pixels, not by the angle at the ring center.
     """
     stated = [(each.name, each.unit, each.value) for each in _stated(STATISTICS).geometry]
     assert stated == [
         ('minimum_phase_angle', 'deg', '30.000'),
         ('maximum_phase_angle', 'deg', '40.000'),
-        ('mean_incidence_angle', 'deg', '45.000'),
-        ('minimum_incidence_angle', 'deg', '45.000'),
-        ('maximum_incidence_angle', 'deg', '45.000'),
+        ('mean_incidence_angle', 'deg', '45.125'),
+        ('minimum_incidence_angle', 'deg', '44.750'),
+        ('maximum_incidence_angle', 'deg', '45.500'),
         ('minimum_emission_angle', 'deg', '10.000'),
         ('maximum_emission_angle', 'deg', '20.000'),
         ('minimum_inertial_ring_longitude', 'deg', '350.250'),

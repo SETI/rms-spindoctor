@@ -7,7 +7,11 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.backplanes_bodies import backplane_body_names
-from spindoctor.cli.backplanes.backplanes_rings import RING_LONGITUDE, RING_LONGITUDINAL_RESOLUTION
+from spindoctor.cli.backplanes.backplanes_rings import (
+    RING_LONGITUDE,
+    RING_LONGITUDINAL_RESOLUTION,
+    RingIncidenceAngle,
+)
 from spindoctor.cli.backplanes.merge import body_naif_id
 from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.config import IMAGE_LOGGER, Config
@@ -58,6 +62,39 @@ def _plane_statistics(
     return statistics
 
 
+def _incidence_angle(
+    center: RingIncidenceAngle,
+    pixel_incidence: np.ndarray,
+    ring_pixels: NDArrayBoolType,
+    *,
+    masked_value: float,
+) -> RingIncidenceAngle:
+    """Return the incidence angle the rings block records, at the center and over the rings.
+
+    Parameters:
+        center: The incidence angle at the ring system's center, as the ring stage took it.
+        pixel_incidence: The incidence angle at each pixel, in radians, the masked value
+            where the pixel is not on the rings.
+        ring_pixels: The pixels where a ring plane the FITS holds has a value.
+        masked_value: The value an array holds where it has none.
+
+    Returns:
+        The angle at the center and, when a ring pixel has an incidence angle, the least,
+        the greatest and the mean over those pixels, in degrees.
+    """
+    values = pixel_incidence[ring_pixels & (pixel_incidence != masked_value)]
+    if values.size == 0:
+        return center
+    degrees = np.degrees(values.astype(np.float64))
+    return RingIncidenceAngle(
+        value=center['value'],
+        min=float(degrees.min()),
+        max=float(degrees.max()),
+        mean=float(degrees.mean()),
+        units=center['units'],
+    )
+
+
 def write_fits(
     *,
     fits_file_path: FCPath,
@@ -78,7 +115,9 @@ def write_fits(
     holds the nearer body's value, so it counts for the nearer body alone.  The ring
     longitude's statistic also records its range wrapped at zero, over the same pixels,
     with the coarsest longitudinal size of a pixel on the rings as the widest gap that
-    leaves the circle covered.
+    leaves the circle covered.  Beside the incidence angle at the ring system's center,
+    the rings block records the least, the greatest and the mean incidence angle over
+    the pixels where a ring plane has a value.
 
     Parameters:
         fits_file_path: The FITS file path.
@@ -89,7 +128,7 @@ def write_fits(
         bodies_result: Result from create_body_backplanes, each of whose bodies the
             metadata records, with its statistics and its inventory information.
         rings_result: Result from create_ring_backplanes, whose ring target and incidence
-            angle the metadata's ``rings`` block records as ``target`` and
+            angles the metadata's ``rings`` block records as ``target`` and
             ``incidence_angle``, beside the ring statistics as ``backplanes``.  None
             leaves the block empty.
         logger: Logger for diagnostic messages.
@@ -207,9 +246,19 @@ def write_fits(
                 units=ring_units[RING_LONGITUDE],
                 longitude_resolution=ring_statistics[RING_LONGITUDINAL_RESOLUTION]['max'],
             )
+        # The pixels where a ring plane the FITS holds has a value, over which the
+        # incidence angle's range is taken
+        ring_pixels = np.zeros(body_id_map.shape, dtype=np.bool_)
+        for name in ring_statistics:
+            ring_pixels |= master_by_type[name] != masked_value
         backplane_metadata['rings'] = {
             'target': rings_result['target_key'],
-            'incidence_angle': rings_result['incidence_angle'],
+            'incidence_angle': _incidence_angle(
+                rings_result['incidence_angle'],
+                rings_result['pixel_incidence'],
+                ring_pixels,
+                masked_value=masked_value,
+            ),
             'backplanes': ring_statistics,
         }
 

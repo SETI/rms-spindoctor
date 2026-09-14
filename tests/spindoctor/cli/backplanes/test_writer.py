@@ -384,8 +384,12 @@ def test_write_fits_sidecar_center_range_and_size(tmp_path: Path) -> None:
 RINGS_RESULT: dict[str, Any] = {
     'target_key': 'PLANET_RING_SYSTEM',
     'incidence_angle': {'value': 40.0, 'units': 'deg'},
+    'pixel_incidence': np.full(SHAPE_VU, MASKED_VALUE),
 }
-"""What of a ring result the writer records as it is, beside the statistics it takes."""
+"""A ring result less its planes: its target, and the incidence angle at its center.
+
+No pixel has an incidence angle, so the rings block records the center's alone.
+"""
 
 
 def test_write_fits_sidecar_ring_statistics(tmp_path: Path) -> None:
@@ -419,6 +423,28 @@ COVERED_RADIUS = 50000.0
 
 COVERED_LONGITUDE = 200.0
 """The rings' longitude, in degrees, where MOON_A covers them; 10 everywhere else."""
+
+COVERED_INCIDENCE = 60.0
+"""The incidence angle, in degrees, where MOON_A covers the rings: no ring pixel shows it."""
+
+
+def _covered_incidence() -> np.ndarray:
+    """Return the incidence angle at each pixel of the covered frame, in radians.
+
+    Rows 2 to 4 hold 40 degrees and row 5 holds 48, except that the last pixel of each
+    holds none, though the ring planes have values there.  Rows 0 and 1, where MOON_A
+    covers the rings, hold :data:`COVERED_INCIDENCE`.  Over the ring pixels the FITS holds
+    the least is 40, the greatest 48 and the mean 42, where the median is 40.
+
+    Returns:
+        The full-frame array, the masked value where a pixel has no angle.
+    """
+    incidence = np.full(SHAPE_VU, math.radians(COVERED_INCIDENCE))
+    incidence[2:5, :] = math.radians(40.0)
+    incidence[5, :] = math.radians(48.0)
+    incidence[2:6, -1] = MASKED_VALUE
+    return incidence
+
 
 LONGITUDE_PLANES = [
     {'name': RING_LONGITUDE, 'method': 'ring_longitude', 'units': 'rad'},
@@ -510,6 +536,7 @@ def _covered_metadata(tmp_path: Path) -> dict[str, Any]:
     }
     rings_result = {
         **RINGS_RESULT,
+        'pixel_incidence': _covered_incidence(),
         'arrays': ring_planes,
         'masks': dict.fromkeys(ring_planes, rings),
         'distance': np.full(SHAPE_VU, 5.0e5, dtype=np.float32),
@@ -570,6 +597,24 @@ def test_the_wrapped_ring_longitude_leaves_out_the_rings_a_nearer_body_covers(
     longitude = _covered_metadata(tmp_path)['rings']['backplanes'][RING_LONGITUDE]
     wrapped = (longitude['wrapped_min'], longitude['wrapped_max'])
     assert wrapped == (pytest.approx(10.0), pytest.approx(10.0))
+
+
+def test_the_incidence_range_is_over_the_ring_pixels_the_fits_holds(tmp_path: Path) -> None:
+    """The least, greatest and mean incidence over the ring pixels, beside the center's.
+
+    The rings MOON_A covers do not count, nor does a ring pixel with no incidence angle.
+
+    Parameters:
+        tmp_path: pytest-provided temporary directory.
+    """
+    incidence = _covered_metadata(tmp_path)['rings']['incidence_angle']
+    assert incidence == {
+        'value': 40.0,
+        'min': pytest.approx(40.0),
+        'max': pytest.approx(48.0),
+        'mean': pytest.approx(42.0),
+        'units': 'deg',
+    }
 
 
 def test_the_ring_longitude_s_wrapped_range_measures_gaps_against_the_coarsest_pixel(

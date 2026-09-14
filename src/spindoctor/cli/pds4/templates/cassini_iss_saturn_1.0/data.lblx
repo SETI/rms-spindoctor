@@ -156,12 +156,12 @@
                             the J2000 equator, and its minimum and maximum bound the arc of
                             longitude the image covers, so the minimum is greater than the
                             maximum where that arc crosses zero, and an image covering the
-                            whole circle states 0 and 360. Sunlight falls on
-                            the ring plane at one angle over the whole image, so the incidence
-                            angle is taken once, at the center of Saturn's ring system, for the
-                            light that reached the camera at the observation's midtime, and the
-                            mean, the minimum and the maximum all state it. No co-rotating frame
-                            is used, and the basis epoch is the observation's midtime.
+                            whole circle states 0 and 360. The incidence angle, measured from
+                            the normal to the ring plane on its sunlit side, for the light that
+                            reached the camera at the observation's midtime, is stated by its
+                            mean, its minimum and its maximum over the same pixels. No
+                            co-rotating frame is used, and the basis epoch is the observation's
+                            midtime.
                         </rings:description>
                         <rings:epoch_reprojection_basis_utc>$IMAGE_MID_TIME$</rings:epoch_reprojection_basis_utc>
                         <rings:reprojection_plane>Equator</rings:reprojection_plane>
