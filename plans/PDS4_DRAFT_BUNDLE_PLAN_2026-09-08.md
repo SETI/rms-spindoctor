@@ -25,7 +25,7 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-5 have run; Phases 6-10 have not. Two changes landed ahead of
+Phases 1-6 have run; Phases 7-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -55,7 +55,7 @@ this table first and trusts it over any recollection.
 | 3 — Epochs | **done** | `rf_pds4_phase3`, section 3.4; #519 is closed by hand when its PR merges (section 8) |
 | 4 — The FITS in the bundle, with its data objects | **done** | `rf_pds4_phase4`, sections 3.3 and 3.13; #69 is closed by hand when its PR merges (section 8) |
 | 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; #602 is closed by hand when its PR merges (section 8), #265 staying open for its Phase 10 part |
-| 6 — Bundle-level and static products | not started | |
+| 6 — Bundle-level and static products | **done** | `rf_pds4_phase6`, sections 3.1, 3.2, 3.5, 3.6, 3.9 and 3.13; #74 is closed by hand when its PR merges (section 8), #72 staying open for Phase 8's targets; the source product awaits the operator (section 3.13) |
 | 7 — The miscellaneous collection and its global index labels | not started | |
 | 8 — Targets, mission area, ring geometry | not started | |
 | 9 — Parameterize the bundle name and version | not started | |
@@ -72,7 +72,9 @@ product, and is closed by hand when Phase 5 merges, #611 (the backplane viewer
 decides degrees from `BUNIT` and the plane's name rather than through
 `statistics_units`, so it shows the `rad/pixel` plane in radians per pixel),
 #614 (a dataset without PDS4 support
-ends both passes in a traceback rather than a refusal). #603, the two passes
+ends both passes in a traceback rather than a refusal), #METAKERNEL_ISSUE
+(which SPICE kernels the bundle's metakernel lists, a navigation question
+Phase 6 left the metakernel empty for). #603, the two passes
 disagreeing about a missing template, was closed by hand on 2026-09-11, after
 #605, Phase 1's PR, merged. #607, the index tables written to one precision
 whatever the column's unit, closes in Phase 2 with a format per unit (section
@@ -83,7 +85,10 @@ closes with Phase 4 (section 3.3).
 
 Open questions, none blocking Phases 1-9: #600; whether this information
 model build's dictionaries are registered, with the Engineering Node
-(section 3.9); the cohort choice and the user-guide PDF for Phase 10.
+(section 3.9); the cohort choice and the user-guide PDF for Phase 10; what a
+data label names as its source product, since the calibrated image the
+navigation reads has no PDS4 counterpart, which is the operator's choice
+(section 3.13); and which kernels the metakernel lists (#METAKERNEL_ISSUE).
 
 ---
 
@@ -107,8 +112,8 @@ review comment.
 - Every structural product the bundle label declares and the generator does
   not write: the bundle product itself, the readme, and the context,
   document and schema collections — plus the `miscellaneous` and
-  `spice_kernels` collections the label does not yet declare, which are where
-  the global index tables and the metakernel belong.
+  `spice_kernels` collections, which are where the global index tables and the
+  metakernel belong.
 - The backplane FITS as an archived file with a described data object, in
   the bundle, beside its label.
 - The label content that is empty, self-referential, or absent today:
@@ -190,26 +195,24 @@ plan).
 
 | # | Defect | Location | Tracked as |
 |---|---|---|---|
-| 1 | `bundle.lblx` is never written. The template exists and nothing references it: `grep -rn "bundle.lblx" src/ --include=*.py` is empty. | — | #265 area |
-| 2 | Three of the five collections `bundle.lblx:204-227` declares — context, document, xml_schema — are never generated, though their `.lblx` and `.csv` templates ship in the template directory. Two more, `miscellaneous` and `spice_kernels`, are neither declared nor generated; section 3.1 adds both, moving the global index tables into the first and the metakernel into the second. | — | #72, #74 |
-| 3 | `readme.txt` is never copied to the bundle root, and `bundle.lblx:196` declares a `File_Area_Text` over it. | — | #265 area |
-| 4 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. | `dataset_pds3_cassini_iss.py:608` | **new** |
-| 5 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
-| 6 | The document product's LID is `…:document:backplanes-user-guide`, but `data.lblx:138`, `bundle.lblx:176` and `collection_document.csv` all drop the `:document:` segment. | three files | **new** |
-| 7 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 8 | No `Target_Identification` anywhere; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,133` | #73, #79, #75, #47 |
-| 9 | `geom:SPICE_Kernel_Files` names a metakernel `kernels.ker` that no bundle contains. | `data.lblx:115-131` | #53 list |
-| 10 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
-| 11 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
-| 12 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; no phase (navigation) |
-| 13 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
+| 1 | The global index tables are written under `document/supplemental/`, and no pass writes a `miscellaneous` collection, which the bundle label does not declare. Section 3.1 moves the tables into that collection. | `collections.py` | #76 |
+| 2 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. The calibrated image the navigation reads has no PDS4 counterpart to name instead (section 3.13). | `dataset_pds3_cassini_iss.py:688` | **new**; the operator's choice (section 3.13) |
+| 3 | `global_index_bodies.lblx` and `global_index_rings.lblx` templates are 0 bytes, so 0-byte labels are emitted. Their columns are config-driven and cannot be static. | template dir | #76 |
+| 4 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
+| 5 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,130`, `bundle.lblx`, `kernels.lblx` | #73, #79, #75, #47 |
+| 6 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
+| 7 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
+| 8 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; no phase (navigation) |
+| 9 | The supplemental file ends without a line feed after its last line (`json_as_string` writes none), and its label declares a `Stream_Text` with `Line-Feed` records. The Standards Reference requires a delimiter after a delimited table's last record (section 4C.1) and says nothing of the kind for `Stream_Text`; whether `validate` accepts the last line as it is is unconfirmed. | `bundle_data.py`, `data.lblx` | Phase 10 |
 
-No row but 12 gets its own tracking issue. Each of the others is fixed by a
+No row but 8 gets its own tracking issue. Each of the others is fixed by a
 named phase of this plan, which carries the evidence and the disposition together;
 an issue whose content is "see Phase 5" has no reader, and five more entries
 in Track D's index means five more closes to reconcile on a branch where
-every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 12 is the
-navigation's, owned by no phase, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. The rows that *would* have
+every PR already re-conflicts `plans/PROGRAM_PLAN.md`. Row 8 is the
+navigation's, owned by no phase, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block. Row 2 was Phase 6's, which stopped on it: the image the
+navigation reads has no PDS4 counterpart to name, and what a data label names
+instead is the operator's choice (section 3.13). The rows that *would* have
 outlived this plan -- the ones true of shipped products whether or not a
 bundle is ever built -- were the units pair. Section 3.8 records the
 difference between the arrays and the tables as settled design rather than a
@@ -234,10 +237,12 @@ tell a label it rendered from one it did not.
 
 ### 3.1 The bundle tree
 
-This is the authoritative layout. `docs/dev_guide/dev_guide_pds4.rst`
-currently describes a different one and
-`docs/user_guide/user_guide_pds4_bundle.rst` a third; Phase 10 reconciles
-both to this.
+This is the authoritative layout. Both guides,
+`docs/dev_guide/dev_guide_pds4.rst` and
+`docs/user_guide/user_guide_pds4_bundle.rst`, describe the tree the two
+passes write, which is this one but for the `miscellaneous` collection: the
+global index tables are under `document/supplemental/` until Phase 7 moves
+them. Phase 10 reconciles both to this tree.
 
 ```text
 <bundle_name>/
@@ -310,23 +315,27 @@ The tables become **products with LIDs** rather than loose files beside a
 label, because a collection inventory lists its members:
 `urn:nasa:pds:<bundle>:miscellaneous:global_bodies_index` and
 `...:global_rings_index`, following the reference's `global_mosaic_index`
-naming -- underscores, and `index` last. And `readme.txt` currently tells a
+naming -- underscores, and `index` last. And `readme.txt` told a
 reader that the document collection holds the user guide "along with index
-files that summarize information about all backplanes"; that sentence stops
-being true and is edited with the move.
+files that summarize information about all backplanes"; Phase 6 removed that
+clause, and Phase 7 adds what the readme says of the miscellaneous collection.
 
-A **`spice_kernels` collection** is the other addition, and it closes a TODO
-rather than adding scope: `data.lblx:115-131` already names a metakernel
-`kernels.ker` in `geom:SPICE_Kernel_Files` with a comment saying it has not
-been figured out. The reference figured it out -- a `Product_SPICE_Kernel`
-with `kernel_type` `MK` over the metakernel, in its own collection, listed
-by `collection_spice_kernels.csv`. Which kernels the metakernel names is a
-question for the navigation side, not for this plan; that it has a home in
-the bundle is settled here.
+A **`spice_kernels` collection** is the other addition, and it closed a TODO
+rather than adding scope: the data label named a metakernel `kernels.ker` in
+`geom:SPICE_Kernel_Files` with a comment saying it had not been figured out.
+The reference figured it out -- a `Product_SPICE_Kernel` with `kernel_type`
+`MK` over the metakernel, in its own collection, listed by
+`collection_spice_kernels.csv` -- and Phase 6 followed it. Which kernels the
+metakernel names is a question for the navigation side, not for this plan
+(#METAKERNEL_ISSUE); that it has a home in the bundle is settled here. Until
+the question is answered, the metakernel lists no kernels and every label
+describing it says so.
 
 So the bundle has **seven collections**, and `bundle.lblx` grows two more
-`Bundle_Member_Entry` blocks, with `bundle_has_miscellaneous_collection` and
-`bundle_has_spice_kernel_collection`.
+`Bundle_Member_Entry` blocks, each with the collection it names:
+`bundle_has_spice_kernel_collection` in Phase 6 and
+`bundle_has_miscellaneous_collection` in Phase 7, so that every entry the
+bundle label declares resolves at every phase.
 
 ### 3.2 Rendered products versus copied products
 
@@ -335,17 +344,20 @@ understands only the first.
 
 **Rendered** — a template plus variables, one per image or one per run:
 `data.lblx`, `browse.lblx`, the seven collection labels, the two global-index
-labels, `bundle.lblx`.
+labels, `kernels.lblx`, the user-guide label, `bundle.lblx`.
 
 **Copied** — a file that ships in the template directory and belongs in the
 bundle verbatim: `readme.txt`, `collection_context.csv`,
-`collection_document.csv`, `collection_xml_schema.csv`, and the user-guide
-PDF when it exists.
+`collection_spice_kernels.csv`, `collection_xml_schema.csv`, `kernels.ker`,
+and the user-guide PDF when it exists. `collection_document.csv` is copied
+verbatim when the PDF is there and without its `P` line when it is not
+(section 3.6).
 
-A new module `src/spindoctor/cli/pds4/bundle_products.py` owns both for the
-run-level products, so `collections.py` keeps to collection inventories and
-does not grow past its purpose. The summary pass calls it after
-`generate_collection_files` and `generate_global_index_files`.
+`src/spindoctor/cli/pds4/bundle_products.py` owns both for the run-level
+products, so `collections.py` keeps to collection inventories and does not
+grow past its purpose. The summary pass calls it last, after
+`generate_global_index_files` and `generate_collection_files`, and the index
+generator clears its products with its own before it reads anything.
 
 ### 3.3 The FITS and its data objects
 
@@ -423,7 +435,7 @@ The Schematron allows both values. The file is written as the ASCII bytes
 lines in a line feed, so the line feeds stay line feeds on any platform. The
 reference describes its supplemental text files as a `Header` of `UTF-8 Text`
 over their heading, followed by a table; ours is JSON with no heading. It ends
-without a line feed after its last line, which section 2.2 row 13 leaves to
+without a line feed after its last line, which section 2.2 row 9 leaves to
 Phase 10's `validate` run.
 
 ### 3.4 Epochs
@@ -475,7 +487,7 @@ a label. A success document has one only beside a pointing: `build_metadata_dict
 writes `times` with the pointing, and the navigation records a success with no
 pointing when `compute_pointing` raises `NavPointingError` or the instrument has
 no SPICE camera frame mapped (its `observation` block holds the host's exposure
-times regardless, which this pass does not read; section 2.2 row 12). That is a
+times regardless, which this pass does not read; section 2.2 row 8). That is a
 document this package's navigation
 writes, so the labels pass fails such an image before anything is written for
 it, its log saying the navigation recorded no pointing. It checks only
@@ -556,9 +568,10 @@ what the run produced: `collection_data.csv`, `collection_browse.csv`, and
 `collection_miscellaneous.csv`, whose two members are the global-index
 products of section 3.1.
 
-Four are **copied verbatim** from the template directory (section 3.2),
-because their membership is fixed: context, document, spice_kernels and
-schema. Their `collection_*.csv` templates follow the same rules as the
+Four are **copied** from the template directory (section 3.2), because
+their membership is fixed: context, document, spice_kernels and schema. Only
+the document inventory is not always verbatim: its one `P` line, the user
+guide, is left out when the template directory holds no guide (section 3.6). Their `collection_*.csv` templates follow the same rules as the
 generated ones -- no header, LF, a line feed after the last line -- and hold
 no comment line, since the label would count one as a record.
 
@@ -566,10 +579,13 @@ Members carry an explicit version: the reference writes
 `P,urn:...:miscellaneous:global_mosaic_index::1.0` and
 `S,urn:nasa:pds:context:instrument:issna.co::1.2`, naming the actual
 published version of each secondary product rather than leaving it open. Our
-`collection_context.csv` currently has no `::` at all on any line, which has
-to be filled in from the context products as they are registered; Phase 6
-does so. The one
-exception the reference itself makes is its own `collection_context.csv`,
+`collection_context.csv` had no `::` on any line; Phase 6 gave each line its
+context product's version as the PDS registry held it on 2026-09-14.
+`GET https://pds.nasa.gov/api/search/1/products/<lid>/latest` answered
+`mission.cassini-huygens::1.5`, `spacecraft.co::1.4`, `issna.co::1.2` and
+`isswa.co::1.2`, each the newest its `/all` lists (1.0-1.5, 1.0-1.4, 1.0-1.2
+and 1.0-1.2), and the versions the reference's document inventory cites. The
+one exception the reference itself makes is its own `collection_context.csv`,
 which is LID-only; both forms appear to pass, so prefer the versioned one
 and let validation say otherwise.
 
@@ -586,14 +602,15 @@ collection references, not just what it owns.
 
 ### 3.6 The document collection
 
-`collection_document.csv` lists the backplanes user guide and the PDS3 ISS
-Data User's Guide. The first is a product this bundle owns and must
-therefore contain; the second is an external reference and stays `S`. It
-cites the second as
+`collection_document.csv` lists the backplanes user guide, the PDS3 ISS
+Data User's Guide, and the context products of the mission, the spacecraft
+and the two cameras at their versions (section 3.5), as the reference's
+does. The first is a product this bundle owns and must therefore contain;
+the others are external references and stay `S`. It cites the ISS guide as
 `urn:nasa:pds:cassini_iss_saturn:document:iss-data-user-guide::2.0`, the
 version the reference bundle cites, by the operator's decision of
 2026-09-14. The PDS registry returned only version 1.1 of that product on
-2026-09-14.
+2026-09-14, and `::2.0` returned 404 when Phase 6 asked the same day.
 
 The user-guide PDF is an operator deliverable, tracked as #595 (a shared
 LaTeX template for all four instruments' guides) and #596 (the Cassini guide
@@ -601,18 +618,26 @@ written from it; #597, #598 and #599 are the other three, which wait on
 their instrument's half of #53). The code path is written so that the PDF's
 presence in the template directory is what decides:
 
-- PDF present: it is copied, `cassini-iss-saturn-backplanes-user-guide.lblx`
-  is rendered, `collection_document.csv` lists it `P`, and
-  `bundle.lblx` keeps its document `Bundle_Member_Entry`.
-- PDF absent: the document collection still exists, because the global index
-  tables live under it, but the user-guide product is omitted from the
-  inventory and the run logs one warning naming the missing file.
+- PDF present: it is copied into `document/user_guide/`,
+  `cassini-iss-saturn-backplanes-user-guide.lblx` is rendered beside it, and
+  `collection_document.csv` lists it `P`.
+- PDF absent: none of those, the inventory has no `P` line, and the run logs
+  one warning naming the missing file.
+
+The document collection exists either way, and `bundle.lblx` declares it
+either way: it holds the bundle's documents and lists the external ones the
+bundle cites. The references to the user guide in the data, browse, data
+collection, metakernel and bundle labels stay in both cases, since they carry
+the LID the delivered bundle will contain; with the PDF absent they do not
+resolve, and the readme's sentences about the guide, copied with it, are
+untrue of the draft. A draft accepts that; acceptance criteria 6 and 9 refuse
+it for delivery.
 
 The draft is acceptable either way; a bundle delivered to the Node is not.
-Acceptance criterion 8 records that distinction.
+Acceptance criterion 9 records that distinction.
 
-Whichever way it goes, the LID gets its `:document:` segment back in all
-three places that drop it (defect 6).
+The LID has its `:document:` segment in every label and inventory that names
+it (Phase 6).
 
 ### 3.7 Targets and the mission area
 
@@ -763,6 +788,26 @@ understood. The operator is following up with the Engineering Node. Two
 outcomes to be ready for: the 1.24 products appear and nothing changes, or
 the bundle is built against a build whose dictionaries are registered, which
 would move every declaration in the table above together.
+
+Phase 6 asked the registry about both spellings of all five
+`collection_xml_schema.csv` lines on 2026-09-14, as
+`GET https://pds.nasa.gov/api/search/1/products/<lidvid>`, and neither
+resolves for any of them. Ours --
+`urn:nasa:pds:system_bundle:xml_schema:pds-xml_schema::1.24`,
+`...:disp-xml_schema::1.15`, `...:geom-xml_schema::1.19`,
+`...:rings-xml_schema::1.15` and `...:cassini-xml_schema::1.18` -- return 404,
+and so do the reference's, `...:pds-xml_schema_1.24.0.0::1.0`,
+`...:disp-xml_schema_1.24.0.0_1.5.1.0::1.0`,
+`...:geom-xml_schema_1.24.0.0_1.9.11.0::1.0`,
+`...:rings-xml_schema_1.24.0.0_1.15.0::1.0` and
+`...:cassini-xml_schema_1.24.0.0_1.8.0.0::1.0`, whose LIDs return 404 for
+`/latest` and `/all` as well. Our five LIDs resolve, but at none of the
+versions our lines name: `/all` lists `pds-xml_schema` 1.0-1.6, 1.9-1.13 and
+1.15-1.21, `disp-xml_schema` 1.0, 1.9, 1.10, 1.12, 1.13 and 1.16,
+`geom-xml_schema` 1.0, 1.3 and 1.16, `rings-xml_schema` 1.0, 1.5, 1.8 and 1.9,
+and `cassini-xml_schema` 1.0, 1.14 and 1.17. The lines are unchanged, since
+the reference's spelling resolves no better, and the question stays the
+Engineering Node's.
 
 ### 3.10 Bundle name and version
 
@@ -1082,11 +1127,49 @@ obvious answer there and should be settled with it.
 separate `USERGUIDE_DOI`, and its user-guide label fills a real `<doi>`
 where ours has `TODO DOI`. Registering both is an operator step with the
 node, not a coding step, and it should be started early rather than
-discovered at delivery.
+discovered at delivery. Until then `bundle.lblx` and the user-guide label,
+which the summary pass renders, carry `<doi>TODO DOI</doi>`, which the XSD's
+DOI pattern (`10\.\S+/\S+`) refuses, so acceptance criterion 3's zero-error
+check needs the DOIs registered or the placeholders removed.
 
 **Authors and editors are template variables**, not prose: the reference
 carries an `AUTHORS` string and an `EDITORS` string naming the node staff
 who reviewed the bundle. Ours has a single hardcoded `List_Author` block.
+
+**The source product has no PDS4 counterpart.** A data label's
+`Source_Product_Internal` is to name the Cassini ISS product its backplanes
+were computed from, and the navigation reads the calibrated image:
+`DataSetPDS3CassiniISS` enumerates `<holdings>/calibrated/COISS_2xxx/`
+(`_VOLUMES_DIR_NAME`) and maps each index row's `..._1.IMG` to `..._1_CALIB.LBL`
+and `..._1_CALIB.IMG`, and `ObsCassiniISS.from_file` reads that file under its
+`cassini_iss_calib` configuration. The file is the RMS Node's CISSCAL 4.0beta
+product in I/F, as its PDS3 label says, so the readme's "generated from
+Cassini ISS calibrated images" is true. The PDS4 Cassini ISS archive has no
+calibrated counterpart. `urn:nasa:pds:cassini_iss_saturn::1.1` holds
+`browse_raw`, `context`, `data_raw`, `document` and `xml_schema`, and the
+registry, asked on 2026-09-14 at
+`https://pds.nasa.gov/api/search/1/products/<id>` and its `/latest` and `/all`,
+returns 404 for `urn:nasa:pds:cassini_iss_saturn:data_calibrated`,
+`...:data_calib`, `...:data_cal` and `...:calibrated`, and for
+`...:data_calibrated:1454725799n` and `...:data_calibrated:1455327968w`. The
+raw products are there: `urn:nasa:pds:cassini_iss_saturn:data_raw:1454725799n`
+(NAC) and `...:data_raw:1455327968w` (WAC) each resolve at `::1.0`, with
+`/latest` and `/all` both giving `::1.0` alone, in
+`urn:nasa:pds:cassini_iss_saturn:data_raw::1.0`; the LID is
+`urn:nasa:pds:cassini_iss_saturn:data_raw:<image number><camera letter, lower
+case>`. The cohort's image numbers are made from epochs and name no real
+image, so the query took two real COISS_2001 images. The raw label names its
+own PDS3 source through `Source_Product_External`,
+`external_source_product_identifier`
+`CO-S-ISSNA/ISSWA-2-EDR-V1.0:COISS_2001:data/1454725799_1455008789:N1454725799_1.IMG`,
+`reference_type` `data_to_raw_source_product`. With nothing calibrated to
+name, Phase 6 stopped rather than choose, leaving `SOURCE_IMAGE_LIDVID` the
+product's own LIDVID under `data_to_calibrated_source_product` and its `TODO`
+in place (section 2.2 row 2). The choices are the operator's: name the raw
+product, `data_to_raw_source_product` at `::1.0`, which is what the
+calibrated image was made from but not what the navigation read; name the
+calibrated PDS3 product through `Source_Product_External`, as the raw PDS4
+label names its EDR; or both.
 
 Six places where this plan deliberately does **not** follow the reference:
 
@@ -1463,42 +1546,108 @@ it fixed were never filed as issues.
 
 ### Phase 6 — Bundle-level and static products
 
-`bundle_products.py`: render `bundle.lblx`, copy `readme.txt`, copy the
-three static inventories and render their three collection labels. Fix the
-`:document:` LID segment in all three places. Fix `SOURCE_IMAGE_LIDVID` to
-name the source Cassini ISS product rather than the backplane product — the
-correct form comes from the PDS4 Cassini ISS bundle's data LID scheme, and
-the value is derived in `pds4_template_variables` beside the other LID
-builders.
+Done on `rf_pds4_phase6`. `src/spindoctor/cli/pds4/bundle_products.py` owns
+the run-level products (section 3.2), and the summary pass calls it last,
+after the global index and the data and browse collections; `collections.py`
+keeps to collection inventories, and its index generator clears the run-level
+products with its own before it reads anything, so a rerun leaves nothing
+stale. The module copies `readme.txt` to the bundle root; copies each static
+inventory -- context, document, SPICE kernel, XML schema -- into its
+collection's directory and renders the collection label beside it; copies the
+metakernel `kernels.ker` and renders `kernels.lblx`; copies the user guide into
+`document/user_guide/` and renders its label beside it when the template
+directory holds the PDF; and renders `bundle.lblx` last, stating the range the
+data collection label states (section 3.4). Every label goes through
+`write_label`, every one not written is counted, and the pass then exits 1, as
+Phase 1 and Phase 5 had it.
 
-`bundle.lblx` also grows two `Bundle_Member_Entry` blocks, taking it to
-seven: `bundle_has_miscellaneous_collection` (Phase 7 supplies what it
-points at) and `bundle_has_spice_kernel_collection`. The latter brings the
-`spice_kernels` collection with it -- a `Product_SPICE_Kernel` label with
-`kernel_type` `MK` over `kernels.ker`, and a static
-`collection_spice_kernels.csv` naming it -- which closes the metakernel TODO
-at `data.lblx:115-131`. Which kernels the metakernel lists is a navigation
-question and is not settled here; the label and the collection are.
+**The bundle label is kept only over a bundle holding every collection it
+declares.** It is rendered, its `Bundle_Member_Entry` LIDs are read, and it is
+removed and counted when one names no collection label one directory below the
+bundle root declaring that LID: a collection whose label failed or was not
+written, or one the template declares before any pass writes it. With no range
+to state it is not rendered at all. It declares six collections: browse,
+context, data, document, spice_kernels and xml_schema. The
+`bundle_has_miscellaneous_collection` entry is Phase 7's, with the collection
+it names, so that at every phase every entry the bundle label declares
+resolves to a collection label in the bundle.
 
-The document collection's guide moves into a `user_guide/` subdirectory, per
-section 3.1. And `readme.txt` loses the clause placing the index files in
-the document collection, which section 3.1 moved.
+**The `spice_kernels` collection** takes the reference's form: `kernels.lblx`,
+a `Product_SPICE_Kernel` with `kernel_type` `MK` over `kernels.ker`, and a
+static `collection_spice_kernels.csv` listing
+`P,urn:nasa:pds:<bundle>:spice_kernels:kernels::1.0`. Which kernels the
+metakernel lists is not settled (#METAKERNEL_ISSUE), so `kernels.ker` is a
+placeholder: the `KPL/MK` identification word and a comment saying it lists no
+kernels, with no `KERNELS_TO_LOAD` assignment, since SPICE refuses an empty one
+(`SPICE(BADVARASSIGN)`) and loads the comment-only file. `kernels.lblx`'s
+descriptions and the data label's `geom:SPICE_Kernel_Files` comment say the
+same; the data label no longer claims the file lists the kernels used or names
+a C-kernel, and its `TODO` is gone. `kernels.lblx` has no
+`Target_Identification`, which the Schematron requires of a
+`Product_SPICE_Kernel`; that is Phase 8's.
 
-**The static inventories' members follow section 3.5.** As the reference's
-does, `collection_document.csv` lists beside its own primary the context
-products and the external ISS data user guide as `S` members, every member
-with an explicit version: the mission, the spacecraft and the two cameras at
-the versions their context products carry, and the ISS data user guide at
-`::2.0` (section 3.6). `collection_context.csv`'s own four lines -- the
-mission, the spacecraft and the two cameras -- gain the same versions, the
-versioned form section 3.5 prefers over the reference's LID-only context
-inventory; Phase 8 adds the targets in that form.
+**The user guide** follows section 3.6: its presence in the template directory
+decides. The dataset names it, through `DataSet.pds4_user_guide_file_name`,
+and its label renders from the template of the same stem ending in `.lblx`.
+The document inventory the template directory ships lists the guide as its one
+`P` line; the pass writes it as it is when the PDF is there and without its `P`
+lines when it is not, and logs one warning naming the missing file. The
+guide's label and the XML schema collection label read their files through
+path variables, `USER_GUIDE_PATH` and `COLLECTION_XML_SCHEMA_CSV_PATH`, where
+they had named them relative to the working directory.
+`pds4_required_templates('summary')` names every file the pass takes from the
+template directory, the guide's label template among them, and not the guide.
 
-Tests: the summary pass over a one-image bundle produces every file section
-3.1 lists; the seven `Bundle_Member_Entry` LIDs each resolve to a
-`collection_*.lblx` that exists.
+**The `:document:` segment** is back wherever a label or inventory names the
+user guide: `data.lblx`, `bundle.lblx` and `collection_document.csv`, and
+`collection_data.lblx` and `browse.lblx`, which dropped it too.
 
-Closes #72, #74, and the new LID and source-product issues.
+**Versioned members** (section 3.5): `collection_context.csv` lists the mission
+at `::1.5`, the spacecraft at `::1.4` and both cameras at `::1.2`, and
+`collection_document.csv` lists the same four as `S` members beside the ISS
+data user guide at `::2.0`, as the reference's does. Targets are Phase 8's.
+
+**The readme** no longer places index files in the document collection;
+Phase 7 adds what it says of the miscellaneous collection.
+
+**Not done: the source product** (section 2.2 row 2). The navigation reads the
+calibrated image, and the PDS4 Cassini ISS archive has no calibrated product
+for it to name (section 3.13, with the registry's answers). Phase 6 stopped
+rather than invent one: `SOURCE_IMAGE_LIDVID` still names the product itself,
+the template's `TODO Need to check this` stays, and the choice is the
+operator's.
+
+Tests, over the cohort: the summary pass adds exactly the files section 3.1
+lists for the collections the bundle holds, and the bundle's top level is
+exactly those; each of the bundle label's six member entries is the logical
+identifier of a collection label in the bundle; with a user guide in the
+template directory, every label naming a document of the bundle, the data and
+bundle labels among them, names the guide's own LID, and the document
+inventory lists it as its one `P` member; the SPICE kernel inventory lists the
+metakernel by its label's LID and version; and both passes run over a template
+directory holding only what the dataset declares. Over stand-ins: the copied
+products are the template directory's bytes; a guide present is copied,
+labeled and listed; a guide absent is none of those, with one warning; the
+bundle label states the bundle's LID and range; a bundle label declaring a
+collection not written, or with no range, is not written and counts; each
+run-level label that fails is counted; the driver exits 1 on a run-level count,
+hands the run-level products the index's range and logs the reason one raises;
+and a refused summary leaves none of the run-level products an earlier one
+wrote.
+
+Schema checks (xmlschema and pyschematron, offline, with the cartography
+dictionary the Cassini schema imports mapped to its cached copy) over the
+cohort bundle with a stand-in guide found no error in any collection label,
+the metakernel label, the browse labels or the XML schema collection label.
+The data labels lack `Target_Identification` (Phase 8); `bundle.lblx` lacks it
+too, and it and the guide's label carry `TODO DOI`, which the XSD refuses
+(section 3.13). pyschematron fired no rule whose context is a relative path of
+more than one step, the `Product_SPICE_Kernel` rule `kernels.lblx` fails among
+them (Phase 10).
+
+Closes #74, by hand when its PR merges into `rf_pds4_draft_bundle` (section
+8). #72, the context collection, stays open for Phase 8's targets. The
+`:document:` segment and the metakernel TODO were never filed as issues.
 
 ### Phase 7 — The miscellaneous collection and its global index labels
 
@@ -1555,6 +1704,13 @@ with an explicit version (section 3.5): the two index products at the
 bundle's version, the context products at theirs, and the ISS data user guide
 at `::2.0` (section 3.6).
 
+**The bundle label declares the collection** with a
+`bundle_has_miscellaneous_collection` `Bundle_Member_Entry`, taking it to
+seven. Phase 6 held the entry back until the collection it names exists,
+since the bundle label is kept only over a bundle holding a label for every
+collection it declares (section 3.2). `readme.txt` says what the
+miscellaneous collection holds, as the reference's does.
+
 **The index rows are exactly the data inventory's members.** The tables
 index the images the data inventory lists, each with the rows its
 supplemental file gives -- a bodies row per body, a rings row where it has
@@ -1574,7 +1730,8 @@ Tests: adding a backplane to the config adds a column to the table and a
 generated row; the inventory's two LIDVIDs each resolve to a label in the
 same collection; and a supplemental file with no data label beside it adds
 no row to either table, so every row's LID is that of a data inventory
-member.
+member; and the bundle label's seven `Bundle_Member_Entry` LIDs each resolve
+to a `collection_*.lblx` in the bundle whose logical identifier is that LID.
 
 Closes #76.
 
@@ -1585,6 +1742,11 @@ body present in the image's backplane metadata.
 `cassini:ISS_Specific_Attributes` filled from the already-computed
 variables. Ring geometry class fields and the ring incidence angle in the
 label.
+
+**The bundle and metakernel labels take targets too.** The PDS4 Schematron
+requires a `Target_Identification` in the bundle label and in a
+`Product_SPICE_Kernel`'s `Context_Area`, and `bundle.lblx` and `kernels.lblx`
+have none, as the data labels have none (section 2.2 row 5).
 
 **The context inventory lists the targets.** `collection_context.csv` lists
 every target context product the data labels reference, taken from
@@ -1619,7 +1781,9 @@ image with rings emits the ring geometry block and one without emits none;
 and every target LID a data label references is listed in the context
 inventory.
 
-Closes #73, #75, #47; contributes to #53's template list. #79 stays open.
+Closes #73, #75, #47, and #72, the context collection, which Phase 6 wrote
+and whose targets this phase adds; contributes to #53's template list. #79
+stays open.
 
 ### Phase 9 — Parameterize the bundle name and version
 
@@ -1648,7 +1812,13 @@ run by `lxml`'s ISO Schematron: on 2026-09-14 the product reviewer found
 that `lxml.isoschematron` refuses the PDS4 1O00 Schematron, reporting that
 it "does not work with schemas using the xslt2 query language".
 pyschematron 1.2.1 ran the same rules, and a control label with a wrong
-`offset` failed them as it should. The NASA PDS
+`offset` failed them as it should. It does not run all of them: over Phase 6's
+cohort bundle no rule fired whose context is a relative path of more than one
+step -- among them `pds:Product_SPICE_Kernel/pds:Context_Area`, which requires
+the `Target_Identification` `kernels.lblx` lacks, and
+`pds:Product_Bundle/pds:Identification_Area` -- while single-step and absolute
+contexts fired. Until those rules are evaluated some other way, the Python
+gate cannot stand in for `validate` on them. The NASA PDS
 `validate` tool is the authority for the draft acceptance and additionally
 checks referential integrity, but it is Java and does not belong in this
 repository's CI; the Python check is the gate that runs on every PR, and
@@ -1751,10 +1921,10 @@ removals on a two-sided conflict.
 
 ## 7. Follow-ups
 
-**No issues are filed for section 2.2's rows other than 12.** Each is assigned to a
+**No issues are filed for section 2.2's rows other than 8.** Each is assigned to a
 named phase of this plan, which holds the evidence, the location and the
 disposition in one place; a tracking issue whose content is "see Phase 5"
-adds a close to reconcile and no reader. Row 12 is the navigation's, not a
+adds a close to reconcile and no reader. Row 8 is the navigation's, not a
 phase's, and was tracked as #619, which #624 closed by recording the host's exposure times in the `observation` block.
 
 The one row that would have outlived this plan was the angular-unit
@@ -1793,6 +1963,9 @@ branch.
   for consumers without closing it.
 - #79 — scrape the PDS4 context products so `target_lids` is maintained
   rather than hand-written.
+- #METAKERNEL_ISSUE — which SPICE kernels the bundle's metakernel lists, a
+  navigation question. Phase 6 shipped the `spice_kernels` collection with a
+  metakernel that lists none and says so.
 - #530 — the stats corpus's own Cassini clock seconds, which do not follow
   from their epochs. Phase 2 builds the epoch-first constructor that makes
   the defect unrepeatable and uses it for every cohort document. Routing the
