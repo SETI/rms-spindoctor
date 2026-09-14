@@ -30,7 +30,9 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    ``<image>_supplemental.txt`` file, and into its ``browse/`` tree a copy of the
    summary PNG and its ``<image>_summary.lblx`` label. The label's data objects
    are read from the source FITS before anything is written into the bundle, and
-   the copy is the same bytes (see `The FITS and its data objects`_).
+   the copy is the same bytes (see `The FITS and its data objects`_). The data
+   label also names the image's targets and, for an image with ring backplanes,
+   states its ring geometry (see `Targets and the ring geometry`_).
 
 2. **Collections and indexes.**  After every per-image data label is in place,
    :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` reads
@@ -38,7 +40,7 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    ``global_bodies_index`` and ``global_rings_index`` tables and their labels,
    and the miscellaneous collection that lists them, into ``miscellaneous/`` (see
    `The global index and the miscellaneous collection`_), and takes the range of
-   the products' exposure epochs in the same read.  Then
+   the products' exposure epochs, and the targets they name, in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
    ``data/`` and ``browse/`` trees, collects every ``_backplanes.lblx`` and
    ``_summary.lblx`` it finds, sorts each set by product name -- the file name
@@ -54,9 +56,9 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` writes
    the bundle's run-level products: the readme, the context, document, SPICE
    kernel and XML schema collections, the user guide when the template directory
-   holds its PDF, and the bundle label, which states the same range and is kept only
-   over a bundle holding every collection it declares (see `The bundle's
-   run-level products`_).
+   holds its PDF, and the bundle label, which states the same range, names the same
+   targets and is kept only over a bundle holding every collection it declares (see
+   `The bundle's run-level products`_).
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
@@ -443,7 +445,7 @@ layout:
      collection_data.lblx                     # data-collection label (CSV inventory)
      collection_browse.lblx                   # browse-collection label
      collection_context.lblx                  # context-collection label
-     collection_context.csv                   # context inventory (copied)
+     collection_context.csv                   # context inventory's fixed members
      collection_document.lblx                 # document-collection label
      collection_document.csv                  # document inventory (copied)
      collection_spice_kernels.lblx            # SPICE-kernel-collection label
@@ -584,6 +586,60 @@ took in no member's supplemental file yields no range, and the data collection i
 then not written, neither its inventory nor its label, rather than labeled with
 empty dates (see `Exit status`_).
 
+Targets and the ring geometry
+=============================
+
+A label names a target by its PDS4 context product.
+:func:`~spindoctor.cli.pds4.targets.target_table` reads the configuration's
+``backplanes.target_lids`` into :class:`~spindoctor.cli.pds4.targets.Pds4Target` entries,
+each the context product's LID and version and the name and type the product gives the
+target, keyed by the name the backplane metadata gives the target: a body by the name
+:func:`~spindoctor.cli.backplanes.backplanes_bodies.backplane_body_names` looks for it
+under, and the rings by the target
+:func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` computes their backplanes
+for.  An image's targets, as :func:`~spindoctor.cli.pds4.targets.image_targets` finds
+them, are every body its backplane metadata names, with or without a statistic, and the
+ring target when the metadata holds a ring statistic, in the table's order.  A name the
+table has no entry for raises :exc:`KeyError`, naming it.  Nothing checks the table when
+a run starts; a test over the shipped configuration holds it to the stage's own body
+list and ring target.
+
+``data.lblx`` names an image's targets, handed to it as ``TARGETS``, one
+``Target_Identification`` each, with a ``data_to_target`` reference.  PDS4 requires a
+data label to name one at least, so the labels pass fails an image whose backplane
+metadata names none, before anything is written for it.  The summary pass takes the
+targets of the data collection's members in its one read of the supplemental files, by a
+:class:`~spindoctor.cli.pds4.targets.TargetScan`, as it takes the range of their epochs,
+and :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns them in
+its :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome`; the driver hands them
+to the collection generator and to the run-level products.  The data collection label
+names them with ``collection_to_target``, the bundle label with ``bundle_to_target`` and
+the metakernel label with ``data_to_target``, the values the Schematron allows under
+each kind of product, and the context inventory lists each, after the members the
+template directory ships, as ``S,<lidvid>``.  The document and miscellaneous inventories
+list no target, since no label of their collections names one.
+
+:func:`~spindoctor.cli.pds4.ring_geometry.ring_geometry` builds the ring geometry a data
+label of an image with ring statistics states, handed to the template as
+``RING_GEOMETRY``, or None for an image with none.  It fills ``rings:Reprojection_Geometry``,
+the one class of ``PDS4_RINGS_1O00_1F00`` holding an image's ranges of ring radius,
+longitude, angles and resolutions.
+:data:`~spindoctor.cli.pds4.ring_geometry.RING_GEOMETRY_ATTRIBUTES` gives the attribute
+each configured ring plane's least and greatest value are stated as.  The attributes
+come in the schema's order, and each value is written with the format
+:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives the statistic's unit,
+a size per pixel stated in the length or the angle a pixel spans.  The incidence angle
+the backplane metadata records is stated as the mean, the minimum and the maximum alike,
+since it is one angle over the image.  The template states the rest: the planet's
+equatorial plane, no co-rotating frame, the image's midtime as the basis epoch, and a
+description saying that the arrays are not reprojected and that the longitude range is
+not wrapped.  The labels pass fails an image whose backplane metadata holds ring
+statistics and no incidence angle, as backplanes an earlier version generated do,
+before anything is written for it.
+
+The data, data collection and bundle labels each declare one ``Science_Facets``,
+``Visible`` and ``Ring-Moon Systems``, fixed in their templates.
+
 The global index and the miscellaneous collection
 =================================================
 
@@ -721,9 +777,12 @@ some are copied as they are:
 - The context, document, SPICE kernel and XML schema collections are each an inventory
   the template directory ships, ``collection_<name>.csv``, copied into the collection's
   directory, and a label, ``collection_<name>.lblx``, rendered beside it and handed the
-  inventory's path as ``COLLECTION_<NAME>_CSV_PATH``.
+  inventory's path as ``COLLECTION_<NAME>_CSV_PATH``.  The context inventory is written
+  with every target the data labels name after the members the template directory
+  ships (see `Targets and the ring geometry`_).
 - The metakernel ``kernels.ker`` is copied into ``spice_kernels/`` and its label
-  ``kernels.lblx`` rendered beside it, handed the copy's path as ``METAKERNEL_PATH``.
+  ``kernels.lblx`` rendered beside it, handed the copy's path as ``METAKERNEL_PATH`` and
+  the targets as ``TARGETS``.
   The shipped metakernel lists no SPICE kernels: which kernels it lists has not been
   decided, so it is the ``KPL/MK`` identification word and a comment block, with no
   ``KERNELS_TO_LOAD`` assignment, which SPICE refuses empty.  Its label and the data
@@ -735,8 +794,9 @@ some are copied as they are:
   copy's path as ``USER_GUIDE_PATH``.  When it does not, neither is written and the pass
   logs one warning naming the file; that is not a label the pass failed to write.
 - ``bundle.lblx`` is rendered last, at the bundle's root, handed ``BUNDLE_LID``
-  (``urn:nasa:pds:<bundle name>``), the readme's path as ``README_PATH``, and the range
-  of the products' epochs the data collection label states (see `Epochs`_).
+  (``urn:nasa:pds:<bundle name>``), the readme's path as ``README_PATH``, the range
+  of the products' epochs the data collection label states (see `Epochs`_), and the
+  targets as ``TARGETS``.
 
 An inventory's primary members are products of this bundle -- the user guide in the
 document collection, the metakernel in the SPICE kernel collection -- and one rule
@@ -800,7 +860,7 @@ The two passes write this tree:
          <image>_summary.lblx
          <image>_summary.png                 # copied from nav_results_root
      context/
-       collection_context.csv                # summary pass, copied
+       collection_context.csv                # summary pass
        collection_context.lblx               # summary pass
      document/
        collection_document.csv               # summary pass
@@ -982,10 +1042,17 @@ documented above.
 - :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits` — the headers
   and arrays of a backplane FITS, read from the source before the copy is made,
   for the data label of its copy.
-- :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
+- :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`,
+  :class:`~spindoctor.cli.pds4.targets.TargetScan` and
   :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome` — the range of the
-  products' epochs, taken in the global index's read of the supplemental files
-  and handed to the collection generator.
+  products' epochs and the targets they name, taken in the global index's read of the
+  supplemental files and handed to the collection generator and the run-level products.
+- :func:`~spindoctor.cli.pds4.targets.target_table` and
+  :func:`~spindoctor.cli.pds4.targets.image_targets` — the configuration's targets
+  table, as :class:`~spindoctor.cli.pds4.targets.Pds4Target` entries, and the targets one
+  image's backplane metadata names.
+- :func:`~spindoctor.cli.pds4.ring_geometry.ring_geometry` — the ring geometry a data
+  label of an image with ring backplanes states.
 - :func:`~spindoctor.cli.pds4.epochs.exposure_times` — an image's exposure start and
   stop as the index tables write them, to the millisecond, as its data label does.
 - :func:`~spindoctor.support.time.et_to_pds4_utc` — the PDS4 spelling of an epoch,
