@@ -338,6 +338,149 @@ _N1454725799_FACTS: dict[str, Any] = {
 """The label facts N1454725799_1_CALIB's label states, under their dictionary names."""
 
 
+def _n1737255524_label() -> VicarLabelStandIn:
+    """Return the label items the host reads from N1737255524_1_CALIB (COISS_2080).
+
+    They are the VICAR label's, as rms-vicar reads them.  The exposure spans a second: its
+    counts run from 1737255523.232 to 1737255524.122, and its image number is the stop
+    count's seconds.
+
+    Returns:
+        The label items.
+    """
+    return VicarLabelStandIn(
+        MISSION_PHASE_NAME='EXTENDED-EXTENDED MISSION',
+        SPACECRAFT_CLOCK_CNT_PARTITION=1,
+        SPACECRAFT_CLOCK_START_COUNT='1737255523.232',
+        SPACECRAFT_CLOCK_STOP_COUNT='1737255524.122',
+        DESCRIPTION='N/A',
+        ANTIBLOOMING_STATE_FLAG='OFF',
+        BIAS_STRIP_MEAN=5.66667,
+        CALIBRATION_LAMP_STATE_FLAG='N/A',
+        COMMAND_FILE_NAME='trigger_31305_1.ioi',
+        COMMAND_SEQUENCE_NUMBER=31305,
+        DARK_STRIP_MEAN=2.625,
+        DATA_CONVERSION_TYPE='TABLE',
+        DELAYED_READOUT_FLAG='NO',
+        DETECTOR_TEMPERATURE=-89.3184,
+        ELECTRONICS_BIAS=112,
+        EARTH_RECEIVED_START_TIME='2013-019T16:30:55.609Z',
+        EARTH_RECEIVED_STOP_TIME='2013-019T16:31:06.169Z',
+        EXPECTED_MAXIMUM=[58.3402, 64.3209],
+        EXPECTED_PACKETS=674,
+        EXPOSURE_DURATION=560.0,
+        FILTER_NAME=['CL1', 'CL2'],
+        FILTER_TEMPERATURE=-0.468354,
+        FLIGHT_SOFTWARE_VERSION_ID='1.4',
+        GAIN_MODE_ID='29 ELECTRONS PER DN',
+        SOFTWARE_VERSION_ID='ISS 11.00 05-24-2006',
+        IMAGE_MID_TIME='2013-019T02:04:35.696Z',
+        IMAGE_NUMBER=1737255524,
+        IMAGE_TIME='2013-019T02:04:35.976Z',
+        IMAGE_OBSERVATION_TYPE='SCIENCE',
+        INSTRUMENT_DATA_RATE=182.784,
+        INSTRUMENT_MODE_ID='FULL',
+        INST_CMPRS_TYPE='LOSSY',
+        INST_CMPRS_PARAM=[0, 0, 1, 0],
+        INST_CMPRS_RATE=[4.7, 0.981995],
+        INST_CMPRS_RATIO=8.14668,
+        LIGHT_FLOOD_STATE_FLAG='ON',
+        METHOD_DESC='ISSPT2.8;Saturn-Rings;ISS_179RI_MOONLETC001_PIE_1',
+        MISSING_LINES='N/A',
+        MISSING_PACKET_FLAG='NO',
+        OBSERVATION_ID='ISS_179RI_MOONLETC001_PIE',
+        OPTICS_TEMPERATURE=[0.712693, 1.90571],
+        ORDER_NUMBER=1,
+        PARALLEL_CLOCK_VOLTAGE_INDEX=9,
+        PRODUCT_CREATION_TIME='2013-039T12:10:08.000',
+        PRODUCT_VERSION_TYPE='FINAL',
+        TARGET_DESC='Saturn-Rings',
+        TARGET_LIST='N/A',
+        TARGET_NAME='SATURN',
+        PREPARE_CYCLE_INDEX=3,
+        READOUT_CYCLE_INDEX=5,
+        RECEIVED_PACKETS=140,
+        SENSOR_HEAD_ELEC_TEMPERATURE=1.63302,
+        SEQUENCE_ID='S77',
+        SEQUENCE_NUMBER=108,
+        SEQUENCE_TITLE='--',
+        SHUTTER_MODE_ID='NACONLY',
+        SHUTTER_STATE_ID='ENABLED',
+        START_TIME='2013-019T02:04:35.416Z',
+        STOP_TIME='2013-019T02:04:35.976Z',
+        TELEMETRY_FORMAT_ID='S&ER3',
+        VALID_MAXIMUM=[4095, 4095],
+    )
+
+
+_N1737255524_FACTS: dict[str, Any] = {
+    'mission_phase_name': 'EXTENDED-EXTENDED MISSION',
+    'spacecraft_clock_count_partition': 1,
+    'spacecraft_clock_start_count': '1737255523.232',
+    'spacecraft_clock_stop_count': '1737255524.122',
+    'antiblooming_state_flag': 'OFF',
+    'bias_strip_mean': 5.66667,
+    'calibration_lamp_state_flag': 'N/A',
+    'command_file_name': 'trigger_31305_1.ioi',
+    'command_sequence_number': 31305,
+    'dark_strip_mean': 2.625,
+    'data_conversion_type': 'TABLE',
+    'delayed_readout_flag': 'NO',
+    'detector_temperature': -89.3184,
+    'electronics_bias': 112,
+    'earth_received_start_time': '2013-019T16:30:55.609Z',
+    'earth_received_stop_time': '2013-019T16:31:06.169Z',
+    'expected_maximum_full_well': 58.3402,
+    'expected_maximum_DN_sat': 64.3209,
+    'expected_packets': 674,
+    'exposure_duration': 560.0,
+    'filter_temperature': -0.468354,
+    'flight_software_version_id': '1.4',
+    'gain_mode_id': '29 ELECTRONS PER DN',
+    'ground_software_version_id': 'ISS 11.00 05-24-2006',
+    'image_mid_time': '2013-019T02:04:35.696Z',
+    'image_number': 1737255524,
+    'image_time': '2013-019T02:04:35.976Z',
+    'image_observation_type': 'SCIENCE',
+    'instrument_data_rate': 182.784,
+    'inst_cmprs_type': 'LOSSY',
+    'inst_cmprs_param_malgo': 0,
+    'inst_cmprs_param_tb': 0,
+    'inst_cmprs_param_blocks': 1,
+    'inst_cmprs_param_quant': 0,
+    'inst_cmprs_rate_expected_bits': 4.7,
+    'inst_cmprs_rate_actual_bits': 0.981995,
+    'inst_cmprs_ratio': 8.14668,
+    'light_flood_state_flag': 'ON',
+    'method_description': 'ISSPT2.8;Saturn-Rings;ISS_179RI_MOONLETC001_PIE_1',
+    'missing_lines': 'N/A',
+    'missing_packet_flag': 'NO',
+    'optics_temperature_front': 0.712693,
+    'optics_temperature_back': 1.90571,
+    'order_number': 1,
+    'parallel_clock_voltage_index': 9,
+    'pds3_product_creation_time': '2013-039T12:10:08.000',
+    'pds3_product_version_type': 'FINAL',
+    'pds3_target_desc': 'Saturn-Rings',
+    'pds3_target_list': 'N/A',
+    'pds3_target_name': 'SATURN',
+    'prepare_cycle_index': 3,
+    'readout_cycle_index': 5,
+    'received_packets': 140,
+    'sensor_head_electronics_temperature': 1.63302,
+    'sequence_id': 'S77',
+    'sequence_number': 108,
+    'sequence_title': '--',
+    'shutter_state_id': 'ENABLED',
+    'start_time_doy': '2013-019T02:04:35.416Z',
+    'stop_time_doy': '2013-019T02:04:35.976Z',
+    'telemetry_format_id': 'S&ER3',
+    'valid_maximum_full_well': 4095,
+    'valid_maximum_DN_sat': 4095,
+}
+"""The label facts N1737255524_1_CALIB's label states, under their dictionary names."""
+
+
 def _wide_angle_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
     """Build a bare wide angle observation, taken as W1573251410_1_CALIB was.
 
@@ -470,6 +613,11 @@ def test_a_label_without_clock_counts_publishes_null_counts() -> None:
             _N1454725799_FACTS,
             id='N1454725799_1_CALIB',
         ),
+        pytest.param(
+            lambda: _cassini_observation(_n1737255524_label()),
+            _N1737255524_FACTS,
+            id='N1737255524_1_CALIB',
+        ),
     ],
 )
 def test_the_label_facts_are_published_as_the_label_states_them(
@@ -481,6 +629,8 @@ def test_the_label_facts_are_published_as_the_label_states_them(
     spellings with their trailing Z, its gain mode is its text, and its missing-line count
     is the text N/A.  N1454725799_1_CALIB's mission phase keeps its underscore, and its
     antiblooming flag, OFF, is published apart from its light flood flag, ON.
+    N1737255524_1_CALIB's exposure spans a second, so its image number, the stop count's
+    seconds, is not its start count's.
 
     Parameters:
         build: Builds the observation carrying the image's label.
