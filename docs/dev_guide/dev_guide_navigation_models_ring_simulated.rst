@@ -168,7 +168,7 @@ Examples
 ========
 
 The catalog scene ``algorithmic_invariants/planted_offset_ring.yaml`` plants a
-``(1.43, -0.61)`` px pointing offset under a centred face-on ringlet (``tau = 2``,
+``(1.43, -0.61)`` px pointing offset under a centered face-on ringlet (``tau = 2``,
 radii 60-85 px) flagged navigable. The model predicts both catalog edges at the unshifted
 position; :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav` fits the
 two curved polylines against the rendered image's edge distance transform and recovers the

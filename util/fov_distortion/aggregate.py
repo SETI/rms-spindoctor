@@ -107,7 +107,7 @@ def twist_consistency(
     *,
     scatter_corner_threshold_px: float = 0.15,
 ) -> TwistConsistency:
-    """Summarise the frame-to-frame consistency of an instrument's twists.
+    """Summarize the frame-to-frame consistency of an instrument's twists.
 
     Parameters:
         twists_deg: Per-frame twist angles in degrees.

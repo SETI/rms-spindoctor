@@ -34,7 +34,7 @@ Per-star centroid model
 For a single predicted catalog star at position :math:`x_{\mathrm{pred}}` with covariance
 :math:`\Sigma_{i}` (the Cramer-Rao lower bound carried on the feature), the refinement step
 takes the brightness-weighted moment of a small box around the predicted brightness peak in a
-search window centred on :math:`x_{\mathrm{pred}} + \mathbf{p}` (where :math:`\mathbf{p}` is the
+search window centered on :math:`x_{\mathrm{pred}} + \mathbf{p}` (where :math:`\mathbf{p}` is the
 prior offset). The centroid is rejected when the brightest pixel in the window is below the
 detection threshold or the implied per-star residual exceeds a configured cap; the surviving
 correspondences are the inlier set.
@@ -137,7 +137,7 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
 ``src/spindoctor/config_files/config_510_techniques.yaml``.
 
 - ``refine_window_px`` — float, default ``6.0`` px. Half-width of the per-star refinement
-  window centred on each shifted prediction. Tighter than the unique-match search window
+  window centered on each shifted prediction. Tighter than the unique-match search window
   because the pass-1 prior already put the prediction within a few pixels of the brightness
   peak.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the

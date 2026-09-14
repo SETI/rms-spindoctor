@@ -52,7 +52,7 @@ Shared annotation helpers live on
 :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase` (per-edge
 polyline + label rendering).
 
-The API surface is summarised under
+The API surface is summarized under
 :doc:`/api_reference/api_nav_model`.
 
 .. toctree::

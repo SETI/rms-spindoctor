@@ -146,7 +146,7 @@ breakdown.
 
 **Per-image inventory size.**  A multi-body Cassini fly-by image with 3 bodies plus 50
 predictable stars produces an inventory of 50 STAR plus up to 12 body-derived features
-(LIMB_ARC + BODY_DISC + TERMINATOR_ARC per body) — about 62 entries totalling ~6 KB of
+(LIMB_ARC + BODY_DISC + TERMINATOR_ARC per body) — about 62 entries totaling ~6 KB of
 JSON. The same scene's heavy-bit
 :class:`~spindoctor.feature.feature.NavFeature` objects total tens of megabytes; the summary's
 narrow shape is what makes the per-image sidecar tractable to read in a reviewer's text

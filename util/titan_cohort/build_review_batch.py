@@ -8,7 +8,7 @@ and gate outcome burned into a margin, plus a manifest CSV and a pre-filled
 ``votes.yaml``.
 
 The operator's job per frame: look at whether the drawn envelope circle,
-symmetry axis, and centre cross land on the haze limb, and vote.  Nothing in
+symmetry axis, and center cross land on the haze limb, and vote.  Nothing in
 this repo fabricates those votes.
 
 Run after a cohort collection pass::

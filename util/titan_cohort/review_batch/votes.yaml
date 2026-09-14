@@ -1,6 +1,6 @@
 # Titan cohort overlay review -- OPERATOR VOTES PENDING.
 #
-# One vote per frame. y = the drawn envelope circle, symmetry axis, and centre cross sit on the haze limb at the stated offset. m = Titan is navigable in this frame but the overlay is misaligned; the frame is kept and routed to manual navigation. n = the frame should not have navigated at all (occulted, clipped, or defective) or the image is unusable. The overlay is drawn at the ENSEMBLE offset, so on a frame with other committed techniques a small misalignment may not be the haze fit; the manifest names the per-technique haze offset for comparison.
+# One vote per frame. y = the drawn envelope circle, symmetry axis, and center cross sit on the haze limb at the stated offset. m = Titan is navigable in this frame but the overlay is misaligned; the frame is kept and routed to manual navigation. n = the frame should not have navigated at all (occulted, clipped, or defective) or the image is unusable. The overlay is drawn at the ENSEMBLE offset, so on a frame with other committed techniques a small misalignment may not be the haze fit; the manifest names the per-technique haze offset for comparison.
 #
 # Nothing else in this repository writes to this file.
 votes:

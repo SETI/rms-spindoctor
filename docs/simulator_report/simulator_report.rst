@@ -22,7 +22,7 @@ error trends with phase) are stable.
 Purpose and scope
 =================
 
-This report summarises two measurements taken on simulated frames with ground
+This report summarizes two measurements taken on simulated frames with ground
 truth that is correct by construction:
 
 * **Algorithmic-invariant recovery** -- a planted offset (or camera roll) the
@@ -45,7 +45,7 @@ of values and navigating each step. For an offset or camera-roll sweep the
 planted ground truth is read from the (overridden) parameter itself, so the error
 is ``recovered - planted``. A sweep optionally **pins** one technique
 (``only_techniques=<name>``) and reads that technique's own recovered offset, so
-each technique is characterised independently. The harness, spec schema, runner,
+each technique is characterized independently. The harness, spec schema, runner,
 and plotting live in ``tests/integration/sim_sweep.py``, ``sim_sweep_runner.py``,
 and ``sim_sweep_plots.py``.
 
@@ -114,7 +114,7 @@ biased. A coarse lit-shape correlation now re-centres each blob's box on the bod
 across the full search window before the centroid is taken, so the capture range
 matches the other techniques (recovery holds to a few hundredths of a pixel out to the
 extfov margin on the low-phase ``small_sphere_base`` sweep). The template tracks phase:
-a filled disc at or below half phase, and a synthesised crescent above it, oriented
+a filled disc at or below half phase, and a synthesized crescent above it, oriented
 along the sub-solar direction the blob feature carries. A high-phase crescent displaced
 ~20 px beyond its bounding box recovers to a few hundredths of a pixel on the
 ``planted_offset_blob_crescent_displaced`` invariant scene. See
@@ -142,7 +142,7 @@ deliberate (integration-marked) tier:
    pytest tests/integration/test_sim_algorithmic_invariants.py -m "" -n 4 --dist=loadfile
 
 Targeted regression scenes under ``sim_scenes/regression/`` guard specific
-behaviours in the normal suite without running the full sweep.
+behaviors in the normal suite without running the full sweep.
 
 See :doc:`/dev_guide/dev_guide_simulator` for the scene catalog, scene formats,
 and the sweep / image-dump tooling, :doc:`/dev_guide/dev_guide_testing` for the
@@ -498,7 +498,7 @@ the scalar samples: the density-W1 of the frame-averaged curves is
 units over the real IQR; ``curve_divergences`` in the summary).
 
 Two caveats apply to every FOM 2/3 width above.  First, a registration
-asymmetry: real-side star cutouts and limb profiles are centred through
+asymmetry: real-side star cutouts and limb profiles are centered through
 the sidecar offset and catalog geometry, so operator-verified
 registration residuals inflate the real widths one-sidedly -- the
 matched sim frames are registered exactly by construction -- and part of
@@ -773,7 +773,7 @@ report a flatteringly small error; these are single-sample correctness checks at
 one arbitrary phase, while per-technique sub-pixel precision across many offsets is
 characterized in the offset-accuracy section below. The technique column names the
 load-bearing technique -- pinned for the single-technique scenes (blob, limb,
-ring, roll) so each is characterised in isolation, and the full ensemble for the
+ring, roll) so each is characterized in isolation, and the full ensemble for the
 disc and star scenes.
 
 .. list-table:: Planted-transform recovery by technique
@@ -1350,7 +1350,7 @@ The limb error climbs monotonically from 0.31 px at a 35 deg tumble to 4.8 px at
 sharply -- tens of pixels, and there it does self-flag spurious. The pose-free
 blob centroid, by contrast, stays accurate on the same wrong-pose body, because a
 centrally-symmetric (low-relief triaxial) body's lit-weighted centroid barely
-moves under rotation. This is the behaviour the ``test_sim_irregular_pose``
+moves under rotation. This is the behavior the ``test_sim_irregular_pose``
 per-technique test pins: on a wrong-pose body the
 system should demote from the confidently-wrong limb to the orientation-free
 blob.
@@ -1569,8 +1569,8 @@ Summary
   grows with the rendered relief (to ~4 px) and the confidence falls; when it
   predicts the wrong pose the limb degrades to a confidently-wrong fix (or, for a
   wrong in-plane roll, far enough that it self-flags) while the pose-free blob
-  holds -- the demote-to-pose-free behaviour a chaotic rotator needs.
-* The sweeps show the expected qualitative behaviour: navigation degrades to a
+  holds -- the demote-to-pose-free behavior a chaotic rotator needs.
+* The sweeps show the expected qualitative behavior: navigation degrades to a
   clean failure past the noise cliff, the resolved body recovers across the full
   phase range with no mid-phase accuracy penalty, and the primary technique walks
   from the limb-corroborated disc fuse on a well-resolved body through the disc
@@ -1583,5 +1583,5 @@ Summary
 * The confidence column reflects the sim-calibrated per-technique formulas
   (seed-20260718 campaign: the limb-corroborated fuse ~0.99, disc ~0.62-0.75,
   blob capped at 0.40 on clean frames); the report verifies the recovered
-  geometry and the technique selection, while tier behaviour on real frames is
+  geometry and the technique selection, while tier behavior on real frames is
   validated against the operator-curated library.

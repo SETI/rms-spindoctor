@@ -1,7 +1,7 @@
 """Per-instrument analysis configuration.
 
 Each instrument-and-camera cohort is a YAML sidecar in ``configs/`` naming the
-star frames to analyse and the detection parameters to use.  Frame lists are
+star frames to analyze and the detection parameters to use.  Frame lists are
 carried verbatim (with ``${PDS3_HOLDINGS_DIR}`` and similar tokens) so the same
 files drive the analysis on any holdings mirror.
 """
