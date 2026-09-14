@@ -43,6 +43,7 @@ from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, 
 from spindoctor.nav_model.sim_body import create_simulated_body
 from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.sim.mesh_geometry import mesh_spec_from_params, render_mesh_body_image
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.image import shift_array
 from spindoctor.support.time import now_dt
@@ -476,9 +477,14 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._model_img = model_img_full
         self._body_mask = body_mask_full
         self._limb_mask = limb_mask_full
+        # The scene states the body's centre in pixel corner coordinates,
+        # which is what the silhouette renderer draws against (it puts the
+        # centre of pixel i at i + 0.5).  The payload is pixel centric, and so
+        # is the lit-weighted centroid this value is differenced against, so
+        # the half pixel comes off next to the margin that goes on.
         self._predicted_center_vu = (
-            center_v + ext_margin_v,
-            center_u + ext_margin_u,
+            center_v - PIXEL_CENTER_TO_CORNER_PX + ext_margin_v,
+            center_u - PIXEL_CENTER_TO_CORNER_PX + ext_margin_u,
         )
         self._subject_range_km = float(p.get('range_km', float('inf')))
         self._occluder_mask = self._compute_occluder_mask()

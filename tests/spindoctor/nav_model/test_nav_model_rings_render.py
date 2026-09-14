@@ -540,7 +540,16 @@ def test_annulus_template_cropped_to_bbox(monkeypatch: pytest.MonkeyPatch) -> No
 def test_annulus_carries_constituent_count_and_center(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The composite annulus reports its constituent edges and frame centre."""
+    """The composite annulus reports its constituent edges and frame centre.
+
+    The frame is 100 pixels on a side with no extfov margin, and the payload
+    states positions pixel centric, where a whole number falls at a pixel's
+    centre.  The first pixel's centre is then 0.0 and the last one's is 99.0,
+    so the frame's centre is 49.5 on each axis.  50.0 is the same point read
+    in pixel corner coordinates, where whole numbers fall on pixel
+    boundaries; a payload carrying it would put the ring system's centre half
+    a pixel past where the composed template paints it.
+    """
     config = _ring_config({'TESTR': _ringlet(80_000.0, 110_000.0)})
     ring = _ramp_ring(r0=50_000.0, slope=1500.0, res=1500.0)
     model, obs = _make_model(monkeypatch, ring, config)
@@ -550,7 +559,9 @@ def test_annulus_carries_constituent_count_and_center(
     assert getattr(annulus.flags, 'constituent_edge_count', None) == 2
     geometry = annulus.geometry
     assert isinstance(geometry, RingAnnulusGeometry)
-    assert geometry.predicted_center_vu == (50.0, 50.0)
+    assert obs.extdata_shape_vu == (100, 100)
+    assert geometry.predicted_center_vu[0] == 49.5
+    assert geometry.predicted_center_vu[1] == 49.5
 
 
 # ---------------------------------------------------------------------------
