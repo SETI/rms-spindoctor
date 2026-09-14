@@ -638,7 +638,8 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         ``SOURCE_PRODUCT_CURATING_FACILITY`` cite the calibrated image the navigation
         read as an external source product, since no PDS4 bundle holds calibrated Cassini
         ISS images yet: by its volume and the file specification of its label within that
-        volume, both taken from the image's results path stub, as in
+        volume, the volume and the label's directory taken from the image's results path
+        stub and the label's file name from its label's URL, as in
         ``COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL``; as a calibrated
         product; held by the PDS Ring-Moon Systems Node.
 
@@ -711,8 +712,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         # The calibrated image the navigation read, cited as an external source product
         # until a PDS4 bundle holds calibrated Cassini ISS images: by the volume the
         # Ring-Moon Systems Node holds it under and the file specification of its label
-        # within that volume, both from the results path stub the dataset gave the image,
-        # '<volume>/<directory>/<image>', so that no label is opened for it.
+        # within that volume.  The results path stub the dataset gave the image,
+        # '<volume>/<directory>/<image>', gives the volume and the directory, and the
+        # label's URL the file name, so that no label is opened for it.
         volume_id, _, image_path = image_file.results_path_stub.partition('/')
         label_filespec = PurePosixPath(image_path).with_name(image_file.label_file_url.name)
         vars_dict['SOURCE_PRODUCT_IDENTIFIER'] = f'{volume_id}:{label_filespec.as_posix()}'
