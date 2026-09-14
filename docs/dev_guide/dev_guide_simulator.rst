@@ -1909,14 +1909,26 @@ The scene's displacements need no conversion: the planted ``offset_v`` /
 ``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
 ``catalog_error_v`` / ``catalog_error_u``, and a companion's ``sep_px``.
 
-The planted roll turns the scene about **one** point in that same convention:
-the frame's center ``(size_v / 2, size_u / 2)``. The stars, the bodies, and the
-ring system all pivot there, so a rolled scene plants a truth its three
-families of content agree on. Moving the pivot displaces every rendered position
-by ``(I - R) d`` for a pivot moved by ``d`` -- a rigid shift of the whole field
-of magnitude ``2 |d| sin(theta / 2)``, the same near the center as far from it
--- so pivoting the star field half a pixel from the bodies would tilt the star
-solution against the body solution by that amount at every star.
+The planted roll turns **positions** about **one** point in that same
+convention: the frame's center ``(size_v / 2, size_u / 2)``. Catalog star
+positions, body centers, and the ring system's center all pivot there, so a
+rolled scene plants a truth its three families of content agree on. The two
+orientations that describe a whole projected pattern take the roll as well: a
+body's ``rotation_z`` and the ring system's ``node_deg``. Moving the pivot
+displaces every rendered position by ``(I - R) d`` for a pivot moved by ``d`` --
+a rigid shift of the whole field of magnitude ``2 |d| sin(theta / 2)``, the same
+near the center as far from it -- so pivoting the star field half a pixel from
+the bodies would tilt the star solution against the body solution by that amount
+at every star.
+
+What the roll does not turn are the per-object quantities already stated in the
+detector frame: a star's ``move_v`` / ``move_u`` smear vector and a companion's
+``angle_deg`` render at the angle the scene wrote, whatever the roll. A scene
+author states them as they are to appear on the detector, so a roll that also
+turned them would apply the rotation twice. The background star field the
+``sky_counts`` block draws is not rotated either, and cannot be: its positions
+are drawn uniformly at random over the frame, so it carries no orientation to
+turn.
 
 The two centers inside the ``optics`` block -- ``distortion.center_v`` /
 ``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the rule too,
@@ -1968,9 +1980,11 @@ Top-level fields
      - float
      - 0.0
      - truth
-     - Planted boresight roll (deg), applied to stars, bodies, and rings alike
-       about the frame's uv center ``(size_v / 2, size_u / 2)`` (see
-       :ref:`sim-pixel-convention`).
+     - Planted boresight roll (deg), turning catalog star positions, body
+       centers, and the ring center alike about the frame's uv center
+       ``(size_v / 2, size_u / 2)`` (see :ref:`sim-pixel-convention`), and added
+       to ``rotation_z`` and ``node_deg``.  Smear vectors and a companion's
+       ``angle_deg`` are stated in the detector frame and do not turn with it.
    * - ``midtime_utc``
      - str
      - none
