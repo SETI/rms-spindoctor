@@ -106,7 +106,7 @@ def _label_with_the_shipped_templates(
     nav_metadata = navigated_document()
     (nav_root / f'{stub}_metadata.json').write_text(json.dumps(nav_metadata), encoding='utf-8')
     (backplane_root / f'{stub}_backplane_metadata.json').write_text(
-        json.dumps({'bodies': {}, 'rings': {}}), encoding='utf-8'
+        json.dumps({'bodies': {'SATURN': {'backplanes': {}}}, 'rings': {}}), encoding='utf-8'
     )
     write_backplane_fits(backplane_root / f'{stub}_backplanes.fits', shape=fits_shape)
     (nav_root / f'{stub}_summary.png').write_bytes(b'\x89PNG fake bytes')

@@ -28,16 +28,19 @@ import pytest
 from filecache import FCPath
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
+from spindoctor.cli.pds4.targets import target_table
 from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset import ImageFiles
 
 from .conftest import (
     DATA_TEMPLATE,
+    PLUMBING_RING_TARGET,
     BundleEnv,
     NoPds4DataSet,
     make_bundle_env,
     make_image_file,
     navigated_document,
+    ring_metadata,
     write_nav_inputs,
 )
 
@@ -170,6 +173,29 @@ def test_template_variables_hook_receives_both_metadata_dicts(tmp_path: Path) ->
     assert call['image_file'] is env.image_file
     assert call['nav_metadata'] == nav_metadata
     assert call['backplane_metadata'] == backplane_metadata
+
+
+def test_the_data_label_is_handed_each_target_the_backplane_metadata_names(
+    tmp_path: Path,
+) -> None:
+    """The data label's template is handed the image's targets, in the table's order.
+
+    The metadata names two bodies in an order other than the table's and holds a ring
+    statistic, so the targets are both bodies and then the ring target.
+    """
+    env = make_bundle_env(tmp_path)
+    ring_statistics = {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}}
+    write_nav_inputs(
+        env,
+        backplane_metadata={
+            'bodies': {'MOON_A': {'backplanes': {}}, 'PLANET': {'backplanes': {}}},
+            'rings': ring_metadata(ring_statistics),
+        },
+    )
+    _generate(env)
+    table = target_table(env.dataset.as_dataset().config)
+    expected = (table['PLANET'], table['MOON_A'], table[PLUMBING_RING_TARGET])
+    assert env.dataset.template_variables['TARGETS'] == expected
 
 
 def test_browse_png_copied_byte_identical(tmp_path: Path) -> None:
@@ -308,7 +334,7 @@ def _ring_resolution_document(units: str) -> dict[str, Any]:
         The document, in the shape the backplane writer leaves on disk.
     """
     statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
-    return {'bodies': {}, 'rings': {'backplanes': {'longitudinal_resolution': statistic}}}
+    return {'bodies': {}, 'rings': ring_metadata({'longitudinal_resolution': statistic})}
 
 
 def test_a_statistic_in_another_unit_fails_the_image(tmp_path: Path) -> None:
@@ -428,6 +454,32 @@ def test_a_document_navigated_before_the_observation_recorded_times_fails_with_n
     assert outcome is BundleDataOutcome.FAILED
     assert not env.bundle_dir.exists()
     assert 'records no exposure times in its observation block' in capsys.readouterr().out
+
+
+def test_an_image_whose_backplane_metadata_names_no_target_fails_with_nothing_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Backplanes covering no body and holding no ring statistic give no target to name.
+
+    PDS4 requires a data label to name a target, so the image is failed, with one line
+    saying why, before anything is written for it.  The ring target its metadata names
+    beside no ring statistic is not one, since there are no ring backplanes to describe.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, backplane_metadata={'bodies': {}, 'rings': ring_metadata({})})
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert not env.bundle_dir.exists()
+    assert 'so its data label has no target to name' in capsys.readouterr().out
+
+
+def test_a_target_the_table_has_no_entry_for_raises_with_nothing_written(tmp_path: Path) -> None:
+    """A body the targets table does not identify is refused by name, nothing written."""
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, backplane_metadata={'bodies': {'MOON_C': {}}, 'rings': {}})
+    with pytest.raises(KeyError, match='no entry for MOON_C'):
+        _generate(env)
+    assert not env.bundle_dir.exists()
 
 
 def test_malformed_nav_metadata_raises(tmp_path: Path) -> None:

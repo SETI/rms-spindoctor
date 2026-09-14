@@ -227,6 +227,49 @@ SUMMARY_TEMPLATES = {
 DEFAULT_TEMPLATES = LABELS_TEMPLATES | SUMMARY_TEMPLATES
 """Every file the fake dataset declares, which is every one it is given."""
 
+PLUMBING_RING_TARGET = 'PLANET_RINGS'
+"""The ring target the plumbing backplane metadata names beside its ring statistics."""
+
+TARGET_LIDS: dict[str, dict[str, str]] = {
+    name: {
+        'lid': f'urn:nasa:pds:context:target:fake.{name.lower()}',
+        'version': '1.0',
+        'name': name.title(),
+        'type': target_type,
+    }
+    for name, target_type in (
+        ('PLANET', 'Planet'),
+        ('MOON', 'Satellite'),
+        ('MOON_A', 'Satellite'),
+        ('MOON_B', 'Satellite'),
+        (PLUMBING_RING_TARGET, 'Ring'),
+    )
+}
+"""The stand-in targets table the plumbing datasets carry, as ``backplanes.target_lids``.
+
+It has an entry for each body and the ring target the plumbing backplane metadata names,
+so that every plumbing image has a target its data label can name.
+"""
+
+
+def ring_metadata(statistics: dict[str, Any]) -> dict[str, Any]:
+    """Return the rings block of backplane metadata holding these ring statistics.
+
+    Parameters:
+        statistics: The ring statistics, keyed by plane name, or an empty mapping for an
+            image with no ring backplanes.
+
+    Returns:
+        The block in the shape the backplane writer leaves on disk: the ring target
+        :data:`PLUMBING_RING_TARGET`, the incidence angle of sunlight on its plane, and
+        the statistics under ``backplanes``.
+    """
+    return {
+        'target': PLUMBING_RING_TARGET,
+        'incidence_angle': {'value': 64.6, 'units': 'deg'},
+        'backplanes': statistics,
+    }
+
 
 class FakePds4DataSet:
     """Duck-typed ``DataSet`` exposing only the ``pds4_*`` hooks the bundle stage calls.
@@ -273,6 +316,7 @@ class FakePds4DataSet:
                 bodies=bodies if bodies is not None else [],
                 rings=rings if rings is not None else [],
                 masked_value=DEFAULT_CONFIG.backplanes.masked_value,
+                target_lids=TARGET_LIDS,
             )
         )
 
@@ -385,15 +429,19 @@ class NoPds4DataSet:
 
     Mirrors the ``DataSet`` base-class contract for datasets that do not support
     PDS4 bundle generation (dev_guide_pds4.rst "Per-dataset extension points").
-    It carries a configuration declaring no backplanes, as every dataset carries
-    one, so that what the bundle stage reads before it reaches a hook is there.
+    It carries a configuration declaring no backplanes and the stand-in targets table,
+    as every dataset carries one, so that what the bundle stage reads before it reaches a
+    hook is there.
     """
 
     def __init__(self) -> None:
         """Build the dataset with a configuration declaring no backplanes."""
         self.config = SimpleNamespace(
             backplanes=SimpleNamespace(
-                bodies=[], rings=[], masked_value=DEFAULT_CONFIG.backplanes.masked_value
+                bodies=[],
+                rings=[],
+                masked_value=DEFAULT_CONFIG.backplanes.masked_value,
+                target_lids=TARGET_LIDS,
             )
         )
 
@@ -639,7 +687,9 @@ def write_nav_inputs(
         status: Navigation ``status`` value; None omits the key entirely.
         nav_extra: Extra keys merged into the navigation metadata dict, over the
             ``status`` and ``observation`` it holds otherwise.
-        backplane_metadata: Backplane metadata dict; a small default when None.
+        backplane_metadata: Backplane metadata dict; when None, one naming the body
+            ``MOON`` with no statistic, and no ring backplanes, so that its data label
+            has a target to name.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
 
     Returns:
@@ -653,7 +703,7 @@ def write_nav_inputs(
     if nav_extra:
         nav_metadata.update(nav_extra)
     if backplane_metadata is None:
-        backplane_metadata = {'bodies': {}, 'rings': {}}
+        backplane_metadata = {'bodies': {'MOON': {'backplanes': {}}}, 'rings': ring_metadata({})}
 
     nav_file = env.nav_root / f'{env.results_path_stub}_metadata.json'
     nav_file.parent.mkdir(parents=True, exist_ok=True)
@@ -702,7 +752,7 @@ def write_supplemental(
         data_dir: The bundle's ``data`` directory.
         stub: Path stub (may include shard subdirectories) for the image.
         bodies: ``backplanes.bodies`` payload keyed by body name.
-        rings: ``backplanes.rings`` payload (``{'backplanes': {...}}``).
+        rings: ``backplanes.rings`` payload, as :func:`ring_metadata` builds it.
         navigation: The ``navigation`` document; :func:`navigated_document`'s when
             None.
 

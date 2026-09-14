@@ -4,13 +4,90 @@ The shipped configuration's targets table is the one place a target's context pr
 identified, so every body and ring target the backplane stage can produce for an image of
 Saturn has to have an entry there: an image naming one without could not be labeled.
 These hold the shipped table to the stage's own rules for the bodies and the ring target
-it looks for.
+it looks for, and hold the data labels the shipped templates render over the cohort to
+the targets their images' backplanes cover.  What the labels pass does with the targets is
+tested over stand-in templates in ``test_bundle_data.py``.
 """
+
+import json
+from pathlib import Path
+from xml.etree import ElementTree
+
+import pytest
+from filecache import FCPath
+from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
+from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
 from spindoctor.cli.backplanes.backplanes_bodies import backplane_body_names
 from spindoctor.cli.backplanes.backplanes_rings import ring_target
+from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.targets import target_table
-from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
+
+from .conftest import label_cohort_images, make_cohort_bundle_env
+
+PDS4_NAMESPACES = {'pds': 'http://pds.nasa.gov/pds4/pds/v1'}
+"""The PDS4 common dictionary's namespace, under the prefix the paths below use."""
+
+ENCELADUS = ('Enceladus', 'Satellite', 'urn:nasa:pds:context:target:satellite.saturn.enceladus')
+"""The limb image's body, as its context product gives it: name, type and LID."""
+
+SATURN = ('Saturn', 'Planet', 'urn:nasa:pds:context:target:planet.saturn')
+"""The ring image's body, as its context product gives it."""
+
+SATURN_RINGS = ('Saturn Rings', 'Ring', 'urn:nasa:pds:context:target:ring.saturn.rings')
+"""The ring image's ring target, as its context product gives it."""
+
+
+@pytest.fixture
+def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
+    """Return the Cassini ISS Saturn cohort, as the session wrote it.
+
+    Parameters:
+        mini_nav_cohorts: What the session's cohorts are written by.
+
+    Returns:
+        The written cohort.
+    """
+    return mini_nav_cohorts(CohortCassiniISSSaturn)
+
+
+def _targets_named(label: Path, area: str) -> list[tuple[str | None, ...]]:
+    """Return every target a label names, in the order it names them.
+
+    Parameters:
+        label: The label.
+        area: The area its targets are in: ``Observation_Area`` in a data label, and
+            ``Context_Area`` in a bundle, collection or SPICE kernel label.
+
+    Returns:
+        Each ``Target_Identification``'s name, type, LID reference and reference type.
+    """
+    root = ElementTree.parse(label).getroot()
+    return [
+        (
+            target.findtext('pds:name', namespaces=PDS4_NAMESPACES),
+            target.findtext('pds:type', namespaces=PDS4_NAMESPACES),
+            target.findtext('pds:Internal_Reference/pds:lid_reference', namespaces=PDS4_NAMESPACES),
+            target.findtext(
+                'pds:Internal_Reference/pds:reference_type', namespaces=PDS4_NAMESPACES
+            ),
+        )
+        for target in root.iterfind(f'pds:{area}/pds:Target_Identification', PDS4_NAMESPACES)
+    ]
+
+
+def _data_label(bundle_dir: Path) -> Path:
+    """Return the one data label a bundle holds.
+
+    Parameters:
+        bundle_dir: The bundle's own directory, into which one image was labeled.
+
+    Returns:
+        The data label.
+    """
+    (label,) = (bundle_dir / 'data').rglob('*_backplanes.lblx')
+    return label
 
 
 def test_every_body_the_backplane_stage_looks_for_in_a_saturn_image_has_a_target() -> None:
@@ -23,3 +100,54 @@ def test_every_body_the_backplane_stage_looks_for_in_a_saturn_image_has_a_target
 def test_the_ring_target_of_a_saturn_image_has_a_target() -> None:
     """The ring target a Saturn image's ring backplanes are computed for has an entry."""
     assert ring_target('SATURN') in target_table(DEFAULT_CONFIG)
+
+
+@pytest.mark.parametrize(
+    ('stub', 'expected'),
+    [(LIMB_STUB, [ENCELADUS]), (RINGS_STUB, [SATURN, SATURN_RINGS])],
+    ids=['limb image', 'ring image'],
+)
+def test_a_cohort_data_label_names_each_target_its_backplanes_cover(
+    cassini_cohort: Cohort, tmp_path: Path, stub: str, expected: list[tuple[str, str, str]]
+) -> None:
+    """The limb image names Enceladus, and the ring image Saturn and Saturn's rings.
+
+    Each is named as its context product gives it, by its LID, with the reference type a
+    data product's target takes.  The limb image's backplane metadata names Saturn's ring
+    target beside no ring statistic, which names no target.
+    """
+    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
+    label_cohort_images(env, [stub])
+    named = _targets_named(_data_label(env.bundle_dir), 'Observation_Area')
+    assert named == [(*target, 'data_to_target') for target in expected]
+
+
+def test_the_data_label_of_an_image_with_two_bodies_names_both(
+    cassini_cohort: Cohort, tmp_path: Path
+) -> None:
+    """An image whose backplanes cover two bodies has a Target_Identification for each.
+
+    The limb image's backplane metadata is given a second body, Mimas, holding
+    Enceladus's statistics, under a backplane root of the test's own beside the image's
+    FITS.  The two are named in the targets table's order.
+    """
+    source = cassini_cohort.backplane_results_root
+    backplane_root = tmp_path / 'backplanes'
+    metadata_name = f'{LIMB_STUB}_backplane_metadata.json'
+    metadata = json.loads((source / metadata_name).read_text(encoding='utf-8'))
+    metadata['bodies']['MIMAS'] = metadata['bodies']['ENCELADUS']
+    (backplane_root / metadata_name).parent.mkdir(parents=True)
+    (backplane_root / metadata_name).write_text(json.dumps(metadata), encoding='utf-8')
+    fits_name = f'{LIMB_STUB}_backplanes.fits'
+    (backplane_root / fits_name).write_bytes((source / fits_name).read_bytes())
+    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
+    generate_bundle_data_files(
+        env.dataset,
+        cassini_cohort.batch(LIMB_STUB),
+        nav_results_root=FCPath(cassini_cohort.nav_results_root),
+        backplane_results_root=FCPath(backplane_root),
+        bundle_results_root=FCPath(env.bundle_results_root),
+        logger=MAIN_LOGGER,
+    )
+    named = _targets_named(_data_label(env.bundle_dir), 'Observation_Area')
+    assert [name for name, *_ in named] == ['Enceladus', 'Mimas']
