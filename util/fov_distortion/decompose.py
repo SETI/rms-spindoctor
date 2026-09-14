@@ -18,9 +18,13 @@ predicted-to-measured displacement into three physically distinct parts:
    the simulator distortion stage directly.  Its non-radial part is reported as
    a scalar RMS.
 
-Coordinates are image ``(v, u)`` = ``(row, column)`` throughout.  Everything
-here is pure numpy: the module carries no navigation dependency so it can be
-exercised on synthetic point clouds.
+Coordinates are image ``(v, u)`` = ``(row, column)`` throughout.  The axis order
+is all this module fixes: the star positions, ``center_vu`` and ``pivot_vu`` need
+only be in one continuous pixel coordinate system, whichever the caller works in.
+:mod:`measure` passes pixel corner positions, because that is what the star
+catalog records and what ``psf.find_position`` returns.  Everything here is pure
+numpy: the module carries no navigation dependency so it can be exercised on
+synthetic point clouds.
 """
 
 from __future__ import annotations
