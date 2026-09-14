@@ -1600,9 +1600,14 @@ Closes #71.
 
 ### Phase 10 — Validation, the integrity pass, and the draft run
 
-Schema validation as a repeatable command: `xmlschema` plus `lxml`'s ISO
-Schematron against the five schemas the labels declare, over a generated
-tree, added to `scripts/run-all-checks.sh` and to CI. The NASA PDS
+Schema validation as a repeatable command: `xmlschema` against the five
+schemas the labels declare, plus their Schematron rules, over a generated
+tree, added to `scripts/run-all-checks.sh` and to CI. The rules cannot be
+run by `lxml`'s ISO Schematron: on 2026-09-14 the product reviewer found
+that `lxml.isoschematron` refuses the PDS4 1O00 Schematron, reporting that
+it "does not work with schemas using the xslt2 query language".
+pyschematron 1.2.1 ran the same rules, and a control label with a wrong
+`offset` failed them as it should. The NASA PDS
 `validate` tool is the authority for the draft acceptance and additionally
 checks referential integrity, but it is Java and does not belong in this
 repository's CI; the Python check is the gate that runs on every PR, and
