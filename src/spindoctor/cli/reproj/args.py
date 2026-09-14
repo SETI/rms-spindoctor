@@ -294,7 +294,7 @@ def add_body_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=DEFAULT_COPY_SLOP,
         help=(
-            'Extra pixels around each copied pixel to reduce isolated-pixel artefacts. '
+            'Extra pixels around each copied pixel to reduce isolated-pixel artifacts. '
             f'Default: {DEFAULT_COPY_SLOP}.'
         ),
     )
@@ -494,7 +494,7 @@ def add_display_args(parser: argparse.ArgumentParser) -> None:
     Side effects:
         Adds a ``Display`` group with stretch black/white/gamma defaults and
         optional body/ring overlay toggles plus ``--verbose``. Defaults match the
-        viewer's auto-stretch behaviour when black/white are omitted. Does not raise.
+        viewer's auto-stretch behavior when black/white are omitted. Does not raise.
     """
     disp = parser.add_argument_group('Display')
     disp.add_argument(

@@ -2,7 +2,7 @@
 
 Provides ``load_ring_file`` and ``load_body_file`` that read any of the four
 reprojection / mosaic dataclasses (``RingReprojResult``, ``RingMosaicData``,
-``BodyReprojResult``, ``BodyMosaicData``) and return a normalised
+``BodyReprojResult``, ``BodyMosaicData``) and return a normalized
 ``DisplayData`` object ready for use in the ring or body window.
 """
 

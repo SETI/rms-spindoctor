@@ -822,7 +822,7 @@ class BodyAppearanceMixin(SimEditorBase):
         """Build the mesh-only group (shading mode, detail octaves, pose scatter).
 
         The whole group is enabled only for a polyhedral-mesh body; on an
-        ellipsoid these keys have no rendering effect, so the group is greyed
+        ellipsoid these keys have no rendering effect, so the group is grayed
         out and its keys stay absent.
         """
         group = QGroupBox('Mesh shading and detail')

@@ -70,7 +70,7 @@ def render_to_image(
         white: Stretch white point.
         gamma: Stretch gamma (applied as power).
         color_tint: Optional per-pixel RGB tint, shape
-            (n_data_rows, n_data_cols, 3), float32 in [0, 1].  None = greyscale.
+            (n_data_rows, n_data_cols, 3), float32 in [0, 1].  None = grayscale.
 
     Returns:
         A QImage in Format_RGB888 matching the shape of ``lon_deg`` / ``lat_deg``.

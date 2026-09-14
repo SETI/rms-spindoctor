@@ -19,7 +19,7 @@ validator's semantics.
 
 The position spin boxes write the scene's ``v`` / ``u`` unchanged, so they
 carry the scene's own convention: every position in a scene is a pixel corner,
-and the centre of pixel ``N`` is ``N + 0.5``.  The row labels name that
+and the center of pixel ``N`` is ``N + 0.5``.  The row labels name that
 convention rather than leaving the reader to infer it from a rendered star.
 
 The PSF-window size is stored as a two-element list, never a tuple: the safe
@@ -51,7 +51,7 @@ from spindoctor.cli.sim_editor.base import SimEditorBase
 # Tooltip for the position spin boxes, which write the scene value directly.
 _POSITION_TOOLTIP = (
     'Star {axis} position as a pixel corner: integer N is the boundary '
-    'between pixel N-1 and pixel N, so the centre of pixel N is N + 0.5.'
+    'between pixel N-1 and pixel N, so the center of pixel N is N + 0.5.'
 )
 
 
