@@ -59,6 +59,7 @@ from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import TITAN_BODY_NAME, bodies_in_extfov
 from spindoctor.nav_model.titan_geometry import TitanGeometryInputs, geometry_from_obs
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -530,7 +531,15 @@ class NavModelTitan(NavModel):
         self._metadata['body'] = TITAN_BODY_NAME
         with self.log_section('TITAN MODEL'):
             geometry = self.geometry_inputs
-            self._metadata['predicted_center_vu'] = list(geometry.predicted_center_vu)
+            # The geometry works in pixel centric coordinates because the fit
+            # measures the image array.  What is reported stays where it was,
+            # in the pixel corner coordinates the geometry layer states a
+            # position in, so the half pixel goes back on here.
+            reported_center_vu = (
+                geometry.predicted_center_vu[0] + PIXEL_CENTER_TO_CORNER_PX,
+                geometry.predicted_center_vu[1] + PIXEL_CENTER_TO_CORNER_PX,
+            )
+            self._metadata['predicted_center_vu'] = list(reported_center_vu)
             self._metadata['km_per_pixel'] = geometry.km_per_px
             self._metadata['envelope_diameter_px'] = 2.0 * geometry.r_env_px
             self._metadata['solid_diameter_px'] = 2.0 * geometry.r_solid_px
@@ -542,8 +551,8 @@ class NavModelTitan(NavModel):
             self._logger.info(
                 'Predicted center (v, u) = (%.2f, %.2f); envelope diameter = %.2f px; '
                 'km/px = %.4f; phase = %.2f deg',
-                geometry.predicted_center_vu[0],
-                geometry.predicted_center_vu[1],
+                reported_center_vu[0],
+                reported_center_vu[1],
                 2.0 * geometry.r_env_px,
                 geometry.km_per_px,
                 geometry.phase_deg,

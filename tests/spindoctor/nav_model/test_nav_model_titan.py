@@ -688,6 +688,77 @@ def test_every_stage_propagates_its_leaf_failure(
 
 
 # ---------------------------------------------------------------------------
+# The predicted centre's coordinate system
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize('margin', [0, 7])
+def test_predicted_centre_of_a_centred_body_is_the_array_centre(
+    scene: type[_SceneBackplane], tmp_path: Path, margin: int
+) -> None:
+    """A body on the frame's centre predicts the centre of the array.
+
+    The two ends of this are stated independently of the code under test.  A
+    field of view puts the centre of a ``size``-wide frame at ``size / 2``: a
+    whole number there falls on the boundary between two pixels, so the centre
+    of a 120-wide axis is 60.0, and that is what the inventory reports.  The
+    array puts its own centre at ``(size - 1) / 2``, because a whole number
+    there falls at a pixel's centre, so the same point is 59.5.  The haze fit
+    samples the array, so the predicted centre has to be the second of those.
+
+    The margin is whole pixels of padding, so it shifts the answer and does
+    not change which system it is in; running with and without it catches a
+    conversion applied to the padded position rather than to the raw one.
+
+    Parameters:
+        margin: Extended-FOV padding to place the frame inside.
+    """
+    rows = 120
+    entry = _inventory_entry((rows / 2.0, rows / 2.0), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={})
+    obs.extfov_margin_vu = (margin, margin)
+    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    expected = (rows - 1) / 2.0 + margin
+    assert geometry.predicted_center_vu[0] == pytest.approx(expected, abs=1e-9)
+    assert geometry.predicted_center_vu[1] == pytest.approx(expected, abs=1e-9)
+
+
+def test_predicted_centre_of_an_offset_body_keeps_the_same_half_pixel(
+    scene: type[_SceneBackplane], tmp_path: Path
+) -> None:
+    """The conversion is the same half pixel away from the frame's centre.
+
+    A body placed on a pixel's centre in the field of view's terms -- a whole
+    number plus a half -- lands on a whole-numbered array position, which is
+    the clearest case for reading the answer off by eye.
+    """
+    entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={})
+    obs.extfov_margin_vu = (0, 0)
+    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    assert geometry.predicted_center_vu[0] == pytest.approx(44.0, abs=1e-9)
+    assert geometry.predicted_center_vu[1] == pytest.approx(71.0, abs=1e-9)
+
+
+def test_the_reported_centre_stays_in_the_frame_the_geometry_layer_states(
+    scene: type[_SceneBackplane], tmp_path: Path
+) -> None:
+    """What the model records is the field of view's own number, unconverted.
+
+    The geometry works in the array's coordinates because that is what the fit
+    measures.  A reader comparing the recorded centre against a scene file or
+    against the field of view needs the other one, so the half pixel goes back
+    on where it is reported.
+    """
+    entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={})
+    obs.extfov_margin_vu = (0, 0)
+    model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
+    model.create_model()
+    assert model.metadata['predicted_center_vu'] == pytest.approx([44.5, 71.5], abs=1e-9)
+
+
+# ---------------------------------------------------------------------------
 # Backplane box bounds
 # ---------------------------------------------------------------------------
 
