@@ -344,7 +344,7 @@ directories that do not ship.  Every other hook raises
 :meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` among
 them, so both passes stop on these datasets before they look for a template.
 The Cassini ISS class itself, registered as ``coiss``, leaves its configuration
-name, template directory and bundle name to its subclasses and raises
+name and default template directory to its subclasses and raises
 :exc:`NotImplementedError` for them, so both passes stop on it when they ask for
 the template directory, as they do on ``sim``, whose hooks all raise it.  Every
 registered name but ``sim`` has a ``_pds3`` alias naming the same class, which
@@ -361,10 +361,11 @@ dictionary schemas its labels are written against (``information_model_version``
 `The bundle's variables`_), so a new bundle version, a new name or a dictionary moving
 to another version is one edit of this entry.  The dictionary schemas are the bundle's
 beside its name, since each bundle's labels are checked against the dictionaries its
-own templates were written for.  The version, the information model version and the
-schemas have no default, and the shipped configuration is held to the shipped templates
-by a test rather than checked when it is loaded: it sets the version, and gives a
-schema for exactly the dictionaries the templates declare.  See
+own templates were written for.  The name, the version, the information model version
+and the schemas have no default, and the shipped configuration is held to the shipped
+templates by tests rather than checked when it is loaded: it names the bundle, sets the
+version, gives a schema for exactly the dictionaries the templates declare, and gives
+the ``pds`` schema of the build the information model version names.  See
 :doc:`dev_guide_config_and_static_data` for the loader contract; the file
 is loaded by the standard numeric-prefix order at the ``9xx`` "downstream
 products" tier.

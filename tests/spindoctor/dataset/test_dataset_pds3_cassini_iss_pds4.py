@@ -161,8 +161,8 @@ def test_cassini_path_stub_appends_lid_part(tmp_path: Path) -> None:
     assert dataset.pds4_path_stub(image_file) == '1454xxxxxx/145472xxxx/1454725799n'
 
 
-def test_cassini_default_bundle_name_from_config(tmp_path: Path) -> None:
-    """The bundle name comes from the shipped pds4.coiss_saturn config block."""
+def test_cassini_shipped_configuration_names_the_bundle(tmp_path: Path) -> None:
+    """The shipped pds4.coiss_saturn block names the bundle, which has no other source."""
     dataset = _cassini_dataset(tmp_path)
     assert dataset.pds4_bundle_name() == 'cassini_iss_saturn_backplanes_rsfrench2027'
 
@@ -192,7 +192,7 @@ def test_cassini_default_template_dir_is_shipped_package_data(tmp_path: Path) ->
 
 
 def test_cassini_config_overrides_template_dir_and_bundle_name(tmp_path: Path) -> None:
-    """config pds4.<dataset>.template_dir/bundle_name override the defaults."""
+    """config pds4.<dataset>.template_dir/bundle_name override the shipped values."""
     override = tmp_path / 'override.yaml'
     override.write_text(
         'pds4:\n'
