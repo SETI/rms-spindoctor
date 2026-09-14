@@ -392,7 +392,7 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
             {'gain_state': value['gain_state']}, 'gain_state', source=f'{source}: detector'
         )
         # A gain state the instrument does not catalog fails here, at
-        # validation, with the catalogued alternatives in the message; the
+        # validation, with the cataloged alternatives in the message; the
         # render-time resolver keeps its own guard as a backstop for scenes
         # that bypass validation.
         from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
@@ -400,7 +400,7 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         table = resolve_detector_defaults(instrument).get('gain_e_per_dn_by_state') or {0: 1.0}
         if gain_state not in table:
             raise SimSceneValidationError(
-                f'{source}: detector.gain_state {gain_state} is not catalogued for '
+                f'{source}: detector.gain_state {gain_state} is not cataloged for '
                 f'instrument {instrument!r}; available states: {sorted(table)}'
             )
     model = value.get('detector_model')

@@ -182,9 +182,9 @@ def rotation_pivot_distance_px(
         at ``1.0`` so a pivot landing exactly on the image center still
         yields a non-zero convergence threshold.
     """
-    centre_v = float(image_shape_vu[0]) / 2.0
-    centre_u = float(image_shape_vu[1]) / 2.0
-    dist = math.hypot(float(pivot_vu[0]) - centre_v, float(pivot_vu[1]) - centre_u)
+    center_v = float(image_shape_vu[0]) / 2.0
+    center_u = float(image_shape_vu[1]) / 2.0
+    dist = math.hypot(float(pivot_vu[0]) - center_v, float(pivot_vu[1]) - center_u)
     return max(dist, 1.0)
 
 

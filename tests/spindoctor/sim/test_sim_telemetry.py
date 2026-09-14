@@ -250,7 +250,7 @@ def test_gossi_catalog_defaults_alternating_lines_to_keep() -> None:
     assert len(record['alternating_lines']['lines']) == _SIZE * 3 // 4
 
 
-def test_edited_frame_keeps_only_a_centred_band() -> None:
+def test_edited_frame_keeps_only_a_centered_band() -> None:
     """An edited frame keeps a centered vertical band and blanks the rest."""
     frame = _frame()
     record = _render(

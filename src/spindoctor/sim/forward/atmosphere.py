@@ -429,7 +429,7 @@ def apply_atmosphere(
     illumination_angle: float,
     phase_angle: float,
 ) -> AtmosphereLayers:
-    """Evaluate the haze layer over a reference-centred body radiance.
+    """Evaluate the haze layer over a reference-centered body radiance.
 
     The haze is evaluated over a limb band a few scale heights deep and split
     by compositing role: the on-disc haze (every band pixel the disc render

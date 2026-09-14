@@ -291,7 +291,7 @@ def _strip_bounds(rows: int, oversample_v: int) -> Iterator[tuple[int, int]]:
 
 
 def _sample_count(lo: float, hi: float, oversample: int) -> int:
-    """Samples of an oversampled grid between two inclusive pixel-centre bounds.
+    """Samples of an oversampled grid between two inclusive pixel-center bounds.
 
     Parameters:
         lo: Coordinate of the first sample.
@@ -363,7 +363,7 @@ def _striped_body_quantities(
     Parameters:
         obs: Observation snapshot.
         body_name: SPICE name of the body.
-        u_range: ``(min, max)`` pixel-centre coordinates of the grid's
+        u_range: ``(min, max)`` pixel-center coordinates of the grid's
             horizontal extent.
         v_range: ``(min, max)`` of its vertical extent.
         oversample: ``(u, v)`` oversample factors of the grid.

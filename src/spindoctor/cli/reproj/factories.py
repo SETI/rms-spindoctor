@@ -58,7 +58,7 @@ def build_body_mosaic(args: argparse.Namespace) -> BodyMosaic:
         args: Namespace produced by a parser that includes ``add_body_args``.
 
     Returns:
-        A freshly-initialised ``BodyMosaic``.
+        A freshly-initialized ``BodyMosaic``.
 
     Raises:
         ValueError: If ``args.photometric_model`` is not one of the supported names
@@ -112,7 +112,7 @@ def build_ring_mosaic(args: argparse.Namespace) -> RingMosaic:
         args: Namespace produced by a parser that includes ``add_ring_args``.
 
     Returns:
-        A freshly-initialised ``RingMosaic``.
+        A freshly-initialized ``RingMosaic``.
 
     Raises:
         ValueError: If ``args.orbit_model`` is not a supported name (validated before

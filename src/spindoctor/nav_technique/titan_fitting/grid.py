@@ -1,7 +1,7 @@
 """Axis-aligned resampling and the shared array helpers built on it.
 
 Both halves of the haze fit work in the frame of the symmetry axis, so the
-rotated-grid resampler, the axis unit vectors, and the nearest-neighbour
+rotated-grid resampler, the axis unit vectors, and the nearest-neighbor
 boolean reads used to carry masks into that frame live here.
 """
 
@@ -67,7 +67,7 @@ def rotated_sample_coords(
 def sample_bool_nearest(
     mask: NDArrayBoolType, vv: NDArrayFloatType, uu: NDArrayFloatType
 ) -> NDArrayBoolType:
-    """Return nearest-neighbour reads of a boolean image; off-frame reads False."""
+    """Return nearest-neighbor reads of a boolean image; off-frame reads False."""
     iv = np.rint(vv).astype(np.int64)
     iu = np.rint(uu).astype(np.int64)
     inside = (iv >= 0) & (iv < mask.shape[0]) & (iu >= 0) & (iu < mask.shape[1])

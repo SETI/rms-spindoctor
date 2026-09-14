@@ -132,7 +132,7 @@ def test_ring_edge_reliability_caps_at_one() -> None:
     assert out == pytest.approx(1.0)
 
 
-def test_ring_edge_reliability_penalises_straight_lines() -> None:
+def test_ring_edge_reliability_penalizes_straight_lines() -> None:
     """Straight-line edges receive a 0.7 multiplier."""
     curved = _ring_edge_reliability(
         catalog_default=0.7,
@@ -304,7 +304,7 @@ def test_require_positive_finite_planet_scalar_rejects_non_numeric() -> None:
 def test_polyline_normals_are_radially_signed_with_a_radius_backplane() -> None:
     """A rasterized closed ring emits outward-radial normals, not scan-order ones.
 
-    The mask-neighbour test fixes only the normal AXIS: it probes ``v - 1``
+    The mask-neighbor test fixes only the normal AXIS: it probes ``v - 1``
     before ``v + 1`` and ``u - 1`` before ``u + 1``, so on a closed ring the
     emitted signs follow scan order and rasterization.  Measured on this
     fixture without a radius backplane, the mean dot with the true outward
@@ -345,7 +345,7 @@ def test_polyline_normals_unsigned_without_a_radius_backplane() -> None:
     The distinguishing property is the SIGN, not the length: a fully
     radially-signed result is also unit length, so asserting length alone
     would pass either way.  Without the backplane the sign comes from the
-    mask-neighbour scan order, which on a closed ring puts a large share of
+    mask-neighbor scan order, which on a closed ring puts a large share of
     the normals on the inward side -- a signed result would have none.
     """
     size = 201

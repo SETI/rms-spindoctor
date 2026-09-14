@@ -95,7 +95,7 @@ def _limb_polyline_from_mask(
 
     Each ``True`` pixel of ``limb_mask`` (a body pixel adjacent to sky) becomes
     one vertex.  The outward normal points away from the body interior: it is the
-    normalized sum of the unit directions toward each non-body 4-neighbour, so a
+    normalized sum of the unit directions toward each non-body 4-neighbor, so a
     vertex on the sunward limb gets a normal pointing into the sky.
 
     Parameters:
@@ -139,7 +139,7 @@ def _terminator_ridge_mask(
     ``DARK_SIDE_ILLUM_STRENGTH``, so brightness ``> 0`` is the whole visible
     disc while brightness above the floor is the lit region; the unlit disc is
     their difference.  A ridge pixel is a lit pixel with an unlit *interior*
-    disc pixel as a 4-neighbour -- the interior restriction drops the
+    disc pixel as a 4-neighbor -- the interior restriction drops the
     anti-aliased limb ring (unlit only because its edge brightness has ramped
     below the floor), which keeps the ridge off the silhouette everywhere the
     lit and unlit regions are separated by more than a pixel (the cusps of a
@@ -813,7 +813,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         ``self._body_mask`` (brightness ``> 0``) is the whole visible disc while
         ``model_img > DARK_SIDE_ILLUM_STRENGTH`` is the lit region; the unlit
         disc is their difference.  A terminator vertex is a lit pixel with an
-        unlit *interior* disc pixel as a 4-neighbour -- the interior restriction
+        unlit *interior* disc pixel as a 4-neighbor -- the interior restriction
         drops the anti-aliased limb ring (unlit only because its edge brightness
         has ramped below the floor), keeping the polyline interior to the disc
         everywhere except the cusp-adjacent vertices of a very thin crescent,

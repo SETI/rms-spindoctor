@@ -160,7 +160,7 @@ Fields
                                      of dv_px/du_px/amplitude/defocus_sigma), stray_light
                                      (amplitude, direction_deg, model linear|radial)
   detector         (mapping, opt)    detector-chain override: gain_state (must be
-                                     catalogued for the instrument), detector_model
+                                     cataloged for the instrument), detector_model
                                      (ccd | vidicon), exposure_ref_sec, quantization
                                      (exact | 8bit | uneven_12bit | sqrt_lut); omitted
                                      keys track the instrument catalog

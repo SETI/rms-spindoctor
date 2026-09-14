@@ -59,7 +59,7 @@ class _Sphere:
 
 
 def _grid(mg: FakeMeshgrid) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-    """Return ``(vv, uu)`` sample-centre coordinate arrays for a meshgrid."""
+    """Return ``(vv, uu)`` sample-center coordinate arrays for a meshgrid."""
     assert mg.origin is not None
     assert mg.limit is not None
     assert mg.oversample is not None

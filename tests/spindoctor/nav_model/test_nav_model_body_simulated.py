@@ -70,7 +70,7 @@ def _mesh_params(**overrides: Any) -> dict[str, Any]:
     )
 
 
-def test_the_label_anchors_on_the_pixel_the_body_centre_falls_in(
+def test_the_label_anchors_on_the_pixel_the_body_center_falls_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The label is anchored on the row and column holding the body's center.
@@ -147,7 +147,7 @@ def test_mesh_prediction_matches_rendered_data() -> None:
     assert np.array_equal(predicted, rendered)
 
 
-def test_prediction_centres_on_the_centre_the_scene_states() -> None:
+def test_prediction_centers_on_the_center_the_scene_states() -> None:
     """The predicted silhouette's centroid is the scene's own center.
 
     The anchor is outside both sides of the round trip above: the scene states

@@ -296,7 +296,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'bias_col_gradient_dn': 0.5,  # 5.2 interim
         'bloom_length': 4,  # 5.2 interim (no antiblooming; column bleed above the well)
         'quantization': 'exact',
-        # Per-mode shape defaults (interim, 5.2).  incidence is never catalogued:
+        # Per-mode shape defaults (interim, 5.2).  incidence is never cataloged:
         # a mode activates only when a scene sets it.  Shapes here are the values
         # a scene inherits when it names a mode without spelling every parameter.
         'artifact_modes': {
@@ -327,7 +327,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'detector_model': 'ccd',
         'full_well_e': 95.0e3,  # 5.2 interim
         'exposure_ref_sec': 1.0,
-        # 5.2: only state 2 is catalogued for the WAC; selecting another WAC
+        # 5.2: only state 2 is cataloged for the WAC; selecting another WAC
         # state is a validation error until its full table is sourced.
         'gain_e_per_dn_by_state': {2: 28.0},
         'default_gain_state': 2,

@@ -494,7 +494,7 @@ class NavModelRings(NavModelRingsBase):
         # statistical sigma.
         self._radial_resolution_ext = resolutions
         # Retained so the emitted edge normals can be signed radially outward
-        # (see _polyline_from_edge_mask): the mask-neighbour test alone cannot
+        # (see _polyline_from_edge_mask): the mask-neighbor test alone cannot
         # tell the high-radius side from the low-radius side.
         self._ring_radius_ext = np.asarray(bp_radii.mvals.filled(np.nan), dtype=np.float64)
 

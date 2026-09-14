@@ -95,7 +95,7 @@ def test_match_navigator_writes_canonical_form(model: Any) -> None:
 
 
 def test_distortion_center_keys_absent_unless_enabled(model: Any) -> None:
-    """The distortion block omits the optical-centre keys until enabled."""
+    """The distortion block omits the optical-center keys until enabled."""
     model._distortion_group.setChecked(True)
     block = model.sim_params['optics']['distortion']
     assert 'center_v' not in block
@@ -951,14 +951,14 @@ def test_ring_advanced_groups_only_on_first_feature_tab(model: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_gui_added_body_defaults_to_the_frame_centre(model: Any) -> None:
+def test_gui_added_body_defaults_to_the_frame_center(model: Any) -> None:
     """A new body starts at the frame center in pixel corner coordinates."""
     model._add_body_tab()
     body = model.sim_params['bodies'][0]
     assert body['center_v'] == model.sim_params['size_v'] / 2.0
 
 
-def test_gui_added_star_defaults_to_the_frame_centre(model: Any) -> None:
+def test_gui_added_star_defaults_to_the_frame_center(model: Any) -> None:
     """A new star starts at the frame center in pixel corner coordinates."""
     model._add_star_tab()
     star = model.sim_params['stars'][0]
@@ -1014,7 +1014,7 @@ def test_stray_center_uncheck_drops_both_keys(model: Any) -> None:
     assert 'center_u' not in block
 
 
-def test_stray_center_spin_shows_the_frame_centre_when_absent(model: Any) -> None:
+def test_stray_center_spin_shows_the_frame_center_when_absent(model: Any) -> None:
     """With no center key the spin displays the center the renderer will use."""
     model._stray_group.setChecked(True)
     assert model._stray_center_v_spin.value() == model.sim_params['size_v'] / 2.0

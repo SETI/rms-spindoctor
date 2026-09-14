@@ -449,8 +449,11 @@ def test_validator_rejects_a_sharpness_gradient_at_the_bound() -> None:
 
 def test_validator_rejects_an_unknown_cloud_blob_key() -> None:
     """A typo inside a cloud entry fails rather than rendering nothing."""
+    # The axis order of `center_vu` written the wrong way round is what is
+    # under test; the scene layer names a pixel pair `vu` and an oops uv `uv`,
+    # so this is the typo an author actually makes.
     scene = _scene_with_atmosphere(
-        _with(cloud_blobs=[{'centre_vu': [0.0, 0.0], 'sigma_px': 2.0, 'amplitude': 0.1}])
+        _with(cloud_blobs=[{'center_uv': [0.0, 0.0], 'sigma_px': 2.0, 'amplitude': 0.1}])
     )
     with pytest.raises(SimSceneValidationError, match='unknown keys'):
         validate_sim_params(scene, source='probe')

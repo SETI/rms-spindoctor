@@ -404,10 +404,10 @@ class OpticsTabMixin(SimEditorBase):
         # enable is on and the spin itself is edited (a legitimate 0.0 center
         # is then expressible, and a partial block keeps its absent key).
         has_center = 'center_v' in block or 'center_u' in block
-        self._distortion_center_check = QCheckBox('Set optical centre')
+        self._distortion_center_check = QCheckBox('Set optical center')
         self._distortion_center_check.setChecked(has_center)
         self._distortion_center_check.setToolTip(
-            'Enable authoring explicit optical-centre keys; each spin edit '
+            'Enable authoring explicit optical-center keys; each spin edit '
             'writes only its own key.  Unchecked drops the keys (the '
             'renderer uses the frame center).'
         )
@@ -526,12 +526,12 @@ class OpticsTabMixin(SimEditorBase):
         self._set_distortion_key('nonradial_rms_px', float(value))
 
     def _on_distortion_center_v(self, value: float) -> None:
-        """Write the optical-centre v key on a spin edit, when enabled."""
+        """Write the optical-center v key on a spin edit, when enabled."""
         if self._distortion_center_check.isChecked():
             self._set_distortion_key('center_v', float(value))
 
     def _on_distortion_center_u(self, value: float) -> None:
-        """Write the optical-centre u key on a spin edit, when enabled."""
+        """Write the optical-center u key on a spin edit, when enabled."""
         if self._distortion_center_check.isChecked():
             self._set_distortion_key('center_u', float(value))
 

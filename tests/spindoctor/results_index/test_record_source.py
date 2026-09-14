@@ -719,7 +719,7 @@ def test_a_named_stub_only_the_other_root_refused_yields_nothing(two_roots: TwoR
     assert found == []
 
 
-def test_named_stubs_still_honour_the_mission(two_roots: TwoRoots) -> None:
+def test_named_stubs_still_honor_the_mission(two_roots: TwoRoots) -> None:
     """A selection is a narrowing whatever else it names.
 
     Parameters:

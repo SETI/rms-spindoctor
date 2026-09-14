@@ -1,7 +1,7 @@
 """Real-frame integration tests for the Titan haze model and technique.
 
 Everything the haze model needs from an observation -- the inventory
-bounding box, the body-centre resolution and phase, the incidence
+bounding box, the body-center resolution and phase, the incidence
 backplane over an unclipped envelope box, the occlusion backplanes, and
 the real YBSC / Tycho-2 star queries with their nominal-to-extfov
 conversion -- only exists against real SPICE kernels and holdings.  These
@@ -122,7 +122,7 @@ def test_envelope_radius_exceeds_the_solid_radius(
 
 
 def test_image_scale_is_positive(titan_geometry: TitanHazeGeometry) -> None:
-    """The body-centre resolution evaluated to a usable image scale."""
+    """The body-center resolution evaluated to a usable image scale."""
     assert titan_geometry.km_per_px > 0.0
 
 

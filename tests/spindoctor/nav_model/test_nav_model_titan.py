@@ -469,10 +469,10 @@ class _SceneBackplane:
         one in would hide a frame mismatch between the two ends of the
         angle the model computes.
         """
-        centre_v, centre_u = self.titan_center_vu
-        off_body = np.hypot(self._mg.vv - centre_v, self._mg.uu - centre_u) > self.titan_radius_px
-        sun_v = centre_v + self.sub_solar_offset_vu[0]
-        sun_u = centre_u + self.sub_solar_offset_vu[1]
+        center_v, center_u = self.titan_center_vu
+        off_body = np.hypot(self._mg.vv - center_v, self._mg.uu - center_u) > self.titan_radius_px
+        sun_v = center_v + self.sub_solar_offset_vu[0]
+        sun_u = center_u + self.sub_solar_offset_vu[1]
         values = np.hypot(self._mg.vv - sun_v, self._mg.uu - sun_u)
         return _Scalar(values, off_body)
 
@@ -693,7 +693,7 @@ def test_every_stage_propagates_its_leaf_failure(
 
 
 @pytest.mark.parametrize('margin', [0, 7])
-def test_predicted_centre_of_a_centred_body_is_the_array_centre(
+def test_predicted_center_of_a_centered_body_is_the_array_center(
     scene: type[_SceneBackplane], tmp_path: Path, margin: int
 ) -> None:
     """A body on the frame's center predicts the center of the array.
@@ -723,7 +723,7 @@ def test_predicted_centre_of_a_centred_body_is_the_array_centre(
     assert geometry.predicted_center_vu[1] == pytest.approx(expected, abs=1e-9)
 
 
-def test_predicted_centre_of_an_offset_body_keeps_the_same_half_pixel(
+def test_predicted_center_of_an_offset_body_keeps_the_same_half_pixel(
     scene: type[_SceneBackplane], tmp_path: Path
 ) -> None:
     """The conversion is the same half pixel away from the frame's center.
@@ -741,7 +741,7 @@ def test_predicted_centre_of_an_offset_body_keeps_the_same_half_pixel(
 
 
 @pytest.mark.parametrize('margin', [0, 7])
-def test_the_recorded_centre_is_the_inventory_position(
+def test_the_recorded_center_is_the_inventory_position(
     scene: type[_SceneBackplane], tmp_path: Path, margin: int
 ) -> None:
     """What the model records is the inventory's own number for the body.
@@ -763,7 +763,7 @@ def test_the_recorded_centre_is_the_inventory_position(
     assert model.metadata['predicted_center_vu'] == pytest.approx([44.5, 71.5], abs=1e-9)
 
 
-def test_the_logged_centre_is_the_inventory_position(
+def test_the_logged_center_is_the_inventory_position(
     scene: type[_SceneBackplane], tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The per-image log states the center where the document does.

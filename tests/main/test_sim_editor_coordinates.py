@@ -74,7 +74,7 @@ def test_label_position_divides_by_the_zoom(model: Any) -> None:
     assert img_u == pytest.approx(2.25, abs=1e-9)
 
 
-def test_readout_prints_a_pixel_centre(model: Any) -> None:
+def test_readout_prints_a_pixel_center(model: Any) -> None:
     """The readout can name the center of a pixel, which is what a scene uses."""
     model._zoom_factor = 1.0
     model._update_status_bar(QPointF(4.5, 3.5))

@@ -233,7 +233,7 @@ class ArtifactsTabMixin(SimEditorBase):
         self._detector_gain_state_spin = QSpinBox()
         self._detector_gain_state_spin.setRange(0, 3)
         self._detector_gain_state_spin.setToolTip(
-            'Electron-chain gain state; must be catalogued for the instrument. '
+            'Electron-chain gain state; must be cataloged for the instrument. '
             'Written to the scene only when edited.'
         )
         form.addRow('Gain state:', self._detector_gain_state_spin)
