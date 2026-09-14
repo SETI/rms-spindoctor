@@ -280,7 +280,7 @@ the navigation algorithms -- if a change breaks a baseline, the algorithms
 changed behavior, full stop. This is the axis on which the simulator's word is
 final.
 
-**Precision is unconditional too, and is labelled as such.** The sweep curves
+**Precision is unconditional too, and is labeled as such.** The sweep curves
 and the self-consistency floor (:ref:`sim-floor`) measure repeatability: how
 tightly the pipeline reconverges when the rendered scene equals the
 navigator's own model plus one controlled departure. The floor point on every
@@ -534,10 +534,10 @@ exactly the optical effects it wants and leaves the rest at the floor.
    differential smear, where each class carries its own drift vector.
 2. **Residual distortion** (:mod:`~spindoctor.sim.forward.distortion`) warps
    the geometric image by the low-order radial polynomial (``k1``, ``k2`` about
-   the optical centre) plus an optional seeded non-radial wander -- the field
+   the optical center) plus an optional seeded non-radial wander -- the field
    error left after the navigator applies each camera's known distortion model.
    A limb fitted at the frame edge then disagrees with a ring fitted through the
-   centre by the differential residual, which the navigator gets no model to
+   center by the differential residual, which the navigator gets no model to
    remove.
 3. **Whole-scene PSF** (:mod:`~spindoctor.sim.forward.psf`) convolves the image
    by a core-Gaussian-plus-Moffat-wing kernel, so the limb gradient, the
@@ -651,7 +651,7 @@ reads. Resolution precedence, highest first: an explicit scene key (``detector``
 block, then ``noise`` block), then the catalog value when ``instrument_defaults``
 is on, then the disabled floor -- the physical-chain artifacts default to zero,
 so an unconfigured scene renders a clean DN frame. A scene that selects a gain
-state the instrument does not catalogue is a validation error, not a silent
+state the instrument does not catalog is a validation error, not a silent
 guess.
 
 .. _sim-artifacts-catalog:
@@ -761,7 +761,7 @@ calibrated path); garble and spikes write *wrong* values instead.
      - nac, wac, gossi
      - probability
    * - ``edited_frame``
-     - only a centred column band (440 px by default), or one half-height, kept
+     - only a centered column band (440 px by default), or one half-height, kept
      - gossi, vgiss
      - probability
    * - ``truncated_frame``
@@ -1363,7 +1363,7 @@ an opacity ``1 - exp(-tau)``. Three consequences follow:
   the tangent glow.
 
 **Symmetry-breaking structure.** The layer above is exactly mirror-symmetric
-about the image-plane line through the body centre and the sub-solar direction:
+about the image-plane line through the body center and the sub-solar direction:
 one exponential column, one illumination weight, no azimuthal or hemispheric
 structure. That is a problem for grading
 :doc:`the haze solar-symmetry fit <dev_guide_techniques_titan_haze>`, which
@@ -2563,10 +2563,10 @@ smears the whole scene; several give differential smear.
    * - ``k1`` / ``k2``
      - float
      - 0.0
-     - Radial polynomial coefficients about the optical centre.
+     - Radial polynomial coefficients about the optical center.
    * - ``center_v`` / ``center_u``
      - float
-     - frame centre
+     - frame center
      - Optical-centre position in pixels.
    * - ``nonradial_rms_px``
      - float
@@ -2583,7 +2583,7 @@ and ``defocus_sigma`` (blur sigma in pixels).
 the detector stage: ``amplitude`` (peak fraction of full scale; 0 disables it),
 ``direction_deg`` (ramp direction for the ``linear`` model), ``model``
 (``linear`` ramp or ``radial`` bump), and ``center_v`` / ``center_u`` (the
-radial-model bump centre; omit for the frame centre). It exercises the
+radial-model bump center; omit for the frame center). It exercises the
 navigator's source-image background filter.
 
 .. _sim-spk-error:

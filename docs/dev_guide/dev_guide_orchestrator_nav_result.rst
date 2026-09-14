@@ -37,7 +37,7 @@ The dataclass enforces consistency invariants in ``__post_init__``:
 - ``confidence`` must lie in :math:`[0, 1]`.
 - ``covariance_px2``, when set, must be square and 2-D.
 
-Three classmethod constructors centralise common shapes:
+Three classmethod constructors centralize common shapes:
 :meth:`~spindoctor.nav_orchestrator.nav_result.NavResult.success`,
 :meth:`~spindoctor.nav_orchestrator.nav_result.NavResult.failed`, and
 :meth:`~spindoctor.nav_orchestrator.nav_result.NavResult.conflicted`. Direct instantiation is

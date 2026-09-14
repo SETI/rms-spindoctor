@@ -34,7 +34,7 @@ alone:
 
 The simulator (:doc:`dev_guide_simulator`) is the engine behind several tiers: it
 lets the suite grow algorithmic-invariant and sensitivity coverage on frames
-whose true offset is known by construction, without operator labour and without
+whose true offset is known by construction, without operator labor and without
 real data.
 
 Running the suite

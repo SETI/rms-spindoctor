@@ -33,7 +33,7 @@ For every triplet of three predictable catalog stars the matcher computes a tran
 rotation-invariant hash ``(d_AB / d_AC, d_BC / d_AC, angle BAC)``. The three vertices are put
 in a canonical order by triangle geometry: ``A`` sits opposite the longest side, ``B`` opposite
 the next-longest, and ``C`` opposite the shortest. Side lengths scale uniformly under a
-similarity transform, so this order is the same physical vertex labelling for a triangle and any
+similarity transform, so this order is the same physical vertex labeling for a triangle and any
 translated, rotated, or uniformly scaled copy of it, and the detection triplet and its catalog
 counterpart canonicalise identically. The same hash is computed for every triplet of three
 detected sources in the image. Triplets with matching hashes (within a small tolerance) are
@@ -42,9 +42,9 @@ candidate correspondences.
 The order is geometric rather than brightness-keyed on purpose. Ordering the vertices by
 brightness ties on an equal-magnitude field, and the pipeline's predicted magnitudes carry error
 that can manufacture ties that are not physically present, so a brightness-keyed apex would be
-decided by an arbitrary tie-break that flips the labelling between the detection and catalog
+decided by an arbitrary tie-break that flips the labeling between the detection and catalog
 sides from run to run and under image rotation. On a field near the inlier floor that flipped
-labelling flips the navigation outcome, giving non-deterministic output on unchanged input. The
+labeling flips the navigation outcome, giving non-deterministic output on unchanged input. The
 geometric order is total and rotation-stable: for the ordinary scalene triangle the side lengths
 fix the vertex assignment outright, and only a near-isosceles triangle (two opposite sides of
 equal length) falls through to the secondary tie-break of brightness rank and then original
@@ -180,7 +180,7 @@ scatter down. Two estimators are available per star and they trade off with brig
 - The **brightness-weighted moment** is unbiased; its error falls roughly as
   :math:`1/\mathrm{SNR}` as the star brightens.
 - A **maximum-likelihood PSF fit** (``obs.star_psf().find_position`` against the instrument's
-  modelled point-spread function) reaches the minimum variance and so wins decisively when
+  modeled point-spread function) reaches the minimum variance and so wins decisively when
   the star is faint. An undersampled PSF, however, carries a fixed sub-pixel-phase bias floor
   (~0.08 px for the COISS NAC star PSF, sigma ~0.54 px) that does not improve with brightness.
 

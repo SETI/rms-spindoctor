@@ -377,7 +377,7 @@ Restrictions and assumptions
   over-confident covariance shrinks the apparent agreement region and may cause a
   legitimate match to land in its own cluster.
 - The pseudoinverse cutoff (``pinvh_rcond``) is global; rank-deficient detection uses the
-  same threshold for grouping and merging so behaviour is consistent across the two
+  same threshold for grouping and merging so behavior is consistent across the two
   passes.
 
 Sources of uncertainty
@@ -549,7 +549,7 @@ singleton wins on summed confidence, and the excluded pair is an alternative *wi
 quorum*. The gap :math:`0.74 - 0.49 = 0.25` falls below ``agreement_gap=0.5``, so the
 ensemble flags the conflict and returns ``status='conflicted'`` rather than picking the
 higher-confidence isolated wrong answer (this is the documented ``multi_body`` test
-scene's behaviour). Had a *third* technique joined the pair, the pair-plus-one subset
+scene's behavior). Had a *third* technique joined the pair, the pair-plus-one subset
 would have outweighed the singleton and the ensemble would have fused it, excluding the
 dissenter as an outlier instead of conflicting.
 

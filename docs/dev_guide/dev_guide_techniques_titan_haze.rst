@@ -10,7 +10,7 @@ translation from the solar symmetry of a body whose atmosphere hides its surface
 the one :data:`~spindoctor.feature.feature_type.NavFeatureType.TITAN_LIMB` feature the haze
 model emits (see :doc:`dev_guide_navigation_models_titan`) and measures two independent
 components in a rotated frame: the displacement perpendicular to the body-center-to-sub-solar
-line, from the shift that maximises mirror symmetry, and the displacement along that line,
+line, from the shift that maximizes mirror symmetry, and the displacement along that line,
 from a free-radius circle fit to the sunward limb arc. The method is published as Hanson,
 French, Waugh, Barth and Anderson (2025), *Geophysical Research Letters*,
 doi:10.1029/2024GL113415.
@@ -124,7 +124,7 @@ radius gate cannot see that case, because the saturation radius is inside the ga
 construction.
 
 The surviving ray endpoints are fitted with a circle whose center is constrained to the
-symmetry axis, minimising a Tukey biweight loss over the scalar along-track shift :math:`d` and
+symmetry axis, minimizing a Tukey biweight loss over the scalar along-track shift :math:`d` and
 the free radius :math:`R`:
 
 .. math::

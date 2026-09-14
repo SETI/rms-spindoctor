@@ -8,10 +8,10 @@ The chapters that follow drill into each subsystem.
 System architecture
 ===================
 
-SpinDoctor is organised around six cooperating subsystems:
+SpinDoctor is organized around six cooperating subsystems:
 
 1. :class:`~spindoctor.dataset.dataset.DataSet` — handles image-file access
-   and organisation across mission archives.
+   and organization across mission archives.
 2. :class:`~spindoctor.obs.obs_snapshot.ObsSnapshot` and its per-instrument
    subclasses — wrap an ``oops`` observation and supply backplanes,
    extended-FOV accessors, and per-instrument metadata.

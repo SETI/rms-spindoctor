@@ -17,7 +17,7 @@ The image library is the operator-curated regression suite at
   ``ring_only_curved``, ``star_dominated``, ``below_resolution_body``,
   ``high_phase_terminator``, etc.) makes coverage gaps visible at a glance:
   a regime with zero entries is a regime nobody has hand-calibrated, and
-  the orchestrator's behaviour there is unverified.
+  the orchestrator's behavior there is unverified.
 
 Each entry is a YAML *sidecar* that records:
 
@@ -195,7 +195,7 @@ classes (mirrored in
   ``mostly_dropouts``, ``cosmic_ray_dense``.
 
 A regime with **zero** library entries is a regime where the
-orchestrator's behaviour is unverified. When a code path is added —
+orchestrator's behavior is unverified. When a code path is added —
 say, a new technique — the contributor adds at least one library image
 per regime that exercises the path. The
 :doc:`dev_guide_extending` chapter's checklist enumerates which regimes
@@ -327,7 +327,7 @@ Two tests under ``tests/integration/test_baselines.py``:
   all four keys). The failure message tells the operator to update
   the JSON in the same PR if the diff is intended.
 
-Plus a handful of round-trip / serialisation unit tests on
+Plus a handful of round-trip / serialization unit tests on
 :meth:`tests.integration.baseline.Baseline.from_run` and
 :meth:`tests.integration.baseline.Baseline.to_json` that pin the rounding
 rule and confirm byte-stable JSON (sorted keys, trailing newline).

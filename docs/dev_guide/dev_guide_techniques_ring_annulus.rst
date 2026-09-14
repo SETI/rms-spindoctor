@@ -44,7 +44,7 @@ the orchestrator's
 Cost function
 -------------
 
-The technique maximises the masked normalized cross-correlation between the composite
+The technique maximizes the masked normalized cross-correlation between the composite
 template and the observed image (or a mode-selected gradient of it):
 
 .. math::

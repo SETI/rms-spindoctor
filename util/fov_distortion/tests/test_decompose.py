@@ -14,7 +14,7 @@ from util.fov_distortion.decompose import (
 
 
 def _star_grid(half: float = 100.0, step: float = 25.0) -> np.ndarray:
-    """A square grid of star positions centred on the origin."""
+    """A square grid of star positions centered on the origin."""
     coords = np.arange(-half, half + step, step)
     vv, uu = np.meshgrid(coords, coords)
     return np.column_stack([vv.ravel(), uu.ravel()]).astype(np.float64)

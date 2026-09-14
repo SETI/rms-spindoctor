@@ -229,7 +229,7 @@ Examples::
     # Inertial / absolute (no orbit model)
     mosaic_abs = RingMosaic('SATURN', radius_inner=70000, radius_outer=140000)
 
-    # Co-rotating / offset window centred on the F ring core
+    # Co-rotating / offset window centered on the F ring core
     mosaic_off = RingMosaic(
         'SATURN', radius_inner=-1000, radius_outer=1000,
         orbit_model=FRING_CORE,
@@ -893,7 +893,7 @@ Two coordinate conventions are tied to ``--orbit-model``:
 * Longitudes stored in per-image reprojection files and the final mosaic are
   **inertial J2000 ring longitudes** — measured eastward from the ascending
   node of the ring plane on the J2000 reference plane, in degrees
-  (internally radians). This is the default behaviour of
+  (internally radians). This is the default behavior of
   ``oops.backplane.Backplane.ring_longitude``.
 * Radii are **absolute km**. The mosaic bounds are set by ``--radius-inner``
   and ``--radius-outer``; ``--radius-inner-offset`` /
@@ -982,7 +982,7 @@ Body-specific options
      - Improvement factor required to overwrite a pixel.
    * - ``--copy-slop N``
      - ``0``
-     - Extra pixels around each copied pixel to reduce artefacts.
+     - Extra pixels around each copied pixel to reduce artifacts.
    * - ``--image-dtype DTYPE``
      - ``float64``
      - NumPy dtype for the brightness array.
@@ -1070,10 +1070,10 @@ The **Projection** combo box in the body-mosaic window header selects how the
      - Default equirectangular (plate carrée) display. All existing
        controls work as before.
    * - Polar North Stereographic
-     - Stereographic projection centred on the north pole. Best for
+     - Stereographic projection centered on the north pole. Best for
        inspecting polar features with low distortion.
    * - Polar South Stereographic
-     - Same as Polar North but centred on the south pole.
+     - Same as Polar North but centered on the south pole.
    * - Mollweide
      - Equal-area global projection. Polar regions are far less distorted
        than in Rectangular mode.
