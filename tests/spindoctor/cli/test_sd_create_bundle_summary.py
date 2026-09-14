@@ -40,10 +40,10 @@ SUMMARY_PRODUCTS = (
     'data/collection_data.lblx',
     'browse/collection_browse.csv',
     'browse/collection_browse.lblx',
-    'document/supplemental/global_index_bodies.tab',
-    'document/supplemental/global_index_bodies.lblx',
-    'document/supplemental/global_index_rings.tab',
-    'document/supplemental/global_index_rings.lblx',
+    'miscellaneous/global_bodies_index.tab',
+    'miscellaneous/global_bodies_index.lblx',
+    'miscellaneous/global_rings_index.tab',
+    'miscellaneous/global_rings_index.lblx',
     *RUN_LEVEL_PRODUCTS,
 )
 """Every file the summary pass writes over a template directory holding the user guide."""

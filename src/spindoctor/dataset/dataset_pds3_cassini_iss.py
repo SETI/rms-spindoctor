@@ -469,8 +469,8 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         return [
             'collection_data.lblx',
             'collection_browse.lblx',
-            'global_index_bodies.lblx',
-            'global_index_rings.lblx',
+            'global_bodies_index.lblx',
+            'global_rings_index.lblx',
             'bundle.lblx',
             'readme.txt',
             'collection_context.csv',

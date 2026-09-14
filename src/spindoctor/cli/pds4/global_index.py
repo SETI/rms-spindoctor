@@ -151,6 +151,29 @@ def _index_cells(statistic: dict[str, Any] | None, value_format: IndexValueForma
     return [value_format.render(statistic['min']), value_format.render(statistic['max'])]
 
 
+MISCELLANEOUS_COLLECTION = 'miscellaneous'
+"""The collection the global index tables are in, and the bundle directory it has."""
+
+BODIES_INDEX = 'global_bodies_index'
+"""The bodies table's name: the stem of its file and its label, and its LID's last part."""
+
+RINGS_INDEX = 'global_rings_index'
+"""The rings table's name: the stem of its file and its label, and its LID's last part."""
+
+
+def index_lid(bundle_name: str, index_name: str) -> str:
+    """Return the LID of one global index product, built from the bundle's name.
+
+    Parameters:
+        bundle_name: The bundle's name, the last part of its own LID.
+        index_name: The table's name, :data:`BODIES_INDEX` or :data:`RINGS_INDEX`.
+
+    Returns:
+        ``urn:nasa:pds:<bundle_name>:miscellaneous:<index_name>``.
+    """
+    return f'urn:nasa:pds:{bundle_name}:{MISCELLANEOUS_COLLECTION}:{index_name}'
+
+
 @dataclass(frozen=True)
 class GlobalIndexOutcome:
     """What generating the global index files came to.
@@ -256,11 +279,11 @@ def generate_global_index_files(
     # products, and the collection files and run-level products the pass writes after
     # it, so a refusal over one cannot leave an earlier run's index describing the
     # bundle as it was, nor an earlier run's inventory and its label beside no index.
-    supplemental_dir = bundle_root / 'document' / 'supplemental'
-    bodies_tab = supplemental_dir / 'global_index_bodies.tab'
-    bodies_label = supplemental_dir / 'global_index_bodies.lblx'
-    rings_tab = supplemental_dir / 'global_index_rings.tab'
-    rings_label = supplemental_dir / 'global_index_rings.lblx'
+    miscellaneous_dir = bundle_root / MISCELLANEOUS_COLLECTION
+    bodies_tab = miscellaneous_dir / f'{BODIES_INDEX}.tab'
+    bodies_label = miscellaneous_dir / f'{BODIES_INDEX}.lblx'
+    rings_tab = miscellaneous_dir / f'{RINGS_INDEX}.tab'
+    rings_label = miscellaneous_dir / f'{RINGS_INDEX}.lblx'
     for index_product in (bodies_tab, bodies_label, rings_tab, rings_label):
         index_product.unlink(missing_ok=True)
     clear_collection_products(bundle_root)
@@ -332,7 +355,7 @@ def generate_global_index_files(
                 )
             ring_index_rows.append(ring_row)
 
-    # Generate global_index_bodies.tab
+    # The bodies table
     bodies_tab_local = cast(Path, bodies_tab.get_local_path())
     with bodies_tab_local.open('w', newline='') as f:
         writer = csv.writer(f)
@@ -344,9 +367,9 @@ def generate_global_index_files(
         writer.writerow(header)
         writer.writerows(body_index_rows)
     bodies_tab.upload()
-    logger.info('Generated global_index_bodies.tab with %d rows', len(body_index_rows))
+    logger.info('Generated "%s" with %d rows', bodies_tab.name, len(body_index_rows))
 
-    # Generate global_index_rings.tab
+    # The rings table
     rings_tab_local = cast(Path, rings_tab.get_local_path())
     # No explicit parent mkdir: get_local_path() creates parents (matching the
     # bodies index above), so an extra mkdir here was redundant and asymmetric.
@@ -361,30 +384,30 @@ def generate_global_index_files(
         writer.writerow(header)
         writer.writerows(ring_index_rows)
     rings_tab.upload()
-    logger.info('Generated global_index_rings.tab with %d rows', len(ring_index_rows))
+    logger.info('Generated "%s" with %d rows', rings_tab.name, len(ring_index_rows))
 
     # Generate label files using templates
     template_base = Path(template_dir)
 
-    # Global index bodies label
-    bodies_template = template_base / 'global_index_bodies.lblx'
-    template = pdstemplate.PdsTemplate(str(bodies_template))
+    # Global index bodies label, rendered from the template of its own name
+    template = pdstemplate.PdsTemplate(str(template_base / bodies_label.name))
     template_vars = {
+        'INDEX_LID': index_lid(bundle_name, BODIES_INDEX),
         'FILE_RECORDS': len(body_index_rows),
     }
     if write_label(template, template_vars, bodies_label, logger=logger):
-        logger.info('Generated global_index_bodies.lblx')
+        logger.info('Generated "%s"', bodies_label.name)
     else:
         failed_labels += 1
 
-    # Global index rings label
-    rings_template = template_base / 'global_index_rings.lblx'
-    template = pdstemplate.PdsTemplate(str(rings_template))
+    # Global index rings label, rendered from the template of its own name
+    template = pdstemplate.PdsTemplate(str(template_base / rings_label.name))
     template_vars = {
+        'INDEX_LID': index_lid(bundle_name, RINGS_INDEX),
         'FILE_RECORDS': len(ring_index_rows),
     }
     if write_label(template, template_vars, rings_label, logger=logger):
-        logger.info('Generated global_index_rings.lblx')
+        logger.info('Generated "%s"', rings_label.name)
     else:
         failed_labels += 1
 
