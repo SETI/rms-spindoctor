@@ -60,7 +60,7 @@ def _metadata(*bodies: str, rings: bool = False) -> dict[str, Any]:
         'bodies': {body: {'backplanes': {}} for body in bodies},
         'rings': {
             'target': 'PLANET_RINGS',
-            'incidence_angle': {'value': 64.6, 'units': 'deg'},
+            'incidence_angle': {'value': 45.0, 'units': 'deg'},
             'backplanes': ring_statistics,
         },
     }

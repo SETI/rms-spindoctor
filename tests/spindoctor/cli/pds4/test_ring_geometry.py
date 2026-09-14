@@ -27,7 +27,7 @@ def _statistic(minimum: float, maximum: float, units: str) -> dict[str, Any]:
 
 
 STATISTICS = {
-    'ring_radius': _statistic(74658.04, 136780.0, 'km'),
+    'ring_radius': _statistic(50000.04, 90000.0, 'km'),
     'ring_longitude': {
         **_statistic(0.5, 359.5, 'deg'),
         'wrapped_min': 350.25,
@@ -71,15 +71,15 @@ def test_the_geometry_states_each_range_and_the_incidence_angle_in_the_schema_s_
     assert stated == [
         ('minimum_phase_angle', 'deg', '30.000'),
         ('maximum_phase_angle', 'deg', '40.000'),
-        ('mean_incidence_angle', 'deg', '64.600'),
-        ('minimum_incidence_angle', 'deg', '64.600'),
-        ('maximum_incidence_angle', 'deg', '64.600'),
+        ('mean_incidence_angle', 'deg', '45.000'),
+        ('minimum_incidence_angle', 'deg', '45.000'),
+        ('maximum_incidence_angle', 'deg', '45.000'),
         ('minimum_emission_angle', 'deg', '10.000'),
         ('maximum_emission_angle', 'deg', '20.000'),
         ('minimum_inertial_ring_longitude', 'deg', '350.250'),
         ('maximum_inertial_ring_longitude', 'deg', '10.750'),
-        ('minimum_ring_radius', 'km', '74658.0'),
-        ('maximum_ring_radius', 'km', '136780.0'),
+        ('minimum_ring_radius', 'km', '50000.0'),
+        ('maximum_ring_radius', 'km', '90000.0'),
     ]
 
 

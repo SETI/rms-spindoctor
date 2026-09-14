@@ -35,8 +35,11 @@ SHAPE_VU = (6, 8)
 
 RADIUS_CFG = {'name': 'ring_radius', 'method': 'ring_radius', 'units': 'km'}
 
-RING_INCIDENCE_DEG = 63.334
-"""The incidence angle of sunlight on the ring plane the fake Backplane serves, in degrees."""
+RING_INCIDENCE_DEG = 37.5
+"""The incidence angle of sunlight on the ring plane the fake Backplane serves, in degrees.
+
+A stand-in: any angle from 0 to 90 degrees would do.
+"""
 
 
 def _rings_config(entries: list[dict[str, Any]] | None = None) -> FakeBackplanesConfig:

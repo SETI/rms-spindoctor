@@ -268,7 +268,7 @@ def ring_metadata(statistics: dict[str, Any]) -> dict[str, Any]:
     """
     return {
         'target': PLUMBING_RING_TARGET,
-        'incidence_angle': {'value': 64.6, 'units': 'deg'},
+        'incidence_angle': {'value': 45.0, 'units': 'deg'},
         'backplanes': statistics,
     }
 
