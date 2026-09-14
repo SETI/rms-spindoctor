@@ -9,7 +9,10 @@ labels, sorts each by image name, and writes from them the
 ``P,<lidvid>`` line per product ending in a line feed alone, LIDVIDs from the
 dataset's ``pds4_image_name_to_*_lidvid`` builders) plus the matching
 ``.lblx`` labels.  A collection with no label of its kind on disk gets neither
-file and counts as a label not written.
+file and counts as a label not written.  It also holds each image's products
+against each other: a data label with no browse label, or a browse label or
+supplemental file with no data label, is an image whose products disagree,
+logged by name and counted.
 ``generate_global_index_files``
 scans ``data/`` for ``*_supplemental.txt`` files and writes
 ``document/supplemental/global_index_bodies.tab`` (one row per image/body) and
@@ -35,6 +38,7 @@ from filecache import FCPath
 
 from spindoctor.cli.pds4 import collections as collections_module
 from spindoctor.cli.pds4.collections import (
+    CollectionOutcome,
     IndexValueFormat,
     generate_collection_files,
     generate_global_index_files,
@@ -78,7 +82,7 @@ COLLECTION_PRODUCTS = (
 """Every file the collection generator writes, relative to the bundle's directory."""
 
 
-def _run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> int:
+def _run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> CollectionOutcome:
     """Run generate_collection_files against the environment's bundle root.
 
     Parameters:
@@ -86,7 +90,8 @@ def _run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> 
         epochs: The range of the products' epochs to hand the generator.
 
     Returns:
-        The number of collection labels that could not be rendered.
+        What the generation came to: the collection labels not written, and the images
+        whose products disagree.
     """
     return generate_collection_files(
         FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER, epochs=epochs
@@ -165,7 +170,7 @@ def test_an_empty_data_tree_writes_neither_collection(
         earlier = env.bundle_dir / product
         earlier.parent.mkdir(parents=True, exist_ok=True)
         earlier.write_text('an earlier run\n', encoding='utf-8')
-    failed = _run_collections(env, epochs=None)
+    failed = _run_collections(env, epochs=None).failed_labels
     assert failed == 2
     assert [name for name in COLLECTION_PRODUCTS if (env.bundle_dir / name).exists()] == []
     out = capsys.readouterr().out
@@ -186,7 +191,7 @@ def test_a_collection_with_no_member_is_not_written_beside_one_that_has(tmp_path
     """
     env = make_bundle_env(tmp_path)
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
-    failed = _run_collections(env)
+    failed = _run_collections(env).failed_labels
     assert failed == 1
     assert (env.bundle_dir / 'data' / 'collection_data.lblx').is_file()
     browse_products = ['collection_browse.csv', 'collection_browse.lblx']
@@ -277,6 +282,67 @@ def test_every_inventory_line_ends_in_a_line_feed_alone(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# generate_collection_files: each image's products agree
+# ---------------------------------------------------------------------------
+
+
+def test_a_data_label_with_no_browse_label_is_an_image_whose_products_disagree(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An image with a data label and no browse label is logged by name and counted once.
+
+    Every data product has a browse product.  The other image has both labels, and is
+    not counted.
+    """
+    env = make_bundle_env(tmp_path)
+    touch_label(env.bundle_dir / 'data', 'shard0/1111111111n')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
+    touch_label(env.bundle_dir / 'data', 'shard0/2222222222w')
+    outcome = _run_collections(env)
+    assert outcome.disagreeing_images == 1
+    missing = FCPath(env.bundle_dir) / 'browse' / 'shard0' / '2222222222w_summary.lblx'
+    out = capsys.readouterr().out
+    assert 'The products of image 2222222222w disagree' in out
+    assert f'and no browse label at {missing}' in out
+
+
+def test_a_browse_label_with_no_data_label_is_an_image_whose_products_disagree(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An image with a browse label and no data label is logged by name and counted once."""
+    env = make_bundle_env(tmp_path)
+    touch_label(env.bundle_dir / 'data', 'shard0/1111111111n')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/3333333333n')
+    outcome = _run_collections(env)
+    assert outcome.disagreeing_images == 1
+    missing = FCPath(env.bundle_dir) / 'data' / 'shard0' / '3333333333n_backplanes.lblx'
+    out = capsys.readouterr().out
+    assert 'The products of image 3333333333n disagree' in out
+    assert f'and no data label at {missing}' in out
+
+
+def test_a_supplemental_file_with_no_data_label_is_an_image_whose_products_disagree(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An image with a supplemental file and no data label is logged and counted once.
+
+    The labels pass writes an image's supplemental file before its data label, so this
+    is what a data label that failed to render leaves.
+    """
+    env = make_bundle_env(tmp_path)
+    touch_label(env.bundle_dir / 'data', 'shard0/1111111111n')
+    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
+    write_supplemental(env.bundle_dir / 'data', 'shard0/4444444444n')
+    outcome = _run_collections(env)
+    assert outcome.disagreeing_images == 1
+    missing = FCPath(env.bundle_dir) / 'data' / 'shard0' / '4444444444n_backplanes.lblx'
+    out = capsys.readouterr().out
+    assert 'The products of image 4444444444n disagree' in out
+    assert f'and no data label at {missing}' in out
+
+
+# ---------------------------------------------------------------------------
 # generate_collection_files: labels
 # ---------------------------------------------------------------------------
 
@@ -292,7 +358,7 @@ def test_collection_labels_rendered_when_templates_exist(tmp_path: Path) -> None
     )
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
-    failed = _run_collections(env)
+    failed = _run_collections(env).failed_labels
     assert failed == 0
     data_label = env.bundle_dir / 'data' / 'collection_data.lblx'
     text = data_label.read_text(encoding='utf-8')
@@ -392,7 +458,7 @@ def test_a_broken_collection_template_is_counted_and_leaves_the_other(
     )
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
     touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
-    failed = _run_collections(env)
+    failed = _run_collections(env).failed_labels
     assert failed == 1
     assert not (env.bundle_dir / broken_dir / broken).exists()
     assert (env.bundle_dir / intact_dir / intact).is_file()

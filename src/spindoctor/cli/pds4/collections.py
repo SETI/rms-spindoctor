@@ -334,21 +334,94 @@ def _write_collection(
     return True
 
 
+@dataclass(frozen=True)
+class CollectionOutcome:
+    """What generating the collection files came to.
+
+    Attributes:
+        failed_labels: The number of collection labels not written: each that could not
+            be rendered, and each collection that could not be written, counted once
+            whatever its number of reasons.
+        disagreeing_images: The number of images whose products disagree: an image with
+            a data label and no browse label, or with a browse label or a supplemental
+            file and no data label.  Each is counted once, whatever it lacks.
+    """
+
+    failed_labels: int
+    disagreeing_images: int
+
+
+def _disagreeing_images(
+    data_labels: dict[str, FCPath],
+    browse_labels: dict[str, FCPath],
+    supplemental_files: dict[str, FCPath],
+    *,
+    bundle_root: FCPath,
+    dataset: DataSet,
+    logger: PdsLogger,
+) -> int:
+    """Log each image whose products disagree, and return how many there are.
+
+    Every data product has a browse product, so an image's products agree when it has
+    both a data label and a browse label, and disagree when it has one of them without
+    the other, or a supplemental file and no data label.  A data label with no
+    supplemental file is not checked, since the labels pass writes an image's
+    supplemental file before its data label.
+
+    Each image whose products disagree gets one error, naming the image, the files of
+    it that are there, and the label it lacks, at the path where that label belongs.
+
+    Parameters:
+        data_labels: The data labels in the data tree, keyed by path stub.
+        browse_labels: The browse labels in the browse tree, keyed by path stub.
+        supplemental_files: The supplemental files in the data tree, keyed by path stub.
+        bundle_root: The bundle's own directory, under which a missing label belongs.
+        dataset: The dataset whose LID scheme names each image.
+        logger: Logger for the errors.
+
+    Returns:
+        The number of images whose products disagree, each counted once.
+    """
+    stubs = data_labels.keys() | browse_labels.keys() | supplemental_files.keys()
+    disagreeing = 0
+    for stub in sorted(stubs, key=lambda stub: stub.rsplit('/', 1)[-1]):
+        if stub in data_labels:
+            if stub in browse_labels:
+                continue
+            lacks = 'browse label'
+            missing = bundle_root / 'browse' / f'{stub}{_BROWSE_LABEL_SUFFIX}'
+            held = [data_labels[stub]]
+        else:
+            lacks = 'data label'
+            missing = bundle_root / 'data' / f'{stub}{_DATA_LABEL_SUFFIX}'
+            held = [files[stub] for files in (browse_labels, supplemental_files) if stub in files]
+        logger.error(
+            'The products of image %s disagree: it has %s, and no %s at %s',
+            _image_name(stub, dataset),
+            ' and '.join(str(path) for path in held),
+            lacks,
+            missing,
+        )
+        disagreeing += 1
+    return disagreeing
+
+
 def generate_collection_files(
     bundle_results_root: FCPath,
     dataset: DataSet,
     logger: PdsLogger,
     *,
     epochs: EpochRange | None,
-) -> int:
-    """Generate the data and browse collection inventories and their labels.
+) -> CollectionOutcome:
+    """Inventory and label the data and browse collections, checking the products agree.
 
-    Each inventory lists one product per line, ``P,<lidvid>``, in the order of the
-    images' names: ``data/collection_data.csv`` the data products, found by the data
-    labels in the data tree, and ``browse/collection_browse.csv`` the browse products,
-    found by the browse labels in the browse tree, so each lists what is on disk.  An
-    inventory has no header, and every line, the last included, ends in a line feed
-    alone, so the records its label counts are its products.
+    The collections describe what is on disk, and what they cannot describe is counted
+    against the run.  Each inventory lists one product per line, ``P,<lidvid>``, in the
+    order of the images' names: ``data/collection_data.csv`` the data products, found
+    by the data labels in the data tree, and ``browse/collection_browse.csv`` the
+    browse products, found by the browse labels in the browse tree.  An inventory has
+    no header, and every line, the last included, ends in a line feed alone, so the
+    records its label counts are its products.
 
     The data collection label states the time range of the products the collection
     holds, which is ``epochs``: the range :func:`generate_global_index_files` takes in
@@ -356,14 +429,22 @@ def generate_collection_files(
     first.  The label writes it to whole seconds, the start rounded down and the stop
     up.
 
+    Every data product has a browse product, so each image's products are checked
+    against each other.  An image with a data label and no browse label, or with a
+    browse label or a supplemental file and no data label, disagrees: it gets one error
+    naming the image, the files of it that are there and the label it lacks, and it is
+    counted once.  It is still listed in whichever inventory holds a product of it.  A
+    data label with no supplemental file is not checked, since the labels pass writes
+    an image's supplemental file before its data label.
+
     A collection is written only when its label can state what PDS4 requires of it:
     at least one record, and, for the data collection, the time range.  One that
     cannot is not written at all, neither its inventory nor its label, and counts once
-    as a label not written, with one error naming the collection and every reason:
-    a collection with no label of its kind on disk, and the data collection when
-    ``epochs`` is None.
-    Whatever an earlier run left at either of its paths is removed, so a collection on
-    disk is always one this run wrote.
+    as a label not written, with one error naming the collection and every reason: a
+    collection with no label of its kind on disk, and the data collection when
+    ``epochs`` is None.  Whatever an earlier run left at either of its paths is
+    removed, so a collection on disk is always one this run wrote.  An empty collection
+    is the limiting case of a disagreement: no image has a product of its kind.
 
     Every collection label that can be written is attempted, whichever of them fail: a
     broken data collection template must not hide a broken browse collection one.  An
@@ -384,9 +465,9 @@ def generate_collection_files(
             or None when the data tree holds no supplemental file.
 
     Returns:
-        The number of collection labels not written: each label that could not be
-        rendered, and each collection that could not be written, counted once whatever
-        its number of reasons.
+        The number of collection labels not written, each label that could not be
+        rendered and each collection that could not be written counted once whatever
+        its number of reasons, and the number of images whose products disagree.
 
     Raises:
         FileNotFoundError: If the bundle has no data directory to scan, or a
@@ -411,6 +492,18 @@ def generate_collection_files(
     data_names = [_image_name(stub, dataset) for stub in data_labels]
     browse_names = [_image_name(stub, dataset) for stub in browse_labels]
     template_base = Path(template_dir)
+
+    # Every data product has a browse product (the operator's ruling on #602), and a
+    # supplemental file belongs to a data product, so each image's products are held
+    # against each other.
+    disagreeing_images = _disagreeing_images(
+        data_labels,
+        browse_labels,
+        _products_by_stub(data_dir, _SUPPLEMENTAL_SUFFIX),
+        bundle_root=bundle_root,
+        dataset=dataset,
+        logger=logger,
+    )
 
     # The data collection, whose label states at least one record, as the PDS4 schema
     # requires of an inventory, and the range of the products' epochs, so with no member
@@ -455,7 +548,7 @@ def generate_collection_files(
         len(data_labels),
         len(browse_labels),
     )
-    return failed_labels
+    return CollectionOutcome(failed_labels=failed_labels, disagreeing_images=disagreeing_images)
 
 
 @dataclass(frozen=True)

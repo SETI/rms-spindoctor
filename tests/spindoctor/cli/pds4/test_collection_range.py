@@ -59,10 +59,10 @@ def _summarize(env: BundleEnv) -> tuple[GlobalIndexOutcome, int]:
     bundle_results_root = FCPath(env.bundle_results_root)
     dataset = env.dataset.as_dataset()
     index = generate_global_index_files(bundle_results_root, dataset, MAIN_LOGGER)
-    failed = generate_collection_files(
+    collections = generate_collection_files(
         bundle_results_root, dataset, MAIN_LOGGER, epochs=index.epochs
     )
-    return index, failed
+    return index, collections.failed_labels
 
 
 def test_the_range_is_the_earliest_start_and_the_latest_stop_over_every_file(
