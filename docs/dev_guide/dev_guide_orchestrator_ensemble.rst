@@ -534,7 +534,7 @@ Examples
 :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`
 (:math:`(7.00, -18.00)` ± 0.3 px). The Mahalanobis distance is well below
 ``agreement_sigma=2.0``; both end up in the same group. The fused offset is
-:math:`(6.93, -17.92)` px with combined per-axis sigma ~0.26 px. No disagreement
+:math:`(6.94, -17.92)` px with combined per-axis sigma ~0.26 px. No disagreement
 penalty fires (only one group existed). The fused confidence is the precision-weighted
 average of the two per-technique confidences, boosted by the agreement factor
 :math:`1 + 0.5 \log_{2} n` over the :math:`n` significant corroborating members — here

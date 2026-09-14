@@ -10,7 +10,8 @@ angle, emission angle, phase angle, resolution, etc.) derived from a
 navigated image. The system reads prior navigation metadata to apply the
 image's recorded pointing, then computes body and ring backplanes, merges
 them per-pixel by distance, and writes a multi-HDU FITS file along with a
-JSON metadata file.
+JSON metadata file. Each backplane value is the geometry at the centre of
+that pixel (see :ref:`coordinate-systems`).
 
 Which pointing a product is built on
 ------------------------------------
@@ -276,7 +277,7 @@ Features
     - Radius: 0 to observed max.
     - Resolution and others: observed min-max.
 
-- Live readout: Shows the science image value at the cursor and, for each backplane row, the current value at the cursor (angles are converted from radians to degrees when applicable).
+- Live readout: Shows the cursor's ``(v, u)`` position to two decimals in pixel-corner coordinates (see :ref:`coordinate-systems`), the science image value at the pixel containing that position, the object ``BODY_ID_MAP`` names there, and, for each backplane row, the current value at the cursor (angles are converted from radians to degrees when applicable).
 
 Notes
 -----

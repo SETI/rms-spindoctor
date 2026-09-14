@@ -222,13 +222,21 @@ raises :exc:`AssertionError` and fails the build before any image is processed.
 
     techniques:
       BodyLimbNav:
+        alpha0: 0.132
         terms:
           - feature: visible_limb_arc_fraction
-            alpha: 3.0
+            alpha: 1.068
           - feature: dt_fit_rms_px
-            alpha: -0.41
+            alpha: -1.303
+          - feature: visible_arc_px
+            alpha: 0.776
+            divisor: 440.0
+            cap_at: 1.0
+        hard_zero_if:
+          at_edge: true
+          spurious: true
 
-Each ``feature`` value names an attribute on
+Each ``feature`` value, and each ``hard_zero_if`` key, names an attribute on
 :class:`~spindoctor.nav_technique.diagnostics.BodyLimbDiagnostics`. At config-load time
 :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walks the spec
 and confirms every name appears in
@@ -243,7 +251,7 @@ produces a per-technique block in the per-image JSON sidecar of the form::
       "feature_ids": ["limb_arc:DIONE"],
       "offset_px": [11.0, 29.5],
       "covariance_px2": [[0.0156, 0.0017], [0.0017, 0.0148]],
-      "confidence": 0.585,
+      "confidence": 0.675,
       "spurious": false,
       "at_edge": false,
       "diagnostics": {

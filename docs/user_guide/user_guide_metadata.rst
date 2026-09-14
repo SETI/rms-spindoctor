@@ -59,12 +59,13 @@ Everything in this file uses the ``(v, u)`` pixel convention: ``v`` is the row
 ``(v, u)``, its actual position in the image is ``(v + dv, u + du)``.
 
 A position the pipeline states -- the ``(v, u)`` above, a star position in a
-navigation log, a predicted body centre -- is measured from the image's
-upper-left corner, so a whole number falls on the boundary between two pixels
-and the centre of row ``n`` is ``n + 0.5``. A star at ``v = 64.5`` sits in the
-middle of row 64. Positions are measured in the image itself, not in the padded
-frame the navigation searches, so something just outside the image is stated at
-a negative coordinate.
+navigation log, a predicted body centre -- is written in pixel-corner
+coordinates in the image frame, measured from the image's upper-left corner, so
+a whole number falls on the boundary between two pixels and the centre of row
+``n`` is ``n + 0.5``. A star at ``v = 64.5`` sits in the middle of row 64.
+Positions are measured in the image itself, not in the padded frame the
+navigation searches, so something just outside the image is stated at a negative
+coordinate. See :ref:`coordinate-systems`.
 
 The same measured offset appears twice, at two precisions:
 
@@ -670,14 +671,18 @@ reliability gate:
      - Human-readable reason when ``gated`` is true; ``null`` otherwise.
    * - ``bbox_extfov_vu``
      - array
-     - Bounding box ``[v_min, u_min, v_max, u_max]``, four integers. The
-       box is half-open: it covers rows ``v_min`` through ``v_max - 1`` and
-       columns ``u_min`` through ``u_max - 1``. It is measured in the
-       *extended* frame, which is the image padded on all four sides by the
-       instrument's configured ``extfov_margin_vu``, so subtract the margin
-       to get image rows and columns. With a Cassini NAC margin of 50 rows
-       and 140 columns, the ``[495, 577, 644, 727]`` in the example below
-       covers image rows 445 to 593 and columns 437 to 586.
+     - Bounding box ``[v_min, u_min, v_max, u_max]``, four integers giving a
+       half-open slice range in the *extended* frame: rows ``v_min`` up to
+       but not including ``v_max``, columns ``u_min`` up to but not
+       including ``u_max``. The extended frame is the image padded on all
+       four sides by the instrument's configured ``extfov_margin_vu``, so
+       subtract the margin to get image rows and columns. Read as
+       pixel-corner coordinates the four numbers are the rectangle covering
+       exactly those pixels, so no half pixel is added either way (see
+       :ref:`coordinate-systems`). With a Cassini NAC margin of 50 rows and
+       140 columns, the ``[495, 577, 644, 727]`` in the example below is
+       the half-open image range rows 445 to 594 and columns 437 to 587,
+       which covers image rows 445 through 593 and columns 437 through 586.
    * - ``reliability_reasons``
      - object
      - The per-component breakdown of ``reliability``, so a gate decision
