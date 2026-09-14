@@ -438,7 +438,7 @@ class FakeBackplane:
 def plant_circular_body(
     *,
     shape: tuple[int, int],
-    centre_vu: tuple[float, float],
+    center_vu: tuple[float, float],
     radius_px: float,
     sub_solar_lon_deg: float = 0.0,
     sub_solar_lat_deg: float = 0.0,
@@ -450,7 +450,7 @@ def plant_circular_body(
     """Build :class:`BodyBackplaneData` for a circular body silhouette.
 
     Convenience factory that paints a circle of radius ``radius_px``
-    centered at ``centre_vu`` and assigns each silhouette pixel an
+    centered at ``center_vu`` and assigns each silhouette pixel an
     incidence angle that varies smoothly across the disc (zero at the
     center, increasing outward to the limb).  Suitable for end-to-end
     body-NavModel tests where the exact incidence pattern is not the
@@ -458,7 +458,7 @@ def plant_circular_body(
 
     Parameters:
         shape: ``(rows, cols)`` of the output arrays.
-        centre_vu: Body center, pixel centric: it is measured against the
+        center_vu: Body center, pixel centric: it is measured against the
             array's own rows and columns below.
         radius_px: Body radius in pixels.
         sub_solar_lon_deg: Scalar sub-solar longitude in degrees.
@@ -483,8 +483,8 @@ def plant_circular_body(
         np.arange(cols, dtype=np.float64),
         indexing='ij',
     )
-    dv = vv - centre_vu[0]
-    du = uu - centre_vu[1]
+    dv = vv - center_vu[0]
+    du = uu - center_vu[1]
     radius = np.sqrt(dv * dv + du * du)
     body_mask = radius <= radius_px
     # Linear ramp from 0 at center to pi/2 at limb; outside the limb the

@@ -105,7 +105,7 @@ def test_detect_ccd_bloom_columns_rejects_min_run_below_2() -> None:
         detect_ccd_bloom_columns(image, full_well_dn=4095.0, min_run=1)
 
 
-def test_centroid_gaussian_fit_returns_zero_offset_for_centred_blob() -> None:
+def test_centroid_gaussian_fit_returns_zero_offset_for_centered_blob() -> None:
     """A symmetric Gaussian centered on the box returns ``(0, 0)``."""
     box = _gaussian_kernel(5, 1.0)
     dv, du = centroid_gaussian_fit(box)
@@ -281,7 +281,7 @@ def test_detect_sources_finds_saturated_star() -> None:
     assert any(s.saturated for s in sources)
 
 
-def test_sharpness_roundness_returns_zero_for_dark_centre() -> None:
+def test_sharpness_roundness_returns_zero_for_dark_center() -> None:
     """A dark-center box returns ``(0, 0)`` directly via the ``center <= 0`` early-out."""
     box = np.full((5, 5), -1.0, dtype=np.float64)
     sharp, round_ = _sharpness_roundness(box)

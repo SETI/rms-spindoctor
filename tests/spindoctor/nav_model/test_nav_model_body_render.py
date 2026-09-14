@@ -110,7 +110,7 @@ def _sphere_backplane_class(spec: _SphereSpec) -> type:
             self._mg = meshgrid
 
         def _grid(self) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-            """Return ``(vv, uu)`` sample-centre coordinate arrays."""
+            """Return ``(vv, uu)`` sample-center coordinate arrays."""
             assert self._mg.origin is not None
             assert self._mg.limit is not None
             assert self._mg.oversample is not None
@@ -272,7 +272,7 @@ def _feature_types(features: list[NavFeature]) -> set[str]:
 
 
 def _analytic_disc(obs: FakeObs, spec: _SphereSpec) -> NDArrayBoolType:
-    """Return the analytic pixel-centre silhouette in extfov coordinates.
+    """Return the analytic pixel-center silhouette in extfov coordinates.
 
     Array row ``i`` covers ``[i, i + 1)`` in the pixel corner coordinates the
     sphere is defined in, so its center sits at ``i + 0.5`` there.
@@ -394,7 +394,7 @@ def test_albedo_scales_brightness(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_body_mask_centres_where_the_fixture_placed_the_sphere(
+def test_body_mask_centers_where_the_fixture_placed_the_sphere(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The rendered silhouette's centroid is the sphere's stated center.
@@ -444,7 +444,7 @@ def test_body_mask_matches_analytic_silhouette(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_limb_mask_is_boundary_subset_of_body(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every limb pixel is a silhouette pixel with an off-body 4-neighbour."""
+    """Every limb pixel is a silhouette pixel with an off-body 4-neighbor."""
     model, _obs = _make_model(monkeypatch, _SphereSpec((50.0, 50.0), 20.0))
     model.create_model()
     assert model._limb_mask is not None
@@ -454,13 +454,13 @@ def test_limb_mask_is_boundary_subset_of_body(monkeypatch: pytest.MonkeyPatch) -
     assert bool(limb.any())
     assert bool((limb & ~body).sum() == 0)
     off = ~body
-    has_space_neighbour = (
+    has_space_neighbor = (
         np.roll(off, 1, axis=0)
         | np.roll(off, -1, axis=0)
         | np.roll(off, 1, axis=1)
         | np.roll(off, -1, axis=1)
     )
-    assert bool((limb & ~has_space_neighbour).sum() == 0)
+    assert bool((limb & ~has_space_neighbor).sum() == 0)
 
 
 def test_limb_mask_empty_for_fully_dark_body(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -611,7 +611,7 @@ def test_overflow_fraction_matches_off_sensor_area(monkeypatch: pytest.MonkeyPat
 
     Checked twice per the documented formula ``1 - |body & sensor| / |body|``:
     exactly against the model's own discrete masks, and approximately against
-    an independent analytic pixel-centre count (the rendered mask is
+    an independent analytic pixel-center count (the rendered mask is
     anti-aliased, so the analytic count carries a small boundary tolerance).
     """
     spec = _SphereSpec((50.0, 95.0), 10.0)
@@ -901,7 +901,7 @@ def test_limb_arc_vertices_are_whole_pixel_centric_positions(
     assert np.array_equal(vertices, np.rint(vertices))
 
 
-def test_limb_arc_vertices_centre_on_the_stated_sphere_centre(
+def test_limb_arc_vertices_center_on_the_stated_sphere_center(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The ring of LIMB_ARC vertices is centered on the sphere the fixture stated.
@@ -950,7 +950,7 @@ def test_limb_arc_vertices_lie_on_silhouette_boundary(
     assert model._body_mask is not None
     body = model._body_mask
     off = ~body
-    has_space_neighbour = (
+    has_space_neighbor = (
         np.roll(off, 1, axis=0)
         | np.roll(off, -1, axis=0)
         | np.roll(off, 1, axis=1)
@@ -959,7 +959,7 @@ def test_limb_arc_vertices_lie_on_silhouette_boundary(
     vs = np.floor(geometry.vertices_vu[:, 0] + PIXEL_CENTER_TO_CORNER_PX).astype(int)
     us = np.floor(geometry.vertices_vu[:, 1] + PIXEL_CENTER_TO_CORNER_PX).astype(int)
     assert bool(body[vs, us].all())
-    assert bool(has_space_neighbour[vs, us].all())
+    assert bool(has_space_neighbor[vs, us].all())
 
 
 def test_limb_arc_normals_point_outward(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -993,7 +993,7 @@ def test_limb_arc_sigmas_positive_and_finite(monkeypatch: pytest.MonkeyPatch) ->
     assert bool(np.all(np.isfinite(geometry.sigma_normal_per_vertex_px)))
 
 
-def test_terminator_arc_vertices_straddle_the_stated_sphere_centre(
+def test_terminator_arc_vertices_straddle_the_stated_sphere_center(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The TERMINATOR_ARC ridge is symmetric about the sphere's center row.

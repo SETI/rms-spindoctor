@@ -344,7 +344,7 @@ def test_apply_atmosphere_does_not_mutate_input() -> None:
     assert np.array_equal(body, original)
 
 
-def _centred_layers(spec: AtmosphereSpec) -> Any:
+def _centered_layers(spec: AtmosphereSpec) -> Any:
     """Evaluate the haze layers of a centered dark sphere of radius ``_RADIUS``."""
     body = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     return apply_atmosphere(
@@ -365,7 +365,7 @@ def _centred_layers(spec: AtmosphereSpec) -> Any:
 def test_apply_atmosphere_adds_glow_above_the_limb() -> None:
     """The halo screen carries a soft glow just outside the geometric limb."""
     spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6)
-    layers = _centred_layers(spec)
+    layers = _centered_layers(spec)
     # Just outside the sunward limb (+u from center): the glow lives on the
     # translucent halo, not the opaque disc.
     probe = (int(_CENTER), int(_CENTER + _RADIUS + 3))
@@ -376,7 +376,7 @@ def test_apply_atmosphere_adds_glow_above_the_limb() -> None:
 def test_halo_transmission_is_the_tangent_extinction() -> None:
     """The halo screen transmits exp(-tau) of the background at each altitude."""
     spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6)
-    layers = _centred_layers(spec)
+    layers = _centered_layers(spec)
     probe_v = int(_CENTER)
     probe_u = int(_CENTER + _RADIUS + 6)
     altitude = math.hypot(probe_v + 0.5 - _CENTER, probe_u + 0.5 - _CENTER) - _RADIUS
@@ -410,8 +410,8 @@ def test_haze_layers_invariant_under_reference_altitude_shift() -> None:
         tau_ref=tau_ref * math.exp(ref_altitude / scale_height),
         ref_altitude_px=0.0,
     )
-    layers_referenced = _centred_layers(referenced)
-    layers_surface = _centred_layers(surface)
+    layers_referenced = _centered_layers(referenced)
+    layers_surface = _centered_layers(surface)
     np.testing.assert_allclose(layers_referenced.disc, layers_surface.disc, rtol=1e-9, atol=1e-12)
     np.testing.assert_allclose(
         layers_referenced.halo.emission, layers_surface.halo.emission, rtol=1e-9, atol=1e-12
@@ -431,7 +431,7 @@ def test_on_disc_haze_is_continuous_across_the_limb() -> None:
     ~400x below the glow).
     """
     spec = AtmosphereSpec(scale_height_px=5.0, tau_ref=0.005, ref_altitude_px=30.0)
-    layers = _centred_layers(spec)
+    layers = _centered_layers(spec)
     row = int(_CENTER)
     inside = float(layers.disc[row, int(_CENTER + _RADIUS - 2)])
     outside = float(layers.halo.emission[row, int(_CENTER + _RADIUS + 1)])

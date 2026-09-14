@@ -222,7 +222,7 @@ def test_snr_reason_score_caps_at_one() -> None:
     assert _snr_reason_score(snr=200.0, min_snr=8.0) == 1.0
 
 
-def test_snr_reason_score_default_centre_50() -> None:
+def test_snr_reason_score_default_center_50() -> None:
     """When no floor is configured the score saturates at SNR=50."""
     assert _snr_reason_score(snr=50.0, min_snr=0.0) == 1.0
     assert _snr_reason_score(snr=25.0, min_snr=0.0) == pytest.approx(0.5)

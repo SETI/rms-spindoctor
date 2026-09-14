@@ -120,7 +120,7 @@ _COARSE_CORRELATION_MAX_PHASE_DEG: float = 90.0
 """Phase at which the coarse-acquisition template switches disc -> crescent.
 
 The coarse acquisition correlates a matched-filter template of the predicted
-lit silhouette against the observed signal to re-centre each blob's bounding
+lit silhouette against the observed signal to re-center each blob's bounding
 box on the body.  While the body is at least half-lit a filled disc models
 that silhouette, so at or below this phase the disc template runs.  Above it
 the sunlit region is a thin crescent whose bright pixels sit a fraction of a
@@ -207,7 +207,7 @@ def _coarse_correlation_offset(
 
     Cross-correlates ``kernel`` (a disc or crescent template) against the
     lit-signal image and returns the integer ``(dv, du)`` shift that
-    re-centres the blob's predicted bounding box onto the observed body,
+    re-centers the blob's predicted bounding box onto the observed body,
     searched over ``predicted_center +/- margin``.  This extends the blob's
     capture range from the predicted bounding box (a few pixels) to the full
     extended-FOV search window: a brightness-weighted centroid only sees the
@@ -223,7 +223,7 @@ def _coarse_correlation_offset(
     kernel's own brightness-centroid offset is added back: the returned shift
     maps the predicted lit centroid onto the observed lit centroid, matching
     the residual the caller forms against ``predicted_center_vu``.  For a
-    symmetric disc the offset is zero and the shift is just peak-minus-centre.
+    symmetric disc the offset is zero and the shift is just peak-minus-center.
 
     Parameters:
         image_signal: ``(H, W)`` lit signal (image minus background, clipped
@@ -364,7 +364,7 @@ def _brightness_weighted_centroid(
 
     The centroid is computed over every above-background pixel inside the
     feature's predicted bounding box, **shifted by ``coarse_offset_vu``** so
-    the box is re-centred on where the coarse acquisition (a blob-disc
+    the box is re-centered on where the coarse acquisition (a blob-disc
     correlation, or an installed prior) located the body.  Without the shift
     the box only captures the body under small SPICE pointing error (its
     per-body slop); with it the box tracks the body across the full search
@@ -425,7 +425,7 @@ def _collect_per_blob_residuals(
     """Extract the per-blob ``observed - predicted`` residuals + weights.
 
     Iterates the input features in order and, for each blob, first finds a
-    coarse integer offset that re-centres the predicted bbox on the body --
+    coarse integer offset that re-centers the predicted bbox on the body --
     either the installed pass-1 ``prior_offset_vu`` (rounded), when one is
     available from another technique, or a blob-shaped-disc correlation over
     the search window (:func:`_coarse_disc_offset`).  It then computes a

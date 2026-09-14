@@ -185,7 +185,7 @@ def _mirror_residual(
 # ---------------------------------------------------------------------------
 
 
-def test_predicted_center_is_the_rendered_disc_centre() -> None:
+def test_predicted_center_is_the_rendered_disc_center() -> None:
     """The predicted center lands on the center of the disc the renderer drew.
 
     The body is rendered fully lit, so it is radially symmetric and the frame

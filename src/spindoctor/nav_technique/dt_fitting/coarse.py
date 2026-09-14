@@ -272,7 +272,7 @@ def coarse_polarity_search_scored(
     orientation contributes on average only ``1 / pi ~ 0.32`` of its overlap.
     The true limb, whose edges run along the predicted normals by
     construction, keeps nearly full weight.  Only the gradient *direction*
-    enters (both vectors are unit-normalised before the dot product), so a
+    enters (both vectors are unit-normalized before the dot product), so a
     faint-but-correctly-oriented true edge is never out-weighted by a bright
     high-contrast clutter edge -- decoupling the score from edge magnitude is
     what keeps a high-contrast distractor from dominating.
@@ -355,7 +355,7 @@ def coarse_polarity_search_scored(
     # sampled pixel for shift (dv, du) is (round(v) + dv, round(u) + du).
     base_v = np.rint(verts[:, 0]).astype(np.int64)
     base_u = np.rint(verts[:, 1]).astype(np.int64)
-    # Unit-normalise the model normals up front; a degenerate zero normal
+    # Unit-normalize the model normals up front; a degenerate zero normal
     # gets a zero unit vector so it can never contribute a match.
     norm_len = np.hypot(norms[:, 0], norms[:, 1])
     safe_len = np.where(norm_len > 0.0, norm_len, 1.0)

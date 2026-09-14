@@ -152,12 +152,12 @@ def test_a_stub_round_trips_through_the_path_and_back(tmp_path: Path) -> None:
     )
 
 
-def test_a_root_that_merely_spells_the_start_of_a_neighbour_takes_nothing_off(
+def test_a_root_that_merely_spells_the_start_of_a_neighbor_takes_nothing_off(
     tmp_path: Path,
 ) -> None:
     """``/data/res`` is a character prefix of ``/data/results`` and a parent of none of it.
 
-    A root taken off character by character turns the neighbour's document into
+    A root taken off character by character turns the neighbor's document into
     something that looks like a key, reads like a key and names a file this root
     does not hold.  Nothing downstream can tell such a stub from a real one, so
     it becomes a wrong index key and stays one.

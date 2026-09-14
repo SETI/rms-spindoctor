@@ -144,7 +144,7 @@ def graticule_label_anchors(
                 # so all parallel labels appear consistently on the east side.
                 anchor = _rightmost_visible(vx, vy, vis)
             else:
-                anchor = _nearest_visible_to_centre(vx, vy, vis, cx, cy)
+                anchor = _nearest_visible_to_center(vx, vy, vis, cx, cy)
             if anchor is not None:
                 parallel_anchors.append((anchor[0], anchor[1], f'{lat:.0f}°'))
 
@@ -157,13 +157,13 @@ def graticule_label_anchors(
             vx, vy, vis = lonlat_to_display(lons, lats, params)
             if is_polar:
                 # Meridians converge at the pole (the projection center), so
-                # nearest-to-centre puts every label on top of every other.
+                # nearest-to-center puts every label on top of every other.
                 # Instead place each label at ~55 % of the projection radius.
                 anchor = _at_target_radius(
                     vx, vy, vis, cx, cy, _POLAR_MERIDIAN_LABEL_RADIUS_FRAC * params.scale
                 )
             else:
-                anchor = _nearest_visible_to_centre(vx, vy, vis, cx, cy)
+                anchor = _nearest_visible_to_center(vx, vy, vis, cx, cy)
             if anchor is not None:
                 meridian_anchors.append((anchor[0], anchor[1], f'{lon:.0f}°'))
 
@@ -222,7 +222,7 @@ def _split_polyline(
     return segments
 
 
-def _nearest_visible_to_centre(
+def _nearest_visible_to_center(
     vx: np.ndarray,
     vy: np.ndarray,
     vis: np.ndarray,

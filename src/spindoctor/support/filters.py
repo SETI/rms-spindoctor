@@ -27,7 +27,7 @@ import numpy as np
 from scipy.ndimage import (
     distance_transform_edt,
     gaussian_filter,
-    grey_dilation,
+    grey_dilation,  # codespell:ignore grey -- scipy spells it that way
     rotate,
     sobel,
 )
@@ -222,7 +222,7 @@ def _apply_morph_dilate(arr: NDArrayFloatType, spec: NavFilterSpec) -> NDArrayFl
     if half_v <= 0 and half_u <= 0:
         return arr
     size = (2 * max(half_v, 0) + 1, 2 * max(half_u, 0) + 1)
-    return cast(NDArrayFloatType, grey_dilation(arr, size=size))
+    return cast(NDArrayFloatType, grey_dilation(arr, size=size))  # codespell:ignore grey
 
 
 def _apply_distance_transform(arr: NDArrayFloatType, spec: NavFilterSpec) -> NDArrayFloatType:

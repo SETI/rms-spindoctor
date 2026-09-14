@@ -37,7 +37,7 @@ def _ramp(rows: int, cols: int) -> np.ndarray:
     return ramp
 
 
-def test_pixel_centre_returns_that_pixel_value() -> None:
+def test_pixel_center_returns_that_pixel_value() -> None:
     """Sampling the center of a pixel returns that pixel's own value."""
     arr = _ramp(6, 7)
     assert _bilinear_interpolate_fov(arr, 3.5, 2.5) == pytest.approx(302.0, abs=1e-9)

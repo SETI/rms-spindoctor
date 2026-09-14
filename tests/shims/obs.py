@@ -390,7 +390,7 @@ class FakeObs:
     # ------------------------------------------------------------------
 
     def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
-        """Return the configured frame-centre RA and DEC.
+        """Return the configured frame-center RA and DEC.
 
         Parameters:
             apparent: Whether to correct for aberration, as the real
@@ -449,10 +449,10 @@ class FakeObs:
             u = np.asarray([p[0] for p in uv], dtype=np.float64)
             v = np.asarray([p[1] for p in uv], dtype=np.float64)
             return FakeUV(u_vals=u, v_vals=v)
-        v_centre = self.data.shape[0] / 2.0 + self.extfov_margin_vu[0]
-        u_centre = self.data.shape[1] / 2.0 + self.extfov_margin_vu[1]
-        u = np.full(n, u_centre)
-        v = np.full(n, v_centre)
+        v_center = self.data.shape[0] / 2.0 + self.extfov_margin_vu[0]
+        u_center = self.data.shape[1] / 2.0 + self.extfov_margin_vu[1]
+        u = np.full(n, u_center)
+        v = np.full(n, v_center)
         # Apply a per-point shift driven by tfrac so the bracket
         # difference is non-zero when the test wants smear.
         u = u + (tfrac - 0.5) * 2.0  # -1 at tfrac=0, +1 at tfrac=1

@@ -2,7 +2,7 @@
 
 :func:`render_to_image` converts a (lon_deg, lat_deg, valid) coordinate grid
 -- produced by :mod:`~spindoctor.ui.mosaic_viewer.projections` -- into a
-``QImage`` (Format_RGB888) using nearest-neighbour texture lookup, the same
+``QImage`` (Format_RGB888) using nearest-neighbor texture lookup, the same
 contrast-stretch pipeline as the existing rectangular render path, and optional
 per-pixel metadata tinting.
 
@@ -108,7 +108,7 @@ def render_to_image(
     twopi = 2.0 * math.pi
 
     # Grid bin ``k`` is the point sample taken at ``k * resolution``, so the
-    # nearest-neighbour lookup this renderer promises is a round, not a floor:
+    # nearest-neighbor lookup this renderer promises is a round, not a floor:
     # a floor picks the bin below whenever the ray falls in the upper half of a
     # bin, which is half the sphere.
     # The longitude axis is circular, so the reduction is a modulo and not a

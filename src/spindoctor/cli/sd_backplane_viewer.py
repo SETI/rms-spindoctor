@@ -1147,7 +1147,7 @@ class NavBackplaneViewer(QDialog):
         self._zoom_ctl.on_wheel(event)
 
     def _zoom_in(self) -> None:
-        # Centre-anchored zoom is provided by the controller (it wraps this
+        # Center-anchored zoom is provided by the controller (it wraps this
         # window's scroll area); delegate instead of re-implementing it.
         self._zoom_ctl.zoom_in_center()
 

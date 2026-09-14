@@ -51,7 +51,7 @@ def _scene(optics: dict[str, Any]) -> dict[str, Any]:
     return {'random_seed': 1, 'optics': optics}
 
 
-def test_the_radial_bump_is_symmetric_about_the_stated_centre() -> None:
+def test_the_radial_bump_is_symmetric_about_the_stated_center() -> None:
     """A radial field is equidistant-valued either side of the center it was given.
 
     An ``argmax`` cannot settle this.  The field is smooth, so a center half a
@@ -67,7 +67,7 @@ def test_the_radial_bump_is_symmetric_about_the_stated_centre() -> None:
         assert float(img[11, 29 - gap]) == pytest.approx(float(img[11, 29 + gap]))
 
 
-def test_the_radial_bump_defaults_to_the_frame_centre() -> None:
+def test_the_radial_bump_defaults_to_the_frame_center() -> None:
     """With no center the bump sits at the middle of the frame.
 
     On an even-sized frame that middle falls between two samples, so the two
@@ -85,7 +85,7 @@ def test_the_radial_bump_defaults_to_the_frame_centre() -> None:
     assert float(img[low, low]) == pytest.approx(float(img[high, low]))
 
 
-def test_stray_light_converts_its_centre_onto_the_oversampled_grid() -> None:
+def test_stray_light_converts_its_center_onto_the_oversampled_grid() -> None:
     """The stated center reaches the grid the field is evaluated on.
 
     Measured by symmetry rather than by a peak.  The conversion moves the center
@@ -157,13 +157,13 @@ def _warp_fixed_point(distortion: dict[str, Any]) -> float:
     return float(v[i] - d[i] * (v[i + 1] - v[i]) / (d[i + 1] - d[i]))
 
 
-def test_distortion_holds_its_stated_centre_fixed() -> None:
+def test_distortion_holds_its_stated_center_fixed() -> None:
     """The point a radial warp leaves in place is the center the scene stated."""
     fixed = _warp_fixed_point({'k1': 0.6, 'k2': 0.0, 'center_v': _CENTER, 'center_u': _CENTER})
     assert fixed == pytest.approx(_expected_oversampled_center(_CENTER), abs=0.05)
 
 
-def test_distortion_defaults_to_the_frame_centre() -> None:
+def test_distortion_defaults_to_the_frame_center() -> None:
     """With no center stated the warp holds the middle of the frame fixed."""
     fixed = _warp_fixed_point({'k1': 0.6, 'k2': 0.0})
     assert fixed == pytest.approx((_SIZE * _OVERSAMPLE - 1) / 2.0, abs=0.05)
