@@ -431,17 +431,18 @@ COVERED_INCIDENCE = 60.0
 def _covered_incidence() -> np.ndarray:
     """Return the incidence angle at each pixel of the covered frame, in radians.
 
-    Rows 2 to 4 hold 40 degrees and row 5 holds 48, except that the last pixel of each
+    Rows 2 to 4 hold 41 degrees and row 5 holds 49, except that the last pixel of each
     holds none, though the ring planes have values there.  Rows 0 and 1, where MOON_A
     covers the rings, hold :data:`COVERED_INCIDENCE`.  Over the ring pixels the FITS holds
-    the least is 40, the greatest 48 and the mean 42, where the median is 40.
+    the least is 41, the greatest 49 and the mean 43, where the median is 41, and none of
+    them is the 40 degrees at the ring center.
 
     Returns:
         The full-frame array, the masked value where a pixel has no angle.
     """
     incidence = np.full(SHAPE_VU, math.radians(COVERED_INCIDENCE))
-    incidence[2:5, :] = math.radians(40.0)
-    incidence[5, :] = math.radians(48.0)
+    incidence[2:5, :] = math.radians(41.0)
+    incidence[5, :] = math.radians(49.0)
     incidence[2:6, -1] = MASKED_VALUE
     return incidence
 
@@ -608,13 +609,11 @@ def test_the_incidence_range_is_over_the_ring_pixels_the_fits_holds(tmp_path: Pa
         tmp_path: pytest-provided temporary directory.
     """
     incidence = _covered_metadata(tmp_path)['rings']['incidence_angle']
-    assert incidence == {
-        'value': 40.0,
-        'min': pytest.approx(40.0),
-        'max': pytest.approx(48.0),
-        'mean': pytest.approx(42.0),
-        'units': 'deg',
-    }
+    assert incidence['value'] == 40.0
+    assert incidence['min'] == pytest.approx(41.0)
+    assert incidence['max'] == pytest.approx(49.0)
+    assert incidence['mean'] == pytest.approx(43.0)
+    assert incidence['units'] == 'deg'
 
 
 def test_the_ring_longitude_s_wrapped_range_measures_gaps_against_the_coarsest_pixel(
