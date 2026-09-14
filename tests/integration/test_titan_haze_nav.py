@@ -134,7 +134,7 @@ def test_symmetry_axis_is_defined_at_moderate_phase(
 
 
 def test_phase_angle_is_populated(titan_geometry: TitanHazeGeometry) -> None:
-    """The phase angle at the body centre is recorded on the geometry."""
+    """The phase angle at the body center is recorded on the geometry."""
     assert 0.0 < titan_geometry.phase_deg < 180.0
 
 

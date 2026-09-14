@@ -133,7 +133,7 @@ class RendererCentroidCheck:
     """Result of the simulator body-renderer geometry validation.
 
     Attributes:
-        requested_center_vu: Sub-pixel body centre requested from the
+        requested_center_vu: Sub-pixel body center requested from the
             renderer, in the renderer's pixel corner coordinates.
         geometric_center_vu: The same center in the pixel centric coordinates
             the navigator measures in (``requested - 0.5`` on each axis).
@@ -164,7 +164,7 @@ def build_body_scene(
 ) -> dict[str, Any]:
     """Build a single-sphere sim scene as a flat ``sim_params`` mapping.
 
-    The scene is a well-resolved, centred sphere on black sky with a planted
+    The scene is a well-resolved, centered sphere on black sky with a planted
     offset, sized with room to spare so the whole limb stays on the frame
     under the offset.  Noise is off by default so the measured limb-fit error
     is deterministic rather than a per-frame noise draw.
@@ -322,10 +322,10 @@ def renderer_centroid_offset(
     """Validate the sim body renderer's sub-pixel placement, nav-code-free.
 
     Renders a fully-lit (phase 0) sphere directly through
-    :func:`create_simulated_body` at a requested sub-pixel centre and measures
+    :func:`create_simulated_body` at a requested sub-pixel center and measures
     the intensity-weighted centroid of the result.  A phase-0 sphere is
     radially symmetric, so its brightness centroid must coincide with its
-    geometric centre; any offset would be a positional bias baked into the
+    geometric center; any offset would be a positional bias baked into the
     renderer itself.  The renderer works in pixel corner coordinates, where a
     pixel's center sits half a pixel past its array row, so a requested center
     ``c`` puts the geometric center at ``c - 0.5`` pixel centric; the check
@@ -369,9 +369,9 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
     """Measure how far the brightness gradient ridge sits inside the limb.
 
     Renders a fully-lit sphere and, along a horizontal scan through the
-    centre, finds the radius of the peak brightness gradient magnitude and
+    center, finds the radius of the peak brightness gradient magnitude and
     compares it to the geometric limb radius.  A positive return value means
-    the steepest-slope point (which the edge distance transform localises)
+    the steepest-slope point (which the edge distance transform localizes)
     lies inside the true silhouette boundary -- the photometric roll-off
     signature that biases the limb fit.  This is a diagnostic measurement, not
     a navigation call.
@@ -423,7 +423,7 @@ def sweep_scenes(
         One ``(value, sim_params)`` pair per value.
 
     Raises:
-        ValueError: If ``axis`` is not a recognised sweep axis.
+        ValueError: If ``axis`` is not a recognized sweep axis.
     """
     out: list[tuple[float, dict[str, Any]]] = []
     for value in values:
