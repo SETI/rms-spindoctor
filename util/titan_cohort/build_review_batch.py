@@ -60,7 +60,7 @@ PHASE_BINS: tuple[tuple[float, float], ...] = (
 
 VOTE_INSTRUCTIONS = (
     'One vote per frame. y = the drawn envelope circle, symmetry axis, and '
-    'centre cross sit on the haze limb at the stated offset. '
+    'center cross sit on the haze limb at the stated offset. '
     'm = Titan is navigable in this frame but the overlay is misaligned; '
     'the frame is kept and routed to manual navigation. '
     'n = the frame should not have navigated at all (occulted, clipped, or '

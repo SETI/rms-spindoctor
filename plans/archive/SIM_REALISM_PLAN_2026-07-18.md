@@ -605,7 +605,7 @@ Detector/electronics artifacts:
   calibration-report ratios), the tour-standard science state; a scene
   selects another via `detector.gain_state` (15.6), and the per-state
   `gain_e_per_dn` tables live in `artifacts_catalog.py`. Only state 2 is
-  catalogued for the WAC until its full table is sourced; selecting
+  cataloged for the WAC until its full table is sourced; selecting
   another WAC state is a validation error, not a silent guess. Cosmic rays:
   no published ISS rate; use the standard interplanetary ~1-2 events/cm2/min
   over the 1.51 cm2 chip (order 1.5-3 hits per 60 s), flagged as an assumed
@@ -967,7 +967,7 @@ recovery error vs mismatch curve is the product (issue #227's core ask):
 | Detector noise | full stage 4/5 stack on every scene, including the I/F path | n/a (noise is never modeled) |
 | Artifact stress | structured loss at swept incidence | n/a |
 
-Zero-mismatch columns are labelled "self-consistency floor (not accuracy)"
+Zero-mismatch columns are labeled "self-consistency floor (not accuracy)"
 everywhere they appear. A zero-mismatch scene is defined by *equality with
 the navigator's configuration*, not by the 15.3 empirical kernels: the
 image-side PSF is a **pure Gaussian** (w = 0, sigma_v = sigma_u, no field
@@ -1051,7 +1051,7 @@ the phase is not done until they are (Section 15.10).
 
 - every accuracy number is presented as a function of model mismatch (the
   Section 8 curves);
-- the zero-mismatch column is explicitly labelled the self-consistency floor;
+- the zero-mismatch column is explicitly labeled the self-consistency floor;
 - the per-instrument realism match (Section 7) is presented first, as the
   precondition for reading the mismatch curves as accuracy;
 - artifact incidence defaults and their cohort provenance are tabulated.
@@ -1241,7 +1241,7 @@ sequencing them means converting the catalog twice.
    geometry helpers are permitted by design; the boundary is informational,
    not authorial.)
 2. The simulator report presents error vs PSF/shape/photometric/ephemeris
-   mismatch, realism-match evidence per instrument, and a labelled
+   mismatch, realism-match evidence per instrument, and a labeled
    self-consistency floor.
 3. The simulated-vs-real distributional match is quantified and reported per
    instrument for the features each technique consumes; sim accuracy is

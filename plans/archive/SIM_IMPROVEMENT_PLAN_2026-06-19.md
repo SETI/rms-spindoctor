@@ -136,7 +136,7 @@ navigable-ceiling characterization showed the bbox-limited technique was **BodyB
 disc) already reach ~extfov, so they did not need this. `BodyBlobNav` now runs a coarse
 acquisition before the brightness-weighted centroid: it uses an installed pass-1 prior when
 present, otherwise correlates a blob-shaped disc (filled-disc matched filter) over the search
-window to re-centre each blob's box on the body. This extends the blob capture range from
+window to re-center each blob's box on the body. This extends the blob capture range from
 ~6 px to ~extfov (recovery to a few hundredths of a pixel out to the margin on the low-phase
 `small_sphere_base` sweep), with the disc correlation gated to bodies at least half-lit (a
 high-phase crescent past its box still needs a prior, since a disc template cannot match a
@@ -145,7 +145,7 @@ crescent). Self-contained in `nav_technique_body_blob.py`; no orchestrator chang
 
 **Done (this track):** *High-phase blob acquisition (phase-aware crescent template).* The
 remaining blob gap -- a high-phase crescent displaced beyond its bounding box -- is closed with
-a phase-aware coarse template. Above half phase `BodyBlobNav` now correlates a synthesised
+a phase-aware coarse template. Above half phase `BodyBlobNav` now correlates a synthesized
 Lambertian crescent (oriented along the sub-solar direction the `BODY_BLOB` feature carries in
 `sub_solar_dir_vu`) instead of skipping the coarse stage; at or below half phase it keeps the
 filled disc. The crescent's center sits on the body center rather than the bright arc, and the
@@ -169,10 +169,10 @@ behavioral assertion, and the named-mesh sourcing decision is resolved. The enab
 mechanism is the body `nav_override` mapping -- the renderer always draws the true
 geometry, while `NavModelBodySimulated` builds its predicted body from the body params
 with `nav_override` overlaid, so the navigation geometry can diverge from the render
-geometry without touching the rendered image (it never moves the centre, so the
+geometry without touching the rendered image (it never moves the center, so the
 predicted body stays at the unshifted position the planted offset is measured from).
 Both scenarios 2 and 3 keep the predicted body on the *same* mesh renderer as the
-rendered body (the ellipsoidal prediction is realised as the zero-relief limit of the
+rendered body (the ellipsoidal prediction is realized as the zero-relief limit of the
 mesh), so the residual is pure shape or pose mismatch rather than a renderer-convention
 skew between the mesh and ellipsoid renderers:
 
@@ -195,7 +195,7 @@ skew between the mesh and ellipsoid renderers:
 **Named meshes / `shape_meshes/` sourcing decision (section 12.3, resolved):** the
 procedural generator stays the sim's mesh source; named `.obj`/`.ply` meshes are NOT
 bundled. The sim's job is controlled sensitivity and regression, for which a
-parameterised irregular body (seed, lumpiness, pose) spans the irregularity axis
+parameterized irregular body (seed, lumpiness, pose) spans the irregularity axis
 continuously -- more useful than one fixed Hyperion shape, which a single committed mesh
 cannot. Real irregular-body accuracy is calibrated against the real Cassini
 Hyperion/Phoebe images in the operator library (cardinal principle 3.1), so a bundled
@@ -240,7 +240,7 @@ images with specific scene attributes (a body at a specific phase
 angle, a body of a specific irregularity, a frame with exactly N
 catalog stars, a frame with stray-light contamination) is hard.
 Manually navigating each found image to set the ground-truth offset
-is labour-intensive.  The set of scenes that *exist* in the real
+is labor-intensive.  The set of scenes that *exist* in the real
 archives is fixed by what spacecraft happened to take during their
 missions; there are gaps that no amount of curation can fill.
 
@@ -687,7 +687,7 @@ navigator uses, with instrument-specific wings.
   cameras, the configured `star_psf_sigma` parameterized PSF.
 - No diffraction spikes.  The Cassini telescope has no secondary-mirror
   support vanes, so its stars carry no cross-shaped diffraction pattern
-  no matter how bright; the other supported cameras are likewise modelled
+  no matter how bright; the other supported cameras are likewise modeled
   without spikes.
 
 **Why now:** brings star-centroid diagnostics into the same
@@ -740,7 +740,7 @@ an ellipsoid silhouette.
   say `shape_model: polyhedral_mesh`, via the shared `MeshBodySpec` /
   `render_mesh_body_image` primitive.  Because the model reads its own
   params, the predicted shape and pose can differ from what was rendered
-  -- this realises the render-geometry / navigation-geometry separation.
+  -- this realizes the render-geometry / navigation-geometry separation.
   Verified: the predicted mesh reproduces the rendered shape when params
   agree (scenario 1/2 base), differs from an ellipsoid prediction
   (scenario 2), and changes under a disagreeing pose (scenario 3).  The
@@ -767,7 +767,7 @@ an ellipsoid silhouette.
   always draws the true geometry; `NavModelBodySimulated` builds its predicted
   body from the body params with `nav_override` overlaid (`_nav_params`), so the
   navigation geometry diverges from the render geometry at the scene level without
-  touching the rendered image.  The override never moves the centre, so the
+  touching the rendered image.  The override never moves the center, so the
   predicted body stays at the unshifted position the planted offset is measured
   from.  Both scenarios 2 and 3 keep the predicted body on the same mesh renderer
   as the rendered body -- the ellipsoidal prediction is the zero-relief
@@ -801,7 +801,7 @@ an ellipsoid silhouette.
 
 **Named meshes / `shape_meshes/` sourcing (section 12.3, resolved):** the procedural
 generator stays the sim's mesh source; named `.obj`/`.ply` meshes are not bundled.
-A parameterised irregular body (seed, lumpiness, pose) spans the irregularity axis
+A parameterized irregular body (seed, lumpiness, pose) spans the irregularity axis
 continuously, which is what the controlled sensitivity / regression role needs --
 more useful than one fixed Hyperion shape; and real irregular-body accuracy is
 calibrated against the real Cassini images in the operator library (principle 3.1),
@@ -1099,7 +1099,7 @@ instead of just "Hyperion (ellipsoid)" for a per-body tab.
 (`ellipsoid` / `polyhedral_mesh`) plus mesh-lumpiness, mesh-seed, and
 three mesh-pose (X/Y/Z degrees) controls, wired to the body params B7
 consumes.  New bodies default to `ellipsoid`.  Two deviations from the
-draft: the axes are *not* greyed out for a mesh (they scale the
+draft: the axes are *not* grayed out for a mesh (they scale the
 procedural mesh, so they remain meaningful), and the dropdown lists the
 generic `polyhedral_mesh` rather than named `HYPERION` / `PHOEBE`
 meshes, since the sim uses a procedural generator until named meshes are
@@ -1422,8 +1422,8 @@ field is navigated by exactly the same `StarFieldFromCatalogNav` /
 required a half-pixel rendering fix that is general to real-image fidelity:
 `render_stars` passed `psfmodel.eval_rect` the sub-pixel fraction directly,
 but `eval_rect` measures its offset from the pixel's lower edge (`offset=0`
-centres the PSF half a pixel low), whereas the detection centroid and the
-star NavModel's predicted position both use the pixel-centre convention.  The
+centers the PSF half a pixel low), whereas the detection centroid and the
+star NavModel's predicted position both use the pixel-center convention.  The
 rendered star therefore sat half a pixel from where the model predicted it,
 and every star navigation carried a constant -0.5 px bias.  Adding 0.5 to the
 eval offset renders the star centroid exactly at its predicted `(v, u)`, so a
@@ -1442,7 +1442,7 @@ one-star path is therefore left to a later non-status-gated harness.
 
 Planted-rotation recovery is now in.  The renderer applies `planted_rotation_deg`
 as a camera roll about the boresight -- rotating each star (and each body's
-centre and line-of-sight pose) before the translation offset -- while the star
+center and line-of-sight pose) before the translation offset -- while the star
 record keeps its unrolled catalog `(v, u)`, so the NavModel predicts the
 unrolled geometry and `StarFieldFromCatalogNav`'s similarity (rotation +
 translation) fit recovers the roll.  A design decision made this tractable:
@@ -1527,7 +1527,7 @@ per-technique.
 
 **Why now:** these tests replace many of the inline-constructed
 fixtures in `tests/nav/nav_technique/` with catalog-driven scenes,
-and they grow the test suite faster than operator labour can grow
+and they grow the test suite faster than operator labor can grow
 the real library.
 
 **Files touched:** new
@@ -1695,7 +1695,7 @@ useful self-contained slice is:
 
 With this slice, the sim becomes a deterministic, instrument-aware,
 realistic-noise simulator with a YAML-catalog-driven test layer that
-can grow algorithmic-invariant coverage without operator labour.
+can grow algorithmic-invariant coverage without operator labor.
 Items B3 / B4 / B5 / B6 / B7 / T3 / T5 / T7 / G3–G8 each add a
 specific incremental capability that can be deferred.
 
@@ -1872,7 +1872,7 @@ all?"  The rejection rests on three observations:
    noise, no irregularity, no scattered light), α tuned against sim
    gives the wrong answer on real.
 2. Verifying that "α tuned against sim works on real" requires the
-   real-image library anyway.  So sim doesn't replace the labour,
+   real-image library anyway.  So sim doesn't replace the labor,
    it just front-loads it.
 3. The tier labels themselves (`high` / `medium` / `low` / `failed`)
    are judgments about real-world performance.  What does `high`
@@ -2045,7 +2045,7 @@ starting:
    `dev_guide_observations`.
 3. **Polyhedral mesh source for B7.**  *Resolved (neither).*  The procedural
    generator (``make_irregular_mesh``: seed + lumpiness + pose) is the sim's mesh
-   source; named ``.obj`` meshes are not bundled and not fetched.  A parameterised
+   source; named ``.obj`` meshes are not bundled and not fetched.  A parameterized
    irregular body spans the irregularity axis continuously, which the controlled
    sensitivity / regression role needs, and real irregular-body accuracy is
    calibrated against the real Cassini Hyperion/Phoebe images in the operator

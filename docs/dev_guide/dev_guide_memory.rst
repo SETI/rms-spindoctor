@@ -316,5 +316,5 @@ statistics report omit the image as one that could not have been navigated.
 
 The ring model's pre-check is the same idea: a 16 x 16 evaluation rules out the two
 common cases -- no ring-plane intersection anywhere in the frame, and a visible radial range
-entirely outside the catalogue's outermost feature -- without paying for a dense
+entirely outside the catalog's outermost feature -- without paying for a dense
 backplane.

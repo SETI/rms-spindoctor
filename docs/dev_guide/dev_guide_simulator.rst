@@ -681,7 +681,7 @@ banding amplitudes and periods, frame-transfer scrub/transfer times, fixed-
 pattern components, and the rest). A scene that names an artifact mode with only
 its incidence inherits these shapes (``resolve_mode_with_catalog`` resolves scene
 value over catalog default over registry default); ``incidence`` itself is never
-catalogued, so naming an instrument never plants a defect on its own. Every value
+cataloged, so naming an instrument never plants a defect on its own. Every value
 is provenance-tagged in a comment beside it, and every value is interim -- sized
 from published FWHMs, gain tables, and documented residual-error bounds, pending
 the per-instrument measurement passes -- so the wing parameters and noise
@@ -907,7 +907,7 @@ Precedence
 A mode's parameter value is resolved scene value over catalog default over
 registry default (:func:`~spindoctor.sim.forward.artifacts_catalog.resolve_mode_with_catalog`),
 so a scene that names a mode with only its incidence inherits the instrument's
-catalogued shape. ``incidence`` itself is never catalogued. Where a mode shares a
+cataloged shape. ``incidence`` itself is never cataloged. Where a mode shares a
 mechanic with a generic ``noise``-block knob (``hot_pixels`` versus
 ``noise.hot_pixel_fraction``, for instance), the explicit artifact mode wins.
 
@@ -2567,7 +2567,7 @@ smears the whole scene; several give differential smear.
    * - ``center_v`` / ``center_u``
      - float
      - frame center
-     - Optical-centre position in pixels.
+     - Optical-center position in pixels.
    * - ``nonradial_rms_px``
      - float
      - 0.0
@@ -2604,7 +2604,7 @@ Detector block
 --------------
 
 The optional ``detector`` dict (truth-side) overrides the resolved detector
-chain: ``gain_state`` (the electron-chain gain state, which must be catalogued
+chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
 for the instrument), ``detector_model`` (``ccd`` electron chain or ``vidicon``
 DN chain), ``exposure_ref_sec`` (the exposure the signal full-scale fraction
 references), and ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``,

@@ -33,7 +33,7 @@ honestly and with its uncertainty, not to clear a numeric bar.
  radial-radial element on the ring axis; it never implies an isotropic scalar.)
 3. **No output field without a calibration behind it.** Anything that looks like a
  probability or a quality grade must either be calibrated against real data or
- be explicitly labelled provisional.
+ be explicitly labeled provisional.
 4. **One source of truth for "what works."** A capability matrix, enforced by
  tests, replaces scattered prose claims.
 5. **CI must exercise what we ship.** If real-image navigation is the product,
@@ -342,7 +342,7 @@ precision to size against — see Premise).
 
 **Ephemeris error is a per-target bias, not noise.** A moon's SPK error at a given
 epoch is a fixed offset, not a zero-mean random variable, so it cannot be a
-variance term. In cross-class comparisons it is modelled as a **per-moon, per-epoch
+variance term. In cross-class comparisons it is modeled as a **per-moon, per-epoch
 bias** and either (a) estimated and removed using several frames of the same moon
 over a short span where the bias is ~constant, before the variance solve, or
 (b) carried as a separately-reported bias term — never silently absorbed into a
@@ -435,7 +435,7 @@ single-technique regimes remain characterized only by the sim (WS-2).
  limb-orientation-vs-radial. Report **pairwise combined covariance everywhere**;
  run the covariance-components solve for **per-technique** covariance only on the
  bins WS-0 qualifies, excluding bias-dependent pairs and shape-contaminated
- bodies, with the per-moon ephemeris modelled separately. Use **robust** estimation
+ bodies, with the per-moon ephemeris modeled separately. Use **robust** estimation
  with outlier rejection, and record each technique's **failure rate** separately.
  Run the **over-determined-frame closure test** as the real-data assumption check.
  Attach an uncertainty interval to every estimate.
@@ -546,7 +546,7 @@ sufficient — the image side must also be **realistic**, and that is not yet
 underwritten: the calibration is not fitted on the realism-anchored renderer
 configuration (#309), the terminator deliverable is degenerate with no realism
 verdict (#223), realism is Cassini-only with the authored scene mixture
-unvalidated (#309, #341), and the catalogued sim-fidelity gaps (#325-#345) and
+unvalidated (#309, #341), and the cataloged sim-fidelity gaps (#325-#345) and
 single-annulus rings vs realistic nested ringlets (#377) remain. Closing #227 is
 the operator's realism-verdict gate, gated on #309.
 
@@ -585,7 +585,7 @@ indistinguishable from real ones.
 - Recovery accuracy on the sim is only credible to the extent the realism match
  holds; report the match quality alongside the accuracy.
 - **Rewrite `simulator_report.rst`** so each accuracy number is reported *as a
- function of model mismatch*, the zero-mismatch column is explicitly labelled
+ function of model mismatch*, the zero-mismatch column is explicitly labeled
  "self-consistency floor (not accuracy)," and the realism-match evidence is
  presented as the precondition for reading the mismatch curves as accuracy.
 
@@ -593,7 +593,7 @@ indistinguishable from real ones.
 - No quantity reported as "accuracy" is computed with image and model sharing a
  rendering function (asserted by a test on the import/call graph).
 - The report presents error vs PSF/shape/photometric/ephemeris mismatch, the
- realism-match evidence, and the labelled self-consistency floor.
+ realism-match evidence, and the labeled self-consistency floor.
 - The simulated-vs-real distributional match is *quantified and reported* per
  instrument for the features each technique consumes (a described figure of merit,
  not a pass/fail threshold — there is no spec; see Premise). Sim accuracy numbers
@@ -649,7 +649,7 @@ anything.
 
 **Acceptance criteria.** Cassini (and LORRI if possible) distortion is quantified
 from star residuals (with catalog error separated out and the edge-dependent
-centroiding error modelled, not assumed flat) and applied **per feature-position**
+centroiding error modeled, not assumed flat) and applied **per feature-position**
 in WS-1, leaving only its residual uncertainty in the budget. Voyager/Galileo
 document the adopted literature distortion model with a field-position agreement
 sanity check, and their agreement/accuracy claims are scoped to "literature
@@ -764,7 +764,7 @@ can be calibrated against a real anchor only where per-technique covariance exis
 (the narrow WS-0-qualified, shape-clean, geometry-controlled set). Everywhere else
 the only real anchor is *combined* pairwise covariance, from which a per-technique
 confidence is under-determined — there the calibration falls back to the sim (WS-2)
-and is labelled sim-anchored, not real-anchored. The result is a confidence whose
+and is labeled sim-anchored, not real-anchored. The result is a confidence whose
 *calibration basis* varies by regime; the metadata records which basis each value
 used. **Avoid the feedback loop:** the per-frame disagreement used to calibrate must
 come from independently-run techniques, and the calibrated confidence must not then
@@ -861,12 +861,12 @@ navigation is systematically wrong on it and the body model excludes it. In
 its place, the haze solar-symmetry method (Hanson, French, Waugh, Barth &
 Anderson, 2025, GRL, doi:10.1029/2024GL113415): absent clouds or visible
 surface features a hazy atmosphere is mirror-symmetric about the image-plane
-line through the body centre and the sub-solar point, so the shift
-perpendicular to that line is the one maximising mirror symmetry, and a
+line through the body center and the sub-solar point, so the shift
+perpendicular to that line is the one maximizing mirror symmetry, and a
 FREE-radius circle fit to the sunward limb arc gives the shift along it
 without assuming a haze altitude. The free radius is what makes the method
 filter-independent — a wavelength-dependent haze top moves the fitted radius,
-not the fitted centre — and no per-filter or per-phase training data exists
+not the fitted center — and no per-filter or per-phase training data exists
 anywhere in the implementation. Delivered as a model emitting one `TITAN_LIMB`
 feature, the `TitanHazeNav` technique wrapping a pure fitting library, a
 simulated-Titan renderer with symmetry-breaking haze structure, and the
@@ -1048,7 +1048,7 @@ and match it) rather than aligning a geometric edge to the gradient ridge
 ripple (#282); (3) gate low-phase (<~15 deg) fits (#281, shipped: a
 `BodyLimbNav` coarse-seed mis-lock below 15 deg phase is flagged spurious by
 an unconverged-at-trust-boundary gate); (4) a minor
-pixel-centre-convention audit (#283). Harness and full report:
+pixel-center-convention audit (#283). Harness and full report:
 `util/calibration/limb_bias/limb_navigation_bias_diagnosis.md`.
 
 **Tasks.**
@@ -1056,7 +1056,7 @@ pixel-centre-convention audit (#283). Harness and full report:
  photometric-limb fit
  (#150 — the dominant, illumination-tracking term), the matched-filter
  sub-pixel edge estimator (#282), and the
- pixel-centre-convention audit (#283). The low-phase gate (#281) is
+ pixel-center-convention audit (#283). The low-phase gate (#281) is
  already shipped. The earlier candidate fixes (modeling
  a PSF-inward offset in `nav_model_body.py`; a continuous sub-pixel DT) are
  superseded: the diagnosis showed the dominant term is the photometric
@@ -1289,7 +1289,7 @@ report, none silently assumed):**
  Inherited by WS-5's calibration and WS-2's realism binning. Bin on resolution /
  phase / lit-fraction / limb-orientation and spot-check; if it fails, report the
  disagreement distribution rather than a single covariance.
-- **Moon ephemeris error is a per-target bias, not zero-mean noise** — modelled as a
+- **Moon ephemeris error is a per-target bias, not zero-mean noise** — modeled as a
  separate nuisance parameter, never folded into a technique's σ (WS-1).
 - **An accurate, independent PSF/shape model exists** to drive WS-2's realistic
  image. Solid for Cassini, doubtful for Voyager/Galileo; where it does not, that
@@ -1300,7 +1300,7 @@ report, none silently assumed):**
 - **Star-catalog astrometric error is separable from distortion** in WS-17 (it is
  field-position-independent; distortion is a smooth field pattern). **Centroiding
  error is *not* separable that way** — it grows toward the edges with the PSF, where
- distortion is also largest — so it is modelled explicitly from the PSF map and its
+ distortion is also largest — so it is modeled explicitly from the PSF map and its
  uncertainty propagated, not assumed flat. Distortion is then applied per
  feature-position in WS-1, leaving only its residual in the budget.
 - **Realism validation needs only real frames, not star frames** (it is a

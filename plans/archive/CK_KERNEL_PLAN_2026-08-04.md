@@ -1105,7 +1105,7 @@ with `ckgpav` at `tol = 0`:
 - Exposure epochs that collapse to a single encoded tick produce a valid
   single-record segment. Per section 3.3 that needs three epochs equal as
   doubles, which no real exposure produces, so a second test pins the
-  reachable neighbour: a sub-tick (1 ms) exposure still produces three
+  reachable neighbor: a sub-tick (1 ms) exposure still produces three
   records.
 - The written file's `ckcov` window is exactly `[start_et, stop_et]` in
   encoded SCLK. Asserting on the record array instead cannot see a segment

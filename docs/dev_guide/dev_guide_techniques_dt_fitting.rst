@@ -94,7 +94,7 @@ image gradient vector sampled at the shifted vertex:
             \max\!\left(0, \hat{n}_{i} \cdot \hat{g}[x_{i} + \Delta x]\right)}
              {N_{\mathrm{in\,bounds}}(\Delta v, \Delta u)}
 
-Both vectors are unit-normalised before the dot product, so only gradient *direction* enters:
+Both vectors are unit-normalized before the dot product, so only gradient *direction* enters:
 a faint-but-correctly-oriented true edge is never out-weighted by a bright high-contrast
 clutter edge. A vertex whose local edge runs the wrong way (gradient anti-parallel to the
 model normal — a terminator, a far-side ring edge, a crater rim) contributes nothing; an
@@ -152,7 +152,7 @@ Each LM iteration:
    so the cached state used by the final-iteration covariance reflects the committed
    parameters. The convergence test uses the step-norm in pixel-equivalent units —
    translation magnitudes contribute directly; the rotation step is multiplied by the
-   pivot-to-image-centre distance so the same threshold applies to translation-only and
+   pivot-to-image-center distance so the same threshold applies to translation-only and
    translation-plus-rotation fits.
 
 The iteration terminates when the step-norm drops below the configured tolerance, when the
@@ -179,11 +179,11 @@ The per-technique ``gradient_ridge_refine`` tuning flag is **on (1) for
 RingEdgeNav and off (0) for the limb and terminator fits**. It is correct for *symmetric*
 edges only:
 
-- The ring edge benefits on dense real ring scenes: the binary edge mask quantises detected
+- The ring edge benefits on dense real ring scenes: the binary edge mask quantizes detected
   edges to the integer pixel grid, so a large fraction of model vertices land exactly on
   edge pixels (a DT of zero and zero gradient) and the DT-LM step stalls at the integer
   coarse-NCC seed. The continuous pass refines against the un-thresholded gradient
-  magnitude, recovering the sub-pixel offset the quantised DT discards. A ring edge is a
+  magnitude, recovering the sub-pixel offset the quantized DT discards. A ring edge is a
   symmetric transition whose gradient peak coincides with the geometric edge, so refining
   onto the peak is unbiased. (On clean sim scenes the DT-LM already reaches its ~0.016 px
   floor, so the refine is a no-op there.)
@@ -330,7 +330,7 @@ Restrictions and assumptions
   ``use_polarity=False``.
 - The convergence test uses a single step-norm tolerance for both translation-only and
   translation-plus-rotation fits. Callers that fit rotation must provide a positive
-  pivot-to-image-centre distance so the rotation step can be converted to pixel-equivalent
+  pivot-to-image-center distance so the rotation step can be converted to pixel-equivalent
   units; missing or zero distance raises :exc:`ValueError`.
 
 Sources of uncertainty
@@ -447,7 +447,7 @@ example documented at :doc:`dev_guide_techniques_body_limb`):
    techniques (``BodyLimbNav``, ``BodyTerminatorNav``), or
    :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored` for ``RingEdgeNav``.
 5. Decide whether to fit camera rotation; when rotation is fit, set the rotation pivot to the
-   vertex centroid and read the pivot-to-image-centre distance via
+   vertex centroid and read the pivot-to-image-center distance via
    :func:`~spindoctor.nav_technique.nav_technique.rotation_pivot_distance_px`.
 6. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine` with the polyline, the
    per-vertex sigmas, the integer seed, and the rotation options.

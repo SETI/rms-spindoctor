@@ -238,8 +238,8 @@ directional translational bias.
    limb navigation, or a stronger prior / constraint there, and tighten the
    spurious gate so a multi-pixel mis-convergence is caught.
 
-4. **Audit the pixel-centre convention across model outputs (hygiene).** The
-   simulated body's `BODY_DISC` predicted-centre metadata is recorded at
+4. **Audit the pixel-center convention across model outputs (hygiene).** The
+   simulated body's `BODY_DISC` predicted-center metadata is recorded at
    `center` while the renderer places the geometric center at `center - 0.5`.
    The limb path reads the rendered mask directly and is not affected, but the
    half-pixel convention should be standardized across every model output as
