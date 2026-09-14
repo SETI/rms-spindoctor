@@ -206,6 +206,24 @@ def test_no_selection_keeps_what_the_bundle_holds(tmp_path: Path) -> None:
     assert [r.image for r in rows] == ['N1000000001']
 
 
+def test_a_record_the_bundle_holds_no_frame_for_is_left_out(tmp_path: Path) -> None:
+    """With no selection, a record with nothing to compare against is not counted."""
+    tree = results_tree(
+        tmp_path / 'nav',
+        {
+            'VOL/N1000000001_1_CALIB': 'N1000000001_1_CALIB',
+            'VOL/N1000000002_1_CALIB': 'N1000000002_1_CALIB',
+        },
+    )
+    rows, _, _ = compare(
+        tree,
+        observation_id=OBSERVATION,
+        bundle_dir=bundle(tmp_path, ['N1000000001']),
+        images=None,
+    )
+    assert [r.image for r in rows] == ['N1000000001']
+
+
 def test_an_empty_selection_keeps_nothing(tmp_path: Path) -> None:
     """An empty list of images is a selection of none of them, not of all of them."""
     tree = results_tree(tmp_path / 'nav', {'VOL/N1000000001_1_CALIB': 'N1000000001_1_CALIB'})

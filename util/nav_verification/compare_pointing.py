@@ -254,26 +254,6 @@ def compare_record(
     return row
 
 
-def _bundle_holds(image: str, *, observation_id: str, bundle_dir: str | Path | FCPath) -> bool:
-    """Whether the bundle carries a frame this record could be checked against.
-
-    Parameters:
-        image: The image name.
-        observation_id: The observation the frame belongs to.
-        bundle_dir: The bundle's reprojected-image collection.
-
-    Returns:
-        False for a name the bundle could not hold as well as for one it does
-        not, because a results root reached by a walk can hold a document the
-        bundle's naming does not describe at all.
-    """
-    try:
-        path = suppl_path(image, observation_id=observation_id, bundle_dir=bundle_dir)
-    except ValueError:
-        return False
-    return bool(path.exists())
-
-
 def compare(
     nav_results_root: str | Path | FCPath,
     *,
@@ -304,7 +284,10 @@ def compare(
         there is no basis for preferring either, so keeping one would make
         every number in the report depend on the order of the walk.
     """
-    wanted = set(images) if images is not None else None
+    if images is None:
+        wanted = set(bundle_image_names(observation_id=observation_id, bundle_dir=bundle_dir))
+    else:
+        wanted = set(images)
     compared: dict[str, FrameComparison] = {}
     duplicated: set[str] = set()
     unreadable: list[str] = []
@@ -314,10 +297,7 @@ def compare(
                 unreadable.append(f'{found.stub}: {found.reason}')
                 continue
             image = bare_image_name(found)
-            if wanted is not None:
-                if image not in wanted:
-                    continue
-            elif not _bundle_holds(image, observation_id=observation_id, bundle_dir=bundle_dir):
+            if image not in wanted:
                 continue
             if image in compared or image in duplicated:
                 duplicated.add(image)
@@ -538,15 +518,16 @@ def main() -> None:
     images = None
     if args.images is not None:
         images = [n.split('_')[0] for n in args.images.read_text().split()]
+    # One listing is both the default selection and the report's denominator.
+    held = bundle_image_names(observation_id=args.observation, bundle_dir=args.bundle_dir)
 
     rows, duplicated, unreadable = compare(
         args.nav_results_root,
         observation_id=args.observation,
         bundle_dir=args.bundle_dir,
-        images=images,
+        images=held if images is None else images,
     )
     common = remove_common_offset(rows, tolerance_px=args.tolerance_px)
-    held = bundle_image_names(observation_id=args.observation, bundle_dir=args.bundle_dir)
 
     print(f'=== {args.observation} ===')
     report(
