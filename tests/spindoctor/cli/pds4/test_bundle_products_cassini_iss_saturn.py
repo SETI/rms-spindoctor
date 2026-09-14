@@ -133,6 +133,48 @@ def test_the_summary_pass_writes_every_file_of_each_collection_the_bundle_holds(
     assert written - labeled == SUMMARY_LAYOUT
 
 
+VISIBLE_RING_MOON_SYSTEMS = [
+    ('wavelength_range', 'Visible'),
+    ('discipline_name', 'Ring-Moon Systems'),
+]
+"""The one set of science facets the bundle, data collection and data labels declare."""
+
+
+def _science_facets(label: Path) -> list[list[tuple[str, str]]]:
+    """Return what each Science_Facets of a label's result summary declares.
+
+    Parameters:
+        label: The label.
+
+    Returns:
+        For each ``Science_Facets``, its children's local names and stripped text, in order.
+    """
+    root = ElementTree.parse(label).getroot()
+    facets = root.findall('*/pds:Primary_Result_Summary/pds:Science_Facets', PDS4_NAMESPACES)
+    return [
+        [(child.tag.rsplit('}', 1)[-1], (child.text or '').strip()) for child in facet]
+        for facet in facets
+    ]
+
+
+@pytest.mark.parametrize(
+    ('pattern', 'count'),
+    [('bundle.lblx', 1), ('data/collection_data.lblx', 1), ('data/*/*/*_backplanes.lblx', 2)],
+    ids=['bundle', 'data collection', 'data labels'],
+)
+def test_the_bundle_and_its_data_declare_the_visible_ring_moon_systems_facets(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path, pattern: str, count: int
+) -> None:
+    """One Science_Facets, Visible and Ring-Moon Systems, with no domain.
+
+    The reference bundle's bundle label adds the domain Rings; this bundle's backplanes
+    cover bodies as well as rings, so none is declared.
+    """
+    env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
+    stated = [_science_facets(label) for label in sorted(env.bundle_dir.glob(pattern))]
+    assert stated == [[VISIBLE_RING_MOON_SYSTEMS]] * count
+
+
 def test_every_member_entry_of_the_bundle_label_names_a_collection_label_in_the_bundle(
     cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
 ) -> None:

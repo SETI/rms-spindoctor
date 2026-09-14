@@ -60,7 +60,10 @@
         <Primary_Result_Summary>
             <purpose>Science</purpose>
             <processing_level>Derived</processing_level>
-            <!-- TODO Do we need science facets? -->
+            <Science_Facets>
+                <wavelength_range>Visible</wavelength_range>
+                <discipline_name>Ring-Moon Systems</discipline_name>
+            </Science_Facets>
         </Primary_Result_Summary>
         <Investigation_Area>
             <name>Cassini-Huygens</name>
