@@ -794,6 +794,10 @@ def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
 COLLECTION_INVENTORIES = {
     'data/collection_data.lblx': 'collection_data.csv',
     'browse/collection_browse.lblx': 'collection_browse.csv',
+    'context/collection_context.lblx': 'collection_context.csv',
+    'document/collection_document.lblx': 'collection_document.csv',
+    'spice_kernels/collection_spice_kernels.lblx': 'collection_spice_kernels.csv',
+    'xml_schema/collection_xml_schema.lblx': 'collection_xml_schema.csv',
 }
 """Each collection label the summary pass renders, by bundle path, and its inventory."""
 
@@ -801,12 +805,14 @@ COLLECTION_INVENTORIES = {
 def test_each_cohort_collection_label_describes_the_inventory_beside_it(
     cassini_cohort: Cohort, tmp_path: Path
 ) -> None:
-    """A shipped collection label names the inventory beside it and counts its products.
+    """A shipped collection label names the inventory beside it and counts its lines.
 
     A PDS4 label names a file with no directory part, so the inventory has to be in the
-    label's own directory.  The records the label states are the products the collection
-    holds, the cohort's two navigated images, which a header line in the inventory would
-    make three.
+    label's own directory.  The records each label states are the lines of that
+    inventory: the template directory's document inventory has a line more than the
+    bundle's, which holds no guide, so a label describing the wrong file says so.  The
+    data and browse inventories list the cohort's two navigated images, which a header
+    line would make three.
     """
     env = write_cohort_bundle(cassini_cohort, tmp_path, [stub for stub, _ in NAVIGATED_IMAGES])
     roots = {
@@ -828,12 +834,19 @@ def test_each_cohort_collection_label_describes_the_inventory_beside_it(
         label: int(_text(root, 'pds:File_Area_Inventory/pds:Inventory/pds:records'))
         for label, root in roots.items()
     }
-    assert records == dict.fromkeys(COLLECTION_INVENTORIES, len(NAVIGATED_IMAGES))
+    lines = {
+        label: len((env.bundle_dir / label).with_name(inventory).read_bytes().splitlines())
+        for label, inventory in COLLECTION_INVENTORIES.items()
+    }
+    assert records == lines
+    products = [lines['data/collection_data.lblx'], lines['browse/collection_browse.lblx']]
+    assert products == [len(NAVIGATED_IMAGES)] * 2
 
 
 STATIC_INVENTORIES = (
     'collection_context.csv',
     'collection_document.csv',
+    'collection_spice_kernels.csv',
     'collection_xml_schema.csv',
 )
 """The inventories the template directory ships, which a bundle takes as they are."""
@@ -841,15 +854,20 @@ STATIC_INVENTORIES = (
 INVENTORY_RECORD = re.compile(r'[PS],urn:nasa:pds:[a-z0-9._-]+(:[a-z0-9._-]+)*(::\d+\.\d+)?')
 """One inventory line: a primary or secondary member, and its LID or LIDVID."""
 
+VERSIONED_MEMBER = re.compile(r'.*::\d+\.\d+')
+"""An inventory line naming its member at an explicit version."""
+
 
 def test_the_shipped_inventories_list_only_members_each_ending_in_a_line_feed(
     tmp_path: Path,
 ) -> None:
-    """Every line of each shipped inventory is a member, ending in a line feed and no CR.
+    """Every line of each shipped inventory is a versioned member, ending in a line feed.
 
     A collection label counts its inventory's lines as its records, so a header, a
-    comment or a blank line is a record that names no member.  The label declares its
-    records delimited by a line feed, and the last record is delimited like the others.
+    comment or a blank line is a record that names no member.  Every member is named at
+    an explicit version, the published one of each secondary product.  The label
+    declares its records delimited by a line feed, and the last record is delimited like
+    the others.
     """
     template_dir = Path(_cassini_dataset(tmp_path).pds4_bundle_template_dir())
     raws = {name: (template_dir / name).read_bytes() for name in STATIC_INVENTORIES}
@@ -860,5 +878,22 @@ def test_the_shipped_inventories_list_only_members_each_ending_in_a_line_feed(
         if INVENTORY_RECORD.fullmatch(line) is None
     ]
     assert not_members == []
+    unversioned = [
+        (name, line)
+        for name, raw in raws.items()
+        for line in raw.decode('ascii').splitlines()
+        if VERSIONED_MEMBER.fullmatch(line) is None
+    ]
+    assert unversioned == []
     assert [name for name, raw in raws.items() if not raw.endswith(b'\n')] == []
-    assert [name for name, raw in raws.items() if b'\r' in raw] == []
+
+
+def test_no_shipped_template_holds_a_carriage_return(tmp_path: Path) -> None:
+    """Every file the template directory ships ends its lines in a line feed alone.
+
+    A label keeps its template's line endings, and every label of the bundle, like every
+    label of the reference, ends its lines in a line feed.
+    """
+    template_dir = Path(_cassini_dataset(tmp_path).pds4_bundle_template_dir())
+    with_cr = [path.name for path in sorted(template_dir.iterdir()) if b'\r' in path.read_bytes()]
+    assert with_cr == []

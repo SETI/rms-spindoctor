@@ -103,6 +103,10 @@ def test_cassini_lid_strips_version_suffix_and_extension(tmp_path: Path) -> None
         'global_index_bodies.lblx',
         'global_index_rings.lblx',
         'cassini-iss-saturn-backplanes-user-guide.lblx',
+        'collection_spice_kernels.lblx',
+        'collection_spice_kernels.csv',
+        'kernels.ker',
+        'kernels.lblx',
     ],
 )
 def test_cassini_template_tree_ships_documented_files(tmp_path: Path, template_name: str) -> None:

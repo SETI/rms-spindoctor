@@ -5,10 +5,11 @@ PDS4 Bundle Generation
 The :mod:`pds4` package builds PDS4-compliant bundles from SpinDoctor's per-image
 navigation metadata and per-pixel backplanes. A bundle is the deliverable the
 Ring-Moon Systems node ships to PDS for archive: one collection of data labels
-(one per image), one collection of browse PNGs, plus the auxiliary collections
-(context, document, xml_schema) and the bundle-level label that wires them
+(one per image), one collection of browse PNGs, the context, document, SPICE
+kernel and XML schema collections, and the bundle label that wires them
 together. This chapter covers the bundle-generation driver, the per-dataset
-extension points, the templated label workflow, and the output layout.
+extension points, the templated label workflow, the bundle's run-level products,
+and the output layout.
 
 The user-facing CLI walkthrough lives at :doc:`/user_guide/user_guide_pds4_bundle`; this
 chapter is the developer's reference.
@@ -47,7 +48,13 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    line, as ``P,<LIDVID>``, with no header, and every line, the last included,
    ends in a line feed alone, so the record count its label states is the
    number of products the collection holds.  A collection with no product gets
-   neither an inventory nor a label (see `Exit status`_).
+   neither an inventory nor a label (see `Exit status`_).  Last,
+   :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` writes
+   the bundle's run-level products: the readme, the context, document, SPICE
+   kernel and XML schema collections, the user guide when the template directory
+   holds its PDF, and the bundle label, which states the same range and is kept only
+   over a bundle holding every collection it declares (see `The bundle's
+   run-level products`_).
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
@@ -140,10 +147,15 @@ exits 1 naming what it found, like any other run.  Past them it writes nothing,
 so it counts nothing against the run, including a batch it reports it could not
 have processed.
 
-``sd_create_bundle summary`` counts the collection and index labels it did not
-write, over both generators, and exits 1 the same way.  The index tables are
-written either way, and so is the inventory of a collection whose label fails to
-render.  A collection whose label cannot state what PDS4 requires of it is not
+``sd_create_bundle summary`` counts the collection, index and run-level labels it
+did not write, over its three generators, and exits 1 the same way.  The index
+tables are written either way, and so is the inventory of a collection whose label
+fails to render.  The bundle label counts when it is not written: it is kept only
+over a bundle holding a label for every collection it declares, and with no range
+to state it is not rendered (see `The bundle's run-level products`_).  A metakernel
+label that fails to render leaves the SPICE kernel collection with no member, so that
+collection is not written and counts as well, and so does the bundle label.  A user-guide
+PDF the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what PDS4 requires of it is not
 written at all -- neither its inventory nor its label, and whatever an earlier run
 left at either path is removed -- and counts once among the labels not written,
 with an error naming the collection and each reason.  A collection label states at
@@ -159,9 +171,11 @@ configuration gives its plane, or a minimum or maximum that is NaN or infinite -
 the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  The index tables and
-labels an earlier run wrote, and its collection inventories and labels, are cleared
-before the first supplemental file is read, the collection files by the index
-generator since it runs first.  Every supplemental file is read, and every value in
+labels an earlier run wrote, its collection inventories and labels, and its
+run-level products are cleared once the index generator has found the ``data/``
+directory and before the first supplemental file is read, all of them by the index
+generator since it runs first, so a run refused for want of ``data/`` leaves them as
+they were.  Every supplemental file is read, and every value in
 both index tables rendered, before either table is opened, so a run refused over a
 supplemental file leaves no product of the pass, neither this run's nor an earlier
 run's.  The pass reads each
@@ -189,13 +203,22 @@ nothing to count.  A data label with no
 supplemental file is not checked, since the labels pass writes an image's
 supplemental file before its data label.
 
-A summary pass that exits 1 cleans up nothing it wrote: the generators report what
-they cannot describe rather than repair the bundle.  After one, the index tables
-can hold rows for an image with no data label, since they are built from the
-supplemental files; the browse labels can name a data collection that was not
-written, and the data labels a browse collection that was not written.  Clear the
-bundle directory and regenerate the bundle into it, as after a labels pass that
-exits 1.
+A summary pass that exits 1 does not repair the bundle: the generators report what
+they cannot describe, and what they wrote stays, but for two things.  A collection
+that cannot be written has whatever an earlier run left at its paths removed, and
+the bundle label, rendered and then found to name a collection the bundle does not
+hold, is removed in the same run.  After one, the index tables can hold rows for an
+image with no data label, since they are built from the supplemental files; the
+browse labels can name a data collection that was not written, and the data labels a
+browse collection that was not written; a user guide whose label failed is in
+``document/user_guide/`` unlabeled and unlisted; and a metakernel whose label failed
+is in ``spice_kernels/`` with neither label nor collection.  The bundle label names no
+collection the bundle does not hold, except after a run refused before it cleared
+anything -- over a bundle with no data directory -- which leaves an earlier run's
+products as they were, its bundle label among them.  A run refused after it cleared
+can leave empty collection directories.  None of this is repaired in place: clear the
+bundle directory and regenerate the bundle into it, as after a labels pass that exits
+1.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
@@ -227,10 +250,16 @@ The full extension-point set:
   ``<bundle_results_root>/<bundle_name>/``. Lookups consult
   ``config.pds4.<dataset_name>.bundle_name``.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` — the
-  template filenames one pass must find in that directory, ``labels`` for the
-  per-image pass and ``summary`` for the collection and index pass. Each pass
-  checks them before it processes anything and refuses to run when one is not
-  there, so this is where a dataset says what its template tree carries.
+  file names one pass takes from that directory, the templates it renders and the
+  files it copies: ``labels`` for the per-image pass and ``summary`` for the pass
+  writing the collections, the index and the run-level products. Each pass checks
+  them before it processes anything and refuses to run when one is not there, so
+  this is where a dataset says what its template tree carries.  The user-guide PDF
+  is not among them, since a bundle is written without it; its label's template is.
+- :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name` — the file
+  name of the bundle's user guide, a PDF, in the template directory. Its label's
+  template is the name :func:`~spindoctor.dataset.dataset.pds4_label_name` gives it,
+  the same name ending in ``.lblx``, the rule every label beside its file follows.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_path_for_image` — maps an
   image name to its position in the bundle's ``data/`` directory tree
   (typically a sharded path like ``1234xxxxxx/123456xxxx`` to keep per-leaf
@@ -396,24 +425,30 @@ layout:
 
    src/spindoctor/cli/pds4/templates/cassini_iss_saturn_1.0/
      bundle.lblx                              # top-level bundle label
-     readme.txt                               # bundle-level README
+     readme.txt                               # bundle-level README (copied)
      data.lblx                                # per-image backplane data label
      browse.lblx                              # per-image browse-product label
      collection_data.lblx                     # data-collection label (CSV inventory)
      collection_browse.lblx                   # browse-collection label
      collection_context.lblx                  # context-collection label
-     collection_context.csv                   # context inventory (static)
+     collection_context.csv                   # context inventory (copied)
      collection_document.lblx                 # document-collection label
-     collection_document.csv                  # document inventory (static)
+     collection_document.csv                  # document inventory (copied)
+     collection_spice_kernels.lblx            # SPICE-kernel-collection label
+     collection_spice_kernels.csv             # SPICE kernel inventory (copied)
+     kernels.ker                              # metakernel (copied)
+     kernels.lblx                             # metakernel label
      collection_xml_schema.lblx               # schema-collection label
-     collection_xml_schema.csv                # schema inventory (static)
+     collection_xml_schema.csv                # schema inventory (copied)
      global_index_bodies.lblx                 # per-bundle bodies summary
      global_index_rings.lblx                  # per-bundle rings summary
-     cassini-iss-saturn-backplanes-user-guide.lblx  # bundle user-guide doc
+     cassini-iss-saturn-backplanes-user-guide.lblx  # user-guide label
+     cassini-iss-saturn-backplanes-user-guide.pdf   # the user-guide PDF, when it exists
 
-The two passes render ``data.lblx`` and ``browse.lblx`` for each image and the
-collection and global index labels for the bundle, on every run; the other files
-ship with the templates, and no pass writes them into a bundle.
+The labels pass renders ``data.lblx`` and ``browse.lblx`` for each image.  The
+summary pass renders every other label and copies the files marked copied, the
+user-guide PDF among them when the directory holds it; the directory ships no
+user-guide PDF.
 
 The FITS and its data objects
 =============================
@@ -526,6 +561,73 @@ read no supplemental file yields no range, and the data collection is then not
 written, neither its inventory nor its label, rather than labeled with empty dates
 (see `Exit status`_).
 
+The bundle's run-level products
+===============================
+
+:func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` writes the
+products of the bundle as a whole, last in the summary pass, into the bundle's own
+directory from the dataset's template directory.  Some are rendered from a template and
+some are copied as they are:
+
+- ``readme.txt`` is copied to the bundle's root.
+- The context, document, SPICE kernel and XML schema collections are each an inventory
+  the template directory ships, ``collection_<name>.csv``, copied into the collection's
+  directory, and a label, ``collection_<name>.lblx``, rendered beside it and handed the
+  inventory's path as ``COLLECTION_<NAME>_CSV_PATH``.
+- The metakernel ``kernels.ker`` is copied into ``spice_kernels/`` and its label
+  ``kernels.lblx`` rendered beside it, handed the copy's path as ``METAKERNEL_PATH``.
+  The shipped metakernel lists no SPICE kernels: which kernels it lists has not been
+  decided, so it is the ``KPL/MK`` identification word and a comment block, with no
+  ``KERNELS_TO_LOAD`` assignment, which SPICE refuses empty.  Its label and the data
+  label's ``geom:SPICE_Kernel_Files`` comment say so.
+- The user guide is the PDF
+  :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name` names.  When the
+  template directory holds it, it is copied into ``document/user_guide/`` and its label
+  rendered beside it from the template of the same stem ending in ``.lblx``, handed the
+  copy's path as ``USER_GUIDE_PATH``.  When it does not, neither is written and the pass
+  logs one warning naming the file; that is not a label the pass failed to write.
+- ``bundle.lblx`` is rendered last, at the bundle's root, handed ``BUNDLE_LID``
+  (``urn:nasa:pds:<bundle name>``), the readme's path as ``README_PATH``, and the range
+  of the products' epochs the data collection label states (see `Epochs`_).
+
+An inventory's primary members are products of this bundle -- the user guide in the
+document collection, the metakernel in the SPICE kernel collection -- and one rule
+covers both: the template directory's inventory lists the product as its ``P`` line,
+beside ``S`` lines for the external documents and context products, and the pass writes
+the inventory as it is when that product's label is in the bundle, and without its
+``P`` lines when it is not, whether because the template directory holds no user guide
+or because the label failed to render.  A collection left with no member is not written
+at all, as the data and browse collections are not: neither its inventory nor its label,
+whatever an earlier run left at either path is removed, and it counts once among the
+labels not written.  The document collection keeps its ``S`` members, so it is always
+written; the SPICE kernel collection, whose one member is the metakernel, is not written
+when the metakernel's label is not, and the bundle label, which declares it, goes too.
+
+The bundle label declares every collection the bundle holds, one ``Bundle_Member_Entry``
+each, so it is kept only over a bundle that holds them all.  The pass renders it, reads
+the LID of each member entry, and looks for a ``collection_*.lblx`` one directory below
+the bundle's root whose logical identifier is that LID.  When one is missing -- a
+collection whose label failed to render or was not written, or one the template declares
+before any pass writes it -- the label is removed, one error names each LID it lacks, and
+it counts as a label not written.  With no range to state it is not rendered at all.
+Either way whatever an earlier run left at the path is gone, so a summary pass that
+reaches the bundle label leaves none naming a collection that is not there; a pass
+refused before it cleared anything leaves an earlier run's (see `Exit status`_).
+
+Every label is attempted, whichever of them fail, and each one not written is counted
+(see `Exit status`_); a file copied stays whether or not its label renders.  The
+generator itself removes three things: each label, just before it renders it; the
+inventory and label of a collection left with no member; and the bundle label, when it
+has no range to state or declares a collection the bundle lacks.  Everything else an
+earlier run wrote is cleared by
+:func:`~spindoctor.cli.pds4.bundle_products.clear_bundle_products`, which removes every
+path the generator can write, and ``document/user_guide/`` when that leaves the
+directory empty in a bundle on the local file system; a remote store holds no directory
+apart from the files in it.  The global index generator, which the summary pass runs
+first, calls it with its own clearing, once it has found the bundle's data directory and
+before it reads any supplemental file, so a run-level product on disk after a summary
+pass that got past that check is one that pass wrote.
+
 Output layout
 =============
 
@@ -534,6 +636,8 @@ The two passes write this tree:
 ::
 
    <bundle_results_root>/<bundle_name>/
+     bundle.lblx                             # summary pass
+     readme.txt                              # summary pass, copied
      data/
        collection_data.csv                   # summary pass
        collection_data.lblx                  # summary pass
@@ -547,12 +651,28 @@ The two passes write this tree:
        <pds4_bundle_path_for_image>/
          <image>_summary.lblx
          <image>_summary.png                 # copied from nav_results_root
+     context/
+       collection_context.csv                # summary pass, copied
+       collection_context.lblx               # summary pass
      document/
+       collection_document.csv               # summary pass
+       collection_document.lblx              # summary pass
        supplemental/
          global_index_bodies.tab             # summary pass
          global_index_bodies.lblx            # summary pass
          global_index_rings.tab              # summary pass
          global_index_rings.lblx             # summary pass
+       user_guide/                           # only when the template directory holds it
+         <user guide>.pdf                    # summary pass, copied
+         <user guide>.lblx                   # summary pass
+     spice_kernels/
+       collection_spice_kernels.csv          # summary pass, copied
+       collection_spice_kernels.lblx         # summary pass
+       kernels.ker                           # summary pass, copied
+       kernels.lblx                          # summary pass
+     xml_schema/
+       collection_xml_schema.csv             # summary pass, copied
+       collection_xml_schema.lblx            # summary pass
 
 Testing bundle generation
 =========================
@@ -656,6 +776,7 @@ The end-to-end checklist:
    the reference implementation. The methods that absolutely must work
    are :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_template_dir`,
    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates`,
+   :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name`,
    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_name`,
    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_path_stub`, the four
    ``pds4_image_name_to_*_lid[vid]`` methods,
@@ -664,8 +785,9 @@ The end-to-end checklist:
    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_template_variables`.
 2. Drop a per-dataset template directory under
    ``src/spindoctor/cli/pds4/templates/<dataset>_<version>/`` containing the ``.lblx``
-   files and the static inventory CSVs. Copy from
-   ``cassini_iss_saturn_1.0/`` and adapt the field set.
+   files, the static inventory CSVs, the readme and the metakernel, and the user
+   guide when it exists. Copy from ``cassini_iss_saturn_1.0/`` and adapt the field
+   set.
 3. Add an entry under ``pds4.<dataset_name>:`` in
    ``config_950_pds4.yaml`` that points at the new template directory and
    sets the bundle name plus any per-bundle defaults the
@@ -692,6 +814,10 @@ documented above.
   + bundle assembly.
 - :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` — per-bundle bodies
   / rings global indexes.
+- :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` — phase 2, the
+  run-level products: the readme, the static collections, the user guide and the bundle
+  label; and :func:`~spindoctor.cli.pds4.bundle_products.clear_bundle_products`, which
+  removes every path it can write and which the index generator calls first.
 - :func:`~spindoctor.cli.pds4.labels.write_label` — the one place a label is
   written, shared by both.
 - :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` — the one

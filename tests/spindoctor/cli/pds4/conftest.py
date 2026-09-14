@@ -37,6 +37,7 @@ from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_products import generate_bundle_products
 from spindoctor.cli.pds4.collections import (
     CollectionOutcome,
     generate_collection_files,
@@ -46,11 +47,70 @@ from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
+DEFAULT_BUNDLE_NAME = 'fake_bundle'
+DEFAULT_SHARD = 'shard0'
+
+PDS4_NAMESPACE = 'http://pds.nasa.gov/pds4/pds/v1'
+"""The PDS4 common dictionary's namespace, which the bundle label is read in."""
+
+
+def collection_template(collection: str, body: str) -> str:
+    """Return a stand-in collection label template declaring the collection's LID.
+
+    The bundle label is kept only over a bundle holding a label for each collection it
+    declares, found by the logical identifier the collection label declares, so every
+    stand-in collection label declares one.
+
+    Parameters:
+        collection: The collection's name, the last part of its LID.
+        body: The elements that follow the identification area.
+
+    Returns:
+        The template.
+    """
+    return (
+        f'<Product_Collection xmlns="{PDS4_NAMESPACE}">\n'
+        '  <Identification_Area><logical_identifier>'
+        f'urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:{collection}'
+        '</logical_identifier></Identification_Area>\n'
+        f'{body}</Product_Collection>\n'
+    )
+
+
+BUNDLE_COLLECTIONS = ('browse', 'context', 'data', 'document', 'spice_kernels', 'xml_schema')
+"""The collections the summary pass writes, which the stand-in bundle label declares."""
+
+
+def bundle_template(collections: Sequence[str]) -> str:
+    """Return a stand-in bundle label template declaring the given collections.
+
+    Parameters:
+        collections: The collections it declares, by the last part of each LID.
+
+    Returns:
+        The template: the bundle LID and time range it is handed, and one
+        ``Bundle_Member_Entry`` per collection.
+    """
+    entries = ''.join(
+        '  <Bundle_Member_Entry><lid_reference>'
+        f'urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:{name}'
+        '</lid_reference></Bundle_Member_Entry>\n'
+        for name in collections
+    )
+    return (
+        f'<Product_Bundle xmlns="{PDS4_NAMESPACE}">\n'
+        '  <lid>$BUNDLE_LID$</lid>\n'
+        '  <start>$EARLIEST_START_DATE_TIME$</start>\n'
+        '  <stop>$LATEST_STOP_DATE_TIME$</stop>\n'
+        f'{entries}</Product_Bundle>\n'
+    )
+
+
 # Minimal pdstemplate templates.  Each references only variables the module under
-# test injects itself (BACKPLANE_*/BROWSE_FULL_*/COLLECTION_*/FILE_RECORDS) plus
-# the LID variables served by FakePds4DataSet.pds4_template_variables, so the
-# tests exercise the substitution plumbing without depending on the shipped
-# draft template content.
+# test injects itself (BACKPLANE_*/BROWSE_FULL_*/COLLECTION_*/FILE_RECORDS and the
+# run-level products' paths) plus the LID variables served by
+# FakePds4DataSet.pds4_template_variables, so the tests exercise the substitution
+# plumbing without depending on the shipped draft template content.
 DATA_TEMPLATE = (
     '<Product_Observational>\n'
     '  <lid>$DATA_LID$</lid>\n'
@@ -64,19 +124,81 @@ BROWSE_TEMPLATE = (
     '  <png>$BROWSE_FULL_FILENAME$</png>\n'
     '</Product_Browse>\n'
 )
-COLLECTION_DATA_TEMPLATE = (
-    '<Collection_Data>\n'
+COLLECTION_DATA_TEMPLATE = collection_template(
+    'data',
     '  <csv>$COLLECTION_DATA_CSV_PATH$</csv>\n'
     '  <start>$EARLIEST_START_DATE_TIME$</start>\n'
-    '  <stop>$LATEST_STOP_DATE_TIME$</stop>\n'
-    '</Collection_Data>\n'
+    '  <stop>$LATEST_STOP_DATE_TIME$</stop>\n',
 )
-COLLECTION_BROWSE_TEMPLATE = (
-    '<Collection_Browse>\n  <csv>$COLLECTION_BROWSE_CSV_PATH$</csv>\n</Collection_Browse>\n'
+COLLECTION_BROWSE_TEMPLATE = collection_template(
+    'browse', '  <csv>$COLLECTION_BROWSE_CSV_PATH$</csv>\n'
 )
 GLOBAL_INDEX_TEMPLATE = '<Index>\n  <records>$FILE_RECORDS$</records>\n</Index>\n'
 BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
 """A template naming a variable no caller defines, so the render errors."""
+
+USER_GUIDE_NAME = 'fake-user-guide.pdf'
+"""The user guide the fake dataset names, in its template directory and in a bundle."""
+
+USER_GUIDE_PDF = '%PDF-1.4 a stand-in user guide\n'
+"""The stand-in user guide's content."""
+
+RUN_LEVEL_FILES = {
+    'bundle.lblx': bundle_template(BUNDLE_COLLECTIONS),
+    'readme.txt': 'A stand-in readme.\n',
+    'collection_context.csv': 'S,urn:nasa:pds:context:instrument:fake::1.0\n',
+    'collection_context.lblx': collection_template(
+        'context', '  <csv>$COLLECTION_CONTEXT_CSV_PATH$</csv>\n'
+    ),
+    'collection_document.csv': (
+        'S,urn:nasa:pds:context:instrument:fake::1.0\n'
+        f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0\n'
+    ),
+    'collection_document.lblx': collection_template(
+        'document', '  <csv>$COLLECTION_DOCUMENT_CSV_PATH$</csv>\n'
+    ),
+    'collection_spice_kernels.csv': (
+        f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:spice_kernels:kernels::1.0\n'
+    ),
+    'collection_spice_kernels.lblx': collection_template(
+        'spice_kernels', '  <csv>$COLLECTION_SPICE_KERNELS_CSV_PATH$</csv>\n'
+    ),
+    'collection_xml_schema.csv': 'S,urn:nasa:pds:system_bundle:xml_schema:fake::1.0\n',
+    'collection_xml_schema.lblx': collection_template(
+        'xml_schema', '  <csv>$COLLECTION_XML_SCHEMA_CSV_PATH$</csv>\n'
+    ),
+    'kernels.ker': 'KPL/MK\n',
+    'kernels.lblx': '<Product_SPICE_Kernel>$METAKERNEL_PATH$</Product_SPICE_Kernel>\n',
+    'fake-user-guide.lblx': '<Product_Document>$USER_GUIDE_PATH$</Product_Document>\n',
+}
+"""The files the summary pass takes from the template directory for the run-level products.
+
+The templates it renders and the files it copies, and their stand-in content.  The user
+guide itself is not among them, since a bundle is written without it when the template
+directory does not hold it.
+"""
+
+RUN_LEVEL_PRODUCTS = (
+    'bundle.lblx',
+    'readme.txt',
+    'context/collection_context.csv',
+    'context/collection_context.lblx',
+    'document/collection_document.csv',
+    'document/collection_document.lblx',
+    'document/user_guide/fake-user-guide.pdf',
+    'document/user_guide/fake-user-guide.lblx',
+    'spice_kernels/collection_spice_kernels.csv',
+    'spice_kernels/collection_spice_kernels.lblx',
+    'spice_kernels/kernels.ker',
+    'spice_kernels/kernels.lblx',
+    'xml_schema/collection_xml_schema.csv',
+    'xml_schema/collection_xml_schema.lblx',
+)
+"""Every run-level product the summary pass writes into a stand-in bundle, relative to it.
+
+The template directory :func:`make_bundle_env` writes holds the user guide, so its copy
+and label are among them.
+"""
 
 LABELS_TEMPLATES = {'data.lblx': DATA_TEMPLATE, 'browse.lblx': BROWSE_TEMPLATE}
 """The templates the per-image labels pass renders, and their fake bodies."""
@@ -86,14 +208,12 @@ SUMMARY_TEMPLATES = {
     'collection_browse.lblx': COLLECTION_BROWSE_TEMPLATE,
     'global_index_bodies.lblx': GLOBAL_INDEX_TEMPLATE,
     'global_index_rings.lblx': GLOBAL_INDEX_TEMPLATE,
+    **RUN_LEVEL_FILES,
 }
-"""The templates the summary pass renders, and their fake bodies."""
+"""The files the summary pass takes from the template directory, and their fake content."""
 
 DEFAULT_TEMPLATES = LABELS_TEMPLATES | SUMMARY_TEMPLATES
-"""Every template the fake dataset declares, which is every one it is given."""
-
-DEFAULT_BUNDLE_NAME = 'fake_bundle'
-DEFAULT_SHARD = 'shard0'
+"""Every file the fake dataset declares, which is every one it is given."""
 
 
 class FakePds4DataSet:
@@ -168,6 +288,10 @@ class FakePds4DataSet:
         if pds4_pass == 'labels':
             return list(LABELS_TEMPLATES)
         return list(SUMMARY_TEMPLATES)
+
+    def pds4_user_guide_file_name(self) -> str:
+        """Return the user guide's file name, which :func:`make_bundle_env` writes."""
+        return USER_GUIDE_NAME
 
     def pds4_path_stub(self, image_file: ImageFile) -> str:
         """Return ``<shard>/<image name>`` as the per-image bundle path stub.
@@ -364,9 +488,9 @@ def make_bundle_env(
         results_path_stub: The image's results path stub; ``res/<image_name>``
             when None.
         template_contents: Template files written over the default set, which
-            holds every template the fake dataset declares.  A test naming one
-            replaces that one and keeps the rest, because a dataset is required
-            to carry all of them.
+            holds every file the fake dataset declares and its user guide.  A test
+            naming one replaces that one and keeps the rest, because a dataset is
+            required to carry all of them.
         template_variables: Variables served by the fake dataset's
             ``pds4_template_variables`` hook; defaults to DATA_LID / BROWSE_LID
             entries matching ``image_name``.
@@ -377,7 +501,8 @@ def make_bundle_env(
         The populated :class:`BundleEnv`.
     """
     template_dir = tmp_path / 'templates'
-    write_templates(template_dir, DEFAULT_TEMPLATES | (template_contents or {}))
+    user_guide = {USER_GUIDE_NAME: USER_GUIDE_PDF}
+    write_templates(template_dir, DEFAULT_TEMPLATES | user_guide | (template_contents or {}))
 
     if template_variables is None:
         template_variables = {
@@ -668,12 +793,43 @@ def make_cohort_bundle_env(cohort: Cohort, tmp_path: Path) -> CohortBundleEnv:
     )
 
 
+def label_cohort_images(env: CohortBundleEnv, stubs: Sequence[str]) -> None:
+    """Run the labels pass over some of the environment's cohort images, in turn.
+
+    Parameters:
+        env: The environment whose cohort the images are from and whose bundle the
+            labels go into.
+        stubs: The images to label, by results path stub.
+    """
+    for stub in stubs:
+        generate_bundle_data_files(
+            env.dataset,
+            env.cohort.batch(stub),
+            nav_results_root=FCPath(env.cohort.nav_results_root),
+            backplane_results_root=FCPath(env.cohort.backplane_results_root),
+            bundle_results_root=FCPath(env.bundle_results_root),
+            logger=MAIN_LOGGER,
+        )
+
+
+def summarize_bundle(env: CohortBundleEnv) -> None:
+    """Run the summary pass's three generators over the environment's bundle.
+
+    They run in the order the pass runs them: the global index first, whose range of
+    the products' epochs the collection generator and the run-level products are
+    handed, and the run-level products last.
+
+    Parameters:
+        env: The environment whose bundle is summarized.
+    """
+    bundle_results_root = FCPath(env.bundle_results_root)
+    index = generate_global_index_files(bundle_results_root, env.dataset, MAIN_LOGGER)
+    generate_collection_files(bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs)
+    generate_bundle_products(bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs)
+
+
 def write_cohort_bundle(cohort: Cohort, tmp_path: Path, stubs: Sequence[str]) -> CohortBundleEnv:
     """Build a bundle over some of a cohort's images, running both passes.
-
-    The labels pass runs over each image in turn.  Then the summary pass's two
-    generators run in the order the pass runs them: the global index first, whose
-    range of the products' epochs the collection generator is handed.
 
     Parameters:
         cohort: The session's cohort, holding the navigation and backplane roots the
@@ -685,16 +841,6 @@ def write_cohort_bundle(cohort: Cohort, tmp_path: Path, stubs: Sequence[str]) ->
         The environment the bundle was written into.
     """
     env = make_cohort_bundle_env(cohort, tmp_path)
-    bundle_results_root = FCPath(env.bundle_results_root)
-    for stub in stubs:
-        generate_bundle_data_files(
-            env.dataset,
-            cohort.batch(stub),
-            nav_results_root=FCPath(cohort.nav_results_root),
-            backplane_results_root=FCPath(cohort.backplane_results_root),
-            bundle_results_root=bundle_results_root,
-            logger=MAIN_LOGGER,
-        )
-    index = generate_global_index_files(bundle_results_root, env.dataset, MAIN_LOGGER)
-    generate_collection_files(bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs)
+    label_cohort_images(env, stubs)
+    summarize_bundle(env)
     return env

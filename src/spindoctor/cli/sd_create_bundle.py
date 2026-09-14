@@ -4,7 +4,8 @@
 #
 # Top-level driver for PDS4 bundle generation. Enumerates images via datasets
 # and, for each, generates PDS4 labels and metadata files. Also supports
-# generating collection files and global index files.
+# generating the global index files, the collection files and the bundle's
+# run-level products.
 ################################################################################
 
 import argparse
@@ -21,6 +22,7 @@ sys.path.insert(0, package_source_path)
 
 from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_products import generate_bundle_products
 from spindoctor.cli.pds4.collections import (
     generate_collection_files,
     generate_global_index_files,
@@ -385,8 +387,13 @@ def main_summary() -> None:
     A bundle with no data directory is refused before anything is cleared, since it
     is not a tree a labels pass wrote.
 
-    The run ends with exit status 1 when a collection or index label was not written
-    or an image's products disagree, and its closing error gives both counts.
+    The run-level products are written last: the readme, the static collections, the
+    user guide when the template directory holds it, and the bundle label, which states
+    the same range and declares every collection, so it waits for them all and is not
+    kept over a bundle missing one.
+
+    The run ends with exit status 1 when a collection, index or run-level label was not
+    written or an image's products disagree, and its closing error gives both counts.
     """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
@@ -440,7 +447,24 @@ def main_summary() -> None:
         MAIN_LOGGER.exception('Failed to generate collection files: %s', exc)
         sys.exit(1)
 
-    failed_labels = index.failed_labels + collection_outcome.failed_labels
+    # The run-level products last: the bundle label declares every collection, so it is
+    # kept only once they are all on disk, and it states the range the index took.
+    try:
+        bundle_outcome = generate_bundle_products(
+            bundle_results_root=bundle_results_root,
+            dataset=dataset,
+            logger=MAIN_LOGGER,
+            epochs=index.epochs,
+        )
+    except Exception as exc:
+        # The logger's exception() writes the frames but not the exception's own
+        # text, which is the reason, so the text is handed to it.
+        MAIN_LOGGER.exception('Failed to generate the bundle products: %s', exc)
+        sys.exit(1)
+
+    failed_labels = (
+        index.failed_labels + collection_outcome.failed_labels + bundle_outcome.failed_labels
+    )
     if failed_labels > 0 or collection_outcome.disagreeing_images > 0:
         MAIN_LOGGER.error(
             'Summary generation incomplete: %d label(s) were not written, '

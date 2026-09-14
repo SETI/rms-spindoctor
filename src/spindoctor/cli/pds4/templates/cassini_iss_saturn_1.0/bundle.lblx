@@ -173,7 +173,7 @@
     </Context_Area>
     <Reference_List>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:backplanes-user-guide</lid_reference>
+            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide</lid_reference>
             <reference_type>bundle_to_document</reference_type>
             <comment>
                 This is the user guide for the backplanes for navigated images from Cassini ISS at Saturn.
@@ -194,6 +194,7 @@
     <File_Area_Text>
         <File>
             <file_name>readme.txt</file_name>
+            <creation_date_time>$FILE_ZULU(README_PATH)$</creation_date_time>
         </File>
         <Stream_Text>
             <offset unit="byte">0</offset>
@@ -220,6 +221,11 @@
         <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document</lid_reference>
         <member_status>Primary</member_status>
         <reference_type>bundle_has_document_collection</reference_type>
+    </Bundle_Member_Entry>
+    <Bundle_Member_Entry>
+        <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:spice_kernels</lid_reference>
+        <member_status>Primary</member_status>
+        <reference_type>bundle_has_spice_kernel_collection</reference_type>
     </Bundle_Member_Entry>
     <Bundle_Member_Entry>
         <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:xml_schema</lid_reference>

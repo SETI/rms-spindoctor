@@ -2,7 +2,7 @@ import argparse
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, ClassVar, Literal, cast
 
 from filecache import FCPath
@@ -14,6 +14,23 @@ Pds4Pass = Literal['labels', 'summary']
 """Which pass of PDS4 bundle generation a set of templates belongs to:
 ``labels`` for the per-image pass, ``summary`` for the collection and index
 pass."""
+
+
+def pds4_label_name(file_name: str) -> str:
+    """Return the name of the PDS4 label that describes a file, which sits beside it.
+
+    A label takes the name of the file it describes with the suffix ``.lblx``: the
+    metakernel ``kernels.ker`` is described by ``kernels.lblx``, and a user guide
+    ``guide.pdf`` by ``guide.lblx``, the name its template has in the template directory
+    too.
+
+    Parameters:
+        file_name: The described file's name, with no directory part.
+
+    Returns:
+        The label's name.
+    """
+    return PurePosixPath(file_name).with_suffix('.lblx').name
 
 
 @dataclass
@@ -266,20 +283,38 @@ class DataSet(ABC, NavBase):
         raise NotImplementedError
 
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
-        """Returns the template filenames one bundle pass must find for this dataset.
+        """Returns the file names one bundle pass must find in the template directory.
 
-        Each pass checks these before it processes anything, in the directory
-        :meth:`pds4_bundle_template_dir` names, and refuses to run when one of
-        them is not there.  Every product of a pass renders from the same
-        directory, so a template that is missing is missing for every image, and
-        saying so once is the whole of the report.
+        These are the templates the pass renders and the files it copies from the
+        directory :meth:`pds4_bundle_template_dir` names.  Each pass checks them before
+        it processes anything and refuses to run when one of them is not there.  Every
+        product of a pass comes from the same directory, so a file that is missing is
+        missing for every image, and saying so once is the whole of the report.  The
+        user guide :meth:`pds4_user_guide_file_name` names is not among them: a bundle
+        is written without it when the directory does not hold it.
 
         Parameters:
-            pds4_pass: Which pass's templates to name: ``labels`` for the
-                per-image pass, ``summary`` for the collection and index pass.
+            pds4_pass: Which pass's files to name: ``labels`` for the per-image pass,
+                ``summary`` for the pass writing the collections, the index and the
+                bundle's run-level products.
 
         Returns:
-            The filenames, relative to the template directory.
+            The file names, relative to the template directory.
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_user_guide_file_name(self) -> str:
+        """Returns the file name of the bundle's user guide, a PDF, in the template directory.
+
+        The summary pass copies the guide into the bundle's ``document/user_guide/``
+        when the template directory holds it, and renders its label beside it from the
+        template :func:`pds4_label_name` names for it.  When the directory does not
+        hold it, the bundle holds no guide and the pass says so.
+
+        Returns:
+            The guide's file name, relative to the template directory.
         """
         # We don't make PDS4 methods as @abstractmethod because it's possible to make
         # a DataSet that doesn't support PDS4 bundle generation
