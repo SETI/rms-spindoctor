@@ -95,7 +95,7 @@ Public fields (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
   ``g_u``.
 - :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.image_edge_dt_ext` — Optional shared
   Euclidean distance transform of the thresholded gradient image. It is not signed: the values are
-  non-negative everywhere and the zero locus is the edge pixels themselves, at their own centres,
+  non-negative everywhere and the zero locus is the edge pixels themselves, at their own centers,
   not an oriented boundary running along pixel edges half a pixel away.
 - :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.prior_offset_px` — pass-2 prior
   offset; ``None`` on pass 1.
