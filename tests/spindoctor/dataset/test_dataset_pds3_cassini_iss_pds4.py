@@ -168,7 +168,7 @@ def test_cassini_default_bundle_name_from_config(tmp_path: Path) -> None:
 
 
 def test_cassini_shipped_configuration_sets_the_bundle_version() -> None:
-    """The shipped pds4.coiss_saturn block sets the bundle's version, as a PDS4 version_id.
+    """The shipped pds4.coiss_saturn block sets the bundle's version as a PDS4 version_id.
 
     The version is read from the configuration alone, with no default, so the shipped
     configuration has to give it; and it has to be text of the form the schema's

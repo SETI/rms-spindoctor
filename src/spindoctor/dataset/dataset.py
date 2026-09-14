@@ -53,12 +53,12 @@ class Pds4Schema:
 
     @property
     def xsd(self) -> str:
-        """The URL of the dictionary's XML schema: its location ending in ``.xsd``."""
+        """The URL of the dictionary's XML schema, its location ending in ``.xsd``."""
         return f'{self.location}.xsd'
 
     @property
     def sch(self) -> str:
-        """The URL of the dictionary's Schematron: its location ending in ``.sch``."""
+        """The URL of the dictionary's Schematron, its location ending in ``.sch``."""
         return f'{self.location}.sch'
 
 
@@ -312,7 +312,7 @@ class DataSet(ABC, NavBase):
         raise NotImplementedError
 
     def pds4_bundle_version(self) -> str:
-        """Returns the version of the bundle, which each of the bundle's own products carries.
+        """Returns the bundle's version, which each of the bundle's own products carries.
 
         The bundle, each of its collections and each product it writes states it as its
         ``version_id``, and every LIDVID naming one of them carries it.  A reference to a
@@ -329,8 +329,8 @@ class DataSet(ABC, NavBase):
         """Returns the information model version the bundle's labels are written against.
 
         Every label states it, and the common dictionary's Schematron requires the version
-        its own build is of, so it moves with the ``pds`` schema :meth:`pds4_schemas`
-        gives.
+        its own build is of, so it moves with the ``pds`` schema
+        :meth:`~spindoctor.dataset.dataset.DataSet.pds4_schemas` gives.
 
         Returns:
             The version, in the PDS4 four-part form (e.g., "1.24.0.0").

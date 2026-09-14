@@ -285,7 +285,7 @@ def test_a_schema_moved_in_the_configuration_moves_in_every_label_declaring_it(
 def test_every_label_states_the_configured_information_model_version(
     cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
 ) -> None:
-    """Every label of the bundle states the information model version the configuration gives."""
+    """Every label states the information model version the configuration gives."""
     env = _bundle_under(
         cassini_cohort, tmp_path, {'information_model_version': OTHER_INFORMATION_MODEL_VERSION}
     )
