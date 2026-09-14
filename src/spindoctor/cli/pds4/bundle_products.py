@@ -5,18 +5,22 @@ collections are on disk, since the bundle label declares every collection the bu
 holds and is kept only over a bundle that holds them all.  Each is rendered from a
 template in the dataset's template directory or copied from it:
 
-- ``readme.txt``, copied to the bundle's own directory;
+- ``readme.txt``, rendered into the bundle's own directory;
 - the user guide, a PDF the template directory holds or does not, copied into
   ``document/user_guide/`` with its label rendered beside it when it is there;
 - the metakernel ``kernels.ker``, copied into ``spice_kernels/``, with its label
   ``kernels.lblx`` rendered beside it;
 - the context, document, SPICE kernel and XML schema collections, each an inventory the
-  template directory ships, written into the collection's directory with a collection
-  label rendered over it: the document and SPICE kernel inventories as they are but for
-  a primary member whose label is not in the bundle, the XML schema inventory as it is,
-  and the context inventory with every target the data labels name listed after the
-  template directory's members;
+  template directory ships, rendered into the collection's directory with a collection
+  label rendered over it: the document and SPICE kernel inventories as they render but
+  for a primary member whose label is not in the bundle, the XML schema inventory as it
+  renders, and the context inventory with every target the data labels name listed
+  after the template directory's members;
 - ``bundle.lblx``, rendered last.
+
+Every template is handed the variables
+:func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` gives each template of the
+bundle beside its own.
 """
 
 import contextlib
@@ -30,6 +34,7 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.targets import Pds4Target
@@ -199,9 +204,11 @@ class BundleProductsOutcome:
 
     Attributes:
         failed_labels: The number of run-level labels not written: each that could not be
-            rendered; each static collection left with no member, whose inventory and
-            label are not written; and the bundle label when there is no time range for
-            it to state or the bundle holds no label for a collection it declares.
+            rendered, and the readme when it could not be; each static collection whose
+            inventory could not be rendered or which was left with no member, whose
+            inventory and label are not written; and the bundle label when there is no
+            time range for it to state or the bundle holds no label for a collection it
+            declares.
     """
 
     failed_labels: int
@@ -214,17 +221,17 @@ def _render(
     *,
     logger: PdsLogger,
 ) -> bool:
-    """Render the template of a label's own name into that label.
+    """Render the template of a file's own name into that file, a label or the readme.
 
     Parameters:
         template_dir: The dataset's template directory, which holds the template under
-            the label's name.
-        label: Where the label goes.
+            the file's name.
+        label: Where the file goes.
         template_vars: The variables the template resolves against.
         logger: Logger for diagnostic messages.
 
     Returns:
-        True if the label is on disk, False if it is not.
+        True if the file is on disk, False if it is not.
 
     Raises:
         FileNotFoundError: If the template is not in the template directory.
@@ -305,7 +312,7 @@ def _write_bundle_label(
     template_dir: FCPath,
     bundle_root: FCPath,
     *,
-    bundle_name: str,
+    variables: dict[str, Any],
     epochs: EpochRange | None,
     targets: Sequence[Pds4Target],
     logger: PdsLogger,
@@ -321,7 +328,8 @@ def _write_bundle_label(
     Parameters:
         template_dir: The dataset's template directory.
         bundle_root: The bundle's own directory.
-        bundle_name: The bundle's name, the last part of its LID.
+        variables: The variables every template of the bundle resolves against, its LID
+            among them.
         epochs: The earliest start and the latest stop of the products' exposures, or
             None when no data label in the data tree has a supplemental file beside it.
         targets: Every target the products name, handed to the template as ``TARGETS``.
@@ -339,11 +347,11 @@ def _write_bundle_label(
             label,
         )
         return False
-    template_vars: dict[str, Any] = {
-        'BUNDLE_LID': f'urn:nasa:pds:{bundle_name}',
-        'README_PATH': (bundle_root / _README).as_posix(),
-        'TARGETS': targets,
-    } | epochs.template_variables()
+    template_vars: dict[str, Any] = (
+        variables
+        | {'README_PATH': (bundle_root / _README).as_posix(), 'TARGETS': targets}
+        | epochs.template_variables()
+    )
     template = pdstemplate.PdsTemplate((template_dir / _BUNDLE_LABEL).as_posix())
     if not write_label(template, template_vars, label, logger=logger):
         return False
@@ -376,9 +384,11 @@ def generate_bundle_products(
 
     Each product goes into the bundle's own directory,
     ``<bundle_results_root>/<pds4_bundle_name()>``, from the dataset's template
-    directory:
+    directory, and every template is handed the variables
+    :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` gives each template of
+    the bundle beside those named below:
 
-    - ``readme.txt`` is copied to the bundle's root.
+    - ``readme.txt`` is rendered at the bundle's root.
     - The user guide, the PDF
       :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name` names, is
       copied into ``document/user_guide/`` when the template directory holds it, and
@@ -389,24 +399,25 @@ def generate_bundle_products(
       beside it, handed the copy's path as ``METAKERNEL_PATH`` and the products' targets
       as ``TARGETS``, since a SPICE kernel label names its targets.
     - For each of the context, document, SPICE kernel and XML schema collections, the
-      inventory ``collection_<name>.csv`` is written into the collection's directory
-      and the label ``collection_<name>.lblx`` rendered beside it, handed the
-      inventory's path as ``COLLECTION_<NAME>_CSV_PATH`` and the products' targets as
-      ``TARGETS``, which the SPICE kernel collection's label names.  Each inventory is the
-      template directory's, as it is, except that its primary members, the products of
-      this bundle it lists as ``P`` -- the user guide in the document collection, the
-      metakernel in the SPICE kernel collection -- are listed only when their labels
-      are in the bundle, and that the context inventory lists every target in
-      ``targets`` after the template directory's lines, one ``S,<lidvid>`` line each, at
-      the version the targets table gives it.  A collection left with no member is not
-      written at all, neither its inventory nor its label, whatever is at either path is
-      removed, and it counts once as a label not written, with an error naming it: the
-      SPICE kernel collection, whose one member is the metakernel, is not written when
-      the metakernel's label is not.
-    - ``bundle.lblx`` is rendered last, at the bundle's root, handed ``BUNDLE_LID``,
-      ``urn:nasa:pds:<bundle name>``, ``README_PATH``, the range of the products'
-      epochs as the data collection label states it, and the products' targets as
-      ``TARGETS``, as the data collection label names them.  With no range it is not
+      inventory ``collection_<name>.csv`` is rendered into the collection's directory
+      from the template of that name, and the label ``collection_<name>.lblx`` rendered
+      beside it, handed the inventory's path as ``COLLECTION_<NAME>_CSV_PATH`` and the
+      products' targets as ``TARGETS``, which the SPICE kernel collection's label names.
+      Each inventory is the template directory's, as it renders, except that its primary
+      members, the products of this bundle it lists as ``P`` -- the user guide in the
+      document collection, the metakernel in the SPICE kernel collection -- are listed
+      only when their labels are in the bundle, and that the context inventory lists
+      every target in ``targets`` after the template directory's lines, one
+      ``S,<lidvid>`` line each, at the version the targets table gives it.  A collection
+      whose inventory does not render, or which is left with no member, is not written at
+      all, neither its inventory nor its label, whatever is at either path is removed,
+      and it counts once as a label not written, with an error naming the inventory or
+      the collection: the SPICE kernel collection, whose one member is the metakernel, is
+      not written when the metakernel's label is not.
+    - ``bundle.lblx`` is rendered last, at the bundle's root, handed ``README_PATH``, the
+      range of the products' epochs as the data collection label states it, and the
+      products' targets as ``TARGETS``, as the data collection label names them.  With no
+      range it is not
       rendered.  Rendered, it is kept only when every collection it declares in a
       ``Bundle_Member_Entry`` has a label one directory below the bundle's root,
       ``collection_*.lblx``, declaring that LID as its logical identifier; otherwise it
@@ -414,7 +425,8 @@ def generate_bundle_products(
       label not written.
 
     Every label is attempted, whichever of them fail, and a label that fails to render
-    is counted; a file copied stays whether or not its label renders.  What this removes
+    is counted, as the readme is; a file copied stays whether or not its label renders.
+    What this removes
     itself is each label just before it renders it, as ``write_label`` does for every
     label, and what is said above of a collection left with no member and of the bundle
     label.  The summary pass clears the rest of an earlier run's products through
@@ -444,11 +456,12 @@ def generate_bundle_products(
     """
     bundle_results_root = FCPath(bundle_results_root)
     template_dir = FCPath(dataset.pds4_bundle_template_dir())
-    bundle_name = dataset.pds4_bundle_name()
-    bundle_root = bundle_results_root / bundle_name
+    bundle_root = bundle_results_root / dataset.pds4_bundle_name()
+    variables = bundle_variables(dataset)
     failed_labels = 0
 
-    _copy(template_dir / _README, bundle_root / _README, logger=logger)
+    if not _render(template_dir, bundle_root / _README, variables, logger=logger):
+        failed_labels += 1
 
     # The user guide is an operator deliverable the template directory may not hold yet;
     # a bundle without it holds no guide and its document inventory lists none.
@@ -466,14 +479,14 @@ def generate_bundle_products(
     else:
         user_guide.write_bytes(guide)
         logger.info('Copied "%s": %s', user_guide.name, user_guide)
-        guide_vars = {'USER_GUIDE_PATH': user_guide.as_posix()}
+        guide_vars = variables | {'USER_GUIDE_PATH': user_guide.as_posix()}
         guide_labeled = _render(template_dir, _label_beside(user_guide), guide_vars, logger=logger)
         if not guide_labeled:
             failed_labels += 1
 
     metakernel = bundle_root / 'spice_kernels' / _METAKERNEL
     _copy(template_dir / _METAKERNEL, metakernel, logger=logger)
-    metakernel_vars = {'METAKERNEL_PATH': metakernel.as_posix(), 'TARGETS': targets}
+    metakernel_vars = variables | {'METAKERNEL_PATH': metakernel.as_posix(), 'TARGETS': targets}
     metakernel_labeled = _render(
         template_dir, _label_beside(metakernel), metakernel_vars, logger=logger
     )
@@ -504,7 +517,16 @@ def generate_bundle_products(
     for name in _STATIC_COLLECTIONS:
         inventory = _inventory(bundle_root, name)
         label = _label_beside(inventory)
-        content = bytes((template_dir / inventory.name).read_bytes())
+        # The inventory the template directory ships is rendered, as a label is, since the
+        # lines naming the bundle's own members are written from the bundle's variables.
+        # One that does not render has no member to list; its label is not rendered over
+        # the file that is not there, and the collection counts.
+        inventory_template = pdstemplate.PdsTemplate((template_dir / inventory.name).as_posix())
+        if not write_label(inventory_template, variables, inventory, logger=logger):
+            label.unlink(missing_ok=True)
+            failed_labels += 1
+            continue
+        content = bytes(inventory.read_bytes())
         if not keeps_primaries[name]:
             content = _without_primary_members(content)
         content += b''.join(
@@ -529,7 +551,7 @@ def generate_bundle_products(
             continue
         inventory.write_bytes(content)
         logger.info('Generated "%s": %s', inventory.name, inventory)
-        inventory_vars = {
+        inventory_vars = variables | {
             f'COLLECTION_{name.upper()}_CSV_PATH': inventory.as_posix(),
             'TARGETS': targets,
         }
@@ -539,7 +561,7 @@ def generate_bundle_products(
     if not _write_bundle_label(
         template_dir,
         bundle_root,
-        bundle_name=bundle_name,
+        variables=variables,
         epochs=epochs,
         targets=targets,
         logger=logger,

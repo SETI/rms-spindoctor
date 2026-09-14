@@ -37,6 +37,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.bundle_products import clear_bundle_products, secondary_members
+from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.collections import (
     clear_collection_products,
     data_directory,
@@ -461,6 +462,7 @@ def _write_index(
     rows: list[list[str]],
     *,
     lid: str,
+    variables: Mapping[str, Any],
     template: pdstemplate.PdsTemplate,
     logger: PdsLogger,
 ) -> IndexWritten:
@@ -471,7 +473,7 @@ def _write_index(
     cannot be described: neither it nor its label is written.  That is no failure, since
     a bundle can hold no image with ring backplanes, and the log says so at info level.
     Otherwise the table is laid out by :func:`lay_out_table` and written as ASCII, and
-    then its label is rendered from ``template``, handed:
+    then its label is rendered from ``template``, handed ``variables`` and:
 
     - ``INDEX_LID``, the product's LID;
     - ``INDEX_TABLE_PATH``, the table's path, from which the label reads its size,
@@ -491,6 +493,8 @@ def _write_index(
         columns: The table's columns, in order.
         rows: The table's rows, each holding one rendered cell per column.
         lid: The product's LID.
+        variables: The variables every template of the bundle resolves against, as
+            :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` gives them.
         template: The parsed template the label renders from.
         logger: Logger for diagnostic messages.
 
@@ -511,6 +515,7 @@ def _write_index(
         f.writelines(laid_out.records)
     logger.info('Generated "%s" with %d rows', table.name, len(rows))
     template_vars = {
+        **variables,
         'INDEX_LID': lid,
         'INDEX_TABLE_PATH': table.as_posix(),
         'HEADER_LENGTH': len(laid_out.header),
@@ -659,6 +664,7 @@ def generate_global_index_files(
     bundle_name = dataset.pds4_bundle_name()
     template_dir = FCPath(dataset.pds4_bundle_template_dir())
     bundle_root = bundle_results_root / bundle_name
+    variables = bundle_variables(dataset)
     config = dataset.config
 
     # Each configured plane and the two columns its statistic fills, from its
@@ -790,6 +796,7 @@ def generate_global_index_files(
         ],
         body_index_rows,
         lid=index_lid(bundle_name, BODIES_INDEX),
+        variables=variables,
         template=bodies_template,
         logger=logger,
     )
@@ -809,6 +816,7 @@ def generate_global_index_files(
         ],
         ring_index_rows,
         lid=index_lid(bundle_name, RINGS_INDEX),
+        variables=variables,
         template=rings_template,
         logger=logger,
     )
@@ -834,7 +842,8 @@ def generate_global_index_files(
         primaries=primaries,
         secondaries=secondary_members(template_dir),
         template=collection_template,
-        template_vars={'COLLECTION_MISCELLANEOUS_CSV_PATH': collection_inventory.as_posix()},
+        template_vars=variables
+        | {'COLLECTION_MISCELLANEOUS_CSV_PATH': collection_inventory.as_posix()},
         reasons_not_written=[] if primaries else [_NO_INDEX_PRODUCT],
         logger=logger,
     ):
