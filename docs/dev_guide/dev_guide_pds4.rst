@@ -38,9 +38,12 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    exposure epochs in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
    ``data/`` tree, collects every ``_backplanes.lblx`` it finds, sorts them by
-   image name, and writes the ``collection_data.tab`` and
-   ``collection_browse.tab`` inventories and their labels, the data collection
-   label stating the range it is handed.
+   image name, and writes the ``collection_data.csv`` and
+   ``collection_browse.csv`` inventories and their labels, the data collection
+   label stating the range it is handed.  An inventory lists one product per
+   line, as ``P,<LIDVID>``, with no header, and every line, the last included,
+   ends in a line feed alone, so the record count its label states is the
+   number of products the collection holds.
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
@@ -134,8 +137,8 @@ so it counts nothing against the run, including a batch it reports it could not
 have processed.
 
 ``sd_create_bundle summary`` counts the collection and index labels it did not
-write, over both generators, and exits 1 the same way.  The inventory and index
-``.tab`` tables are written either way.  The data collection label counts as not
+write, over both generators, and exits 1 the same way.  The inventories and the
+index tables are written either way.  The data collection label counts as not
 written when the data tree holds no supplemental file, and so no range for it to
 state (see `Epochs`_).  The global index is generated first, and it refuses a
 bundle with no ``data/`` directory, naming the directory, before any product of
@@ -145,7 +148,7 @@ configuration gives its plane, or a minimum or maximum that is NaN or infinite -
 the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  The index tables and
-labels an earlier run wrote, and its collection tables and labels, are cleared
+labels an earlier run wrote, and its collection inventories and labels, are cleared
 before the first supplemental file is read, the collection files by the index
 generator since it runs first.  Every supplemental file is read, and every value in
 both index tables rendered, before either table is opened, so a run refused over a
@@ -157,7 +160,7 @@ statistics; anything else unexpected raises, and the run ends with exit status 1
 The summary pass builds both inventories from the data labels in the bundle's
 ``data/`` tree and does not check that tree for completeness, so it can exit 0
 over a bundle the labels pass failed images in.  An image that got a data label
-but no browse label, its summary PNG missing, leaves ``collection_browse.tab``
+but no browse label, its summary PNG missing, leaves ``collection_browse.csv``
 listing a browse product that is not on disk.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
@@ -498,14 +501,14 @@ The two passes write this tree:
 
    <bundle_results_root>/<bundle_name>/
      data/
-       collection_data.tab                   # summary pass
+       collection_data.csv                   # summary pass
        collection_data.lblx                  # summary pass
        <pds4_bundle_path_for_image>/
          <image>_backplanes.lblx
          <image>_backplanes.fits             # copied from backplane_results_root
          <image>_supplemental.txt
      browse/
-       collection_browse.tab                 # summary pass
+       collection_browse.csv                 # summary pass
        collection_browse.lblx                # summary pass
        <pds4_bundle_path_for_image>/
          <image>_summary.lblx

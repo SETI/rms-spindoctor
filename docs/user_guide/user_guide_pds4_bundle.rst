@@ -38,13 +38,13 @@ The two passes write this directory structure:
 
    <bundle_name>/
    ├── browse/
-   │   ├── collection_browse.tab
+   │   ├── collection_browse.csv
    │   ├── collection_browse.lblx
    │   └── <directory_structure>/
    │       └── <image_name>_summary.lblx
    │       └── <image_name>_summary.png
    ├── data/
-   │   ├── collection_data.tab
+   │   ├── collection_data.csv
    │   ├── collection_data.lblx
    │   └── <directory_structure>/
    │       └── <image_name>_backplanes.lblx
@@ -271,12 +271,12 @@ The summary pass generates:
 
 * **Collection Data Files**:
 
-  * ``collection_data.tab``: CSV file listing all data products in the bundle
+  * ``collection_data.csv``: CSV file listing all data products in the bundle
   * ``collection_data.lblx``: PDS4 label for the data collection
 
 * **Collection Browse Files**:
 
-  * ``collection_browse.tab``: CSV file listing all browse products in the bundle
+  * ``collection_browse.csv``: CSV file listing all browse products in the bundle
   * ``collection_browse.lblx``: PDS4 label for the browse collection
 
 * **Global Index Files**:
