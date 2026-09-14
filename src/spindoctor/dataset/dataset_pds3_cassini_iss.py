@@ -9,18 +9,14 @@ from filecache import FCPath, FileCache
 
 from spindoctor.config import Config
 from spindoctor.support.misc import safe_lstrip_zero
-from spindoctor.support.time import et_to_pds4_utc, pds4_utc_midpoint
+from spindoctor.support.time import (
+    PDS4_EXPOSURE_TIME_DIGITS,
+    et_to_pds4_utc,
+    pds4_utc_midpoint,
+)
 
 from .dataset import ImageFile, ImageFiles, Pds4Pass, pds4_label_name
 from .dataset_pds3 import DataSetPDS3
-
-_PDS4_TIME_DIGITS = 3
-"""The decimals of a second a data label writes its exposure's times to.
-
-A millisecond, the precision a Cassini image's start and stop are recorded to in its
-PDS3 label and index.  Whole seconds, which the reference bundle writes for its mosaics,
-would state an exposure of a few milliseconds as a window of one or two seconds.
-"""
 
 
 class DataSetPDS3CassiniISS(DataSetPDS3):
@@ -665,10 +661,10 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         # midtime epoch of an odd-millisecond exposure sits on the half, either side.
         times = nav_metadata['navigation_result']['times']
         vars_dict['START_DATE_TIME'] = et_to_pds4_utc(
-            times['start_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
+            times['start_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
         )
         vars_dict['STOP_DATE_TIME'] = et_to_pds4_utc(
-            times['stop_et'], digits=_PDS4_TIME_DIGITS, rounding='nearest'
+            times['stop_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
         )
         vars_dict['IMAGE_MID_TIME'] = pds4_utc_midpoint(
             vars_dict['START_DATE_TIME'], vars_dict['STOP_DATE_TIME']

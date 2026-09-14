@@ -10,6 +10,16 @@ Pds4Rounding = Literal['nearest', 'down', 'up']
 _PDS4_ROUNDINGS: tuple[Pds4Rounding, ...] = ('nearest', 'down', 'up')
 """Every rounding :func:`et_to_pds4_utc` accepts."""
 
+PDS4_EXPOSURE_TIME_DIGITS = 3
+"""The decimals of a second a PDS4 product states an exposure's start and stop to.
+
+Milliseconds, each written through :func:`et_to_pds4_utc` and rounded to the nearest,
+which gives back a time recorded to the millisecond; whole seconds would state an
+exposure of a few milliseconds as a window of one or two.  A data label and the global
+index tables both state an image's start and stop with it, so a row's times are its
+data label's.
+"""
+
 
 def now_iso() -> str:
     """Returns the current time as an ISO 8601 formatted string with timezone information.
