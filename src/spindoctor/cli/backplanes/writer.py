@@ -5,6 +5,7 @@ from astropy.io import fits
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.backplanes.backplanes_bodies import backplane_body_names
 from spindoctor.config import IMAGE_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
 from spindoctor.support.file import json_as_string
@@ -94,7 +95,7 @@ def write_fits(
     else:
         closest_planet = snapshot.closest_planet
         if closest_planet:
-            body_list = [closest_planet, *config.satellites(closest_planet)]
+            body_list = backplane_body_names(closest_planet, config)
             inv = snapshot.inventory(body_list, return_type='full')
         else:
             inv = {}
