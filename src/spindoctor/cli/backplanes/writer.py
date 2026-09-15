@@ -238,8 +238,11 @@ def write_fits(
             master_by_type, ring_units, everywhere, masked_value=masked_value
         )
         # The ring longitude's range wrapped at zero as well, the arc its pixels cover,
-        # which a gap no wider than the coarsest pixel does not break
-        if RING_LONGITUDE in ring_statistics:
+        # which a gap no wider than the coarsest pixel does not break.  With no
+        # longitudinal resolution to measure a gap against -- a configuration declaring
+        # none, or a frame where that plane has no value -- no wrapped range is recorded,
+        # and the rest of the document is written as ever
+        if RING_LONGITUDE in ring_statistics and RING_LONGITUDINAL_RESOLUTION in ring_statistics:
             longitude = master_by_type[RING_LONGITUDE]
             ring_statistics[RING_LONGITUDE] = plane_statistics(
                 longitude[longitude != masked_value],

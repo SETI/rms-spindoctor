@@ -645,6 +645,25 @@ def test_the_ring_longitude_s_wrapped_range_measures_gaps_against_the_coarsest_p
     assert (statistic['wrapped_min'], statistic['wrapped_max']) == (0.0, 360.0)
 
 
+def test_a_ring_longitude_without_its_resolution_records_no_wrapped_range(tmp_path: Path) -> None:
+    """With no longitudinal resolution to measure gaps against, no wrapped range is recorded.
+
+    The configuration declares the ring longitude and not its resolution, so the image's
+    metadata records the longitude's plain range alone, and is written as ever.
+    """
+    longitude = np.full(SHAPE_VU, MASKED_VALUE, dtype=np.float32)
+    longitude.flat[:10] = np.radians(np.arange(10) * 6.0)
+    _, sidecar = _write(
+        tmp_path,
+        master={RING_LONGITUDE: longitude},
+        id_map=_id_map(),
+        config=FakeBackplanesConfig(bodies=[], rings=LONGITUDE_PLANES[:1]),
+        rings_result=RINGS_RESULT,
+    )
+    statistic = json.loads(sidecar.read_text())['rings']['backplanes'][RING_LONGITUDE]
+    assert statistic == {'min': 0.0, 'max': pytest.approx(54.0), 'units': 'deg'}
+
+
 def test_the_shipped_ring_longitude_and_its_resolution_are_in_radians() -> None:
     """The wrapped range is found in degrees, from these two planes' statistics."""
     units = {entry['name']: entry['units'] for entry in DEFAULT_CONFIG.backplanes.rings}
