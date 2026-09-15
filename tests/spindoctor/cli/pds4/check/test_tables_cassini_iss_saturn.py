@@ -26,6 +26,7 @@ from spindoctor.config import DEFAULT_CONFIG
 
 from ..cohort_bundle import write_cohort_bundle
 from .controls import (
+    SCHEMAS,
     copy_bundle,
     parse,
     substitute_once,
@@ -84,7 +85,7 @@ def _read(bundle_dir: Path, file: str) -> list[Finding]:
         The table reader's findings and the statistic column check's.
     """
     document = parse(bundle_dir / file)
-    schema = label_schema(file, document).schema
+    schema = label_schema(file, document, SCHEMAS).schema
     return table_findings(file, bundle_dir / file, document, schema) + statistic_column_findings(
         file, document, statistic_columns(DEFAULT_CONFIG)
     )

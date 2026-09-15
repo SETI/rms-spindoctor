@@ -1,8 +1,8 @@
 """The Schematron rules a label declares, evaluated as the ISO Schematron skeleton does.
 
 A label names each Schematron it is held to by an ``xml-model`` processing instruction
-before its root element, by URL, which is mapped to the shipped copy of the same file name
-(see :mod:`~spindoctor.cli.pds4.check.schemas`).  The rules are evaluated with
+before its root element, by URL, which is fetched or read from a directory as an XML
+schema's is (see :mod:`~spindoctor.cli.pds4.check.schemas`).  The rules are evaluated with
 elementpath's XPath 2.0 engine and matched the way the skeleton's XSLT matches them:
 
 - a node matches a rule when it is in ``//(context)`` evaluated from the document node, so
@@ -39,7 +39,7 @@ from lxml import etree
 
 from spindoctor.cli.pds4.check.elements import element_path, local_name
 from spindoctor.cli.pds4.check.findings import CheckName, Finding, Severity
-from spindoctor.cli.pds4.check.schemas import shipped_copy
+from spindoctor.cli.pds4.check.schemas import SchemaSource
 
 SCHEMATRON_NAMESPACE = 'http://purl.oclc.org/dsdl/schematron'
 """ISO Schematron's namespace, which an ``xml-model`` instruction names as its type."""
@@ -454,32 +454,28 @@ def _evaluate(file: str, tree: Any, schematron: _Schematron) -> list[Finding]:
     return findings
 
 
-def schematron_findings(file: str, document: Any) -> list[Finding]:
+def schematron_findings(file: str, document: Any, source: SchemaSource) -> list[Finding]:
     """Evaluate the rules of every Schematron a label declares over it.
 
     Parameters:
         file: The label's path relative to the bundle's directory, which findings name.
         document: The label, parsed by lxml.
+        source: Where the Schematron are taken from.
 
     Returns:
-        One finding for each Schematron it declares by a URL of which the package ships no
-        copy, and one for each assert that failed and each report that fired.
+        One finding for each Schematron it declares by a URL that cannot be resolved, and
+        one for each assert that failed and each report that fired.
     """
     findings: list[Finding] = []
     tree: Any = None
     for href in declared_schematron(document):
-        copy = shipped_copy(href)
-        if copy is None:
-            findings.append(
-                Finding(
-                    file,
-                    CheckName.SCHEMATRON,
-                    '',
-                    f'declares the Schematron {href}, of which the package ships no copy',
-                )
-            )
+        try:
+            path = source.locate(href)
+        except FileNotFoundError as exc:
+            message = f'declares the Schematron {href}, but {exc}'
+            findings.append(Finding(file, CheckName.SCHEMATRON, '', message))
             continue
         if tree is None:
             tree = get_node_tree(root=document)
-        findings.extend(_evaluate(file, tree, _compiled(copy)))
+        findings.extend(_evaluate(file, tree, _compiled(path)))
     return findings

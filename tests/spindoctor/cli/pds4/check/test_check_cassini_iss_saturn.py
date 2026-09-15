@@ -17,17 +17,23 @@ written without the guide's PDF does not hold, and which the PDS ``validate`` to
 reports as a warning too.  The build with the guide has none.
 
 A finding the check makes over these bundles that is not among these fails the test, and
-so does one of these the check stops making.
+so does one of these the check stops making.  The check reads the schemas from the local
+copies the tests keep, as ``--schema-dir`` has it do, and a test holds it to opening no
+connection while it does; one more, marked ``integration``, has it fetch the schemas by
+their URLs and holds it to the same findings.
 """
 
+import shutil
+import socket
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from filecache import FileCache
 from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
-from spindoctor.cli.pds4.check import CheckName, Finding, Severity, check_bundle
+from spindoctor.cli.pds4.check import CheckName, Finding, Severity, check_bundle, schemas
 from spindoctor.cli.pds4.check.elements import child_text
 
 from ..cohort_bundle import (
@@ -38,7 +44,7 @@ from ..cohort_bundle import (
     summarize_bundle,
     write_cohort_bundle,
 )
-from .controls import parse
+from .controls import SCHEMA_COPIES, parse
 
 NAVIGATED_STUBS = (LIMB_STUB, RINGS_STUB)
 """The cohort's two navigated images, by results path stub."""
@@ -137,7 +143,7 @@ def _check(env: CohortBundleEnv) -> _Checked:
         What it found, and the bundle's files before and after.
     """
     before = _snapshot(env.bundle_dir)
-    findings = check_bundle(env.bundle_dir, config=env.dataset.config)
+    findings = check_bundle(env.bundle_dir, config=env.dataset.config, schema_dir=SCHEMA_COPIES)
     return _Checked(env=env, findings=findings, before=before, after=_snapshot(env.bundle_dir))
 
 
@@ -276,3 +282,51 @@ def test_the_check_over_the_bundle_with_a_guide_warns_of_nothing(with_guide: _Ch
 def test_the_check_writes_nothing(plain: _Checked) -> None:
     """The check leaves every file of the bundle as it was, and adds none."""
     assert plain.after == plain.before
+
+
+def test_the_check_reading_the_local_copies_opens_no_connection(
+    plain: _Checked, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reading the schemas from a directory, the check fetches nothing.
+
+    The copies are copied afresh, so that the check builds every set of schemas and
+    compiles every Schematron again; the schema cache is an empty one of the test's own,
+    so that a fetch could not be met from an earlier one; and every connection the
+    process tries is refused and counted.
+    """
+    copies = tmp_path / 'schemas'
+    shutil.copytree(SCHEMA_COPIES, copies)
+    (tmp_path / 'cache').mkdir()
+    empty = FileCache('schemas', cache_root=tmp_path / 'cache')
+    monkeypatch.setattr(schemas, 'schema_cache', lambda: empty)
+    attempts: list[object] = []
+
+    def refuse(self: socket.socket, address: object) -> None:
+        """Count a connection, and refuse it.
+
+        Parameters:
+            address: Where the connection was to go.
+
+        Raises:
+            OSError: Always.
+        """
+        attempts.append(address)
+        raise OSError('the check tried to open a connection')
+
+    monkeypatch.setattr(socket.socket, 'connect', refuse)
+    check_bundle(plain.env.bundle_dir, config=plain.env.dataset.config, schema_dir=copies)
+    assert attempts == []
+
+
+@pytest.mark.integration
+def test_the_check_fetching_the_schemas_finds_what_it_finds_from_the_local_copies(
+    plain: _Checked, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fetched by their URLs, the schemas give the findings the local copies give.
+
+    The fetches go through a file cache of the test's own, so that each schema is fetched
+    here rather than found in a cache an earlier check left.
+    """
+    own = FileCache('schemas', cache_root=tmp_path)
+    monkeypatch.setattr(schemas, 'schema_cache', lambda: own)
+    assert check_bundle(plain.env.bundle_dir, config=plain.env.dataset.config) == plain.findings

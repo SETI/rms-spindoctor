@@ -12,6 +12,17 @@ from typing import Any
 from lxml import etree
 
 from spindoctor.cli.pds4.check.elements import child_text, element_path
+from spindoctor.cli.pds4.check.schemas import SchemaSource
+
+SCHEMA_COPIES = Path(__file__).resolve().parent / 'schemas'
+"""Local copies of the PDS4 schemas the cohort's labels name and those schemas import.
+
+Each is byte for byte the file its URL serves, under the name the URL ends in, so that
+the check's tests read the schemas from here and fetch nothing.
+"""
+
+SCHEMAS = SchemaSource(SCHEMA_COPIES)
+"""The schema source the check's tests take the schemas from: the local copies."""
 
 
 def copy_bundle(bundle_dir: Path, destination: Path) -> Path:
