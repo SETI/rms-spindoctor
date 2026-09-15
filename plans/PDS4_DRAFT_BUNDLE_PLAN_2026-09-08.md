@@ -2961,8 +2961,10 @@ runs it both in `scripts/run-all-checks.sh` and in CI, with no script step of
 its own. It builds the cohort bundle twice through
 `tests/spindoctor/cli/pds4/cohort_bundle.py`, plain and with the stand-in
 guide, runs the check over each, and asserts that the findings, each by its
-file, check, location and message, are exactly these, errors and warnings
-apart:
+file, check, location and message -- or, for an XML schema error, its kind,
+the class of the xmlschema validator that failed, since `pyproject.toml` sets
+only a floor and a release may reword xmlschema's messages -- are exactly
+these, errors and warnings apart:
 
 - errors: the `TODO DOI` placeholders, from the XSD, until the DOIs are
   registered (section 3.13) -- `bundle.lblx`'s one in both builds, and the
@@ -3151,6 +3153,22 @@ X13, X14 and X16 are killed by tests, and X19 fails its three table tests by
 assertion; X20 still passes the check's tests, since the check reuses the
 helper it changes, and fails the summary pass's own.
 
+**The last round, 2026-09-14.** Both re-checks found the fix round holding,
+each with low findings. An XML schema error now carries its kind, the class
+of the xmlschema validator that failed, and the gate compares that instead of
+xmlschema's reason text: a reworded message leaves the gate passing, and a
+changed kind fails it. Two tests kill X2 and X3: a reference to a bundle
+whose LID begins with this one's but lacks the colon is not resolved as the
+bundle's own, and a bundle label below the top of the tree is not the
+bundle's. The user guide says that `--check-only` also exits 1 when the
+selection hands the labels pass a batch it refuses, an empty one included.
+The tests' long docstring lines are rewrapped. X20, and the reuse of
+`has_geometry` in the index records check, stay by design: each rule is
+stated once and the summary pass's tests pin both helpers. The records check
+compares a column named for a PDS4 attribute with the first element of that
+name in the product's label, which is the element the summary pass copies in
+every label the templates write; its docstring says so.
+
 #### Part B — The draft run over a real volume
 
 Then the draft run itself. Run it twice: first over the synthetic cohort,
@@ -3196,7 +3214,7 @@ parts, and #66; Part B contributes to #53.
    `TODO DOI` placeholders until the DOIs are registered, each data label's
    empty `cassini:ISS_Specific_Attributes` until Part B of Phase 8, and, in a
    build without the user guide, the references to it, as warnings -- each by
-   its message, and nothing else. A
+   its message or, for an XML schema error, its kind, and nothing else. A
    test in the default suite asserts it over a plain build and one with a
    stand-in guide, so pytest runs it in `scripts/run-all-checks.sh` and in CI.
 4. The whole suite passes with no holdings mounted, no `SPICE_PATH`, and no
