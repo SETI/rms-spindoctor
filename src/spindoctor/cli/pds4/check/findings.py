@@ -77,3 +77,57 @@ class Finding:
         """
         where = f'{self.location}: ' if self.location != '' else ''
         return f'{self.file}: {self.severity} [{self.check}] {where}{self.message}'
+
+
+class RecordFindings:
+    """Findings about one file's records, a problem recurring across records told once."""
+
+    def __init__(self, file: str, check: CheckName) -> None:
+        """Start with no finding.
+
+        Parameters:
+            file: The path, relative to the bundle's directory, of the label the
+                findings name.
+            check: The check making them.
+        """
+        self._file = file
+        self._check = check
+        self._found: list[Finding] = []
+        self._recurring: dict[tuple[str, str], tuple[str, int]] = {}
+
+    def add(self, location: str, message: str) -> None:
+        """Record one finding, an error.
+
+        Parameters:
+            location: The path of the element it is about.
+            message: What is wrong.
+        """
+        self._found.append(Finding(self._file, self._check, location, message))
+
+    def add_recurring(self, location: str, kind: str, message: str) -> None:
+        """Record an error in one record, keeping the first such record's message.
+
+        Parameters:
+            location: The path of the element it is about.
+            kind: What kind of problem, which with the location says whether it recurs.
+            message: What is wrong in this record.
+        """
+        key = (location, kind)
+        if key in self._recurring:
+            first, count = self._recurring[key]
+            self._recurring[key] = (first, count + 1)
+        else:
+            self._recurring[key] = (message, 1)
+
+    def findings(self) -> list[Finding]:
+        """Return every finding: those recorded once, then each recurring problem.
+
+        Returns:
+            The findings, a recurring problem's message counting the records after the
+            first that show it.
+        """
+        found = list(self._found)
+        for (location, _), (message, count) in self._recurring.items():
+            more = '' if count == 1 else f', and {count - 1} more record(s) like it'
+            found.append(Finding(self._file, self._check, location, f'{message}{more}'))
+        return found
