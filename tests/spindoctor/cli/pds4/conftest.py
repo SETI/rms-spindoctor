@@ -343,6 +343,7 @@ class FakePds4DataSet:
             backplanes=SimpleNamespace(
                 bodies=bodies if bodies is not None else [],
                 rings=rings if rings is not None else [],
+                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
                 masked_value=DEFAULT_CONFIG.backplanes.masked_value,
                 target_lids=TARGET_LIDS,
             )
@@ -480,6 +481,7 @@ class NoPds4DataSet:
             backplanes=SimpleNamespace(
                 bodies=[],
                 rings=[],
+                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
                 masked_value=DEFAULT_CONFIG.backplanes.masked_value,
                 target_lids=TARGET_LIDS,
             )

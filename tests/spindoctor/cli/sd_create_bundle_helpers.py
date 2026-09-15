@@ -124,6 +124,7 @@ class StubDataset:
             backplanes=SimpleNamespace(
                 bodies=[],
                 rings=[],
+                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
                 masked_value=DEFAULT_CONFIG.backplanes.masked_value,
                 target_lids={},
             )

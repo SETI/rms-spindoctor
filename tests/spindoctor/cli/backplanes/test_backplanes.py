@@ -30,7 +30,7 @@ import spindoctor.support.cmatrix as cmatrix_module
 from spindoctor.cli.backplanes import backplanes as backplanes_mod
 from spindoctor.cli.backplanes.backplanes import generate_backplanes_image_files
 from spindoctor.cli.backplanes.statistics import statistics_units
-from spindoctor.cli.pds4.global_index import INDEX_VALUE_FORMATS
+from spindoctor.cli.pds4.index_columns import INDEX_VALUE_FORMATS
 from spindoctor.cli.reproj.pointing_source import FilePointingSource
 from spindoctor.config import (
     DEFAULT_CONFIG,

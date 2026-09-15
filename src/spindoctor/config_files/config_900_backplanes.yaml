@@ -3,9 +3,11 @@ backplanes:
   # array carries. Its index block describes the two columns the PDS4 bundle's global
   # index tables give its statistic, the least and the greatest value it takes: each
   # column's field name, as the table's header line and its label give it, the PDS4
-  # data type of its values, and its description. A field takes a PDS4 dictionary
-  # attribute's name, with the dictionary's prefix, where the column holds the quantity
-  # that attribute defines, and a name of its own otherwise. A column's unit is not
+  # data type of its values, and its description. A plane of longitudes, whose statistic
+  # also records its range wrapped at zero, gives two more columns, wrapped_minimum and
+  # wrapped_maximum, where that range starts and where it ends. A field takes a PDS4
+  # dictionary attribute's name, with the dictionary's prefix, where the column holds the
+  # quantity that attribute defines, and a name of its own otherwise. A column's unit is not
   # given here: it is the unit the plane's statistic is in, which for an angular plane
   # is degrees although the array is in radians.
   bodies:
@@ -156,14 +158,35 @@ backplanes:
             The least ring longitude, measured from the J2000 ascending node from 0 to
             360 degrees, over the pixels where the ring_longitude backplane has a value.
             The range is not wrapped: rings seen across zero longitude span from near 0
-            to near 360.
+            to near 360. rings:minimum_inertial_ring_longitude gives the range wrapped at
+            zero.
         maximum:
           name: maximum_ring_longitude
           description: >-
             The greatest ring longitude, measured from the J2000 ascending node from 0
             to 360 degrees, over the pixels where the ring_longitude backplane has a
             value. The range is not wrapped: rings seen across zero longitude span from
-            near 0 to near 360.
+            near 0 to near 360. rings:maximum_inertial_ring_longitude gives the range
+            wrapped at zero.
+        wrapped_minimum:
+          name: rings:minimum_inertial_ring_longitude
+          description: >-
+            Where the arc of ring longitude covered by the pixels where the
+            ring_longitude backplane has a value begins, measured from the J2000
+            ascending node from 0 to 360 degrees. The range is wrapped at zero: where
+            the arc crosses zero longitude, this is greater than
+            rings:maximum_inertial_ring_longitude, and an arc covering the whole circle
+            begins at 0. minimum_ring_longitude gives the plain least longitude instead.
+        wrapped_maximum:
+          name: rings:maximum_inertial_ring_longitude
+          description: >-
+            Where the arc of ring longitude covered by the pixels where the
+            ring_longitude backplane has a value ends, measured from the J2000 ascending
+            node from 0 to 360 degrees. The range is wrapped at zero: where the arc
+            crosses zero longitude, this is less than
+            rings:minimum_inertial_ring_longitude, and an arc covering the whole circle
+            ends at 360. maximum_ring_longitude gives the plain greatest longitude
+            instead.
     - name: ring_emission_angle
       method: ring_emission_angle
       units: rad
@@ -226,6 +249,32 @@ backplanes:
           description: >-
             The greatest projected size of a pixel in ring longitude over the pixels
             where the ring_longitudinal_resolution backplane has a value.
+
+  # The incidence angle of sunlight on the ring plane, which the backplane metadata's
+  # rings block records once for an image, as incidence_angle, rather than as a plane:
+  # its value at the ring system's center and its min, max and mean over the pixels where
+  # a ring backplane has a value. Its index block describes the three columns the rings
+  # table gives the last three, after the ring planes' columns, as a plane's index block
+  # describes its two; units is the unit the block records the angle in.
+  ring_incidence_angle:
+    units: deg
+    index:
+      data_type: ASCII_Real
+      minimum:
+        name: rings:minimum_incidence_angle
+        description: >-
+          The least incidence angle of sunlight on the ring plane, measured from the
+          normal on its sunlit side, over the pixels where a ring backplane has a value.
+      maximum:
+        name: rings:maximum_incidence_angle
+        description: >-
+          The greatest incidence angle of sunlight on the ring plane, measured from the
+          normal on its sunlit side, over the pixels where a ring backplane has a value.
+      mean:
+        name: rings:mean_incidence_angle
+        description: >-
+          The mean incidence angle of sunlight on the ring plane, measured from the
+          normal on its sunlit side, over the pixels where a ring backplane has a value.
 
   # Value written wherever a backplane has no valid measurement. It sits outside
   # the range of every plane written -- longitudes 0 to 360, latitudes -90 to 90,

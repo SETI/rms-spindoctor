@@ -3,16 +3,19 @@
 The summary pass reads every supplemental file the labels pass wrote once, here, and
 builds two tables from them: one row for each body with geometry in each image the
 data collection holds, and one row for each such image with ring backplanes, each giving
-the image's exposure start and stop and the minimum and maximum every configured plane
-spans.  The
+the image's exposure start and stop, the minimum and maximum every configured plane
+spans, and, for a plane of longitudes its configuration gives wrapped columns, the arc
+of the circle it covers, wrapped at zero.  The rings table ends with the least, the
+greatest and the mean incidence angle of sunlight on the ring plane.  The
 same read takes the range of the products' epochs, which the data collection label and
 the bundle label state, and the targets the products name, which the data collection,
 bundle and metakernel labels name and the context inventory lists.
 
 Each table is fixed width, as the reference bundle's index tables are: a header line
 naming the columns, separated by commas, and then the rows, each field padded to the
-longest value written in its column, with a comma between fields.  Where an image has
-no statistic for a plane, its two cells hold the configured masked value,
+longest value written in its column, with a comma between fields.  Where an image's
+backplane metadata records no value for a cell -- no statistic for a plane, no wrapped
+range, or no member of the incidence angle -- the cell holds the configured masked value,
 ``backplanes.masked_value``, written in the column's format.
 
 Each table's label describes it as the reference bundle's index labels do: a ``Header``
@@ -20,22 +23,21 @@ over the header line, then a ``Table_Character`` over the records with one
 ``Field_Character`` per column, at the location and length the table was laid out with.
 The columns a configured plane gives both are built from its configuration entry, which
 names each column, its data type and its description; its unit is the unit the plane's
-statistic is in, and its missing constant the masked value as the column writes it.
+statistic is in, and its missing constant the masked value as the column writes it.  The
+incidence angle's three are built the same way, from ``backplanes.ring_incidence_angle``.
 """
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Self
+from typing import Any
 
 import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
-from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.bundle_products import clear_bundle_products, secondary_members
 from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.collections import (
@@ -46,108 +48,11 @@ from spindoctor.cli.pds4.collections import (
     write_collection,
 )
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan, exposure_times
+from spindoctor.cli.pds4.index_columns import IndexColumn, configured_columns, plane_columns
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.cli.pds4.targets import Pds4Target, TargetScan, has_geometry, target_table
 from spindoctor.dataset.dataset import DataSet, pds4_label_name
-
-
-@dataclass(frozen=True)
-class IndexValueFormat:
-    """How a minimum or maximum is written into a global index table.
-
-    Exactly one of the two fields is set.  ``decimals`` writes every value to
-    that many decimals, so three decimals write ``1.235`` and ``-89.999``.
-    ``significant`` writes every value to that many significant figures,
-    positionally: the number of decimals is chosen per value from its
-    magnitude, so five figures write ``0.00060000``, ``6.1343``, ``4200.0``,
-    ``70853`` and ``123456``.  A value is never written with an exponent or a
-    trailing point, and its integer part is never rounded away, so a value with
-    more integer digits than figures is written to all of them.  Neither field
-    fixes a column's width: values under one format differ in length, so the
-    width of a column is the widest value written in it, known only once the
-    column is.
-
-    Attributes:
-        decimals: The number of decimals every value is written to, or None
-            when ``significant`` is set.
-        significant: The number of significant figures every value is written
-            to, or None when ``decimals`` is set.
-    """
-
-    decimals: int | None = None
-    significant: int | None = None
-
-    def __post_init__(self) -> None:
-        """Refuse a format that sets both fields or neither.
-
-        Raises:
-            ValueError: If ``decimals`` and ``significant`` are both set or both
-                None.
-        """
-        if (self.decimals is None) == (self.significant is None):
-            raise ValueError(
-                'An index value format sets exactly one of decimals and significant; '
-                f'got decimals={self.decimals!r}, significant={self.significant!r}'
-            )
-
-    def render(self, value: float) -> str:
-        """Write one value the way this format says.
-
-        Parameters:
-            value: The statistic to write.
-
-        Returns:
-            The value as a plain decimal number to a fixed number of decimals,
-            with no exponent and no trailing point.
-
-        Raises:
-            ValueError: If ``value`` is NaN or infinite, which has no decimal
-                form.  The message names the value.
-        """
-        if not math.isfinite(value):
-            raise ValueError(f'An index value has to be a finite number; got {value!r}')
-        if self.significant is None:
-            return format(value, f'.{self.decimals}f')
-        magnitude = 0 if value == 0 else math.floor(math.log10(abs(value)))
-        decimals = max(0, self.significant - 1 - magnitude)
-        return format(value, f'.{decimals}f')
-
-
-INDEX_VALUE_FORMATS: dict[str, IndexValueFormat] = {
-    'deg': IndexValueFormat(decimals=3),
-    'km': IndexValueFormat(decimals=1),
-    'deg/pixel': IndexValueFormat(decimals=8),
-    'km/pixel': IndexValueFormat(significant=5),
-}
-"""The format each min and max in the global index tables is written in, by unit.
-
-The key is the unit the statistic is in: for a plane in radians, the degrees unit
-:func:`~spindoctor.cli.backplanes.statistics.statistics_units` gives it.  Each format
-prints about what one pixel resolves, within the roughly seven significant digits a
-float32 backplane array carries.  ``km/pixel`` values span orders of magnitude, so
-that format is five significant figures rather than a fixed number of decimals.  No
-value is written with an exponent.  The bodies and rings tables share the mapping.
-"""
-
-
-def index_value_format(units: str) -> IndexValueFormat:
-    """Return the format a statistic of a plane in these units is written in.
-
-    Parameters:
-        units: The unit the plane's values carry, as the configuration declares
-            it.  An angular plane's statistic is in degrees whatever the plane
-            is in, so what is looked up is the statistic's unit rather than
-            this one.
-
-    Returns:
-        The format, from :data:`INDEX_VALUE_FORMATS`.
-
-    Raises:
-        KeyError: If the statistic's unit has no format in the table.
-    """
-    return INDEX_VALUE_FORMATS[statistics_units(units)]
-
 
 MISCELLANEOUS_COLLECTION = 'miscellaneous'
 """The collection the global index tables are in, and the bundle directory it has."""
@@ -175,34 +80,6 @@ def index_lid(bundle_name: str, index_name: str) -> str:
         ``urn:nasa:pds:<bundle_name>:miscellaneous:<index_name>``.
     """
     return f'urn:nasa:pds:{bundle_name}:{MISCELLANEOUS_COLLECTION}:{index_name}'
-
-
-@dataclass(frozen=True)
-class IndexColumn:
-    """One column of a global index table: how its values are written, and its label.
-
-    Attributes:
-        name: The field's name, as the header line and the label give it: a PDS4
-            dictionary attribute's name with the dictionary's prefix, as in
-            ``pds:logical_identifier``, where the column holds that attribute, and a
-            name of its own otherwise.
-        data_type: The PDS4 data type of its values, as in ``ASCII_Real``.
-        description: What its values are.
-        unit: The unit of its values, or None for a column that has none.
-        value_format: The format each statistic in the column is written in, or None
-            for a column of text.  A statistic is right-justified in its field, and
-            text left-justified.
-        missing_constant: What a cell of the column holds where an image has no
-            statistic for its plane, spelled as the cell spells it, or None for a column
-            no cell of which is ever missing.
-    """
-
-    name: str
-    data_type: str
-    description: str
-    unit: str | None = None
-    value_format: IndexValueFormat | None = None
-    missing_constant: str | None = None
 
 
 LID_COLUMN = IndexColumn(
@@ -245,118 +122,6 @@ _STOP_COLUMN = IndexColumn(
     ),
 )
 """The column giving each row's exposure stop, under the PDS4 attribute's name."""
-
-
-@dataclass(frozen=True)
-class _IndexPlane:
-    """One configured plane, and the two columns of an index table its statistic fills.
-
-    Attributes:
-        name: The plane's name, under which a supplemental file records its statistic.
-        value_format: The format its statistic is written in.
-        missing: What each of its two cells holds where an image has no statistic for
-            it: the masked value, written in ``value_format``.
-        minimum: The column of its least value.
-        maximum: The column of its greatest value.
-    """
-
-    name: str
-    value_format: IndexValueFormat
-    missing: str
-    minimum: IndexColumn
-    maximum: IndexColumn
-
-    @classmethod
-    def from_entry(cls, entry: Mapping[str, Any], *, masked_value: float) -> Self:
-        """Return a configured plane and its two columns, as its entry describes them.
-
-        Each column takes its name and its description from the entry's ``index``
-        block, and the data type the block gives both.  Its unit is the unit the plane's
-        statistic is in, the entry's ``units`` restated through
-        :func:`~spindoctor.cli.backplanes.statistics.statistics_units`, and its format
-        the one :data:`INDEX_VALUE_FORMATS` gives that unit, so that a label states the
-        unit and the format its column's values are written in.  Its missing constant
-        is the masked value written in that format.
-
-        Parameters:
-            entry: The plane's configuration entry, from ``backplanes.bodies`` or
-                ``backplanes.rings``.
-            masked_value: The configured masked value, ``backplanes.masked_value``.
-
-        Returns:
-            The plane.
-
-        Raises:
-            KeyError: If the plane's statistic is in a unit the index has no format for.
-        """
-        value_format = index_value_format(entry['units'])
-        unit = statistics_units(entry['units'])
-        # The value every masked pixel of the arrays holds, in the column's own format,
-        # so every value of a column, a missing one included, is written in one form
-        # and the label declares it in that form (#601).
-        missing = value_format.render(masked_value)
-        index = entry['index']
-
-        def column(end: str) -> IndexColumn:
-            """Return the column of the plane's least or greatest value.
-
-            Parameters:
-                end: ``minimum`` or ``maximum``, the key of the column in the entry's
-                    ``index`` block.
-
-            Returns:
-                The column.
-            """
-            return IndexColumn(
-                name=index[end]['name'],
-                data_type=index['data_type'],
-                description=index[end]['description'],
-                unit=unit,
-                value_format=value_format,
-                missing_constant=missing,
-            )
-
-        return cls(
-            name=entry['name'],
-            value_format=value_format,
-            missing=missing,
-            minimum=column('minimum'),
-            maximum=column('maximum'),
-        )
-
-    def cells(self, statistic: Mapping[str, Any] | None) -> list[str]:
-        """Write the plane's statistic as the two cells an index row gives it.
-
-        Parameters:
-            statistic: The plane's statistic as a supplemental file records it, its
-                minimum and maximum already checked as finite numbers, or None when
-                the file records none for the plane.
-
-        Returns:
-            The minimum and the maximum, rendered, or :attr:`missing` twice when there
-            is no statistic, which is what a plane that measured nothing leaves.
-
-        Raises:
-            ValueError: If the minimum or the maximum is not a finite number.
-        """
-        if statistic is None:
-            return [self.missing, self.missing]
-        return [
-            self.value_format.render(statistic['min']),
-            self.value_format.render(statistic['max']),
-        ]
-
-
-def _statistic_columns(planes: Sequence[_IndexPlane]) -> list[IndexColumn]:
-    """Return the columns the configured planes give an index table, in order.
-
-    Parameters:
-        planes: The configured planes, in the configuration's order.
-
-    Returns:
-        Each plane's minimum column and then its maximum column.
-    """
-    return [column for plane in planes for column in (plane.minimum, plane.maximum)]
 
 
 @dataclass(frozen=True)
@@ -585,7 +350,14 @@ def generate_global_index_files(
     table two columns, its least and its greatest value, whose names, data type and
     descriptions come from the plane's configuration entry, whose unit is the unit its
     statistic is in, and whose missing constant is the masked value in the column's
-    format, the text a cell holds where an image has no statistic for the plane.
+    format, the text a cell holds where an image has no statistic for the plane.  A plane
+    whose entry gives wrapped columns, as the ring longitude's does, gives two more,
+    where its range wrapped at zero starts and where it ends; and the rings table ends
+    with the incidence angle's least, greatest and mean, from
+    ``backplanes.ring_incidence_angle``.  A cell whose value the supplemental file does
+    not record -- a wrapped range, or a member of the incidence angle, as backplanes an
+    earlier version generated leave out -- holds the missing constant too, and nothing
+    is failed for it.
 
     The miscellaneous collection is written after the tables, its inventory
     ``collection_miscellaneous.csv`` and its label beside them: a ``P`` line for each
@@ -646,10 +418,11 @@ def generate_global_index_files(
             template or ``collection_miscellaneous.lblx`` is not in the dataset's
             template directory; or if the template directory holds no document
             inventory to take the miscellaneous collection's secondary members from.
-        KeyError: If a configured plane's statistic is in a unit the index has no
-            column format for, or if the targets table has no entry for a target the
-            backplane metadata of an image the data collection holds names; the message
-            names the target.  Both are raised before either table is opened.
+        KeyError: If a configured plane's statistic, or the ring incidence angle, is in a
+            unit the index has no column format for, or if the targets table has no entry
+            for a target the backplane metadata of an image the data collection holds
+            names; the message names the target.  Both are raised before either table is
+            opened.
         ValueError: If a supplemental file holds a statistic no column can: one in
             a unit other than the one the configuration gives its plane, or with a
             minimum or maximum that is NaN or infinite.  The message names the
@@ -666,18 +439,11 @@ def generate_global_index_files(
     variables = bundle_variables(dataset)
     config = dataset.config
 
-    # Each configured plane and the two columns its statistic fills, from its
-    # configuration entry: the cells are written by these and the labels describe these,
-    # so a change to the configuration moves a table and its label together.
-    masked_value = float(config.backplanes.masked_value)
-    body_planes = [
-        _IndexPlane.from_entry(entry, masked_value=masked_value)
-        for entry in config.backplanes.bodies
-    ]
-    ring_planes = [
-        _IndexPlane.from_entry(entry, masked_value=masked_value)
-        for entry in config.backplanes.rings
-    ]
+    # Each configured plane and the columns its statistic fills, and the ring incidence
+    # angle's, from the configuration: the cells are written by these and the labels
+    # describe these, so a change to the configuration moves a table and its label
+    # together.
+    body_planes, ring_planes, ring_incidence = configured_columns(config)
 
     # A bundle with no data directory is not one a labels pass wrote.  The summary
     # pass runs this generator first, so the check is made here, before any product
@@ -771,6 +537,7 @@ def generate_global_index_files(
             ring_row: list[str] = [lid, path_to_image, start, stop]
             for plane in ring_planes:
                 ring_row.extend(plane.cells(ring_backplanes.get(plane.name)))
+            ring_row.extend(ring_incidence.cells(rings.get('incidence_angle', {})))
             ring_index_rows.append(ring_row)
 
     # Each label renders from the template of its own name.  Both are parsed before
@@ -791,7 +558,7 @@ def generate_global_index_files(
             FILE_COLUMN,
             _START_COLUMN,
             _STOP_COLUMN,
-            *_statistic_columns(body_planes),
+            *plane_columns(body_planes),
         ],
         body_index_rows,
         lid=index_lid(bundle_name, BODIES_INDEX),
@@ -801,7 +568,8 @@ def generate_global_index_files(
     )
 
     # The rings table: the data product, the data label and the exposure's start and
-    # stop, then the least and the greatest value of each configured ring plane
+    # stop, then the columns of each configured ring plane, and last the incidence
+    # angle's least, greatest and mean
     # TODO Add planet name to rings table
     rings_written = _write_index(
         rings_tab,
@@ -811,7 +579,8 @@ def generate_global_index_files(
             FILE_COLUMN,
             _START_COLUMN,
             _STOP_COLUMN,
-            *_statistic_columns(ring_planes),
+            *plane_columns(ring_planes),
+            *ring_incidence.columns,
         ],
         ring_index_rows,
         lid=index_lid(bundle_name, RINGS_INDEX),

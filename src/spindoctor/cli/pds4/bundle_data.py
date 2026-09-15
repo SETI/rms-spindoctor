@@ -104,8 +104,8 @@ def generate_bundle_data_files(
     document were read.
 
     Of an image's rings, a data label names the ring target alone: the ranges of the ring
-    statistics are the global rings index's, and the incidence angle and the wrapped ring
-    longitude range the backplane metadata also records are not read.
+    statistics are the global rings index's, as are the wrapped ring longitude range and
+    the incidence angle the backplane metadata also records, which this pass does not read.
 
     The backplane FITS is copied into the bundle, beside its data label, which names
     it with no directory part, and the label's size, checksum and time are the
