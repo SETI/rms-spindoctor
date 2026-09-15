@@ -7,9 +7,9 @@ own.  Every one of those URLs is resolved one way, by :class:`SchemaSource`:
 
 - by default it is fetched, through a file cache that keeps each download, so that a
   later check fetches nothing it already has.  The cache is the directory
-  ``_filecache_spindoctor_pds4_schemas`` under the file cache's root, which is
-  ``$FILECACHE_CACHE_ROOT`` when that is set and the system's temporary directory
-  otherwise;
+  ``_filecache_spindoctor_pds4_schemas`` under ``$FILECACHE_CACHE_ROOT`` when that is
+  set, and otherwise under the user's own cache directory, ``$XDG_CACHE_HOME`` or
+  ``~/.cache`` (:func:`schema_cache_root`);
 - given a directory, it is the file of the URL's name in that directory, and nothing is
   fetched.
 
@@ -29,6 +29,7 @@ is one finding, and the label is checked without it.
 """
 
 import functools
+import os
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,14 +49,35 @@ XSI_SCHEMA_LOCATION = '{http://www.w3.org/2001/XMLSchema-instance}schemaLocation
 """The attribute a label declares its XML schemas by, each namespace followed by a URL."""
 
 
+SCHEMA_CACHE_ROOTS = ('FILECACHE_CACHE_ROOT', 'XDG_CACHE_HOME')
+"""The variables that name the schema cache's root, the first set winning."""
+
+
+def schema_cache_root() -> Path:
+    """Return the directory the schema cache is made in.
+
+    Returns:
+        ``$FILECACHE_CACHE_ROOT`` when it is set, as for every file cache; otherwise the
+        user's own cache directory, ``$XDG_CACHE_HOME`` when that is set and ``~/.cache``
+        when it is not, where no other user of the machine can leave a schema the check
+        would then read.
+    """
+    for variable in SCHEMA_CACHE_ROOTS:
+        value = os.environ.get(variable, '')
+        if value != '':
+            return Path(value)
+    return Path.home() / '.cache'
+
+
 @functools.cache
 def schema_cache() -> FileCache:
     """Return the file cache fetched schemas are kept in, made when it is first needed.
 
     Returns:
-        The cache named :data:`SCHEMA_CACHE_NAME`, which outlives the process.
+        The cache named :data:`SCHEMA_CACHE_NAME` under :func:`schema_cache_root`, which
+        outlives the process.
     """
-    return FileCache(SCHEMA_CACHE_NAME)
+    return FileCache(SCHEMA_CACHE_NAME, cache_root=schema_cache_root())
 
 
 def _fetch(url: str) -> Path:

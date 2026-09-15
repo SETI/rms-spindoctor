@@ -1003,8 +1003,9 @@ label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_l
   ``xml-model`` ``href``, and each ``schemaLocation`` a schema's ``xs:import`` gives --
   is resolved one way, by :class:`~spindoctor.cli.pds4.check.schemas.SchemaSource`.  By
   default it is fetched through ``filecache`` into the cache
-  ``_filecache_spindoctor_pds4_schemas``, under ``$FILECACHE_CACHE_ROOT`` or the system's
-  temporary directory, which keeps each download for later checks; with
+  ``_filecache_spindoctor_pds4_schemas``, under ``$FILECACHE_CACHE_ROOT`` when that is
+  set and otherwise in the user's own ``$XDG_CACHE_HOME`` or ``~/.cache``, never in a
+  directory other users share, which keeps each download for later checks; with
   ``--schema-dir`` it is the file of the URL's name in that directory, and nothing is
   fetched.  ``xmlschema`` is allowed only local files and reads every URL through that
   rule, so an import resolves to the schema at its own URL, as ``validate`` resolves it,
