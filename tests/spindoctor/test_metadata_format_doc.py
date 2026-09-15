@@ -124,6 +124,13 @@ def _key_literals(text: str) -> set[str]:
 
     A key starts with a lowercase letter or an underscore; later letters may be capitals,
     as in a Cassini dictionary name such as ``valid_maximum_DN_sat``.
+
+    Parameters:
+        text: The reStructuredText to search, such as a whole chapter or one table cell.
+
+    Returns:
+        The name in each inline literal whose whole content is one such key. A literal
+        holding anything else, such as a dotted path or a capitalized word, adds nothing.
     """
     return set(re.findall(r'``([a-z_][A-Za-z0-9_]*)``', text))
 
@@ -142,6 +149,10 @@ def _instrument_chapter_key_literals(stem: str) -> set[str]:
 
     Parameters:
         stem: The chapter's file stem, such as ``cassini_iss``.
+
+    Returns:
+        Each key named in a table row's key cell anywhere in the chapter. A row whose key
+        cell names no key, such as a header row, adds nothing.
     """
     chapter = _INSTRUMENT_CHAPTERS / f'{stem}.rst'
     assert chapter.is_file(), f'instrument chapter missing at {chapter}'
