@@ -31,8 +31,7 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    summary PNG and its ``<image>_summary.lblx`` label. The label's data objects
    are read from the source FITS before anything is written into the bundle, and
    the copy is the same bytes (see `The FITS and its data objects`_). The data
-   label also names the image's targets and, for an image with ring backplanes,
-   states its ring geometry (see `Targets and the ring geometry`_).
+   label also names the image's targets (see `Targets`_).
 
 2. **Collections and indexes.**  After every per-image data label is in place,
    :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` reads
@@ -106,7 +105,7 @@ per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
 Each index column is written in the format
-:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives its unit, each
+:data:`~spindoctor.cli.pds4.index_columns.INDEX_VALUE_FORMATS` gives its unit, each
 chosen from what one pixel resolves, within the roughly seven significant digits a
 float32 array carries.  Nothing
 checks the configured units when a bundle is written: a unit the table has no
@@ -151,7 +150,7 @@ an image whose navigation status is not ``success``, and a navigated image with
 no backplane metadata document are all cases of a selection naming more images
 than the bundle covers, which is the ordinary state of a selection made by
 volume.  So is an image whose backplane metadata names no body with geometry and holds
-no ring statistic, as a star field's does (see `Targets and the ring geometry`_): it is
+no ring statistic, as a star field's does (see `Targets`_): it is
 skipped before any check that fails an image, since nothing would be written for it
 however those came out.  An error raised while one image is processed is logged with
 its traceback naming the image, counts the image against the run, and the run carries
@@ -396,8 +395,10 @@ bundles, or does not, the same way.
 The ``pds4`` config block
 -------------------------
 
-``src/spindoctor/config_files/config_950_pds4.yaml`` populates ``config.pds4`` with
-one entry per dataset that bundles: its template directory, the bundle's name and
+Each dataset that bundles has an entry in ``config.pds4``, in a configuration file of its
+own named for its mission and target --
+``src/spindoctor/config_files/config_951_pds4_coiss_saturn.yaml`` for ``coiss_saturn``
+-- holding its template directory, the bundle's name and
 version (``bundle_name``, ``bundle_version``), and the information model version and the
 dictionary schemas its labels are written against (``information_model_version``,
 ``schemas``).  Each is set there and nowhere else: every template is handed them (see
@@ -412,14 +413,34 @@ the ``pds`` schema of the build the information model version names.  The bundle
 fetches each schema by its URL (see `Checking a bundle`_), and its tests read local
 copies, so a schema named here needs a copy in
 ``tests/spindoctor/cli/pds4/check/schemas/``, which a test holds the shipped
-configuration to.  The entries are
-kept in this file, a registry keyed by dataset, rather than in an instrument's
-``config_4*`` file: every navigation document records a hash of each of those files'
-bytes as the instrument's static data, and a new bundle version or a moved schema there
-would read as a change of that data.  See
-:doc:`dev_guide_config_and_static_data` for the loader contract; the file
-is loaded by the standard numeric-prefix order at the ``9xx`` "downstream
-products" tier.
+configuration to.  The entry is kept in a file named for the mission, since nothing
+mission-specific goes in a generically named file, and at the ``95x`` tier rather than in
+the instrument's ``config_4*`` file: every navigation document records a hash of each
+``config_4*`` file's bytes as the instrument's static data, and a new bundle version or
+a moved schema there would read as a change of that data.  No ``9xx`` file is hashed that
+way.  See :doc:`dev_guide_config_and_static_data` for the loader contract; the file is
+loaded by the standard numeric-prefix order at the ``9xx`` "downstream products" tier.
+
+The entry another dataset would need, once its templates and its PDS4 hooks exist, is
+one of these, in a file of its own named as ``coiss_saturn``'s is, each with every
+other key the ``coiss_saturn`` entry has -- the information model version and the
+schemas of the dictionaries its templates declare:
+
+.. code-block:: yaml
+
+   pds4:
+     gossi:
+       template_dir: galileo_ssi_jupiter_1.0
+       bundle_name: galileo_ssi_jupiter_backplanes_rsfrench2027
+       bundle_version: '1.0'
+     nhlorri:
+       template_dir: newhorizons_lorri_pluto_1.0
+       bundle_name: newhorizons_lorri_pluto_backplanes_rsfrench2027
+       bundle_version: '1.0'
+     vgiss:
+       template_dir: voyager_iss_saturn_1.0
+       bundle_name: voyager_iss_saturn_backplanes_rsfrench2027
+       bundle_version: '1.0'
 
 Templated label workflow
 ========================
@@ -689,8 +710,8 @@ took in no member's supplemental file yields no range, and the data collection i
 then not written, neither its inventory nor its label, rather than labeled with
 empty dates (see `Exit status`_).
 
-Targets and the ring geometry
-=============================
+Targets
+=======
 
 A label names a target by its PDS4 context product.
 :func:`~spindoctor.cli.pds4.targets.target_table` reads the configuration's
@@ -722,11 +743,15 @@ targets of the data collection's members in its one read of the supplemental fil
 :class:`~spindoctor.cli.pds4.targets.TargetScan`, as it takes the range of their epochs,
 and :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns them in
 its :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome`; the driver hands them
-to the collection generator and to the run-level products.  A summary pass over data
-members an earlier labels pass wrote, from backplane metadata that records ring
-statistics and no ring target, raises a bare ``KeyError: 'target'`` from that read.
-Nothing checks for it: a bundle is written into an empty directory, the labels pass
-first, so the members of the pass are the labels pass's own.  The data collection label
+to the collection generator and to the run-level products.  Backplane metadata that
+records ring statistics and no ring target, as backplanes an earlier version generated
+does, raises a bare ``KeyError: 'target'`` wherever the targets are read: the labels
+pass raises it for such an image before anything is written for it, which counts the
+image failed, and a summary pass over data members an earlier labels pass wrote from
+such metadata raises it from its read.  Nothing checks for it: backplanes are
+regenerated before a bundle is built for delivery, and a bundle is written into an
+empty directory, the labels pass first, so the members of the pass are the labels
+pass's own.  The data collection label
 names them with ``collection_to_target``, as the SPICE kernel collection label does, the
 bundle label with ``bundle_to_target`` and the metakernel label with ``data_to_target``,
 the values the Schematron allows under each kind of product, and the context inventory
@@ -734,32 +759,14 @@ lists each, after the members the template directory ships, as ``S,<lidvid>``.  
 document and miscellaneous inventories list no target, since no label of their
 collections names one.
 
-:func:`~spindoctor.cli.pds4.ring_geometry.ring_geometry` builds the ring geometry a data
-label of an image with ring statistics states, handed to the template as
-``RING_GEOMETRY``, or None for an image with none.  It fills
-``rings:Reprojection_Geometry``.  Of the other classes of ``PDS4_RINGS_1O00_1F00``,
-``rings:Ring_Spectrum`` holds every one of an image's ranges of ring radius, longitude,
-angles and resolutions but the longitudinal resolution, but it describes ring spectra
-and spectrograms, and the
-dictionary's Schematron requires it to identify the observation's wavelengths.
-:data:`~spindoctor.cli.pds4.ring_geometry.RING_GEOMETRY_ATTRIBUTES` gives the attribute
-each configured ring plane's least and greatest value are stated as.  The attributes
-come in the schema's order, and each value is written with the format
-:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives the statistic's unit,
-a size per pixel stated in the length or the angle a pixel spans.  The ring longitude's
-pair is its statistic's range wrapped at zero, ``wrapped_min`` and ``wrapped_max``, since
-the rings dictionary defines a longitude range as wrapped at the prime meridian, its
-minimum above its maximum across it; the global index tables keep the plain least and
-greatest.  The incidence angle's
-mean, least and greatest over the image's ring pixels, which the backplane metadata
-records beside the angle at the ring center, are stated as the mean, the minimum and the
-maximum.  The template states the rest: the planet's
-equatorial plane, no co-rotating frame, the image's midtime as the basis epoch, and a
-description saying that the arrays are not reprojected and how the longitude range is
-wrapped.  The labels pass fails an image whose backplane metadata holds ring
-statistics and no incidence angle over the ring pixels, as backplanes an earlier version
-generated do, before anything is written for it: those took their statistics before the
-merge, too.
+A data label states no ring geometry: of an image's rings it names the ring target
+alone.  The rings index states the image's ring ranges instead: the least and the
+greatest value of each ring plane, the ring longitude's range wrapped at zero, and the
+incidence angle of sunlight on the ring plane, the last two as the backplane metadata
+records them beside the ring statistics (see :doc:`dev_guide_backplanes` and
+`The global index and the miscellaneous collection`_).  The labels pass reads neither.
+No label declares the rings dictionary, although the rings index's ``rings:`` columns
+take its attributes' names.
 
 The data, data collection and bundle labels each declare one ``Science_Facets``,
 ``Visible`` and ``Ring-Moon Systems``, fixed in their templates.
@@ -816,7 +823,7 @@ Both then give ``pds:start_date_time`` and ``pds:stop_date_time``
 :func:`~spindoctor.cli.pds4.epochs.exposure_times` writes from the epochs the
 supplemental file records, to the millisecond, as the data label states them.
 Then each configured plane gives its table two columns, the least and the greatest value
-its statistic spans, as :class:`~spindoctor.cli.pds4.global_index.IndexColumn` entries
+its statistic spans, as :class:`~spindoctor.cli.pds4.index_columns.IndexColumn` entries
 built from the plane's entry in ``config_900_backplanes.yaml``, whose ``index`` block
 names the two columns, their ``data_type`` and their descriptions:
 
@@ -846,8 +853,30 @@ the prime meridian, and the statistics are a plain least and greatest.  A column
 is the unit its statistic is in, the plane's ``units`` restated through
 :func:`~spindoctor.cli.backplanes.statistics.statistics_units`, so an angular column is in
 degrees although its array is in radians (see :doc:`dev_guide_backplanes`), and its
-format is the one :data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives that
+format is the one :data:`~spindoctor.cli.pds4.index_columns.INDEX_VALUE_FORMATS` gives that
 unit.
+
+**Wrapped ranges and the incidence angle.**  A plane's ``index`` block may also give
+``wrapped_minimum`` and ``wrapped_maximum``, two more columns after the plane's pair:
+where the range its statistic records wrapped at zero, as ``wrapped_min`` and
+``wrapped_max``, starts and where it ends, the start the greater where the range crosses
+zero.  The ring longitude's block gives them as ``rings:minimum_inertial_ring_longitude``
+and ``rings:maximum_inertial_ring_longitude``, the rings dictionary's names for a ring
+longitude range wrapped at the prime meridian, while its plain pair keeps names of its
+own.  The body longitude's block gives them as ``minimum_wrapped_body_longitude`` and
+``maximum_wrapped_body_longitude``, names of their own: geom's ``minimum_longitude`` and
+``maximum_longitude`` define a range wrapped at the prime meridian, but in planetocentric
+longitude, which the IAU convention measures positive east, where the body longitude is
+measured westward.  The rings table ends with the three columns ``backplanes.ring_incidence_angle``
+describes, ``rings:minimum_incidence_angle``, ``rings:maximum_incidence_angle`` and
+``rings:mean_incidence_angle``: the ``min``, ``max`` and ``mean`` of the rings block's
+``incidence_angle``, in the unit that entry's ``units`` gives.  The ``rings:`` names are
+the rings dictionary's attributes, borrowed as column names; no label declares the
+dictionary.  :mod:`spindoctor.cli.pds4.index_columns` builds every statistic column,
+:class:`~spindoctor.cli.pds4.index_columns.IndexPlane` a plane's and
+:class:`~spindoctor.cli.pds4.index_columns.RingIncidence` the incidence angle's, and
+:func:`~spindoctor.cli.pds4.index_columns.statistic_index_columns` gives all of them,
+which the bundle check holds each index label's fields to.
 
 **Missing values.**  Where an image has no statistic for a plane, both of its cells hold
 the configured masked value, ``backplanes.masked_value``, written in the column's format:
@@ -855,7 +884,10 @@ the configured masked value, ``backplanes.masked_value``, written in the column'
 ``deg/pixel`` and ``-999.00`` in ``km/pixel``.  Every statistic field of a label declares
 that text as the ``missing_constant`` of a ``Special_Constants`` block, in the spelling
 its cells have, so a reader comparing a cell's text with the declared constant finds it,
-and every value of a column, a missing one included, is written in one form.
+and every value of a column, a missing one included, is written in one form.  A wrapped
+value, or a member of the incidence angle, that the supplemental file does not record --
+backplanes an earlier version generated record no wrapped range, and the angle at the
+ring center alone -- is written the same way, cell by cell, and nothing is failed for it.
 
 **The label.**  ``global_bodies_index.lblx`` and ``global_rings_index.lblx`` are
 ``Product_Ancillary`` labels, each a ``Header`` over the header line and a
@@ -908,7 +940,7 @@ some are copied as they are:
   ``COLLECTION_<NAME>_CSV_PATH``.  The XML schema inventory lists
   ``XML_SCHEMA_LIDVIDS`` (see `The bundle's variables`_).  The context inventory is written
   with every target the data labels name after the members the template directory
-  ships (see `Targets and the ring geometry`_).
+  ships (see `Targets`_).
 - The metakernel ``kernels.ker`` is copied into ``spice_kernels/`` and its label
   ``kernels.lblx`` rendered beside it, handed the copy's path as ``METAKERNEL_PATH`` and
   the targets as ``TARGETS``.
@@ -1128,11 +1160,11 @@ The two passes write this tree:
        user_guide/                             # only when the template directory holds it
          <user guide>.pdf                      # summary pass, copied
          <user guide>.lblx                     # summary pass
-     miscellaneous/
+     miscellaneous/                            # only when an index table has a row
        collection_miscellaneous.csv            # summary pass
        collection_miscellaneous.lblx           # summary pass
-       global_bodies_index.tab                 # summary pass
-       global_bodies_index.lblx                # summary pass
+       global_bodies_index.tab                 # summary pass, when an image shows a body
+       global_bodies_index.lblx                # summary pass, when an image shows a body
        global_rings_index.tab                  # summary pass, when an image has rings
        global_rings_index.lblx                 # summary pass, when an image has rings
      spice_kernels/
@@ -1290,8 +1322,9 @@ The end-to-end checklist:
    guide when it exists. Copy from ``cassini_iss_saturn_1.0/`` and adapt the field
    set, naming the bundle, its version and each schema through the bundle's variables
    (see `The bundle's variables`_) rather than spelling them.
-3. Add an entry under ``pds4.<dataset_name>:`` in
-   ``config_950_pds4.yaml`` that points at the new template directory and
+3. Add an entry under ``pds4.<dataset_name>:`` in a configuration file of its own,
+   named for its mission and target as ``config_951_pds4_coiss_saturn.yaml`` is (see
+   the ``pds4`` config block above), that points at the new template directory and
    sets the bundle's name and version, the information model version, and the schema
    of each dictionary the new templates declare.
 4. Copy the XML schema and the Schematron of every dictionary the new templates
@@ -1357,8 +1390,9 @@ documented above.
   :func:`~spindoctor.cli.pds4.targets.image_targets` — the configuration's targets
   table, as :class:`~spindoctor.cli.pds4.targets.Pds4Target` entries, and the targets one
   image's backplane metadata names.
-- :func:`~spindoctor.cli.pds4.ring_geometry.ring_geometry` — the ring geometry a data
-  label of an image with ring backplanes states.
+- :func:`~spindoctor.cli.pds4.index_columns.statistic_index_columns` — every statistic
+  column of the global index tables, as the summary pass writes them and the bundle
+  check holds their labels to them.
 - :func:`~spindoctor.cli.pds4.epochs.exposure_times` — an image's exposure start and
   stop as the index tables write them, to the millisecond, as its data label does.
 - :func:`~spindoctor.support.time.et_to_pds4_utc` — the PDS4 spelling of an epoch,

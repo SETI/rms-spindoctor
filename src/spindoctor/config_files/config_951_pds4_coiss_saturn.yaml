@@ -1,3 +1,10 @@
+# The coiss_saturn dataset's entry in the pds4 section: the Cassini ISS Saturn bundle's
+# PDS4 settings. Nothing mission-specific goes in a generically named file, so the entry
+# has this Cassini-named file of its own. It is a 95x file rather than part of
+# config_400_inst_coiss.yaml because every config_4* file's bytes are hashed into each
+# navigation document's static_data_hashes as the instrument's static data, where a new
+# bundle version or a moved schema would read as a change of Cassini instrument data; no
+# 9xx file is hashed that way.
 pds4:
   coiss_saturn:
     template_dir: cassini_iss_saturn_1.0
@@ -23,25 +30,6 @@ pds4:
       geom:
         location: https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0
         lidvid: urn:nasa:pds:system_bundle:xml_schema:geom-xml_schema::1.19
-      rings:
-        location: https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1F00
-        lidvid: urn:nasa:pds:system_bundle:xml_schema:rings-xml_schema::1.15
       cassini:
         location: https://pds.nasa.gov/pds4/mission/cassini/v1/PDS4_CASSINI_1O00_1800
         lidvid: urn:nasa:pds:system_bundle:xml_schema:cassini-xml_schema::1.18
-  # Entries for other datasets, commented out, each giving the dataset's template
-  # directory and its bundle's name and version.  A dataset builds a bundle only once its
-  # entry has every key the coiss_saturn entry has and the dataset implements the PDS4
-  # hooks.
-  # gossi:
-  #   template_dir: galileo_ssi_jupiter_1.0
-  #   bundle_name: galileo_ssi_jupiter_backplanes_rsfrench2027
-  #   bundle_version: '1.0'
-  # nhlorri:
-  #   template_dir: newhorizons_lorri_pluto_1.0
-  #   bundle_name: newhorizons_lorri_pluto_backplanes_rsfrench2027
-  #   bundle_version: '1.0'
-  # vgiss:
-  #   template_dir: voyager_iss_saturn_1.0
-  #   bundle_name: voyager_iss_saturn_backplanes_rsfrench2027
-  #   bundle_version: '1.0'

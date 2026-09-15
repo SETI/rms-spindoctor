@@ -49,7 +49,12 @@ class Pds4Target:
 
     @property
     def lidvid(self) -> str:
-        """The context product's LIDVID, ``<lid>::<version>``."""
+        """The context product's LIDVID.
+
+        Returns:
+            The context product's LID and the version the PDS registry holds, as
+            ``<lid>::<version>``.
+        """
         return f'{self.lid}::{self.version}'
 
 

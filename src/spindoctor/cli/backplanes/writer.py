@@ -6,14 +6,14 @@ from astropy.io import fits
 from filecache import FCPath
 from pdslogger import PdsLogger
 
-from spindoctor.cli.backplanes.backplanes_bodies import backplane_body_names
+from spindoctor.cli.backplanes.backplanes_bodies import BODY_LONGITUDE, backplane_body_names
 from spindoctor.cli.backplanes.backplanes_rings import (
     RING_LONGITUDE,
     RING_LONGITUDINAL_RESOLUTION,
     RingIncidenceAngle,
 )
 from spindoctor.cli.backplanes.merge import body_naif_id
-from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
+from spindoctor.cli.backplanes.statistics import PlaneStatistics, longitude_step, plane_statistics
 from spindoctor.config import IMAGE_LOGGER, Config
 from spindoctor.obs import ObsSnapshot
 from spindoctor.support.file import json_as_string
@@ -115,7 +115,11 @@ def write_fits(
     holds the nearer body's value, so it counts for the nearer body alone.  The ring
     longitude's statistic also records its range wrapped at zero, over the same pixels,
     with the coarsest longitudinal size of a pixel on the rings as the widest gap that
-    leaves the circle covered.  Beside the incidence angle at the ring system's center,
+    leaves the circle covered.  A body's longitude statistic records its range wrapped at
+    zero too, over the body's pixels, with the widest longitude step between two of them
+    that neighbor as that gap, as
+    :func:`~spindoctor.cli.backplanes.statistics.longitude_step` finds it.  Beside the
+    incidence angle at the ring system's center,
     the rings block records the least, the greatest and the mean incidence angle over
     the pixels where a ring plane has a value.
 
@@ -204,11 +208,23 @@ def write_fits(
     for body_name in bodies_result:
         # The pixels the merge gave the body, where the planes hold its values
         claimed = body_id_map == body_naif_id(snapshot, body_name)
-        body_entry: dict[str, Any] = {
-            'backplanes': _plane_statistics(
-                master_by_type, body_units, claimed, masked_value=masked_value
+        body_statistics = _plane_statistics(
+            master_by_type, body_units, claimed, masked_value=masked_value
+        )
+        # The body longitude's range wrapped at zero as well, the arc the body's pixels
+        # cover, which a gap no wider than the widest longitude step between two of its
+        # neighboring pixels does not break: such a gap is one the body's sampling
+        # leaves, not longitude out of view
+        if BODY_LONGITUDE in body_statistics:
+            longitude = master_by_type[BODY_LONGITUDE]
+            measured = claimed & (longitude != masked_value)
+            units = body_units[BODY_LONGITUDE]
+            body_statistics[BODY_LONGITUDE] = plane_statistics(
+                longitude[measured],
+                units=units,
+                longitude_resolution=longitude_step(longitude, measured, units=units),
             )
-        }
+        body_entry: dict[str, Any] = {'backplanes': body_statistics}
 
         # Add inventory information for this body
         if body_name in inv:
@@ -238,8 +254,11 @@ def write_fits(
             master_by_type, ring_units, everywhere, masked_value=masked_value
         )
         # The ring longitude's range wrapped at zero as well, the arc its pixels cover,
-        # which a gap no wider than the coarsest pixel does not break
-        if RING_LONGITUDE in ring_statistics:
+        # which a gap no wider than the coarsest pixel does not break.  With no
+        # longitudinal resolution to measure a gap against -- a configuration declaring
+        # none, or a frame where that plane has no value -- no wrapped range is recorded,
+        # and the rest of the document is written as ever
+        if RING_LONGITUDE in ring_statistics and RING_LONGITUDINAL_RESOLUTION in ring_statistics:
             longitude = master_by_type[RING_LONGITUDE]
             ring_statistics[RING_LONGITUDE] = plane_statistics(
                 longitude[longitude != masked_value],

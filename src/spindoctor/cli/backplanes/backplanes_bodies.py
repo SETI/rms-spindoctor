@@ -9,6 +9,13 @@ from pdslogger import PdsLogger
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 
+BODY_LONGITUDE = 'body_longitude'
+"""The configured body plane holding a body's longitude.
+
+Its statistic also records its range wrapped at zero, the arc of longitude the body's
+pixels cover.
+"""
+
 
 def _create_simulated_body_backplane(
     snapshot: ObsSnapshot,

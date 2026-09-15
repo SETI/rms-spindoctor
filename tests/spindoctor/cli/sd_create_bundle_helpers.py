@@ -124,6 +124,7 @@ class StubDataset:
             backplanes=SimpleNamespace(
                 bodies=[],
                 rings=[],
+                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
                 masked_value=DEFAULT_CONFIG.backplanes.masked_value,
                 target_lids={},
             )
@@ -134,15 +135,28 @@ class StubDataset:
         return BUNDLE_NAME
 
     def pds4_bundle_version(self) -> str:
-        """Return the bundle's version, which each of its products carries."""
+        """Return the bundle's version, which each of its products carries.
+
+        Returns:
+            ``1.0``.
+        """
         return '1.0'
 
     def pds4_information_model_version(self) -> str:
-        """Return the information model version the labels are written against."""
+        """Return the information model version the labels are written against.
+
+        Returns:
+            The stand-in version, ``STAND_IN_INFORMATION_MODEL_VERSION``.
+        """
         return STAND_IN_INFORMATION_MODEL_VERSION
 
     def pds4_schemas(self) -> dict[str, Pds4Schema]:
-        """Return the dictionary schemas the labels declare."""
+        """Return the dictionary schemas the labels declare.
+
+        Returns:
+            A copy of the stand-in schemas, ``STAND_IN_SCHEMAS``, by the prefix each
+            dictionary's namespace takes in a label.
+        """
         return dict(STAND_IN_SCHEMAS)
 
     def pds4_bundle_template_dir(self) -> str:

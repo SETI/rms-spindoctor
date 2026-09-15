@@ -259,7 +259,9 @@ Alongside the FITS file the writer drops a companion
   incidence angle of sunlight on its plane (``incidence_angle``: its ``value`` at the
   ring system's center and, when a ring plane has a value anywhere, its ``min``,
   ``max`` and ``mean`` over the pixels where one does, in degrees with their unit), and
-  the ring planes' statistics (``backplanes``).
+  the ring planes' statistics (``backplanes``).  The PDS4 bundle's rings index states
+  the incidence angle's ``min``, ``max`` and ``mean`` and the ring longitude's wrapped
+  range (below), and no data label states either.
 
 Each statistic states the unit its values are in, which for an angular plane
 is not the unit of the array it was taken from.
@@ -281,7 +283,24 @@ the part of the circle the image does not cover, and the arc runs from the longi
 after it to the one before it, so the arc's start is the greater where it crosses
 zero.  Longitudes that leave no gap wider than the coarsest value of the plane
 :data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION`
-names cover the whole circle, recorded as 0 to 360.
+names cover the whole circle, recorded as 0 to 360.  With no value of that plane, as
+when the configuration declares none, the statistic records no wrapped range.
+
+Each body's longitude statistic, the plane
+:data:`~spindoctor.cli.backplanes.backplanes_bodies.BODY_LONGITUDE` names, records its
+range wrapped at zero too, over the pixels ``BODY_ID_MAP`` gives the body, by the same
+rule.  A body's resolutions are sizes on its surface, in km per pixel, so the widest gap
+that leaves the circle covered is instead the widest longitude step between two of the
+body's pixels that share an edge, taken the short way round the circle, as
+:func:`~spindoctor.cli.backplanes.statistics.longitude_step` finds it.  Longitude
+changes fastest from pixel to pixel near the limb and round a pole in view, where every
+longitude meets, so the step is as wide as any gap the body's sampling leaves: a body
+seen round a pole covers the whole circle, and one seen from its equator the arc its
+visible side spans.  The angle a pixel spans on the surface, from the body's coarsest
+resolution and its radius, is not the threshold: it grows without bound toward the
+limb, where the surface turns edge-on, and a small body's would be wider than the half
+of it out of view, reading every view of it as the whole circle.  A body whose
+longitude plane has no value records no statistic, and so no range.
 
 The PDS4 bundle generator (:doc:`dev_guide_pds4`) reads this sidecar
 when rendering the per-image data label.
@@ -299,7 +318,7 @@ If the part of a unit before any ``/`` is exactly ``rad``, it becomes ``deg``
 and the rest is kept, so ``rad/pixel`` becomes ``deg/pixel``. Every other unit
 is left alone. An angular unit other than ``rad`` (``mrad``, ``arcsec``) would
 need a change to that function, and every unit needs a format in
-:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS`. Two tests over the
+:data:`~spindoctor.cli.pds4.index_columns.INDEX_VALUE_FORMATS`. Two tests over the
 shipped configuration fail on a unit that needs either change: one allows only
 the measures ``rad``, ``deg`` and ``km``, and the other looks every unit up in
 that table.

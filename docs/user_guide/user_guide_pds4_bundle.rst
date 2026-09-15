@@ -82,9 +82,11 @@ The two passes write this directory structure:
        └── collection_xml_schema.lblx
 
 The user guide and its label are in ``document/user_guide/`` only when the dataset's
-template directory holds the user-guide PDF (see `Templates`_). The rings index
-and its label are in ``miscellaneous/`` only when some image in the bundle has
-ring backplanes (see `Global Index Tables`_).
+template directory holds the user-guide PDF (see `Templates`_). The bodies index
+and its label are in ``miscellaneous/`` only when a body shows in some image in the
+bundle, the rings index and its label only when some image has ring backplanes, and
+``miscellaneous/`` itself is there only when at least one of its index tables has a
+row (see `Global Index Tables`_).
 
 ``<path stub>/<image>`` places each image in ``data/`` and ``browse/`` by a rule the
 dataset derives from the image's name: for ``coiss_saturn``, image N1454820509 is at
@@ -481,23 +483,11 @@ to its PDS4 context product by its logical identifier, as the targets table iden
 it (see `Targets`_): for example ``Saturn``, of type ``Planet``, at
 ``urn:nasa:pds:context:target:planet.saturn``.
 
-The data label of an image with ring backplanes also states the image's ring geometry,
-in the rings dictionary's ``Reprojection_Geometry``:
-
-* the least and the greatest phase angle, emission angle and ring radius, and the least
-  and the greatest radial and longitudinal size of a pixel in the ring plane, each over
-  the pixels where its backplane has a value, written as the global index tables write
-  it (see `Global Index Tables`_). A size per pixel is stated in the length or the angle
-  a pixel spans, ``km`` or ``deg``.
-* the range of ring longitude the image covers, from where its arc of the ring plane
-  starts to where it ends, so the minimum is greater than the maximum where the arc
-  crosses zero longitude. An image covering the whole circle states 0 and 360. The global
-  index tables give the plain least and greatest longitude instead.
-* the mean, the least and the greatest incidence angle of sunlight on the ring plane over
-  the pixels where the ring backplanes have a value, which the backplane stage records
-  for the image (see :doc:`user_guide_backplanes`).
-
-The backplane arrays are not reprojected, and the block's description says so.
+A data label states no ring geometry: of the rings it names the target alone. Each
+ring image's ranges are in the global rings index instead: the least and the greatest
+value of each of its ring backplanes, the arc of ring longitude it covers, and the least,
+the greatest and the mean incidence angle of sunlight on its rings (see
+`Global Index Tables`_).
 
 Each data label, the data collection label and the bundle label declare one set of
 science facets: the ``Visible`` wavelength range and the ``Ring-Moon Systems``
@@ -521,13 +511,17 @@ The summary pass generates:
   * ``collection_browse.csv``: CSV file listing all browse products in the bundle
   * ``collection_browse.lblx``: PDS4 label for the browse collection
 
-* **Miscellaneous Collection**, in ``miscellaneous/`` (see `Global Index Tables`_):
+* **Miscellaneous Collection**, in ``miscellaneous/``, when at least one index table
+  has a row (see `Global Index Tables`_):
 
   * ``global_bodies_index.tab``: a table with one row for each body seen in each image
-    of the bundle, giving the least and the greatest value of each body backplane
+    of the bundle, giving the least and the greatest value of each body backplane, and
+    the arc of longitude the body covers
   * ``global_bodies_index.lblx``: PDS4 label for the bodies index
   * ``global_rings_index.tab``: a table with one row for each image with ring
-    backplanes, giving the least and the greatest value of each ring backplane
+    backplanes, giving the least and the greatest value of each ring backplane, the
+    arc of ring longitude the image covers, and the incidence angle of sunlight on its
+    rings
   * ``global_rings_index.lblx``: PDS4 label for the rings index
   * ``collection_miscellaneous.csv``: the collection's members: the index tables it
     holds, and the context products and documents the bundle cites
@@ -580,7 +574,8 @@ FITS file.
 
 * ``global_bodies_index.tab`` has one row for each body seen in each image, a body that
   shows at one pixel at least. A body with no value for some backplane holds the masked
-  value in that backplane's columns.
+  value in that backplane's columns. When no image shows a body, neither this table nor
+  its label is written.
 * ``global_rings_index.tab`` has one row for each image that has ring backplanes. When
   no image has ring backplanes, neither this table nor its label is written.
 
@@ -601,6 +596,21 @@ columns come in pairs, the least and the greatest value one backplane takes over
 pixels where it has a value, named as the configuration names them, as in
 ``geom:minimum_latitude`` and ``geom:maximum_latitude``.
 
+The rings table also gives the arc of ring longitude each image covers, as
+``rings:minimum_inertial_ring_longitude`` and ``rings:maximum_inertial_ring_longitude``:
+where the arc begins and where it ends, so that the first is greater than the second
+where the arc crosses zero longitude, and an arc covering the whole circle gives 0 and
+360. ``minimum_ring_longitude`` and ``maximum_ring_longitude`` give the plain least and
+greatest longitude instead, near 0 and near 360 for any arc across zero. The bodies
+table gives each body's arc of longitude the same way, as
+``minimum_wrapped_body_longitude`` and ``maximum_wrapped_body_longitude``, beside the
+plain ``minimum_body_longitude`` and ``maximum_body_longitude``; a body seen round one of
+its poles covers the whole circle, 0 to 360. The rings
+table's last three columns, ``rings:minimum_incidence_angle``,
+``rings:maximum_incidence_angle`` and ``rings:mean_incidence_angle``, give the least,
+the greatest and the mean incidence angle of sunlight on the ring plane over the image's
+ring pixels.
+
 Angular columns are in degrees, although the backplane arrays are in radians (see
 :doc:`user_guide_backplanes`). Each column is written with a precision suited to its
 unit: three decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and
@@ -610,7 +620,9 @@ Where an image has no value for a backplane, both of its columns hold the masked
 (``backplanes.masked_value``, ``-999`` as shipped), written with the column's own
 precision: ``-999.000`` in a column of degrees, ``-999.0`` in kilometers,
 ``-999.00000000`` in degrees per pixel and ``-999.00`` in kilometers per pixel. The
-label declares that value, as written, as the column's missing constant.
+label declares that value, as written, as the column's missing constant. A column whose
+value an image's backplanes do not record holds it too, such as the arc or the incidence
+angle of backplanes generated by an earlier version.
 
 Exit Status
 ===========
@@ -629,15 +641,14 @@ with exit status 2 before it does anything.
   is bundled like any other. An image fails if a label
   cannot be written, its summary PNG is missing, its backplane metadata holds a
   statistic the index tables cannot hold (one in a unit other than the
-  configured one, or a minimum or maximum that is NaN or infinite), it was
+  configured one, or a minimum or maximum that is NaN or infinite), or it was
   navigated by an earlier version, which did not record the exposure times with
-  the observation, or its backplanes were generated by an earlier version, which
-  recorded ring backplanes without the incidence angle of sunlight over the rings they
-  cover. For such a statistic, or backplanes
-  generated by an earlier version, regenerate that image's backplanes; an image
+  the observation. For such a statistic, regenerate that image's backplanes; an image
   navigated by an earlier version must be navigated again before it can be
   bundled. An image whose backplanes cover a body the targets table has no entry
-  for fails too, the log naming the body (see `Targets`_).
+  for fails too, the log naming the body (see `Targets`_), and so does an image whose
+  ring backplanes were generated by an earlier version, which did not record the ring
+  target: regenerate its backplanes.
 
   ``--dry-run`` writes nothing and ends with the number of images it would
   process. It exits 0 if the bundle directory is empty and every template is
@@ -703,9 +714,9 @@ and version are set, and where the schemas its labels declare are found:
          pds:
            location: https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00
            lidvid: urn:nasa:pds:system_bundle:xml_schema:pds-xml_schema::1.24
-         rings:
-           location: https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1F00
-           lidvid: urn:nasa:pds:system_bundle:xml_schema:rings-xml_schema::1.15
+         geom:
+           location: https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0
+           lidvid: urn:nasa:pds:system_bundle:xml_schema:geom-xml_schema::1.19
          # and one entry for each other dictionary the labels declare
 
 The ``cassini_iss_saturn_1.0`` template directory ships with the package. The
@@ -738,7 +749,7 @@ Configuration Options
   ``pds`` schema belongs to, and changes when that schema does.
 
 * ``schemas``: The schema of each dictionary the labels declare, keyed by the prefix
-  its namespace takes in a label (``pds``, ``rings``, and so on). ``location`` is the
+  its namespace takes in a label (``pds``, ``geom``, and so on). ``location`` is the
   web address of the dictionary's XML schema and Schematron without the extension, to
   which ``.xsd`` and ``.sch`` are added, and ``lidvid`` is the logical identifier and
   version the XML schema collection lists the dictionary by. Every label declaring the
@@ -827,7 +838,7 @@ among them, takes them from the configuration (see `Configuration`_):
 ``BUNDLE_VERSION`` its version; ``INFORMATION_MODEL_VERSION`` the information model
 version; ``PDS4_<PREFIX>_SCHEMA`` and ``PDS4_<PREFIX>_SCHEMA_XSD`` the Schematron and
 the XML schema of each dictionary, ``<PREFIX>`` being its prefix in upper case, as in
-``PDS4_RINGS_SCHEMA_XSD``; and ``XML_SCHEMA_LIDVIDS`` the list the XML schema
+``PDS4_GEOM_SCHEMA_XSD``; and ``XML_SCHEMA_LIDVIDS`` the list the XML schema
 collection gives.
 
 Each dataset supplies its own values for the other variables its templates use.

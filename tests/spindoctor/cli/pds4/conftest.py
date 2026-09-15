@@ -343,6 +343,7 @@ class FakePds4DataSet:
             backplanes=SimpleNamespace(
                 bodies=bodies if bodies is not None else [],
                 rings=rings if rings is not None else [],
+                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
                 masked_value=DEFAULT_CONFIG.backplanes.masked_value,
                 target_lids=TARGET_LIDS,
             )
@@ -361,15 +362,28 @@ class FakePds4DataSet:
         return self._bundle_name
 
     def pds4_bundle_version(self) -> str:
-        """Return the bundle's version, which each of its products carries."""
+        """Return the bundle's version, which each of its products carries.
+
+        Returns:
+            :data:`DEFAULT_BUNDLE_VERSION`, the version every plumbing bundle carries.
+        """
         return DEFAULT_BUNDLE_VERSION
 
     def pds4_information_model_version(self) -> str:
-        """Return the information model version the labels are written against."""
+        """Return the information model version the labels are written against.
+
+        Returns:
+            The version the dataset was built with.
+        """
         return self._information_model_version
 
     def pds4_schemas(self) -> dict[str, Pds4Schema]:
-        """Return the dictionary schemas the labels declare."""
+        """Return the dictionary schemas the labels declare.
+
+        Returns:
+            A copy of the schemas the dataset was built with, by the prefix each
+            dictionary's namespace takes in a label.
+        """
         return dict(self._schemas)
 
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
@@ -480,6 +494,7 @@ class NoPds4DataSet:
             backplanes=SimpleNamespace(
                 bodies=[],
                 rings=[],
+                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
                 masked_value=DEFAULT_CONFIG.backplanes.masked_value,
                 target_lids=TARGET_LIDS,
             )

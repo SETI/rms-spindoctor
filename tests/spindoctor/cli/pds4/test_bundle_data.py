@@ -529,38 +529,6 @@ def test_an_image_covering_no_target_is_skipped_whatever_its_navigation_document
     assert _generate(env) is BundleDataOutcome.SKIPPED
 
 
-@pytest.mark.parametrize(
-    'incidence',
-    [None, {'value': 45.0, 'units': 'deg'}],
-    ids=['no incidence angle', 'no incidence angle over the ring pixels'],
-)
-def test_ring_statistics_with_no_incidence_range_fail_the_image_with_nothing_written(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], incidence: dict[str, Any] | None
-) -> None:
-    """Backplanes an earlier version generated fail the image, whatever of the angle they hold.
-
-    The earliest recorded ring statistics with no ring target and no incidence angle, and
-    later ones the angle at the ring center alone.  None recorded the angle over the ring
-    pixels the ring geometry states, and all took their statistics before the merge, so
-    the image is failed with one line saying why, to have its backplanes regenerated,
-    rather than by an error from deeper in the pass.
-    """
-    env = make_bundle_env(tmp_path)
-    rings: dict[str, Any] = {
-        'backplanes': {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}}
-    }
-    if incidence is not None:
-        rings |= {'target': PLUMBING_RING_TARGET, 'incidence_angle': incidence}
-    write_nav_inputs(
-        env, backplane_metadata={'bodies': {'MOON': {'backplanes': {}}}, 'rings': rings}
-    )
-    outcome = _generate(env)
-    assert outcome is BundleDataOutcome.FAILED
-    assert not env.bundle_dir.exists()
-    expected = 'records ring statistics but not the incidence angle over the ring pixels'
-    assert expected in capsys.readouterr().out
-
-
 def test_a_target_the_table_has_no_entry_for_raises_with_nothing_written(tmp_path: Path) -> None:
     """A body the targets table does not identify is refused by name, nothing written."""
     env = make_bundle_env(tmp_path)

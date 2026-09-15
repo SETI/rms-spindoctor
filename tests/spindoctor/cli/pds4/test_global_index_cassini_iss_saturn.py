@@ -5,9 +5,11 @@ What each index label says of its table: its ``Header`` is the table's header li
 records and its columns as its fields; each ``Field_Character`` is numbered by its
 position and lands on the column it names in every record; each fixed field states the
 data type of its values, and each statistic field the data type, unit and description
-its configuration gives it; each label names the table beside it; and each row's
+its configuration gives it; each label names the table beside it; each row's
 exposure start and stop are the ones its data label
-states.  The miscellaneous collection and the bundle's entry for it state the
+states; and the ring row states the plain longitude range, the arc the rings cover and
+the incidence angle as its backplane metadata records them, an arc across zero among
+them.  The miscellaneous collection and the bundle's entry for it state the
 miscellaneous types.  Those are asked of the cohort's bundle.  Two more questions need a
 configuration the test chooses, and are asked of the shipped templates over plumbing
 inputs: that a plane added to the configuration adds a column to the table and a
@@ -29,10 +31,12 @@ from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
 from spindoctor.cli.backplanes.statistics import statistics_units
-from spindoctor.cli.pds4.global_index import INDEX_VALUE_FORMATS, generate_global_index_files
+from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.global_index import generate_global_index_files
+from spindoctor.cli.pds4.index_columns import INDEX_VALUE_FORMATS
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
-from .cohort_bundle import write_cohort_bundle
+from .cohort_bundle import make_cohort_bundle_env, write_cohort_bundle
 from .conftest import (
     index_entry,
     make_bundle_env,
@@ -313,29 +317,58 @@ FIXED_COLUMNS = frozenset(
 """The columns an index table gives whatever planes the configuration declares."""
 
 
+PLANE_COLUMNS = ('minimum', 'maximum', 'wrapped_minimum', 'wrapped_maximum')
+"""The keys of a plane's index block naming its columns, in the order a table gives them."""
+
+INCIDENCE_COLUMNS = ('minimum', 'maximum', 'mean')
+"""The keys of the ring incidence angle's index block naming its columns, in order."""
+
+
+def _fields(
+    units: str, index: Mapping[str, Any], keys: Sequence[str]
+) -> list[tuple[str, str, str, str]]:
+    """Return what each field an index block describes has to state.
+
+    Parameters:
+        units: The unit the block's values are in, as the configuration declares it.
+        index: The index block.
+        keys: The keys naming its columns, in the order the table gives them; a key the
+            block does not give names no field.
+
+    Returns:
+        For each column the block gives: its name, the data type the block gives, the
+        unit its values are in, and its description, its whitespace collapsed to single
+        spaces.
+    """
+    return [
+        (
+            index[key]['name'],
+            index['data_type'],
+            statistics_units(units),
+            ' '.join(index[key]['description'].split()),
+        )
+        for key in keys
+        if key in index
+    ]
+
+
 def _configured_statistic_fields(
     entries: Sequence[Mapping[str, Any]],
 ) -> list[tuple[str, str, str, str]]:
-    """Return what each statistic field of a table has to state, from its configuration.
+    """Return what each statistic field of a table's planes has to state.
 
     Parameters:
         entries: The table's configured planes, ``backplanes.bodies`` or
             ``backplanes.rings``, in order.
 
     Returns:
-        For each plane its minimum column and then its maximum: the column's name, the
-        data type its entry gives, the unit its statistic is in, and the description its
-        own entry gives, its whitespace collapsed to single spaces.
+        For each plane its minimum column, its maximum and any wrapped ones, as
+        :func:`_fields` gives them.
     """
     return [
-        (
-            entry['index'][end]['name'],
-            entry['index']['data_type'],
-            statistics_units(entry['units']),
-            ' '.join(entry['index'][end]['description'].split()),
-        )
+        field
         for entry in entries
-        for end in ('minimum', 'maximum')
+        for field in _fields(entry['units'], entry['index'], PLANE_COLUMNS)
     ]
 
 
@@ -351,13 +384,18 @@ def test_every_field_states_its_data_type_and_each_statistic_field_its_unit_and_
     configuration gives, and its unit is the one its plane's statistic is in: the plane's
     unit restated through ``statistics_units``, so an angle in radians is a column in
     degrees.  Every field after the fixed columns is held, in order, to the configured
-    planes' minimum and maximum columns, in both tables.
+    planes' columns -- each plane's minimum, maximum and any wrapped ones -- in both
+    tables, and the rings table's last three to the incidence angle's.
     """
     products = _cohort_index_products(cassini_cohort, tmp_path)
     backplanes = cassini_cohort.dataset().config.backplanes
+    incidence = backplanes.ring_incidence_angle
     configured = {
         'global_bodies_index': _configured_statistic_fields(backplanes.bodies),
-        'global_rings_index': _configured_statistic_fields(backplanes.rings),
+        'global_rings_index': [
+            *_configured_statistic_fields(backplanes.rings),
+            *_fields(incidence['units'], incidence['index'], INCIDENCE_COLUMNS),
+        ],
     }
     stated = {
         name: [
@@ -441,22 +479,113 @@ def test_each_row_s_times_are_the_start_and_stop_its_data_label_states(
     assert rows == [(lid, stated[lid]) for lid, _ in rows]
 
 
-def test_the_rings_index_states_the_plain_ring_longitude_range(
+def test_the_ring_row_states_the_longitudes_and_the_incidence_its_metadata_records(
     cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
 ) -> None:
-    """The ring image's row states the plain least and greatest ring longitude.
+    """The ring image's row states the plain range, the wrapped arc and the incidence.
 
-    Its data label states the range wrapped at zero, 216.000 to 204.706, and the index
-    columns are named for the plain range, 0 to 360.
+    The plain pair is the least and the greatest ring longitude, 0 to 360; the wrapped
+    pair the arc the rings cover, 216.000 across zero to 204.706; and the incidence angle
+    its least, greatest and mean over the ring pixels: each as the image's backplane
+    metadata records it, written in degrees' format.
     """
     env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
     header, row = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
     metadata_path = cassini_cohort.backplane_results_root / f'{RINGS_STUB}_backplane_metadata.json'
     rings = json.loads(metadata_path.read_text(encoding='utf-8'))['rings']
-    statistic = rings['backplanes']['ring_longitude']
-    plain = [INDEX_VALUE_FORMATS['deg'].render(statistic[end]) for end in ('min', 'max')]
-    stated = [row[header.index(f'{end}_ring_longitude')] for end in ('minimum', 'maximum')]
-    assert stated == plain
+    longitude = rings['backplanes']['ring_longitude']
+    incidence = rings['incidence_angle']
+    degrees = INDEX_VALUE_FORMATS['deg']
+    plain = [row[header.index(f'{end}_ring_longitude')] for end in ('minimum', 'maximum')]
+    arc = [
+        row[header.index(f'rings:{end}_inertial_ring_longitude')] for end in ('minimum', 'maximum')
+    ]
+    angle = [row[header.index(f'rings:{end}_incidence_angle')] for end in INCIDENCE_COLUMNS]
+    assert plain == [degrees.render(longitude[key]) for key in ('min', 'max')]
+    assert arc == [degrees.render(longitude[key]) for key in ('wrapped_min', 'wrapped_max')]
+    assert angle == [degrees.render(incidence[key]) for key in ('min', 'max', 'mean')]
+
+
+CROSSING_RINGS: dict[str, Any] = {
+    'target': 'SATURN_MAIN_RINGS',
+    'incidence_angle': {
+        'value': 83.28871537010211,
+        'min': 83.28898827376932,
+        'max': 83.28899749242373,
+        'mean': 83.28899288820145,
+        'units': 'deg',
+    },
+    'backplanes': {
+        'ring_radius': {'min': 116918.53125, 'max': 118283.765625, 'units': 'km'},
+        'ring_longitude': {
+            'min': 3.7610925573972054e-07,
+            'max': 360.0,
+            'units': 'deg',
+            'wrapped_min': 359.68670654296875,
+            'wrapped_max': 0.402150422334671,
+        },
+        'ring_emission_angle': {
+            'min': 25.60999870300293,
+            'max': 26.040231704711914,
+            'units': 'deg',
+        },
+        'ring_phase_angle': {'min': 89.56204223632812, 'max': 89.91352081298828, 'units': 'deg'},
+        'ring_radial_resolution': {
+            'min': 0.9571531414985657,
+            'max': 0.9619501233100891,
+            'units': 'km/pixel',
+        },
+        'ring_longitudinal_resolution': {
+            'min': 0.0005069840117357671,
+            'max': 0.000512092316057533,
+            'units': 'deg/pixel',
+        },
+    },
+}
+"""The rings block the backplane stage records for the real frame N1591060671.
+
+Its rings cross zero longitude: the plain range is 0 to 360, and the arc they cover runs
+from 359.687 across zero to 0.402.
+"""
+
+
+def test_a_ring_arc_across_zero_is_stated_from_where_it_begins_to_where_it_ends(
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+) -> None:
+    """The ring image given N1591060671's rings block states its arc and its incidence.
+
+    The block replaces the cohort ring image's own, under a backplane root of the test's
+    own beside the image's FITS, as the crossing build replaces it.  The row states the
+    arc from 359.687 across zero to 0.402, and the incidence angle's least, greatest and
+    mean, which on that frame all round to 83.289.
+    """
+    source = cassini_cohort.backplane_results_root
+    backplane_root = tmp_path / 'backplanes'
+    metadata_name = f'{RINGS_STUB}_backplane_metadata.json'
+    metadata = json.loads((source / metadata_name).read_text(encoding='utf-8'))
+    (backplane_root / metadata_name).parent.mkdir(parents=True)
+    (backplane_root / metadata_name).write_text(
+        json.dumps({**metadata, 'rings': CROSSING_RINGS}), encoding='utf-8'
+    )
+    fits_name = f'{RINGS_STUB}_backplanes.fits'
+    (backplane_root / fits_name).write_bytes((source / fits_name).read_bytes())
+    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
+    generate_bundle_data_files(
+        env.dataset,
+        cassini_cohort.batch(RINGS_STUB),
+        nav_results_root=FCPath(cassini_cohort.nav_results_root),
+        backplane_results_root=FCPath(backplane_root),
+        bundle_results_root=FCPath(env.bundle_results_root),
+        logger=MAIN_LOGGER,
+    )
+    generate_global_index_files(FCPath(env.bundle_results_root), env.dataset, MAIN_LOGGER)
+    header, row = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
+    arc = [
+        row[header.index(f'rings:{end}_inertial_ring_longitude')] for end in ('minimum', 'maximum')
+    ]
+    angle = [row[header.index(f'rings:{end}_incidence_angle')] for end in INCIDENCE_COLUMNS]
+    assert arc == ['359.687', '0.402']
+    assert angle == ['83.289', '83.289', '83.289']
 
 
 def _shipped_index_templates(cohort: CohortCassiniISSSaturn) -> dict[str, str]:

@@ -12,7 +12,6 @@ from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.data_objects import configured_methods, describe_backplane_fits
 from spindoctor.cli.pds4.image_inputs import image_inputs, navigation_record, navigation_succeeded
 from spindoctor.cli.pds4.labels import write_label
-from spindoctor.cli.pds4.ring_geometry import ring_geometry
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
 from spindoctor.cli.pds4.targets import covers_a_target, image_targets, target_table
 from spindoctor.dataset.dataset import DataSet, ImageFiles
@@ -34,11 +33,8 @@ class BundleDataOutcome(Enum):
             for the image at all, backplane metadata recording a statistic no
             global index column can hold (one in a unit other than the one the
             configuration gives its plane, or with a minimum or maximum that is
-            NaN or infinite), a navigation document whose observation block
-            records no exposure times, as a navigation by an earlier version left,
-            or backplane metadata recording ring statistics without the incidence
-            angle over the ring pixels, as backplanes an earlier version generated
-            left.
+            NaN or infinite), or a navigation document whose observation block
+            records no exposure times, as a navigation by an earlier version left.
     """
 
     WRITTEN = 'written'
@@ -107,13 +103,9 @@ def generate_bundle_data_files(
     its navigation document records, since nothing would be written for it however that
     document were read.
 
-    A data label of an image with ring statistics states its ring geometry, which
-    :func:`~spindoctor.cli.pds4.ring_geometry.ring_geometry` builds from them and the
-    incidence angle the metadata records, handed to the template as ``RING_GEOMETRY``, or
-    None for an image with no ring statistic.  Backplanes an earlier version generated
-    record ring statistics without the incidence angle over the ring pixels, so an image
-    of such backplanes is failed before anything is written for it, the log naming the
-    image, until its backplanes are regenerated.
+    Of an image's rings, a data label names the ring target alone: the ranges of the ring
+    statistics are the global rings index's, as are the wrapped ring longitude range and
+    the incidence angle the backplane metadata also records, which this pass does not read.
 
     The backplane FITS is copied into the bundle, beside its data label, which names
     it with no directory part, and the label's size, checksum and time are the
@@ -142,16 +134,16 @@ def generate_bundle_data_files(
         nothing for the bundle to describe, and FAILED when a label could not be
         rendered, the summary PNG is not there, a backplane statistic is in a
         unit other than the one the configuration gives its plane or has a
-        minimum or maximum that is NaN or infinite, the navigation document's
-        observation block records no exposure times, or the backplane metadata records
-        ring statistics without the incidence angle over the ring pixels.
+        minimum or maximum that is NaN or infinite, or the navigation document's
+        observation block records no exposure times.
 
     Raises:
         ValueError: If the batch does not hold exactly one image.
         OSError: If the backplane FITS cannot be read or copied.
         KeyError: If the configuration's targets table has no entry for a target the
-            backplane metadata names.  The message names it, and nothing is written for
-            the image.
+            backplane metadata names, the message naming it, or if the metadata holds
+            ring statistics and names no ring target, as backplanes an earlier version
+            generated do.  Nothing is written for the image.
     """
 
     if len(image_files.image_files) != 1:
@@ -258,24 +250,6 @@ def generate_bundle_data_files(
             )
             return BundleDataOutcome.FAILED
 
-        # Backplanes an earlier version generated record ring statistics without the
-        # incidence angle over the ring pixels the ring geometry states, and took those
-        # statistics before the merge, over pixels a nearer body hides.  That is a
-        # document of a real, earlier vintage rather than a malformed one, so the image is
-        # failed before anything is written for it, until its backplanes are regenerated.
-        # The stage records the angle's mean, least and greatest together, and whenever
-        # it records a ring statistic, so the mean alone is checked.
-        rings = bp_stats.get('rings', {})
-        if len(rings.get('backplanes', {})) > 0 and 'mean' not in rings.get('incidence_angle', {}):
-            logger.error(
-                'Failing bundle generation for "%s": its backplane metadata records ring '
-                'statistics but not the incidence angle over the ring pixels, which backplanes '
-                'generated by an earlier version leave. Nothing is written for the image until '
-                'its backplanes are regenerated',
-                image_path,
-            )
-            return BundleDataOutcome.FAILED
-
         # A data label names every target the image's backplanes cover, of which the
         # skip above leaves at least one.
         targets = image_targets(bp_stats, target_table(dataset.config))
@@ -337,7 +311,6 @@ def generate_bundle_data_files(
         template_vars['BACKPLANE_PATH'] = str(fits_file_path)
         template_vars['BACKPLANE_FITS'] = fits_objects
         template_vars['TARGETS'] = targets
-        template_vars['RING_GEOMETRY'] = ring_geometry(bp_stats)
         template_vars['BACKPLANE_SUPPL_FILENAME'] = suppl_file_path.name
         template_vars['BACKPLANE_SUPPL_PATH'] = str(suppl_file_path)
         template_vars['BROWSE_FULL_FILENAME'] = browse_image_path.name
