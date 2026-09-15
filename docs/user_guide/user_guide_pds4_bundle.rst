@@ -175,13 +175,16 @@ Process all images in a volume range:
 Checking the Inputs
 ^^^^^^^^^^^^^^^^^^^
 
-With ``--check-only``, the labels pass writes nothing, and reports instead, for each
-selected image, whether the four files it would read are there -- the navigation
-metadata file and the summary PNG under the navigation results root, the backplane FITS
-file and the backplane metadata file under the backplane results root -- and whether
-the image's navigation succeeded. An image with all four whose navigation succeeded is
-complete. Use it to choose the images of a bundle before generating it: the report
-needs no bundle results root and creates none, and writes no log.
+With ``--check-only``, the labels pass writes no labels, logs or bundle files, and
+reports instead, for each selected image, whether the four files it would read are there
+-- the navigation metadata file and the summary PNG under the navigation results root,
+the backplane FITS file and the backplane metadata file under the backplane results root
+-- and whether the image's navigation succeeded. An image with all four whose navigation
+succeeded is complete. The labels pass takes one image at a time, so a selection that
+hands it a group of images instead is reported on one line, and each image of the group
+counts as incomplete. Use it to choose the images of a bundle before generating it: the
+report needs no bundle results root and creates none. The only thing it creates is a
+temporary directory for reading the two roots, which it removes before it ends.
 
 It prints one line for each image, then a count, and exits 1 if any selected image is
 incomplete:
@@ -292,36 +295,60 @@ What It Checks
   is reported, with the schema's web address.
 * Every table -- the index tables and each collection's list of members -- read through
   its label: where each part of the file begins and ends, how many records and fields
-  it holds, where each field lies, and whether each value is of its field's type. A
-  value equal to its field's missing constant must be written as the constant is.
+  it holds, where each field lies and what number it is given, whether each record ends
+  in exactly the characters the label says it does, and whether each value is of its
+  field's type. A value equal to its field's missing constant must be written as the
+  constant is.
+* The layout of the index tables: the header line names the columns in order, separated
+  by commas, and a comma alone lies between two values of a row.
 * Each column of an index table against the configuration: its unit, and its missing
   constant, which is the masked value written in the column's format.
-* The bundle as a whole: every file a label names is beside the label; every other file
-  is named by exactly one label; no label holds a ``[[[`` marker; no element is empty,
-  unless it carries ``xsi:nil``, which marks it empty on purpose; and every reference to
-  a product of the bundle names one the bundle holds, at the version it holds.
+* Each row of an index table against the bundle: it names a data product the bundle
+  holds, with that product's label and its start and stop times, and each data product
+  has a row in the bodies table for each body its backplanes give statistics for and, if
+  they give ring statistics, a row in the rings table.
+* The bundle as a whole: every file a label names is beside the label, is named by its
+  name alone, and has the size and MD5 checksum the label gives it; every other file is
+  named by exactly one label; no label holds a leftover template marker, ``[[[``, which
+  a label template leaves where it could not fill in a value; no element is empty,
+  unless it carries ``xsi:nil``, which marks it empty on purpose; no two labels declare
+  the same product; each collection's list of members names products the bundle holds,
+  at the versions it holds, and names each product in the collection's directory once;
+  and every reference to a product of the bundle names one the bundle holds, at the
+  version it holds.
 
-The NASA PDS ``validate`` tool checks two things more, and is the tool to run on a
-bundle before it is delivered. It checks each reference to a product outside the bundle,
-such as a target's or the mission's, against the products registered with the PDS, and
-it reads the user guide's PDF, which must be a PDF its VeraPDF library can read.
+Each finding is an error or a warning. A warning is something the NASA PDS ``validate``
+tool also reports as a warning: a reference to a product of the bundle that the bundle
+does not hold, a product its collection's list of members leaves out, and the breach of
+a Schematron rule marked as a warning. A bundle written without its user guide gets a
+warning for each reference to the guide.
+
+``validate`` is the tool to run on a bundle before it is delivered. It checks three
+things the check does not: where each array begins in a FITS file; the user guide's PDF,
+which must be one its VeraPDF library can read; and each reference a label makes to a
+product outside the bundle, such as a target or the mission, against the products
+registered with the PDS. Neither tool checks the version a collection's list of members
+gives a product outside the bundle, nor whether what a label says is right rather than
+merely allowed -- a unit the schemas accept but the value is not in, a target the
+product has that the label leaves out, or the length a label gives an axis of a FITS
+array. Check those by hand.
 
 Output
 ^^^^^^
 
 The check prints one line for each finding: the file, relative to the bundle's
-directory; the part of the check that found it (``xml``, ``xsd``, ``schematron``,
-``table`` or ``integrity``); where in the file; and what is wrong. Then it prints the
-count:
+directory; whether it is an error or a warning; the part of the check that found it
+(``xml``, ``xsd``, ``schematron``, ``table`` or ``integrity``); where in the file; and
+what is wrong. Then it prints the number of errors and of warnings:
 
 .. code-block:: text
 
-   bundle.lblx: [xsd] /Product_Bundle/Identification_Area/Citation_Information/doi: value doesn't match any pattern of ['10\\.\\S+/\\S+'] (line 17)
-   spice_kernels/kernels.lblx: [integrity] /Product_SPICE_Kernel/Reference_List/Internal_Reference/lid_reference: refers to urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide, which no label of the tree declares
-   Bundle check of /data/nav/bundle/cassini_iss_saturn_backplanes_rsfrench2027: 2 finding(s)
+   bundle.lblx: error [xsd] /Product_Bundle/Identification_Area/Citation_Information/doi: value doesn't match any pattern of ['10\\.\\S+/\\S+'] (line 17)
+   spice_kernels/kernels.lblx: warning [integrity] /Product_SPICE_Kernel/Reference_List/Internal_Reference/lid_reference: refers to urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide, which no label of the tree declares
+   Bundle check of /data/nav/bundle/cassini_iss_saturn_backplanes_rsfrench2027: 1 error(s), 1 warning(s)
 
 A bundle written without its user guide refers to the guide from several labels, and
-the check reports each such reference, since the bundle does not hold the guide.
+the check warns of each such reference, since the bundle does not hold the guide.
 
 Examples
 ^^^^^^^^
@@ -596,9 +623,9 @@ with exit status 2 before it does anything.
   process. It exits 0 if the bundle directory is empty and every template is
   present.
 
-  ``--check-only`` writes nothing, and exits 1 if any selected image is incomplete
-  (see `Checking the Inputs`_), and 0 otherwise. It does not look at the bundle
-  directory or the templates.
+  ``--check-only`` writes no labels, logs or bundle files, and exits 1 if any selected
+  image is incomplete (see `Checking the Inputs`_), and 0 otherwise. It does not look
+  at the bundle directory or the templates.
 
 * ``sd_create_bundle summary`` exits 1 without writing anything if a file it needs
   from the template directory is missing (the user-guide PDF apart), or if the bundle has
@@ -621,9 +648,9 @@ with exit status 2 before it does anything.
   of the files the summary pass writes: regenerate the backplanes, then the bundle,
   into an empty directory.
 
-* ``sd_create_bundle check`` exits 1 if it finds anything, if there is no bundle
+* ``sd_create_bundle check`` exits 1 if it finds an error, if there is no bundle
   directory under the bundle results root, or if the check itself stops, in which case
-  it prints why instead of a count. Otherwise it exits 0.
+  it prints why instead of the counts. Otherwise it exits 0, warnings or none.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose products could not be
   written as ``status: error``, with ``status_error`` saying why (for example
