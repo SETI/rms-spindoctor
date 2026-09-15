@@ -65,6 +65,10 @@ class Finding:
             record and field, or the empty string for the file as a whole.
         message: What is wrong.
         severity: Whether it is an error, which fails the check, or a warning.
+        kind: What kind of departure it is, in a name that does not change with how the
+            message is worded: for an XML schema error, the class of the xmlschema
+            validator that failed, as in ``XsdPatternFacets``; the empty string for a
+            finding whose message is the check's own text.
     """
 
     file: str
@@ -72,6 +76,7 @@ class Finding:
     location: str
     message: str
     severity: Severity = Severity.ERROR
+    kind: str = ''
 
     def line(self) -> str:
         """Return the finding as the one line ``sd_create_bundle check`` prints for it.

@@ -981,8 +981,10 @@ Checking a bundle
 tree and the schemas the package ships, and writes nothing.  Each way the tree departs
 from PDS4 is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which names the
 file, whether it is an error or a warning, the check that found it, where in the file,
-and what is wrong; the program prints each as one line, and then the number of errors
-and of warnings, and exits 1 on an error.  A warning is what the PDS ``validate`` tool
+and what is wrong; an XML schema error also names its kind, the class of the xmlschema
+validator that failed, which does not change with xmlschema's wording.  The program
+prints each finding as one line, and then the number of errors and of warnings, and
+exits 1 on an error.  A warning is what the PDS ``validate`` tool
 reports as a warning too: an unresolved reference to a product of the bundle
 (``reference_not_found``), a product no inventory lists (``unreferenced_member``), and
 a Schematron assert or report whose ``role``, or whose rule's, marks it a warning.  The
@@ -1238,7 +1240,8 @@ it runs wherever the suite does: in ``scripts/run-all-checks.sh`` and in CI.
 ISS Saturn cohort's bundle twice, plain and from a copy of the template directory holding
 a stand-in user guide, runs
 :func:`~spindoctor.cli.pds4.check.bundle.check_bundle` over each, and holds the findings,
-each by its file, check, location and message, to exactly what is known of the bundle,
+each by its file, check, location and message -- or, for an XML schema error, its kind,
+since xmlschema's wording is not the check's -- to exactly what is known of the bundle,
 errors and warnings apart.  The errors are the ``TODO DOI`` placeholder of the bundle
 label and the two of the guide's label, and each data label's empty
 ``cassini:ISS_Specific_Attributes``; the warnings, in the plain build alone, are each

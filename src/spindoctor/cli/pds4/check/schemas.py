@@ -236,8 +236,9 @@ def xsd_findings(file: str, document: Any, schema: xmlschema.XMLSchema) -> list[
 
     Returns:
         One finding for each error, at the element it is about, with the line the label
-        holds that element on.  An error xmlschema reports twice over one element is one
-        finding.
+        holds that element on, and with its kind: the class of the xmlschema validator
+        that failed, which a release rewording xmlschema's messages leaves as it is.  An
+        error xmlschema reports twice over one element is one finding.
     """
     found: list[Finding] = []
     for error in schema.iter_errors(document, use_location_hints=False):
@@ -249,5 +250,7 @@ def xsd_findings(file: str, document: Any, schema: xmlschema.XMLSchema) -> list[
         reason = error.reason if error.reason is not None else error.message
         line = error.sourceline
         message = reason if line is None else f'{reason} (line {line})'
-        found.append(Finding(file, CheckName.XSD, location, message))
+        validator = error.validator
+        kind = type(error).__name__ if validator is None else type(validator).__name__
+        found.append(Finding(file, CheckName.XSD, location, message, kind=kind))
     return list(dict.fromkeys(found))
