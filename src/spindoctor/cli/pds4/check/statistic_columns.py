@@ -8,6 +8,12 @@ which :func:`~spindoctor.cli.backplanes.statistics.statistics_units` derives fro
 plane's unit, and has to declare as its missing constant the configured masked value
 written in the format of that unit,
 :func:`~spindoctor.cli.pds4.global_index.index_value_format`.
+
+Both are the summary pass's own helpers, reused so that each rule is stated once: the
+check holds a label to the configuration as the summary pass reads it, and a defect in a
+helper would pass it.  The summary pass's tests pin the helpers themselves, in
+``tests/spindoctor/cli/backplanes/test_statistics.py`` and
+``tests/spindoctor/cli/pds4/test_global_index.py``.
 """
 
 from collections.abc import Mapping
@@ -66,9 +72,9 @@ def statistic_column_findings(
     """Hold each statistic column a label describes to the configuration.
 
     Parameters:
-        file: The label's path relative to the bundle's directory, which the findings name.
+        file: The label's path relative to the bundle's directory, which findings name.
         document: The label, parsed by lxml.
-        columns: The configured statistic columns, as :func:`statistic_columns` gives them.
+        columns: The configured statistic columns, which :func:`statistic_columns` gives.
 
     Returns:
         One finding for each column stating a unit other than its plane's statistic's,
