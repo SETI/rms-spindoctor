@@ -608,11 +608,18 @@ def parse_args_check(command_list: list[str]) -> argparse.Namespace:
 
     cmdparser = argparse.ArgumentParser(
         description='PDS4 Bundle Generation - Check',
-        epilog="""Check a bundle the labels and summary passes wrote, reading only the
-        bundle and the schemas the package ships.""",
+        epilog="""Check a bundle the labels and summary passes wrote, reading the bundle
+        and the schemas its labels name, fetched by URL or read from --schema-dir.""",
     )
 
     add_common_arguments(cmdparser, with_logging=False)
+    cmdparser.add_argument(
+        '--schema-dir',
+        type=str,
+        default=None,
+        help='read each schema the labels name from the file of that name in this '
+        'directory, and fetch nothing; by default each schema is fetched by its URL',
+    )
 
     arguments = cmdparser.parse_args(command_list[1:])
     arguments.dataset_name = dataset_name
@@ -623,10 +630,12 @@ def main_check() -> None:
     """Main function for the check subcommand.
 
     Checks the bundle the labels and summary passes wrote into
-    ``<bundle_results_root>/<pds4_bundle_name()>/``, reading only that tree and the
-    schemas the package ships, as :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`
-    describes.  It writes nothing, not even a log: it prints one line per finding, an
-    error or a warning, and then the number of each.
+    ``<bundle_results_root>/<pds4_bundle_name()>/``, reading that tree and the schemas
+    its labels name, as :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`
+    describes: each schema is fetched by its URL through the schema cache, or, with
+    ``--schema-dir``, read from that directory, when nothing is fetched.  It writes
+    nothing but that cache, not even a log: it prints one line per finding, an error or
+    a warning, and then the number of each.
 
     The run ends with exit status 1 when there is any error, when there is no bundle
     directory to check, or when the check itself fails, whose traceback it prints.
@@ -648,7 +657,11 @@ def main_check() -> None:
         sys.exit(1)
 
     try:
-        findings = check_bundle(bundle_dir, config=dataset.config)
+        findings = check_bundle(
+            bundle_dir,
+            config=dataset.config,
+            schema_dir=None if arguments.schema_dir is None else Path(arguments.schema_dir),
+        )
     except Exception:
         # A check that could not finish has no count to give, and a count of the findings
         # it made before it stopped would read as one; its traceback is the report.

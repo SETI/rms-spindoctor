@@ -1,105 +1,136 @@
-"""The PDS4 schemas the package ships, and each label held to the XML schemas it declares.
+"""Each label held to the XML schemas it names, fetched by URL or read from a directory.
 
-The package ships the XML schema and the Schematron of each dictionary a bundle's labels
-declare, in :data:`SCHEMA_DIRECTORY`, and the bundle check resolves every schema from
-there: nothing is ever fetched.  A label declares its XML schemas by the
-``xsi:schemaLocation`` attribute of its root element and its Schematron by ``xml-model``
-instructions, each by URL, and each URL is mapped to the shipped copy of the same file
-name.  A URL with no shipped copy is a finding that names it.
+A label declares its XML schemas by the ``xsi:schemaLocation`` attribute of its root
+element and its Schematron by ``xml-model`` instructions, each by URL, and a dictionary's
+XML schema imports the schemas of the dictionaries it builds on, each by a URL of its
+own.  Every one of those URLs is resolved one way, by :class:`SchemaSource`:
 
-A dictionary's XML schema imports the schemas of the dictionaries it builds on, each by
-the namespace it defines and a URL.  Those imports are resolved through the shipped
-directory as a catalog: each shipped XML schema is offered for the namespace it defines,
-so that an import resolves to the shipped schema of its namespace, whichever version its
-URL names.  Every warning raised while a set of schemas is built is a finding, so that an
-import that fails cannot pass silently.  A set that cannot be built at all -- a URL
-paired with a namespace its file does not define, say -- is one finding, and the label
-is checked without it.
+- by default it is fetched, through a file cache that keeps each download, so that a
+  later check fetches nothing it already has.  The cache is the directory
+  ``_filecache_spindoctor_pds4_schemas`` under the file cache's root, which is
+  ``$FILECACHE_CACHE_ROOT`` when that is set and the system's temporary directory
+  otherwise;
+- given a directory, it is the file of the URL's name in that directory, and nothing is
+  fetched.
+
+No namespace is named in code: an import resolves to the schema at its own URL, as the
+PDS ``validate`` tool resolves it, so a dictionary's import of one build of another
+dictionary resolves to that build even where a label declares another.  xmlschema itself
+is allowed only local files, so everything it reads has come through the one rule.
+
+A URL a label names that cannot be resolved -- one that cannot be fetched, or with no file
+of its name in the directory -- is a finding naming it, and the label is not held to its
+XML schemas.  An import that cannot be resolved makes xmlschema warn, naming the import's
+URL, and every warning raised while a set of schemas is built is a finding.  A set that
+cannot be built at all -- a URL paired with a namespace its file does not define, say --
+is one finding, and the label is checked without it.
 """
 
 import functools
 import warnings
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any
 
 import xmlschema
+from filecache import FCPath, FileCache
 from lxml import etree
 
 from spindoctor.cli.pds4.check.elements import element_path
 from spindoctor.cli.pds4.check.findings import CheckName, Finding
 
-SCHEMA_DIRECTORY = Path(__file__).resolve().parent.parent / 'schemas'
-"""The directory the package ships the PDS4 schemas in, as the PDS publishes them."""
+SCHEMA_CACHE_NAME = 'spindoctor_pds4_schemas'
+"""The name of the file cache fetched schemas are kept in, under the file cache's root."""
 
 XSI_SCHEMA_LOCATION = '{http://www.w3.org/2001/XMLSchema-instance}schemaLocation'
 """The attribute a label declares its XML schemas by, each namespace followed by a URL."""
 
 
-def shipped_copy(url: str) -> Path | None:
-    """Return the shipped copy of a schema a label names by URL.
-
-    Parameters:
-        url: The URL of an XML schema or a Schematron.
-
-    Returns:
-        The file in :data:`SCHEMA_DIRECTORY` with the URL's file name, or None when the
-        package ships no file of that name.
-    """
-    name = url.rsplit('/', 1)[-1]
-    path = SCHEMA_DIRECTORY / name
-    if name == '' or not path.is_file():
-        return None
-    return path
-
-
 @functools.cache
-def _catalog(directory: Path) -> Mapping[str, str]:
-    """Return each XML schema in a directory by the namespace it defines.
-
-    Parameters:
-        directory: The directory of schemas.
+def schema_cache() -> FileCache:
+    """Return the file cache fetched schemas are kept in, made when it is first needed.
 
     Returns:
-        Each schema's path, keyed by its ``targetNamespace``.
+        The cache named :data:`SCHEMA_CACHE_NAME`, which outlives the process.
     """
-    return MappingProxyType(
-        {
-            str(etree.parse(str(path)).getroot().get('targetNamespace')): str(path)
-            for path in sorted(directory.glob('*.xsd'))
-        }
-    )
+    return FileCache(SCHEMA_CACHE_NAME)
 
 
-@functools.cache
-def _loader_class(directory: Path) -> type[xmlschema.SchemaLoader]:
-    """Return an xmlschema loader offering each schema in a directory for its namespace.
-
-    xmlschema tries an import's own URL first and then the locations its loader offers
-    for the import's namespace, so the schemas here are used for a namespace only when an
-    import asks for it.
+def _fetch(url: str) -> Path:
+    """Fetch a schema through the schema cache, or find it there already.
 
     Parameters:
-        directory: The directory of schemas.
+        url: The schema's URL.
 
     Returns:
-        The loader class.
+        The local file the cache holds the schema in.
+
+    Raises:
+        FileNotFoundError: If the URL cannot be fetched.
     """
-    offered: dict[str, Any] = {**xmlschema.SchemaLoader.fallback_locations, **_catalog(directory)}
+    try:
+        local = FCPath(url, filecache=schema_cache()).retrieve()
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f'it cannot be fetched ({exc})') from exc
+    if not isinstance(local, Path):
+        raise FileNotFoundError(f'it cannot be fetched ({local})')
+    return local
 
-    class ShippedSchemaLoader(xmlschema.SchemaLoader):
-        """xmlschema's loader, offering each shipped XML schema for its own namespace."""
 
-        fallback_locations = MappingProxyType(offered)
+@dataclass(frozen=True)
+class SchemaSource:
+    """Where the check takes the schemas a label names by URL from.
 
-    return ShippedSchemaLoader
+    Attributes:
+        directory: A directory holding each schema under the name its URL ends in, from
+            which every URL is read and nothing is fetched; or None, when every URL is
+            fetched through :func:`schema_cache`.
+    """
+
+    directory: Path | None = None
+
+    def locate(self, url: str) -> Path:
+        """Return the local file a schema's URL resolves to.
+
+        Parameters:
+            url: The URL of an XML schema or a Schematron.
+
+        Returns:
+            The file of the URL's name in :attr:`directory`, or, with no directory, the
+            file the schema cache holds the URL's download in.
+
+        Raises:
+            FileNotFoundError: If the directory holds no file of the URL's name, or the
+                URL cannot be fetched; the message says which.
+        """
+        if self.directory is None:
+            return _fetch(url)
+        name = url.rsplit('/', 1)[-1]
+        path = self.directory / name
+        if name == '' or not path.is_file():
+            raise FileNotFoundError(f'no file of its name is in {self.directory}')
+        return path
+
+    def mapped(self, url: str) -> str:
+        """Return the local file xmlschema is to read for a URL it is about to read.
+
+        Parameters:
+            url: The URL, a label's or one a schema imports.
+
+        Returns:
+            The local file the URL resolves to, or the URL itself when it cannot be
+            resolved, which xmlschema, allowed only local files, then refuses with a
+            warning naming it.
+        """
+        try:
+            return str(self.locate(url))
+        except FileNotFoundError:
+            return url
 
 
 @dataclass(frozen=True)
 class _SchemaSet:
-    """A set of XML schemas built from shipped copies, and what building it came to.
+    """A set of XML schemas built from where a source takes them, and what came of it.
 
     Attributes:
         schema: The set, built, or None when it could not be.
@@ -113,13 +144,16 @@ class _SchemaSet:
 
 
 @functools.cache
-def _schema_set(directory: Path, main: str, others: tuple[tuple[str, str], ...]) -> _SchemaSet:
-    """Build the set of XML schemas a label declares, from their shipped copies, once.
+def _schema_set(source: SchemaSource, main: str, others: tuple[tuple[str, str], ...]) -> _SchemaSet:
+    """Build the set of XML schemas a label declares, from where a source takes them, once.
+
+    Every URL xmlschema reads, the label's and each one a schema imports, goes through
+    :meth:`SchemaSource.mapped`.
 
     Parameters:
-        directory: The directory the imports are resolved through.
-        main: The shipped copy of the schema of the label's root element's namespace.
-        others: Each other namespace the label declares, with its schema's shipped copy.
+        source: Where the schemas are taken from.
+        main: The URL of the schema of the label's root element's namespace.
+        others: Each other namespace the label declares, with its schema's URL.
 
     Returns:
         The set, and every warning raised while it was built; or, when it cannot be
@@ -134,7 +168,7 @@ def _schema_set(directory: Path, main: str, others: tuple[tuple[str, str], ...])
                 main,
                 locations=list(others),
                 allow='local',
-                loader_class=_loader_class(directory),
+                uri_mapper=source.mapped,
             )
         except xmlschema.XMLSchemaException as exc:
             # A set that cannot be built is one finding for the label, which is then
@@ -150,31 +184,32 @@ def _schema_set(directory: Path, main: str, others: tuple[tuple[str, str], ...])
 
 @dataclass(frozen=True)
 class LabelSchema:
-    """The XML schemas one label declares, built from their shipped copies.
+    """The XML schemas one label declares, built from where a source takes them.
 
     Attributes:
-        schema: The set built from the shipped copy of every XML schema the label
-            declares, and of every schema those import, or None when a schema it declares
-            has no shipped copy, it declares none for its root element's namespace, or
-            the set cannot be built.
-        findings: What resolving the declaration found: each URL with no shipped copy, a
-            root element whose namespace the label declares no XML schema for, each
-            warning raised while the set was built, and why it cannot be built.
+        schema: The set built from every XML schema the label declares, and every schema
+            those import, or None when a URL it declares cannot be resolved, it declares
+            no schema for its root element's namespace, or the set cannot be built.
+        findings: What resolving the declaration found: each URL that cannot be
+            resolved, a root element whose namespace the label declares no XML schema
+            for, each warning raised while the set was built, and why it cannot be
+            built.
     """
 
     schema: xmlschema.XMLSchema | None
     findings: tuple[Finding, ...]
 
 
-def label_schema(file: str, document: Any) -> LabelSchema:
-    """Resolve the XML schemas a label declares to their shipped copies, and build them.
+def label_schema(file: str, document: Any, source: SchemaSource) -> LabelSchema:
+    """Resolve the XML schemas a label declares, and build them.
 
-    The set is built once for each distinct declaration, and every label declaring the
-    same schemas is checked against the same set.
+    The set is built once for each distinct declaration and source, and every label
+    declaring the same schemas is checked against the same set.
 
     Parameters:
         file: The label's path relative to the bundle's directory, which findings name.
         document: The label, parsed by lxml.
+        source: Where the schemas are taken from.
 
     Returns:
         The set, and what resolving the declaration found.
@@ -184,18 +219,13 @@ def label_schema(file: str, document: Any) -> LabelSchema:
     located: dict[str, str] = {}
     findings: list[Finding] = []
     for namespace, url in zip(words[0::2], words[1::2], strict=False):
-        copy = shipped_copy(url)
-        if copy is None:
-            findings.append(
-                Finding(
-                    file,
-                    CheckName.XSD,
-                    '',
-                    f'declares the XML schema {url}, of which the package ships no copy',
-                )
-            )
+        try:
+            source.locate(url)
+        except FileNotFoundError as exc:
+            message = f'declares the XML schema {url}, but {exc}'
+            findings.append(Finding(file, CheckName.XSD, '', message))
         else:
-            located[namespace] = str(copy)
+            located[namespace] = url
     if len(findings) > 0:
         return LabelSchema(schema=None, findings=tuple(findings))
     namespace = etree.QName(root).namespace
@@ -207,8 +237,8 @@ def label_schema(file: str, document: Any) -> LabelSchema:
             f'declares no XML schema for the namespace of its root element, {namespace}',
         )
         return LabelSchema(schema=None, findings=(finding,))
-    others = tuple((other, path) for other, path in located.items() if other != namespace)
-    schema_set = _schema_set(SCHEMA_DIRECTORY, located[namespace], others)
+    others = tuple((other, url) for other, url in located.items() if other != namespace)
+    schema_set = _schema_set(source, located[namespace], others)
     findings.extend(
         Finding(file, CheckName.XSD, '', f'building its XML schemas warned: {warning}')
         for warning in schema_set.warnings

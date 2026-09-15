@@ -17,7 +17,7 @@ from spindoctor.cli.pds4.check.elements import element_path
 from spindoctor.cli.pds4.check.schematron import schematron_findings
 
 from ..cohort_bundle import write_cohort_bundle
-from .controls import copy_bundle, parse, substitute_once
+from .controls import SCHEMAS, copy_bundle, parse, substitute_once
 
 NAVIGATED_STUBS = (LIMB_STUB, RINGS_STUB)
 """The cohort's two navigated images, by results path stub."""
@@ -94,7 +94,7 @@ def test_the_schematron_refuses_a_type_its_vocabulary_does_not_hold(
     changed = next(
         node for node in document.getroot().iter(f'{{*}}{element}') if node.text == value
     )
-    findings = schematron_findings(file, document)
+    findings = schematron_findings(file, document, SCHEMAS)
     assert [finding.location for finding in findings] == [element_path(changed)]
 
 
@@ -104,7 +104,7 @@ def test_a_rule_of_several_steps_refuses_a_kernel_type_no_kernel_has(
     """``kernel_type`` ``XX`` is refused by the rule on ``pds:SPICE_Kernel/pds:kernel_type``."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     document = _retype(bundle, *KERNEL_TYPE, 'XX')
-    findings = schematron_findings(KERNEL_TYPE[0], document)
+    findings = schematron_findings(KERNEL_TYPE[0], document, SCHEMAS)
     rules = [finding.message.rsplit(' (', 1)[1] for finding in findings]
     assert rules == ['assert of the rule on pds:SPICE_Kernel/pds:kernel_type in PDS4_PDS_1O00.sch)']
 
@@ -134,7 +134,7 @@ def test_the_schematron_accepts_a_wrong_type_its_vocabulary_holds(
     """
     bundle = copy_bundle(plain_bundle, tmp_path)
     document = _retype(bundle, file, element, original, value)
-    assert schematron_findings(file, document) == []
+    assert schematron_findings(file, document, SCHEMAS) == []
 
 
 def test_the_schematron_refuses_an_inventory_offset_other_than_zero(
@@ -146,6 +146,6 @@ def test_the_schematron_refuses_an_inventory_offset_other_than_zero(
     substitute_once(
         bundle / file, '<offset unit="byte">0</offset>', '<offset unit="byte">1</offset>'
     )
-    findings = schematron_findings(file, parse(bundle / file))
+    findings = schematron_findings(file, parse(bundle / file), SCHEMAS)
     locations = [finding.location for finding in findings]
     assert locations == ['/Product_Collection/File_Area_Inventory/Inventory']

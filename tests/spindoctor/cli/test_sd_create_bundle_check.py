@@ -46,7 +46,9 @@ def check_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         The bundle directory.
     """
     monkeypatch.setattr(
-        sd_create_bundle, 'parse_args_check', lambda _: argparse.Namespace(dataset_name='stub')
+        sd_create_bundle,
+        'parse_args_check',
+        lambda _: argparse.Namespace(dataset_name='stub', schema_dir=None),
     )
     monkeypatch.setattr(sd_create_bundle, 'load_default_and_user_config', lambda *a: None)
     monkeypatch.setattr(sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
@@ -140,15 +142,54 @@ def test_the_check_exits_one_with_the_traceback_of_a_check_that_stops(
 
 
 def test_the_check_takes_the_configuration_arguments(tmp_path: Path) -> None:
-    """The check takes a dataset, configuration files and a bundle results root."""
+    """The check takes a dataset, configuration files, a bundle results root and schemas."""
     arguments = sd_create_bundle.parse_args_check(
-        ['sim', '--config-file', 'a.yaml', '--bundle-results-root', str(tmp_path)]
+        [
+            'sim',
+            '--config-file',
+            'a.yaml',
+            '--bundle-results-root',
+            str(tmp_path),
+            '--schema-dir',
+            'copies',
+        ]
     )
-    assert (arguments.dataset_name, arguments.config_file, arguments.bundle_results_root) == (
-        'sim',
-        ['a.yaml'],
-        str(tmp_path),
+    taken = (
+        arguments.dataset_name,
+        arguments.config_file,
+        arguments.bundle_results_root,
+        arguments.schema_dir,
     )
+    assert taken == ('sim', ['a.yaml'], str(tmp_path), 'copies')
+
+
+def test_the_check_reads_the_schemas_from_the_directory_it_is_given(
+    check_run: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--schema-dir`` is handed to the check as the directory it reads the schemas from."""
+    monkeypatch.setattr(
+        sd_create_bundle,
+        'parse_args_check',
+        lambda _: argparse.Namespace(dataset_name='stub', schema_dir='copies'),
+    )
+    seen: list[Path | None] = []
+
+    def _record(*args: Any, **kwargs: Any) -> list[Finding]:
+        """Stand in for the check, recording the schema directory it is handed.
+
+        Parameters:
+            *args: The bundle directory.
+            **kwargs: The configuration and the schema directory.
+
+        Returns:
+            No finding.
+        """
+        seen.append(kwargs['schema_dir'])
+        return []
+
+    monkeypatch.setattr(sd_create_bundle, 'check_bundle', _record)
+    sd_create_bundle.main_check()
+    assert seen == [Path('copies')]
 
 
 def test_the_program_runs_the_check_for_its_check_subcommand(

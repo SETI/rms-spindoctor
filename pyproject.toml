@@ -291,7 +291,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "spindoctor" = ["py.typed"]
-"spindoctor.cli.pds4" = ["templates/**/*", "schemas/*"]
+"spindoctor.cli.pds4" = ["templates/**/*"]
 
 [tool.setuptools_scm]
 local_scheme = "no-local-version"
