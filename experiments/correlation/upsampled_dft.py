@@ -20,7 +20,12 @@ def gaussian_patch(
             directory name their shifts this way.
 
     Returns:
-        The patch, peak-normalized to 1.0.
+        The sampled Gaussian, unnormalized.  The continuous function peaks at
+        1.0, but this samples it on the integer grid, so the array's largest
+        value reaches 1.0 only when ``offset`` puts the peak on a sample.  At
+        ``sigma=2`` it is 0.969 for ``(0.5, 0.0)`` and 0.939 for ``(0.5,
+        0.5)``.  Nothing here reads the peak value: the patch goes straight
+        into a correlation, which the scale does not affect.
     """
     v_size, u_size = shape
     ov, ou = offset
