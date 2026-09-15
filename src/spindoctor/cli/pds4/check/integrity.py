@@ -9,7 +9,8 @@ Five checks, over every label of the tree:
   carries ``xsi:nil``;
 - every ``lid_reference`` and ``lidvid_reference`` to a product of the bundle itself, one
   whose logical identifier extends the one the bundle label declares, names a product a
-  label of the tree declares, and a ``lidvid_reference`` that product's version.
+  label of the tree declares, and a ``lidvid_reference`` that product's version; one
+  that does not is a warning, as the PDS ``validate`` tool's ``reference_not_found`` is.
 
 A reference to a product outside the bundle is left to the PDS ``validate`` tool, which
 checks it against the context products registered with the PDS.
@@ -21,7 +22,7 @@ from pathlib import Path, PurePath
 from typing import Any
 
 from spindoctor.cli.pds4.check.elements import child_text, element_path, local_name
-from spindoctor.cli.pds4.check.findings import CheckName, Finding
+from spindoctor.cli.pds4.check.findings import CheckName, Finding, Severity
 
 LABEL_SUFFIX = '.lblx'
 """The suffix of a PDS4 label in a bundle."""
@@ -183,7 +184,7 @@ def _own_references(
             logical identifier.
 
     Returns:
-        One finding for each reference to a product of the bundle that no label of the
+        One warning for each reference to a product of the bundle that no label of the
         tree declares, and one for each naming a version other than the product's.
     """
     findings: list[Finding] = []
@@ -198,7 +199,9 @@ def _own_references(
             message = f'refers to {reference}, but the tree holds {lid} at version {products[lid]}'
         else:
             continue
-        findings.append(Finding(file, CheckName.INTEGRITY, element_path(element), message))
+        findings.append(
+            Finding(file, CheckName.INTEGRITY, element_path(element), message, Severity.WARNING)
+        )
     return findings
 
 

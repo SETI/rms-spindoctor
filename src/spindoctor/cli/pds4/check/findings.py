@@ -1,8 +1,9 @@
-"""What the bundle check reports: one finding for each way a bundle tree departs from PDS4.
+"""What the bundle check reports: a finding for each way a bundle tree departs from PDS4.
 
 Every check of the package returns :class:`Finding` objects, and ``sd_create_bundle
-check`` prints each as one line, naming the file, the check that found it, where in the
-file, and what is wrong.
+check`` prints each as one line, naming the file, whether it is an error or a warning,
+the check that found it, where in the file, and what is wrong.  Errors decide the exit
+status; warnings are printed and counted.
 """
 
 from dataclasses import dataclass
@@ -31,6 +32,21 @@ class CheckName(StrEnum):
     INTEGRITY = 'integrity'
 
 
+class Severity(StrEnum):
+    """Whether a finding fails the check.
+
+    Attributes:
+        ERROR: The tree is not what PDS4 requires of it; any error fails the check.
+        WARNING: A finding the PDS ``validate`` tool also reports as a warning: an
+            unresolved reference to a product of the bundle, a product no inventory
+            lists, and a Schematron rule whose ``role`` marks it a warning.  It is
+            printed and counted, and does not fail the check.
+    """
+
+    ERROR = 'error'
+    WARNING = 'warning'
+
+
 @dataclass(frozen=True)
 class Finding:
     """One way a bundle tree departs from what a PDS4 bundle has to be.
@@ -43,19 +59,21 @@ class Finding:
             ``/Product_Bundle/Identification_Area/Citation_Information/doi``, a table's
             record and field, or the empty string for the file as a whole.
         message: What is wrong.
+        severity: Whether it is an error, which fails the check, or a warning.
     """
 
     file: str
     check: CheckName
     location: str
     message: str
+    severity: Severity = Severity.ERROR
 
     def line(self) -> str:
         """Return the finding as the one line ``sd_create_bundle check`` prints for it.
 
         Returns:
-            ``<file>: [<check>] <location>: <message>``, the location and the colon after
-            it left out when the finding is about the file as a whole.
+            ``<file>: <severity> [<check>] <location>: <message>``, the location and the
+            colon after it left out when the finding is about the file as a whole.
         """
         where = f'{self.location}: ' if self.location != '' else ''
-        return f'{self.file}: [{self.check}] {where}{self.message}'
+        return f'{self.file}: {self.severity} [{self.check}] {where}{self.message}'
