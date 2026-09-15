@@ -259,10 +259,9 @@ Alongside the FITS file the writer drops a companion
   incidence angle of sunlight on its plane (``incidence_angle``: its ``value`` at the
   ring system's center and, when a ring plane has a value anywhere, its ``min``,
   ``max`` and ``mean`` over the pixels where one does, in degrees with their unit), and
-  the ring planes' statistics (``backplanes``).  The incidence angle and the ring
-  longitude's wrapped range (below) are recorded as facts about the image: the PDS4
-  bundle reads the ring target and the planes' least and greatest values, and neither
-  of them.
+  the ring planes' statistics (``backplanes``).  The PDS4 bundle's rings index states
+  the incidence angle's ``min``, ``max`` and ``mean`` and the ring longitude's wrapped
+  range (below), and no data label states either.
 
 Each statistic states the unit its values are in, which for an angular plane
 is not the unit of the array it was taken from.
@@ -302,7 +301,7 @@ If the part of a unit before any ``/`` is exactly ``rad``, it becomes ``deg``
 and the rest is kept, so ``rad/pixel`` becomes ``deg/pixel``. Every other unit
 is left alone. An angular unit other than ``rad`` (``mrad``, ``arcsec``) would
 need a change to that function, and every unit needs a format in
-:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS`. Two tests over the
+:data:`~spindoctor.cli.pds4.index_columns.INDEX_VALUE_FORMATS`. Two tests over the
 shipped configuration fail on a unit that needs either change: one allows only
 the measures ``rad``, ``deg`` and ``km``, and the other looks every unit up in
 that table.

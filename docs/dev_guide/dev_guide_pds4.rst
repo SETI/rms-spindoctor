@@ -105,7 +105,7 @@ per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
 Each index column is written in the format
-:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives its unit, each
+:data:`~spindoctor.cli.pds4.index_columns.INDEX_VALUE_FORMATS` gives its unit, each
 chosen from what one pixel resolves, within the roughly seven significant digits a
 float32 array carries.  Nothing
 checks the configured units when a bundle is written: a unit the table has no
@@ -738,12 +738,13 @@ document and miscellaneous inventories list no target, since no label of their
 collections names one.
 
 A data label states no ring geometry: of an image's rings it names the ring target
-alone, and the least and the greatest value of each ring plane are the rings index's
-(see `The global index and the miscellaneous collection`_).  The incidence angle of
-sunlight on the ring plane and the ring longitude's range wrapped at zero, which the
-backplane metadata records beside the ring statistics (see :doc:`dev_guide_backplanes`),
-are read by neither pass; they reach the bundle only in the supplemental file, which
-holds the whole backplane metadata.  No label declares the rings dictionary.
+alone.  The rings index states the image's ring ranges instead: the least and the
+greatest value of each ring plane, the ring longitude's range wrapped at zero, and the
+incidence angle of sunlight on the ring plane, the last two as the backplane metadata
+records them beside the ring statistics (see :doc:`dev_guide_backplanes` and
+`The global index and the miscellaneous collection`_).  The labels pass reads neither.
+No label declares the rings dictionary, although the rings index's ``rings:`` columns
+take its attributes' names.
 
 The data, data collection and bundle labels each declare one ``Science_Facets``,
 ``Visible`` and ``Ring-Moon Systems``, fixed in their templates.
@@ -800,7 +801,7 @@ Both then give ``pds:start_date_time`` and ``pds:stop_date_time``
 :func:`~spindoctor.cli.pds4.epochs.exposure_times` writes from the epochs the
 supplemental file records, to the millisecond, as the data label states them.
 Then each configured plane gives its table two columns, the least and the greatest value
-its statistic spans, as :class:`~spindoctor.cli.pds4.global_index.IndexColumn` entries
+its statistic spans, as :class:`~spindoctor.cli.pds4.index_columns.IndexColumn` entries
 built from the plane's entry in ``config_900_backplanes.yaml``, whose ``index`` block
 names the two columns, their ``data_type`` and their descriptions:
 
@@ -830,8 +831,26 @@ the prime meridian, and the statistics are a plain least and greatest.  A column
 is the unit its statistic is in, the plane's ``units`` restated through
 :func:`~spindoctor.cli.backplanes.statistics.statistics_units`, so an angular column is in
 degrees although its array is in radians (see :doc:`dev_guide_backplanes`), and its
-format is the one :data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives that
+format is the one :data:`~spindoctor.cli.pds4.index_columns.INDEX_VALUE_FORMATS` gives that
 unit.
+
+**Wrapped ranges and the incidence angle.**  A plane's ``index`` block may also give
+``wrapped_minimum`` and ``wrapped_maximum``, two more columns after the plane's pair:
+where the range its statistic records wrapped at zero, as ``wrapped_min`` and
+``wrapped_max``, starts and where it ends, the start the greater where the range crosses
+zero.  The ring longitude's block gives them as ``rings:minimum_inertial_ring_longitude``
+and ``rings:maximum_inertial_ring_longitude``, the rings dictionary's names for a ring
+longitude range wrapped at the prime meridian, while its plain pair keeps names of its
+own.  The rings table ends with the three columns ``backplanes.ring_incidence_angle``
+describes, ``rings:minimum_incidence_angle``, ``rings:maximum_incidence_angle`` and
+``rings:mean_incidence_angle``: the ``min``, ``max`` and ``mean`` of the rings block's
+``incidence_angle``, in the unit that entry's ``units`` gives.  The ``rings:`` names are
+the rings dictionary's attributes, borrowed as column names; no label declares the
+dictionary.  :mod:`spindoctor.cli.pds4.index_columns` builds every statistic column,
+:class:`~spindoctor.cli.pds4.index_columns.IndexPlane` a plane's and
+:class:`~spindoctor.cli.pds4.index_columns.RingIncidence` the incidence angle's, and
+:func:`~spindoctor.cli.pds4.index_columns.statistic_index_columns` gives all of them,
+which the bundle check holds each index label's fields to.
 
 **Missing values.**  Where an image has no statistic for a plane, both of its cells hold
 the configured masked value, ``backplanes.masked_value``, written in the column's format:
@@ -839,7 +858,10 @@ the configured masked value, ``backplanes.masked_value``, written in the column'
 ``deg/pixel`` and ``-999.00`` in ``km/pixel``.  Every statistic field of a label declares
 that text as the ``missing_constant`` of a ``Special_Constants`` block, in the spelling
 its cells have, so a reader comparing a cell's text with the declared constant finds it,
-and every value of a column, a missing one included, is written in one form.
+and every value of a column, a missing one included, is written in one form.  A wrapped
+value, or a member of the incidence angle, that the supplemental file does not record --
+backplanes an earlier version generated record no wrapped range, and the angle at the
+ring center alone -- is written the same way, cell by cell, and nothing is failed for it.
 
 **The label.**  ``global_bodies_index.lblx`` and ``global_rings_index.lblx`` are
 ``Product_Ancillary`` labels, each a ``Header`` over the header line and a
@@ -1341,6 +1363,9 @@ documented above.
   :func:`~spindoctor.cli.pds4.targets.image_targets` — the configuration's targets
   table, as :class:`~spindoctor.cli.pds4.targets.Pds4Target` entries, and the targets one
   image's backplane metadata names.
+- :func:`~spindoctor.cli.pds4.index_columns.statistic_index_columns` — every statistic
+  column of the global index tables, as the summary pass writes them and the bundle
+  check holds their labels to them.
 - :func:`~spindoctor.cli.pds4.epochs.exposure_times` — an image's exposure start and
   stop as the index tables write them, to the millisecond, as its data label does.
 - :func:`~spindoctor.support.time.et_to_pds4_utc` — the PDS4 spelling of an epoch,
