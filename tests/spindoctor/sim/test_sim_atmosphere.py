@@ -345,7 +345,14 @@ def test_apply_atmosphere_does_not_mutate_input() -> None:
 
 
 def _centered_layers(spec: AtmosphereSpec) -> Any:
-    """Evaluate the haze layers of a centered dark sphere of radius ``_RADIUS``."""
+    """Evaluate the haze layers of a centered dark sphere of radius ``_RADIUS``.
+
+    Parameters:
+        spec: Atmosphere specification to evaluate over the sphere.
+
+    Returns:
+        The ``AtmosphereLayers`` ``apply_atmosphere`` produces for it.
+    """
     body = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     return apply_atmosphere(
         body,
