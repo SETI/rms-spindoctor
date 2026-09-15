@@ -66,7 +66,7 @@ ISS_ATTRIBUTES = (
 )
 """The block of a data label the Cassini ISS label facts go in."""
 
-EMPTY = 'is empty, and does not carry xsi:nil'
+EMPTY = 'is empty: it holds no element and no text'
 """What the integrity check says of an element holding nothing."""
 
 DATA_GUIDE_REFERENCE = '/Product_Observational/Reference_List/Internal_Reference[1]/lid_reference'
