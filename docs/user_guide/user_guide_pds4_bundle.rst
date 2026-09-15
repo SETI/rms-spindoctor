@@ -180,14 +180,16 @@ reports instead, for each selected image, whether the four files it would read a
 -- the navigation metadata file and the summary PNG under the navigation results root,
 the backplane FITS file and the backplane metadata file under the backplane results root
 -- and whether the image's navigation succeeded. An image with all four whose navigation
-succeeded is complete. The labels pass takes one image at a time, so a selection that
-hands it a group of images instead is reported on one line, and each image of the group
-counts as incomplete. Use it to choose the images of a bundle before generating it: the
+succeeded is complete. The labels pass takes the selected images one at a time. Should
+the selection hand it a group instead -- an empty one, or several images at once -- the
+pass cannot label the group: the report says so on one line, and counts each image of
+the group as incomplete. Use it to choose the images of a bundle before generating it: the
 report needs no bundle results root and creates none. The only thing it creates is a
 temporary directory for reading the two roots, which it removes before it ends.
 
-It prints one line for each image, then a count, and exits 1 if any selected image is
-incomplete:
+It prints one line for each image, or for each group the labels pass cannot label, then a
+count. It exits 1 if any selected image is incomplete or the selection holds such a
+group, even an empty one, which leaves no image incomplete:
 
 .. code-block:: bash
 
@@ -624,8 +626,9 @@ with exit status 2 before it does anything.
   present.
 
   ``--check-only`` writes no labels, logs or bundle files, and exits 1 if any selected
-  image is incomplete (see `Checking the Inputs`_), and 0 otherwise. It does not look
-  at the bundle directory or the templates.
+  image is incomplete or the selection hands the labels pass a group of images it
+  cannot label, an empty group included (see `Checking the Inputs`_), and 0 otherwise.
+  It does not look at the bundle directory or the templates.
 
 * ``sd_create_bundle summary`` exits 1 without writing anything if a file it needs
   from the template directory is missing (the user-guide PDF apart), or if the bundle has
