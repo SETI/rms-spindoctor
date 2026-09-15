@@ -18,7 +18,7 @@ ground_truth:
     star_dominated exemplar from cohort-curation review batch 006 (seq 003).
     Selection: VG2 | NA | Neptune; {"role": "star-field frame from the FOV-twist residual analysis", "source": "experiments/fov_twist/config/vg2iss_nac.config"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.936, rank=high, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [-49.0337, -1.8331], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [-49.2965, -1.7568]}.
+    Pipeline at curation: status=success, confidence=0.936, rank=high, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [-49.0337, -1.8331], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [-49.2965, -1.7568]}.
     Operator comment: many stars
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is high: the star-field lock scores high, matching this frame's recorded rank=high from the batch-006 curation run. The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.

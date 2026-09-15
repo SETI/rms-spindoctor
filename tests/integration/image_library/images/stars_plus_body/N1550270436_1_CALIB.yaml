@@ -19,7 +19,7 @@ ground_truth:
     stars_plus_body exemplar from cohort-curation review batch 001 (seq 074).
     Selection: HYPERION | 60-90; {"apparent_diameter_px": 244.0, "center_phase_deg": 73.676, "filter": "P120", "maglim": 10.5, "n_detectable_stars": 4, "star_vmags": [9.19, 9.38, 9.79, 10.03], "target": "HYPERION", "texp_s": 1.0, "year": "2007"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=conflicted, confidence=0.13, rank=conflicted, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [-1.0316, -8.7157], "BodyBlobNav": [3.4608, -23.0015], "BodyTerminatorNav": [-3.2845, 32.46], "StarRefineNav": [0.0, 0.0]}.
+    Pipeline at curation: status=conflicted, confidence=0.13, rank=conflicted, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [-1.0316, -8.7157], "BodyBlobNav": [3.4608, -23.0015], "BodyTerminatorNav": [-3.2845, 32.46], "StarRefineNav": [0.0, 0.0]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarRefineNav: this two-star refine (0.809) rises above the two-star match 0.80 cap.
 expected:

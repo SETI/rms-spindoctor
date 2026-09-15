@@ -19,7 +19,7 @@ ground_truth:
     body_irregular exemplar from cohort-curation review batch 001 (seq 006).
     Selection: CALYPSO | 90-120; {"apparent_diameter_px": 223.4, "center_phase_deg": 90.781, "filter": "CL1", "target": "CALYPSO", "year": "2010"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav'], per-technique offsets={"BodyBlobNav": [4.871, 14.6622], "BodyTerminatorNav": [8.9123, 24.4093]}.
+    Pipeline at curation: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav'], per-technique offsets={"BodyBlobNav": [4.871, 14.6622], "BodyTerminatorNav": [8.9123, 24.4093]}.
     The NCC/blob covariance carries a size-scaled centroid-model-error term, so the sigma-based tier gate rates the ground-truth-consistent BodyBlobNav solution low.
 expected:
   status: success

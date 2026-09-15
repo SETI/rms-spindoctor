@@ -19,7 +19,7 @@ ground_truth:
     ring_plus_body exemplar from cohort-curation review batch 001 (seq 053).
     Selection: MIMAS | <30 | -0.0; {"apparent_diameter_px": 377.2, "center_phase_deg": 28.928, "filter": "CL1", "ring_edges_in_frame": ["keeler_a_ring_oe_2005_05_01_2005_08_01.inner", "keeler_a_ring_oe_2005_05_01_2005_08_01.outer", "keeler_a_ring_oe_2006_01_01_2009_07_01.inner", "keeler_a_ring_oe_2006_01_01_2009_07_01.outer", "keeler_a_ring_oe_2010_01_01_2013_08_01.inner", "keeler_a_ring_oe_2010_01_01_2013_08_01.outer"], "ring_opening_deg": -1.092, "target": "MIMAS", "year": "2016"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.383, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [-0.8281, 7.5], "BodyLimbNav": [-1.4926, 7.9716], "RingEdgeNav": [39.947, -112.8006]}.
+    Pipeline at curation: status=success, confidence=0.383, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [-0.8281, 7.5], "BodyLimbNav": [-1.4926, 7.9716], "RingEdgeNav": [39.947, -112.8006]}.
     Saturn ring scenes at or above 25 km/px radial resolution emit a
     RING_ANNULUS composite instead of per-edge RING_EDGE features, so
     RingEdgeNav does not run on this frame and RingAnnulusNav does;

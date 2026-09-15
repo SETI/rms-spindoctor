@@ -19,7 +19,7 @@ ground_truth:
     high_phase_terminator exemplar from cohort-curation review batch 002 (seq 044).
     Selection: ENCELADUS | 90-120; {"apparent_diameter_px": 650.5, "center_phase_deg": 117.033, "filter": "CL1", "lat_coverage_deg": 84.3, "target": "ENCELADUS", "year": "2016"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.465, rank=low, techniques=['BodyLimbNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyLimbNav": [14.6187, -17.0685], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [14.0751, -15.655]}.
+    Pipeline at curation: status=success, confidence=0.465, rank=low, techniques=['BodyLimbNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyLimbNav": [14.6187, -17.0685], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [14.0751, -15.655]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band. The primary is BodyLimbNav, the highest-confidence contributor.
 expected:
