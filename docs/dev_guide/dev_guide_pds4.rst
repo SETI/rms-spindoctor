@@ -65,8 +65,8 @@ independent) and phase 2 once at the end (sequential — needs every per-image
 label in place before it can build the inventory).
 
 ``sd_create_bundle check`` then holds the bundle the two phases wrote to PDS4, reading
-only its tree and the schemas the package ships, and writes nothing (see `Checking a
-bundle`_).  Before phase 1, ``sd_create_bundle labels --check-only`` reports whether
+its tree and the schemas its labels name, and writes nothing in the tree (see `Checking
+a bundle`_).  Before phase 1, ``sd_create_bundle labels --check-only`` reports whether
 each selected image has the files phase 1 reads, and writes no label, log or bundle
 file.
 
@@ -84,8 +84,8 @@ selected image.  With ``--check-only`` it reports on each image's inputs instead
 labeling it.  ``sd_create_bundle summary`` runs phase 2 once over the bundle: it takes
 a ``DATASET_NAME``, ``--config-file``, ``--bundle-results-root`` and the logging
 options.  ``sd_create_bundle check`` checks a bundle the two passes wrote: it takes a
-``DATASET_NAME``, ``--config-file`` and ``--bundle-results-root``, and no logging
-options, since it writes no log.
+``DATASET_NAME``, ``--config-file``, ``--bundle-results-root`` and ``--schema-dir``,
+and no logging options, since it writes no log.
 
 The cloud-tasks variant ``sd_create_bundle_cloud_tasks`` runs phase 1 from a
 queue, one image per task. A task carries a ``dataset_name`` and a ``files`` list
@@ -409,8 +409,9 @@ and the schemas have no default, and the shipped configuration is held to the sh
 templates by tests rather than checked when it is loaded: it names the bundle, sets the
 version, gives a schema for exactly the dictionaries the templates declare, and gives
 the ``pds`` schema of the build the information model version names.  The bundle check
-resolves each schema to the copy the package ships (see `Checking a bundle`_), so a
-schema named here has to be shipped as well, which a test holds the shipped
+fetches each schema by its URL (see `Checking a bundle`_), and its tests read local
+copies, so a schema named here needs a copy in
+``tests/spindoctor/cli/pds4/check/schemas/``, which a test holds the shipped
 configuration to.  The entries are
 kept in this file, a registry keyed by dataset, rather than in an instrument's
 ``config_4*`` file: every navigation document records a hash of each of those files'
@@ -977,8 +978,9 @@ Checking a bundle
 =================
 
 ``sd_create_bundle check`` holds a bundle the two passes wrote to PDS4, through
-:func:`~spindoctor.cli.pds4.check.bundle.check_bundle`.  It reads only the bundle's
-tree and the schemas the package ships, and writes nothing.  Each way the tree departs
+:func:`~spindoctor.cli.pds4.check.bundle.check_bundle`.  It reads the bundle's tree
+and the schemas its labels name, fetched by URL or read from a directory, and writes
+nothing in the tree.  Each way the tree departs
 from PDS4 is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which names the
 file, whether it is an error or a warning, the check that found it, where in the file,
 and what is wrong; an XML schema error also names its kind, the class of the xmlschema
@@ -996,28 +998,30 @@ Every file under the bundle's directory whose name ends in ``.lblx`` is a label.
 label that is not well-formed XML is one finding and is checked no further.  Every other
 label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_label`:
 
-- **Against its XML schemas** (:mod:`~spindoctor.cli.pds4.check.schemas`).  The package
-  ships the XML schema and the Schematron of each dictionary the labels declare, and of
-  the cartography dictionary the Cassini schema imports, in
-  ``src/spindoctor/cli/pds4/schemas/``, as package data beside the templates.  Nothing
-  is fetched.  Each URL a label's ``xsi:schemaLocation`` pairs with a namespace is
-  mapped to the shipped file of the same name, and a URL with no shipped file is a
-  finding naming it.  The schemas' own imports are resolved through the same directory
-  as a catalog: each shipped XML schema is offered for the namespace it defines, so an
-  import resolves to the shipped schema of its namespace, whichever version its own URL
-  names, and no namespace is named in code.  Every warning ``xmlschema`` raises while it
-  builds a set of schemas is a finding, so an import that finds no schema cannot pass
-  silently.  A set that cannot be built at all -- a URL paired with a namespace its file
+- **Against its XML schemas** (:mod:`~spindoctor.cli.pds4.check.schemas`).  Every URL
+  the check reads -- each a label's ``xsi:schemaLocation`` pairs with a namespace, each
+  ``xml-model`` ``href``, and each ``schemaLocation`` a schema's ``xs:import`` gives --
+  is resolved one way, by :class:`~spindoctor.cli.pds4.check.schemas.SchemaSource`.  By
+  default it is fetched through ``filecache`` into the cache
+  ``_filecache_spindoctor_pds4_schemas``, under ``$FILECACHE_CACHE_ROOT`` or the system's
+  temporary directory, which keeps each download for later checks; with
+  ``--schema-dir`` it is the file of the URL's name in that directory, and nothing is
+  fetched.  ``xmlschema`` is allowed only local files and reads every URL through that
+  rule, so an import resolves to the schema at its own URL, as ``validate`` resolves it,
+  whatever build of the same dictionary a label declares, and no namespace is named in
+  code.  A URL a label names that cannot be resolved is a finding naming it.  Every
+  warning ``xmlschema`` raises while it builds a set of schemas is a finding, so an
+  import that cannot be resolved cannot pass silently.  A set that cannot be built at all -- a URL paired with a namespace its file
   does not define, say -- is one finding, and the label is checked without it.  Each
   distinct set a label declares is built once.
 - **Against its Schematron rules** (:mod:`~spindoctor.cli.pds4.check.schematron`), each
-  named by the ``href`` of an ``xml-model`` instruction and mapped to the shipped copy in
-  the same way.  A rule is matched as the ISO Schematron skeleton's XSLT matches it: a
+  named by the ``href`` of an ``xml-model`` instruction and resolved by the same rule.
+  A rule is matched as the ISO Schematron skeleton's XSLT matches it: a
   node matches when it is in ``//(context)`` evaluated from the document node; only the
   first rule of a pattern a node matches fires for it; the schema's and each pattern's
   variables are evaluated at the document node, and a rule's at the node it matched.  A
   context that is a union of path expressions joined by ``|``, as every context of the
-  shipped Schematron is, is selected as ``//`` before each branch, which selects the
+  labels' Schematron is, is selected as ``//`` before each branch, which selects the
   same nodes without evaluating the context again at every node of the label; any other
   context, one holding the ``union``, ``intersect`` or ``except`` keyword or a comment,
   is selected as ``//(context)`` itself.  An assert whose test is false and a report
@@ -1086,8 +1090,10 @@ a label gives a FITS array's axes.  ``validate`` is a Java program run by hand; 
 check is what the suite runs (see `Testing bundle generation`_).
 
 A dictionary added to a dataset's ``schemas``, or moved to another version, has its XML
-schema and its Schematron shipped in ``src/spindoctor/cli/pds4/schemas/``: a test over
-the shipped configuration holds every dataset's schemas to having both files shipped.
+schema and its Schematron, and every schema those import, copied byte for byte from
+their URLs into ``tests/spindoctor/cli/pds4/check/schemas/``, where the check's tests
+read them without the network: two tests hold every dataset's configured schemas, and
+every import of a copy, to having a copy there.
 
 Output layout
 =============
@@ -1246,7 +1252,10 @@ errors and warnings apart.  The errors are the ``TODO DOI`` placeholder of the b
 label and the two of the guide's label, and each data label's empty
 ``cassini:ISS_Specific_Attributes``; the warnings, in the plain build alone, are each
 reference to the user guide, which that bundle does not hold.  A finding outside that
-list fails the test, and so does a known one the check stops making.  Each part of the check is also held to a
+list fails the test, and so does a known one the check stops making.  The gate reads
+the schemas from the local copies the tests keep, so the suite needs no network, and a
+test marked ``integration`` has the check fetch them by their URLs and holds it to the
+same findings.  Each part of the check is also held to a
 control for each condition it checks -- a copy of that bundle broken in one place -- in a
 test module named for the bundle, and the Schematron evaluator's semantics to a
 Schematron and a label written by the test itself.
@@ -1282,8 +1291,9 @@ The end-to-end checklist:
    ``config_950_pds4.yaml`` that points at the new template directory and
    sets the bundle's name and version, the information model version, and the schema
    of each dictionary the new templates declare.
-4. Ship the XML schema and the Schematron of every dictionary the new templates
-   declare in ``src/spindoctor/cli/pds4/schemas/`` (see `Checking a bundle`_).
+4. Copy the XML schema and the Schematron of every dictionary the new templates
+   declare, and every schema those import, byte for byte from their URLs into
+   ``tests/spindoctor/cli/pds4/check/schemas/`` (see `Checking a bundle`_).
 5. Add the bundle's cohort, as `Testing bundle generation`_ describes: a
    :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a module named for
    the bundle, its entry in ``COHORTS``, and a test module named for the bundle
