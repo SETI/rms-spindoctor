@@ -2894,9 +2894,14 @@ each download, so a later check fetches nothing it already has; with
 `sd_create_bundle check --schema-dir DIR` it is the file of the URL's name in
 `DIR`, and nothing is fetched. `xmlschema` is allowed only local files and
 reads every URL through that rule, so an import resolves by its own URL, as
-`validate` resolves it: the Cassini schema's import of GEOM `19A0` resolves
-to `19A0`, beside the `19B0` the data labels declare, and every label's
-findings are the same as they were. The namespace catalog is gone, and no
+`validate` resolves it. `xmlschema` reads a namespace once in a set, though:
+every data label declares GEOM `19B0` itself, and that build serves the
+Cassini schema's import of `19A0`, which is not read. `validate` reads both,
+to the same verdicts (Part A's code review), and a fetch-mode check from an
+empty cache fetches eleven files, `19A0` not among them; `19A0` serves only a
+label declaring the Cassini schema and no geometry build. Every label's
+findings are the same as they were. A `--schema-dir` given as a relative path
+is read from where the check runs. The namespace catalog is gone, and no
 namespace is named in code. A URL that cannot be resolved -- one that cannot be
 fetched, or with no file of its name in the directory -- is a finding naming
 it, and the check goes on; every warning `xmlschema` raises while building a
