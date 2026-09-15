@@ -18,7 +18,7 @@ from spindoctor.cli.pds4.check.schemas import SCHEMA_DIRECTORY, label_schema, xs
 from spindoctor.config import DEFAULT_CONFIG
 
 from ..cohort_bundle import write_cohort_bundle
-from .controls import bare_bundle_label, copy_bundle, line_of, parse, substitute_once
+from .controls import bare_bundle_label, copy_bundle, parse, substitute_once
 
 NAVIGATED_STUBS = (LIMB_STUB, RINGS_STUB)
 """The cohort's two navigated images, by results path stub."""
@@ -60,18 +60,17 @@ def _xsd(bundle_dir: Path, file: str) -> list[Finding]:
 
 
 def test_the_xml_schema_refuses_a_table_of_no_records(plain_bundle: Path, tmp_path: Path) -> None:
-    """A table label stating ``records`` 0 breaks the minimum of 1 its schema sets."""
+    """A table label stating ``records`` 0 breaks its schema's minimum, a facet's kind.
+
+    The finding is held by the kind of check that failed, the minimum facet, and not by
+    the words xmlschema gives it.
+    """
     bundle = copy_bundle(plain_bundle, tmp_path)
     file = 'miscellaneous/global_bodies_index.lblx'
     substitute_once(bundle / file, r'<records>\d+</records>', '<records>0</records>')
-    line = line_of(bundle / file, '<records>0</records>')
-    expected = Finding(
-        file,
-        CheckName.XSD,
-        '/Product_Ancillary/File_Area_Ancillary/Table_Character/records',
-        f'value has to be greater or equal than 1 (line {line})',
-    )
-    assert expected in _xsd(bundle, file)
+    records = '/Product_Ancillary/File_Area_Ancillary/Table_Character/records'
+    kinds = {(finding.location, finding.kind) for finding in _xsd(bundle, file)}
+    assert (records, 'XsdMinInclusiveFacet') in kinds
 
 
 def test_the_xml_schema_accepts_a_kernel_type_no_kernel_has(

@@ -3,7 +3,8 @@
 The cohort's bundle is built twice, as ``sd_create_bundle`` builds it from the templates
 the package ships -- once plain, and once from a copy of the template directory holding
 a stand-in user guide -- and the check is run over each.  What it finds is exactly what
-is known of the bundle, each finding's file, check, location and message, and nothing
+is known of the bundle, each finding's file, check, location and message -- or, for an
+XML schema error, its kind, since xmlschema's wording is not the check's -- and nothing
 else.  The errors:
 
 - the ``TODO DOI`` placeholder of the bundle label, in both builds, and the two of the
@@ -27,7 +28,7 @@ from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
 from spindoctor.cli.pds4.check import CheckName, Finding, Severity, check_bundle
-from spindoctor.cli.pds4.check.elements import child_text, element_path
+from spindoctor.cli.pds4.check.elements import child_text
 
 from ..cohort_bundle import (
     CohortBundleEnv,
@@ -57,8 +58,8 @@ GUIDE_DOIS = (
 )
 """The user guide label's two DOIs."""
 
-DOI_REASON = r"value doesn't match any pattern of ['10\\.\\S+/\\S+']"
-"""What the XML schema says of a DOI that is a placeholder."""
+DOI_KIND = 'XsdPatternFacets'
+"""The kind of XML schema error a DOI placeholder is: its pattern facet fails."""
 
 ISS_ATTRIBUTES = (
     '/Product_Observational/Observation_Area/Mission_Area/cassini:Cassini/'
@@ -89,7 +90,7 @@ RUN_LEVEL_GUIDE_REFERENCES = (
 """Where the bundle, data collection and metakernel labels refer to the user guide."""
 
 _Known = tuple[str, str, str, str]
-"""A finding as the gate compares it: its file, check, location and message."""
+"""A finding as the gate compares it: its file, check, location, and kind or message."""
 
 
 @dataclass(frozen=True)
@@ -179,24 +180,6 @@ def with_guide(
     return _check(env)
 
 
-def _doi_message(bundle_dir: Path, file: str, location: str) -> str:
-    """Return what the XML schema says of a DOI placeholder, with the line it is on.
-
-    Parameters:
-        bundle_dir: The bundle's directory.
-        file: The label holding the DOI, relative to it.
-        location: Where in the label the DOI is.
-
-    Returns:
-        The message.
-    """
-    root = parse(bundle_dir / file).getroot()
-    line = next(
-        element.sourceline for element in root.iter('{*}doi') if element_path(element) == location
-    )
-    return f'{DOI_REASON} (line {line})'
-
-
 def _errors(env: CohortBundleEnv, *, guide: bool) -> list[_Known]:
     """Return the errors known of the bundle.
 
@@ -211,24 +194,13 @@ def _errors(env: CohortBundleEnv, *, guide: bool) -> list[_Known]:
         env.dataset.pds4_path_stub(env.cohort.batch(stub).image_files[0])
         for stub in NAVIGATED_STUBS
     ]
-    bundle_dir = env.bundle_dir
-    known: list[_Known] = [
-        (
-            'bundle.lblx',
-            CheckName.XSD,
-            BUNDLE_DOI,
-            _doi_message(bundle_dir, 'bundle.lblx', BUNDLE_DOI),
-        )
-    ]
+    known: list[_Known] = [('bundle.lblx', CheckName.XSD, BUNDLE_DOI, DOI_KIND)]
     known += [
         (f'data/{stub}_backplanes.lblx', CheckName.INTEGRITY, ISS_ATTRIBUTES, EMPTY)
         for stub in stubs
     ]
     if guide:
-        known += [
-            (GUIDE_LABEL, CheckName.XSD, location, _doi_message(bundle_dir, GUIDE_LABEL, location))
-            for location in GUIDE_DOIS
-        ]
+        known += [(GUIDE_LABEL, CheckName.XSD, location, DOI_KIND) for location in GUIDE_DOIS]
     return sorted(known)
 
 
@@ -265,10 +237,11 @@ def _found(checked: _Checked, severity: Severity) -> list[_Known]:
         severity: The severity.
 
     Returns:
-        The findings of that severity, sorted.
+        The findings of that severity, sorted, each by its kind where it has one and by
+        its message otherwise.
     """
     return sorted(
-        (finding.file, finding.check, finding.location, finding.message)
+        (finding.file, finding.check, finding.location, finding.kind or finding.message)
         for finding in checked.findings
         if finding.severity is severity
     )
