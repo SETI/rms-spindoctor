@@ -9,6 +9,9 @@ status; warnings are printed and counted.
 from dataclasses import dataclass
 from enum import StrEnum
 
+BUNDLE_DIRECTORY = '.'
+"""What a finding about the tree as a whole names as its file."""
+
 
 class CheckName(StrEnum):
     """Which part of the bundle check found a finding.
