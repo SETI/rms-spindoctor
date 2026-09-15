@@ -19,7 +19,7 @@ ground_truth:
     body_irregular exemplar from cohort-curation review batch 001 (seq 003).
     Selection: HYPERION | 30-60; {"apparent_diameter_px": 738.0, "center_phase_deg": 51.588, "filter": "CL1", "target": "HYPERION", "year": "2005"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav'], per-technique offsets={"BodyBlobNav": [-27.4105, 52.8001], "BodyTerminatorNav": [-6.4798, -128.4403]}.
+    Pipeline at curation: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav'], per-technique offsets={"BodyBlobNav": [-27.4105, 52.8001], "BodyTerminatorNav": [-6.4798, -128.4403]}.
     The NCC/blob covariance carries a size-scaled centroid-model-error term, so the sigma-based tier gate rates the ground-truth-consistent BodyBlobNav solution low.
 expected:
   status: success

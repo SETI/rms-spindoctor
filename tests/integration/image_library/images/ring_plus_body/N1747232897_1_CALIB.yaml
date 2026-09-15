@@ -19,7 +19,7 @@ ground_truth:
     ring_plus_body exemplar from cohort-curation review batch 001 (seq 051).
     Selection: MIMAS | 30-60 | -10.0; {"apparent_diameter_px": 62.8, "center_phase_deg": 31.35, "filter": "CL1", "ring_edges_in_frame": ["huygens_gap.inner", "huygens_gap.outer", "huygens_ringlet.inner", "huygens_ringlet.outer", "strange_ringlet.inner", "strange_ringlet.outer"], "ring_opening_deg": -5.01, "target": "MIMAS", "year": "2013"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.426, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [3.9688, -20.7891], "BodyLimbNav": [3.9904, -21.095], "RingEdgeNav": [-2.8987, -16.9884]}.
+    Pipeline at curation: status=success, confidence=0.426, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [3.9688, -20.7891], "BodyLimbNav": [3.9904, -21.095], "RingEdgeNav": [-2.8987, -16.9884]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band. The primary is BodyDiscCorrelateNav, the highest-confidence contributor.
 expected:

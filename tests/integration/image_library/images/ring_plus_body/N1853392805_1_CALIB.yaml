@@ -19,7 +19,7 @@ ground_truth:
     ring_plus_body exemplar from cohort-curation review batch 001 (seq 052).
     Selection: PROMETHEUS | 30-60 | -10.0; {"apparent_diameter_px": 54.5, "center_phase_deg": 51.218, "filter": "CL1", "ring_edges_in_frame": ["keeler_a_ring_oe_2005_05_01_2005_08_01.inner", "keeler_a_ring_oe_2005_05_01_2005_08_01.outer", "keeler_a_ring_oe_2006_01_01_2009_07_01.inner", "keeler_a_ring_oe_2006_01_01_2009_07_01.outer", "keeler_a_ring_oe_2010_01_01_2013_08_01.inner", "keeler_a_ring_oe_2010_01_01_2013_08_01.outer"], "ring_opening_deg": -13.753, "target": "PROMETHEUS", "year": "2016"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.665, rank=medium, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'BodyTerminatorNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [-3.5, -3.5], "BodyLimbNav": [-3.7479, -3.6634], "RingEdgeNav": [50.0556, -44.9049], "BodyTerminatorNav": [-3.3193, -5.6868]}.
+    Pipeline at curation: status=success, confidence=0.665, rank=medium, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'BodyTerminatorNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [-3.5, -3.5], "BodyLimbNav": [-3.7479, -3.6634], "RingEdgeNav": [50.0556, -44.9049], "BodyTerminatorNav": [-3.3193, -5.6868]}.
 expected:
   status: success
   confidence_tier: medium

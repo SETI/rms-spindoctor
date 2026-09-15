@@ -19,7 +19,7 @@ ground_truth:
     ring_plus_body exemplar from cohort-curation review batch 001 (seq 046).
     Selection: TETHYS | 60-90 | -0.0; {"apparent_diameter_px": 83.5, "center_phase_deg": 87.242, "filter": "CL1", "ring_edges_in_frame": ["huygens_gap.inner", "huygens_gap.outer", "huygens_ringlet.inner", "huygens_ringlet.outer", "strange_ringlet.inner", "strange_ringlet.outer"], "ring_opening_deg": -4.163, "target": "TETHYS", "year": "2005"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.39, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [10.3047, -6.1016], "BodyLimbNav": [10.0362, -5.974], "RingEdgeNav": [-9.9986, 57.0368]}.
+    Pipeline at curation: status=success, confidence=0.39, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [10.3047, -6.1016], "BodyLimbNav": [10.0362, -5.974], "RingEdgeNav": [-9.9986, 57.0368]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium: fused sigma sits above the 0.5 px high-tier cap and the fused confidence is mid-band. The primary is BodyDiscCorrelateNav, the highest-confidence contributor.
 expected:

@@ -19,7 +19,7 @@ ground_truth:
     ring_plus_body exemplar from cohort-curation review batch 001 (seq 055).
     Selection: PAN | 30-60 | 20.0; {"apparent_diameter_px": 97.6, "center_phase_deg": 50.243, "filter": "CL1", "ring_edges_in_frame": ["encke_gap.inner", "encke_gap.outer"], "ring_opening_deg": 21.18, "target": "PAN", "year": "2017"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'RingEdgeNav'], per-technique offsets={"RingEdgeNav": [49.4333, 21.2151], "BodyBlobNav": [2.5046, 11.3412], "BodyTerminatorNav": [-15.0823, -24.3971]}.
+    Pipeline at curation: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'RingEdgeNav'], per-technique offsets={"RingEdgeNav": [49.4333, 21.2151], "BodyBlobNav": [2.5046, 11.3412], "BodyTerminatorNav": [-15.0823, -24.3971]}.
     NOT ratcheted: the ring radial orbit-uncertainty channel widens this
     frame's reported covariance by an effective 2.348 px along the ring-edge
     normal (absorbed sensitivity |g| = 1.000), taking the fused sigma from
