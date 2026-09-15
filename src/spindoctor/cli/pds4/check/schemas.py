@@ -68,11 +68,13 @@ def _fetch(url: str) -> Path:
         The local file the cache holds the schema in.
 
     Raises:
-        FileNotFoundError: If the URL cannot be fetched.
+        FileNotFoundError: If the URL cannot be fetched, or the cache cannot hold it.
     """
     try:
         local = FCPath(url, filecache=schema_cache()).retrieve()
-    except FileNotFoundError as exc:
+    except OSError as exc:
+        # FileNotFoundError when the URL cannot be fetched, and PermissionError when the
+        # cache cannot be written: either is one finding for the URL, and the check goes on.
         raise FileNotFoundError(f'it cannot be fetched ({exc})') from exc
     if not isinstance(local, Path):
         raise FileNotFoundError(f'it cannot be fetched ({local})')
