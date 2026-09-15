@@ -2868,38 +2868,52 @@ PR is #707. Part B, the draft run over a real COISS volume, is deferred to
 
 Schema validation as a repeatable command: `sd_create_bundle check <dataset>`,
 a third subcommand, the `spindoctor.cli.pds4.check` package. It checks a
-bundle tree that has already been written, reading only that tree and the
-shipped schemas, and writes nothing, not even a log. It prints one line per
+bundle tree that has already been written, reading that tree and the schemas
+its labels name, and writes nothing in the tree, not even a log. It prints one line per
 finding -- the file, whether it is an error or a warning, the check that found
 it, where in the file, and the message -- then the number of each, and exits
 non-zero on any error. A warning is a finding `validate` also reports as a
 warning: an unresolved reference to a product of the bundle
 (`reference_not_found`), a product no inventory lists (`unreferenced_member`),
 and a Schematron assert or report whose `role`, or whose rule's, is `warning`
-or `WARN`, the two spellings the shipped Schematron use (72 rules and one
+or `WARN`, the two spellings the labels' Schematron use (72 rules and one
 assert of the common dictionary's). Every other finding is an error. It takes the
 dataset, `--config-file` and `--bundle-results-root`, since one of its checks
 reads the configuration. `lxml`, `elementpath` and `xmlschema` are runtime
 dependencies, their floors the versions tested on Python 3.11 and 3.12: 6.0.4,
 5.0.4 and 4.1.0.
 
-The schemas are shipped: the six XSD and six Schematron files of the five
-dictionaries the labels declare and of `PDS4_CART_1O00_1970`, which the
-Cassini mission schema imports, in `src/spindoctor/cli/pds4/schemas/`, as
-package data beside the templates. Nothing is fetched. Each
-`xsi:schemaLocation` URL and each `xml-model` `href` maps to its shipped copy
-by file name, and a URL with no shipped copy is a finding that names it.
-Imports resolve through the shipped directory as a catalog, each shipped XSD
-offered for its own `targetNamespace`, so no namespace is named in code; run
-offline without it, `xmlschema` warns that the `cart/v1` import failed and
-validates without it, and every warning `xmlschema` raises while building a
-schema set is a finding, so an import that fails cannot pass silently. A test
-over the shipped configuration holds every schema in each dataset's
-`pds4.<dataset>.schemas` to having its `.xsd` and its `.sch` shipped. A schema
-set that cannot be built at all -- a URL paired with a namespace its file does
-not define, say -- is one finding, and the label is checked without it. The
-shipped files are NASA's as published, misspellings included, so the spelling
-gate on its way to `main` has to skip `.xsd` and `.sch` (#705).
+**The schemas are fetched, not shipped,** by the operator's decision of
+2026-09-15: "Fetch schemas, don't ship them. A smaller package. The check
+needs the network, and the tests keep local copies." Every URL the check reads
+-- a label's `xsi:schemaLocation` URLs and `xml-model` `href`s, and each
+schema's `xs:import` `schemaLocation` -- is resolved one way. By default it is
+fetched through `filecache` into the cache `_filecache_spindoctor_pds4_schemas`,
+under `$FILECACHE_CACHE_ROOT` or the system's temporary directory, which keeps
+each download, so a later check fetches nothing it already has; with
+`sd_create_bundle check --schema-dir DIR` it is the file of the URL's name in
+`DIR`, and nothing is fetched. `xmlschema` is allowed only local files and
+reads every URL through that rule, so an import resolves by its own URL, as
+`validate` resolves it: the Cassini schema's import of GEOM `19A0` resolves
+to `19A0`, beside the `19B0` the data labels declare, and every label's
+findings are the same as they were. The namespace catalog is gone, and no
+namespace is named in code. A URL that cannot be resolved -- one that cannot be
+fetched, or with no file of its name in the directory -- is a finding naming
+it, and the check goes on; every warning `xmlschema` raises while building a
+schema set is a finding, so an import that fails cannot pass silently. A
+schema set that cannot be built at all -- a URL paired with a namespace its
+file does not define, say -- is one finding, and the label is checked without
+it. The package held the six XSD and six Schematron files, of the five
+dictionaries the labels declare and of `PDS4_CART_1O00_1970`, in
+`src/spindoctor/cli/pds4/schemas/` until then; they now live, byte for byte
+the files at their URLs, in `tests/spindoctor/cli/pds4/check/schemas/`, with
+GEOM `19A0`'s XSD fetched once from pds.nasa.gov beside them, and the check's
+tests read them there, so the suite needs no network (criterion 4). Two
+tests hold every schema a dataset's `pds4.<dataset>.schemas` names, and every
+import of a copy, to having a copy; one test, marked `integration`, runs the
+check in fetch mode over the plain cohort bundle and holds it to the offline
+findings. The copies are NASA's as published, misspellings included, so the
+spelling gate on its way to `main` has to skip `.xsd` and `.sch` (#705).
 
 The rules cannot be
 run by `lxml`'s ISO Schematron: on 2026-09-14 the product reviewer found
@@ -2923,7 +2937,7 @@ document node, and a rule's variables at the node it matched. Its evaluator is
 a port of the one written that way for Phase 6's reviews, which agrees with
 pyschematron on the 116 rules pyschematron runs and catches every control.
 For a context that is a union of path expressions joined by `|` -- every
-context of the shipped Schematron -- it selects a rule's nodes as `//` before
+context of the labels' Schematron -- it selects a rule's nodes as `//` before
 each branch, the same node set as `//(context)`: over the Phase 9 review's two
 cohort builds the two agree for all 12,953 (label, rule) pairs, and the code
 review found them identical for all 19,470 pairs of its builds and controls.
@@ -3314,10 +3328,10 @@ branch.
   ruling of 2026-09-15 (section 0). It needs the DOIs registered and a fresh
   navigation of the volume, and carries the by-hand registry check of the
   context inventory's versions.
-- #705 — the spelling gate on its way to `main` reads the PDS4 schemas the
-  package ships (Phase 10, Part A), whose misspellings are NASA's; its skip
-  list takes `*.xsd` and `*.sch`, in whichever of its two changes lands
-  second.
+- #705 — the spelling gate on its way to `main` reads the local copies of
+  the PDS4 schemas the tests keep (Phase 10, Part A), whose misspellings are
+  NASA's; its skip list takes `*.xsd` and `*.sch`, in whichever of its two
+  changes lands second.
 - #595, #596, #597, #598, #599 — the backplanes user guides: one shared
   LaTeX template and one guide per instrument. #596 is what section 3.6's
   acceptance criterion 9 turns on for this bundle; the other three wait on
