@@ -94,6 +94,9 @@ def _model_for(obs: ObsSim) -> Any:
 
     Parameters:
         obs: Simulated observation to build the model against.
+
+    Returns:
+        The one simulated haze model the observation yields.
     """
     instances = NavModelTitanSimulated.instances_for_obs(obs)
     assert len(instances) == 1
@@ -106,6 +109,9 @@ def _model(bodies: list[dict[str, Any]], stars: list[dict[str, Any]] | None = No
     Parameters:
         bodies: Body entries for the scene.
         stars: Star entries for the scene, or None for a starless scene.
+
+    Returns:
+        The one simulated haze model the scene yields.
     """
     return _model_for(_obs(bodies, stars))
 
@@ -115,6 +121,9 @@ def _rendered_image(obs: ObsSim) -> NDArrayFloatType:
 
     Parameters:
         obs: Simulated observation carrying the rendered frame.
+
+    Returns:
+        The rendered frame, as the simulator drew it.
     """
     return np.asarray(obs.data, dtype=np.float64)
 
