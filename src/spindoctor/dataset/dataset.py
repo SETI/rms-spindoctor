@@ -43,7 +43,7 @@ class Pds4Schema:
 
     Attributes:
         location: The URL of the dictionary's XML schema and Schematron less their
-            extension, as in ``https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1F00``.
+            extension, as in ``https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0``.
         lidvid: The LIDVID of the dictionary's schema product, as the XML schema
             collection lists it.
     """
@@ -347,7 +347,7 @@ class DataSet(ABC, NavBase):
 
         Returns:
             Each dictionary's schema, by the prefix its namespace takes in a label (e.g.,
-            "rings"), in the order the XML schema collection lists them.
+            "geom"), in the order the XML schema collection lists them.
         """
         # We don't make PDS4 methods as @abstractmethod because it's possible to make
         # a DataSet that doesn't support PDS4 bundle generation

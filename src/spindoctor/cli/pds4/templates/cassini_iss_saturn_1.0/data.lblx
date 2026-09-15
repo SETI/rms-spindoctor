@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?xml-model href="$PDS4_PDS_SCHEMA$"
     schematypens="http://purl.oclc.org/dsdl/schematron"?>
-<?xml-model href="$PDS4_RINGS_SCHEMA$"
-    schematypens="http://purl.oclc.org/dsdl/schematron"?>
 <?xml-model href="$PDS4_DISP_SCHEMA$"
     schematypens="http://purl.oclc.org/dsdl/schematron"?>
 <?xml-model href="$PDS4_GEOM_SCHEMA$"
@@ -13,13 +11,11 @@
 <Product_Observational
     xmlns="http://pds.nasa.gov/pds4/pds/v1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xmlns:rings="http://pds.nasa.gov/pds4/rings/v1"
     xmlns:disp="http://pds.nasa.gov/pds4/disp/v1"
     xmlns:geom="http://pds.nasa.gov/pds4/geom/v1"
     xmlns:cassini="http://pds.nasa.gov/pds4/mission/cassini/v1"
     xsi:schemaLocation="
     http://pds.nasa.gov/pds4/pds/v1 $PDS4_PDS_SCHEMA_XSD$
-    http://pds.nasa.gov/pds4/rings/v1 $PDS4_RINGS_SCHEMA_XSD$
     http://pds.nasa.gov/pds4/disp/v1 $PDS4_DISP_SCHEMA_XSD$
     http://pds.nasa.gov/pds4/geom/v1 $PDS4_GEOM_SCHEMA_XSD$
     http://pds.nasa.gov/pds4/mission/cassini/v1 $PDS4_CASSINI_SCHEMA_XSD$">

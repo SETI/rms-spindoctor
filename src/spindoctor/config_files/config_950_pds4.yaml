@@ -23,9 +23,6 @@ pds4:
       geom:
         location: https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0
         lidvid: urn:nasa:pds:system_bundle:xml_schema:geom-xml_schema::1.19
-      rings:
-        location: https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1F00
-        lidvid: urn:nasa:pds:system_bundle:xml_schema:rings-xml_schema::1.15
       cassini:
         location: https://pds.nasa.gov/pds4/mission/cassini/v1/PDS4_CASSINI_1O00_1800
         lidvid: urn:nasa:pds:system_bundle:xml_schema:cassini-xml_schema::1.18

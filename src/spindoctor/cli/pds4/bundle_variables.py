@@ -32,7 +32,7 @@ def bundle_variables(dataset: DataSet) -> dict[str, Any]:
       Schematron and of its XML schema, which a label declaring the dictionary's
       namespace names in its ``xml-model`` instruction and in its ``xsi:schemaLocation``.
       ``<PREFIX>`` is the prefix the namespace takes in a label, in upper case, as in
-      ``PDS4_RINGS_SCHEMA_XSD``.
+      ``PDS4_GEOM_SCHEMA_XSD``.
     - ``XML_SCHEMA_LIDVIDS``: the LIDVID of each dictionary's schema product, in the order
       :meth:`~spindoctor.dataset.dataset.DataSet.pds4_schemas` gives them, which the XML
       schema collection's inventory lists.
