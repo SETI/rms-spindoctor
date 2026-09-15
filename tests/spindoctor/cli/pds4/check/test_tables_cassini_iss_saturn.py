@@ -74,7 +74,7 @@ def plain_bundle(
 
 
 def _read(bundle_dir: Path, file: str) -> list[Finding]:
-    """Read every table a label describes, and hold its statistic columns to the configuration.
+    """Read a label's tables, and hold its statistic columns to the configuration.
 
     Parameters:
         bundle_dir: The bundle's directory.
@@ -131,7 +131,7 @@ def test_a_header_shorter_than_its_line_is_found(plain_bundle: Path, tmp_path: P
 
 
 def test_a_table_offset_one_short_is_found(plain_bundle: Path, tmp_path: Path) -> None:
-    """A ``Table_Character`` ``offset`` one short begins the records on the header's line feed."""
+    """A table ``offset`` one short begins the records on the header's line feed."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     header_length, records = table_records(bundle, RINGS)
     record_length = len(records[0])
@@ -168,7 +168,7 @@ def test_a_record_one_byte_short_is_found(plain_bundle: Path, tmp_path: Path) ->
 
 
 def test_a_missing_constant_respelled_is_found(plain_bundle: Path, tmp_path: Path) -> None:
-    """A ``missing_constant`` of ``-999`` is not the masked value as a degrees column writes it."""
+    """A ``missing_constant`` of ``-999`` is not the masked value in degrees' format."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     substitute_once(
         bundle / BODIES,
@@ -207,7 +207,7 @@ def test_an_angle_column_in_radians_is_found(plain_bundle: Path, tmp_path: Path)
 
 
 def test_a_column_of_reals_typed_integer_is_found(plain_bundle: Path, tmp_path: Path) -> None:
-    """A ``data_type`` of ``ASCII_Integer`` over values written with a decimal is refused."""
+    """A ``data_type`` of ``ASCII_Integer`` over values with decimals is refused."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     substitute_once(
         bundle / RINGS,
@@ -296,7 +296,7 @@ def test_an_inventory_whose_records_count_one_too_many_is_found(
 def test_an_inventory_whose_fields_count_one_too_many_is_found(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """An inventory's ``fields`` one more than the fields its record describes is found."""
+    """An inventory's ``fields`` one more than its record describes is found."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     substitute_once(bundle / DATA_INVENTORY, r'<fields>2</fields>', '<fields>3</fields>')
     expected = Finding(
@@ -311,7 +311,7 @@ def test_an_inventory_whose_fields_count_one_too_many_is_found(
 def test_an_inventory_whose_records_end_in_a_carriage_return_is_found(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """Records ending in a carriage return and a line feed are not ones ending in a line feed."""
+    """An inventory whose records end in CR-LF under a ``Line-Feed`` label is found."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     inventory = bundle / 'data' / 'collection_data.csv'
     data = inventory.read_bytes()
@@ -330,7 +330,7 @@ def test_an_inventory_whose_records_end_in_a_carriage_return_is_found(
 def test_an_inventory_without_its_last_delimiter_is_found(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """An inventory whose last record has lost its line feed does not end in its delimiter."""
+    """An inventory whose last record lost its line feed does not end in its delimiter."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     inventory = bundle / 'data' / 'collection_data.csv'
     inventory.write_bytes(inventory.read_bytes().removesuffix(b'\n'))
@@ -346,7 +346,7 @@ def test_an_inventory_without_its_last_delimiter_is_found(
 def test_a_missing_cell_spelled_otherwise_than_its_constant_is_found(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """A cell holding the missing constant's number must hold it as the constant is spelled."""
+    """A cell holding the missing constant's number spells it as the constant does."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     location, start, stop = table_field(bundle, BODIES, 'geom:minimum_phase_angle')
     header_length, _ = table_records(bundle, BODIES)

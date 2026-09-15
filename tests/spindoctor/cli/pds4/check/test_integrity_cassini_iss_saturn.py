@@ -159,7 +159,7 @@ def test_a_file_name_holding_a_directory_is_found(plain_bundle: Path, tmp_path: 
 
 
 def test_a_file_one_label_names_twice_is_found_once(plain_bundle: Path, tmp_path: Path) -> None:
-    """A browse label repeating its file area names its image a second time, and that alone."""
+    """A browse label repeating its file area names its image twice, and that alone."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     label = _browse_label(bundle)
     text = label.read_text(encoding='utf-8')
@@ -185,7 +185,7 @@ def test_a_file_one_label_names_twice_is_found_once(plain_bundle: Path, tmp_path
 def test_a_file_rewritten_after_its_label_is_found_by_its_size(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """A supplemental file rewritten with a statistic dropped is not the size its label says."""
+    """A statistic dropped from a supplemental file changes the size its label states."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     label = _data_label(bundle)
     supplemental = _supplemental(bundle, label)
@@ -211,7 +211,7 @@ def test_a_file_rewritten_after_its_label_is_found_by_its_size(
 def test_a_file_rewritten_after_its_label_is_found_by_its_checksum(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """A supplemental file with one digit changed keeps its size and loses its checksum."""
+    """A supplemental file with one digit changed keeps its size but not its checksum."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     label = _data_label(bundle)
     supplemental = _supplemental(bundle, label)
@@ -281,7 +281,7 @@ def test_an_empty_element_is_found(plain_bundle: Path, tmp_path: Path) -> None:
 def test_an_empty_element_carrying_xsi_nil_is_not_found(
     plain_bundle: Path, tmp_path: Path, nil: str
 ) -> None:
-    """An element holding nothing whose ``xsi:nil`` is true, however spelled, is empty on purpose.
+    """An empty element whose ``xsi:nil`` is true, however spelled, is empty on purpose.
 
     Parameters:
         plain_bundle: The cohort's bundle.
@@ -299,7 +299,7 @@ def test_an_empty_element_carrying_xsi_nil_is_not_found(
 
 
 def test_two_labels_declaring_one_product_are_found(plain_bundle: Path, tmp_path: Path) -> None:
-    """A second browse label declaring the first's identifier, over a copy of its image."""
+    """A second browse label declaring the first's identifier, over a copy of its PNG."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     label = _browse_label(bundle)
     image = label.with_suffix('.png')
@@ -345,7 +345,7 @@ def test_a_reference_to_a_product_of_the_bundle_not_in_the_tree_is_a_warning(
 def test_a_reference_to_a_version_the_tree_does_not_hold_is_a_warning(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """A member entry naming a collection of the bundle at another version is a warning."""
+    """A member entry naming a collection of the bundle at another version warns."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     lid = _bundle_lid(bundle)
     version = child_text(

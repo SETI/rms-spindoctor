@@ -87,7 +87,7 @@ def test_the_xml_schema_accepts_a_kernel_type_no_kernel_has(
 def test_an_import_with_no_shipped_schema_is_a_finding(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Building a set whose import finds no shipped schema warns, and the warning is found.
+    """An import finding no shipped schema warns as the set is built, and that is found.
 
     The shipped directory is stood in for by a copy holding the common, geometry and
     Cassini dictionaries' schemas and not the cartography dictionary's, which the Cassini
@@ -113,7 +113,7 @@ def test_an_import_with_no_shipped_schema_is_a_finding(
 def test_a_label_whose_schemas_cannot_be_built_is_one_finding_and_the_check_goes_on(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """The bodies table's label pairing the common namespace with a Schematron is one finding.
+    """A label pairing the common namespace with a Schematron is one finding.
 
     The check does not stop there: it returns every finding, this one among them.
     """

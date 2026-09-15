@@ -85,7 +85,7 @@ def _write_members(bundle_dir: Path, members: list[str]) -> None:
 
 
 def test_a_member_no_label_declares_is_found(plain_bundle: Path, tmp_path: Path) -> None:
-    """A primary member whose logical identifier no label of the tree declares is found."""
+    """A primary member whose LID no label of the tree declares is found."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     members = _members(bundle)
     lid, _, version = members[0].removeprefix('P,').partition('::')
@@ -121,7 +121,7 @@ def test_a_member_at_a_version_the_tree_does_not_hold_is_found(
 def test_a_product_its_collections_inventory_leaves_out_is_a_warning(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """A data product the data inventory does not list is a warning, at the product's label."""
+    """A data product the data inventory does not list warns, at the product's label."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     members = _members(bundle)
     lid = members.pop().removeprefix('P,').partition('::')[0]

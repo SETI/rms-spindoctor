@@ -106,7 +106,7 @@ def test_the_check_exits_zero_over_a_bundle_with_warnings_alone(
 def test_the_check_exits_one_without_a_bundle_directory(
     check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """With no bundle directory there is nothing to check, and the run says where it looked."""
+    """Without a bundle directory the run exits 1, naming where it looked."""
     check_run.rmdir()
     monkeypatch.setattr(sd_create_bundle, 'check_bundle', refuse)
     with pytest.raises(SystemExit) as excinfo:

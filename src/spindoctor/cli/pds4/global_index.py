@@ -1,4 +1,4 @@
-"""The global index tables of a PDS4 bundle, and the miscellaneous collection that holds them.
+"""A PDS4 bundle's global index tables, and the miscellaneous collection that holds them.
 
 The summary pass reads every supplemental file the labels pass wrote once, here, and
 builds two tables from them: one row for each body with geometry in each image the

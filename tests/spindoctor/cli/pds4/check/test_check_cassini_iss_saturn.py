@@ -86,7 +86,7 @@ RUN_LEVEL_GUIDE_REFERENCES = (
         '/Product_SPICE_Kernel/Reference_List/Internal_Reference/lid_reference',
     ),
 )
-"""Where the bundle label, the data collection label and the metakernel label refer to it."""
+"""Where the bundle, data collection and metakernel labels refer to the user guide."""
 
 _Known = tuple[str, str, str, str]
 """A finding as the gate compares it: its file, check, location and message."""
@@ -117,7 +117,8 @@ def _snapshot(bundle_dir: Path) -> dict[str, int]:
         bundle_dir: The directory.
 
     Returns:
-        Each path's modification time in nanoseconds, by its path relative to the directory.
+        Each path's modification time in nanoseconds, by its path relative to the
+        directory.
     """
     return {
         path.relative_to(bundle_dir).as_posix(): path.stat().st_mtime_ns
@@ -141,7 +142,7 @@ def _check(env: CohortBundleEnv) -> _Checked:
 
 @pytest.fixture(scope='module')
 def plain(mini_nav_cohorts: WrittenCohorts, tmp_path_factory: pytest.TempPathFactory) -> _Checked:
-    """Return the cohort's bundle written without a user guide, checked once for the module.
+    """Return the cohort's bundle written without a user guide, checked once.
 
     Parameters:
         mini_nav_cohorts: What the session's cohorts are written by.
@@ -283,7 +284,7 @@ def test_the_check_over_the_plain_bundle_finds_the_known_errors_and_no_other(
 def test_the_check_over_the_plain_bundle_warns_of_each_guide_reference_and_nothing_else(
     plain: _Checked,
 ) -> None:
-    """Over the bundle written without a guide, a warning for each reference to the guide."""
+    """Over the bundle written without a guide, a warning for each guide reference."""
     assert _found(plain, Severity.WARNING) == _warnings(plain.env)
 
 

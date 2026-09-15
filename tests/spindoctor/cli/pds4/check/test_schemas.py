@@ -39,7 +39,7 @@ def test_a_label_declaring_an_xml_schema_the_package_does_not_ship_is_a_finding(
 
 
 def test_a_schema_set_that_cannot_be_built_is_one_finding() -> None:
-    """A namespace paired with a file that is not an XML schema leaves no set, and one finding."""
+    """A namespace paired with a Schematron file builds no set, and is one finding."""
     location = f'http://pds.nasa.gov/pds4/pds/v1 {PDS_SCHEMATRON}'
     resolved = label_schema('bundle.lblx', bare_bundle_label(location))
     expected = Finding(
