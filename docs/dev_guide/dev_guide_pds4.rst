@@ -1007,8 +1007,10 @@ label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_l
   ``--schema-dir`` it is the file of the URL's name in that directory, and nothing is
   fetched.  ``xmlschema`` is allowed only local files and reads every URL through that
   rule, so an import resolves to the schema at its own URL, as ``validate`` resolves it,
-  whatever build of the same dictionary a label declares, and no namespace is named in
-  code.  A URL a label names that cannot be resolved is a finding naming it.  Every
+  and no namespace is named in code.  ``xmlschema`` reads a namespace once in a set,
+  though: the Cassini data labels declare the geometry dictionary's build ``19B0``, and
+  that build serves the Cassini schema's import of ``19A0``, which is not read, where
+  ``validate`` reads both, to the same verdicts.  A URL a label names that cannot be resolved is a finding naming it.  Every
   warning ``xmlschema`` raises while it builds a set of schemas is a finding, so an
   import that cannot be resolved cannot pass silently.  A set that cannot be built at all -- a URL paired with a namespace its file
   does not define, say -- is one finding, and the label is checked without it.  Each
