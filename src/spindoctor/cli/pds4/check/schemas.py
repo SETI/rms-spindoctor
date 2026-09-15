@@ -1,4 +1,4 @@
-"""The PDS4 schemas the package ships, and each label checked against the XML schemas it declares.
+"""The PDS4 schemas the package ships, and each label held to the XML schemas it declares.
 
 The package ships the XML schema and the Schematron of each dictionary a bundle's labels
 declare, in :data:`SCHEMA_DIRECTORY`, and the bundle check resolves every schema from
@@ -12,7 +12,9 @@ the namespace it defines and a URL.  Those imports are resolved through the ship
 directory as a catalog: each shipped XML schema is offered for the namespace it defines,
 so that an import resolves to the shipped schema of its namespace, whichever version its
 URL names.  Every warning raised while a set of schemas is built is a finding, so that an
-import that fails cannot pass silently.
+import that fails cannot pass silently.  A set that cannot be built at all -- a URL
+paired with a namespace its file does not define, say -- is one finding, and the label
+is checked without it.
 """
 
 import functools
@@ -97,15 +99,17 @@ def _loader_class(directory: Path) -> type[xmlschema.SchemaLoader]:
 
 @dataclass(frozen=True)
 class _SchemaSet:
-    """A set of XML schemas built from shipped copies, and what building it warned of.
+    """A set of XML schemas built from shipped copies, and what building it came to.
 
     Attributes:
-        schema: The set, built.
+        schema: The set, built, or None when it could not be.
         warnings: The text of each warning raised while it was built.
+        error: Why it could not be built, or None when it was.
     """
 
-    schema: xmlschema.XMLSchema
+    schema: xmlschema.XMLSchema | None
     warnings: tuple[str, ...]
+    error: str | None
 
 
 @functools.cache
@@ -118,17 +122,30 @@ def _schema_set(directory: Path, main: str, others: tuple[tuple[str, str], ...])
         others: Each other namespace the label declares, with its schema's shipped copy.
 
     Returns:
-        The set, and every warning raised while it was built.
+        The set, and every warning raised while it was built; or, when it cannot be
+        built, the first line of the reason xmlschema gives.
     """
+    schema: xmlschema.XMLSchema | None = None
+    error: str | None = None
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
-        schema = xmlschema.XMLSchema(
-            main,
-            locations=list(others),
-            allow='local',
-            loader_class=_loader_class(directory),
-        )
-    return _SchemaSet(schema=schema, warnings=tuple(str(warning.message) for warning in caught))
+        try:
+            schema = xmlschema.XMLSchema(
+                main,
+                locations=list(others),
+                allow='local',
+                loader_class=_loader_class(directory),
+            )
+        except xmlschema.XMLSchemaException as exc:
+            # A set that cannot be built is one finding for the label, which is then
+            # checked without it, rather than a traceback that ends the whole check.
+            reason = getattr(exc, 'message', None) or str(exc)
+            error = str(reason).splitlines()[0]
+    return _SchemaSet(
+        schema=schema,
+        warnings=tuple(str(warning.message) for warning in caught),
+        error=error,
+    )
 
 
 @dataclass(frozen=True)
@@ -138,10 +155,11 @@ class LabelSchema:
     Attributes:
         schema: The set built from the shipped copy of every XML schema the label
             declares, and of every schema those import, or None when a schema it declares
-            has no shipped copy or it declares none for its root element's namespace.
+            has no shipped copy, it declares none for its root element's namespace, or
+            the set cannot be built.
         findings: What resolving the declaration found: each URL with no shipped copy, a
-            root element whose namespace the label declares no XML schema for, and each
-            warning raised while the set was built.
+            root element whose namespace the label declares no XML schema for, each
+            warning raised while the set was built, and why it cannot be built.
     """
 
     schema: xmlschema.XMLSchema | None
@@ -155,7 +173,7 @@ def label_schema(file: str, document: Any) -> LabelSchema:
     same schemas is checked against the same set.
 
     Parameters:
-        file: The label's path relative to the bundle's directory, which the findings name.
+        file: The label's path relative to the bundle's directory, which findings name.
         document: The label, parsed by lxml.
 
     Returns:
@@ -191,20 +209,28 @@ def label_schema(file: str, document: Any) -> LabelSchema:
         return LabelSchema(schema=None, findings=(finding,))
     others = tuple((other, path) for other, path in located.items() if other != namespace)
     schema_set = _schema_set(SCHEMA_DIRECTORY, located[namespace], others)
-    return LabelSchema(
-        schema=schema_set.schema,
-        findings=tuple(
-            Finding(file, CheckName.XSD, '', f'building its XML schemas warned: {warning}')
-            for warning in schema_set.warnings
-        ),
+    findings.extend(
+        Finding(file, CheckName.XSD, '', f'building its XML schemas warned: {warning}')
+        for warning in schema_set.warnings
     )
+    if schema_set.error is not None:
+        findings.append(
+            Finding(
+                file,
+                CheckName.XSD,
+                '',
+                'its XML schemas cannot be built, so it is not validated against them: '
+                f'{schema_set.error}',
+            )
+        )
+    return LabelSchema(schema=schema_set.schema, findings=tuple(findings))
 
 
 def xsd_findings(file: str, document: Any, schema: xmlschema.XMLSchema) -> list[Finding]:
     """Validate a label against the XML schemas it declares.
 
     Parameters:
-        file: The label's path relative to the bundle's directory, which the findings name.
+        file: The label's path relative to the bundle's directory, which findings name.
         document: The label, parsed by lxml.
         schema: The set :func:`label_schema` built for it.
 
