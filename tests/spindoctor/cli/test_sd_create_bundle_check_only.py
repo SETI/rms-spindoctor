@@ -93,3 +93,45 @@ def test_check_only_writes_nothing_and_needs_no_bundle_root_or_log(
     before = sorted(check_only_run.rglob('*'))
     sd_create_bundle.main_labels()
     assert sorted(check_only_run.rglob('*')) == before
+
+
+@pytest.mark.parametrize(
+    ('image_count', 'count'),
+    [
+        pytest.param(
+            0,
+            'Input check: 0 image(s) selected, 0 complete, 0 incomplete, '
+            '1 batch(es) the labels pass refuses',
+            id='empty',
+        ),
+        pytest.param(
+            2,
+            'Input check: 2 image(s) selected, 0 complete, 2 incomplete, '
+            '1 batch(es) the labels pass refuses',
+            id='two',
+        ),
+    ],
+)
+def test_check_only_exits_one_over_a_batch_the_labels_pass_refuses(
+    check_only_run: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    image_count: int,
+    count: str,
+) -> None:
+    """A batch of other than one image is incomplete, as the labels pass would fail it.
+
+    Parameters:
+        check_only_run: The directory holding the two roots.
+        monkeypatch: Fixture the batch's dataset is installed through.
+        capsys: Fixture the report is read through.
+        image_count: How many images the batch holds.
+        count: The report's last line.
+    """
+    monkeypatch.setattr(
+        sd_create_bundle, 'DATASET', stub_dataset(check_only_run, image_count=image_count)
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_labels()
+    assert excinfo.value.code == 1
+    assert capsys.readouterr().out.splitlines()[-1] == count
