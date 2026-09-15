@@ -270,8 +270,9 @@ way it departs from what a PDS4 bundle has to be. It reads the bundle and the PD
 schemas its labels name. By default it fetches each schema from the web address the
 label gives, so it needs the network, and keeps what it fetches in a cache, so that a
 later check fetches nothing it already has: the directory
-``_filecache_spindoctor_pds4_schemas`` in the system's temporary directory, or in the
-directory the ``FILECACHE_CACHE_ROOT`` environment variable names, if it is set. With
+``_filecache_spindoctor_pds4_schemas`` in your own cache directory, ``~/.cache`` (or the
+directory the ``XDG_CACHE_HOME`` environment variable names, if it is set), or in the
+directory ``FILECACHE_CACHE_ROOT`` names, if that is set. With
 ``--schema-dir`` it reads each schema from the file of the same name in that directory
 instead, and fetches nothing. It writes nothing in the bundle, and no log. It uses the
 ``lxml``, ``elementpath`` and ``xmlschema`` packages, which are installed with

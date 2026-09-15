@@ -194,3 +194,32 @@ def test_a_cache_that_cannot_be_written_is_a_finding_for_each_url_and_no_traceba
         for url in urls
     ]
     assert (excinfo.value.code, fetched, 'Traceback' in '\n'.join(lines)) == (1, expected, False)
+
+
+@pytest.mark.parametrize(
+    ('variables', 'expected'),
+    [
+        pytest.param({}, 'home/.cache', id='home'),
+        pytest.param({'XDG_CACHE_HOME': 'xdg'}, 'xdg', id='xdg'),
+        pytest.param(
+            {'XDG_CACHE_HOME': 'xdg', 'FILECACHE_CACHE_ROOT': 'named'}, 'named', id='named'
+        ),
+    ],
+)
+def test_the_schema_cache_is_the_users_own_unless_a_root_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variables: dict[str, str], expected: str
+) -> None:
+    """The cache's root is the user's cache directory, or the file cache's root if named.
+
+    Parameters:
+        tmp_path: The directory the home, the XDG cache and the named root are in.
+        monkeypatch: Fixture the environment is set through.
+        variables: Each variable set, with the directory it names below ``tmp_path``.
+        expected: The root the cache is made in, below ``tmp_path``.
+    """
+    monkeypatch.setenv('HOME', str(tmp_path / 'home'))
+    for variable in schemas.SCHEMA_CACHE_ROOTS:
+        monkeypatch.delenv(variable, raising=False)
+    for variable, directory in variables.items():
+        monkeypatch.setenv(variable, str(tmp_path / directory))
+    assert schemas.schema_cache_root() == tmp_path / expected
