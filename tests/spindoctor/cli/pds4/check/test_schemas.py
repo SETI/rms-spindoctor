@@ -1,9 +1,14 @@
 """The schemas a label names, resolved by URL to the local copies the tests keep."""
 
+import shutil
+import warnings
+from pathlib import Path
+
+import pytest
 from lxml import etree
 
 from spindoctor.cli.pds4.check.findings import CheckName, Finding
-from spindoctor.cli.pds4.check.schemas import LabelSchema, label_schema
+from spindoctor.cli.pds4.check.schemas import LabelSchema, SchemaSource, label_schema
 from spindoctor.config import DEFAULT_CONFIG
 
 from .controls import SCHEMA_COPIES, SCHEMAS, bare_bundle_label
@@ -67,3 +72,35 @@ def test_a_schema_set_that_cannot_be_built_is_one_finding() -> None:
         "'{http://purl.oclc.org/dsdl/schematron}schema' is not an element of the schema",
     )
     assert resolved == LabelSchema(schema=None, findings=(expected,))
+
+
+def test_a_warning_not_xmlschemas_in_a_build_reaches_the_caller_and_is_no_finding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A warning not xmlschema's, raised as a set is built, is passed on untouched.
+
+    The garbage collector can raise a ``ResourceWarning`` for a connection something else
+    left open at any moment, a build's among them; one is raised here from inside the
+    build, through the hook xmlschema reads each URL by.  The schema is copied to the
+    test's own directory, so that the set is built afresh.
+    """
+    shutil.copy(SCHEMA_COPIES / 'PDS4_PDS_1O00.xsd', tmp_path / 'PDS4_PDS_1O00.xsd')
+    mapped = SchemaSource.mapped
+
+    def leaking(self: SchemaSource, url: str) -> str:
+        """Raise another's warning, as the garbage collector can, and map a URL.
+
+        Parameters:
+            url: The URL xmlschema is about to read.
+
+        Returns:
+            The local file the URL resolves to.
+        """
+        warnings.warn('unclosed database in <sqlite3.Connection>', ResourceWarning, stacklevel=1)
+        return mapped(self, url)
+
+    monkeypatch.setattr(SchemaSource, 'mapped', leaking)
+    location = 'http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00.xsd'
+    with pytest.warns(ResourceWarning, match='unclosed database'):
+        resolved = label_schema('bundle.lblx', bare_bundle_label(location), SchemaSource(tmp_path))
+    assert resolved.findings == ()
