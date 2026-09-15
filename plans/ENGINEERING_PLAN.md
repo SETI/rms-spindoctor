@@ -241,7 +241,7 @@ diagnosis attributes the dominant term to the photometric roll-off, not DT
 quantization, and ranks the fixes: (1) fit a photometric limb (predict the
 limb-darkened-disc-convolved-with-PSF brightness profile and match it, #150);
 (2) a matched-filter sub-pixel edge estimator to remove the interpolation
-ripple (#282); (3) a pixel-centre convention audit (#283). **Constraint:** do
+ripple (#282); (3) a pixel-center convention audit (#283). **Constraint:** do
 not enable a fitter change until
 the real-image measurement exists (Track A #225 provides it) — the current
 partial cancellation is accidental and a well-meaning "fix" can make real
@@ -268,7 +268,7 @@ and starts with a design document, not code.
   operator picks (accept the 2-px-class ground truth, keep TERMINATOR_ARC for
   SPICE-known synchronous rotators, or shape models per #23).
 - **#635** — the star pixel datum: a star record carries oops uv (a pixel's
-  corner) and every star technique measures array indices (a pixel's centre),
+  corner) and every star technique measures array indices (a pixel's center),
   so every star-derived offset was short by half a pixel in both axes. Fixed
   by declaring the convention on `MutableStar` and converting at each point of
   use (`STAR_UV_DATUM_PX`). The library's star-derived ground truths carried
@@ -354,8 +354,9 @@ but its templates are still drafts in places, so its output is not yet
 valid PDS4. The other three instruments additionally hit
 `NotImplementedError` walls in their `pds4_*` DataSet hooks. The work
 is therefore: finish and validate Cassini first (final templates; the
-remaining phases of `PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, among them the
-draft run over a real volume), then generalize — per-mission
+remaining phases of `PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, which finishes as
+a prototype over the synthetic cohort, the run over a real volume being
+#708), then generalize — per-mission
 template trees plus hook implementations, mechanical but voluminous.
 
 Work items, in dependency order:
