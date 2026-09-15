@@ -9,9 +9,12 @@ reports each way the tree departs from PDS4 as a
   (:mod:`~spindoctor.cli.pds4.check.schemas`) and the Schematron rules it declares
   (:mod:`~spindoctor.cli.pds4.check.schematron`);
 - each table read through its label alone (:mod:`~spindoctor.cli.pds4.check.tables`),
-  and each statistic column of a global index table against the configuration
-  (:mod:`~spindoctor.cli.pds4.check.statistic_columns`);
-- the tree as a whole (:mod:`~spindoctor.cli.pds4.check.integrity`).
+  each global index table against the layout the summary pass writes
+  (:mod:`~spindoctor.cli.pds4.check.index_tables`), and each statistic column of one
+  against the configuration (:mod:`~spindoctor.cli.pds4.check.statistic_columns`);
+- the tree as a whole (:mod:`~spindoctor.cli.pds4.check.integrity`): the files its labels
+  name, the identifiers they declare and refer to, the collections' inventories
+  (:mod:`~spindoctor.cli.pds4.check.inventories`), and the global index tables' records.
 """
 
 from spindoctor.cli.pds4.check.bundle import check_bundle, check_label

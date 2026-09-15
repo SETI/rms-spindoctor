@@ -21,11 +21,13 @@ class CheckName(StrEnum):
         XSD: The label against the XML schemas it declares, or the declaration itself.
         SCHEMATRON: The label against the Schematron rules it declares, or the
             declaration itself.
-        TABLE: A table read through its label alone, and a statistic column of a global
-            index table against the configuration.
-        INTEGRITY: The tree as a whole: the files its labels name, the files no label
-            names, the markers and the empty elements a label holds, and the references
-            to the bundle's own products.
+        TABLE: A table read through its label alone, the layout of a global index
+            table, and a statistic column of one against the configuration.
+        INTEGRITY: The tree as a whole: the files its labels name, their sizes and
+            checksums, the files no label names, the markers and the empty elements a
+            label holds, the identifiers the labels declare, the references to the
+            bundle's own products, the collections' inventories, and the global index
+            tables' records against the products they describe.
     """
 
     XML = 'xml'
