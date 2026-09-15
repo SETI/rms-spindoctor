@@ -36,6 +36,12 @@ KERNELS_TITLE = '/Product_SPICE_Kernel/Identification_Area/title'
 SUPPLEMENTAL = '/Product_Observational/File_Area_Observational_Supplemental/File'
 """Where a data label describes its supplemental file."""
 
+DATA_GUIDE_REFERENCE = '/Product_Observational/Reference_List/Internal_Reference[1]/lid_reference'
+"""Where a data label refers to the user guide."""
+
+GUIDE_LID_PART = 'document:backplanes-user-guide'
+"""What the user guide's logical identifier adds to the bundle's."""
+
 
 @pytest.fixture(scope='module')
 def plain_bundle(
@@ -368,10 +374,46 @@ def test_a_reference_to_a_version_the_tree_does_not_hold_is_a_warning(
     assert expected in _check(bundle)
 
 
+def test_a_reference_to_a_bundle_sharing_the_lids_prefix_is_not_resolved(
+    plain_bundle: Path, tmp_path: Path
+) -> None:
+    """A LID sharing the bundle LID's prefix, but no colon, names another bundle."""
+    bundle = copy_bundle(plain_bundle, tmp_path)
+    lid = _bundle_lid(bundle)
+    label = _data_label(bundle)
+    substitute_once(
+        bundle / label,
+        f'<lid_reference>{re.escape(lid)}:{GUIDE_LID_PART}</lid_reference>',
+        f'<lid_reference>{lid}x:{GUIDE_LID_PART}</lid_reference>',
+    )
+    at_reference = [
+        finding
+        for finding in _check(bundle)
+        if finding.file == label and finding.location == DATA_GUIDE_REFERENCE
+    ]
+    assert at_reference == []
+
+
 def test_a_tree_with_no_bundle_label_is_found(plain_bundle: Path, tmp_path: Path) -> None:
     """A tree with no bundle label at its top has nothing to resolve its references by."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     (bundle / 'bundle.lblx').unlink()
+    expected = Finding(
+        '.',
+        CheckName.INTEGRITY,
+        '',
+        'the tree holds no bundle label at its top, so no reference to a product of the '
+        'bundle can be resolved',
+    )
+    assert expected in _check(bundle)
+
+
+def test_a_bundle_label_below_the_top_of_the_tree_is_not_the_bundles(
+    plain_bundle: Path, tmp_path: Path
+) -> None:
+    """A bundle label moved into a collection's directory leaves the tree without one."""
+    bundle = copy_bundle(plain_bundle, tmp_path)
+    (bundle / 'bundle.lblx').rename(bundle / 'document' / 'bundle.lblx')
     expected = Finding(
         '.',
         CheckName.INTEGRITY,
