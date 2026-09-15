@@ -142,10 +142,10 @@ def test_the_check_exits_one_with_the_traceback_of_a_check_that_stops(
 def test_the_check_takes_the_configuration_arguments(tmp_path: Path) -> None:
     """The check takes a dataset, configuration files and a bundle results root."""
     arguments = sd_create_bundle.parse_args_check(
-        ['coiss_saturn', '--config-file', 'a.yaml', '--bundle-results-root', str(tmp_path)]
+        ['sim', '--config-file', 'a.yaml', '--bundle-results-root', str(tmp_path)]
     )
     assert (arguments.dataset_name, arguments.config_file, arguments.bundle_results_root) == (
-        'coiss_saturn',
+        'sim',
         ['a.yaml'],
         str(tmp_path),
     )
