@@ -3,7 +3,7 @@
 ``sd_create_bundle check`` runs :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`
 over a bundle's directory.  It reads only the tree and the schemas the package ships, and
 reports each way the tree departs from PDS4 as a
-:class:`~spindoctor.cli.pds4.check.findings.Finding`:
+:class:`~spindoctor.cli.pds4.check.findings.Finding`, an error or a warning:
 
 - each label against the XML schemas it declares
   (:mod:`~spindoctor.cli.pds4.check.schemas`) and the Schematron rules it declares
@@ -15,6 +15,6 @@ reports each way the tree departs from PDS4 as a
 """
 
 from spindoctor.cli.pds4.check.bundle import check_bundle, check_label
-from spindoctor.cli.pds4.check.findings import CheckName, Finding
+from spindoctor.cli.pds4.check.findings import CheckName, Finding, Severity
 
-__all__ = ['CheckName', 'Finding', 'check_bundle', 'check_label']
+__all__ = ['CheckName', 'Finding', 'Severity', 'check_bundle', 'check_label']

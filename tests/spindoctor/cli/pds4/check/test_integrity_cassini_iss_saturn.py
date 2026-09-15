@@ -15,7 +15,7 @@ from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
 from spindoctor.cli.pds4.check.elements import child_text
-from spindoctor.cli.pds4.check.findings import CheckName, Finding
+from spindoctor.cli.pds4.check.findings import CheckName, Finding, Severity
 from spindoctor.cli.pds4.check.integrity import integrity_findings
 
 from ..cohort_bundle import write_cohort_bundle
@@ -160,10 +160,10 @@ def test_an_empty_element_carrying_xsi_nil_is_not_found(plain_bundle: Path, tmp_
     assert at_title == []
 
 
-def test_a_reference_to_a_product_of_the_bundle_not_in_the_tree_is_found(
+def test_a_reference_to_a_product_of_the_bundle_not_in_the_tree_is_a_warning(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """A member entry naming a collection of the bundle no label declares is found."""
+    """A member entry naming a collection of the bundle no label declares is a warning."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     lid = _bundle_lid(bundle)
     substitute_once(
@@ -176,14 +176,15 @@ def test_a_reference_to_a_product_of_the_bundle_not_in_the_tree_is_found(
         CheckName.INTEGRITY,
         '/Product_Bundle/Bundle_Member_Entry[1]/lid_reference',
         f'refers to {lid}:nonesuch, which no label of the tree declares',
+        Severity.WARNING,
     )
     assert expected in _check(bundle)
 
 
-def test_a_reference_to_a_version_the_tree_does_not_hold_is_found(
+def test_a_reference_to_a_version_the_tree_does_not_hold_is_a_warning(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """A member entry naming a collection of the bundle at another version is found."""
+    """A member entry naming a collection of the bundle at another version is a warning."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     lid = _bundle_lid(bundle)
     version = child_text(
@@ -201,6 +202,7 @@ def test_a_reference_to_a_version_the_tree_does_not_hold_is_found(
         CheckName.INTEGRITY,
         '/Product_Bundle/Bundle_Member_Entry[1]/lidvid_reference',
         f'refers to {lid}:browse::9.9, but the tree holds {lid}:browse at version {version}',
+        Severity.WARNING,
     )
     assert expected in _check(bundle)
 

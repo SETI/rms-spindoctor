@@ -25,7 +25,7 @@ sys.path.insert(0, package_source_path)
 from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.cli.pds4.bundle_products import generate_bundle_products
-from spindoctor.cli.pds4.check import check_bundle
+from spindoctor.cli.pds4.check import Severity, check_bundle
 from spindoctor.cli.pds4.collections import generate_collection_files
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.cli.pds4.image_inputs import report_image_inputs
@@ -588,12 +588,14 @@ def main_check() -> None:
     """Main function for the check subcommand.
 
     Checks the bundle the labels and summary passes wrote into
-    ``<bundle_results_root>/<pds4_bundle_name()>/``, reading only that tree and the schemas
-    the package ships, as :func:`~spindoctor.cli.pds4.check.bundle.check_bundle` describes.
-    It writes nothing, not even a log: it prints one line per finding and then a count.
+    ``<bundle_results_root>/<pds4_bundle_name()>/``, reading only that tree and the
+    schemas the package ships, as :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`
+    describes.  It writes nothing, not even a log: it prints one line per finding, an
+    error or a warning, and then the number of each.
 
-    The run ends with exit status 1 when there is any finding, when there is no bundle
+    The run ends with exit status 1 when there is any error, when there is no bundle
     directory to check, or when the check itself fails, whose traceback it prints.
+    Warnings alone leave it 0.
     """
     arguments = parse_args_check(sys.argv[2:])
 
@@ -621,8 +623,9 @@ def main_check() -> None:
 
     for finding in findings:
         print(finding.line())
-    print(f'Bundle check of {bundle_dir}: {len(findings)} finding(s)')
-    if len(findings) > 0:
+    errors = sum(finding.severity is Severity.ERROR for finding in findings)
+    print(f'Bundle check of {bundle_dir}: {errors} error(s), {len(findings) - errors} warning(s)')
+    if errors > 0:
         sys.exit(1)
 
 

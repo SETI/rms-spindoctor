@@ -3,14 +3,17 @@
 The cohort's bundle is built twice, as ``sd_create_bundle`` builds it from the templates
 the package ships -- once plain, and once from a copy of the template directory holding
 a stand-in user guide -- and the check is run over each.  What it finds is exactly what
-is known of the bundle, and nothing else:
+is known of the bundle, each finding's file, check, location and message, and nothing
+else.  The errors:
 
 - the ``TODO DOI`` placeholder of the bundle label, in both builds, and the two of the
   user guide's label, in the build with the guide, until the DOIs are registered;
 - each data label's empty ``cassini:ISS_Specific_Attributes``, until the Cassini ISS
-  label facts it states are recorded by the navigation;
-- in the plain build, each reference to the user guide, which a bundle written without
-  the guide's PDF does not hold.
+  label facts it states are recorded by the navigation.
+
+The warnings, in the plain build alone: each reference to the user guide, which a bundle
+written without the guide's PDF does not hold, and which the PDS ``validate`` tool
+reports as a warning too.  The build with the guide has none.
 
 A finding the check makes over these bundles that is not among these fails the test, and
 so does one of these the check stops making.
@@ -23,7 +26,8 @@ import pytest
 from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
 
-from spindoctor.cli.pds4.check import CheckName, Finding, check_bundle
+from spindoctor.cli.pds4.check import CheckName, Finding, Severity, check_bundle
+from spindoctor.cli.pds4.check.elements import child_text, element_path
 
 from ..cohort_bundle import (
     CohortBundleEnv,
@@ -33,12 +37,16 @@ from ..cohort_bundle import (
     summarize_bundle,
     write_cohort_bundle,
 )
+from .controls import parse
 
 NAVIGATED_STUBS = (LIMB_STUB, RINGS_STUB)
 """The cohort's two navigated images, by results path stub."""
 
 GUIDE_LABEL = 'document/user_guide/cassini-iss-saturn-backplanes-user-guide.lblx'
 """The user guide's label, in a bundle written with the guide."""
+
+GUIDE_LID_PART = 'document:backplanes-user-guide'
+"""What the user guide's logical identifier adds to the bundle's."""
 
 BUNDLE_DOI = '/Product_Bundle/Identification_Area/Citation_Information/doi'
 """The bundle label's DOI."""
@@ -49,11 +57,17 @@ GUIDE_DOIS = (
 )
 """The user guide label's two DOIs."""
 
+DOI_REASON = r"value doesn't match any pattern of ['10\\.\\S+/\\S+']"
+"""What the XML schema says of a DOI that is a placeholder."""
+
 ISS_ATTRIBUTES = (
     '/Product_Observational/Observation_Area/Mission_Area/cassini:Cassini/'
     'cassini:ISS_Specific_Attributes'
 )
 """The block of a data label the Cassini ISS label facts go in."""
+
+EMPTY = 'is empty, and does not carry xsi:nil'
+"""What the integrity check says of an element holding nothing."""
 
 DATA_GUIDE_REFERENCE = '/Product_Observational/Reference_List/Internal_Reference[1]/lid_reference'
 """Where a data label refers to the user guide."""
@@ -73,6 +87,9 @@ RUN_LEVEL_GUIDE_REFERENCES = (
     ),
 )
 """Where the bundle label, the data collection label and the metakernel label refer to it."""
+
+_Known = tuple[str, str, str, str]
+"""A finding as the gate compares it: its file, check, location and message."""
 
 
 @dataclass(frozen=True)
@@ -161,61 +178,125 @@ def with_guide(
     return _check(env)
 
 
-def _known(env: CohortBundleEnv, *, guide: bool) -> list[tuple[str, str, str]]:
-    """Return what is known of the bundle, as each finding's file, check and location.
+def _doi_message(bundle_dir: Path, file: str, location: str) -> str:
+    """Return what the XML schema says of a DOI placeholder, with the line it is on.
+
+    Parameters:
+        bundle_dir: The bundle's directory.
+        file: The label holding the DOI, relative to it.
+        location: Where in the label the DOI is.
+
+    Returns:
+        The message.
+    """
+    root = parse(bundle_dir / file).getroot()
+    line = next(
+        element.sourceline for element in root.iter('{*}doi') if element_path(element) == location
+    )
+    return f'{DOI_REASON} (line {line})'
+
+
+def _errors(env: CohortBundleEnv, *, guide: bool) -> list[_Known]:
+    """Return the errors known of the bundle.
 
     Parameters:
         env: The environment the bundle was written in.
         guide: Whether the bundle was written with its user guide.
 
     Returns:
-        The known findings, sorted.
+        The known errors, sorted.
     """
     stubs = [
         env.dataset.pds4_path_stub(env.cohort.batch(stub).image_files[0])
         for stub in NAVIGATED_STUBS
     ]
-    data_labels = [f'data/{stub}_backplanes.lblx' for stub in stubs]
-    known: list[tuple[str, str, str]] = [('bundle.lblx', CheckName.XSD, BUNDLE_DOI)]
-    known += [(label, CheckName.INTEGRITY, ISS_ATTRIBUTES) for label in data_labels]
+    bundle_dir = env.bundle_dir
+    known: list[_Known] = [
+        (
+            'bundle.lblx',
+            CheckName.XSD,
+            BUNDLE_DOI,
+            _doi_message(bundle_dir, 'bundle.lblx', BUNDLE_DOI),
+        )
+    ]
+    known += [
+        (f'data/{stub}_backplanes.lblx', CheckName.INTEGRITY, ISS_ATTRIBUTES, EMPTY)
+        for stub in stubs
+    ]
     if guide:
-        known += [(GUIDE_LABEL, CheckName.XSD, location) for location in GUIDE_DOIS]
-    else:
-        known += [(label, CheckName.INTEGRITY, DATA_GUIDE_REFERENCE) for label in data_labels]
         known += [
-            (f'browse/{stub}_summary.lblx', CheckName.INTEGRITY, BROWSE_GUIDE_REFERENCE)
-            for stub in stubs
-        ]
-        known += [
-            (file, CheckName.INTEGRITY, location) for file, location in RUN_LEVEL_GUIDE_REFERENCES
+            (GUIDE_LABEL, CheckName.XSD, location, _doi_message(bundle_dir, GUIDE_LABEL, location))
+            for location in GUIDE_DOIS
         ]
     return sorted(known)
 
 
-def _found(checked: _Checked) -> list[tuple[str, str, str]]:
-    """Return what the check found, as each finding's file, check and location.
+def _warnings(env: CohortBundleEnv) -> list[_Known]:
+    """Return the warnings known of the bundle written without its user guide.
+
+    Parameters:
+        env: The environment the bundle was written in.
+
+    Returns:
+        The known warnings, sorted: each reference to the user guide.
+    """
+    stubs = [
+        env.dataset.pds4_path_stub(env.cohort.batch(stub).image_files[0])
+        for stub in NAVIGATED_STUBS
+    ]
+    bundle_lid = child_text(
+        parse(env.bundle_dir / 'bundle.lblx').getroot(), 'Identification_Area', 'logical_identifier'
+    )
+    message = f'refers to {bundle_lid}:{GUIDE_LID_PART}, which no label of the tree declares'
+    references = [
+        *((f'data/{stub}_backplanes.lblx', DATA_GUIDE_REFERENCE) for stub in stubs),
+        *((f'browse/{stub}_summary.lblx', BROWSE_GUIDE_REFERENCE) for stub in stubs),
+        *RUN_LEVEL_GUIDE_REFERENCES,
+    ]
+    return sorted((file, CheckName.INTEGRITY, location, message) for file, location in references)
+
+
+def _found(checked: _Checked, severity: Severity) -> list[_Known]:
+    """Return what the check found of one severity.
 
     Parameters:
         checked: The bundle and what the check found over it.
+        severity: The severity.
 
     Returns:
-        The findings, sorted.
+        The findings of that severity, sorted.
     """
-    return sorted((finding.file, finding.check, finding.location) for finding in checked.findings)
+    return sorted(
+        (finding.file, finding.check, finding.location, finding.message)
+        for finding in checked.findings
+        if finding.severity is severity
+    )
 
 
-def test_the_check_over_the_plain_bundle_finds_what_is_known_and_nothing_else(
+def test_the_check_over_the_plain_bundle_finds_the_known_errors_and_no_other(
     plain: _Checked,
 ) -> None:
-    """Over the bundle written without a guide, the known findings and no other."""
-    assert _found(plain) == _known(plain.env, guide=False)
+    """Over the bundle written without a guide, the known errors and no other."""
+    assert _found(plain, Severity.ERROR) == _errors(plain.env, guide=False)
 
 
-def test_the_check_over_the_bundle_with_a_guide_finds_what_is_known_and_nothing_else(
+def test_the_check_over_the_plain_bundle_warns_of_each_guide_reference_and_nothing_else(
+    plain: _Checked,
+) -> None:
+    """Over the bundle written without a guide, a warning for each reference to the guide."""
+    assert _found(plain, Severity.WARNING) == _warnings(plain.env)
+
+
+def test_the_check_over_the_bundle_with_a_guide_finds_the_known_errors_and_no_other(
     with_guide: _Checked,
 ) -> None:
-    """Over the bundle written with a stand-in guide, the known findings and no other."""
-    assert _found(with_guide) == _known(with_guide.env, guide=True)
+    """Over the bundle written with a stand-in guide, the known errors and no other."""
+    assert _found(with_guide, Severity.ERROR) == _errors(with_guide.env, guide=True)
+
+
+def test_the_check_over_the_bundle_with_a_guide_warns_of_nothing(with_guide: _Checked) -> None:
+    """Over the bundle written with a stand-in guide, no warning."""
+    assert _found(with_guide, Severity.WARNING) == []
 
 
 def test_the_check_writes_nothing(plain: _Checked) -> None:

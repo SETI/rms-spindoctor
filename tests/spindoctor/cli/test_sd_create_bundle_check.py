@@ -14,7 +14,7 @@ import pytest
 from tests.spindoctor.cli.sd_create_bundle_helpers import BUNDLE_NAME, refuse, stub_dataset
 
 from spindoctor.cli import sd_create_bundle
-from spindoctor.cli.pds4.check import CheckName, Finding
+from spindoctor.cli.pds4.check import CheckName, Finding, Severity
 
 FINDINGS = [
     Finding(
@@ -23,9 +23,15 @@ FINDINGS = [
         '/Product_Bundle/Identification_Area/Citation_Information/doi',
         "value doesn't match any pattern (line 17)",
     ),
-    Finding('readme.txt', CheckName.INTEGRITY, '', 'no label names it'),
+    Finding(
+        'bundle.lblx',
+        CheckName.INTEGRITY,
+        '/Product_Bundle/Reference_List/Internal_Reference/lid_reference',
+        'refers to urn:nasa:pds:bundle:document:guide, which no label of the tree declares',
+        Severity.WARNING,
+    ),
 ]
-"""Two findings a stand-in check reports."""
+"""Two findings a stand-in check reports: an error and a warning."""
 
 
 @pytest.fixture
@@ -61,27 +67,40 @@ def _check_finds(monkeypatch: pytest.MonkeyPatch, findings: list[Finding]) -> No
     monkeypatch.setattr(sd_create_bundle, 'check_bundle', lambda *a, **k: findings)
 
 
-def test_the_check_prints_each_finding_then_a_count_and_exits_one(
+def test_the_check_prints_each_finding_then_the_counts_and_exits_one(
     check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Every finding is one line, then the count, and any finding ends the run with 1."""
+    """Every finding is one line, then the counts, and an error ends the run with 1."""
     _check_finds(monkeypatch, FINDINGS)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_check()
     assert excinfo.value.code == 1
     assert capsys.readouterr().out.splitlines() == [
         *(finding.line() for finding in FINDINGS),
-        f'Bundle check of {check_run}: 2 finding(s)',
+        f'Bundle check of {check_run}: 1 error(s), 1 warning(s)',
     ]
 
 
 def test_the_check_exits_zero_over_a_bundle_with_no_finding(
     check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A bundle with no finding ends the run normally, with the count."""
+    """A bundle with no finding ends the run normally, with the counts."""
     _check_finds(monkeypatch, [])
     sd_create_bundle.main_check()
-    assert capsys.readouterr().out.splitlines() == [f'Bundle check of {check_run}: 0 finding(s)']
+    assert capsys.readouterr().out.splitlines() == [
+        f'Bundle check of {check_run}: 0 error(s), 0 warning(s)'
+    ]
+
+
+def test_the_check_exits_zero_over_a_bundle_with_warnings_alone(
+    check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Warnings are printed and counted, and do not fail the run."""
+    _check_finds(monkeypatch, FINDINGS[1:])
+    sd_create_bundle.main_check()
+    assert capsys.readouterr().out.splitlines()[-1] == (
+        f'Bundle check of {check_run}: 0 error(s), 1 warning(s)'
+    )
 
 
 def test_the_check_exits_one_without_a_bundle_directory(
