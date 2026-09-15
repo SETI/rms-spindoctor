@@ -64,7 +64,7 @@ def _write_inputs(root: Path, *, status: str) -> None:
 def test_check_only_exits_zero_when_every_selected_image_is_complete(
     check_only_run: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A selection every image of which is complete ends the run normally, with the count."""
+    """A selection whose every image is complete ends the run normally, with the count."""
     _write_inputs(check_only_run, status='success')
     sd_create_bundle.main_labels()
     last = capsys.readouterr().out.splitlines()[-1]
@@ -74,7 +74,7 @@ def test_check_only_exits_zero_when_every_selected_image_is_complete(
 def test_check_only_exits_one_when_a_selected_image_is_incomplete(
     check_only_run: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A selection with an incomplete image ends the run with status 1, after the count."""
+    """A selection with an incomplete image exits 1, after the count."""
     _write_inputs(check_only_run, status='error')
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_labels()

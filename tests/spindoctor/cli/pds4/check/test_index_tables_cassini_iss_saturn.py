@@ -151,7 +151,7 @@ def test_a_record_holding_other_than_a_comma_after_a_field_is_found(
 
 
 def test_a_field_apart_from_the_one_before_it_is_found(plain_bundle: Path, tmp_path: Path) -> None:
-    """A field moved one byte on, and one byte shorter, lies two bytes past the one before."""
+    """A field moved on a byte, and a byte shorter, lies two bytes past the one before."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     location, start, stop = table_field(bundle, BODIES, 'body_name')
     substitute_once(
@@ -201,7 +201,7 @@ def test_a_last_field_short_of_the_record_delimiter_is_found(
 def test_a_record_of_a_product_the_tree_does_not_hold_is_found(
     plain_bundle: Path, tmp_path: Path
 ) -> None:
-    """A product removed from the tree and its inventories leaves its record naming nothing."""
+    """A product removed from the tree and its inventories leaves an orphan record."""
     bundle = copy_bundle(plain_bundle, tmp_path)
     location, _, _ = table_field(bundle, BODIES, 'pds:logical_identifier')
     lid = _cell(bundle, 1, 'pds:logical_identifier')

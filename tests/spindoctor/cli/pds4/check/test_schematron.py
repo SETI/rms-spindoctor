@@ -59,7 +59,7 @@ def _evaluate(directory: Path, monkeypatch: pytest.MonkeyPatch, rules: str, body
 def test_a_rule_of_several_steps_fires_at_the_node_it_selects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A two-step context matches its node below the root; its message is evaluated there."""
+    """A two-step context matches below the root, and its message is evaluated there."""
     rules = (
         '<sch:pattern><sch:rule context="x:c/x:b">'
         '<sch:assert test="@ok = \'yes\'"><title>x:c/x:b</title>b is <sch:value-of '
@@ -162,7 +162,7 @@ def test_a_label_declaring_a_schematron_the_package_does_not_ship_is_a_finding(
 
 @pytest.fixture
 def collating_locale() -> Iterator[None]:
-    """Collate strings by a language's rules for one test, as a Qt application leaves a process.
+    """Collate strings by a language's rules for a test, as a Qt application leaves them.
 
     Yields:
         Nothing; the collation in force before the test is restored after it.
@@ -181,7 +181,7 @@ def collating_locale() -> Iterator[None]:
 def test_a_substring_test_compares_code_points_whatever_the_locale(
     collating_locale: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``contains`` and ``starts-with`` compare code points, XPath's default, not by the locale."""
+    """``contains`` and ``starts-with`` compare code points, whatever the locale."""
     rules = (
         '<sch:pattern><sch:rule context="x:b">'
         '<sch:let name="prefix" value="\'urn:nasa:pds:\'"/>'
@@ -205,7 +205,7 @@ def test_a_substring_test_compares_code_points_whatever_the_locale(
     ],
 )
 def test_a_context_is_matched_from_the_document_node(context: str, expression: str) -> None:
-    """Each branch of a context's union is sought below the document node, unless absolute.
+    """Each branch of a context's union is sought below the document node, if relative.
 
     Parameters:
         context: A rule's context.
@@ -235,7 +235,7 @@ def test_a_rule_whose_role_marks_a_warning_warns(
 def test_an_assert_whose_role_marks_a_warning_warns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A failed assert whose own ``role`` is ``WARN``, in a rule with none, is a warning."""
+    """A failed assert whose own ``role`` is ``WARN``, in a rule with none, warns."""
     rules = (
         '<sch:pattern><sch:rule context="x:b">'
         '<sch:assert test="false()" role="WARN">b warns</sch:assert></sch:rule></sch:pattern>'
@@ -262,7 +262,7 @@ def test_an_assert_whose_role_marks_a_warning_warns(
 def test_a_context_other_than_a_union_of_paths_matches_what_it_selects(
     context: str, locations: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A context holding a set operator's keyword or a comment matches as ``//(context)`` does.
+    """A context holding a set operator or a comment matches as ``//(context)`` does.
 
     Parameters:
         context: A rule's context.
