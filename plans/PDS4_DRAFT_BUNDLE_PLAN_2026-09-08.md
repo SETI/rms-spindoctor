@@ -2916,7 +2916,8 @@ needs the network, and the tests keep local copies." Every URL the check reads
 -- a label's `xsi:schemaLocation` URLs and `xml-model` `href`s, and each
 schema's `xs:import` `schemaLocation` -- is resolved one way. By default it is
 fetched through `filecache` into the cache `_filecache_spindoctor_pds4_schemas`,
-under `$FILECACHE_CACHE_ROOT` or the system's temporary directory, which keeps
+under `$FILECACHE_CACHE_ROOT` when that is set and otherwise in the user's own
+`$XDG_CACHE_HOME` or `~/.cache`, which keeps
 each download, so a later check fetches nothing it already has; with
 `sd_create_bundle check --schema-dir DIR` it is the file of the URL's name in
 `DIR`, and nothing is fetched. `xmlschema` is allowed only local files and

@@ -4,6 +4,7 @@ No test here reaches the network: the server serves a directory of the test's ow
 the file cache the fetches go through is the test's own too.
 """
 
+import argparse
 import functools
 import http.server
 import threading
@@ -14,7 +15,9 @@ from typing import Any
 
 import pytest
 from filecache import FileCache
+from tests.spindoctor.cli.sd_create_bundle_helpers import BUNDLE_NAME, stub_dataset
 
+from spindoctor.cli import sd_create_bundle
 from spindoctor.cli.pds4.check import schemas
 from spindoctor.cli.pds4.check.schemas import SchemaSource, label_schema
 
@@ -29,6 +32,9 @@ SCHEMA = f"""<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
 </xs:schema>
 """
 """A schema of one element, which imports nothing, so that building it fetches nothing else."""
+
+SECOND_NAMESPACE = 'urn:example:second'
+"""The namespace of the second schema the server serves."""
 
 
 @dataclass(frozen=True)
@@ -57,6 +63,8 @@ def server(tmp_path: Path) -> Iterator[_Server]:
     served = tmp_path / 'served'
     served.mkdir()
     (served / 'example.xsd').write_text(SCHEMA, encoding='utf-8')
+    second = SCHEMA.replace(NAMESPACE, SECOND_NAMESPACE)
+    (served / 'second.xsd').write_text(second, encoding='utf-8')
     requests: list[str] = []
 
     class _Handler(http.server.SimpleHTTPRequestHandler):
@@ -140,3 +148,78 @@ def test_a_schema_that_cannot_be_fetched_is_one_finding_that_names_it(
     resolved = label_schema('label.lblx', _label(tmp_path, url), SchemaSource())
     messages = [finding.message.split(' (', 1)[0] for finding in resolved.findings]
     assert messages == [f'declares the XML schema {url}, but it cannot be fetched']
+
+
+def test_a_cache_that_cannot_be_written_is_a_finding_for_each_url_and_no_traceback(
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """With a read-only cache, each URL a label names is one finding, and the run exits 1."""
+    root = tmp_path / 'cache'
+    root.mkdir()
+    cache = FileCache('schemas', cache_root=root)
+    monkeypatch.setattr(schemas, 'schema_cache', lambda: cache)
+    urls = [f'{server.url}/example.xsd', f'{server.url}/second.xsd']
+    bundle_dir = tmp_path / BUNDLE_NAME
+    bundle_dir.mkdir()
+    (bundle_dir / 'label.lblx').write_text(
+        f'<a xmlns="{NAMESPACE}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+        f'xsi:schemaLocation="{NAMESPACE} {urls[0]} {SECOND_NAMESPACE} {urls[1]}">text</a>\n',
+        encoding='utf-8',
+    )
+    monkeypatch.setattr(
+        sd_create_bundle,
+        'parse_args_check',
+        lambda _: argparse.Namespace(dataset_name='stub', schema_dir=None),
+    )
+    monkeypatch.setattr(sd_create_bundle, 'load_default_and_user_config', lambda *a: None)
+    monkeypatch.setattr(sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
+    dataset = stub_dataset(tmp_path)
+    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
+    locked = [root, *root.iterdir()]
+    for directory in locked:
+        directory.chmod(0o500)
+    try:
+        with pytest.raises(SystemExit) as excinfo:
+            sd_create_bundle.main_check()
+    finally:
+        for directory in locked:
+            directory.chmod(0o700)
+    lines = capsys.readouterr().out.splitlines()
+    fetched = [line.split(' (', 1)[0] for line in lines if 'cannot be fetched' in line]
+    expected = [
+        f'label.lblx: error [xsd] declares the XML schema {url}, but it cannot be fetched'
+        for url in urls
+    ]
+    assert (excinfo.value.code, fetched, 'Traceback' in '\n'.join(lines)) == (1, expected, False)
+
+
+@pytest.mark.parametrize(
+    ('variables', 'expected'),
+    [
+        pytest.param({}, 'home/.cache', id='home'),
+        pytest.param({'XDG_CACHE_HOME': 'xdg'}, 'xdg', id='xdg'),
+        pytest.param(
+            {'XDG_CACHE_HOME': 'xdg', 'FILECACHE_CACHE_ROOT': 'named'}, 'named', id='named'
+        ),
+    ],
+)
+def test_the_schema_cache_is_the_users_own_unless_a_root_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variables: dict[str, str], expected: str
+) -> None:
+    """The cache's root is the user's cache directory, or the file cache's root if named.
+
+    Parameters:
+        tmp_path: The directory the home, the XDG cache and the named root are in.
+        monkeypatch: Fixture the environment is set through.
+        variables: Each variable set, with the directory it names below ``tmp_path``.
+        expected: The root the cache is made in, below ``tmp_path``.
+    """
+    monkeypatch.setenv('HOME', str(tmp_path / 'home'))
+    for variable in schemas.SCHEMA_CACHE_ROOTS:
+        monkeypatch.delenv(variable, raising=False)
+    for variable, directory in variables.items():
+        monkeypatch.setenv(variable, str(tmp_path / directory))
+    assert schemas.schema_cache_root() == tmp_path / expected
