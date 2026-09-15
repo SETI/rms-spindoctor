@@ -9,21 +9,26 @@ byte 0, each begins where the one before it ends, and the last ends where the fi
 A ``Header`` ends where its ``object_length`` says.  A ``Table_Character`` is its
 ``records`` records of ``record_length`` bytes, each ending in its record delimiter.  A
 ``Table_Delimited`` or an ``Inventory`` is its ``records`` records, each ending in its
-record delimiter, from its offset to the object after it or to the end of the file.
+record delimiter, from its offset to the object after it or to the end of the file.  A
+delimiter is matched byte for byte: a delimited record holding a carriage return or a
+line feed that is not its delimiter is a finding, so that records ending in a carriage
+return and a line feed are not read as records ending in a line feed.
 
 In each record every field is cut out where its label places it -- by ``field_location``
 and ``field_length`` in a character table, and by the field delimiter in a delimited one
 -- and its value is held to its ``data_type``: the simple type of that name in the PDS4
 common dictionary the label declares.  A delimited field's value is also held to its
 ``maximum_field_length``, and a value equal as a number to the field's
-``missing_constant`` is held to be spelled as the constant is.  A problem that recurs
-across records is reported once, at the first record showing it, with a count of the rest.
+``missing_constant`` is held to be spelled as the constant is.  In a record holding no
+group, each field's ``field_number`` is its position among the record's fields.  A
+problem that recurs across records is reported once, at the first record showing it,
+with a count of the rest.
 
 This module reads ``Table_Character``, ``Table_Delimited`` and ``Inventory`` objects,
 with the ``Header`` objects beside them.  It leaves to the XML schema and to the PDS
 ``validate`` tool the fields of a group (``Group_Field_Character`` and
 ``Group_Field_Delimited``), a ``Table_Binary``, and every object of a file area that also
-holds an object of another class.
+holds an object of another class, whose extent it cannot know.
 """
 
 import csv
@@ -37,24 +42,25 @@ from lxml import etree
 
 from spindoctor.cli.pds4.check.elements import (
     child,
+    child_integer,
     child_text,
     children,
     element_path,
     local_name,
 )
-from spindoctor.cli.pds4.check.findings import CheckName, Finding
+from spindoctor.cli.pds4.check.findings import CheckName, Finding, RecordFindings
 
 TABLE_CLASSES = frozenset({'Table_Character', 'Table_Delimited', 'Inventory'})
 """The classes of table this module reads."""
 
 _TILED_CLASSES = TABLE_CLASSES | {'Header'}
-"""The classes of object whose extent this module knows, and so can hold to tile a file."""
+"""The classes of object whose extent this module knows, which it holds to tile a file."""
 
 RECORD_DELIMITERS = {'Carriage-Return Line-Feed': b'\r\n', 'Line-Feed': b'\n'}
 """The bytes each ``record_delimiter`` a PDS4 table can declare stands for."""
 
 FIELD_DELIMITERS = {'Comma': ',', 'Horizontal Tab': '\t', 'Semicolon': ';', 'Vertical Bar': '|'}
-"""The character each ``field_delimiter`` a PDS4 delimited table can declare stands for."""
+"""The character each ``field_delimiter`` of a PDS4 delimited table stands for."""
 
 
 @dataclass(frozen=True)
@@ -80,77 +86,6 @@ class _Field:
     start: int = 0
     stop: int = 0
     maximum_length: int | None = None
-
-
-class _TableFindings:
-    """The findings of one label's tables, a problem that recurs across records told once."""
-
-    def __init__(self, file: str) -> None:
-        """Start with no finding.
-
-        Parameters:
-            file: The label's path relative to the bundle's directory.
-        """
-        self._file = file
-        self._found: list[Finding] = []
-        self._recurring: dict[tuple[str, str], tuple[str, int]] = {}
-
-    def add(self, location: str, message: str) -> None:
-        """Record one finding.
-
-        Parameters:
-            location: The path of the element it is about.
-            message: What is wrong.
-        """
-        self._found.append(Finding(self._file, CheckName.TABLE, location, message))
-
-    def add_recurring(self, location: str, kind: str, message: str) -> None:
-        """Record a problem of one record, keeping the message of the first record showing it.
-
-        Parameters:
-            location: The path of the element it is about.
-            kind: What kind of problem, which with the location says whether it recurs.
-            message: What is wrong in this record.
-        """
-        key = (location, kind)
-        if key in self._recurring:
-            first, count = self._recurring[key]
-            self._recurring[key] = (first, count + 1)
-        else:
-            self._recurring[key] = (message, 1)
-
-    def findings(self) -> list[Finding]:
-        """Return every finding: those recorded once, then each recurring problem.
-
-        Returns:
-            The findings, a recurring problem's message counting the records after the
-            first that show it.
-        """
-        found = list(self._found)
-        for (location, _), (message, count) in self._recurring.items():
-            more = '' if count == 1 else f', and {count - 1} more record(s) like it'
-            found.append(Finding(self._file, CheckName.TABLE, location, f'{message}{more}'))
-        return found
-
-
-def _integer(element: Any, *names: str) -> int | None:
-    """Return the integer at a path of children below an element.
-
-    Parameters:
-        element: An lxml element.
-        *names: The local names of the children to descend through.
-
-    Returns:
-        The integer, or None when the path is missing or does not hold an integer, which
-        the XML schema reports.
-    """
-    text = child_text(element, *names)
-    if text is None:
-        return None
-    try:
-        return int(text)
-    except ValueError:
-        return None
 
 
 def _field(element: Any) -> _Field:
@@ -190,7 +125,7 @@ def _same_number(value: str, constant: str) -> bool:
 
 
 def _hold_value(
-    found: _TableFindings,
+    found: RecordFindings,
     field: _Field,
     number: int,
     raw: bytes,
@@ -235,7 +170,7 @@ def _hold_value(
         )
 
 
-def _count(found: _TableFindings, record: Any, name: str, actual: int) -> None:
+def _count(found: RecordFindings, record: Any, name: str, actual: int) -> None:
     """Hold a record's ``fields`` or ``groups`` to the number of them it describes.
 
     Parameters:
@@ -244,12 +179,33 @@ def _count(found: _TableFindings, record: Any, name: str, actual: int) -> None:
         name: ``fields`` or ``groups``.
         actual: How many fields or groups the record describes.
     """
-    stated = _integer(record, name)
+    stated = child_integer(record, name)
     if stated is not None and stated != actual:
         found.add(element_path(record), f'{name} is {stated}, but the record describes {actual}')
 
 
-def _character_fields(found: _TableFindings, record: Any, usable: int) -> list[_Field]:
+def _field_numbers(found: RecordFindings, record: Any, elements: list[Any]) -> None:
+    """Hold each field's ``field_number`` to its position among its record's fields.
+
+    A record holding a group is left alone, as the rest of a group is.
+
+    Parameters:
+        found: Where the findings go.
+        record: The ``Record_Character`` or ``Record_Delimited`` element.
+        elements: The record's fields, in the order its label gives them.
+    """
+    if any(local_name(part).startswith('Group_Field_') for part in record):
+        return
+    for position, element in enumerate(elements, start=1):
+        number = child_integer(element, 'field_number')
+        if number is not None and number != position:
+            found.add(
+                element_path(element),
+                f'field_number is {number}, but the field is number {position} of its record',
+            )
+
+
+def _character_fields(found: RecordFindings, record: Any, usable: int) -> list[_Field]:
     """Place the fields of a character table's record, holding each within the record.
 
     Parameters:
@@ -262,8 +218,8 @@ def _character_fields(found: _TableFindings, record: Any, usable: int) -> list[_
     """
     placed: list[_Field] = []
     for element in children(record, 'Field_Character'):
-        location = _integer(element, 'field_location')
-        length = _integer(element, 'field_length')
+        location = child_integer(element, 'field_location')
+        length = child_integer(element, 'field_length')
         if location is None or length is None:
             continue
         field = _field(element)
@@ -285,7 +241,7 @@ def _character_fields(found: _TableFindings, record: Any, usable: int) -> list[_
 
 
 def _read_character_table(
-    found: _TableFindings,
+    found: RecordFindings,
     table: Any,
     extent: bytes,
     between: str,
@@ -301,9 +257,9 @@ def _read_character_table(
         schema: The XML schemas the label declares.
     """
     location = element_path(table)
-    records = _integer(table, 'records')
+    records = child_integer(table, 'records')
     record = child(table, 'Record_Character')
-    length = None if record is None else _integer(record, 'record_length')
+    length = None if record is None else child_integer(record, 'record_length')
     if records is None or record is None or length is None or length < 1:
         return
     if records * length != len(extent):
@@ -312,8 +268,10 @@ def _read_character_table(
             f'{records} record(s) of {length} bytes are {records * length} bytes, but '
             f'{len(extent)} lie {between}',
         )
-    _count(found, record, 'fields', len(children(record, 'Field_Character')))
+    elements = children(record, 'Field_Character')
+    _count(found, record, 'fields', len(elements))
     _count(found, record, 'groups', len(children(record, 'Group_Field_Character')))
+    _field_numbers(found, record, elements)
     delimiter = RECORD_DELIMITERS.get(child_text(table, 'record_delimiter') or '', b'')
     fields = _character_fields(found, record, length - len(delimiter))
     for index in range(min(records, len(extent) // length)):
@@ -328,7 +286,7 @@ def _read_character_table(
 
 
 def _read_delimited_table(
-    found: _TableFindings,
+    found: RecordFindings,
     table: Any,
     extent: bytes,
     between: str,
@@ -344,7 +302,7 @@ def _read_delimited_table(
         schema: The XML schemas the label declares.
     """
     location = element_path(table)
-    records = _integer(table, 'records')
+    records = child_integer(table, 'records')
     delimiter = RECORD_DELIMITERS.get(child_text(table, 'record_delimiter') or '')
     separator = FIELD_DELIMITERS.get(child_text(table, 'field_delimiter') or '')
     record = child(table, 'Record_Delimited')
@@ -360,11 +318,21 @@ def _read_delimited_table(
     elements = children(record, 'Field_Delimited')
     _count(found, record, 'fields', len(elements))
     _count(found, record, 'groups', len(children(record, 'Group_Field_Delimited')))
+    _field_numbers(found, record, elements)
     fields = [
-        replace(_field(element), maximum_length=_integer(element, 'maximum_field_length'))
+        replace(_field(element), maximum_length=child_integer(element, 'maximum_field_length'))
         for element in elements
     ]
     for number, row in enumerate(rows, start=1):
+        if b'\r' in row or b'\n' in row:
+            # Checked before the record is parsed, since the parser takes a carriage
+            # return or a line feed for the end of a line and drops it.
+            message = (
+                f'record {number} holds a carriage return or a line feed that is not its '
+                'record delimiter'
+            )
+            found.add_recurring(location, 'line end', message)
+            continue
         try:
             text = row.decode('ascii')
         except UnicodeDecodeError:
@@ -381,7 +349,7 @@ def _read_delimited_table(
 
 
 def _read_file_area(
-    found: _TableFindings, data: bytes, objects: list[Any], schema: xmlschema.XMLSchema | None
+    found: RecordFindings, data: bytes, objects: list[Any], schema: xmlschema.XMLSchema | None
 ) -> None:
     """Read the objects of one file area holding a table, and hold them to tile its file.
 
@@ -393,7 +361,7 @@ def _read_file_area(
     """
     placed: list[tuple[int, Any]] = []
     for element in objects:
-        offset = _integer(element, 'offset')
+        offset = child_integer(element, 'offset')
         if offset is None:
             return
         placed.append((offset, element))
@@ -411,7 +379,7 @@ def _read_file_area(
         )
         name = local_name(element)
         if name == 'Header':
-            length = _integer(element, 'object_length')
+            length = child_integer(element, 'object_length')
             if length is not None and length != end - offset:
                 found.add(
                     element_path(element),
@@ -432,17 +400,17 @@ def table_findings(
     it.
 
     Parameters:
-        file: The label's path relative to the bundle's directory, which the findings name.
+        file: The label's path relative to the bundle's directory, which findings name.
         label: The label's file, beside which its tables are.
         document: The label, parsed by lxml.
         schema: The XML schemas the label declares, as
-            :func:`~spindoctor.cli.pds4.check.schemas.label_schema` built them, or None
-            when they could not be built.
+            :func:`~spindoctor.cli.pds4.check.schemas.label_schema` built them, or
+            None when they could not be built.
 
     Returns:
         One finding for each way a table departs from its label.
     """
-    found = _TableFindings(file)
+    found = RecordFindings(file, CheckName.TABLE)
     for area in document.getroot():
         if not isinstance(area.tag, str):
             continue

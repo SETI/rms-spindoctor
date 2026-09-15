@@ -72,6 +72,27 @@ def child_text(element: Any, *names: str) -> str | None:
     return str(current.text or '').strip()
 
 
+def child_integer(element: Any, *names: str) -> int | None:
+    """Return the integer at a path of children below an element.
+
+    Parameters:
+        element: An lxml element.
+        *names: The local names of the children to descend through, as
+            :func:`child_text` takes them.
+
+    Returns:
+        The integer, or None when the path is missing or does not hold an integer, which
+        the XML schema reports.
+    """
+    text = child_text(element, *names)
+    if text is None:
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
 def element_path(element: Any) -> str:
     """Return where an element sits in its label, as a path of its ancestors' names.
 
