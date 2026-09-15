@@ -266,10 +266,16 @@ Check Pass
 ----------
 
 The check pass checks a bundle the labels and summary passes wrote, and reports every
-way it departs from what a PDS4 bundle has to be. It reads only the bundle and the PDS4
-schemas that come with SpinDoctor, so it needs no network, and it writes nothing, not
-even a log. It uses the ``lxml``, ``elementpath`` and ``xmlschema`` packages, which are
-installed with SpinDoctor.
+way it departs from what a PDS4 bundle has to be. It reads the bundle and the PDS4
+schemas its labels name. By default it fetches each schema from the web address the
+label gives, so it needs the network, and keeps what it fetches in a cache, so that a
+later check fetches nothing it already has: the directory
+``_filecache_spindoctor_pds4_schemas`` in the system's temporary directory, or in the
+directory the ``FILECACHE_CACHE_ROOT`` environment variable names, if it is set. With
+``--schema-dir`` it reads each schema from the file of the same name in that directory
+instead, and fetches nothing. It writes nothing in the bundle, and no log. It uses the
+``lxml``, ``elementpath`` and ``xmlschema`` packages, which are installed with
+SpinDoctor.
 
 Basic Usage
 ^^^^^^^^^^^
@@ -286,15 +292,18 @@ Command-Line Arguments
 * ``--bundle-results-root PATH``: root directory where the bundle is. If not provided,
   uses the ``NAV_BUNDLE_RESULTS_ROOT`` environment variable or the
   ``bundle_results_root`` configuration setting.
+* ``--schema-dir PATH``: read each schema from the file of the same name in this
+  directory, and fetch nothing. It has to hold every schema the labels name, as the PDS
+  publishes them, and every schema those import.
 
 It takes no logging options.
 
 What It Checks
 ^^^^^^^^^^^^^^
 
-* Every label against the XML schemas and the Schematron rules it declares, using the
-  copies that come with SpinDoctor. A label that names a schema SpinDoctor does not have
-  is reported, with the schema's web address.
+* Every label against the XML schemas and the Schematron rules it declares. A schema
+  that cannot be fetched, or that the ``--schema-dir`` directory does not hold, is
+  reported with its web address.
 * Every table -- the index tables and each collection's list of members -- read through
   its label: where each part of the file begins and ends, how many records and fields
   it holds, where each field lies and what number it is given, whether each record ends
@@ -361,6 +370,14 @@ Check a bundle:
 
    sd_create_bundle check coiss_saturn \
      --bundle-results-root /data/nav/bundle
+
+Check it without the network, reading the schemas from a directory of copies:
+
+.. code-block:: bash
+
+   sd_create_bundle check coiss_saturn \
+     --bundle-results-root /data/nav/bundle \
+     --schema-dir /data/pds4/schemas
 
 Inputs and Outputs
 ==================
