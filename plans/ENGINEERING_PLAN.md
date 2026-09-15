@@ -389,7 +389,9 @@ Work items, in dependency order:
    closed by hand when its PR merges. The ring geometry class fields (#75) and
    the ring incidence angle in the label (#47) are closed as not planned: by
    the operator's decision of 2026-09-15 the data labels name the ring target
-   alone and leave every ring range to the global rings index.
+   alone and leave every ring range to the global rings index, which also
+   states the incidence angle's least, greatest and mean and the wrapped
+   longitude arc.
 6. **The integrity pass** — done: `sd_create_bundle check` checks a written
    bundle as a whole, and `sd_create_bundle labels --check-only` reports
    whether each selected image has the pass's inputs (Part A of the PDS4

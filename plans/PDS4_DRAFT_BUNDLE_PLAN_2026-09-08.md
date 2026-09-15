@@ -65,7 +65,7 @@ this table first and trusts it over any recollection.
 | 8 — Targets, mission area, ring geometry | **Part A done**; Part B not started | Part A, the targets and the ring geometry, on `rf_pds4_phase8`, sections 3.5, 3.7 and 3.13; #73 and #72 are closed by hand when its PR merges (section 8), and the ring geometry has since left the data labels (the last row). Part B, `cassini:ISS_Specific_Attributes`, is read from the navigation document's `observation` block, which #698 adds, for #684, on a branch against `main` by the operator's direction; it reaches this stack once #698 merges and `main` is merged into `rf_pds4_draft_bundle` (section 3.7), and it is what remains of this work |
 | 9 — Parameterize the bundle name and version | **done** | `rf_pds4_phase9`, sections 3.9, 3.10 and 3.13; #71 is closed by hand when its PR merges (section 8) |
 | 10 — Validation, the integrity pass, and the draft run | **Part A done**; Part B moved to #708 | Part A, the bundle check, the test that gates it and `--check-only`, on `rf_pds4_phase10`, its PR #707, sections 3.1, 3.6, 3.11 and Phase 10; #66 and #265 are closed by hand when its PR merges (section 8). Part B, the draft run over a real COISS volume, is deferred to #708 by the operator's ruling of 2026-09-15, since it needs the DOIs and a fresh navigation of the volume |
-| Ring geometry dropped from the data labels | **done** | `rf_pds4_ring_labels`, cut from `rf_pds4_phase10`, by the operator's decision of 2026-09-15, sections 3.7 and 3.13 and Phase 8; the data labels name the ring target alone, and no label declares the rings dictionary. #75 and #47 are closed as not planned when its PR merges |
+| Ring geometry dropped from the data labels | **done** | `rf_pds4_ring_labels`, cut from `rf_pds4_phase10`, by the operator's decision of 2026-09-15, sections 3.7 and 3.13 and Phase 8; the data labels name the ring target alone, and no label declares the rings dictionary. The incidence angle's least, greatest and mean and the wrapped ring longitude arc are columns of the rings index instead, by the operator's decision of the same day (section 3.7). #75 and #47 are closed as not planned when its PR merges |
 
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
@@ -850,6 +850,25 @@ so the configuration gives no schema for it, the XML schema collection does not 
 and the tests keep no copy of its schemas.  #75 and #47 are closed as not planned when
 `rf_pds4_ring_labels` merges.
 
+**Decided the same day: the rings index states the incidence and the arc.**  With the
+ring geometry out of the data labels, each ring image's incidence angle -- its mean,
+least and greatest over the ring pixels -- and its arc of longitude, wrapped at zero,
+were left only in the supplemental file, and the rings index's plain longitude pair reads
+an arc across zero as 0 to 360.  The operator decided on 2026-09-15 to "add them to the
+rings index": five columns, `rings:minimum_inertial_ring_longitude` and
+`rings:maximum_inertial_ring_longitude` after the plain pair, whose descriptions now say
+how the two pairs differ, and `rings:minimum_incidence_angle`,
+`rings:maximum_incidence_angle` and `rings:mean_incidence_angle` last.  They take the
+rings dictionary's attribute names, whose definitions fit -- a ring longitude range
+wrapped at the prime meridian, and the smallest, the largest and the mean incidence angle
+at the target -- though no label declares the dictionary (section 3.13).  Each is in
+degrees to three decimals, and a value the backplanes do not record, as backplanes
+generated before Phase 8's fix round do not, is a missing cell, never a failed image.  A
+plane's index block gives its wrapped pair, and `backplanes.ring_incidence_angle` the
+incidence columns; `index_columns.py` builds every statistic column, and the bundle check
+holds each label to the same columns.  #47 stays not planned, since no label states the
+incidence, but the incidence it asked for is in the rings index.
+
 Until then a data label of an image with ring backplanes filled
 `rings:Reprojection_Geometry`, within `rings:Ring_Reprojection`, the class the reference's
 data labels fill for their reprojected images: the least and greatest phase and emission
@@ -875,9 +894,8 @@ which no plane holds, and the writer records its least, greatest and mean over t
 pixels the merged planes hold, as `min`, `max` and `mean` beside the center's `value` (the
 fix round).  On N1671602206 the center's angle is 82.57158 deg and its ring pixels'
 82.57085 to 82.57104, mean 82.57096, the rings about the center being hidden; on
-W1626850595, 89.67993 at the center and 89.67993 to 89.67996 over the rings.  They are
-facts about the image, which the bundle carries in the supplemental file and reads
-nowhere.  The cohort's backplane fixtures carry the angle SPICE gives at each cohort
+W1626850595, 89.67993 at the center and 89.67993 to 89.67996 over the rings.  The rings
+index states the least, the greatest and the mean (above).  The cohort's backplane fixtures carry the angle SPICE gives at each cohort
 epoch, as the stage writes it -- 64.59619, 64.68149 and 64.59625 deg -- and at each ring
 pixel an angle ramping a thousandth of a degree either side of it.
 
@@ -886,7 +904,8 @@ incidence range, as the labels pass failed them until the decision.  Those gener
 during Phase 8 before its fix round, which record the ring target and the angle at the
 center alone, no longer need regenerating for the bundle; their statistics, taken before
 the merge (below), are what the index tables state, as for older body-only backplanes
-(Phase 8's last round).  Those generated before Phase 8 record no ring target, which a
+(Phase 8's last round), and their rings index rows hold missing cells for the incidence
+and the arc.  Those generated before Phase 8 record no ring target, which a
 ring image's data label names, so a ring image among them still does: the labels pass
 fails it with a bare `KeyError: 'target'` when it reads the targets, before anything is
 written for it.  Nothing checks for it, since backplanes are regenerated before a
@@ -897,7 +916,7 @@ delivery build.
 meridian, the minimum above the maximum where it crosses zero, so the label stated the
 ring longitude statistic's `wrapped_min` and `wrapped_max` until the decision above; the
 backplane stage still records them beside its plain `min` and `max`, in degrees like
-them, from the merged plane, a fact about the image that the bundle does not read.
+them, from the merged plane, and the rings index states them (above).
 Taken on the circle, the widest gap between the longitudes, the gap across zero among
 them, is the part the image does not cover, and the arc runs from the longitude after it
 to the one before it (`statistics.wrapped_range`).  When the widest gap is the one
@@ -948,7 +967,7 @@ people, and the operator's ruling of 2026-09-09 is that everything in them is
 degrees.
 
 The tables are written with a format per unit (#607), from
-`INDEX_VALUE_FORMATS` in `global_index.py`: three decimals for `deg`, one for
+`INDEX_VALUE_FORMATS` in `index_columns.py`: three decimals for `deg`, one for
 `km`, eight for `deg/pixel`, and five significant figures for `km/pixel`,
 written positionally, never in exponent form. The arrays are float32, so a
 statistic carries about seven significant digits; each format is chosen within
@@ -1708,7 +1727,13 @@ declined:
   does. The longitudes are the exceptions, since both dictionaries define a
   longitude range as wrapped at the prime meridian and these statistics are a
   plain least and greatest, and so are the body resolutions, which no
-  dictionary names. The Phase 7 record gives every column.
+  dictionary names. The rings index's wrapped ring longitude pair and its
+  incidence columns, added on 2026-09-15 (section 3.7), take the rings
+  dictionary's names, as the reference's `rings:minimum_inertial_ring_longitude`
+  does. The rings table's `rings:` column names borrow that dictionary's
+  attribute names although no label declares the dictionary: a field's name is
+  text, and neither a schema nor the check holds it to a namespace. The Phase 7
+  record gives every column.
 - **The title.** Adopted: the reference's is "Global Mosaic Index", and ours
   are "Global Bodies Index" and "Global Rings Index", each label's citation
   description saying which bundle and images the table indexes.
@@ -2371,6 +2396,7 @@ otherwise:
 | body latitude, incidence, emission and phase angles | `geom:minimum_*` and `geom:maximum_*` | geom's `Surface_Geometry_Min_Max` and `Illumination_Min_Max` attributes; the latitude is planetocentric (`oops` `latitude` defaults to `lat_type='centric'`) |
 | ring radius, emission and phase angles, radial and longitudinal resolutions | `rings:minimum_*` and `rings:maximum_*` | as the reference names its columns; the rings emission angle is measured from the normal on the lit side, `oops` `ring_emission_angle`'s default `pole='sunward'` |
 | body and ring longitudes | `minimum_body_longitude`, `minimum_ring_longitude` and their maxima | geom and rings define a longitude range as wrapped at the prime meridian, its minimum above its maximum across it, and these statistics are a plain least and greatest |
+| the ring longitude's wrapped range, and the ring incidence angle's least, greatest and mean | `rings:minimum_inertial_ring_longitude` and its maximum; `rings:minimum_incidence_angle`, its maximum and `rings:mean_incidence_angle` | added 2026-09-15 (section 3.7): the rings dictionary's attributes for a ring longitude range wrapped at the prime meridian and for the incidence angle at the target |
 | body finest and coarsest resolutions | `minimum_body_finest_resolution` and so on | no dictionary names them |
 
 The rings dictionary says of its radial and longitudinal resolutions "Not
@@ -2756,7 +2782,13 @@ zero, rebuilt at `b9f19d60` and at `9f82eeeb`, give the same findings line for l
 `sd_create_bundle check --schema-dir` 3 errors and 7 warnings, 5 and 0, and 3 and 7, and
 validate 4.2.0 2 and 7, 7 and 0, and 2 and 7: between them the `TODO DOI` placeholders,
 the empty `cassini:ISS_Specific_Attributes`, the stand-in PDF VeraPDF cannot read, and the
-user guide's LID where the PDF is absent.  The ring geometry caused none.
+user guide's LID where the PDF is absent.  The ring geometry caused none.  The same day
+the incidence and the wrapped arc became columns of the rings index (section 3.7), built
+in `index_columns.py`, where the index's columns moved so that `global_index.py` stays
+under 1000 lines.  Tests hold the crossing frame's row to its arc, 359.687 across zero to
+0.402, the cohort's row to the metadata's plain range, arc and incidence, backplanes
+recording neither to missing cells, and the check to the new fields' unit; each was
+driven red by a mutation, seven of seven killed.
 
 ### Phase 9 — Parameterize the bundle name and version
 
