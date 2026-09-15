@@ -42,7 +42,7 @@ differ by half a pixel.
 
 In **pixel-corner coordinates** a whole number falls on the boundary between
 two pixels, so the first pixel spans 0.0 to 1.0 and its center is at 0.5. The
-geometry layer works this way.
+``oops`` geometry calls work this way.
 
 In **pixel-centric coordinates** a whole number falls on the center of a pixel,
 so the first pixel spans -0.5 to 0.5 and its center is at 0.0. Anything that
@@ -69,8 +69,13 @@ Where each one is used
 Which system applies follows from the stage, so the question to ask of any
 number is what produced it and what will consume it.
 
-**Pixel-corner coordinates** are what the geometry layer answers in and what a
-person writes and reads:
+**Pixel-corner coordinates** are what the ``oops`` geometry calls answer in and
+what a person writes and reads. Note that
+:mod:`spindoctor.feature.geometry` is not among them despite the name: the
+feature payloads it defines state their positions pixel-centric, and they are
+listed under that heading below.
+
+The pixel-corner cases:
 
 - Every field-of-view call: the observation's ``uv_from_ra_and_dec``, the field
   of view's ``uv_from_los`` and ``los_from_uv``, and its ``uv_los`` attribute,
