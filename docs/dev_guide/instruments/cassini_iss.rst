@@ -86,6 +86,41 @@ Label and index dependencies
   as a legible shutter mode.
 * ``DESCRIPTION`` and ``OBSERVATION_ID``, both optional and recorded as
   ``None`` when absent.
+* The label facts. ``_label_facts`` publishes every keyword ``_LABEL_FACTS``
+  lists, under the name of the attribute of the Cassini PDS4 dictionary's
+  ``ISS_Specific_Attributes`` (``PDS4_CASSINI_1O00_1800``) that the value is,
+  with ``-`` written as ``_``, in the dictionary's order. The value is what
+  rms-vicar hands back, unconverted: numbers as numbers, text as text, and
+  times as the label's day-of-year text. A keyword whose value is a sequence
+  -- ``EXPECTED_MAXIMUM``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
+  ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` -- is split with
+  ``zip(..., strict=True)``, so a sequence of any other length raises
+  ``ValueError`` rather than losing or inventing an element. A keyword the
+  label lacks is ``None``, and so is each element of a sequence it lacks.
+  Seven attributes are not in the table. Six the block already states in the
+  label's own form: ``limitations`` is ``DESCRIPTION``, ``filter_name_1`` and
+  ``filter_name_2`` are ``FILTER_NAME`` (``filters``), ``instrument_mode_id``
+  is ``INSTRUMENT_MODE_ID`` (``sampling``), and ``observation_id`` and
+  ``shutter_mode_id`` are the keys above. ``pre-pds_version_number`` is in the
+  file name and not in the label. ``image_number`` is ``IMAGE_NUMBER``, the
+  whole seconds of the spacecraft clock at shutter close, which is what the
+  archive's own PDS4 labels publish under that name. The dictionary defines
+  it as a value obtained from the start count, which differs for any exposure
+  that spans a second; the table follows the archive.
+
+**Which label is read.** ``obs.dict`` is the VICAR label inside the
+``_CALIB.IMG`` file, which ``oops.hosts.cassini.iss.from_file`` reads with
+rms-vicar. It is neither the detached ``_CALIB.LBL`` nor the raw volume's
+``.LBL``. Its values are the raw product's, as the raw ``.LBL`` states them,
+in the VICAR spelling: reals to six or seven significant digits, times ending
+in ``Z`` (``PRODUCT_CREATION_TIME`` only on the earliest volumes),
+``IMAGE_NUMBER`` as an integer, ``MISSION_PHASE_NAME`` as
+``APPROACH_SCIENCE`` where the PDS3 labels write ``APPROACH SCIENCE``, and a
+single ``IMAGE_OBSERVATION_TYPE`` as text rather than a one-element set. The
+``_CALIB.LBL`` departs further: it carries no ``VALID_MAXIMUM``, its
+``DESCRIPTION`` is the calibration's history, and its
+``PRODUCT_CREATION_TIME`` is the calibration's, which on some labels is not
+a parsable time.
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
 also refuses a detector that is neither ``NAC`` nor ``WAC``, because the
@@ -99,6 +134,13 @@ is ``{'ISSNA': 'NAC', 'ISSWA': 'WAC'}``, whose values are exactly what
 columns per row (``SHUTTER_MODE_ID``, ``IMAGE_NUMBER``, ``OBSERVATION_ID``,
 ``IMAGE_TIME``), which is why grouping is a separate code path rather than a
 filter.
+
+The index table's ``INST_CMPRS_PARAM`` column holds the four compression
+parameters in another order than the image label: blocks per group,
+algorithm, quantization factor, block type, where its own column description
+and the label give algorithm, block type, blocks per group, quantization
+factor. A label's ``(1, 1, 41, 0)`` is the index's ``(41, 1, 0, 1)``. The
+label facts are read from the label for this reason among others.
 
 **Filespec parsing.** ``_get_label_filespec_from_index`` requires the index
 value to end ``.IMG`` and rewrites it to ``_CALIB.LBL``; both suffixes are

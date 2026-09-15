@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
@@ -19,6 +20,119 @@ _SCLK_OFFSETS = (0, 0)
 
 _SCLK_TICK_DIGITS = 3
 """Digits in the tick field of a spacecraft clock count as an image label writes it."""
+
+# Seven of the dictionary's seventy ISS_Specific_Attributes are left out of this table
+# (#684).  Six are already in the observation block, as the label states them:
+# limitations is DESCRIPTION (description), filter_name_1 and filter_name_2 are
+# FILTER_NAME (filters), instrument_mode_id is INSTRUMENT_MODE_ID (sampling),
+# observation_id is OBSERVATION_ID, and shutter_mode_id is SHUTTER_MODE_ID
+# (shutter_mode).  pre-pds_version_number is in the file name and not in the label.
+# image_number is IMAGE_NUMBER, the seconds of the clock at shutter close, as the
+# archive's own PDS4 labels have it; the dictionary's wording, a value obtained from the
+# start count, differs from that for any exposure that spans a second.
+_LABEL_FACTS: tuple[tuple[str, str | tuple[str, ...]], ...] = (
+    ('MISSION_PHASE_NAME', 'mission_phase_name'),
+    ('SPACECRAFT_CLOCK_CNT_PARTITION', 'spacecraft_clock_count_partition'),
+    ('SPACECRAFT_CLOCK_START_COUNT', 'spacecraft_clock_start_count'),
+    ('SPACECRAFT_CLOCK_STOP_COUNT', 'spacecraft_clock_stop_count'),
+    ('ANTIBLOOMING_STATE_FLAG', 'antiblooming_state_flag'),
+    ('BIAS_STRIP_MEAN', 'bias_strip_mean'),
+    ('CALIBRATION_LAMP_STATE_FLAG', 'calibration_lamp_state_flag'),
+    ('COMMAND_FILE_NAME', 'command_file_name'),
+    ('COMMAND_SEQUENCE_NUMBER', 'command_sequence_number'),
+    ('DARK_STRIP_MEAN', 'dark_strip_mean'),
+    ('DATA_CONVERSION_TYPE', 'data_conversion_type'),
+    ('DELAYED_READOUT_FLAG', 'delayed_readout_flag'),
+    ('DETECTOR_TEMPERATURE', 'detector_temperature'),
+    ('ELECTRONICS_BIAS', 'electronics_bias'),
+    ('EARTH_RECEIVED_START_TIME', 'earth_received_start_time'),
+    ('EARTH_RECEIVED_STOP_TIME', 'earth_received_stop_time'),
+    ('EXPECTED_MAXIMUM', ('expected_maximum_full_well', 'expected_maximum_DN_sat')),
+    ('EXPECTED_PACKETS', 'expected_packets'),
+    ('EXPOSURE_DURATION', 'exposure_duration'),
+    ('FILTER_TEMPERATURE', 'filter_temperature'),
+    ('FLIGHT_SOFTWARE_VERSION_ID', 'flight_software_version_id'),
+    ('GAIN_MODE_ID', 'gain_mode_id'),
+    ('SOFTWARE_VERSION_ID', 'ground_software_version_id'),
+    ('IMAGE_MID_TIME', 'image_mid_time'),
+    ('IMAGE_NUMBER', 'image_number'),
+    ('IMAGE_TIME', 'image_time'),
+    ('IMAGE_OBSERVATION_TYPE', 'image_observation_type'),
+    ('INSTRUMENT_DATA_RATE', 'instrument_data_rate'),
+    ('INST_CMPRS_TYPE', 'inst_cmprs_type'),
+    (
+        'INST_CMPRS_PARAM',
+        (
+            'inst_cmprs_param_malgo',
+            'inst_cmprs_param_tb',
+            'inst_cmprs_param_blocks',
+            'inst_cmprs_param_quant',
+        ),
+    ),
+    ('INST_CMPRS_RATE', ('inst_cmprs_rate_expected_bits', 'inst_cmprs_rate_actual_bits')),
+    ('INST_CMPRS_RATIO', 'inst_cmprs_ratio'),
+    ('LIGHT_FLOOD_STATE_FLAG', 'light_flood_state_flag'),
+    ('METHOD_DESC', 'method_description'),
+    ('MISSING_LINES', 'missing_lines'),
+    ('MISSING_PACKET_FLAG', 'missing_packet_flag'),
+    ('OPTICS_TEMPERATURE', ('optics_temperature_front', 'optics_temperature_back')),
+    ('ORDER_NUMBER', 'order_number'),
+    ('PARALLEL_CLOCK_VOLTAGE_INDEX', 'parallel_clock_voltage_index'),
+    ('PRODUCT_CREATION_TIME', 'pds3_product_creation_time'),
+    ('PRODUCT_VERSION_TYPE', 'pds3_product_version_type'),
+    ('TARGET_DESC', 'pds3_target_desc'),
+    ('TARGET_LIST', 'pds3_target_list'),
+    ('TARGET_NAME', 'pds3_target_name'),
+    ('PREPARE_CYCLE_INDEX', 'prepare_cycle_index'),
+    ('READOUT_CYCLE_INDEX', 'readout_cycle_index'),
+    ('RECEIVED_PACKETS', 'received_packets'),
+    ('SENSOR_HEAD_ELEC_TEMPERATURE', 'sensor_head_electronics_temperature'),
+    ('SEQUENCE_ID', 'sequence_id'),
+    ('SEQUENCE_NUMBER', 'sequence_number'),
+    ('SEQUENCE_TITLE', 'sequence_title'),
+    ('SHUTTER_STATE_ID', 'shutter_state_id'),
+    ('START_TIME', 'start_time_doy'),
+    ('STOP_TIME', 'stop_time_doy'),
+    ('TELEMETRY_FORMAT_ID', 'telemetry_format_id'),
+    ('VALID_MAXIMUM', ('valid_maximum_full_well', 'valid_maximum_DN_sat')),
+)
+"""The label facts the host publishes: each keyword, with the name it is published under.
+
+A keyword whose value is a sequence carries the names of its elements, in order.  Each
+name is the attribute of the Cassini PDS4 dictionary's ``ISS_Specific_Attributes``
+(``PDS4_CASSINI_1O00_1800``) that the value is, with ``-`` written as ``_``, and the
+table is in the dictionary's order.
+"""
+
+
+def _label_facts(label: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the facts an image's label states, under their Cassini dictionary names.
+
+    Each value is the label's own, as the label states it: a number stays a number, text
+    stays text, and a time is the label's own spelling of it.  A keyword whose value is a
+    sequence is split into the attributes its elements are, in order.  A keyword the label
+    lacks is published as None, and so is each element of a sequence it lacks.
+
+    Parameters:
+        label: The image's VICAR label items.
+
+    Returns:
+        The facts ``_LABEL_FACTS`` names, keyed by attribute name, in its order.
+
+    Raises:
+        ValueError: If a sequence keyword holds a different number of elements than the
+            attributes it is split into.
+    """
+    facts: dict[str, Any] = {}
+    for keyword, names in _LABEL_FACTS:
+        value = label.get(keyword, None)
+        if isinstance(names, str):
+            facts[names] = value
+        elif value is None:
+            facts.update(dict.fromkeys(names))
+        else:
+            facts.update(zip(names, value, strict=True))
+    return facts
 
 
 def _sclk_count(count: str) -> Fraction:
@@ -229,8 +343,23 @@ class ObsCassiniISS(ObsSnapshotInst):
         the clock with the ticks as a fraction, and their exact mean; each is None when
         the label carries no counts.
 
+        After these come the facts the image's label states that an attribute of the
+        Cassini PDS4 dictionary's ``ISS_Specific_Attributes`` names and the observation
+        block does not already hold, each under that attribute's name and as the label
+        states it: a number stays a number, text stays text, and a time is the label's own
+        spelling.  A keyword whose value is a sequence (``EXPECTED_MAXIMUM``,
+        ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE``,
+        ``VALID_MAXIMUM``) is split into the attributes its elements are, in order, and a
+        keyword the label lacks is published as None.  ``_LABEL_FACTS`` lists each keyword
+        and the name it is published under.
+
         Returns:
             A dictionary containing the public metadata for Cassini ISS.
+
+        Raises:
+            ValueError: If the detector is neither ``NAC`` nor ``WAC``, or if a sequence
+                keyword holds a different number of elements than the attributes it is
+                split into.
         """
 
         # The instrument LID encodes the camera as iss{n,w}a; guard against an
@@ -263,4 +392,5 @@ class ObsCassiniISS(ObsSnapshotInst):
             'gain_mode': self.gain_mode,
             'description': self.dict.get('DESCRIPTION', None),
             'observation_id': self.dict.get('OBSERVATION_ID', None),
+            **_label_facts(self.dict),
         }

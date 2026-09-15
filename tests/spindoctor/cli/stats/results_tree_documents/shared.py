@@ -470,11 +470,14 @@ def _voyager_sclk_reading(ticks: int) -> str:
 def cassini_sclk_open(image_number: int, tick: int) -> int:
     """Return a Cassini image's clock reading at shutter open, as a tick count.
 
-    A Cassini image is named for the whole-second field of the reading its
-    shutter opened at: a label carrying ``IMAGE_NUMBER = "1454725799"`` carries
-    ``SPACECRAFT_CLOCK_START_COUNT = "1454725799.102"`` beside it.  So the
-    image number and the tick the shutter opened on are the two fields of that
-    reading.
+    A Cassini image is named for its ``IMAGE_NUMBER``, the whole-second field of
+    the reading its shutter closed at: a label carrying
+    ``IMAGE_NUMBER = "1454725799"`` carries
+    ``SPACECRAFT_CLOCK_STOP_COUNT = "1454725799.122"`` beside it.  Every Cassini
+    image of this tree opens and closes within one second, so its shutter opened
+    in that same second, and the image number and the tick the shutter opened on
+    are the two fields of the opening reading: ``"1454725799.102"`` in that
+    label.
 
     Parameters:
         image_number: The image number, which is the whole-second field.

@@ -228,7 +228,9 @@ or not a ``pointing`` block was recorded; a load-error or internal-error
 document carries none of them. Which of the keys below an instrument records,
 and what each holds for it, is in the Metadata fields section of that
 instrument's chapter under :doc:`/user_guide/instruments/instruments`; a key
-an instrument does not record is absent. The image's path, name, camera and
+an instrument does not record is absent. An instrument may also record further
+facts copied from the image's label; that section of its chapter lists them,
+and the table below does not repeat them. The image's path, name, camera and
 shape are recorded once, under the identity keys.
 
 .. list-table::
@@ -943,9 +945,10 @@ top-level ``offset`` is the full-precision form of
 ``navigation_result.offset_px``; ``BodyBlobNav``'s own offset disagrees but
 its large covariance keeps it consistent with the limb fit, so nothing was
 excluded; the ``pointing`` block carries both matrices because the navigation
-succeeded without fitting a rotation. Of the six ``feature_inventory``
-entries, four are shown; the two ``TERMINATOR_ARC`` entries follow the same
-form. Of 79 SPICE kernels, three are shown.
+succeeded without fitting a rotation. The ``observation`` block ends with the
+facts copied from the image's label that the Cassini ISS chapter lists. Of the
+six ``feature_inventory`` entries, four are shown; the two ``TERMINATOR_ARC``
+entries follow the same form. Of 79 SPICE kernels, three are shown.
 
 .. code-block:: json
 
@@ -974,7 +977,70 @@ form. Of 79 SPICE kernels, three are shown.
         "sampling": "FULL",
         "gain_mode": 2,
         "description": "N/A",
-        "observation_id": "ISS_120RH_MUTUALEVE001_PRIME"
+        "observation_id": "ISS_120RH_MUTUALEVE001_PRIME",
+        "mission_phase_name": "EXTENDED MISSION",
+        "spacecraft_clock_count_partition": 1,
+        "spacecraft_clock_start_count": "1635282917.063",
+        "spacecraft_clock_stop_count": "1635282917.118",
+        "antiblooming_state_flag": "ON",
+        "bias_strip_mean": 7.32844,
+        "calibration_lamp_state_flag": "N/A",
+        "command_file_name": "trigger_24820_2.ioi",
+        "command_sequence_number": 24820,
+        "dark_strip_mean": 0.300024,
+        "data_conversion_type": "TABLE",
+        "delayed_readout_flag": "NO",
+        "detector_temperature": -89.3184,
+        "electronics_bias": 112,
+        "earth_received_start_time": "2009-300T10:02:17.070Z",
+        "earth_received_stop_time": "2009-300T10:02:34.491Z",
+        "expected_maximum_full_well": 50.6578,
+        "expected_maximum_DN_sat": 55.8509,
+        "expected_packets": 390,
+        "exposure_duration": 220.0,
+        "filter_temperature": -0.468354,
+        "flight_software_version_id": "1.4",
+        "gain_mode_id": "29 ELECTRONS PER DN",
+        "ground_software_version_id": "ISS 11.00 05-24-2006",
+        "image_mid_time": "2009-299T20:32:22.134Z",
+        "image_number": 1635282917,
+        "image_time": "2009-299T20:32:22.244Z",
+        "image_observation_type": "SCIENCE",
+        "instrument_data_rate": 182.784,
+        "inst_cmprs_type": "LOSSLESS",
+        "inst_cmprs_param_malgo": "N/A",
+        "inst_cmprs_param_tb": "N/A",
+        "inst_cmprs_param_blocks": "N/A",
+        "inst_cmprs_param_quant": "N/A",
+        "inst_cmprs_rate_expected_bits": 2.7,
+        "inst_cmprs_rate_actual_bits": 1.56508,
+        "inst_cmprs_ratio": 5.11156,
+        "light_flood_state_flag": "ON",
+        "method_description": "Rhea;ISS_120RH_MUTUALEVE001_PRIME_1",
+        "missing_lines": 0,
+        "missing_packet_flag": "NO",
+        "optics_temperature_front": 0.712693,
+        "optics_temperature_back": 1.90571,
+        "order_number": 12,
+        "parallel_clock_voltage_index": 9,
+        "pds3_product_creation_time": "2009-300T13:56:32.000",
+        "pds3_product_version_type": "FINAL",
+        "pds3_target_desc": "Rhea",
+        "pds3_target_list": "N/A",
+        "pds3_target_name": "RHEA",
+        "prepare_cycle_index": 0,
+        "readout_cycle_index": 10,
+        "received_packets": 231,
+        "sensor_head_electronics_temperature": 1.63302,
+        "sequence_id": "S54",
+        "sequence_number": 12,
+        "sequence_title": "MUTUALEVENT",
+        "shutter_state_id": "ENABLED",
+        "start_time_doy": "2009-299T20:32:22.024Z",
+        "stop_time_doy": "2009-299T20:32:22.244Z",
+        "telemetry_format_id": "S&ER3",
+        "valid_maximum_full_well": 4095,
+        "valid_maximum_DN_sat": 4095
       },
       "navigation_result": {
         "status": "success",

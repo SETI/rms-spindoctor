@@ -37,8 +37,10 @@ from spindoctor.nav_technique.diagnostics import (
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
-from spindoctor.obs.obs_inst_cassini_iss import _published_sclk
+from spindoctor.obs.obs_inst_cassini_iss import _label_facts, _published_sclk
+from spindoctor.support.cmatrix import AttitudeBaseline
 from spindoctor.support.status_reason import NavStatusReason
+from spindoctor.support.time import et_to_utc
 
 from .shared import (
     COISS_KERNELS,
@@ -645,6 +647,159 @@ def cassini_ring_edges() -> dict[str, Any]:
     )
 
 
+_GAIN_MODE_IDS = {
+    0: '215 ELECTRONS PER DN',
+    1: '95 ELECTRONS PER DN',
+    2: '29 ELECTRONS PER DN',
+    3: '12 ELECTRONS PER DN',
+}
+"""A label's gain text for each gain state oops reads out of it."""
+
+_SHARED_LABEL_ITEMS: dict[str, Any] = {
+    'MISSION_PHASE_NAME': 'TOUR',
+    'ANTIBLOOMING_STATE_FLAG': 'OFF',
+    'BIAS_STRIP_MEAN': 7.32844,
+    'COMMAND_FILE_NAME': 'trigger_24820_2.ioi',
+    'COMMAND_SEQUENCE_NUMBER': 24820,
+    'DARK_STRIP_MEAN': 0.300024,
+    'DATA_CONVERSION_TYPE': 'TABLE',
+    'DELAYED_READOUT_FLAG': 'NO',
+    'DETECTOR_TEMPERATURE': -89.3184,
+    'ELECTRONICS_BIAS': 112,
+    'EXPECTED_MAXIMUM': [50.6578, 55.8509],
+    'EXPECTED_PACKETS': 390,
+    'FILTER_TEMPERATURE': -0.468354,
+    'FLIGHT_SOFTWARE_VERSION_ID': '1.4',
+    'SOFTWARE_VERSION_ID': 'ISS 11.00 05-03-2005',
+    'IMAGE_OBSERVATION_TYPE': 'SCIENCE',
+    'INSTRUMENT_DATA_RATE': 182.784,
+    'INST_CMPRS_TYPE': 'LOSSLESS',
+    'INST_CMPRS_PARAM': ['N/A', 'N/A', 'N/A', 'N/A'],
+    'INST_CMPRS_RATE': [2.7, 1.56508],
+    'INST_CMPRS_RATIO': 5.11156,
+    'LIGHT_FLOOD_STATE_FLAG': 'ON',
+    'MISSING_LINES': 0,
+    'MISSING_PACKET_FLAG': 'NO',
+    'ORDER_NUMBER': 12,
+    'PARALLEL_CLOCK_VOLTAGE_INDEX': 9,
+    'PRODUCT_VERSION_TYPE': 'FINAL',
+    'TARGET_DESC': 'Iapetus',
+    'TARGET_LIST': 'N/A',
+    'TARGET_NAME': 'IAPETUS',
+    'PREPARE_CYCLE_INDEX': 0,
+    'READOUT_CYCLE_INDEX': 10,
+    'RECEIVED_PACKETS': 231,
+    'SENSOR_HEAD_ELEC_TEMPERATURE': 1.63302,
+    'SEQUENCE_ID': 'S11',
+    'SEQUENCE_NUMBER': 12,
+    'SEQUENCE_TITLE': 'IAPETUS',
+    'SHUTTER_STATE_ID': 'ENABLED',
+    'TELEMETRY_FORMAT_ID': 'S&ER3',
+    'VALID_MAXIMUM': [4095, 4095],
+}
+"""The label items every Cassini image of this tree shares.
+
+They are N1635282917_1_CALIB's, a narrow angle frame of 2009, except for six items a 2005
+image of Iapetus writes otherwise: ``MISSION_PHASE_NAME``, ``SOFTWARE_VERSION_ID``,
+``SEQUENCE_ID``, ``SEQUENCE_TITLE``, ``TARGET_DESC`` and ``TARGET_NAME``.
+``ANTIBLOOMING_STATE_FLAG`` is ``OFF`` rather than ``ON`` as well, so that it differs from
+``LIGHT_FLOOD_STATE_FLAG``, as it does on many real labels.
+"""
+
+_CAMERA_LABEL_ITEMS: dict[str, dict[str, Any]] = {
+    'NAC': {'CALIBRATION_LAMP_STATE_FLAG': 'N/A', 'OPTICS_TEMPERATURE': [0.712693, 1.90571]},
+    'WAC': {'CALIBRATION_LAMP_STATE_FLAG': 'OFF', 'OPTICS_TEMPERATURE': [6.93953, -999.0]},
+}
+"""The label items a camera decides.
+
+The narrow angle camera has no calibration lamp and the wide angle camera no rear optics
+temperature sensor, so their labels write ``N/A`` and ``-999.0`` there.  The values are
+N1635282917_1_CALIB's and W1521598221_1_CALIB's.
+"""
+
+_EARTH_RECEIVED_AFTER_S = 48600.0
+"""How long after its shutter closed an image of this tree began to reach Earth."""
+
+_DOWNLINK_S = 17.5
+"""How long an image of this tree took to reach Earth."""
+
+_BUILT_AFTER_S = 62000.0
+"""How long after its shutter closed an image of this tree was built on the ground."""
+
+
+def _label_time(et: float) -> str:
+    """Spell an epoch the way a Cassini ISS VICAR label writes a time.
+
+    Parameters:
+        et: The epoch, in TDB seconds.
+
+    Returns:
+        The UTC year, day of year and time of day to the millisecond, then ``Z``.
+    """
+    utc = datetime.strptime(et_to_utc(et), '%Y-%m-%dT%H:%M:%S.%f')
+    return utc.strftime('%Y-%jT%H:%M:%S.%f')[:-3] + 'Z'
+
+
+def _build_time(et: float) -> str:
+    """Spell a build time the way a tour label writes its ``PRODUCT_CREATION_TIME``.
+
+    Parameters:
+        et: The epoch, in TDB seconds.
+
+    Returns:
+        The UTC year, day of year and time of day to the whole second, then ``.000``,
+        with no ``Z``.
+    """
+    return _label_time(et)[: -len('.000Z')] + '.000'
+
+
+def _label(
+    exposure: AttitudeBaseline, *, camera: str, gain_mode: int, observation_id: str
+) -> dict[str, Any]:
+    """Return the VICAR label items one Cassini image of this tree carries.
+
+    What the document chooses for itself is written the way a Cassini ISS label writes
+    it: its clock counts are the recorded clock strings without their partition, its
+    image number is the whole seconds of its stop count, its exposure is in
+    milliseconds, its gain is the text oops reads the gain state out of, and its shutter
+    open, midtime and shutter close are the recorded epochs in the label's day-of-year
+    text.  It reached Earth and was built on the ground after its shutter
+    closed, and the label writes its build time to the whole second, as a tour label
+    does (see :func:`_build_time`).
+    The rest is :data:`_SHARED_LABEL_ITEMS` and the camera's :data:`_CAMERA_LABEL_ITEMS`.
+
+    Parameters:
+        exposure: The recorded exposure.
+        camera: ``NAC`` or ``WAC``.
+        gain_mode: The gain state oops reads out of the label's gain mode.
+        observation_id: The label's observation id, which its method description names.
+
+    Returns:
+        The label items.
+    """
+    partition, _, start_count = exposure.sclk_start.partition('/')
+    stop_count = exposure.sclk_stop.partition('/')[2]
+    received = exposure.stop_et + _EARTH_RECEIVED_AFTER_S
+    return {
+        **_SHARED_LABEL_ITEMS,
+        **_CAMERA_LABEL_ITEMS[camera],
+        'SPACECRAFT_CLOCK_CNT_PARTITION': int(partition),
+        'SPACECRAFT_CLOCK_START_COUNT': start_count,
+        'SPACECRAFT_CLOCK_STOP_COUNT': stop_count,
+        'IMAGE_NUMBER': int(stop_count.partition('.')[0]),
+        'EXPOSURE_DURATION': round(exposure.exposure_s * 1000.0, 3),
+        'GAIN_MODE_ID': _GAIN_MODE_IDS[gain_mode],
+        'METHOD_DESC': f'ISSPT2.5.4;Iapetus;{observation_id}_1',
+        'START_TIME': _label_time(exposure.start_et),
+        'IMAGE_MID_TIME': _label_time(exposure.midtime_et),
+        'IMAGE_TIME': _label_time(exposure.stop_et),
+        'STOP_TIME': _label_time(exposure.stop_et),
+        'EARTH_RECEIVED_START_TIME': _label_time(received),
+        'EARTH_RECEIVED_STOP_TIME': _label_time(received + _DOWNLINK_S),
+        'PRODUCT_CREATION_TIME': _build_time(exposure.stop_et + _BUILT_AFTER_S),
+    }
+
+
 def _public_metadata(
     result: NavResult,
     *,
@@ -667,6 +822,9 @@ def _public_metadata(
     two can differ: the counts are the instrument's own, and the strings are SPICE's
     conversion of the exposure epochs.
 
+    The facts the host copies out of the image's label come last, through the host's
+    own table, from the label :func:`_label` writes for the image.
+
     Parameters:
         result: The image's result, carrying its attitude solution.
         image_name: Basename of the source image.
@@ -682,6 +840,7 @@ def _public_metadata(
         The published facts, in the host's own key order.
     """
     exposure = recorded_exposure(result)
+    label = _label(exposure, camera=camera, gain_mode=gain_mode, observation_id=observation_id)
     return {
         'image_path': holdings_path(image_name).as_posix(),
         'image_name': image_name,
@@ -699,4 +858,5 @@ def _public_metadata(
         'gain_mode': gain_mode,
         'description': description,
         'observation_id': observation_id,
+        **_label_facts(label),
     }
