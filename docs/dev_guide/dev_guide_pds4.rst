@@ -67,7 +67,8 @@ label in place before it can build the inventory).
 ``sd_create_bundle check`` then holds the bundle the two phases wrote to PDS4, reading
 only its tree and the schemas the package ships, and writes nothing (see `Checking a
 bundle`_).  Before phase 1, ``sd_create_bundle labels --check-only`` reports whether
-each selected image has the files phase 1 reads, and writes nothing either.
+each selected image has the files phase 1 reads, and writes no label, log or bundle
+file.
 
 Driver: ``sd_create_bundle``
 =============================
@@ -163,16 +164,29 @@ exits 1 naming what it found, like any other run.  Past them it writes nothing,
 so it counts nothing against the run, including a batch it reports it could not
 have processed.
 
-``--check-only`` makes neither check, since it writes nothing, neither needs nor
-creates a bundle root, and builds no logging, so writes no log.  For each image of
-every batch the selection enumerates it prints one line saying whether the navigation
+``--check-only`` makes neither check, since it writes no label, log or bundle file,
+neither needs nor creates a bundle root, and builds no logging.  For the image of each
+batch the selection enumerates it prints one line saying whether the navigation
 document, the summary PNG, the backplane FITS and the backplane metadata that
 :func:`~spindoctor.cli.pds4.image_inputs.image_inputs` names for it exist, and whether
 its navigation succeeded, from the navigation record as the labels pass reads it; then
-a count, through :func:`~spindoctor.cli.pds4.image_inputs.report_image_inputs`.  It
-exits 1 when any image lacks a file or its navigation did not succeed.  The labels pass
-takes its four paths from the same function, so the report and the pass cannot
-disagree about where an input is.
+a count, through :func:`~spindoctor.cli.pds4.image_inputs.report_image_inputs`.  A batch
+of other than one image, which the labels pass fails, is one line, and every image of
+it counts as incomplete: the two take that rule from one function in the driver.  It
+exits 1 when any image lacks a file, its navigation did not succeed, or its batch is
+one the labels pass fails.  A selection that cannot be enumerated ends the report with
+the traceback it ends the labels pass with.  The file cache the two roots are read
+through creates a temporary directory, which it removes.
+
+The labels pass takes its four paths from the same function, so the report and the pass
+cannot disagree about where an input is.  The navigation document's path is the
+navigation records' own, :func:`~spindoctor.nav_records.document.document_path`, and
+both read the document through :func:`~spindoctor.nav_records.document.read_document`.
+The other three paths are stated in
+:func:`~spindoctor.cli.pds4.image_inputs.image_inputs` as the navigation and the
+backplane stages write them: those stages build each path where they write it and
+expose no function for it, so each of the three rules is stated once by its writer and
+once for the readers, a duplication older than the bundle check.
 
 ``sd_create_bundle summary`` counts the collection, index and run-level labels it
 did not write, over its three generators, and exits 1 the same way.  The index
@@ -965,10 +979,15 @@ Checking a bundle
 :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`.  It reads only the bundle's
 tree and the schemas the package ships, and writes nothing.  Each way the tree departs
 from PDS4 is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which names the
-file, the check that found it, where in the file, and what is wrong; the program prints
-each as one line, and then the count.  The check reads labels with ``lxml``, validates
-them with ``xmlschema`` and evaluates the Schematron with ``elementpath``'s XPath 2.0
-engine, three runtime dependencies of the package.
+file, whether it is an error or a warning, the check that found it, where in the file,
+and what is wrong; the program prints each as one line, and then the number of errors
+and of warnings, and exits 1 on an error.  A warning is what the PDS ``validate`` tool
+reports as a warning too: an unresolved reference to a product of the bundle
+(``reference_not_found``), a product no inventory lists (``unreferenced_member``), and
+a Schematron assert or report whose ``role``, or whose rule's, marks it a warning.  The
+check reads labels with ``lxml``, validates them with ``xmlschema`` and evaluates the
+Schematron with ``elementpath``'s XPath 2.0 engine, three runtime dependencies of the
+package.
 
 Every file under the bundle's directory whose name ends in ``.lblx`` is a label.  A
 label that is not well-formed XML is one finding and is checked no further.  Every other
@@ -985,17 +1004,23 @@ label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_l
   import resolves to the shipped schema of its namespace, whichever version its own URL
   names, and no namespace is named in code.  Every warning ``xmlschema`` raises while it
   builds a set of schemas is a finding, so an import that finds no schema cannot pass
-  silently.  Each distinct set a label declares is built once.
+  silently.  A set that cannot be built at all -- a URL paired with a namespace its file
+  does not define, say -- is one finding, and the label is checked without it.  Each
+  distinct set a label declares is built once.
 - **Against its Schematron rules** (:mod:`~spindoctor.cli.pds4.check.schematron`), each
   named by the ``href`` of an ``xml-model`` instruction and mapped to the shipped copy in
   the same way.  A rule is matched as the ISO Schematron skeleton's XSLT matches it: a
   node matches when it is in ``//(context)`` evaluated from the document node; only the
   first rule of a pattern a node matches fires for it; the schema's and each pattern's
-  variables are evaluated at the document node, and a rule's at the node it matched.  The
-  nodes are selected as ``//`` before each branch of the context's union, which selects
-  the same nodes without evaluating the context again at every node of the label.  An
-  assert whose test is false and a report whose test is true are each a finding, with
-  the rule's message.  Strings are compared by the Unicode code point collation, XPath's
+  variables are evaluated at the document node, and a rule's at the node it matched.  A
+  context that is a union of path expressions joined by ``|``, as every context of the
+  shipped Schematron is, is selected as ``//`` before each branch, which selects the
+  same nodes without evaluating the context again at every node of the label; any other
+  context, one holding the ``union``, ``intersect`` or ``except`` keyword or a comment,
+  is selected as ``//(context)`` itself.  An assert whose test is false and a report
+  whose test is true are each a finding, with the rule's message: a warning when it, or
+  else its rule, carries a ``role`` of ``warning`` or ``warn`` in any case, and an error
+  otherwise.  Strings are compared by the Unicode code point collation, XPath's
   default, whatever locale the process runs under.  The rules cannot be run by ``lxml``'s
   ISO Schematron, which does
   not take their XSLT 2.0 query language, nor by an evaluator that matches a rule from a
@@ -1005,32 +1030,57 @@ label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_l
   since neither schema reads a table.  A ``Table_Character``, a ``Table_Delimited`` or an
   ``Inventory`` is read, with the ``Header`` objects beside it: the objects of the file
   area tile the file, a ``Header`` ending where its ``object_length`` says and a table
-  holding its ``records``; ``fields`` and ``groups`` count what the record describes;
-  each field lies within the record and overlaps no other; each value is valid for its
+  holding its ``records``, each ending in its record delimiter byte for byte, so that a
+  carriage return the label does not declare is found; ``fields`` and ``groups`` count
+  what the record describes, and in a record holding no group each ``field_number`` is
+  its field's position; each field lies within the record and overlaps no other; each
+  value is valid for its
   ``data_type``, the simple type of that name in the common dictionary the label
   declares; a delimited value keeps to its ``maximum_field_length``; and a cell equal to
   its field's missing constant as a number is spelled as the constant is.  The fields of
   a group, a ``Table_Binary``, and a file area that also holds an object of another
   class are left to the XML schema and to ``validate``.
+- **A global index table's layout** (:mod:`~spindoctor.cli.pds4.check.index_tables`).
+  PDS4 constrains neither what a header holds nor the bytes between two fields, but the
+  layout :mod:`~spindoctor.cli.pds4.global_index` writes, the same for every dataset's
+  bundle, does: the header line names the label's fields, in order, separated by commas;
+  a comma alone lies between two fields, and the last ends where the record delimiter
+  begins; and in every record the byte after each field but the last is a comma.
 - **Its statistic columns** (:mod:`~spindoctor.cli.pds4.check.statistic_columns`).  A
   field a configured plane's ``index`` block names states the unit the plane's statistic
   is in, as :func:`~spindoctor.cli.backplanes.statistics.statistics_units` gives it, and
   declares as its missing constant the masked value in that unit's format.  This is the
-  part of the check that reads the configuration.
+  part of the check that reads the configuration.  The two helpers are the summary
+  pass's own, so that each rule is stated once: the summary pass's tests pin them, and a
+  defect in one would pass this check.
 
 Then the tree as a whole (:mod:`~spindoctor.cli.pds4.check.integrity`): every
-``file_name`` names a file beside its label; every file is a label or is named by exactly
-one label; no label holds a ``[[[`` marker; no element is empty unless it carries
-``xsi:nil``; and every ``lid_reference`` and ``lidvid_reference`` to a product of the
-bundle itself -- one whose logical identifier extends the bundle label's -- names a
-product a label of the tree declares, and a ``lidvid_reference`` that product's version.
-A tree with no bundle label at its top is a finding of its own.
+``file_name`` names a file beside its label, by its name alone and once, and the
+``file_size`` and ``md5_checksum`` beside it are that file's; every file is a label or
+is named by exactly one label; no label holds a ``[[[`` marker; no element is empty
+unless its ``xsi:nil`` is true; no two labels declare one logical identifier; and every
+``lid_reference`` and ``lidvid_reference`` to a product of the bundle itself -- one
+whose logical identifier extends the bundle label's -- names a product a label of the
+tree declares, and a ``lidvid_reference`` that product's version, one that does not
+being a warning.  Each collection's inventory
+(:mod:`~spindoctor.cli.pds4.check.inventories`) lists as a primary member only products
+the tree holds, at the versions it holds, and each product in the collection's
+directory once, one listed twice being an error and one not listed a warning.  Each
+global index table's records (:mod:`~spindoctor.cli.pds4.check.index_tables`) name
+products the tree holds, with each product's label as their ``file_spec`` and every
+other column named for a PDS4 attribute, the start and stop times, as that label states
+it; and each product whose label names a supplemental file has the records the file
+calls for.  A tree with no bundle label at its top is a finding of its own.
 
-The NASA PDS ``validate`` tool checks more than this and is the authority for a bundle
-delivered to the node: it checks each reference to a product outside the bundle against
-the context products registered with the PDS, and it reads the user guide's PDF with
-VeraPDF.  It is a Java program run by hand; the check is what the suite runs (see
-`Testing bundle generation`_).
+The NASA PDS ``validate`` tool is the authority for a bundle delivered to the node, and
+checks three things the check does not: where each data object of a FITS file begins,
+the user guide's PDF, which it reads with VeraPDF, and each reference a label makes to a
+context product, against the context products registered with the PDS.  Neither checks
+the versions an inventory's secondary members give products outside the bundle, nor
+that what a label states is right rather than allowed: a unit the vocabulary holds but
+the value is not in, a target the product has that the label leaves out, or the lengths
+a label gives a FITS array's axes.  ``validate`` is a Java program run by hand; the
+check is what the suite runs (see `Testing bundle generation`_).
 
 A dictionary added to a dataset's ``schemas``, or moved to another version, has its XML
 schema and its Schematron shipped in ``src/spindoctor/cli/pds4/schemas/``: a test over
@@ -1186,12 +1236,13 @@ it runs wherever the suite does: in ``scripts/run-all-checks.sh`` and in CI.
 ``tests/spindoctor/cli/pds4/check/test_check_cassini_iss_saturn.py`` builds the Cassini
 ISS Saturn cohort's bundle twice, plain and from a copy of the template directory holding
 a stand-in user guide, runs
-:func:`~spindoctor.cli.pds4.check.bundle.check_bundle` over each, and holds the findings
-to exactly what is known of the bundle: the ``TODO DOI`` placeholder of the bundle label
-and the two of the guide's label, each data label's empty
-``cassini:ISS_Specific_Attributes``, and, in the plain build, each reference to the user
-guide, which that bundle does not hold.  A finding outside that list fails the test, and
-so does a known one the check stops making.  Each part of the check is also held to a
+:func:`~spindoctor.cli.pds4.check.bundle.check_bundle` over each, and holds the findings,
+each by its file, check, location and message, to exactly what is known of the bundle,
+errors and warnings apart.  The errors are the ``TODO DOI`` placeholder of the bundle
+label and the two of the guide's label, and each data label's empty
+``cassini:ISS_Specific_Attributes``; the warnings, in the plain build alone, are each
+reference to the user guide, which that bundle does not hold.  A finding outside that
+list fails the test, and so does a known one the check stops making.  Each part of the check is also held to a
 control for each condition it checks -- a copy of that bundle broken in one place -- in a
 test module named for the bundle, and the Schematron evaluator's semantics to a
 Schematron and a label written by the test itself.
@@ -1267,7 +1318,8 @@ documented above.
   it one label is held to on its own; each returns
   :class:`~spindoctor.cli.pds4.check.findings.Finding` objects.
 - :func:`~spindoctor.cli.pds4.image_inputs.image_inputs` — the four files the labels
-  pass reads for an image, the one place their paths are made, and
+  pass reads for an image, the navigation document's path taken from the navigation
+  records' :func:`~spindoctor.nav_records.document.document_path`, and
   :func:`~spindoctor.cli.pds4.image_inputs.report_image_inputs`, what ``--check-only``
   reports of them.
 - :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` — the variables every
