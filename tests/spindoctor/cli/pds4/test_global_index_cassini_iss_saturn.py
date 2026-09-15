@@ -446,8 +446,8 @@ def test_the_rings_index_states_the_plain_ring_longitude_range(
 ) -> None:
     """The ring image's row states the plain least and greatest ring longitude.
 
-    Its data label states the range wrapped at zero, 216.000 to 204.706, and the index
-    columns are named for the plain range, 0 to 360.
+    Its backplane metadata also records the range wrapped at zero, 216.000 to 204.706;
+    the index columns are named for the plain range, 0 to 360.
     """
     env = write_cohort_bundle(cassini_cohort, tmp_path, NAVIGATED_STUBS)
     header, row = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
