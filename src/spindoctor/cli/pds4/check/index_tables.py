@@ -346,6 +346,10 @@ def _table_record_findings(
 ) -> list[Finding]:
     """Hold one index table's records to the tree.
 
+    A column named for a PDS4 attribute is compared with the first element of that name
+    anywhere in the product's label, not with the element the summary pass copies it
+    from.  The two are the same element in every label the shipped templates write.
+
     Parameters:
         file: The table's label, relative to the bundle's directory.
         table: The table.
