@@ -514,7 +514,8 @@ The summary pass generates:
   has a row (see `Global Index Tables`_):
 
   * ``global_bodies_index.tab``: a table with one row for each body seen in each image
-    of the bundle, giving the least and the greatest value of each body backplane
+    of the bundle, giving the least and the greatest value of each body backplane, and
+    the arc of longitude the body covers
   * ``global_bodies_index.lblx``: PDS4 label for the bodies index
   * ``global_rings_index.tab``: a table with one row for each image with ring
     backplanes, giving the least and the greatest value of each ring backplane, the
@@ -598,7 +599,11 @@ The rings table also gives the arc of ring longitude each image covers, as
 where the arc begins and where it ends, so that the first is greater than the second
 where the arc crosses zero longitude, and an arc covering the whole circle gives 0 and
 360. ``minimum_ring_longitude`` and ``maximum_ring_longitude`` give the plain least and
-greatest longitude instead, near 0 and near 360 for any arc across zero. The rings
+greatest longitude instead, near 0 and near 360 for any arc across zero. The bodies
+table gives each body's arc of longitude the same way, as
+``minimum_wrapped_body_longitude`` and ``maximum_wrapped_body_longitude``, beside the
+plain ``minimum_body_longitude`` and ``maximum_body_longitude``; a body seen round one of
+its poles covers the whole circle, 0 to 360. The rings
 table's last three columns, ``rings:minimum_incidence_angle``,
 ``rings:maximum_incidence_angle`` and ``rings:mean_incidence_angle``, give the least,
 the greatest and the mean incidence angle of sunlight on the ring plane over the image's

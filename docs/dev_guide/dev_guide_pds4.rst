@@ -841,7 +841,11 @@ where the range its statistic records wrapped at zero, as ``wrapped_min`` and
 zero.  The ring longitude's block gives them as ``rings:minimum_inertial_ring_longitude``
 and ``rings:maximum_inertial_ring_longitude``, the rings dictionary's names for a ring
 longitude range wrapped at the prime meridian, while its plain pair keeps names of its
-own.  The rings table ends with the three columns ``backplanes.ring_incidence_angle``
+own.  The body longitude's block gives them as ``minimum_wrapped_body_longitude`` and
+``maximum_wrapped_body_longitude``, names of their own: geom's ``minimum_longitude`` and
+``maximum_longitude`` define a range wrapped at the prime meridian, but in planetocentric
+longitude, which the IAU convention measures positive east, where the body longitude is
+measured westward.  The rings table ends with the three columns ``backplanes.ring_incidence_angle``
 describes, ``rings:minimum_incidence_angle``, ``rings:maximum_incidence_angle`` and
 ``rings:mean_incidence_angle``: the ``min``, ``max`` and ``mean`` of the rings block's
 ``incidence_angle``, in the unit that entry's ``units`` gives.  The ``rings:`` names are

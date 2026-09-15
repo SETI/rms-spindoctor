@@ -283,7 +283,24 @@ the part of the circle the image does not cover, and the arc runs from the longi
 after it to the one before it, so the arc's start is the greater where it crosses
 zero.  Longitudes that leave no gap wider than the coarsest value of the plane
 :data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION`
-names cover the whole circle, recorded as 0 to 360.
+names cover the whole circle, recorded as 0 to 360.  With no value of that plane, as
+when the configuration declares none, the statistic records no wrapped range.
+
+Each body's longitude statistic, the plane
+:data:`~spindoctor.cli.backplanes.backplanes_bodies.BODY_LONGITUDE` names, records its
+range wrapped at zero too, over the pixels ``BODY_ID_MAP`` gives the body, by the same
+rule.  A body's resolutions are sizes on its surface, in km per pixel, so the widest gap
+that leaves the circle covered is instead the widest longitude step between two of the
+body's pixels that share an edge, taken the short way round the circle, as
+:func:`~spindoctor.cli.backplanes.statistics.longitude_step` finds it.  Longitude
+changes fastest from pixel to pixel near the limb and round a pole in view, where every
+longitude meets, so the step is as wide as any gap the body's sampling leaves: a body
+seen round a pole covers the whole circle, and one seen from its equator the arc its
+visible side spans.  The angle a pixel spans on the surface, from the body's coarsest
+resolution and its radius, is not the threshold: it grows without bound toward the
+limb, where the surface turns edge-on, and a small body's would be wider than the half
+of it out of view, reading every view of it as the whole circle.  A body whose
+longitude plane has no value records no statistic, and so no range.
 
 The PDS4 bundle generator (:doc:`dev_guide_pds4`) reads this sidecar
 when rendering the per-image data label.
