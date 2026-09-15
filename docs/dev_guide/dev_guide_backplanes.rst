@@ -259,7 +259,10 @@ Alongside the FITS file the writer drops a companion
   incidence angle of sunlight on its plane (``incidence_angle``: its ``value`` at the
   ring system's center and, when a ring plane has a value anywhere, its ``min``,
   ``max`` and ``mean`` over the pixels where one does, in degrees with their unit), and
-  the ring planes' statistics (``backplanes``).
+  the ring planes' statistics (``backplanes``).  The incidence angle and the ring
+  longitude's wrapped range (below) are recorded as facts about the image: the PDS4
+  bundle reads the ring target and the planes' least and greatest values, and neither
+  of them.
 
 Each statistic states the unit its values are in, which for an angular plane
 is not the unit of the array it was taken from.
