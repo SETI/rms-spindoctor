@@ -82,10 +82,11 @@ The two passes write this directory structure:
        └── collection_xml_schema.lblx
 
 The user guide and its label are in ``document/user_guide/`` only when the dataset's
-template directory holds the user-guide PDF (see `Templates`_). The rings index
-and its label are in ``miscellaneous/`` only when some image in the bundle has
-ring backplanes, and ``miscellaneous/`` itself is there only when at least one of
-its index tables has a row (see `Global Index Tables`_).
+template directory holds the user-guide PDF (see `Templates`_). The bodies index
+and its label are in ``miscellaneous/`` only when a body shows in some image in the
+bundle, the rings index and its label only when some image has ring backplanes, and
+``miscellaneous/`` itself is there only when at least one of its index tables has a
+row (see `Global Index Tables`_).
 
 ``<path stub>/<image>`` places each image in ``data/`` and ``browse/`` by a rule the
 dataset derives from the image's name: for ``coiss_saturn``, image N1454820509 is at
@@ -573,7 +574,8 @@ FITS file.
 
 * ``global_bodies_index.tab`` has one row for each body seen in each image, a body that
   shows at one pixel at least. A body with no value for some backplane holds the masked
-  value in that backplane's columns.
+  value in that backplane's columns. When no image shows a body, neither this table nor
+  its label is written.
 * ``global_rings_index.tab`` has one row for each image that has ring backplanes. When
   no image has ring backplanes, neither this table nor its label is written.
 

@@ -1163,8 +1163,8 @@ The two passes write this tree:
      miscellaneous/                            # only when an index table has a row
        collection_miscellaneous.csv            # summary pass
        collection_miscellaneous.lblx           # summary pass
-       global_bodies_index.tab                 # summary pass
-       global_bodies_index.lblx                # summary pass
+       global_bodies_index.tab                 # summary pass, when an image shows a body
+       global_bodies_index.lblx                # summary pass, when an image shows a body
        global_rings_index.tab                  # summary pass, when an image has rings
        global_rings_index.lblx                 # summary pass, when an image has rings
      spice_kernels/
