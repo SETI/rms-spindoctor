@@ -365,12 +365,15 @@ run_markdown_checks() {
 
     source "$VENV/bin/activate"
 
+    local codespell_failed=false
+    local pymarkdown_failed=false
+
     print_info "Running codespell (typos and British spellings)..."
     if python -m codespell_lib src tests docs util experiments scripts plans README.md CONTRIBUTING.md .cursor; then
         print_success "codespell passed"
     else
         print_error "codespell failed"
-        FAILED_CHECKS+=("Markdown - codespell")
+        codespell_failed=true
     fi
 
     print_info "Running PyMarkdown scan (docs/, .cursor/, root *.md)..."
@@ -378,16 +381,28 @@ run_markdown_checks() {
         print_success "PyMarkdown scan passed"
     else
         print_error "PyMarkdown scan failed"
-        if [ -n "$status_file" ]; then
-            echo "Markdown - PyMarkdown scan" >> "$status_file"
-        else
-            FAILED_CHECKS+=("Markdown - PyMarkdown scan")
-        fi
-        deactivate 2>/dev/null || true
-        return 1
+        pymarkdown_failed=true
     fi
 
     deactivate 2>/dev/null || true
+
+    # Report both, and report them the way the caller reads.  In parallel mode
+    # the lane runs in a subshell, so an append to FAILED_CHECKS dies with it
+    # and status_file is the only channel the parent sees; in sequential mode
+    # the array is the channel.  The return value is what sets EXIT_CODE, so it
+    # has to cover codespell too -- returning 0 because PyMarkdown passed is how
+    # a spelling failure used to leave the run green.
+    if [ "$codespell_failed" = true ] || [ "$pymarkdown_failed" = true ]; then
+        if [ -n "$status_file" ]; then
+            [ "$codespell_failed" = true ] && echo "Markdown - codespell" >> "$status_file"
+            [ "$pymarkdown_failed" = true ] && echo "Markdown - PyMarkdown scan" >> "$status_file"
+        else
+            [ "$codespell_failed" = true ] && FAILED_CHECKS+=("Markdown - codespell")
+            [ "$pymarkdown_failed" = true ] && FAILED_CHECKS+=("Markdown - PyMarkdown scan")
+        fi
+        return 1
+    fi
+
     return 0
 }
 
@@ -454,6 +469,7 @@ run_docs_build() {
         else
             [ "$sphinx_failed" = true ] && FAILED_CHECKS+=("Documentation - Sphinx build")
             [ "$pymarkdown_failed" = true ] && FAILED_CHECKS+=("Documentation - PyMarkdown scan")
+            [ "$codespell_failed" = true ] && FAILED_CHECKS+=("Documentation - codespell")
         fi
         return 1
     fi
