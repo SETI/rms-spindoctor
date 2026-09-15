@@ -236,8 +236,10 @@ raises :exc:`AssertionError` and fails the build before any image is processed.
           at_edge: true
           spurious: true
 
-Each ``feature`` value, and each ``hard_zero_if`` key, names an attribute on
-:class:`~spindoctor.nav_technique.diagnostics.BodyLimbDiagnostics`. At config-load time
+Each ``feature`` value, and each ``hard_zero_if`` key, names an attribute the
+technique's confidence context exposes. Most come from
+:class:`~spindoctor.nav_technique.diagnostics.BodyLimbDiagnostics`; ``at_edge`` and
+``spurious`` are result-level flags the context supplies alongside it. At config-load time
 :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walks the spec
 and confirms every name appears in
 :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`'s

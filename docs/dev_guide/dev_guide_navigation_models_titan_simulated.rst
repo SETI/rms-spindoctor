@@ -69,8 +69,9 @@ Coordinate convention
 A scene states every position in pixel-corner coordinates (see
 :ref:`sim-pixel-convention`), so a body stated at ``center_v`` paints its silhouette centered
 at ``center_v - 0.5`` in pixel-centric coordinates. A predicted position at this stage is
-pixel-centric, so this model converts, by
-:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`.
+pixel-centric, so this model converts each scene coordinate into that system by
+subtracting :data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX` from it, and
+then adds the extended-FOV margin.
 
 Restrictions and assumptions
 ----------------------------
