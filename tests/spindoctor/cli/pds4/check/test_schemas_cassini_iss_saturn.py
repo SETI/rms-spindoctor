@@ -122,3 +122,17 @@ def test_a_label_whose_schemas_cannot_be_built_is_one_finding_and_the_check_goes
         "'{http://purl.oclc.org/dsdl/schematron}schema' is not an element of the schema",
     )
     assert expected in check_bundle(bundle, config=DEFAULT_CONFIG, schema_dir=SCHEMA_COPIES)
+
+
+def test_a_relative_schema_directory_serves_the_imports_too(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A schema directory named relative to where the check runs serves every import too."""
+    monkeypatch.chdir(SCHEMA_COPIES.parent)
+    location = (
+        'http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00.xsd '
+        'http://pds.nasa.gov/pds4/mission/cassini/v1 '
+        'https://pds.nasa.gov/pds4/mission/cassini/v1/PDS4_CASSINI_1O00_1800.xsd'
+    )
+    source = SchemaSource(Path(SCHEMA_COPIES.name))
+    assert label_schema('bundle.lblx', bare_bundle_label(location), source).findings == ()

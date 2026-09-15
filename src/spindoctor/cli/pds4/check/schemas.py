@@ -14,9 +14,11 @@ own.  Every one of those URLs is resolved one way, by :class:`SchemaSource`:
   fetched.
 
 No namespace is named in code: an import resolves to the schema at its own URL, as the
-PDS ``validate`` tool resolves it, so a dictionary's import of one build of another
-dictionary resolves to that build even where a label declares another.  xmlschema itself
-is allowed only local files, so everything it reads has come through the one rule.
+PDS ``validate`` tool resolves it.  xmlschema reads each namespace once in a set, though:
+where a label itself declares one build of a dictionary and another schema it declares
+imports a second build of it, the label's build serves the import and the second is not
+read, where ``validate`` reads both.  xmlschema is allowed only local files, so
+everything it reads has come through the one rule, as an absolute path.
 
 A URL a label names that cannot be resolved -- one that cannot be fetched, or with no file
 of its name in the directory -- is a finding naming it, and the label is not held to its
@@ -96,8 +98,9 @@ class SchemaSource:
             url: The URL of an XML schema or a Schematron.
 
         Returns:
-            The file of the URL's name in :attr:`directory`, or, with no directory, the
-            file the schema cache holds the URL's download in.
+            The file of the URL's name in :attr:`directory`, as an absolute path whether
+            or not the directory is given as one, or, with no directory, the file the
+            schema cache holds the URL's download in.
 
         Raises:
             FileNotFoundError: If the directory holds no file of the URL's name, or the
@@ -106,7 +109,8 @@ class SchemaSource:
         if self.directory is None:
             return _fetch(url)
         name = url.rsplit('/', 1)[-1]
-        path = self.directory / name
+        # Absolute, since xmlschema reads a relative path against the schema importing it.
+        path = (self.directory / name).resolve()
         if name == '' or not path.is_file():
             raise FileNotFoundError(f'no file of its name is in {self.directory}')
         return path
