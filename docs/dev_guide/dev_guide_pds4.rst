@@ -395,8 +395,10 @@ bundles, or does not, the same way.
 The ``pds4`` config block
 -------------------------
 
-``src/spindoctor/config_files/config_950_pds4.yaml`` populates ``config.pds4`` with
-one entry per dataset that bundles: its template directory, the bundle's name and
+Each dataset that bundles has an entry in ``config.pds4``, in a configuration file of its
+own named for its mission and target --
+``src/spindoctor/config_files/config_951_pds4_coiss_saturn.yaml`` for ``coiss_saturn``
+-- holding its template directory, the bundle's name and
 version (``bundle_name``, ``bundle_version``), and the information model version and the
 dictionary schemas its labels are written against (``information_model_version``,
 ``schemas``).  Each is set there and nowhere else: every template is handed them (see
@@ -411,14 +413,34 @@ the ``pds`` schema of the build the information model version names.  The bundle
 fetches each schema by its URL (see `Checking a bundle`_), and its tests read local
 copies, so a schema named here needs a copy in
 ``tests/spindoctor/cli/pds4/check/schemas/``, which a test holds the shipped
-configuration to.  The entries are
-kept in this file, a registry keyed by dataset, rather than in an instrument's
-``config_4*`` file: every navigation document records a hash of each of those files'
-bytes as the instrument's static data, and a new bundle version or a moved schema there
-would read as a change of that data.  See
-:doc:`dev_guide_config_and_static_data` for the loader contract; the file
-is loaded by the standard numeric-prefix order at the ``9xx`` "downstream
-products" tier.
+configuration to.  The entry is kept in a file named for the mission, since nothing
+mission-specific goes in a generically named file, and at the ``95x`` tier rather than in
+the instrument's ``config_4*`` file: every navigation document records a hash of each
+``config_4*`` file's bytes as the instrument's static data, and a new bundle version or
+a moved schema there would read as a change of that data.  No ``9xx`` file is hashed that
+way.  See :doc:`dev_guide_config_and_static_data` for the loader contract; the file is
+loaded by the standard numeric-prefix order at the ``9xx`` "downstream products" tier.
+
+The entry another dataset would need, once its templates and its PDS4 hooks exist, is
+one of these, in a file of its own named as ``coiss_saturn``'s is, each with every
+other key the ``coiss_saturn`` entry has -- the information model version and the
+schemas of the dictionaries its templates declare:
+
+.. code-block:: yaml
+
+   pds4:
+     gossi:
+       template_dir: galileo_ssi_jupiter_1.0
+       bundle_name: galileo_ssi_jupiter_backplanes_rsfrench2027
+       bundle_version: '1.0'
+     nhlorri:
+       template_dir: newhorizons_lorri_pluto_1.0
+       bundle_name: newhorizons_lorri_pluto_backplanes_rsfrench2027
+       bundle_version: '1.0'
+     vgiss:
+       template_dir: voyager_iss_saturn_1.0
+       bundle_name: voyager_iss_saturn_backplanes_rsfrench2027
+       bundle_version: '1.0'
 
 Templated label workflow
 ========================
@@ -1300,8 +1322,9 @@ The end-to-end checklist:
    guide when it exists. Copy from ``cassini_iss_saturn_1.0/`` and adapt the field
    set, naming the bundle, its version and each schema through the bundle's variables
    (see `The bundle's variables`_) rather than spelling them.
-3. Add an entry under ``pds4.<dataset_name>:`` in
-   ``config_950_pds4.yaml`` that points at the new template directory and
+3. Add an entry under ``pds4.<dataset_name>:`` in a configuration file of its own,
+   named for its mission and target as ``config_951_pds4_coiss_saturn.yaml`` is (see
+   the ``pds4`` config block above), that points at the new template directory and
    sets the bundle's name and version, the information model version, and the schema
    of each dictionary the new templates declare.
 4. Copy the XML schema and the Schematron of every dictionary the new templates
