@@ -20,7 +20,7 @@ ground_truth:
     Selection: VGISS | 1980; {"filter": "CH4_JS", "gradient_amplitude": 24.70885, "gradient_score": 8.4, "surrogate": "Saturn-target frame, nothing resolved in FOV", "target": "SATURN", "texp_s": 7.68, "year": "1980"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
     Pipeline at curation: status=success, confidence=0.401, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyDiscCorrelateNav": [-28.9297, -16.7656], "BodyLimbNav": [-28.8277, -17.0884], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [-27.4357, -17.1837]}.
-    The default pipeline navigates this frame at medium/0.99; expected.confidence_tier reflects that behavior.
+    The default pipeline navigates this frame at medium/0.81; expected.confidence_tier reflects that behavior.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band.
 expected:

@@ -1983,8 +1983,10 @@ Top-level fields
      - Planted boresight roll (deg), turning catalog star positions, body
        centers, and the ring center alike about the frame's uv center
        ``(size_v / 2, size_u / 2)`` (see :ref:`sim-pixel-convention`), and added
-       to ``rotation_z`` and ``node_deg``.  Smear vectors and a companion's
-       ``angle_deg`` are stated in the detector frame and do not turn with it.
+       to ``rotation_z`` and ``node_deg``.  Smear vectors, a companion's
+       ``angle_deg``, and the ``distortion`` and ``stray_light`` centers in the
+       ``optics`` block are stated in the detector frame and do not turn with
+       it.
    * - ``midtime_utc``
      - str
      - none

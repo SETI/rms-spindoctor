@@ -311,9 +311,12 @@ and starts with a design document, not code.
   the zero-filled extfov margin, so no frame's navigation moves.
 - **The pixel-convention audit** — every use of a pixel coordinate in the
   repository was read against the two systems the code names with
-  `PIXEL_CENTER_TO_CORNER_PX`: pixel corner, which the geometry layer answers
-  in and which everything a person writes or reads is stated in, and pixel
-  centric, which anything addressing an array works in. Nav core, every GUI
+  `PIXEL_CENTER_TO_CORNER_PX`: pixel corner, which the `oops` geometry calls
+  answer in and which everything a person writes or reads is stated in, and
+  pixel centric, which anything addressing an array works in -- including every
+  position a feature payload carries. Neither system is universal to a layer;
+  each field declares its own, and `feature/geometry.py` states positions
+  pixel-centric while its half-open bounding boxes are pixel-corner. Nav core, every GUI
   program, every command-line program, and the documentation were all in
   scope.
 
@@ -329,9 +332,9 @@ and starts with a design document, not code.
   are stated where the operator supplies them (#652, #653, #654).
 
   Two structural changes stand behind those. Feature geometry payloads declare
-  their coordinate system on the field, which is what made
-  `predicted_center_vu` able to mean pixel centric on one feature type and
-  pixel corner on three others (#655). The sixteen conversions that were
+  their coordinate system on the field, and `predicted_center_vu` means pixel
+  centric on every payload that carries one rather than differing between them
+  (#655, #664). The sixteen conversions that were
   spelled as a bare `0.5` are named (#660).
 
   The rest is instrumentation and record. The documentation agrees with the

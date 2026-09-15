@@ -560,8 +560,8 @@ def test_annulus_carries_constituent_count_and_center(
     geometry = annulus.geometry
     assert isinstance(geometry, RingAnnulusGeometry)
     assert obs.extdata_shape_vu == (100, 100)
-    assert geometry.predicted_center_vu[0] == 49.5
-    assert geometry.predicted_center_vu[1] == 49.5
+    assert geometry.predicted_center_vu[0] == pytest.approx(49.5)
+    assert geometry.predicted_center_vu[1] == pytest.approx(49.5)
 
 
 # ---------------------------------------------------------------------------

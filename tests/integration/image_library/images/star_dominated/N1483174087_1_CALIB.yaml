@@ -18,7 +18,7 @@ ground_truth:
     star_dominated exemplar from cohort-curation review batch 002 (seq 079).
     Selection: 2004 | 5; {"filter": "CL1", "maglim": 10.7, "n_detectable": 5, "star_vmags": [8.84, 9.31, 10.02, 10.53, 10.66], "texp_s": 1.2, "year": "2004"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.745, rank=medium, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [-1.6686, 15.4814], "BodyBlobNav": [63.7862, -98.9428], "BodyTerminatorNav": [-50.9389, -130.2657], "StarRefineNav": [-1.6467, 15.4914]}.
+    Pipeline at curation: status=success, confidence=0.745, rank=medium, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [-1.6686, 15.4814], "BodyBlobNav": [63.7862, -98.9428], "BodyTerminatorNav": [-50.9389, -130.2657], "StarRefineNav": [-1.6467, 15.4914]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band. The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.
 expected:

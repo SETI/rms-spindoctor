@@ -211,8 +211,10 @@ def _paint_circle_outline(
 
     The center is rounded to the cell it falls in, which is what a pixel
     centric position means: a whole number there is a pixel's center, so the
-    nearest whole number is the pixel that holds the position.  Every payload
-    reaching here states its center that way.
+    nearest whole number is the pixel that holds the position.  A center
+    exactly on a boundary lies in neither of the two pixels it divides, and
+    ``round`` breaks that tie toward the even one; either neighbor is right
+    for a marker.  Every payload reaching here states its center that way.
 
     Parameters:
         image: Overlay image, modified in place.

@@ -19,7 +19,7 @@ ground_truth:
     body_full_fov exemplar from cohort-curation review batch 002 (seq 015).
     Selection: ENCELADUS | <30; {"apparent_diameter_px": 788.6, "center_phase_deg": 21.271, "filter": "CL1", "lat_coverage_deg": 161.4, "target": "ENCELADUS", "year": "2011"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.377, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [17.5, -19.3281], "BodyLimbNav": [18.2049, -19.6064]}.
+    Pipeline at curation: status=success, confidence=0.377, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [17.5, -19.3281], "BodyLimbNav": [18.2049, -19.6064]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. The primary is BodyDiscCorrelateNav, the highest-confidence contributor.
 expected:

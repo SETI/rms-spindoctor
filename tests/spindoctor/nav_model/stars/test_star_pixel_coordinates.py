@@ -244,6 +244,10 @@ def _logged_position(line: str, axis: str) -> float:
     Parameters:
         line: The line ``_star_short_info`` produced.
         axis: ``'U'`` or ``'V'``, the field label to read.
+
+    Returns:
+        The pixel corner coordinate the line states for that axis, with any
+        uncertainty suffix dropped.
     """
     fields = line.split()
     value = fields[fields.index(axis) + 1]
