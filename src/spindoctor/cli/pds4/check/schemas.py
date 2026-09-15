@@ -23,9 +23,10 @@ everything it reads has come through the one rule, as an absolute path.
 A URL a label names that cannot be resolved -- one that cannot be fetched, or with no file
 of its name in the directory -- is a finding naming it, and the label is not held to its
 XML schemas.  An import that cannot be resolved makes xmlschema warn, naming the import's
-URL, and every warning raised while a set of schemas is built is a finding.  A set that
-cannot be built at all -- a URL paired with a namespace its file does not define, say --
-is one finding, and the label is checked without it.
+URL, and each of xmlschema's own warnings raised while a set of schemas is built is a
+finding; any other warning raised meanwhile is left to the caller's filters, untouched.  A
+set that cannot be built at all -- a URL paired with a namespace its file does not define,
+say -- is one finding, and the label is checked without it.
 """
 
 import functools
@@ -33,11 +34,12 @@ import os
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import xmlschema
 from filecache import FCPath, FileCache
 from lxml import etree
+from xmlschema.exceptions import XMLSchemaWarning
 
 from spindoctor.cli.pds4.check.elements import element_path
 from spindoctor.cli.pds4.check.findings import CheckName, Finding
@@ -162,7 +164,7 @@ class _SchemaSet:
 
     Attributes:
         schema: The set, built, or None when it could not be.
-        warnings: The text of each warning raised while it was built.
+        warnings: The text of each of xmlschema's warnings raised while it was built.
         error: Why it could not be built, or None when it was.
     """
 
@@ -178,19 +180,53 @@ def _schema_set(source: SchemaSource, main: str, others: tuple[tuple[str, str], 
     Every URL xmlschema reads, the label's and each one a schema imports, goes through
     :meth:`SchemaSource.mapped`.
 
+    Only xmlschema's own warnings are the schemas' concern.  Any other warning raised
+    while the set is built -- a ``ResourceWarning`` the garbage collector raises for
+    something else in the process, say -- meets the caller's filters, and is shown,
+    raised or ignored as if nothing here were listening.
+
     Parameters:
         source: Where the schemas are taken from.
         main: The URL of the schema of the label's root element's namespace.
         others: Each other namespace the label declares, with its schema's URL.
 
     Returns:
-        The set, and every warning raised while it was built; or, when it cannot be
-        built, the first line of the reason xmlschema gives.
+        The set, and each of xmlschema's warnings raised while it was built; or, when it
+        cannot be built, the first line of the reason xmlschema gives.
     """
     schema: xmlschema.XMLSchema | None = None
     error: str | None = None
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter('always')
+    found: list[str] = []
+    with warnings.catch_warnings():
+        shown = warnings.showwarning
+
+        def show(
+            message: Warning | str,
+            category: type[Warning],
+            filename: str,
+            lineno: int,
+            file: TextIO | None = None,
+            line: str | None = None,
+        ) -> None:
+            """Keep a warning of xmlschema's, and show any other as it would have been.
+
+            Parameters:
+                message: The warning.
+                category: Its class.
+                filename: The file it was raised from.
+                lineno: The line it was raised from.
+                file: Where it is to be written.
+                line: The text of that line.
+            """
+            if issubclass(category, XMLSchemaWarning):
+                found.append(str(message))
+            else:
+                shown(message, category, filename, lineno, file, line)
+
+        # xmlschema's warnings are kept whatever the caller's filters say, one for each;
+        # every other warning still meets those filters, so one they raise is raised.
+        warnings.filterwarnings('always', category=XMLSchemaWarning)
+        warnings.showwarning = show
         try:
             schema = xmlschema.XMLSchema(
                 main,
@@ -203,11 +239,7 @@ def _schema_set(source: SchemaSource, main: str, others: tuple[tuple[str, str], 
             # checked without it, rather than a traceback that ends the whole check.
             reason = getattr(exc, 'message', None) or str(exc)
             error = str(reason).splitlines()[0]
-    return _SchemaSet(
-        schema=schema,
-        warnings=tuple(str(warning.message) for warning in caught),
-        error=error,
-    )
+    return _SchemaSet(schema=schema, warnings=tuple(found), error=error)
 
 
 @dataclass(frozen=True)
@@ -220,8 +252,8 @@ class LabelSchema:
             no schema for its root element's namespace, or the set cannot be built.
         findings: What resolving the declaration found: each URL that cannot be
             resolved, a root element whose namespace the label declares no XML schema
-            for, each warning raised while the set was built, and why it cannot be
-            built.
+            for, each of xmlschema's warnings raised while the set was built, and why
+            it cannot be built.
     """
 
     schema: xmlschema.XMLSchema | None
