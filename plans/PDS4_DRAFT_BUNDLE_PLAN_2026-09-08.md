@@ -66,6 +66,7 @@ this table first and trusts it over any recollection.
 | 9 — Parameterize the bundle name and version | **done** | `rf_pds4_phase9`, sections 3.9, 3.10 and 3.13; #71 is closed by hand when its PR merges (section 8) |
 | 10 — Validation, the integrity pass, and the draft run | **Part A done**; Part B moved to #708 | Part A, the bundle check, the test that gates it and `--check-only`, on `rf_pds4_phase10`, its PR #707, sections 3.1, 3.6, 3.11 and Phase 10; #66 and #265 are closed by hand when its PR merges (section 8). Part B, the draft run over a real COISS volume, is deferred to #708 by the operator's ruling of 2026-09-15, since it needs the DOIs and a fresh navigation of the volume |
 | Ring geometry dropped from the data labels | **done** | `rf_pds4_ring_labels`, cut from `rf_pds4_phase10`, by the operator's decision of 2026-09-15, sections 3.7 and 3.13 and Phase 8; the data labels name the ring target alone, and no label declares the rings dictionary. The incidence angle's least, greatest and mean and the wrapped ring longitude arc are columns of the rings index instead, by the operator's decision of the same day (section 3.7), and the bodies index gains a wrapped longitude arc too, by a second decision that day. #75 and #47 are closed as not planned when its PR merges |
+| Cassini PDS4 entry in a file of its own | **done** | `rf_pds4_ring_labels`, by the operator's decision of 2026-09-15, section 3.10: the whole `pds4.coiss_saturn` entry moved from `config_950_pds4.yaml`, now deleted, to `config_951_pds4_coiss_saturn.yaml` |
 
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
@@ -1129,7 +1130,8 @@ the reference's spelling resolves no better, and the question stays the
 Engineering Node's.
 
 **Declared once, since Phase 9.** The information model version and the schema of each
-dictionary are set in the dataset's entry in `config_950_pds4.yaml`:
+dictionary are set in the dataset's entry, in `config_951_pds4_coiss_saturn.yaml` for
+Cassini (section 3.10):
 `information_model_version`, and under `schemas` each dictionary's location less the
 extension and its `xml_schema` LIDVID, keyed by the prefix its namespace takes in a
 label. Every template takes them as variables (section 3.13), and the XML schema
@@ -1145,20 +1147,27 @@ carries the same build's code.
 
 ### 3.10 Bundle name and version
 
-`bundle_name` and `bundle_version` sit side by side in the dataset's entry in
-`config_950_pds4.yaml`, read through `pds4_bundle_name()` and `pds4_bundle_version()`;
-neither has a default. This was #71, which Phase 9 closes; it landed late because
-doing it early would have meant re-editing every template the earlier phases touched.
+`bundle_name` and `bundle_version` sit side by side in the dataset's entry, in
+`config_951_pds4_coiss_saturn.yaml` for Cassini, read through `pds4_bundle_name()` and
+`pds4_bundle_version()`; neither has a default. This was #71, which Phase 9 closes; it
+landed late because doing it early would have meant re-editing every template the
+earlier phases touched.
 
-**Where the entry lives, decided in Phase 9's fix round.** The dataset's entry stays in
-`config_950_pds4.yaml`, a registry of PDS4 settings keyed by dataset, and is not moved into
-the instrument's `config_400_inst_coiss.yaml`, although the loader reads the files in order
-and deep-merges each section, so the configuration would be the same either way. Every
-`config_4*` file's bytes are hashed into each navigation document's `static_data_hashes`
+**Where the entry lives, decided by the operator on 2026-09-15.** The whole
+`pds4.coiss_saturn` entry -- the template directory, the bundle's name and version, the
+information model version and the schemas, Cassini's among them -- is in
+`config_951_pds4_coiss_saturn.yaml`, a Cassini-named file of its own, since nothing
+mission-specific goes in a generically named file. `config_950_pds4.yaml` is gone, and
+the commented entries it held for gossi, nhlorri and vgiss are in the dev guide's `pds4`
+configuration section, their bundle names the operator's. The entry is in a `95x` file
+rather than the instrument's `config_400_inst_coiss.yaml` because every `config_4*`
+file's bytes are hashed into each navigation document's `static_data_hashes`
 (`nav_orchestrator/provenance.py`), which records them as the instrument's static data: a
 new bundle version or a moved schema kept there would read as a change of Cassini
-instrument data. The resolved configuration's hash covers the `pds4` section wherever it
-is kept.
+instrument data, and no `9xx` file is hashed that way. The loader reads the files in
+order and deep-merges each section, so the move changes neither the merged configuration
+nor its `resolved_config_hash`, and `static_data_hashes` covers the same files as before;
+the `pds4` section is defined by the new file alone, so none is left empty.
 
 Following #71's single version number, `bundle_version` is the `version_id` of the
 bundle, of every collection and of every product the bundle writes, and the version in
@@ -2831,8 +2840,9 @@ incidence block is pinned to a missing cell per absent member; and
 ### Phase 9 — Parameterize the bundle name and version
 
 Done on `rf_pds4_phase9`. The bundle's name and version, and the schemas its labels
-declare, are each set in one place, the dataset's entry in `config_950_pds4.yaml`, and
-every template takes them from there (sections 3.9, 3.10 and 3.13).
+declare, are each set in one place, the dataset's entry, since 2026-09-15 in
+`config_951_pds4_coiss_saturn.yaml` (section 3.10), and every template takes them from
+there (sections 3.9, 3.10 and 3.13).
 
 **One set of variables for every template.** `src/spindoctor/cli/pds4/bundle_variables.py`
 gives the variables every template of a bundle is handed beside its own: `BUNDLE_LID`,
@@ -2930,7 +2940,8 @@ other name and version, the bundle checks the same.
 - **The name has no code default.** `_default_pds4_bundle_name()` is gone, and a missing
   `bundle_name` stops the run as a missing `bundle_version` does. Nothing depended on it:
   the one dataset with no entry, `coiss_cruise`, is refused by the template check first.
-- **The entry stays in `config_950_pds4.yaml`**, as section 3.10 records.
+- **The entry's file** is `config_951_pds4_coiss_saturn.yaml`, by the operator's decision
+  of 2026-09-15 (section 3.10).
 - **`sphinx -n`** is left as it is: its nine unresolved references come from the API
   reference documenting `spindoctor.dataset.dataset` as `:noindex:`, which is older than
   this phase.
