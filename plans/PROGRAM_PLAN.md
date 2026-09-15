@@ -592,9 +592,10 @@ library votes and the decision gates, not by any implementation.
 Every open issue, listed exactly once by the track that owns it. 239 issues
 as of 2026-09-03, then fourteen added (#595-#600, #611, #614, #628, #677,
 #687, #705, #706, #708) and ten removed (#13, closed; #74 and #76, which Phases 6 and 7 of
-the PDS4 plan close; #47, #72, #73 and #75, which Part A of its Phase 8
-closes; #71, which its Phase 9 closes; #66 and #265, which Part A of its
-Phase 10 closes): 243 in all. #601 and #678 were added and removed in the same period,
+the PDS4 plan close; #72 and #73, which Part A of its Phase 8 closes; #47
+and #75, closed as not planned once the ring geometry leaves its data labels;
+#71, which its Phase 9 closes; #66 and #265, which Part A of its Phase 10
+closes): 243 in all. #601 and #678 were added and removed in the same period,
 since Phase 7 closes them too. The counts are given so a
 reader can tell a stale index from a current one at a glance.
 
