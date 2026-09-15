@@ -3431,6 +3431,8 @@ branch.
   ruling of 2026-09-15 (section 0). It needs the DOIs registered and a fresh
   navigation of the volume, and carries the by-hand registry check of the
   context inventory's versions.
+- #710 — a global navigation index in the bundle, deferred by the operator
+  on 2026-09-15: the prototype finishes without it.
 - #705 — the spelling gate on its way to `main` reads the local copies of
   the PDS4 schemas the tests keep (Phase 10, Part A), whose misspellings are
   NASA's; its skip list takes `*.xsd` and `*.sch`, in whichever of its two
