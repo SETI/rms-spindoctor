@@ -1008,8 +1008,12 @@ calibration).
  stable within the documented tolerance (flags hidden over-fitting to a constant).
 - **Re-measure the agreement gap, or make it a distance** (#675). `agreement_gap:
  0.5` in `config_540_orchestrator.yaml` asks whether the summed-confidence gap
- between the best result and the runner-up clears a fraction of the best, where
- the question the name asks is how far apart in pixels the two answers are. Two
+ between the best result and the runner-up clears a threshold, where the
+ question the name asks is how far apart in pixels the two answers are. The
+ threshold is read two ways: an absolute gap when the runner-up has a quorum of
+ two or more, and a fraction of the winner in a lone-against-lone standoff.
+ Measure both -- a criterion chosen against one of them can be wrong for the
+ other. Two
  curation-pass observations point the same way from opposite directions: two
  techniques agreeing to about a pixel were called conflicted on a gap of 0.045,
  and a disc and a limb result agreeing to about a pixel summed to 0.485 against
