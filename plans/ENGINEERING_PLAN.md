@@ -241,7 +241,7 @@ diagnosis attributes the dominant term to the photometric roll-off, not DT
 quantization, and ranks the fixes: (1) fit a photometric limb (predict the
 limb-darkened-disc-convolved-with-PSF brightness profile and match it, #150);
 (2) a matched-filter sub-pixel edge estimator to remove the interpolation
-ripple (#282); (3) a pixel-centre convention audit (#283). **Constraint:** do
+ripple (#282); (3) a pixel-center convention audit (#283). **Constraint:** do
 not enable a fitter change until
 the real-image measurement exists (Track A #225 provides it) — the current
 partial cancellation is accidental and a well-meaning "fix" can make real
@@ -268,7 +268,7 @@ and starts with a design document, not code.
   operator picks (accept the 2-px-class ground truth, keep TERMINATOR_ARC for
   SPICE-known synchronous rotators, or shape models per #23).
 - **#635** — the star pixel datum: a star record carries oops uv (a pixel's
-  corner) and every star technique measures array indices (a pixel's centre),
+  corner) and every star technique measures array indices (a pixel's center),
   so every star-derived offset was short by half a pixel in both axes. Fixed
   by declaring the convention on `MutableStar` and converting at each point of
   use (`STAR_UV_DATUM_PX`). The library's star-derived ground truths carried
@@ -348,27 +348,29 @@ LID/LIDVID builders, template variables) exists on
 `DataSetPDS3CassiniISS`, the collection machinery runs, and its data
 labels state real exposure times and describe the backplane FITS beside
 them, tested over a synthetic cohort of navigation and backplane
-products — but its templates are still drafts in places and nothing in
-the test suite validates a label against the PDS4 schema, so its output
-is not yet valid PDS4. The other three instruments additionally hit
+products, and `sd_create_bundle check` holds a bundle to the PDS4 schemas,
+the Schematron rules and its own tables, gated by a test over that cohort —
+but its templates are still drafts in places, so its output is not yet
+valid PDS4. The other three instruments additionally hit
 `NotImplementedError` walls in their `pds4_*` DataSet hooks. The work
-is therefore: finish and validate Cassini first (final templates,
-schema validation; the remaining phases of
-`PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`), then generalize — per-mission
+is therefore: finish and validate Cassini first (final templates; the
+remaining phases of `PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, which finishes as
+a prototype over the synthetic cohort, the run over a real volume being
+#708), then generalize — per-mission
 template trees plus hook implementations, mechanical but voluminous.
 
 Work items, in dependency order:
 
-1. **#265 — the output-layout mismatch** — the dev-guide "Output
-   layout" section describes a layout that neither the code nor the user
-   guide matches. Reconcile the documentation with the tree the generator
-   actually writes. Its swallowed-label-write part is fixed: every label
-   goes through one helper that reports what `pdstemplate` returned and fails
-   the run when a label was not written. So is its inventory-filename part:
-   the collection inventories are written as the `.csv` files their labels
-   name.
+1. **The output-layout mismatch** — done: both guides describe the tree the
+   generator writes, section 3.1 of the PDS4 plan (Part A of its Phase 10,
+   closing #265, by hand when its PR merges). Its swallowed-label-write part
+   was fixed first: every label goes through one helper that reports what
+   `pdstemplate` returned and fails the run when a label was not written. So
+   was its inventory-filename part: the collection inventories are written as
+   the `.csv` files their labels name.
 2. **Template finalization acceptance list** — the items recorded
-   on #53: schema validation, the unreferenced `cassini:*` variables (Part B of
+   on #53: schema validation, which `sd_create_bundle check` does and a test
+   over the synthetic cohort gates, the unreferenced `cassini:*` variables (Part B of
    the PDS4 plan's Phase 8, from the navigation document's `observation`
    block, #684) and hardcoded placeholders, TITLE/DESCRIPTION wording,
    the operator's acceptance of the index tables'
@@ -386,11 +388,17 @@ Work items, in dependency order:
    (#72), target handling (#73), the ring geometry class fields (#75) and the
    ring incidence angle (#47), which are Part A of its Phase 8; each is closed
    by hand when its PR merges.
-6. **#66** — integrity-checking pass over a generated bundle.
+6. **The integrity pass** — done: `sd_create_bundle check` checks a written
+   bundle as a whole, and `sd_create_bundle labels --check-only` reports
+   whether each selected image has the pass's inputs (Part A of the PDS4
+   plan's Phase 10, closing #66, by hand when its PR merges).
 7. **#67** — cloud-aware bundle generation (with the Track D cloud
    audit).
 8. Schema-validate generated `.lblx` against the PDS4 schemas in CI for
-   all four instruments (acceptance for the whole family).
+   all four instruments (acceptance for the whole family). Cassini's is
+   done: the test gating `sd_create_bundle check` over its cohort. Each
+   other instrument's bundle is held to the same check over a cohort of its
+   own.
 
 ### Backplane family (decision: #28 scope)
 

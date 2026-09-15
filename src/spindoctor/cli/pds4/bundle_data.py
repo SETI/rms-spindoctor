@@ -10,6 +10,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.data_objects import configured_methods, describe_backplane_fits
+from spindoctor.cli.pds4.image_inputs import image_inputs, navigation_record, navigation_succeeded
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.ring_geometry import ring_geometry
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
@@ -162,9 +163,10 @@ def generate_bundle_data_files(
     image_path = image_file.image_file_path.absolute()
     results_path_stub = image_file.results_path_stub
 
-    metadata_file = nav_results_root / (results_path_stub + '_metadata.json')
-    backplane_metadata_file = backplane_results_root / (
-        results_path_stub + '_backplane_metadata.json'
+    inputs = image_inputs(
+        results_path_stub,
+        nav_results_root=nav_results_root,
+        backplane_results_root=backplane_results_root,
     )
 
     with logger.open(f'Generating PDS4 bundle data files for {image_path!s}'):
@@ -175,44 +177,39 @@ def generate_bundle_data_files(
         # caches of their own, so reading it again is a second download of the
         # same file on a cloud results root rather than a second look at one
         # already local.
-        nav_metadata = image_file.nav_record
+        nav_metadata = navigation_record(image_file, inputs)
         if nav_metadata is None:
-            try:
-                metadata_text = metadata_file.read_text()
-            except FileNotFoundError:
-                # An image with no navigation document was never navigated,
-                # which is what the status branch below reports in the other
-                # spelling: no record of a navigation, rather than a record of a
-                # navigation that did not succeed.
-                logger.warning(
-                    'Skipping bundle generation for "%s": no navigation metadata at %s',
-                    image_path,
-                    metadata_file,
-                )
-                return BundleDataOutcome.SKIPPED
-            nav_metadata = cast(dict[str, Any], json.loads(metadata_text))
+            # An image with no navigation document was never navigated, which is
+            # what the status branch below reports in the other spelling: no
+            # record of a navigation, rather than a record of a navigation that
+            # did not succeed.
+            logger.warning(
+                'Skipping bundle generation for "%s": no navigation metadata at %s',
+                image_path,
+                inputs.navigation_document,
+            )
+            return BundleDataOutcome.SKIPPED
 
-        status = nav_metadata.get('status', None)
-        if status != 'success':
+        if not navigation_succeeded(nav_metadata):
             # TODO Figure out what to do with non-navigated images
             logger.warning(
                 'Skipping bundle generation for "%s": status=%s error=%s',
                 image_path,
-                status,
+                nav_metadata.get('status', None),
                 nav_metadata.get('status_error', 'unknown'),
             )
             return BundleDataOutcome.SKIPPED
 
         # Read backplane metadata
         try:
-            backplane_metadata_text = backplane_metadata_file.read_text()
+            backplane_metadata_text = inputs.backplane_metadata.read_text()
         except FileNotFoundError:
             # A navigated image whose backplanes were never generated has
             # nothing a backplanes bundle can describe.
             logger.warning(
                 'Skipping bundle generation for "%s": no backplane metadata at %s',
                 image_path,
-                backplane_metadata_file,
+                inputs.backplane_metadata,
             )
             return BundleDataOutcome.SKIPPED
         bp_stats = cast(dict[str, Any], json.loads(backplane_metadata_text))
@@ -283,8 +280,7 @@ def generate_bundle_data_files(
         # skip above leaves at least one.
         targets = image_targets(bp_stats, target_table(dataset.config))
 
-        fits_source_path = backplane_results_root / (results_path_stub + '_backplanes.fits')
-        fits_source_local = cast(Path, fits_source_path.retrieve())
+        fits_source_local = cast(Path, inputs.backplane_fits.retrieve())
 
         # The copy made below is byte-identical, so the source's description is the copy's.
         fits_objects = describe_backplane_fits(
@@ -336,7 +332,7 @@ def generate_bundle_data_files(
         # Add the bundle's own variables, which every template of it is handed, and the
         # file path variables to template_vars
         template_vars.update(bundle_variables(dataset))
-        summary_png_source = nav_results_root / (results_path_stub + '_summary.png')
+        summary_png_source = inputs.summary_png
         template_vars['BACKPLANE_FILENAME'] = fits_file_path.name
         template_vars['BACKPLANE_PATH'] = str(fits_file_path)
         template_vars['BACKPLANE_FITS'] = fits_objects

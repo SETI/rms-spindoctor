@@ -9,8 +9,8 @@ Ring-Moon Systems node ships to PDS for archive: one collection of data labels
 miscellaneous, SPICE kernel and XML schema collections, and the bundle label that
 wires them together. This chapter covers the bundle-generation driver, the
 per-dataset extension points, the templated label workflow, the global index and
-the miscellaneous collection, the bundle's run-level products, and the output
-layout.
+the miscellaneous collection, the bundle's run-level products, the check a written
+bundle is held to, and the output layout.
 
 The user-facing CLI walkthrough lives at :doc:`/user_guide/user_guide_pds4_bundle`; this
 chapter is the developer's reference.
@@ -64,19 +64,28 @@ The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
 label in place before it can build the inventory).
 
+``sd_create_bundle check`` then holds the bundle the two phases wrote to PDS4, reading
+its tree and the schemas its labels name, and writes nothing in the tree (see `Checking
+a bundle`_).  Before phase 1, ``sd_create_bundle labels --check-only`` reports whether
+each selected image has the files phase 1 reads, and writes no label, log or bundle
+file.
+
 Driver: ``sd_create_bundle``
 =============================
 
-``sd_create_bundle`` (``src/spindoctor/cli/sd_create_bundle.py``) has two
+``sd_create_bundle`` (``src/spindoctor/cli/sd_create_bundle.py``) has three
 subcommands. ``sd_create_bundle labels`` runs phase 1: it takes a
 ``DATASET_NAME``, the selection flags from the matching
 :class:`~spindoctor.dataset.dataset.DataSet` subclass (``--pds3-holdings-root``
 among them, for a PDS3 dataset), the environment options (``--config-file``,
 ``--bundle-results-root``, ``--nav-results-root``, ``--backplane-results-root``),
-the logging options and ``--dry-run``, and walks every selected image.
-``sd_create_bundle summary`` runs phase 2 once over the bundle: it takes a
-``DATASET_NAME``, ``--config-file``, ``--bundle-results-root`` and the logging
-options.
+the logging options and one of ``--dry-run`` and ``--check-only``, and walks every
+selected image.  With ``--check-only`` it reports on each image's inputs instead of
+labeling it.  ``sd_create_bundle summary`` runs phase 2 once over the bundle: it takes
+a ``DATASET_NAME``, ``--config-file``, ``--bundle-results-root`` and the logging
+options.  ``sd_create_bundle check`` checks a bundle the two passes wrote: it takes a
+``DATASET_NAME``, ``--config-file``, ``--bundle-results-root`` and ``--schema-dir``,
+and no logging options, since it writes no log.
 
 The cloud-tasks variant ``sd_create_bundle_cloud_tasks`` runs phase 1 from a
 queue, one image per task. A task carries a ``dataset_name`` and a ``files`` list
@@ -154,6 +163,30 @@ dry run over a missing template or a populated bundle root
 exits 1 naming what it found, like any other run.  Past them it writes nothing,
 so it counts nothing against the run, including a batch it reports it could not
 have processed.
+
+``--check-only`` makes neither check, since it writes no label, log or bundle file,
+neither needs nor creates a bundle root, and builds no logging.  For the image of each
+batch the selection enumerates it prints one line saying whether the navigation
+document, the summary PNG, the backplane FITS and the backplane metadata that
+:func:`~spindoctor.cli.pds4.image_inputs.image_inputs` names for it exist, and whether
+its navigation succeeded, from the navigation record as the labels pass reads it; then
+a count, through :func:`~spindoctor.cli.pds4.image_inputs.report_image_inputs`.  A batch
+of other than one image, which the labels pass fails, is one line, and every image of
+it counts as incomplete: the two take that rule from one function in the driver.  It
+exits 1 when any image lacks a file, its navigation did not succeed, or its batch is
+one the labels pass fails.  A selection that cannot be enumerated ends the report with
+the traceback it ends the labels pass with.  The file cache the two roots are read
+through creates a temporary directory, which it removes.
+
+The labels pass takes its four paths from the same function, so the report and the pass
+cannot disagree about where an input is.  The navigation document's path is the
+navigation records' own, :func:`~spindoctor.nav_records.document.document_path`, and
+both read the document through :func:`~spindoctor.nav_records.document.read_document`.
+The other three paths are stated in
+:func:`~spindoctor.cli.pds4.image_inputs.image_inputs` as the navigation and the
+backplane stages write them: those stages build each path where they write it and
+expose no function for it, so each of the three rules is stated once by its writer and
+once for the readers, a duplication older than the bundle check.
 
 ``sd_create_bundle summary`` counts the collection, index and run-level labels it
 did not write, over its three generators, and exits 1 the same way.  The index
@@ -247,6 +280,10 @@ attempt.  It makes neither of the local driver's up-front checks, the template
 check and the empty-root check, because it holds one task rather than the run:
 a template it cannot find raises out of every task, and the empty bundle root is
 the queue-driven run's own precondition to establish.
+
+``sd_create_bundle check`` exits 1 when it makes any finding, when the bundle's
+directory under the bundle results root is not there, and when the check itself
+stops, whose traceback it prints in place of a count; otherwise it exits 0.
 
 Per-dataset extension points
 ============================
@@ -371,7 +408,11 @@ own templates were written for.  The name, the version, the information model ve
 and the schemas have no default, and the shipped configuration is held to the shipped
 templates by tests rather than checked when it is loaded: it names the bundle, sets the
 version, gives a schema for exactly the dictionaries the templates declare, and gives
-the ``pds`` schema of the build the information model version names.  The entries are
+the ``pds`` schema of the build the information model version names.  The bundle check
+fetches each schema by its URL (see `Checking a bundle`_), and its tests read local
+copies, so a schema named here needs a copy in
+``tests/spindoctor/cli/pds4/check/schemas/``, which a test holds the shipped
+configuration to.  The entries are
 kept in this file, a registry keyed by dataset, rather than in an instrument's
 ``config_4*`` file: every navigation document records a hash of each of those files'
 bytes as the instrument's static data, and a new bundle version or a moved schema there
@@ -933,6 +974,130 @@ first, calls it with its own clearing, once it has found the bundle's data direc
 before it reads any supplemental file, so a run-level product on disk after a summary
 pass that got past that check is one that pass wrote.
 
+Checking a bundle
+=================
+
+``sd_create_bundle check`` holds a bundle the two passes wrote to PDS4, through
+:func:`~spindoctor.cli.pds4.check.bundle.check_bundle`.  It reads the bundle's tree
+and the schemas its labels name, fetched by URL or read from a directory, and writes
+nothing in the tree.  Each way the tree departs
+from PDS4 is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which names the
+file, whether it is an error or a warning, the check that found it, where in the file,
+and what is wrong; an XML schema error also names its kind, the class of the xmlschema
+validator that failed, which does not change with xmlschema's wording.  The program
+prints each finding as one line, and then the number of errors and of warnings, and
+exits 1 on an error.  A warning is what the PDS ``validate`` tool
+reports as a warning too: an unresolved reference to a product of the bundle
+(``reference_not_found``), a product no inventory lists (``unreferenced_member``), and
+a Schematron assert or report whose ``role``, or whose rule's, marks it a warning.  The
+check reads labels with ``lxml``, validates them with ``xmlschema`` and evaluates the
+Schematron with ``elementpath``'s XPath 2.0 engine, three runtime dependencies of the
+package.
+
+Every file under the bundle's directory whose name ends in ``.lblx`` is a label.  A
+label that is not well-formed XML is one finding and is checked no further.  Every other
+label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_label`:
+
+- **Against its XML schemas** (:mod:`~spindoctor.cli.pds4.check.schemas`).  Every URL
+  the check reads -- each a label's ``xsi:schemaLocation`` pairs with a namespace, each
+  ``xml-model`` ``href``, and each ``schemaLocation`` a schema's ``xs:import`` gives --
+  is resolved one way, by :class:`~spindoctor.cli.pds4.check.schemas.SchemaSource`.  By
+  default it is fetched through ``filecache`` into the cache
+  ``_filecache_spindoctor_pds4_schemas``, under ``$FILECACHE_CACHE_ROOT`` when that is
+  set and otherwise in the user's own ``$XDG_CACHE_HOME`` or ``~/.cache``, never in a
+  directory other users share, which keeps each download for later checks; with
+  ``--schema-dir`` it is the file of the URL's name in that directory, and nothing is
+  fetched.  ``xmlschema`` is allowed only local files and reads every URL through that
+  rule, so an import resolves to the schema at its own URL, as ``validate`` resolves it,
+  and no namespace is named in code.  ``xmlschema`` reads a namespace once in a set,
+  though: the Cassini data labels declare the geometry dictionary's build ``19B0``, and
+  that build serves the Cassini schema's import of ``19A0``, which is not read, where
+  ``validate`` reads both, to the same verdicts.  A URL a label names that cannot be resolved is a finding naming it.  Every
+  warning ``xmlschema`` raises while it builds a set of schemas is a finding, so an
+  import that cannot be resolved cannot pass silently.  A set that cannot be built at all -- a URL paired with a namespace its file
+  does not define, say -- is one finding, and the label is checked without it.  Each
+  distinct set a label declares is built once.
+- **Against its Schematron rules** (:mod:`~spindoctor.cli.pds4.check.schematron`), each
+  named by the ``href`` of an ``xml-model`` instruction and resolved by the same rule.
+  A rule is matched as the ISO Schematron skeleton's XSLT matches it: a
+  node matches when it is in ``//(context)`` evaluated from the document node; only the
+  first rule of a pattern a node matches fires for it; the schema's and each pattern's
+  variables are evaluated at the document node, and a rule's at the node it matched.  A
+  context that is a union of path expressions joined by ``|``, as every context of the
+  labels' Schematron is, is selected as ``//`` before each branch, which selects the
+  same nodes without evaluating the context again at every node of the label; any other
+  context, one holding the ``union``, ``intersect`` or ``except`` keyword or a comment,
+  is selected as ``//(context)`` itself.  An assert whose test is false and a report
+  whose test is true are each a finding, with the rule's message: a warning when it, or
+  else its rule, carries a ``role`` of ``warning`` or ``warn`` in any case, and an error
+  otherwise.  Strings are compared by the Unicode code point collation, XPath's
+  default, whatever locale the process runs under.  The rules cannot be run by ``lxml``'s
+  ISO Schematron, which does
+  not take their XSLT 2.0 query language, nor by an evaluator that matches a rule from a
+  node's parent, which never fires a rule whose context has several steps, such as the
+  one on ``pds:SPICE_Kernel/pds:kernel_type``.
+- **Its tables, read through the label alone** (:mod:`~spindoctor.cli.pds4.check.tables`),
+  since neither schema reads a table.  A ``Table_Character``, a ``Table_Delimited`` or an
+  ``Inventory`` is read, with the ``Header`` objects beside it: the objects of the file
+  area tile the file, a ``Header`` ending where its ``object_length`` says and a table
+  holding its ``records``, each ending in its record delimiter byte for byte, so that a
+  carriage return the label does not declare is found; ``fields`` and ``groups`` count
+  what the record describes, and in a record holding no group each ``field_number`` is
+  its field's position; each field lies within the record and overlaps no other; each
+  value is valid for its
+  ``data_type``, the simple type of that name in the common dictionary the label
+  declares; a delimited value keeps to its ``maximum_field_length``; and a cell equal to
+  its field's missing constant as a number is spelled as the constant is.  The fields of
+  a group, a ``Table_Binary``, and a file area that also holds an object of another
+  class are left to the XML schema and to ``validate``.
+- **A global index table's layout** (:mod:`~spindoctor.cli.pds4.check.index_tables`).
+  PDS4 constrains neither what a header holds nor the bytes between two fields, but the
+  layout :mod:`~spindoctor.cli.pds4.global_index` writes, the same for every dataset's
+  bundle, does: the header line names the label's fields, in order, separated by commas;
+  a comma alone lies between two fields, and the last ends where the record delimiter
+  begins; and in every record the byte after each field but the last is a comma.
+- **Its statistic columns** (:mod:`~spindoctor.cli.pds4.check.statistic_columns`).  A
+  field a configured plane's ``index`` block names states the unit the plane's statistic
+  is in, as :func:`~spindoctor.cli.backplanes.statistics.statistics_units` gives it, and
+  declares as its missing constant the masked value in that unit's format.  This is the
+  part of the check that reads the configuration.  The two helpers are the summary
+  pass's own, so that each rule is stated once: the summary pass's tests pin them, and a
+  defect in one would pass this check.
+
+Then the tree as a whole (:mod:`~spindoctor.cli.pds4.check.integrity`): every
+``file_name`` names a file beside its label, by its name alone and once, and the
+``file_size`` and ``md5_checksum`` beside it are that file's; every file is a label or
+is named by exactly one label; no label holds a ``[[[`` marker; no element is empty
+unless its ``xsi:nil`` is true; no two labels declare one logical identifier; and every
+``lid_reference`` and ``lidvid_reference`` to a product of the bundle itself -- one
+whose logical identifier extends the bundle label's -- names a product a label of the
+tree declares, and a ``lidvid_reference`` that product's version, one that does not
+being a warning.  Each collection's inventory
+(:mod:`~spindoctor.cli.pds4.check.inventories`) lists as a primary member only products
+the tree holds, at the versions it holds, and each product in the collection's
+directory once, one listed twice being an error and one not listed a warning.  Each
+global index table's records (:mod:`~spindoctor.cli.pds4.check.index_tables`) name
+products the tree holds, with each product's label as their ``file_spec`` and every
+other column named for a PDS4 attribute, the start and stop times, as that label states
+it; and each product whose label names a supplemental file has the records the file
+calls for.  A tree with no bundle label at its top is a finding of its own.
+
+The NASA PDS ``validate`` tool is the authority for a bundle delivered to the node, and
+checks three things the check does not: where each data object of a FITS file begins,
+the user guide's PDF, which it reads with VeraPDF, and each reference a label makes to a
+context product, against the context products registered with the PDS.  Neither checks
+the versions an inventory's secondary members give products outside the bundle, nor
+that what a label states is right rather than allowed: a unit the vocabulary holds but
+the value is not in, a target the product has that the label leaves out, or the lengths
+a label gives a FITS array's axes.  ``validate`` is a Java program run by hand; the
+check is what the suite runs (see `Testing bundle generation`_).
+
+A dictionary added to a dataset's ``schemas``, or moved to another version, has its XML
+schema and its Schematron, and every schema those import, copied byte for byte from
+their URLs into ``tests/spindoctor/cli/pds4/check/schemas/``, where the check's tests
+read them without the network: two tests hold every dataset's configured schemas, and
+every import of a copy, to having a copy there.
+
 Output layout
 =============
 
@@ -941,45 +1106,51 @@ The two passes write this tree:
 ::
 
    <bundle_results_root>/<bundle_name>/
-     bundle.lblx                             # summary pass
-     readme.txt                              # summary pass
-     data/
-       collection_data.csv                   # summary pass
-       collection_data.lblx                  # summary pass
-       <pds4_bundle_path_for_image>/
-         <image>_backplanes.lblx
-         <image>_backplanes.fits             # copied from backplane_results_root
-         <image>_supplemental.txt
+     bundle.lblx                               # summary pass
+     readme.txt                                # summary pass
      browse/
-       collection_browse.csv                 # summary pass
-       collection_browse.lblx                # summary pass
-       <pds4_bundle_path_for_image>/
-         <image>_summary.lblx
-         <image>_summary.png                 # copied from nav_results_root
+       collection_browse.csv                   # summary pass
+       collection_browse.lblx                  # summary pass
+       <path stub>/<image>_summary.png         # labels pass, copied from nav_results_root
+       <path stub>/<image>_summary.lblx        # labels pass
      context/
-       collection_context.csv                # summary pass
-       collection_context.lblx               # summary pass
+       collection_context.csv                  # summary pass
+       collection_context.lblx                 # summary pass
+     data/
+       collection_data.csv                     # summary pass
+       collection_data.lblx                    # summary pass
+       <path stub>/<image>_backplanes.fits     # labels pass, copied from backplane_results_root
+       <path stub>/<image>_backplanes.lblx     # labels pass
+       <path stub>/<image>_supplemental.txt    # labels pass
      document/
-       collection_document.csv               # summary pass
-       collection_document.lblx              # summary pass
-       user_guide/                           # only when the template directory holds it
-         <user guide>.pdf                    # summary pass, copied
-         <user guide>.lblx                   # summary pass
+       collection_document.csv                 # summary pass
+       collection_document.lblx                # summary pass
+       user_guide/                             # only when the template directory holds it
+         <user guide>.pdf                      # summary pass, copied
+         <user guide>.lblx                     # summary pass
      miscellaneous/
-       collection_miscellaneous.csv          # summary pass
-       collection_miscellaneous.lblx         # summary pass
-       global_bodies_index.tab               # summary pass
-       global_bodies_index.lblx              # summary pass
-       global_rings_index.tab                # summary pass, when an image has rings
-       global_rings_index.lblx               # summary pass, when an image has rings
+       collection_miscellaneous.csv            # summary pass
+       collection_miscellaneous.lblx           # summary pass
+       global_bodies_index.tab                 # summary pass
+       global_bodies_index.lblx                # summary pass
+       global_rings_index.tab                  # summary pass, when an image has rings
+       global_rings_index.lblx                 # summary pass, when an image has rings
      spice_kernels/
-       collection_spice_kernels.csv          # summary pass
-       collection_spice_kernels.lblx         # summary pass
-       kernels.ker                           # summary pass, copied
-       kernels.lblx                          # summary pass
+       collection_spice_kernels.csv            # summary pass
+       collection_spice_kernels.lblx           # summary pass
+       kernels.ker                             # summary pass, copied
+       kernels.lblx                            # summary pass
      xml_schema/
-       collection_xml_schema.csv             # summary pass
-       collection_xml_schema.lblx            # summary pass
+       collection_xml_schema.csv               # summary pass
+       collection_xml_schema.lblx              # summary pass
+
+``<path stub>/<image>`` is what
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_path_stub` gives an image, its
+directory the one
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_path_for_image` gives: for
+``coiss_saturn``, ``1454xxxxxx/145482xxxx/1454820509n``.  ``<user guide>`` is the stem
+of :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name`:
+``cassini-iss-saturn-backplanes-user-guide`` for ``coiss_saturn``.
 
 Testing bundle generation
 =========================
@@ -1072,6 +1243,26 @@ and one entry in ``COHORTS``. The FITS files, the browse images and the
 documents it implies exist only while a test is running, so it costs the
 repository nothing.
 
+The bundle check (see `Checking a bundle`_) is gated by a test in the default suite, so
+it runs wherever the suite does: in ``scripts/run-all-checks.sh`` and in CI.
+``tests/spindoctor/cli/pds4/check/test_check_cassini_iss_saturn.py`` builds the Cassini
+ISS Saturn cohort's bundle twice, plain and from a copy of the template directory holding
+a stand-in user guide, runs
+:func:`~spindoctor.cli.pds4.check.bundle.check_bundle` over each, and holds the findings,
+each by its file, check, location and message -- or, for an XML schema error, its kind,
+since xmlschema's wording is not the check's -- to exactly what is known of the bundle,
+errors and warnings apart.  The errors are the ``TODO DOI`` placeholder of the bundle
+label and the two of the guide's label, and each data label's empty
+``cassini:ISS_Specific_Attributes``; the warnings, in the plain build alone, are each
+reference to the user guide, which that bundle does not hold.  A finding outside that
+list fails the test, and so does a known one the check stops making.  The gate reads
+the schemas from the local copies the tests keep, so the suite needs no network, and a
+test marked ``integration`` has the check fetch them by their URLs and holds it to the
+same findings.  Each part of the check is also held to a
+control for each condition it checks -- a copy of that bundle broken in one place -- in a
+test module named for the bundle, and the Schematron evaluator's semantics to a
+Schematron and a label written by the test itself.
+
 Adding PDS4 support to a new dataset
 ====================================
 
@@ -1103,13 +1294,15 @@ The end-to-end checklist:
    ``config_950_pds4.yaml`` that points at the new template directory and
    sets the bundle's name and version, the information model version, and the schema
    of each dictionary the new templates declare.
-4. Add an integration smoke test that renders one image through
-   ``sd_create_bundle`` and asserts the resulting ``data.lblx`` validates
-   against the PDS4 schema.
+4. Copy the XML schema and the Schematron of every dictionary the new templates
+   declare, and every schema those import, byte for byte from their URLs into
+   ``tests/spindoctor/cli/pds4/check/schemas/`` (see `Checking a bundle`_).
 5. Add the bundle's cohort, as `Testing bundle generation`_ describes: a
    :class:`~tests.mini_nav_results.cohort.Cohort` subclass in a module named for
    the bundle, its entry in ``COHORTS``, and a test module named for the bundle
-   for what only its cohort can state.
+   for what only its cohort can state, among it the findings
+   :func:`~spindoctor.cli.pds4.check.bundle.check_bundle` makes over the cohort's
+   bundle, as the Cassini ISS Saturn gate holds them.
 
 API reference
 =============
@@ -1137,6 +1330,15 @@ documented above.
   removes every path it can write and which the index generator calls first.
 - :func:`~spindoctor.cli.pds4.labels.write_label` — the one place a label is
   written, shared by both.
+- :func:`~spindoctor.cli.pds4.check.bundle.check_bundle` — the bundle check over a
+  written tree, and :func:`~spindoctor.cli.pds4.check.bundle.check_label`, the part of
+  it one label is held to on its own; each returns
+  :class:`~spindoctor.cli.pds4.check.findings.Finding` objects.
+- :func:`~spindoctor.cli.pds4.image_inputs.image_inputs` — the four files the labels
+  pass reads for an image, the navigation document's path taken from the navigation
+  records' :func:`~spindoctor.nav_records.document.document_path`, and
+  :func:`~spindoctor.cli.pds4.image_inputs.report_image_inputs`, what ``--check-only``
+  reports of them.
 - :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` — the variables every
   template of a bundle is handed: its LID and version, the information model version and
   each dictionary's schema.

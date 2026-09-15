@@ -41,7 +41,9 @@ def labels_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch: Fixture the stand-ins are installed through.
     """
     monkeypatch.setattr(
-        sd_create_bundle, 'parse_args_labels', lambda _: argparse.Namespace(dry_run=False)
+        sd_create_bundle,
+        'parse_args_labels',
+        lambda _: argparse.Namespace(dry_run=False, check_only=False),
     )
     monkeypatch.setattr(sd_create_bundle, 'load_default_and_user_config', lambda *a: None)
     monkeypatch.setattr(sd_create_bundle, 'build_run_logging', lambda *a: None)
@@ -69,7 +71,9 @@ def _dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch: Fixture the parsed command line is installed through.
     """
     monkeypatch.setattr(
-        sd_create_bundle, 'parse_args_labels', lambda _: argparse.Namespace(dry_run=True)
+        sd_create_bundle,
+        'parse_args_labels',
+        lambda _: argparse.Namespace(dry_run=True, check_only=False),
     )
 
 

@@ -19,6 +19,11 @@ The bundle generation process consists of two main passes:
    information across all processed images, and the files that describe the bundle as a
    whole: its label, its readme, its metakernel and its user guide.
 
+A third command, ``sd_create_bundle check``, checks a bundle the two passes wrote (see
+`Check Pass`_), and the labels pass's ``--check-only`` option reports, before anything
+is written, whether each selected image has what the labels pass needs (see `Checking
+the Inputs`_).
+
 Purpose
 -------
 
@@ -43,32 +48,30 @@ The two passes write this directory structure:
    ├── browse/
    │   ├── collection_browse.csv
    │   ├── collection_browse.lblx
-   │   └── <directory_structure>/
-   │       └── <image_name>_summary.lblx
-   │       └── <image_name>_summary.png
+   │   ├── <path stub>/<image>_summary.png
+   │   └── <path stub>/<image>_summary.lblx
    ├── context/
    │   ├── collection_context.csv
    │   └── collection_context.lblx
    ├── data/
    │   ├── collection_data.csv
    │   ├── collection_data.lblx
-   │   └── <directory_structure>/
-   │       └── <image_name>_backplanes.lblx
-   │       └── <image_name>_backplanes.fits
-   │       └── <image_name>_supplemental.txt
+   │   ├── <path stub>/<image>_backplanes.fits
+   │   ├── <path stub>/<image>_backplanes.lblx
+   │   └── <path stub>/<image>_supplemental.txt
    ├── document/
    │   ├── collection_document.csv
    │   ├── collection_document.lblx
    │   └── user_guide/
-   │       ├── <user_guide>.lblx
-   │       └── <user_guide>.pdf
+   │       ├── <user guide>.pdf
+   │       └── <user guide>.lblx
    ├── miscellaneous/
    │   ├── collection_miscellaneous.csv
    │   ├── collection_miscellaneous.lblx
-   │   ├── global_bodies_index.lblx
    │   ├── global_bodies_index.tab
-   │   ├── global_rings_index.lblx
-   │   └── global_rings_index.tab
+   │   ├── global_bodies_index.lblx
+   │   ├── global_rings_index.tab
+   │   └── global_rings_index.lblx
    ├── spice_kernels/
    │   ├── collection_spice_kernels.csv
    │   ├── collection_spice_kernels.lblx
@@ -83,9 +86,10 @@ template directory holds the user-guide PDF (see `Templates`_). The rings index
 and its label are in ``miscellaneous/`` only when some image in the bundle has
 ring backplanes (see `Global Index Tables`_).
 
-The directory structure within ``data/`` and ``browse/`` mirrors the structure of the
-original PDS4 dataset (if it existed), with paths derived from image names using
-dataset-specific logic.
+``<path stub>/<image>`` places each image in ``data/`` and ``browse/`` by a rule the
+dataset derives from the image's name: for ``coiss_saturn``, image N1454820509 is at
+``1454xxxxxx/145482xxxx/1454820509n``. ``<user guide>`` is the name of the dataset's
+user guide: ``cassini-iss-saturn-backplanes-user-guide`` for ``coiss_saturn``.
 
 Command-Line Interfaces
 =======================
@@ -139,6 +143,9 @@ Navigation and backplane options:
 Output options:
 
 * ``--dry-run``: print the images that would be processed without generating bundle files.
+* ``--check-only``: generate nothing, and report instead whether each selected image has
+  what the labels pass needs (see `Checking the Inputs`_). It cannot be given with
+  ``--dry-run``.
 
 Dataset selection options are the same as in the navigation and backplane drivers (see
 :doc:`user_guide_navigation`).
@@ -164,6 +171,39 @@ Process all images in a volume range:
      --nav-results-root /data/nav/results \
      --backplane-results-root /data/nav/backplanes \
      --bundle-results-root /data/nav/bundle
+
+Checking the Inputs
+^^^^^^^^^^^^^^^^^^^
+
+With ``--check-only``, the labels pass writes no labels, logs or bundle files, and
+reports instead, for each selected image, whether the four files it would read are there
+-- the navigation metadata file and the summary PNG under the navigation results root,
+the backplane FITS file and the backplane metadata file under the backplane results root
+-- and whether the image's navigation succeeded. An image with all four whose navigation
+succeeded is complete. The labels pass takes the selected images one at a time. Should
+the selection hand it a group instead -- an empty one, or several images at once -- the
+pass cannot label the group: the report says so on one line, and counts each image of
+the group as incomplete. Use it to choose the images of a bundle before generating it: the
+report needs no bundle results root and creates none. The only thing it creates is a
+temporary directory for reading the two roots, which it removes before it ends.
+
+It prints one line for each image, or for each group the labels pass cannot label, then a
+count. It exits 1 if any selected image is incomplete or the selection holds such a
+group, even an empty one, which leaves no image incomplete:
+
+.. code-block:: bash
+
+   sd_create_bundle labels coiss_saturn --volumes COISS_2001 --check-only \
+     --nav-results-root /data/nav/results \
+     --backplane-results-root /data/nav/backplanes
+
+.. code-block:: text
+
+   COISS_2001/data/1454725799_1455008789/N1454820509_1_CALIB: navigation document present, summary PNG present, backplane FITS present, backplane metadata present, navigation succeeded: complete
+   COISS_2001/data/1454725799_1455008789/N1454821332_1_CALIB: navigation document present, summary PNG absent, backplane FITS absent, backplane metadata absent, navigation did not succeed (status error): incomplete
+   Input check: 2 image(s) selected, 1 complete, 1 incomplete
+
+Each line names the image by where its results are under the two roots.
 
 Cloud Tasks Variant
 ^^^^^^^^^^^^^^^^^^^
@@ -221,6 +261,124 @@ Generate collection and global index files for a completed bundle:
 
    sd_create_bundle summary coiss_saturn \
      --bundle-results-root /data/nav/bundle
+
+Check Pass
+----------
+
+The check pass checks a bundle the labels and summary passes wrote, and reports every
+way it departs from what a PDS4 bundle has to be. It reads the bundle and the PDS4
+schemas its labels name. By default it fetches each schema from the web address the
+label gives, so it needs the network, and keeps what it fetches in a cache, so that a
+later check fetches nothing it already has: the directory
+``_filecache_spindoctor_pds4_schemas`` in your own cache directory, ``~/.cache`` (or the
+directory the ``XDG_CACHE_HOME`` environment variable names, if it is set), or in the
+directory ``FILECACHE_CACHE_ROOT`` names, if that is set. With
+``--schema-dir`` it reads each schema from the file of the same name in that directory
+instead, and fetches nothing. It writes nothing in the bundle, and no log. It uses the
+``lxml``, ``elementpath`` and ``xmlschema`` packages, which are installed with
+SpinDoctor.
+
+Basic Usage
+^^^^^^^^^^^
+
+.. code-block:: bash
+
+   sd_create_bundle check DATASET_NAME [options]
+
+Command-Line Arguments
+^^^^^^^^^^^^^^^^^^^^^^
+
+* ``--config-file PATH`` (repeatable): one or more configuration file paths to override
+  defaults.
+* ``--bundle-results-root PATH``: root directory where the bundle is. If not provided,
+  uses the ``NAV_BUNDLE_RESULTS_ROOT`` environment variable or the
+  ``bundle_results_root`` configuration setting.
+* ``--schema-dir PATH``: read each schema from the file of the same name in this
+  directory, and fetch nothing. It has to hold every schema the labels name, as the PDS
+  publishes them, and every schema those import.
+
+It takes no logging options.
+
+What It Checks
+^^^^^^^^^^^^^^
+
+* Every label against the XML schemas and the Schematron rules it declares. A schema
+  that cannot be fetched, or that the ``--schema-dir`` directory does not hold, is
+  reported with its web address.
+* Every table -- the index tables and each collection's list of members -- read through
+  its label: where each part of the file begins and ends, how many records and fields
+  it holds, where each field lies and what number it is given, whether each record ends
+  in exactly the characters the label says it does, and whether each value is of its
+  field's type. A value equal to its field's missing constant must be written as the
+  constant is.
+* The layout of the index tables: the header line names the columns in order, separated
+  by commas, and a comma alone lies between two values of a row.
+* Each column of an index table against the configuration: its unit, and its missing
+  constant, which is the masked value written in the column's format.
+* Each row of an index table against the bundle: it names a data product the bundle
+  holds, with that product's label and its start and stop times, and each data product
+  has a row in the bodies table for each body its backplanes give statistics for and, if
+  they give ring statistics, a row in the rings table.
+* The bundle as a whole: every file a label names is beside the label, is named by its
+  name alone, and has the size and MD5 checksum the label gives it; every other file is
+  named by exactly one label; no label holds a leftover template marker, ``[[[``, which
+  a label template leaves where it could not fill in a value; no element is empty,
+  unless it carries ``xsi:nil``, which marks it empty on purpose; no two labels declare
+  the same product; each collection's list of members names products the bundle holds,
+  at the versions it holds, and names each product in the collection's directory once;
+  and every reference to a product of the bundle names one the bundle holds, at the
+  version it holds.
+
+Each finding is an error or a warning. A warning is something the NASA PDS ``validate``
+tool also reports as a warning: a reference to a product of the bundle that the bundle
+does not hold, a product its collection's list of members leaves out, and the breach of
+a Schematron rule marked as a warning. A bundle written without its user guide gets a
+warning for each reference to the guide.
+
+``validate`` is the tool to run on a bundle before it is delivered. It checks three
+things the check does not: where each array begins in a FITS file; the user guide's PDF,
+which must be one its VeraPDF library can read; and each reference a label makes to a
+product outside the bundle, such as a target or the mission, against the products
+registered with the PDS. Neither tool checks the version a collection's list of members
+gives a product outside the bundle, nor whether what a label says is right rather than
+merely allowed -- a unit the schemas accept but the value is not in, a target the
+product has that the label leaves out, or the length a label gives an axis of a FITS
+array. Check those by hand.
+
+Output
+^^^^^^
+
+The check prints one line for each finding: the file, relative to the bundle's
+directory; whether it is an error or a warning; the part of the check that found it
+(``xml``, ``xsd``, ``schematron``, ``table`` or ``integrity``); where in the file; and
+what is wrong. Then it prints the number of errors and of warnings:
+
+.. code-block:: text
+
+   bundle.lblx: error [xsd] /Product_Bundle/Identification_Area/Citation_Information/doi: value doesn't match any pattern of ['10\\.\\S+/\\S+'] (line 17)
+   spice_kernels/kernels.lblx: warning [integrity] /Product_SPICE_Kernel/Reference_List/Internal_Reference/lid_reference: refers to urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide, which no label of the tree declares
+   Bundle check of /data/nav/bundle/cassini_iss_saturn_backplanes_rsfrench2027: 1 error(s), 1 warning(s)
+
+A bundle written without its user guide refers to the guide from several labels, and
+the check warns of each such reference, since the bundle does not hold the guide.
+
+Examples
+^^^^^^^^
+
+Check a bundle:
+
+.. code-block:: bash
+
+   sd_create_bundle check coiss_saturn \
+     --bundle-results-root /data/nav/bundle
+
+Check it without the network, reading the schemas from a directory of copies:
+
+.. code-block:: bash
+
+   sd_create_bundle check coiss_saturn \
+     --bundle-results-root /data/nav/bundle \
+     --schema-dir /data/pds4/schemas
 
 Inputs and Outputs
 ==================
@@ -485,6 +643,11 @@ with exit status 2 before it does anything.
   process. It exits 0 if the bundle directory is empty and every template is
   present.
 
+  ``--check-only`` writes no labels, logs or bundle files, and exits 1 if any selected
+  image is incomplete or the selection hands the labels pass a group of images it
+  cannot label, an empty group included (see `Checking the Inputs`_), and 0 otherwise.
+  It does not look at the bundle directory or the templates.
+
 * ``sd_create_bundle summary`` exits 1 without writing anything if a file it needs
   from the template directory is missing (the user-guide PDF apart), or if the bundle has
   no ``data/`` directory: run the labels pass
@@ -505,6 +668,10 @@ with exit status 2 before it does anything.
   If a supplemental file holds such a statistic, it exits 1 and leaves none
   of the files the summary pass writes: regenerate the backplanes, then the bundle,
   into an empty directory.
+
+* ``sd_create_bundle check`` exits 1 if it finds an error, if there is no bundle
+  directory under the bundle results root, or if the check itself stops, in which case
+  it prints why instead of the counts. Otherwise it exits 0, warnings or none.
 
 * ``sd_create_bundle_cloud_tasks`` reports a task whose products could not be
   written as ``status: error``, with ``status_error`` saying why (for example
@@ -695,7 +862,8 @@ Typical workflow for generating a complete PDS4 bundle:
         --nav-results-root /data/nav/results \
         --backplane-results-root /data/nav/backplanes
 
-3. **Run Bundle Labels Pass**: Generate PDS4 labels and supplemental files for each image
+3. **Run Bundle Labels Pass**: Generate PDS4 labels and supplemental files for each image.
+   Run it first with ``--check-only`` to see which images have what the pass needs.
 
    .. code-block:: bash
 
@@ -718,6 +886,13 @@ Typical workflow for generating a complete PDS4 bundle:
    .. code-block:: bash
 
       sd_create_bundle summary coiss_saturn \
+        --bundle-results-root /data/nav/bundle
+
+5. **Check the Bundle**: Report every way the bundle departs from PDS4
+
+   .. code-block:: bash
+
+      sd_create_bundle check coiss_saturn \
         --bundle-results-root /data/nav/bundle
 
 Troubleshooting
