@@ -8,20 +8,22 @@ before any ``/`` is exactly ``rad`` becomes ``deg`` with the rest kept, so
 unit other than ``rad``, such as ``mrad`` or ``arcsec``, would need a change here.
 
 A plane of longitudes is also summarized by its range wrapped at zero, the arc of the
-circle its values cover, which :func:`wrapped_range` finds.
+circle its values cover, which :func:`wrapped_range` finds; for a body's longitudes, the
+widest gap that leaves the circle covered is :func:`longitude_step`'s.
 """
 
 from typing import NotRequired, TypedDict
 
 import numpy as np
 
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'DEGREES',
     'FULL_CIRCLE',
     'RADIANS',
     'PlaneStatistics',
+    'longitude_step',
     'plane_statistics',
     'statistics_units',
     'wrapped_range',
@@ -115,6 +117,48 @@ def wrapped_range(longitudes: NDArrayFloatType, *, resolution: float) -> tuple[f
     if gaps[widest] <= resolution:
         return 0.0, FULL_CIRCLE
     return float(circle[(widest + 1) % len(circle)]), float(circle[widest])
+
+
+def longitude_step(plane: NDArrayFloatType, pixels: NDArrayBoolType, *, units: str) -> float:
+    """Return the widest step in longitude between two neighboring pixels, in degrees.
+
+    Two pixels neighbor when they share an edge, and a step counts when both are among
+    ``pixels`` and hold a finite value.  A step is taken the short way round the circle,
+    so that pixels on either side of the prime meridian step by little.
+
+    It is the widest gap between a body's longitudes that the body's own sampling leaves
+    with no longitude out of view, so :func:`wrapped_range` takes it as its resolution.
+    Longitude changes fastest from pixel to pixel near the limb and round a pole in view,
+    where every longitude meets, and one step between neighbors there is as wide as any
+    gap the sampling leaves.  The angle a pixel spans on the surface, from the body's
+    coarsest resolution and its radius, is not used: it grows without bound toward the
+    limb, where the surface turns edge-on, and a small body's would be wider than the
+    half of it out of view, reading every view of it as the whole circle.
+
+    Parameters:
+        plane: The longitude at each pixel of the frame, in ``units``.
+        pixels: The pixels whose longitudes count: a body's pixels where the plane has a
+            value.
+        units: The unit the plane carries, as the configuration declares it; a plane in
+            radians is measured in degrees, as its statistic is.
+
+    Returns:
+        The widest step, in degrees; 0 when no two of the pixels neighbor.
+    """
+    values = np.asarray(plane, dtype=np.float64)
+    if statistics_units(units) != units:
+        values = np.degrees(values)
+    circle = np.mod(values, FULL_CIRCLE)
+    counted = pixels & np.isfinite(circle)
+    widest = 0.0
+    for before, after, both in (
+        (circle[:, :-1], circle[:, 1:], counted[:, :-1] & counted[:, 1:]),
+        (circle[:-1, :], circle[1:, :], counted[:-1, :] & counted[1:, :]),
+    ):
+        step = np.abs(after - before)[both]
+        if step.size > 0:
+            widest = max(widest, float(np.max(np.minimum(step, FULL_CIRCLE - step))))
+    return widest
 
 
 def plane_statistics(

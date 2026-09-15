@@ -19,6 +19,7 @@ import pytest
 from astropy.io import fits
 from filecache import FCPath
 
+from spindoctor.cli.backplanes.backplanes_bodies import BODY_LONGITUDE
 from spindoctor.cli.backplanes.backplanes_rings import RING_LONGITUDE, RING_LONGITUDINAL_RESOLUTION
 from spindoctor.cli.backplanes.merge import body_naif_id, merge_sources_into_master
 from spindoctor.cli.backplanes.writer import write_fits
@@ -662,6 +663,67 @@ def test_a_ring_longitude_without_its_resolution_records_no_wrapped_range(tmp_pa
     )
     statistic = json.loads(sidecar.read_text())['rings']['backplanes'][RING_LONGITUDE]
     assert statistic == {'min': 0.0, 'max': pytest.approx(54.0), 'units': 'deg'}
+
+
+BODY_LONGITUDE_PLANES = [{'name': BODY_LONGITUDE, 'method': 'longitude', 'units': 'rad'}]
+"""The body longitude, as the configuration declares it."""
+
+
+def _body_longitude(tmp_path: Path, degrees: np.ndarray) -> dict[str, Any]:
+    """Write a frame in which MOON_A shows these longitudes, and read back their statistic.
+
+    MOON_A claims a block at the frame's corner as large as ``degrees``, where the body
+    longitude plane holds them, in radians; every other pixel holds the masked value.
+
+    Parameters:
+        tmp_path: Directory receiving the outputs.
+        degrees: MOON_A's longitude at each pixel of the block, in degrees.
+
+    Returns:
+        MOON_A's body longitude statistic, as the writer recorded it.
+    """
+    snap = make_snapshot(shape_vu=SHAPE_VU, simulated=True, sim_inventory={})
+    rows, columns = degrees.shape
+    longitude = np.full(SHAPE_VU, MASKED_VALUE, dtype=np.float32)
+    longitude[:rows, :columns] = np.radians(degrees)
+    id_map = np.zeros(SHAPE_VU, dtype=np.int32)
+    id_map[:rows, :columns] = body_naif_id(snap, 'MOON_A')
+    _, sidecar = _write(
+        tmp_path,
+        master={BODY_LONGITUDE: longitude},
+        id_map=id_map,
+        snapshot=snap,
+        config=FakeBackplanesConfig(bodies=BODY_LONGITUDE_PLANES, rings=[]),
+        bodies_result={'MOON_A': {'arrays': {}, 'masks': {}, 'distance': 500000.0}},
+    )
+    metadata = json.loads(sidecar.read_text())
+    return cast(dict[str, Any], metadata['bodies']['MOON_A']['backplanes'][BODY_LONGITUDE])
+
+
+def test_a_body_seen_across_its_prime_meridian_records_the_arc_it_covers(tmp_path: Path) -> None:
+    """Longitudes from 350 across zero to 10 degrees record an arc from 350 to 10.
+
+    Neighboring pixels step by 5 degrees, across the prime meridian as elsewhere, so the
+    gap from 10 round to 350 is longitude the body does not show.
+    """
+    degrees = np.tile(np.array([350.0, 355.0, 0.0, 5.0, 10.0]), (3, 1))
+    statistic = _body_longitude(tmp_path, degrees)
+    assert (statistic['wrapped_min'], statistic['wrapped_max']) == (
+        pytest.approx(350.0),
+        pytest.approx(10.0),
+    )
+
+
+def test_a_body_seen_all_round_records_the_whole_circle(tmp_path: Path) -> None:
+    """Longitudes all round, as round a pole in view, record the whole circle, 0 to 360.
+
+    The longitudes are 6 degrees apart, and neighboring pixels step by as much as 60, as
+    they do round a pole, where every longitude meets: the gaps are the sampling's, and
+    no longitude is out of view.
+    """
+    degrees = (np.arange(60, dtype=np.float64) * 6.0).reshape(6, 10)
+    statistic = _body_longitude(tmp_path, degrees)
+    assert (statistic['wrapped_min'], statistic['wrapped_max']) == (0.0, 360.0)
 
 
 def test_the_shipped_ring_longitude_and_its_resolution_are_in_radians() -> None:
