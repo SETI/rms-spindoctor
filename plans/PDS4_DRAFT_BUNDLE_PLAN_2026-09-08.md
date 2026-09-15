@@ -65,7 +65,7 @@ this table first and trusts it over any recollection.
 | 8 — Targets, mission area, ring geometry | **Part A done**; Part B not started | Part A, the targets and the ring geometry, on `rf_pds4_phase8`, sections 3.5, 3.7 and 3.13; #73 and #72 are closed by hand when its PR merges (section 8), and the ring geometry has since left the data labels (the last row). Part B, `cassini:ISS_Specific_Attributes`, is read from the navigation document's `observation` block, which #698 adds, for #684, on a branch against `main` by the operator's direction; it reaches this stack once #698 merges and `main` is merged into `rf_pds4_draft_bundle` (section 3.7), and it is what remains of this work |
 | 9 — Parameterize the bundle name and version | **done** | `rf_pds4_phase9`, sections 3.9, 3.10 and 3.13; #71 is closed by hand when its PR merges (section 8) |
 | 10 — Validation, the integrity pass, and the draft run | **Part A done**; Part B moved to #708 | Part A, the bundle check, the test that gates it and `--check-only`, on `rf_pds4_phase10`, its PR #707, sections 3.1, 3.6, 3.11 and Phase 10; #66 and #265 are closed by hand when its PR merges (section 8). Part B, the draft run over a real COISS volume, is deferred to #708 by the operator's ruling of 2026-09-15, since it needs the DOIs and a fresh navigation of the volume |
-| Ring geometry dropped from the data labels | **done** | `rf_pds4_ring_labels`, cut from `rf_pds4_phase10`, by the operator's decision of 2026-09-15, sections 3.7 and 3.13 and Phase 8; the data labels name the ring target alone, and no label declares the rings dictionary. The incidence angle's least, greatest and mean and the wrapped ring longitude arc are columns of the rings index instead, by the operator's decision of the same day (section 3.7). #75 and #47 are closed as not planned when its PR merges |
+| Ring geometry dropped from the data labels | **done** | `rf_pds4_ring_labels`, cut from `rf_pds4_phase10`, by the operator's decision of 2026-09-15, sections 3.7 and 3.13 and Phase 8; the data labels name the ring target alone, and no label declares the rings dictionary. The incidence angle's least, greatest and mean and the wrapped ring longitude arc are columns of the rings index instead, by the operator's decision of the same day (section 3.7), and the bodies index gains a wrapped longitude arc too, by a second decision that day. #75 and #47 are closed as not planned when its PR merges |
 
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
@@ -868,6 +868,30 @@ plane's index block gives its wrapped pair, and `backplanes.ring_incidence_angle
 incidence columns; `index_columns.py` builds every statistic column, and the bundle check
 holds each label to the same columns.  #47 stays not planned, since no label states the
 incidence, but the incidence it asked for is in the rings index.
+
+**Decided the same day: the bodies index gains a wrapped arc too.**  The bodies index had
+only `minimum_body_longitude` and `maximum_body_longitude`, a plain least and greatest,
+so a body seen across its prime meridian read as about 0 to 360 however narrow the strip
+in view, and the backplane stage recorded no wrapped range for a body.  The operator
+approved on 2026-09-15 "the same treatment for the global bodies index: give it a wrapped
+longitude arc".  The backplane stage now records each body longitude statistic's range
+wrapped at zero, with the ring's wrap logic (`statistics.wrapped_range`), and the bodies
+index states it as `minimum_wrapped_body_longitude` and `maximum_wrapped_body_longitude`
+after the plain pair, degrees to three decimals.  **The gap threshold** is the widest
+longitude step between two of the body's pixels that share an edge, taken the short way
+round the circle (`statistics.longitude_step`), since the ring's, its coarsest
+longitudinal resolution in deg/pixel, has no counterpart in a body's km/pixel
+resolutions.  Longitude changes fastest from pixel to pixel near the limb and round a
+pole in view, where every longitude meets, so a body seen round a pole covers the whole
+circle, and one seen from its equator the arc its visible side spans.  The other
+candidate, the angle a pixel spans on the surface from the coarsest resolution and the
+body's radius, grows without bound toward the limb, where the surface turns edge-on, and
+a small body's would read every view of it as the whole circle.  A body with no longitude
+value records no range, and a body whose backplanes record none, as older ones do not,
+gets missing cells.  **The names** are the index's own: geom's `minimum_longitude` and
+`maximum_longitude` define a range wrapped at the prime meridian, but in planetocentric
+longitude, which the IAU convention measures positive east, where `body_longitude` is
+measured westward, `oops`'s `longitude` default.
 
 Until then a data label of an image with ring backplanes filled
 `rings:Reprojection_Geometry`, within `rings:Ring_Reprojection`, the class the reference's
@@ -1730,7 +1754,10 @@ declined:
   dictionary names. The rings index's wrapped ring longitude pair and its
   incidence columns, added on 2026-09-15 (section 3.7), take the rings
   dictionary's names, as the reference's `rings:minimum_inertial_ring_longitude`
-  does. The rings table's `rings:` column names borrow that dictionary's
+  does. The bodies index's wrapped pair, added the same day, keeps names of its
+  own, `minimum_wrapped_body_longitude` and its maximum: geom's
+  `minimum_longitude` is an east longitude, and the body longitude a west one.
+  The rings table's `rings:` column names borrow that dictionary's
   attribute names although no label declares the dictionary: a field's name is
   text, and neither a schema nor the check holds it to a namespace. The Phase 7
   record gives every column.
@@ -2397,6 +2424,7 @@ otherwise:
 | ring radius, emission and phase angles, radial and longitudinal resolutions | `rings:minimum_*` and `rings:maximum_*` | as the reference names its columns; the rings emission angle is measured from the normal on the lit side, `oops` `ring_emission_angle`'s default `pole='sunward'` |
 | body and ring longitudes | `minimum_body_longitude`, `minimum_ring_longitude` and their maxima | geom and rings define a longitude range as wrapped at the prime meridian, its minimum above its maximum across it, and these statistics are a plain least and greatest |
 | the ring longitude's wrapped range, and the ring incidence angle's least, greatest and mean | `rings:minimum_inertial_ring_longitude` and its maximum; `rings:minimum_incidence_angle`, its maximum and `rings:mean_incidence_angle` | added 2026-09-15 (section 3.7): the rings dictionary's attributes for a ring longitude range wrapped at the prime meridian and for the incidence angle at the target |
+| the body longitude's wrapped range | `minimum_wrapped_body_longitude` and its maximum | added 2026-09-15 (section 3.7): geom's `minimum_longitude` and `maximum_longitude` are wrapped, but in planetocentric east longitude, and the body longitude is measured westward |
 | body finest and coarsest resolutions | `minimum_body_finest_resolution` and so on | no dictionary names them |
 
 The rings dictionary says of its radial and longitudinal resolutions "Not
@@ -2788,7 +2816,17 @@ in `index_columns.py`, where the index's columns moved so that `global_index.py`
 under 1000 lines.  Tests hold the crossing frame's row to its arc, 359.687 across zero to
 0.402, the cohort's row to the metadata's plain range, arc and incidence, backplanes
 recording neither to missing cells, and the check to the new fields' unit; each was
-driven red by a mutation, seven of seven killed.
+driven red by a mutation, seven of seven killed.  The bodies index gained a wrapped
+longitude arc by a second decision that day (section 3.7): the backplane stage records it
+for each body, with the widest step between two neighboring pixels as its gap threshold,
+and the bodies index states it.  Tests hold a body across its prime meridian to its arc,
+a body seen all round to the whole circle, and older metadata to missing cells; four
+mutations, all killed.  CodeRabbit's reviews of the PRs below this one brought five
+fixes, each its own commit: the miscellaneous collection is marked conditional in both
+guides and section 3.1; the ring longitude's wrapped range is recorded only beside its
+resolution, where a frame without one lost its whole metadata document; a partial
+incidence block is pinned to a missing cell per absent member; and
+`Pds4Target.lidvid` and the fake datasets' PDS4 hooks have `Returns:` sections.
 
 ### Phase 9 — Parameterize the bundle name and version
 
