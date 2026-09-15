@@ -1134,7 +1134,7 @@ The two passes write this tree:
        user_guide/                             # only when the template directory holds it
          <user guide>.pdf                      # summary pass, copied
          <user guide>.lblx                     # summary pass
-     miscellaneous/
+     miscellaneous/                            # only when an index table has a row
        collection_miscellaneous.csv            # summary pass
        collection_miscellaneous.lblx           # summary pass
        global_bodies_index.tab                 # summary pass

@@ -84,7 +84,8 @@ The two passes write this directory structure:
 The user guide and its label are in ``document/user_guide/`` only when the dataset's
 template directory holds the user-guide PDF (see `Templates`_). The rings index
 and its label are in ``miscellaneous/`` only when some image in the bundle has
-ring backplanes (see `Global Index Tables`_).
+ring backplanes, and ``miscellaneous/`` itself is there only when at least one of
+its index tables has a row (see `Global Index Tables`_).
 
 ``<path stub>/<image>`` places each image in ``data/`` and ``browse/`` by a rule the
 dataset derives from the image's name: for ``coiss_saturn``, image N1454820509 is at
@@ -509,7 +510,8 @@ The summary pass generates:
   * ``collection_browse.csv``: CSV file listing all browse products in the bundle
   * ``collection_browse.lblx``: PDS4 label for the browse collection
 
-* **Miscellaneous Collection**, in ``miscellaneous/`` (see `Global Index Tables`_):
+* **Miscellaneous Collection**, in ``miscellaneous/``, when at least one index table
+  has a row (see `Global Index Tables`_):
 
   * ``global_bodies_index.tab``: a table with one row for each body seen in each image
     of the bundle, giving the least and the greatest value of each body backplane
