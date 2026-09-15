@@ -23,7 +23,7 @@ backplanes:
             prime meridian from 0 to 360 degrees, over the pixels where the
             body_longitude backplane has a value for the body. The range is not
             wrapped: a body seen across its prime meridian spans from near 0 to near
-            360.
+            360. minimum_wrapped_body_longitude gives the range wrapped at zero.
         maximum:
           name: maximum_body_longitude
           description: >-
@@ -31,7 +31,27 @@ backplanes:
             IAU prime meridian from 0 to 360 degrees, over the pixels where the
             body_longitude backplane has a value for the body. The range is not
             wrapped: a body seen across its prime meridian spans from near 0 to near
-            360.
+            360. maximum_wrapped_body_longitude gives the range wrapped at zero.
+        wrapped_minimum:
+          name: minimum_wrapped_body_longitude
+          description: >-
+            Where the arc of planetocentric longitude, measured westward from the body's
+            IAU prime meridian from 0 to 360 degrees, covered by the pixels where the
+            body_longitude backplane has a value for the body begins. The range is
+            wrapped at zero: where the arc crosses the prime meridian, this is greater
+            than maximum_wrapped_body_longitude, and an arc covering the whole circle,
+            as round a pole in view, begins at 0. minimum_body_longitude gives the plain
+            least longitude instead.
+        wrapped_maximum:
+          name: maximum_wrapped_body_longitude
+          description: >-
+            Where the arc of planetocentric longitude, measured westward from the body's
+            IAU prime meridian from 0 to 360 degrees, covered by the pixels where the
+            body_longitude backplane has a value for the body ends. The range is wrapped
+            at zero: where the arc crosses the prime meridian, this is less than
+            minimum_wrapped_body_longitude, and an arc covering the whole circle, as
+            round a pole in view, ends at 360. maximum_body_longitude gives the plain
+            greatest longitude instead.
     - name: body_latitude
       method: latitude
       units: rad
