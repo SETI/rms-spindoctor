@@ -7,21 +7,27 @@ elementpath's XPath 2.0 engine and matched the way the skeleton's XSLT matches t
 
 - a node matches a rule when it is in ``//(context)`` evaluated from the document node, so
   a context of several steps, as in ``pds:Inventory/pds:offset``, matches every node it
-  selects anywhere in the label.  The nodes are selected as ``//`` followed by each
-  branch of the context's union, a branch that is an absolute path kept as it is, which
-  by the definition of ``//`` selects the same nodes without evaluating the context
-  afresh at every node of the label;
+  selects anywhere in the label.  A context that is a union of path expressions joined
+  by ``|``, as every context of the shipped Schematron is, is selected as ``//``
+  followed by each branch, a branch that is an absolute path kept as it is, which
+  selects the same nodes without evaluating the context afresh at every node of the
+  label; any other context is selected as ``//(context)`` itself (see
+  :func:`match_expression`);
 - within a pattern, only the first rule a node matches fires for that node;
 - the schema's variables and each pattern's are evaluated at the document node, and a
   rule's at the node it matched, each in the order they are declared.
 
 An assert fails when its test is false, and a report fires when its test is true.  Each
 is a finding, with the message its rule writes, its ``value-of`` and ``name`` parts
-evaluated at the node.  Strings are compared by the Unicode code point collation,
-XPath's default, whatever locale the process runs under.
+evaluated at the node.  It is a warning when the assert or report carries a ``role`` of
+``warning`` or ``warn``, in any case, or carries none and its rule does -- the spellings
+the shipped Schematron use, which the PDS ``validate`` tool reports as warnings -- and an
+error otherwise.  Strings are compared by the Unicode code point collation, XPath's
+default, whatever locale the process runs under.
 """
 
 import functools
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -32,11 +38,17 @@ from elementpath.tree_builders import get_node_tree
 from lxml import etree
 
 from spindoctor.cli.pds4.check.elements import element_path, local_name
-from spindoctor.cli.pds4.check.findings import CheckName, Finding
+from spindoctor.cli.pds4.check.findings import CheckName, Finding, Severity
 from spindoctor.cli.pds4.check.schemas import shipped_copy
 
 SCHEMATRON_NAMESPACE = 'http://purl.oclc.org/dsdl/schematron'
-"""The namespace of ISO Schematron, which an ``xml-model`` instruction names as its type."""
+"""ISO Schematron's namespace, which an ``xml-model`` instruction names as its type."""
+
+WARNING_ROLES = frozenset({'warning', 'warn'})
+"""The ``role`` values, in lower case, that make an assert or a report a warning."""
+
+_NOT_A_PATH_UNION = re.compile(r'\(:|\b(?:union|intersect|except)\b')
+"""What a context split at ``|`` cannot hold: a comment, or a set operator's keyword."""
 
 _S = f'{{{SCHEMATRON_NAMESPACE}}}'
 """The Schematron namespace as the prefix of a tag."""
@@ -55,12 +67,14 @@ class _Check:
         test: The test, parsed as its effective boolean value.
         title: The check's title, or the empty string when it has none.
         message: The message: literal text, and parsed ``value-of`` and ``name`` parts.
+        severity: Whether a failed assert or a fired report is an error or a warning.
     """
 
     is_assert: bool
     test: XPathToken
     title: str
     message: tuple[str | XPathToken, ...]
+    severity: Severity
 
 
 @dataclass(frozen=True)
@@ -177,6 +191,25 @@ def _message(parser: XPath2Parser, element: Any) -> tuple[str | XPathToken, ...]
     return tuple(parts)
 
 
+def _severity(element: Any) -> Severity:
+    """Say whether an assert or a report is a warning or an error.
+
+    Parameters:
+        element: The assert or report.
+
+    Returns:
+        A warning when its ``role``, or its rule's when it carries none, is one of
+        :data:`WARNING_ROLES`, in any case and with white space trimmed; an error
+        otherwise.
+    """
+    role = element.get('role')
+    if role is None:
+        role = element.getparent().get('role')
+    if role is not None and str(role).strip().lower() in WARNING_ROLES:
+        return Severity.WARNING
+    return Severity.ERROR
+
+
 def _check(parser: XPath2Parser, element: Any) -> _Check:
     """Parse one assert or report.
 
@@ -197,6 +230,7 @@ def _check(parser: XPath2Parser, element: Any) -> _Check:
         test=parser.parse(f'boolean(({element.get("test")}))'),
         title=titles[0] if len(titles) > 0 else '',
         message=_message(parser, element),
+        severity=_severity(element),
     )
 
 
@@ -231,20 +265,26 @@ def _branches(context: str) -> list[str]:
 
 
 def match_expression(context: str) -> str:
-    """Return the expression selecting, from the document node, every node a context matches.
+    """Return what selects, from the document node, every node a context matches.
 
-    A node matches a context when it is in ``//(context)``.  ``//`` before each branch of
-    the context's union selects the same nodes, since ``//`` is
-    ``/descendant-or-self::node()/``; a branch that is an absolute path selects the same
-    nodes from any node, so it is kept as it is.
+    A node matches a context when it is in ``//(context)``.  When the context is a union
+    of path expressions joined by ``|``, ``//`` before each branch selects the same
+    nodes, since ``//`` is ``/descendant-or-self::node()/`` and the step after it is
+    evaluated at every node; a branch that is an absolute path selects the same nodes
+    from any node, so it is kept as it is.  A context holding a comment, or the
+    ``union``, ``intersect`` or ``except`` keyword, is not split, since a ``|`` in it may
+    lie in the comment and a keyword binds operands a split would part: it is selected
+    as ``//(context)`` itself.
 
     Parameters:
         context: A rule's context, as the Schematron writes it.
 
     Returns:
         The expression, as in ``//pds:Inventory/pds:offset`` for
-        ``pds:Inventory/pds:offset``.
+        ``pds:Inventory/pds:offset``, and ``//(x:b union x:c)`` for ``x:b union x:c``.
     """
+    if _NOT_A_PATH_UNION.search(context) is not None:
+        return f'//({context})'
     return ' | '.join(
         branch if branch.startswith('/') else f'//{branch}' for branch in _branches(context)
     )
@@ -365,7 +405,7 @@ def _evaluate(file: str, tree: Any, schematron: _Schematron) -> list[Finding]:
     """Evaluate every rule of one Schematron over a label.
 
     Parameters:
-        file: The label's path relative to the bundle's directory, which the findings name.
+        file: The label's path relative to the bundle's directory, which findings name.
         tree: The label's node tree.
         schematron: The parsed Schematron.
 
@@ -408,6 +448,7 @@ def _evaluate(file: str, tree: Any, schematron: _Schematron) -> list[Finding]:
                             CheckName.SCHEMATRON,
                             _node_path(node),
                             f'{text} ({kind} of the rule on {rule.context} in {schematron.name})',
+                            check.severity,
                         )
                     )
     return findings
@@ -417,7 +458,7 @@ def schematron_findings(file: str, document: Any) -> list[Finding]:
     """Evaluate the rules of every Schematron a label declares over it.
 
     Parameters:
-        file: The label's path relative to the bundle's directory, which the findings name.
+        file: The label's path relative to the bundle's directory, which findings name.
         document: The label, parsed by lxml.
 
     Returns:

@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from spindoctor.cli.pds4.check import schemas
-from spindoctor.cli.pds4.check.findings import CheckName, Finding
+from spindoctor.cli.pds4.check.findings import CheckName, Finding, Severity
 from spindoctor.cli.pds4.check.schematron import match_expression, schematron_findings
 
 from .controls import parse
@@ -212,3 +212,67 @@ def test_a_context_is_matched_from_the_document_node(context: str, expression: s
         expression: The expression selecting the nodes it matches.
     """
     assert match_expression(context) == expression
+
+
+def test_a_rule_whose_role_marks_a_warning_warns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed assert of a rule whose ``role`` is ``warning`` is a warning."""
+    rules = (
+        '<sch:pattern><sch:rule context="x:b" role="warning">'
+        '<sch:assert test="false()">b warns</sch:assert></sch:rule></sch:pattern>'
+    )
+    expected = Finding(
+        'label.lblx',
+        CheckName.SCHEMATRON,
+        '/x:a/x:b',
+        f'b warns (assert of the rule on x:b in {SCHEMATRON_NAME})',
+        Severity.WARNING,
+    )
+    assert _evaluate(tmp_path, monkeypatch, rules, '<x:b/>') == [expected]
+
+
+def test_an_assert_whose_role_marks_a_warning_warns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed assert whose own ``role`` is ``WARN``, in a rule with none, is a warning."""
+    rules = (
+        '<sch:pattern><sch:rule context="x:b">'
+        '<sch:assert test="false()" role="WARN">b warns</sch:assert></sch:rule></sch:pattern>'
+    )
+    expected = Finding(
+        'label.lblx',
+        CheckName.SCHEMATRON,
+        '/x:a/x:b',
+        f'b warns (assert of the rule on x:b in {SCHEMATRON_NAME})',
+        Severity.WARNING,
+    )
+    assert _evaluate(tmp_path, monkeypatch, rules, '<x:b/>') == [expected]
+
+
+@pytest.mark.parametrize(
+    ('context', 'locations'),
+    [
+        pytest.param('x:b union x:c', ['/x:a/x:b', '/x:a/x:c'], id='union'),
+        pytest.param('x:c union x:b', ['/x:a/x:b', '/x:a/x:c'], id='union-reversed'),
+        pytest.param('x:b intersect x:b', ['/x:a/x:b'], id='intersect'),
+        pytest.param("x:b (: it's the first :) | x:c", ['/x:a/x:b', '/x:a/x:c'], id='comment'),
+    ],
+)
+def test_a_context_other_than_a_union_of_paths_matches_what_it_selects(
+    context: str, locations: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A context holding a set operator's keyword or a comment matches as ``//(context)`` does.
+
+    Parameters:
+        context: A rule's context.
+        locations: Where the nodes it matches lie in the label.
+        tmp_path: The directory the Schematron and the label are written in.
+        monkeypatch: Fixture the stand-in directory is installed through.
+    """
+    rules = (
+        f'<sch:pattern><sch:rule context="{context}">'
+        '<sch:assert test="false()">here</sch:assert></sch:rule></sch:pattern>'
+    )
+    findings = _evaluate(tmp_path, monkeypatch, rules, '<x:b/><x:c/>')
+    assert sorted(finding.location for finding in findings) == locations
