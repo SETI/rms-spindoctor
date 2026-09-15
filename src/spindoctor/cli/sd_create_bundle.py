@@ -40,7 +40,7 @@ from spindoctor.config import (
 )
 from spindoctor.config.program_names import SD_CREATE_BUNDLE
 from spindoctor.dataset import dataset_name_to_class, dataset_names
-from spindoctor.dataset.dataset import DataSet, Pds4Pass
+from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 PROGRAM_NAME = SD_CREATE_BUNDLE
 """Program identity: names the main log directory and the
@@ -255,42 +255,78 @@ def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
         return False
 
 
+def _batch_image(imagefiles: ImageFiles) -> ImageFile | None:
+    """Return the one image of a batch, or None for a batch the labels pass refuses.
+
+    The labels pass labels one image per batch.  A batch of any other size, an empty one
+    included, is images it writes no label for, and fails the run; ``--check-only``
+    reports such a batch as incomplete by the same rule.
+
+    Parameters:
+        imagefiles: The batch.
+
+    Returns:
+        The batch's image, or None when it holds none or several.
+    """
+    if len(imagefiles.image_files) != 1:
+        return None
+    return imagefiles.image_files[0]
+
+
 def _report_inputs(arguments: argparse.Namespace) -> None:
     """Report what each selected image has of the files the labels pass reads.
 
-    Prints one line for each image of every batch the selection enumerates -- whether its
-    navigation document, summary PNG, backplane FITS and backplane metadata exist, and
-    whether its navigation succeeded -- and then a count.  It writes nothing: no label, no
-    log, and no bundle root, which it neither needs nor creates.
+    Prints one line for each batch the selection enumerates: for a batch of one image,
+    whether its navigation document, summary PNG, backplane FITS and backplane metadata
+    exist and whether its navigation succeeded; for a batch the labels pass refuses, as
+    :func:`_batch_image` decides, that it is incomplete.  Then it prints a count.  It
+    writes no label, no log and no bundle file, and neither needs nor creates a bundle
+    root; the file cache the roots are read through makes a temporary directory, which it
+    removes.  A selection that cannot be enumerated ends the report with the traceback
+    the labels pass ends with.
 
     Parameters:
         arguments: The labels subcommand's parsed arguments.
 
     Raises:
         SystemExit: With status 1 when any selected image lacks one of the four files or
-            its navigation did not succeed.
+            its navigation did not succeed, or when the labels pass would refuse a batch.
     """
     assert DATASET is not None
     nav_results_root = FCPath(get_nav_results_root(arguments, DEFAULT_CONFIG))
     backplane_results_root = FCPath(get_backplane_results_root(arguments, DEFAULT_CONFIG))
     selected = 0
     incomplete = 0
+    refused = 0
     for imagefiles in DATASET.yield_image_files_from_arguments(arguments):
-        for image_file in imagefiles.image_files:
-            report = report_image_inputs(
-                image_file,
-                nav_results_root=nav_results_root,
-                backplane_results_root=backplane_results_root,
+        image_file = _batch_image(imagefiles)
+        if image_file is None:
+            count = len(imagefiles.image_files)
+            stubs = ', '.join(image.results_path_stub for image in imagefiles.image_files)
+            names = f': {stubs}' if count > 0 else ''
+            print(
+                f'A batch of {count} image(s){names}: incomplete, since the labels pass '
+                'labels one image per batch'
             )
-            print(report.line())
-            selected += 1
-            if not report.complete:
-                incomplete += 1
+            selected += count
+            incomplete += count
+            refused += 1
+            continue
+        report = report_image_inputs(
+            image_file,
+            nav_results_root=nav_results_root,
+            backplane_results_root=backplane_results_root,
+        )
+        print(report.line())
+        selected += 1
+        if not report.complete:
+            incomplete += 1
+    refusals = f', {refused} batch(es) the labels pass refuses' if refused > 0 else ''
     print(
         f'Input check: {selected} image(s) selected, {selected - incomplete} complete, '
-        f'{incomplete} incomplete'
+        f'{incomplete} incomplete{refusals}'
     )
-    if incomplete > 0:
+    if incomplete > 0 or refused > 0:
         sys.exit(1)
 
 
@@ -306,7 +342,7 @@ def main_labels() -> None:
     same way, because what it reports on is a run that would be.
 
     With ``--check-only`` the run checks neither: it reports on each selected image's
-    inputs, as :func:`_report_inputs` describes, and writes nothing.
+    inputs, as :func:`_report_inputs` describes, and writes no label, log or bundle file.
     """
     command_list = sys.argv[2:]  # Skip 'labels'
     arguments = parse_args_labels(command_list)
@@ -316,7 +352,7 @@ def main_labels() -> None:
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
 
     if arguments.check_only:
-        # A report on the inputs writes nothing, not even a log, and has no bundle root.
+        # A report on the inputs writes no log and no bundle file, and has no bundle root.
         _report_inputs(arguments)
         return
 
@@ -355,7 +391,8 @@ def main_labels() -> None:
     malformed_empty_batches = 0
 
     for imagefiles in DATASET.yield_image_files_from_arguments(arguments):
-        if len(imagefiles.image_files) != 1:
+        image_file = _batch_image(imagefiles)
+        if image_file is None:
             # A batch of any other size is images the run did not write labels
             # for, so they count against the run the same way a broken label
             # does -- every one of them, since a batch of two is two images
@@ -374,9 +411,7 @@ def main_labels() -> None:
                 malformed_empty_batches += len(imagefiles.image_files) == 0
             continue
         if arguments.dry_run:
-            MAIN_LOGGER.info(
-                'Would process: %s', imagefiles.image_files[0].label_file_url.as_posix()
-            )
+            MAIN_LOGGER.info('Would process: %s', image_file.label_file_url.as_posix())
             listed_images += 1
             continue
 
@@ -398,7 +433,7 @@ def main_labels() -> None:
             # which is the reason, so the text is handed to it.
             MAIN_LOGGER.exception(
                 'Failed to generate bundle data files for %s: %s',
-                imagefiles.image_files[0].image_file_url.as_posix(),
+                image_file.image_file_url.as_posix(),
                 exc,
             )
             failed_images += 1

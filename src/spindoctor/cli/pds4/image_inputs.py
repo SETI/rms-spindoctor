@@ -3,20 +3,24 @@
 The labels pass reads four files for each image, each at the image's results path stub:
 its navigation document and its summary PNG under the navigation results root, and its
 backplane FITS and its backplane metadata under the backplane results root.
-:func:`image_inputs` is the one place those paths are made.  ``sd_create_bundle labels
---check-only`` reports, through :func:`report_image_inputs`, whether each selected image
-has all four and whether its navigation succeeded, so that a cohort can be chosen before
-a label is written.
+:func:`image_inputs` is where the readers of the bundle passes take those paths from:
+the navigation document's from the navigation records' own rule,
+:func:`~spindoctor.nav_records.document.document_path`, and the other three from the
+rules the navigation and the backplane stages write them by, which those stages state
+where they write and expose no function for.  ``sd_create_bundle labels --check-only``
+reports, through :func:`report_image_inputs`, whether each selected image has all four
+and whether its navigation succeeded, so that a cohort can be chosen before a label is
+written.
 """
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 from filecache import FCPath
 
 from spindoctor.dataset.dataset import ImageFile
+from spindoctor.nav_records import document_path, read_document
 
 NAVIGATION_SUCCESS = 'success'
 """The ``status`` a navigation document records for a navigation that succeeded."""
@@ -27,8 +31,9 @@ class ImageInputs:
     """Where the four files the labels pass reads for one image are.
 
     Attributes:
-        navigation_document: ``<navigation results root>/<stub>_metadata.json``, the
-            record of the image's navigation.
+        navigation_document: The record of the image's navigation, where
+            :func:`~spindoctor.nav_records.document.document_path` puts it:
+            ``<navigation results root>/<stub>_metadata.json``.
         summary_png: ``<navigation results root>/<stub>_summary.png``, which the image's
             browse product copies.
         backplane_fits: ``<backplane results root>/<stub>_backplanes.fits``, which the
@@ -57,7 +62,7 @@ def image_inputs(
         The four paths.
     """
     return ImageInputs(
-        navigation_document=nav_results_root / f'{results_path_stub}_metadata.json',
+        navigation_document=document_path(nav_results_root, results_path_stub),
         summary_png=nav_results_root / f'{results_path_stub}_summary.png',
         backplane_fits=backplane_results_root / f'{results_path_stub}_backplanes.fits',
         backplane_metadata=backplane_results_root / f'{results_path_stub}_backplane_metadata.json',
@@ -79,14 +84,17 @@ def navigation_record(image_file: ImageFile, inputs: ImageInputs) -> dict[str, A
     Returns:
         The record, or None when there is no navigation document, which means the image
         was never navigated.
+
+    Raises:
+        ValueError: If the navigation document does not hold a JSON object, as
+            :func:`~spindoctor.nav_records.document.read_document` refuses it.
     """
     if image_file.nav_record is not None:
         return image_file.nav_record
     try:
-        text = inputs.navigation_document.read_text()
+        return read_document(inputs.navigation_document)
     except FileNotFoundError:
         return None
-    return cast(dict[str, Any], json.loads(text))
 
 
 def navigation_succeeded(record: Mapping[str, Any]) -> bool:
@@ -184,7 +192,7 @@ def report_image_inputs(
     """Report what one selected image has of the files the labels pass reads.
 
     Reads the image's navigation record, as the labels pass does, and looks for each
-    file; it writes nothing.
+    file; it writes no file.
 
     Parameters:
         image_file: The image.
