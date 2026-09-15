@@ -16,7 +16,8 @@ The checks, over every label of the tree:
   label of the tree declares, and a ``lidvid_reference`` that product's version; one
   that does not is a warning, as the PDS ``validate`` tool's ``reference_not_found`` is;
 - each collection's inventory lists what the collection holds
-  (:mod:`~spindoctor.cli.pds4.check.inventories`).
+  (:mod:`~spindoctor.cli.pds4.check.inventories`), and each global index table's records
+  describe the tree's products (:mod:`~spindoctor.cli.pds4.check.index_tables`).
 
 A reference to a product outside the bundle is not checked here.  The PDS ``validate``
 tool checks the references a label makes to context products against the products
@@ -32,6 +33,7 @@ from typing import Any
 
 from spindoctor.cli.pds4.check.elements import child, child_text, element_path, local_name
 from spindoctor.cli.pds4.check.findings import BUNDLE_DIRECTORY, CheckName, Finding, Severity
+from spindoctor.cli.pds4.check.index_tables import index_row_findings
 from spindoctor.cli.pds4.check.inventories import inventory_findings
 
 LABEL_SUFFIX = '.lblx'
@@ -322,7 +324,7 @@ def integrity_findings(bundle_dir: Path, labels: Mapping[str, Any]) -> list[Find
 
     Returns:
         One finding for each way the tree departs from what this module's checks hold it
-        to, those of the inventories among them; and
+        to, those of the inventories and of the index tables' records among them; and
         one for a tree with no bundle label at its top, over which no reference to a
         product of the bundle can be resolved.
     """
@@ -340,6 +342,7 @@ def integrity_findings(bundle_dir: Path, labels: Mapping[str, Any]) -> list[Find
             bundle_lid = child_text(root, 'Identification_Area', 'logical_identifier')
     findings.extend(_unnamed_files(bundle_dir, named))
     findings.extend(inventory_findings(bundle_dir, labels, products))
+    findings.extend(index_row_findings(bundle_dir, labels, products))
     if bundle_lid is None:
         findings.append(
             Finding(

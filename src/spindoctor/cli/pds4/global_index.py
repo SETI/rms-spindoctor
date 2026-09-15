@@ -205,21 +205,21 @@ class IndexColumn:
     missing_constant: str | None = None
 
 
-_LID_COLUMN = IndexColumn(
+LID_COLUMN = IndexColumn(
     name='pds:logical_identifier',
     data_type='ASCII_LID',
     description='The logical identifier of the data product whose statistics the row gives.',
 )
 """The first column of both tables: the data product each row is about."""
 
-_BODY_COLUMN = IndexColumn(
+BODY_COLUMN = IndexColumn(
     name='body_name',
     data_type='ASCII_String',
     description='The body whose statistics the row gives, by the name the backplanes use.',
 )
 """The bodies table's second column: the body each row is about."""
 
-_FILE_COLUMN = IndexColumn(
+FILE_COLUMN = IndexColumn(
     name='file_spec',
     data_type='ASCII_String',
     description="The path of the data product's label, relative to the bundle's directory.",
@@ -786,9 +786,9 @@ def generate_global_index_files(
         bodies_tab,
         bodies_label,
         [
-            _LID_COLUMN,
-            _BODY_COLUMN,
-            _FILE_COLUMN,
+            LID_COLUMN,
+            BODY_COLUMN,
+            FILE_COLUMN,
             _START_COLUMN,
             _STOP_COLUMN,
             *_statistic_columns(body_planes),
@@ -807,8 +807,8 @@ def generate_global_index_files(
         rings_tab,
         rings_label,
         [
-            _LID_COLUMN,
-            _FILE_COLUMN,
+            LID_COLUMN,
+            FILE_COLUMN,
             _START_COLUMN,
             _STOP_COLUMN,
             *_statistic_columns(ring_planes),

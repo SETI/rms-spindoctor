@@ -1,9 +1,9 @@
 """A bundle tree held to PDS4, reading only the tree and the schemas the package ships.
 
 :func:`check_bundle` holds every label of a tree to the XML schemas and the Schematron
-it declares, reads every table through its label, holds the global index tables'
-statistic columns to the configuration, and checks the tree as a whole.  It writes
-nothing.
+it declares, reads every table through its label, holds the global index tables to the
+layout the summary pass writes them in and their statistic columns to the configuration,
+and checks the tree as a whole.  It writes nothing.
 """
 
 from collections.abc import Mapping
@@ -13,6 +13,7 @@ from typing import Any
 from lxml import etree
 
 from spindoctor.cli.pds4.check.findings import CheckName, Finding
+from spindoctor.cli.pds4.check.index_tables import index_layout_findings
 from spindoctor.cli.pds4.check.integrity import LABEL_SUFFIX, integrity_findings
 from spindoctor.cli.pds4.check.schemas import label_schema, xsd_findings
 from spindoctor.cli.pds4.check.schematron import schematron_findings
@@ -28,10 +29,10 @@ from spindoctor.config import Config
 def check_label(
     file: str, label: Path, document: Any, *, columns: Mapping[str, StatisticColumn]
 ) -> list[Finding]:
-    """Check one label on its own: its schemas, its Schematron, its tables and its columns.
+    """Check one label on its own: its schemas, Schematron, tables and columns.
 
     Parameters:
-        file: The label's path relative to the bundle's directory, which the findings name.
+        file: The label's path relative to the bundle's directory, which findings name.
         label: The label's file, beside which its tables are.
         document: The label, parsed by lxml.
         columns: The configured statistic columns, as
@@ -40,8 +41,9 @@ def check_label(
 
     Returns:
         What resolving its XML schemas found, its XML schema errors, its failed
-        Schematron asserts and fired reports, the ways its tables depart from it, and its
-        statistic columns that depart from the configuration.
+        Schematron asserts and fired reports, the ways its tables depart from it, its
+        statistic columns that depart from the configuration, and the ways a global index
+        table departs from the layout the summary pass writes.
     """
     resolved = label_schema(file, document)
     findings = list(resolved.findings)
@@ -50,6 +52,7 @@ def check_label(
     findings.extend(schematron_findings(file, document))
     findings.extend(table_findings(file, label, document, resolved.schema))
     findings.extend(statistic_column_findings(file, document, columns))
+    findings.extend(index_layout_findings(file, label, document))
     return findings
 
 
