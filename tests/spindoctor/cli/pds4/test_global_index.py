@@ -160,6 +160,32 @@ def test_values_the_backplanes_do_not_record_give_missing_cells(tmp_path: Path) 
     assert [row[header.index(name)] for name in UNRECORDED_COLUMNS] == ['-999.000'] * 5
 
 
+INCIDENCE_COLUMNS = (
+    'rings:minimum_incidence_angle',
+    'rings:maximum_incidence_angle',
+    'rings:mean_incidence_angle',
+)
+"""The rings table's columns of the incidence angle's least, greatest and mean."""
+
+
+def test_a_partial_incidence_block_gives_each_member_it_records(tmp_path: Path) -> None:
+    """Each member of the incidence angle is written on its own, the others missing.
+
+    A block recording its mean alone, and no unit, is indexed like any other: the mean is
+    written, and the least and the greatest are missing cells.
+    """
+    env = _index_env(tmp_path)
+    rings = {**RING_STATS, 'incidence_angle': {'mean': 45.125}}
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=rings)
+    _run_global_index(env)
+    header, row = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
+    assert [row[header.index(name)] for name in INCIDENCE_COLUMNS] == [
+        '-999.000',
+        '-999.000',
+        '45.125',
+    ]
+
+
 def _primary_members(env: BundleEnv) -> list[str]:
     """Return the LIDVIDs the miscellaneous inventory lists as its primary members.
 
