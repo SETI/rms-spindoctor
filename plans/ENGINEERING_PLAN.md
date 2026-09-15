@@ -406,8 +406,9 @@ but its templates are still drafts in places, so its output is not yet
 valid PDS4. The other three instruments additionally hit
 `NotImplementedError` walls in their `pds4_*` DataSet hooks. The work
 is therefore: finish and validate Cassini first (final templates; the
-remaining phases of `PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, among them the
-draft run over a real volume), then generalize — per-mission
+remaining phases of `PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, which finishes as
+a prototype over the synthetic cohort, the run over a real volume being
+#708), then generalize — per-mission
 template trees plus hook implementations, mechanical but voluminous.
 
 Work items, in dependency order:

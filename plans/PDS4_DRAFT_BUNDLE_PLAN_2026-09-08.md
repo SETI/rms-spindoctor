@@ -25,8 +25,12 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-7 have run, Part A of Phase 8, Phase 9 and Part A of Phase 10; Part B of Phase 8,
-the mission area, and Part B of Phase 10, the draft run over a real volume, have not. Two changes landed ahead of
+Phases 1-7 have run, Part A of Phase 8, Phase 9 and Part A of Phase 10. The
+operator ruled on 2026-09-15 that this work is a prototype: it finishes on the
+synthetic cohort, with the `TODO DOI` placeholders left in place, since the
+DOIs and a fresh navigation will not come soon. Part B of Phase 10, the draft
+run over a real COISS volume, moves to #708. What remains is Part B of Phase
+8, the mission area, which waits on #698. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -58,9 +62,9 @@ this table first and trusts it over any recollection.
 | 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; #602 is closed by hand when its PR merges (section 8), #265 staying open for its Phase 10 part |
 | 6 — Bundle-level and static products | **done** | `rf_pds4_phase6`, sections 3.1, 3.2, 3.5, 3.6, 3.9 and 3.13; #74 is closed by hand when its PR merges (section 8), #72 staying open for Phase 8's targets; the operator has since ruled on the source product, and Phase 7 applies the ruling (#678, section 3.13) |
 | 7 — The miscellaneous collection and its global index labels | **done** | `rf_pds4_phase7`, sections 3.1, 3.4, 3.5, 3.8 and 3.13; #76, #601 and #678 are closed by hand when its PR merges (section 8), #601 and #678 by the operator's rulings of 2026-09-14 (section 3.13) |
-| 8 — Targets, mission area, ring geometry | **Part A done**; Part B not started | Part A, the targets and the ring geometry, on `rf_pds4_phase8`, sections 3.5, 3.7 and 3.13; #73, #75, #47 and #72 are closed by hand when its PR merges (section 8). Part B, `cassini:ISS_Specific_Attributes`, is read from the navigation document's `observation` block, which #684 adds on a branch against `main` by the operator's direction; it reaches this stack once #684 merges and `main` is merged into `rf_pds4_draft_bundle` (section 3.7) |
+| 8 — Targets, mission area, ring geometry | **Part A done**; Part B not started | Part A, the targets and the ring geometry, on `rf_pds4_phase8`, sections 3.5, 3.7 and 3.13; #73, #75, #47 and #72 are closed by hand when its PR merges (section 8). Part B, `cassini:ISS_Specific_Attributes`, is read from the navigation document's `observation` block, which #698 adds, for #684, on a branch against `main` by the operator's direction; it reaches this stack once #698 merges and `main` is merged into `rf_pds4_draft_bundle` (section 3.7), and it is what remains of this work |
 | 9 — Parameterize the bundle name and version | **done** | `rf_pds4_phase9`, sections 3.9, 3.10 and 3.13; #71 is closed by hand when its PR merges (section 8) |
-| 10 — Validation, the integrity pass, and the draft run | **Part A done**; Part B not started | Part A, the bundle check, the test that gates it and `--check-only`, on `rf_pds4_phase10`, sections 3.1, 3.6, 3.11 and Phase 10; #66 and #265 are closed by hand when its PR merges (section 8). Part B, the draft run over a real COISS volume, waits on the Cassini label facts reaching `main` (#684), a fresh navigation of the volume, and the DOIs |
+| 10 — Validation, the integrity pass, and the draft run | **Part A done**; Part B moved to #708 | Part A, the bundle check, the test that gates it and `--check-only`, on `rf_pds4_phase10`, its PR #707, sections 3.1, 3.6, 3.11 and Phase 10; #66 and #265 are closed by hand when its PR merges (section 8). Part B, the draft run over a real COISS volume, is deferred to #708 by the operator's ruling of 2026-09-15, since it needs the DOIs and a fresh navigation of the volume |
 
 Issues opened by this work, all open: #595 (LaTeX template for the user
 guides), #596-#599 (the four instrument guides), #600 (what a bundle says
@@ -91,10 +95,10 @@ which found every data label's start and stop empty, closes with Phase 3
 (section 3.4). #69, which asked for the FITS to be described in its data label,
 closes with Phase 4 (section 3.3).
 
-Open questions, none blocking Phases 1-9 or Part A of Phase 10: #600; whether this
-information model build's dictionaries are registered, with the Engineering Node
-(section 3.9); the cohort choice and the user-guide PDF for Part B of Phase 10; and
-which kernels the metakernel lists (#677).
+Open questions, none blocking what remains: #600; whether this information
+model build's dictionaries are registered, with the Engineering Node (section
+3.9); and which kernels the metakernel lists (#677). The cohort choice, and
+the user-guide PDF for a delivered bundle, go with #708.
 
 ---
 
@@ -107,11 +111,14 @@ other and against the PDS4 schemas. What the pipeline produces today is the
 per-image half of that and nothing else, and nothing in the repository can
 tell you so, because nothing validates anything.
 
-The purpose of this plan is one reviewable artifact: a bundle rooted at
-`cassini_iss_saturn_backplanes_rsfrench2027`, built from a real COISS
-cohort, that the NASA PDS `validate` tool accepts with zero errors. That
-artifact is what turns every remaining PDS4 question from a guess into a
-review comment.
+The purpose of this plan is one reviewable artifact: a prototype bundle
+rooted at `cassini_iss_saturn_backplanes_rsfrench2027`, built from the
+synthetic cohort, whose only findings under the bundle check and the NASA
+PDS `validate` tool are the ones section 5 names, the `TODO DOI`
+placeholders chief among them. That artifact is what turns every remaining
+PDS4 question from a guess into a review comment. The same bundle built from
+a real COISS volume, its DOIs registered, which `validate` accepts with zero
+errors, is #708's.
 
 **In scope:**
 
@@ -128,11 +135,13 @@ review comment.
 - Collection inventories that conform: correct name, no header, declared
   record delimiter, correct record count.
 - Schema validation, wired into a repeatable command and into CI.
-- One draft run over a real cohort, and the reconciliation of both guides to
-  what it produces.
 
 **Out of scope, deliberately:**
 
+- **The run over a real volume** (#708). Navigating a COISS volume afresh,
+  registering the DOIs, and building its bundle for `validate` to accept
+  with zero errors wait on what this work does not have, so the work
+  finishes as a prototype over the synthetic cohort (section 0).
 - **The other three instruments.** Voyager, Galileo and New Horizons each
   implement `pds4_bundle_template_dir` and `pds4_bundle_name`, over template
   directories that do not ship, and raise `NotImplementedError` from every
@@ -155,7 +164,7 @@ review comment.
   column follow that rule.
 - **Cloud-only operation** (#67). The `shutil.copy2` at
   `bundle_data.py:131` stays, and this plan adds a second local-path copy
-  for the FITS. Both are recorded as #67's work, and the draft run is local.
+  for the FITS. Both are recorded as #67's work.
 - **Removing `sd_create_bundle_cloud_tasks`** (#424).
 - **The backplanes user-guide PDF itself.** Section 3.6 wires the document
   collection so that dropping the PDF into the template directory completes
@@ -249,8 +258,8 @@ This is the authoritative layout. Both guides,
 `docs/dev_guide/dev_guide_pds4.rst` and
 `docs/user_guide/user_guide_pds4_bundle.rst`, describe the tree the two
 passes write, which is this one, in this order. Part A of Phase 10 reconciled
-both to it; Part B reconciles them again after the draft run, should the run
-change it.
+both to it; the run over a real volume (#708) reconciles them again, should
+it change the tree.
 
 ```text
 <bundle_name>/
@@ -1129,8 +1138,8 @@ of it: a `--check-only` flag on the labels pass that reports,
 per selected image, whether the navigation document, the summary PNG, the
 backplane FITS and the backplane metadata all exist and whether the
 navigation succeeded, and exits non-zero if any selected image is
-incomplete. Choosing a cohort for the draft run is exactly this question,
-so the flag pays for itself before the plan ends. Part A of Phase 10 added
+incomplete. Choosing a cohort for the run over a real volume (#708) is
+exactly this question. Part A of Phase 10 added
 it: `sd_create_bundle labels --check-only` prints one line per selected image
 and then a count, writes nothing, neither needs nor creates a bundle root,
 and takes the four paths from `image_inputs`, the one function the labels
@@ -1354,10 +1363,11 @@ enumeration reads a volume's index table out of
 `<holdings>/metadata/<set>/<vol>/`, and the cohort writes no index label
 and no index table, so a selection by volume matches nothing. Growing
 the cohort a minimal holdings tree -- a parseable index label and table,
-and an image stub per row -- belongs to Part B of Phase 10, which is where
-the CLI workflow over a whole volume is actually needed, and is tracked as
-an issue of its own. Part A did not need it: its gate builds the cohort's
-bundle through the library entry points and runs the check over it.
+and an image stub per row -- belongs to the run over a real volume (#708),
+which is where the CLI workflow over a whole volume is actually needed, and
+is tracked as an issue of its own. Part A did not need it: its gate builds
+the cohort's bundle through the library entry points and runs the check
+over it.
 
 ### 3.13 The reference implementation, and where this bundle differs
 
@@ -1507,8 +1517,9 @@ where ours has `TODO DOI`. Registering both is an operator step with the
 node, not a coding step, and it should be started early rather than
 discovered at delivery. Until then `bundle.lblx` and the user-guide label,
 which the summary pass renders, carry `<doi>TODO DOI</doi>`, which the XSD's
-DOI pattern (`10\.\S+/\S+`) refuses, so acceptance criterion 3's zero-error
-check needs the DOIs registered or the placeholders removed. The readme's
+DOI pattern (`10\.\S+/\S+`) refuses. The prototype keeps them (section 0),
+so they are among the errors section 5 expects; a bundle `validate` accepts
+with zero errors needs the DOIs registered, which is #708's. The readme's
 citation is the same operator step: it gives the bundle's title, "Backplanes
 for Navigated Images from Cassini ISS at Saturn", and "DOI TBD" until the
 bundle's DOI is registered, when the citation is completed with it.
@@ -2849,9 +2860,9 @@ Closes #71, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8).
 ### Phase 10 — Validation, the integrity pass, and the draft run
 
 In two parts. Part A is what the synthetic cohort alone makes possible: the
-bundle check, the test that gates it, and `--check-only`. Part B is the draft
-run over a real COISS volume, and waits on the Cassini label facts reaching
-`main`, a fresh navigation, and the DOIs.
+bundle check, the test that gates it, and `--check-only`; it is done, and its
+PR is #707. Part B, the draft run over a real COISS volume, is deferred to
+#708 (section 0): it needs the DOIs and a fresh navigation.
 
 #### Part A — The bundle check, its gate and `--check-only`
 
@@ -2953,7 +2964,8 @@ them against the registered context products. Neither tool checks the
 versions an inventory's secondary members give products outside the bundle:
 `ring.saturn.rings::1.9` and `mission.cassini-huygens::1.0` in the context
 inventory pass the check, `validate` and the Phase 7 reference tool alike.
-Part B's draft run checks those versions against the registry by hand.
+The run over a real volume (#708) checks those versions against the
+registry by hand.
 
 **The gate is a test in the default suite**,
 `tests/spindoctor/cli/pds4/check/test_check_cassini_iss_saturn.py`, so pytest
@@ -3081,8 +3093,9 @@ Over these two builds, then, `validate`'s only errors are the DOI
 placeholders, and it raises nothing `sd_create_bundle check` does not. The
 supplemental file's last line (section 2.2, row 7) is accepted by `validate`
 4.2.0: no product failed content validation. A plain build's guide references are warnings, not
-errors, in line with criterion 9: they are the missing-PDF signal. Criterion 2
-is then blocked only by the DOIs, in both builds.
+errors, in line with criterion 9: they are the missing-PDF signal. Zero
+errors under `validate` is then blocked only by the DOIs, in both builds,
+which #708 registers.
 
 Over Part A's own builds of the cohort bundle, at `06247cd9`, `validate` gives
 the same results: plain, 15 products, 2 errors (the one placeholder, twice),
@@ -3169,49 +3182,43 @@ compares a column named for a PDS4 attribute with the first element of that
 name in the product's label, which is the element the summary pass copies in
 every label the templates write; its docstring says so.
 
-#### Part B — The draft run over a real volume
+#### Part B — The draft run over a real volume: deferred to #708
 
-Then the draft run itself. Run it twice: first over the synthetic cohort,
-which needs nothing but the repository and is where every schema error
-should already have been found, and then over the real one. For the real
-run: choose a cohort with `--check-only`, navigate it, generate backplanes,
-generate the bundle, run `sd_create_bundle check` and `validate`, and record
-the result. The
-cohort should be one COISS volume — large enough that the collection
-machinery is exercised over more than one directory, small enough to
-regenerate in an afternoon when a review comment lands. The local tree at
-`/data/nav-offset-results` is not it: 75 documents of which 17 are
-`status == "success"`, and 2 backplane products.
-
-Part B waits on three things. The Cassini ISS label facts have to reach
-`main` (#684), from which Part B of Phase 8 fills
-`cassini:ISS_Specific_Attributes`. The volume has to be navigated afresh,
-since a navigation by an earlier version recorded no exposure times in its
-`observation` block (section 3.4). And the DOIs have to be registered, since
-criterion 2 cannot hold while the placeholders stand. A delivered bundle also
-needs the user-guide PDF (section 3.6). The draft run also checks, by hand,
-the version the context inventory gives each context product against the PDS
-registry, which neither the check nor `validate` does (Part A).
-
-Finally, reconcile both guides to what the draft run produces, should it
-differ from section 3.1, and the four plan files as if this branch had
-merged.
+Deferred by the operator's ruling of 2026-09-15 (section 0): the DOIs and a
+fresh navigation of a COISS volume will not come soon, and this work
+finishes before them, as a prototype over the synthetic cohort. #708 carries
+the run, whose steps were these: choose one COISS volume with
+`--check-only`; navigate it afresh, since a navigation by an earlier version
+recorded no exposure times in its `observation` block (section 3.4);
+generate its backplanes and its bundle, with the DOIs registered and, for a
+delivered bundle, the user-guide PDF (section 3.6); run
+`sd_create_bundle check` and `validate` and record the result; check by hand
+the version the context inventory gives each context product against the
+PDS registry, which neither tool does (Part A); and reconcile both guides to
+what it produces.
 
 Part A closes the dev-guide output-layout part of #265, the last of its three
-parts, and #66; Part B contributes to #53.
+parts, and #66; #708 contributes to #53.
 
 ---
 
 ## 5. Acceptance criteria
 
-1. `sd_create_bundle labels` followed by `sd_create_bundle summary` over a
-   COISS volume produces a tree matching section 3.1 exactly — asserted by a
-   test that walks the tree, not by inspection.
-2. The NASA PDS `validate` tool reports zero errors over that tree. The
-   command and its output are recorded in the branch's final PR.
+The work is a prototype over the synthetic cohort (section 0), and these are
+its criteria; the ones that need a real volume or the DOIs are #708's.
+
+1. `sd_create_bundle labels` followed by `sd_create_bundle summary` over the
+   synthetic cohort produces a tree matching section 3.1 exactly — asserted
+   by a test that walks the tree, not by inspection.
+2. Over the synthetic cohort, the NASA PDS `validate` tool reports as errors
+   exactly the `TODO DOI` placeholders -- and, over a stand-in guide PDF,
+   that VeraPDF cannot read it -- and as warnings the references to the user
+   guide in a build without the PDF. The command and its output are recorded
+   in the branch's final PR. Zero errors over a real COISS volume, its DOIs
+   registered, is #708's criterion.
 3. `sd_create_bundle check` reports, over a bundle built from the synthetic
    cohort, exactly the findings Part A of Phase 10 lists as known -- the
-   `TODO DOI` placeholders until the DOIs are registered, each data label's
+   `TODO DOI` placeholders, which the prototype keeps, each data label's
    empty `cassini:ISS_Specific_Attributes` until Part B of Phase 8, and, in a
    build without the user guide, the references to it, as warnings -- each by
    its message or, for an XML schema error, its kind, and nothing else. A
@@ -3229,12 +3236,15 @@ parts, and #66; Part B contributes to #53.
    leaves no label on disk.
 9. The document collection contains the user-guide PDF, or the run logs one
    warning naming it and the plan's delivery note records its absence.
-10. `--check-only` over the chosen cohort reports every image's four inputs
-   and exits non-zero if any selected image is incomplete.
+10. `--check-only` over the synthetic cohort's images reports each one's four
+   inputs and exits non-zero if any selected image is incomplete.
 11. Both guides describe the tree in section 3.1 and nothing else.
 
-Criterion 2 is the one that matters. The other ten are how you get there
-without discovering at the end that you cannot.
+For the prototype, criteria 2 and 3 are the ones that matter: over the
+synthetic cohort, `validate` and the check report the known findings and
+nothing else. The other nine are how you get there without discovering at
+the end that you cannot. `validate` accepting a real volume's bundle with
+zero errors, which this plan once called the one that matters, is #708's.
 
 ---
 
@@ -3299,6 +3309,11 @@ branch.
 
 **Deferred, with the issue that carries them:**
 
+- #708 — the draft run over a real COISS volume, which `validate` has to
+  accept with zero errors: Part B of Phase 10, deferred by the operator's
+  ruling of 2026-09-15 (section 0). It needs the DOIs registered and a fresh
+  navigation of the volume, and carries the by-hand registry check of the
+  context inventory's versions.
 - #705 — the spelling gate on its way to `main` reads the PDS4 schemas the
   package ships (Phase 10, Part A), whose misspellings are NASA's; its skip
   list takes `*.xsd` and `*.sch`, in whichever of its two changes lands
@@ -3417,10 +3432,9 @@ planes and one line of numpy over an existing FITS would have shown it.
 And read the whole path before concluding: that same finding missed
 `merge.py`, where the ID map is written.
 
-Part B of Phase 10, the draft run, needs the operator's cohort choice, and
-the user-guide PDF if the draft is to be delivered rather than reviewed
-internally (section 3.6 and Phase 10). Neither blocks Phases 1-9 or Part A of
-Phase 10. One question
+The draft run over a real volume, which needs the operator's cohort choice
+and, for a delivered bundle, the user-guide PDF (section 3.6), is #708's
+(section 0), and blocks nothing that remains. One question
 is open and is not the operator's to answer alone: whether this information
 model build's dictionaries are registered (section 3.9), which the
 Engineering Node is being asked. It bears on acceptance criterion 6 and on
