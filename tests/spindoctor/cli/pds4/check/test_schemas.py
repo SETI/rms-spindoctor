@@ -104,3 +104,19 @@ def test_a_warning_not_xmlschemas_in_a_build_reaches_the_caller_and_is_no_findin
     with pytest.warns(ResourceWarning, match='unclosed database'):
         resolved = label_schema('bundle.lblx', bare_bundle_label(location), SchemaSource(tmp_path))
     assert resolved.findings == ()
+
+
+def test_a_relative_schema_directory_is_the_one_the_source_was_built_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two sources of one relative spelling in two directories are two sources."""
+    for name in ('one', 'two'):
+        (tmp_path / name / 'copies').mkdir(parents=True)
+        (tmp_path / name / 'copies' / 'example.xsd').write_text(name, encoding='utf-8')
+    monkeypatch.chdir(tmp_path / 'one')
+    one = SchemaSource(Path('copies'))
+    monkeypatch.chdir(tmp_path / 'two')
+    two = SchemaSource(Path('copies'))
+    url = 'https://example.invalid/v1/example.xsd'
+    assert one.locate(url) == (tmp_path / 'one' / 'copies' / 'example.xsd').resolve()
+    assert two.locate(url) == (tmp_path / 'two' / 'copies' / 'example.xsd').resolve()
