@@ -36,6 +36,7 @@ from spindoctor.reproj._serialization import (
 )
 from spindoctor.reproj.photometric_model import PhotometricModel
 from spindoctor.reproj.ring_orbit_model import RingOrbitModel
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.image import array_unzoom, array_zoom
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType, PathLike
 
@@ -208,6 +209,36 @@ def _validate_reproject_zoom_amt(zoom_amt: object) -> tuple[int, int]:
         'reproject() zoom_amt must be int (not bool) or a tuple/list of two ints, '
         f'got {type(zoom_amt).__name__}'
     )
+
+
+def _zoomed_bin_coords(n_bins: int, zoom: int) -> NDArrayFloatType:
+    """Return the sub-sample coordinates of a zoomed output axis.
+
+    Output cell ``b`` of an axis of ``n_bins`` cells is split into ``zoom``
+    sub-samples, which ``array_unzoom(..., 'mean')`` later block-averages back
+    into cell ``b``. For the block mean to land on cell ``b``'s own coordinate
+    the sub-samples must straddle it, so sub-sample ``i`` of cell ``b`` sits at
+    ``b + (i + 0.5) / zoom - 0.5``: the block runs from half a cell below ``b``
+    to half a cell above it and averages to exactly ``b``. Starting the block at
+    ``b`` instead would put its mean ``(zoom - 1) / (2 * zoom)`` cells too high,
+    approaching half a cell as ``zoom`` grows. At ``zoom == 1`` this is the
+    identity, ``np.arange(n_bins)``.
+
+    The block mean is taken over a masked array, so sub-samples that fell
+    outside the image or on a masked pixel are skipped. A cell whose surviving
+    sub-samples are not symmetric about its coordinate is therefore still
+    pulled towards the side that survived; only a fully sampled cell is exactly
+    unbiased.
+
+    Parameters:
+        n_bins: Number of unzoomed output cells along the axis.
+        zoom: Number of sub-samples per output cell. Must be >= 1.
+
+    Returns:
+        1-D float array of ``n_bins * zoom`` coordinates, in units of unzoomed
+        output cells.
+    """
+    return (np.arange(n_bins * zoom) + 0.5) / float(zoom) - 0.5
 
 
 # Module-level defaults for RingMosaic parameters
@@ -905,7 +936,10 @@ class RingMosaic:
             ring_body_name: oops ring body name for the surface lookup.
 
         Returns:
-            Tuple of (u, v) floating-point pixel coordinate arrays.
+            Tuple of (u, v) floating-point pixel-corner coordinate arrays, the
+            convention the oops FOV works in: a whole number falls on the
+            boundary between two pixels and the centre of column c is at
+            c + 0.5.
         """
         if orbit_model is not None:
             longitude = orbit_model.corotating_to_inertial(longitude, obs.midtime)
@@ -946,15 +980,17 @@ class RingMosaic:
             longitude_step: Longitude step for sampling (rad).
 
         Returns:
-            Tuple of (u_pixels, v_pixels) integer pixel coordinate arrays.
+            Tuple of (u_pixels, v_pixels) floating-point pixel-corner coordinate
+            arrays, as returned by longitude_radius_to_pixels.
         """
         longitudes, radii = orbit_model.longitude_radius(obs.midtime, step=longitude_step)
 
         bp = obs.ext_bp
-        u_min = 0
-        v_min = 0
-        u_max = obs.extdata_shape_uv[0] - 1
-        v_max = obs.extdata_shape_uv[1] - 1
+        # Containment is half-open because these are pixel-corner coordinates:
+        # a frame of W columns occupies [0, W), so the centre of the last
+        # column (W - 0.5) is inside the frame and W itself is not.
+        u_limit = obs.extdata_shape_uv[0]
+        v_limit = obs.extdata_shape_uv[1]
 
         bp_radius = bp.ring_radius(ring_body_name)
         bp_longitude = bp.ring_longitude(ring_body_name)
@@ -976,7 +1012,7 @@ class RingMosaic:
             obs, longitudes, radii, ring_body_name=ring_body_name
         )
 
-        in_fov = (u_pix >= u_min) & (u_pix <= u_max) & (v_pix >= v_min) & (v_pix <= v_max)
+        in_fov = (u_pix >= 0.0) & (u_pix < u_limit) & (v_pix >= 0.0) & (v_pix < v_limit)
         return u_pix[in_fov], v_pix[in_fov]
 
     # ------------------------------------------------------------------
@@ -1012,9 +1048,15 @@ class RingMosaic:
             radius_range: (inner, outer) radius limits (km). Defaults to
                 the mosaic's own radius_inner/outer.
             margin: Number of edge pixels to exclude. Must be >= 1.
-            zoom_amt: Positive integer or (radial, longitude) tuple giving
-                the zoom factor for sub-pixel interpolation. Negative values
-                select spline interpolation order (not yet supported).
+            zoom_amt: Positive integer or (radial, longitude) tuple giving how
+                many sub-samples to take per output cell along the radial and
+                longitude axes. The image itself is never interpolated: every
+                sub-sample reads the one image pixel containing it, and the
+                sub-samples of a cell are averaged to produce that cell. Raising
+                it smooths the output and fills cells whose single centre sample
+                would miss the ring, at a cost in run time of the product of the
+                two factors. Negative values select spline interpolation order
+                (not yet supported).
             orbit_model: RingOrbitModel for co-rotating frame conversion.
                 Overrides the default set at construction. None uses inertial
                 longitude.
@@ -1148,14 +1190,22 @@ class RingMosaic:
         end_v = obs.data_shape_uv[1] - 1
         if uv_range is not None:
             start_u, end_u, start_v, end_v = uv_range
+            # uv_range names whole columns and rows; Meshgrid works in the
+            # geometry layer's pixel-corner coordinates, so each bound is
+            # converted from the column's own number to the column's centre.
             meshgrid = oops.Meshgrid.for_fov(
                 obs.fov,
-                origin=(start_u + 0.5, start_v + 0.5),
-                limit=(end_u + 0.5, end_v + 0.5),
+                origin=(
+                    start_u + PIXEL_CENTER_TO_CORNER_PX,
+                    start_v + PIXEL_CENTER_TO_CORNER_PX,
+                ),
+                limit=(end_u + PIXEL_CENTER_TO_CORNER_PX, end_v + PIXEL_CENTER_TO_CORNER_PX),
                 swap=True,
             )
             # Every backplane product below is region-shaped; crop the data to
-            # match so masks and the region-relative pixel indices stay aligned.
+            # match so masks and the region-relative pixel-corner coordinates
+            # (which np.floor turns into region-relative columns and rows below)
+            # stay aligned.
             data = data[start_v : end_v + 1, start_u : end_u + 1]
 
         bp = oops.backplane.Backplane(obs, meshgrid)
@@ -1251,7 +1301,7 @@ class RingMosaic:
         if l_zoom_amt == 1:
             full_lon_bins_zoom: NDArrayFloatType = full_lon_bins.astype(np.float64)
         else:
-            full_lon_bins_zoom = np.arange(n_full_lon_bins * l_zoom_amt) / float(l_zoom_amt)
+            full_lon_bins_zoom = _zoomed_bin_coords(n_full_lon_bins, l_zoom_amt)
 
         full_good_antimask_zoom = array_zoom(full_good_antimask, (l_zoom_amt,))
 
@@ -1286,10 +1336,21 @@ class RingMosaic:
             )
 
         rad_bins = np.repeat(np.arange(n_radius_bins), n_lon_bins)
+        # Only the zoomed path needs a fractional radial coordinate; the
+        # unzoomed one reads rad_bins directly, so leave this empty there
+        # rather than building a second full-size array for nothing.
+        rad_bins_frac_zoom: NDArrayFloatType = np.zeros(0, dtype=np.float64)
         if r_zoom_amt == 1 and l_zoom_amt == 1:
             rad_bins_zoom = rad_bins
         else:
+            # rad_bins_zoom numbers the rows of the zoomed array (it scatters
+            # samples into it); rad_bins_frac_zoom is the same rows' radial
+            # coordinate in units of unzoomed rows, which straddles each
+            # unzoomed row so the block mean lands on the row itself.
             rad_bins_zoom = np.repeat(np.arange(n_radius_bins_zoom), n_lon_bins_zoom)
+            rad_bins_frac_zoom = np.repeat(
+                _zoomed_bin_coords(n_radius_bins, r_zoom_amt), n_lon_bins_zoom
+            )
 
         rad_bins_act: NDArrayFloatType
         rad_bins_act_zoom: NDArrayFloatType
@@ -1312,9 +1373,7 @@ class RingMosaic:
                 )
                 rad_offset_zoom = orbit_model.radius_at_longitude(inertial_lons_zoom, obs.midtime)
                 rad_bins_act_zoom = (
-                    rad_bins_zoom / float(r_zoom_amt) * self._rad_resolution
-                    + radius_inner
-                    + rad_offset_zoom
+                    rad_bins_frac_zoom * self._rad_resolution + radius_inner + rad_offset_zoom
                 )
         else:
             rad_bins_act = rad_bins * self._rad_resolution + radius_inner
@@ -1333,10 +1392,27 @@ class RingMosaic:
             ring_body_name=self._ring_body_name,
         )
 
-        u_frac_zoom_rect = u_frac_zoom.reshape((n_radius_bins_zoom, n_lon_bins_zoom))
-        u_frac = u_frac_zoom_rect[::r_zoom_amt, ::l_zoom_amt].reshape(long_bins_act.shape)
-        v_frac_zoom_rect = v_frac_zoom.reshape((n_radius_bins_zoom, n_lon_bins_zoom))
-        v_frac = v_frac_zoom_rect[::r_zoom_amt, ::l_zoom_amt].reshape(long_bins_act.shape)
+        zoomed = r_zoom_amt != 1 or l_zoom_amt != 1
+        # The per-column metadata means are read at each unzoomed cell's own
+        # coordinate.  Those coordinates are `long_bins_act` and `rad_bins_act`,
+        # so the pixel positions come from them directly rather than out of the
+        # zoomed ones: the sub-samples straddle a cell and none of them sits on
+        # it, so any one of them would answer for a point up to half a cell away
+        # and the means would move with the zoom.  The extra call costs the
+        # reciprocal of the zoom product against the one above it.
+        if zoomed:
+            u_frac, v_frac = self.longitude_radius_to_pixels(
+                obs,
+                long_bins_act,
+                rad_bins_act,
+                orbit_model=orbit_model,
+                ring_body_name=self._ring_body_name,
+            )
+        else:
+            u_frac = u_frac_zoom
+            v_frac = v_frac_zoom
+        u_frac = u_frac.reshape(long_bins_act.shape).copy()
+        v_frac = v_frac.reshape(long_bins_act.shape).copy()
 
         u_frac -= start_u
         v_frac -= start_v
@@ -1373,7 +1449,6 @@ class RingMosaic:
 
         good_rad = rad_bins[good]
         good_lon = long_bins[good]
-        zoomed = r_zoom_amt != 1 or l_zoom_amt != 1
         good_rad_zoom = rad_bins_zoom[good_zoom] if zoomed else good_rad
         good_lon_zoom = long_bins_zoom[good_zoom] if zoomed else good_lon
 
@@ -1383,6 +1458,12 @@ class RingMosaic:
         )
         repro_img[:, :] = ma.masked
         repro_img[good_rad_zoom, good_lon_zoom] = restr_data
+        # Block-average each cell's sub-samples back down. This is a masked mean:
+        # sub-samples that fell outside the image or on a masked pixel are
+        # skipped, and a cell with no surviving sub-sample stays masked. The
+        # sub-samples straddle the cell (see _zoomed_bin_coords), so a fully
+        # sampled cell averages to exactly its own radius and longitude; a
+        # partly sampled one leans towards the side that survived.
         repro_img = ma.MaskedArray(array_unzoom(repro_img, (r_zoom_amt, l_zoom_amt)))
 
         good_lon_antimask = ~ma.getmaskarray(ma.sum(repro_img, axis=0))

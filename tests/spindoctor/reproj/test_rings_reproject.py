@@ -19,12 +19,23 @@ geometry and from the documented contracts:
 - Validators raise the documented ``TypeError`` / ``ValueError`` with the documented
   message content.
 
+The geometry is written once, as the forward maps ``_lon_of_u`` / ``_rad_of_v`` /
+``_rad_offset_of_v`` and their exact inverses, and both halves of the fixture are
+built from them: the fake backplane evaluates the forward map, the fake
+``longitude_radius_to_pixels`` evaluates the inverse. The maps take a
+*pixel-corner* coordinate, the convention a real oops FOV returns and the one
+``reproject`` floors to reach a column, so the backplane cell for column c is
+filled by evaluating the forward map at that column's centre,
+``c + PIXEL_CENTER_TO_CORNER_PX``. Filling it at ``c`` instead would describe the
+column's left edge, leaving the fixture's forward and inverse maps half a pixel
+apart and blind to a half-pixel error in the code under test.
+
 The synthetic image is 20x20 with ``data[v, u] = 100 v + u`` so any indexing error
-changes the observed values. Geometry: pixel ``(v, u)`` sees longitude
-``LON0 + (u - 0.5) * LON_RES / 2`` and (absolute mode) radius
-``990 + (v - 0.5) * 2.5`` km. With the default mosaic grid (radii 1000..1020 km at
-5 km, longitude pi/16 rad) the reprojection covers bins 8..14 sampling pixels
-``u = 4 + 2 c``, ``v = 4 + 2 r``.
+changes the observed values. Geometry: the centre of pixel ``(v, u)`` sees
+longitude ``LON0 + u * LON_RES / 2`` and (absolute mode) radius ``990 + v * 2.5``
+km. With the default mosaic grid (radii 1000..1020 km at 5 km, longitude pi/16
+rad) the reprojection covers bins 8..14 sampling pixels ``u = 4 + 2 c``,
+``v = 4 + 2 r``.
 """
 
 import dataclasses
@@ -48,6 +59,7 @@ from spindoctor.reproj.rings import (
     _validate_reproject_radius_range,
     _validate_reproject_zoom_amt,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
 # ---------------------------------------------------------------------------
@@ -58,19 +70,20 @@ _N = 20  # image size (pixels per side)
 _LON_RES = math.pi / 16  # mosaic longitude resolution (rad/bin)
 _RAD_RES = 5.0  # mosaic radius resolution (km/bin)
 _N_FULL_LON = math.floor(_MAX_LONGITUDE / _LON_RES) + 1  # 32 bins in 0..2pi
-_LON0 = 6 * _LON_RES  # longitude seen by pixel u = 0.5
+_LON0 = 6 * _LON_RES  # longitude seen at pixel-corner u = 0.5
 _LON_PIX = _LON_RES / 2.0  # rad per pixel (2 pixels per longitude bin)
-_RAD0 = 990.0  # radius seen by pixel v = 0.5 (absolute mode)
+_RAD0 = 990.0  # radius seen at pixel-corner v = 0.5 (absolute mode)
 _RAD_PIX = 2.5  # km per pixel (2 pixels per radius bin)
+_V_ORBIT = 7.5  # pixel-corner row holding zero offset from the orbit model
 _EPOCH_UTC = '2000-01-01T12:00:00'
 _EPOCH_ET = float(julian.tdb_from_tai(julian.tai_from_iso(_EPOCH_UTC)))
 
 
 def _lon_of_u(u: NDArrayFloatType) -> NDArrayFloatType:
-    """Longitude (rad) seen at fractional pixel column u.
+    """Longitude (rad) seen at pixel-corner column coordinate u.
 
     Parameters:
-        u: Fractional pixel column array.
+        u: Pixel-corner column coordinate array.
 
     Returns:
         Longitude array in radians.
@@ -79,22 +92,24 @@ def _lon_of_u(u: NDArrayFloatType) -> NDArrayFloatType:
 
 
 def _u_of_lon(lon: NDArrayFloatType) -> NDArrayFloatType:
-    """Fractional pixel column at which longitude lon (rad) is seen.
+    """Pixel-corner column coordinate at which longitude lon (rad) is seen.
+
+    The exact inverse of _lon_of_u.
 
     Parameters:
         lon: Longitude array in radians.
 
     Returns:
-        Fractional pixel column array.
+        Pixel-corner column coordinate array.
     """
     return (lon - _LON0) / _LON_PIX + 0.5
 
 
 def _rad_of_v(v: NDArrayFloatType) -> NDArrayFloatType:
-    """Absolute ring radius (km) seen at fractional pixel row v.
+    """Absolute ring radius (km) seen at pixel-corner row coordinate v.
 
     Parameters:
-        v: Fractional pixel row array.
+        v: Pixel-corner row coordinate array.
 
     Returns:
         Radius array in km.
@@ -103,15 +118,60 @@ def _rad_of_v(v: NDArrayFloatType) -> NDArrayFloatType:
 
 
 def _v_of_rad(rad: NDArrayFloatType) -> NDArrayFloatType:
-    """Fractional pixel row at which absolute radius rad (km) is seen.
+    """Pixel-corner row coordinate at which absolute radius rad (km) is seen.
+
+    The exact inverse of _rad_of_v.
 
     Parameters:
         rad: Radius array in km.
 
     Returns:
-        Fractional pixel row array.
+        Pixel-corner row coordinate array.
     """
     return (rad - _RAD0) / _RAD_PIX + 0.5
+
+
+def _rad_offset_of_v(v: NDArrayFloatType) -> NDArrayFloatType:
+    """Signed radius offset (km) from the orbit model at pixel-corner row v.
+
+    Parameters:
+        v: Pixel-corner row coordinate array.
+
+    Returns:
+        Offset array in km, zero at row _V_ORBIT.
+    """
+    return (v - _V_ORBIT) * _RAD_PIX
+
+
+def _v_of_rad_offset(offset: NDArrayFloatType) -> NDArrayFloatType:
+    """Pixel-corner row coordinate holding a given signed radius offset (km).
+
+    The exact inverse of _rad_offset_of_v.
+
+    Parameters:
+        offset: Offset array in km from the orbit model's radius.
+
+    Returns:
+        Pixel-corner row coordinate array.
+    """
+    return offset / _RAD_PIX + _V_ORBIT
+
+
+def _pixel_centers(start: int, count: int) -> NDArrayFloatType:
+    """Return the pixel-corner coordinates of the centres of count columns.
+
+    The forward maps take pixel-corner coordinates, so a backplane cell must be
+    filled by evaluating them at the cell's centre, not at the cell's own
+    number, which names its low edge.
+
+    Parameters:
+        start: Array column (or row) number of the first cell.
+        count: How many consecutive cells to cover.
+
+    Returns:
+        Float array of count pixel-corner coordinates.
+    """
+    return np.arange(start, start + count, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
 
 
 class _FakeObs:
@@ -140,12 +200,16 @@ def _make_backplane_class(
 ) -> type[Any]:
     """Build a fake oops Backplane class implementing the synthetic geometry.
 
-    In absolute mode (``model is None``) the radius backplane is
-    ``_rad_of_v(v)``. In offset mode the radius backplane is
-    ``model.radius_at_longitude(lon, obs.midtime) + (v - 7.5) * _RAD_PIX`` so pixel
-    rows hold constant *offsets* from the orbit while absolute radii vary with
-    longitude. When a meshgrid is supplied (uv_range), the arrays cover only the
-    restricted region, exactly as a real Backplane would.
+    Each cell is filled by evaluating the forward maps at the cell's centre, so
+    the backplane agrees with the fake inverse mapping to the last bit: a cell
+    reports the longitude and radius whose inverse falls inside that same cell.
+
+    In absolute mode (``model is None``) the radius backplane is ``_rad_of_v``.
+    In offset mode it is ``model.radius_at_longitude(lon, obs.midtime) +
+    _rad_offset_of_v(v)`` so pixel rows hold constant *offsets* from the orbit
+    while absolute radii vary with longitude. When a meshgrid is supplied
+    (uv_range), the arrays cover only the restricted region, exactly as a real
+    Backplane would.
 
     Parameters:
         model: Orbit model for offset-mode radii, or None for absolute radii.
@@ -170,14 +234,14 @@ def _make_backplane_class(
                 v0 = int(uv[0, 0, 1] - 0.5)
                 nv, nu = uv.shape[0], uv.shape[1]
             vv, uu = np.meshgrid(np.arange(v0, v0 + nv), np.arange(u0, u0 + nu), indexing='ij')
-            lons = _lon_of_u(uu.astype(np.float64))
+            # Evaluate the forward maps at each cell's centre, not at the cell's
+            # own number; see the module docstring.
+            vv_c, uu_c = np.meshgrid(_pixel_centers(v0, nv), _pixel_centers(u0, nu), indexing='ij')
+            lons = _lon_of_u(uu_c)
             if model is None:
-                radius = _rad_of_v(vv.astype(np.float64))
+                radius = _rad_of_v(vv_c)
             else:
-                radius = (
-                    model.radius_at_longitude(lons, obs.midtime)
-                    + (vv.astype(np.float64) - 7.5) * _RAD_PIX
-                )
+                radius = model.radius_at_longitude(lons, obs.midtime) + _rad_offset_of_v(vv_c)
             self._radius = Scalar(radius)
             self._longitude = Scalar(lons)
             self._radial_res = Scalar(vv.astype(np.float64) + 2.0)
@@ -240,7 +304,7 @@ def _make_lr2p(
         orbit_model: RingOrbitModel | None = None,
         ring_body_name: str = 'saturn:ring',
     ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-        """Convert (longitude, radius) to fractional (u, v) via the synthetic geometry."""
+        """Convert (longitude, radius) to pixel-corner (u, v) via the synthetic geometry."""
         lon: NDArrayFloatType = np.atleast_1d(np.asarray(Scalar(longitude).vals, dtype=np.float64))
         rad = np.atleast_1d(np.asarray(Scalar(radius).vals, dtype=np.float64))
         if orbit_model is not None:
@@ -249,7 +313,7 @@ def _make_lr2p(
         if model is None:
             v = _v_of_rad(rad)
         else:
-            v = (rad - model.radius_at_longitude(lon, obs.midtime)) / _RAD_PIX + 7.5
+            v = _v_of_rad_offset(rad - model.radius_at_longitude(lon, obs.midtime))
         return u, v
 
     return _fake_lr2p
@@ -296,18 +360,22 @@ def _make_mosaic(**kwargs: Any) -> RingMosaic:
     )
 
 
-def _make_offset_mosaic(model: RingOrbitModel) -> RingMosaic:
+def _make_offset_mosaic(model: RingOrbitModel, *, radius_inner: float = -10.0) -> RingMosaic:
     """Return the offset-radius test mosaic (-10..+10 km about the orbit).
 
     Parameters:
         model: The orbit model defining the co-rotating frame.
+        radius_inner: Inner radius offset (km). The default puts each cell's
+            sample in the middle of a detector row; a quarter-cell shift puts
+            it on a row boundary instead, which is what makes a sub-cell
+            sampling error visible in the floored row.
 
     Returns:
         A RingMosaic for SATURN with offset radius semantics.
     """
     return RingMosaic(
         body_name='SATURN',
-        radius_inner=-10.0,
+        radius_inner=radius_inner,
         radius_outer=10.0,
         longitude_resolution=_LON_RES,
         radius_resolution=_RAD_RES,
@@ -745,10 +813,16 @@ class TestReprojectAbsoluteGeometry:
         np.testing.assert_array_equal(ma.getdata(res_default.img), ma.getdata(res_explicit.img))
 
     def test_longitude_range_restricts_bins(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A [9, 12] bin-edge range keeps only bins whose pixels fall inside it."""
+        """A [9, 12] bin-edge range keeps only bins whose pixels fall inside it.
+
+        Both endpoints are inclusive, and pixel column 12 sees exactly longitude
+        12 * _LON_RES, so bin 12 survives along with 9, 10 and 11.
+        """
         _install_geometry(monkeypatch)
         res = _make_mosaic().reproject(_FakeObs(), longitude_range=(9 * _LON_RES, 12 * _LON_RES))
-        np.testing.assert_array_equal(np.where(res.longitude_antimask)[0], np.array([9, 10, 11]))
+        np.testing.assert_array_equal(
+            np.where(res.longitude_antimask)[0], np.array([9, 10, 11, 12])
+        )
 
     def test_non_grid_aligned_start_keeps_columns_grid_aligned(
         self, monkeypatch: pytest.MonkeyPatch
@@ -863,12 +937,17 @@ class TestReprojectAbsoluteGeometry:
         assert math.isnan(res.incidence)
 
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
-    def test_zero_width_longitude_range_returns_empty_result(
+    def test_zero_width_longitude_range_between_samples_is_empty(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """start == end selects no pixels and yields an empty sparse result."""
+        """A zero-width range no pixel's longitude hits yields an empty sparse result.
+
+        Both endpoints are inclusive, so start == end keeps exactly those pixels
+        reporting that longitude; 9.3 * _LON_RES falls between two pixel centres
+        and so selects none.
+        """
         _install_geometry(monkeypatch)
-        res = _make_mosaic().reproject(_FakeObs(), longitude_range=(9 * _LON_RES, 9 * _LON_RES))
+        res = _make_mosaic().reproject(_FakeObs(), longitude_range=(9.3 * _LON_RES, 9.3 * _LON_RES))
         assert res.img.shape == (5, 0)
         assert not res.longitude_antimask.any()
 
@@ -877,7 +956,7 @@ class TestReprojectAbsoluteGeometry:
         """add() of a zero-column result records no image and stores no columns."""
         _install_geometry(monkeypatch)
         mosaic = _make_mosaic()
-        res = mosaic.reproject(_FakeObs(), longitude_range=(9 * _LON_RES, 9 * _LON_RES))
+        res = mosaic.reproject(_FakeObs(), longitude_range=(9.3 * _LON_RES, 9.3 * _LON_RES))
         mosaic.add(res)
         data = mosaic.to_sparse()
         assert not data.longitude_antimask.any()
@@ -1025,6 +1104,139 @@ class TestReprojectWithOrbitModel:
 
 
 # ---------------------------------------------------------------------------
+# Zoomed output grid
+# ---------------------------------------------------------------------------
+
+
+def _profile_centroid(profile: NDArrayFloatType) -> float:
+    """Intensity-weighted centroid of a 1-D profile, in cells.
+
+    Parameters:
+        profile: Non-negative profile values, one per cell.
+
+    Returns:
+        The centroid cell coordinate.
+    """
+    cells = np.arange(len(profile), dtype=np.float64)
+    return float((cells * profile).sum() / profile.sum())
+
+
+def _banded_obs() -> _FakeObs:
+    """Observation holding a smooth band centred on one image row and column.
+
+    The band is symmetric about image row 7 (pixel-corner 7.5, the row of zero
+    offset from the orbit model) and image column 10, so its centroid falls on
+    the middle of the output grid and any shift of the grid shows up as a shift
+    of the measured centroid.
+
+    Returns:
+        A _FakeObs carrying that image.
+    """
+    vv, uu = np.meshgrid(np.arange(_N), np.arange(_N), indexing='ij')
+    data = np.exp(-((vv - 7.0) ** 2) / 8.0) * np.exp(-((uu - 10.0) ** 2) / 18.0)
+    return _FakeObs(data=data)
+
+
+class TestZoomedOutputGrid:
+    """A zoomed output grid must describe the same radii and longitudes as an unzoomed one.
+
+    zoom sub-samples each output cell and block-averages the sub-samples back
+    into it, so the sub-samples have to straddle the cell. Sub-samples that run
+    from the cell's own coordinate upward instead average to a point up to half
+    a cell above it, which moves every feature by that much. margin=1 keeps the
+    whole band away from the edge, so no cell loses a sub-sample and the two
+    grids can be compared exactly.
+    """
+
+    def test_zoom_does_not_shift_the_feature_radius(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A band reprojected at zoom 1 and at zoom 4 lands at the same radius."""
+        model = _make_model()
+        _install_geometry(monkeypatch, model=model)
+        mosaic = _make_offset_mosaic(model)
+        obs = _banded_obs()
+        res_1 = mosaic.reproject(obs, zoom_amt=(1, 1), margin=1)
+        res_4 = mosaic.reproject(obs, zoom_amt=(4, 4), margin=1)
+        assert res_4.img.shape == res_1.img.shape
+        row_1 = _profile_centroid(ma.filled(res_1.img, 0.0).sum(axis=1))
+        row_4 = _profile_centroid(ma.filled(res_4.img, 0.0).sum(axis=1))
+        radius_1 = res_1.radius_inner + row_1 * _RAD_RES
+        radius_4 = res_4.radius_inner + row_4 * _RAD_RES
+        # 0.25 km is one twentieth of a row; the unstraddled grid moves the band
+        # by 0.44 rows (2.2 km).
+        assert abs(radius_4 - radius_1) < 0.25
+
+    def test_zoom_does_not_shift_the_feature_longitude(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A band reprojected at zoom 1 and at zoom 4 lands at the same longitude."""
+        model = _make_model()
+        _install_geometry(monkeypatch, model=model)
+        mosaic = _make_offset_mosaic(model)
+        obs = _banded_obs()
+        res_1 = mosaic.reproject(obs, zoom_amt=(1, 1), margin=1)
+        res_4 = mosaic.reproject(obs, zoom_amt=(4, 4), margin=1)
+        np.testing.assert_array_equal(res_4.longitude_antimask, res_1.longitude_antimask)
+        col_1 = _profile_centroid(ma.filled(res_1.img, 0.0).sum(axis=0))
+        col_4 = _profile_centroid(ma.filled(res_4.img, 0.0).sum(axis=0))
+        # One twentieth of a bin; the unstraddled grid moves the band by 0.38 bins.
+        assert abs(col_4 - col_1) < 0.05
+
+    def test_zoom_does_not_shift_the_metadata_rows(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Per-column geometry means read the same detector rows at any zoom.
+
+        The metadata grid is never zoomed: each mean is read at the cell's own
+        coordinate. None of a straddling block's sub-samples sits on that
+        coordinate -- at an even zoom the two nearest are half a sub-sample
+        either side of it -- so a mean taken from any one of them would answer
+        for a point up to half a cell away and would move with the zoom. The
+        fake radial resolution backplane is ``v + 2``, so a shift of the sampled
+        rows shows up directly in the mean.
+
+        Odd and even zooms are both exercised: an odd block has a middle
+        sub-sample and an even one does not, so a fix that merely picks a better
+        sub-sample passes one and fails the other.
+        """
+        model = _make_model()
+        _install_geometry(monkeypatch, model=model)
+        mosaic = _make_offset_mosaic(model)
+        obs = _banded_obs()
+        res_1 = mosaic.reproject(obs, zoom_amt=(1, 1), margin=1)
+        for zoom in (2, 3, 4):
+            res_n = mosaic.reproject(obs, zoom_amt=(zoom, zoom), margin=1)
+            np.testing.assert_allclose(
+                res_n.mean_radial_resolution,
+                res_1.mean_radial_resolution,
+                err_msg=f'metadata moved at zoom {zoom}',
+            )
+
+    def test_zoom_does_not_shift_the_metadata_rows_on_a_row_boundary(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The means hold at any zoom even when a cell samples a row boundary.
+
+        The default mosaic puts each cell's sample in the middle of a detector
+        row, where a sub-cell error has to exceed half a row to change which
+        row is read. Shifting the inner radius by a quarter of a cell puts the
+        samples on a row boundary, where any error toward lower rows changes
+        it. Two detector rows span one cell here, so the sub-sample a zoom-4
+        block would offer sits a quarter of a row below the cell and reads the
+        row beneath.
+        """
+        model = _make_model()
+        _install_geometry(monkeypatch, model=model)
+        mosaic = _make_offset_mosaic(model, radius_inner=-8.75)
+        obs = _banded_obs()
+        res_1 = mosaic.reproject(obs, zoom_amt=(1, 1), margin=1)
+        for zoom in (2, 3, 4):
+            res_n = mosaic.reproject(obs, zoom_amt=(zoom, zoom), margin=1)
+            np.testing.assert_allclose(
+                res_n.mean_radial_resolution,
+                res_1.mean_radial_resolution,
+                err_msg=f'metadata moved at zoom {zoom}',
+            )
+
+
+# ---------------------------------------------------------------------------
 # orbit_pixels and the coordinate-conversion empty path
 # ---------------------------------------------------------------------------
 
@@ -1053,15 +1265,33 @@ class TestOrbitPixels:
         np.testing.assert_allclose(v_pix, 8.5)
 
     def test_returned_pixels_are_inside_the_fov(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """All returned (u, v) pairs lie within the extended data bounds."""
+        """All returned (u, v) pairs lie within the extended data bounds.
+
+        These are pixel-corner coordinates, so a frame of _N columns occupies
+        [0, _N) and containment is half-open at the top.
+        """
         monkeypatch.setattr(
             RingMosaic, 'longitude_radius_to_pixels', staticmethod(_make_lr2p(None))
         )
         u_pix, v_pix = RingMosaic.orbit_pixels(_FakeExtBpObs(), _make_model())
         assert bool(np.all(u_pix >= 0))
-        assert bool(np.all(u_pix <= _N - 1))
+        assert bool(np.all(u_pix < _N))
         assert bool(np.all(v_pix >= 0))
-        assert bool(np.all(v_pix <= _N - 1))
+        assert bool(np.all(v_pix < _N))
+
+    def test_last_column_is_not_dropped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A point past the last column's left edge is kept, not rejected.
+
+        The orbit sweeps the whole frame, so it reaches the right half of the
+        outermost column, at pixel-corner u above _N - 1. A containment test
+        closed at _N - 1 would admit only that column's left edge and drop the
+        rest of it, at one edge of the frame and not the other.
+        """
+        monkeypatch.setattr(
+            RingMosaic, 'longitude_radius_to_pixels', staticmethod(_make_lr2p(None))
+        )
+        u_pix, _v_pix = RingMosaic.orbit_pixels(_FakeExtBpObs(), _make_model())
+        assert bool(np.any(u_pix > _N - 1))
 
     def test_orbit_outside_radius_range_yields_no_pixels(
         self, monkeypatch: pytest.MonkeyPatch
