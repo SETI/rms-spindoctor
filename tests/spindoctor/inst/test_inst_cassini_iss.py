@@ -318,7 +318,8 @@ def _n1454725799_label() -> VicarLabelStandIn:
 
     They are the VICAR label's, as rms-vicar reads them.  The frame's mission phase is
     written with an underscore, ``APPROACH_SCIENCE``, and its antiblooming was off while
-    its light flood was on.
+    its light flood was on.  Its product creation time ends in ``Z``, which the archive's
+    Pacific local time is written with on some labels and not on others.
 
     Returns:
         The label items.
@@ -327,6 +328,7 @@ def _n1454725799_label() -> VicarLabelStandIn:
         ANTIBLOOMING_STATE_FLAG='OFF',
         LIGHT_FLOOD_STATE_FLAG='ON',
         MISSION_PHASE_NAME='APPROACH_SCIENCE',
+        PRODUCT_CREATION_TIME='2004-038T19:26:35.000Z',
         SEQUENCE_TITLE='--',
         SPACECRAFT_CLOCK_START_COUNT='1454725799.102',
         SPACECRAFT_CLOCK_STOP_COUNT='1454725799.122',
@@ -340,13 +342,15 @@ def _n1737255524_label() -> VicarLabelStandIn:
 
     They are the VICAR label's, as rms-vicar reads them.  The exposure spans a second: its
     counts run from 1737255523.232 to 1737255524.122, and its image number is the stop
-    count's seconds.
+    count's seconds.  The frame was lossy compressed, so its compression parameters are
+    the numbers a lossy label states rather than the ``N/A`` of a label with none.
 
     Returns:
         The label items.
     """
     return VicarLabelStandIn(
         IMAGE_NUMBER=1737255524,
+        INST_CMPRS_PARAM=[0, 0, 1, 0],
         MISSION_PHASE_NAME='EXTENDED-EXTENDED MISSION',
         SPACECRAFT_CLOCK_START_COUNT='1737255523.232',
         SPACECRAFT_CLOCK_STOP_COUNT='1737255524.122',
@@ -534,6 +538,21 @@ def test_each_sequence_keyword_lands_in_its_elements_by_position(
     assert block[attribute] == value
 
 
+def test_a_keyword_stating_one_value_fills_the_first_of_its_attributes() -> None:
+    """A single value fills the first attribute of its keyword and nulls the later ones.
+
+    Some labels state ``OPTICS_TEMPERATURE`` as one reading rather than two. The reading
+    they state is the front one and they carry no rear one, which is what the two-value
+    form says as well when the rear reading is the ``-999.0`` of a camera with no rear
+    sensor. Reading a single value as no sequence at all would publish the front reading
+    the label does state as null.
+    """
+    label = VicarLabelStandIn(OPTICS_TEMPERATURE=0.71)
+    block = _cassini_observation(label).get_public_metadata()['label_metadata']
+    assert block['cassini:optics_temperature_front'] == 0.71
+    assert block['cassini:optics_temperature_back'] is None
+
+
 def test_the_keywords_the_block_once_stated_itself_are_published_as_attributes() -> None:
     """The four items the block used to state under names of its own are attributes now.
 
@@ -618,6 +637,30 @@ def test_the_image_number_is_the_label_value_not_the_start_count() -> None:
     block = _cassini_observation(_n1737255524_label()).get_public_metadata()['label_metadata']
     assert block['cassini:image_number'] == 1737255524
     assert block['cassini:spacecraft_clock_start_count'] == '1737255523.232'
+
+
+def test_a_lossy_label_states_its_compression_parameters_as_numbers() -> None:
+    """N1737255524_1_CALIB was lossy compressed, so its four parameters are numbers.
+
+    A label with no lossy compression states ``N/A`` in all four instead. Both forms are
+    published as the label states them, so the four attributes are not numbers by type.
+    """
+    block = _cassini_observation(_n1737255524_label()).get_public_metadata()['label_metadata']
+    assert block['cassini:inst_cmprs_param_malgo'] == 0
+    assert block['cassini:inst_cmprs_param_tb'] == 0
+    assert block['cassini:inst_cmprs_param_blocks'] == 1
+    assert block['cassini:inst_cmprs_param_quant'] == 0
+
+
+def test_the_product_creation_time_keeps_the_trailing_z_its_label_writes() -> None:
+    """The creation time is published exactly as the label writes it, ``Z`` and all.
+
+    The archive states this time in Pacific local time rather than UTC, and writes it
+    with a trailing ``Z`` on some labels and without one on others. Neither is corrected,
+    so a reader sees which form its own image carries.
+    """
+    block = _cassini_observation(_n1454725799_label()).get_public_metadata()['label_metadata']
+    assert block['cassini:pds3_product_creation_time'] == '2004-038T19:26:35.000Z'
 
 
 def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
@@ -723,6 +766,10 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
     Its label is read directly rather than through the host, because a cruise epoch has no
     camera frame in the local kernel set and loading the image would raise.  The block it
     publishes is the same shape as a tour image's all the same.
+
+    This label states ``OPTICS_TEMPERATURE`` as one number rather than two, so the split
+    attributes are checked here and not only the plainly mapped ones: reading a single
+    value as no sequence would publish the front reading this label does state as null.
     """
     path = cast(Path, FCPath(URL_CASSINI_ISS_CRUISE_01).retrieve())
     label = vicar.VicarImage.from_file(path, strict=False).label
@@ -734,9 +781,13 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
         if keyword is not None and keyword not in section
     ]
     outside = [keyword for keyword in section if keyword not in _read_keywords()]
+    optics = label.get('OPTICS_TEMPERATURE', None)
     assert list(published) == list(_W1573251410_METADATA)
     assert absent != [], 'this label is expected to state fewer than the keywords read'
     assert outside != [], 'this label is expected to carry items no attribute reads'
+    assert not isinstance(optics, list), 'this label is expected to state one optics reading'
+    assert published['cassini:optics_temperature_front'] == optics
+    assert published['cassini:optics_temperature_back'] is None
     assert {
         f'cassini:{attribute}': published[f'cassini:{attribute}'] for attribute, _ in absent
     } == dict.fromkeys(f'cassini:{attribute}' for attribute, _ in absent)
