@@ -6,9 +6,21 @@ technique needs to know about *where in the image* the feature lives —
 image-side operations remain global, so no payload describes a per-feature
 image crop.
 
-Coordinates are in extended-FOV (extfov) image coordinates (v, u).  Bounding
-boxes are half-open in the numpy slicing sense: ``v_min, u_min, v_max,
-u_max`` with ``arr[v_min:v_max, u_min:u_max]`` covering the box.
+Every position on a payload is in extended-FOV (extfov) image coordinates
+(v, u), pixel centric: a whole number falls at a pixel's centre, so the centre
+of a ``size``-wide frame is ``(size - 1) / 2``.  That is the system every
+consumer of these payloads works in, because every one of them addresses the
+array -- a rotation pivot on a rendered template, a predicted centroid
+differenced against a measured one, a bounding box, an overlay painted into an
+extfov canvas.  A value arriving from the geometry layer, which states
+positions in pixel corner coordinates, converts once where it crosses, by
+:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`.
+
+Bounding boxes are whole-numbered and half-open: ``v_min, u_min, v_max,
+u_max`` is the slice range ``arr[v_min:v_max, u_min:u_max]``.  The same four
+integers are the pixel corner rectangle covering exactly those pixels, since a
+pixel corner whole number falls on a pixel boundary, so a box is a slice range
+and a drawable rectangle at once and needs no conversion to be either.
 """
 
 from dataclasses import dataclass, field
@@ -40,19 +52,21 @@ class StarGeometry:
     time and may differ after a refinement step records the matched
     detection.
 
-    Both are pixel-centric coordinates in the padded frame, which is what a
-    technique measures a centroid in.  The star record they come from holds
-    a pixel corner coordinate instead, half a pixel higher on each axis; the conversion happens
-    once, where the model emits the feature.
+    Both are pixel centric coordinates in the padded frame, which is what a
+    technique measures a centroid in.  The star record they come from holds a
+    pixel corner coordinate instead, half a pixel higher on each axis; the
+    conversion happens once, where the model emits the feature.
 
     Parameters:
-        predicted_vu: Predicted star (v, u) in extfov pixel-centric coordinates.
-        catalog_vu: Catalog-aberrated star (v, u) in extfov pixel-centric coordinates.
-            Equal to ``predicted_vu`` at extraction; may differ after
-            refinement.
+        predicted_vu: Predicted star (v, u) in extfov pixel centric
+            coordinates.
+        catalog_vu: Catalog-aberrated star (v, u) in extfov pixel centric
+            coordinates.  Equal to ``predicted_vu`` at extraction; may differ
+            after refinement.
         bbox_extfov_vu: Half-open bounding box ``(v_min, u_min, v_max,
             u_max)`` covering the postage stamp around the predicted
-            position.
+            position.  A slice range whose integers are also the pixel corner
+            rectangle covering exactly those pixels.
     """
 
     predicted_vu: tuple[float, float]
@@ -69,13 +83,19 @@ class LimbPolyline:
     carries its own normal direction and per-vertex anisotropic uncertainty.
 
     Parameters:
-        vertices_vu: ``(N, 2)`` array of (v, u) per surviving vertex.
-        normals_vu: ``(N, 2)`` array of outward limb normal per vertex.
+        vertices_vu: ``(N, 2)`` array of (v, u) per surviving vertex, in
+            extfov pixel centric coordinates.
+        normals_vu: ``(N, 2)`` array of outward limb normal per vertex, on the
+            same (v, u) axes.  A normal is a direction rather than a position,
+            so the two coordinate systems give it the same components: they
+            differ by a constant offset, which a difference cancels.
         sigma_normal_per_vertex_px: ``(N,)`` per-vertex sigma along normal.
         sigma_tangent_per_vertex_px: ``(N,)`` per-vertex sigma along tangent;
             typically a small constant (~0.5 px) reflecting polyline
             sampling resolution.
-        bbox_extfov_vu: Half-open bounding box of the polyline.
+        bbox_extfov_vu: Half-open bounding box of the polyline; a slice range
+            whose integers are also the pixel corner rectangle covering
+            exactly those pixels.
     """
 
     vertices_vu: NDArrayFloatType
@@ -94,7 +114,8 @@ class TerminatorPolyline:
     silhouette.  Per-vertex sigma_normal is generally larger than the
     matching limb because albedo variation softens the photometric edge.
 
-    Parameters: see ``LimbPolyline`` (identical field set).
+    Parameters: see ``LimbPolyline`` (identical field set, in the same
+    coordinate system).
     """
 
     vertices_vu: NDArrayFloatType
@@ -116,13 +137,19 @@ class RingEdgePolyline:
     to resolve a 2-D offset.
 
     Parameters:
-        vertices_vu: ``(N, 2)`` (v, u) per vertex.
-        normals_vu: ``(N, 2)`` radially outward per vertex.
+        vertices_vu: ``(N, 2)`` (v, u) per vertex, in extfov pixel centric
+            coordinates.
+        normals_vu: ``(N, 2)`` radially outward per vertex, on the same
+            (v, u) axes.  A normal is a direction rather than a position, so
+            the two coordinate systems give it the same components: they
+            differ by a constant offset, which a difference cancels.
         sigma_radial_per_vertex_px: ``(N,)`` sigma across the edge (radial).
         sigma_along_edge_per_vertex_px: ``(N,)`` sigma along the edge.
         is_straight_line: ``True`` if the polyline's max-deviation from a
             best-fit straight line is below the curvature threshold.
-        bbox_extfov_vu: Half-open bounding box of the polyline.
+        bbox_extfov_vu: Half-open bounding box of the polyline; a slice range
+            whose integers are also the pixel corner rectangle covering
+            exactly those pixels.
         sigma_orbit_radial_px: Fully-correlated 1-sigma radial displacement
             of the whole predicted edge (the catalog orbit-solution
             uncertainty), in pixels at the feature.  Distinct from
@@ -154,8 +181,12 @@ class BodyDiscGeometry:
     the predicted disc area that falls outside the sensor.
 
     Parameters:
-        bbox_extfov_vu: Half-open bounding box where the template sits.
-        predicted_center_vu: Predicted body center in extfov coordinates.
+        bbox_extfov_vu: Half-open bounding box where the template sits; a
+            slice range whose integers are also the pixel corner rectangle
+            covering exactly those pixels.
+        predicted_center_vu: Predicted body center in extfov pixel centric
+            coordinates, which is what the technique rotates its composite
+            template about.
         overflow_fraction: Fraction of the disc area outside the sensor
             ``[0, 1]``; ``0`` means fully in-FOV.
     """
@@ -173,8 +204,12 @@ class BodyBlobGeometry:
     resolved or irregular body.  No template is rendered.
 
     Parameters:
-        predicted_center_vu: Predicted body center in extfov coordinates.
-        bbox_extfov_vu: Half-open bounding box around the predicted body.
+        predicted_center_vu: Predicted body center in extfov pixel centric
+            coordinates -- the lit-weighted centroid, which the technique
+            differences against the centroid it measures out of the array.
+        bbox_extfov_vu: Half-open bounding box around the predicted body; a
+            slice range whose integers are also the pixel corner rectangle
+            covering exactly those pixels.
         predicted_diameter_px: Predicted disc diameter in pixels (longer
             axis of the predicted ellipse silhouette).
     """
@@ -193,17 +228,23 @@ class RingAnnulusGeometry:
     and the predicted ring-system center.
 
     Parameters:
-        bbox_extfov_vu: Half-open bounding box where the template sits.
-        predicted_center_vu: Predicted planet center for the ring system.
+        bbox_extfov_vu: Half-open bounding box where the template sits; a
+            slice range whose integers are also the pixel corner rectangle
+            covering exactly those pixels.
+        predicted_center_vu: Predicted planet center for the ring system, in
+            extfov pixel centric coordinates, which is what the composed
+            template is painted into.
         orbit_normals_vu: ``(M, 2)`` outward radial normals of the constituent
             ring edges painted into the composite template, concatenated across
-            edges with their signs intact.  This is the annulus fit's own
-            radial geometry: a coherent catalog-orbit error moves every one of
-            these vertices along its own normal, and ``RingAnnulusNav`` uses
-            the aggregate to derive how much of that displacement its
-            translation-only NCC absorbs (the same absorbed-sensitivity solve
-            ``RingEdgeNav`` runs on its fit vertices).  Empty when the emitting
-            model tracks no per-edge geometry for the composite.
+            edges with their signs intact.  Directions on the (v, u) axes, so
+            the two coordinate systems give them the same components.  This is
+            the annulus fit's own radial geometry: a coherent catalog-orbit
+            error moves every one of these vertices along its own normal, and
+            ``RingAnnulusNav`` uses the aggregate to derive how much of that
+            displacement its translation-only NCC absorbs (the same
+            absorbed-sensitivity solve ``RingEdgeNav`` runs on its fit
+            vertices).  Empty when the emitting model tracks no per-edge
+            geometry for the composite.
         sigma_orbit_radial_px: Effective fully-correlated 1-sigma radial
             displacement of the predicted annulus (the catalog orbit-solution
             uncertainty), in pixels, aggregated over the constituent edges by
@@ -232,8 +273,11 @@ class CartographicModelGeometry:
     surface detail rather than smooth Lambert shading.
 
     Parameters:
-        bbox_extfov_vu: Half-open bounding box where the template sits.
-        predicted_center_vu: Predicted body center in extfov coordinates.
+        bbox_extfov_vu: Half-open bounding box where the template sits; a
+            slice range whose integers are also the pixel corner rectangle
+            covering exactly those pixels.
+        predicted_center_vu: Predicted body center in extfov pixel centric
+            coordinates, as on ``BodyDiscGeometry``.
         overflow_fraction: Fraction of the disc area outside the sensor.
     """
 
@@ -252,10 +296,13 @@ class TitanHazeGeometry:
     ignore.  The consuming technique needs no other scene knowledge.
 
     Parameters:
-        predicted_center_vu: Geometric disc center in extfov coordinates --
-            the body's projected field-of-view center plus the extfov
-            margin.  NOT a brightness-weighted centroid, which phase biases
-            along the very axis the haze fit measures.
+        predicted_center_vu: Geometric disc center in extfov pixel centric
+            coordinates -- the body's projected field-of-view center,
+            converted out of the geometry layer's pixel corner coordinates
+            and offset by the extfov margin, so it sits where the array the
+            haze fit measures puts the body.  NOT a brightness-weighted
+            centroid, which phase biases along the very axis the haze fit
+            measures.
         sun_angle_rad: Symmetry-axis angle ``theta``; the unit vector
             ``(sin theta, cos theta)`` in ``(v, u)`` points from the disc
             center toward the sub-solar side.
@@ -283,7 +330,9 @@ class TitanHazeGeometry:
             filter-dependent haze behavior is analyzable from production
             output.
         bbox_extfov_vu: Half-open bounding box ``(v_min, u_min, v_max,
-            u_max)`` covering the haze envelope in extfov coordinates.
+            u_max)`` covering the haze envelope in extfov coordinates; a
+            slice range whose integers are also the pixel corner rectangle
+            covering exactly those pixels.
     """
 
     predicted_center_vu: tuple[float, float]

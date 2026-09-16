@@ -34,6 +34,7 @@ from spindoctor.feature.geometry import RingAnnulusGeometry, RingEdgePolyline
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_rings_base import NavModelRingsBase
 from spindoctor.nav_model.sim_ring import PredictedRingFeature, predict_ring_feature
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.time import now_dt
 from spindoctor.support.types import NDArrayFloatType
@@ -220,7 +221,14 @@ class NavModelRingsSimulated(NavModelRingsBase):
             len(prediction.edges),
         )
         self._prediction = prediction
-        self._predicted_center_vu = (center_v, center_u)
+        # The scene states the ring system's centre in pixel corner
+        # coordinates, which is what ``predict_ring_feature`` renders against
+        # (it puts the centre of pixel i at i + 0.5).  The payload is pixel
+        # centric, so the half pixel comes off here.
+        self._predicted_center_vu = (
+            center_v - PIXEL_CENTER_TO_CORNER_PX,
+            center_u - PIXEL_CENTER_TO_CORNER_PX,
+        )
         self._bbox_extfov_vu = (
             ext_margin_v,
             ext_margin_u,
