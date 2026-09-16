@@ -1,10 +1,17 @@
 """Tests for ``spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS``."""
 
 from collections.abc import Callable, Mapping
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 import pytest
-from tests.config import REQUIRES_EXTERNAL_DATA, URL_CASSINI_ISS_RHEA_01
+import vicar
+from filecache import FCPath
+from tests.config import (
+    REQUIRES_EXTERNAL_DATA,
+    URL_CASSINI_ISS_CRUISE_01,
+    URL_CASSINI_ISS_RHEA_01,
+)
 from tests.spindoctor.inst.conftest import (
     VicarLabelStandIn,
     bare_observation,
@@ -13,7 +20,12 @@ from tests.spindoctor.inst.conftest import (
 from tests.spindoctor.public_metadata_cassini_iss import CASSINI_ISS_PUBLIC_METADATA
 
 import spindoctor.obs.obs_inst_cassini_iss as obstcoiss
-from spindoctor.obs.obs_inst_cassini_iss import _LABEL_METADATA, ObsCassiniISS, _sclk_count
+from spindoctor.obs.obs_inst_cassini_iss import (
+    _LABEL_METADATA,
+    ObsCassiniISS,
+    _label_metadata,
+    _sclk_count,
+)
 
 # The marker is applied per test rather than module-wide: the shutter-mode
 # label tests build a bare observation and fetch nothing, so they run even
@@ -55,36 +67,46 @@ def _cassini_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
 def _is_marker(key: Any, name: str) -> bool:
     """Return whether a VICAR label key is one occurrence of a repeated marker.
 
+    A label carrying several such sections has each marker keyed by its name and its
+    occurrence number.  One carrying a single section, as the earliest cruise labels do,
+    keys it by its name alone, so both forms have to be recognized.
+
     Parameters:
         key: One key of the label.
         name: The marker's name, such as ``PROPERTY``.
 
     Returns:
-        True when the key is that marker, which rms-vicar keys by name and occurrence
-        number rather than by name alone.
+        True when the key is that marker, in either form.
     """
-    return isinstance(key, tuple) and key[0] == name
+    return key == name or (isinstance(key, tuple) and key[0] == name)
 
 
 def _property_block_keywords(label: Mapping[str, Any]) -> list[str]:
     """Return the keywords a VICAR label states in its property blocks.
 
     A label's items run in three parts: the file layout, then one group per ``PROPERTY``
-    marker, then the history the calibration wrote behind its first ``TASK`` marker.  A
-    marker carries its occurrence number in its key, so the property blocks' keywords are
-    the plainly keyed items between the first marker of each kind.
+    marker, then the history the calibration wrote behind its first ``TASK`` marker.  The
+    property blocks' keywords are the plainly keyed items between the first marker of each
+    kind, the markers themselves excluded.
 
     Parameters:
         label: The image's VICAR label items.
 
     Returns:
-        The keywords, in the label's own order.
+        The keywords, in the label's own order, or an empty list for a label that marks no
+        property block at all.
     """
     keys = list(label.keys())
     properties = [i for i, key in enumerate(keys) if _is_marker(key, 'PROPERTY')]
+    if not properties:
+        return []
     tasks = [i for i, key in enumerate(keys) if _is_marker(key, 'TASK')]
     end = tasks[0] if tasks else len(keys)
-    return [key for key in keys[properties[0] : end] if isinstance(key, str)]
+    return [
+        key
+        for key in keys[properties[0] : end]
+        if isinstance(key, str) and not _is_marker(key, 'PROPERTY')
+    ]
 
 
 def _w1573251410_label() -> VicarLabelStandIn:
@@ -754,13 +776,66 @@ def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
     }
 
 
-@REQUIRES_EXTERNAL_DATA
-def test_a_real_image_label_states_exactly_the_published_keywords() -> None:
-    """A real label's property blocks hold exactly the keywords the host publishes.
+def test_a_label_marking_no_property_block_reports_no_keywords() -> None:
+    """A label that marks no property block reports none rather than raising.
 
-    The published list is written out rather than read from the label, so a mission-era
-    label carrying a keyword the list omits would drop that keyword in silence.  This is
-    what says so instead.
+    The walk reads from the first property marker, and a label with none has no section
+    to read; taking the first of no markers would raise instead of reporting.
+    """
+    assert _property_block_keywords({'LBLSIZE': 1024, 'FORMAT': 'BYTE'}) == []
+
+
+def test_a_plain_property_marker_delimits_the_block_without_the_marker() -> None:
+    """A marker written as an ordinary keyword names the section without being in it.
+
+    The earliest cruise labels write ``PROPERTY`` as a plain keyword naming the section
+    rather than in the numbered form.  A walk that looked only for the numbered form would
+    report no keywords at all on such a label, and one that kept the marker would report
+    it as a keyword the label states.
+    """
+    label = {
+        'LBLSIZE': 1024,
+        'PROPERTY': 'CASSINI-ISS2',
+        'FILTER1_NAME': 'CL1',
+        'TASK': 'CISSCAL',
+        'GAIN_CORRECTION': 1.0,
+    }
+    assert _property_block_keywords(label) == ['FILTER1_NAME']
+
+
+@REQUIRES_EXTERNAL_DATA
+def test_a_tour_era_label_states_exactly_the_published_keywords() -> None:
+    """A tour-era label's property blocks hold exactly the keywords the host publishes.
+
+    The published list is the archive's PDS3 keyword set, written out rather than read
+    from the label, so a tour-era label carrying a keyword the list omits would drop that
+    keyword in silence.  This is what says so instead.  An earlier label states fewer of
+    them, which is the case below.
     """
     obs = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01)
     assert sorted(_property_block_keywords(obs.dict)) == sorted(_LABEL_METADATA)
+
+
+@REQUIRES_EXTERNAL_DATA
+def test_a_cruise_era_label_publishes_what_it_states_and_nulls_the_rest() -> None:
+    """An earlier label states fewer of the keywords, and items of its own besides.
+
+    N1294562651_1_CALIB, of the earliest cruise volume, marks its property section with a
+    plain ``PROPERTY`` keyword rather than the numbered form, states only some of the
+    published keywords, and carries items the archive's label does not state, among them
+    differently named equivalents such as ``FILTER1_NAME`` and ``SENSOR_HEAD_ELEC_TEMP``.
+    Its label is read directly rather than through the host, because a cruise epoch has no
+    camera frame in the local kernel set and loading the image would raise.
+    """
+    path = cast(Path, FCPath(URL_CASSINI_ISS_CRUISE_01).retrieve())
+    label = vicar.VicarImage.from_file(path, strict=False).label
+    section = _property_block_keywords(label)
+    published = _label_metadata(label)
+    stated = [keyword for keyword in _LABEL_METADATA if keyword in section]
+    absent = [keyword for keyword in _LABEL_METADATA if keyword not in section]
+    outside = [keyword for keyword in section if keyword not in _LABEL_METADATA]
+    assert absent != [], 'this label is expected to state fewer than the published keywords'
+    assert outside != [], 'this label is expected to carry items outside the published list'
+    assert {key: published[key] for key in absent} == dict.fromkeys(absent)
+    assert [key for key in outside if key in published] == []
+    assert {key: published[key] for key in stated} == {key: label.get(key, None) for key in stated}
