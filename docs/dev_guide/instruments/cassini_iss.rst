@@ -86,27 +86,21 @@ Label and index dependencies
   as a legible shutter mode.
 * ``DESCRIPTION`` and ``OBSERVATION_ID``, both optional and recorded as
   ``None`` when absent.
-* The label facts. ``_label_facts`` publishes every keyword ``_LABEL_FACTS``
-  lists, under the name of the attribute of the Cassini PDS4 dictionary's
-  ``ISS_Specific_Attributes`` (``PDS4_CASSINI_1O00_1800``) that the value is,
-  with ``-`` written as ``_``, in the dictionary's order. The value is what
-  rms-vicar hands back, unconverted: numbers as numbers, text as text, and
-  times as the label's day-of-year text. A keyword whose value is a sequence
-  -- ``EXPECTED_MAXIMUM``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
-  ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` -- is split with
-  ``zip(..., strict=True)``, so a sequence of any other length raises
-  ``ValueError`` rather than losing or inventing an element. A keyword the
-  label lacks is ``None``, and so is each element of a sequence it lacks.
-  Seven attributes are not in the table. Six the block already states in the
-  label's own form: ``limitations`` is ``DESCRIPTION``, ``filter_name_1`` and
-  ``filter_name_2`` are ``FILTER_NAME`` (``filters``), ``instrument_mode_id``
-  is ``INSTRUMENT_MODE_ID`` (``sampling``), and ``observation_id`` and
-  ``shutter_mode_id`` are the keys above. ``pre-pds_version_number`` is in the
-  file name and not in the label. ``image_number`` is ``IMAGE_NUMBER``, the
-  whole seconds of the spacecraft clock at shutter close, which is what the
-  archive's own PDS4 labels publish under that name. The dictionary defines
-  it as a value obtained from the start count, which differs for any exposure
-  that spans a second; the table follows the archive.
+* The label metadata. ``_label_metadata`` publishes every keyword
+  ``_LABEL_METADATA`` lists, under the keyword's own name, as the label spells it.
+  The value is what rms-vicar hands back, unconverted: numbers as numbers, text as
+  text, times as the label's day-of-year text, and a sequence as a sequence, so
+  ``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
+  ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` each stay the list the label states.
+  A keyword the label lacks is ``None``. The list is the observation keywords of the
+  image's PDS3 label, which the VICAR label states in its six property blocks. It is
+  written out rather than read from the label, so that a label carrying a keyword the
+  list omits is a difference a reader can see rather than one that drops a keyword in
+  silence; a test over a real image holds the two against each other.
+  ``DESCRIPTION``, ``OBSERVATION_ID`` and ``SHUTTER_MODE_ID`` are among them, and sit
+  beside the ``description``, ``observation_id`` and ``shutter_mode`` the block states
+  in its own form; the upper-case and lower-case names differ in case and do not
+  collide.
 
 **Which label is read.** ``obs.dict`` is the VICAR label inside the
 ``_CALIB.IMG`` file, which ``oops.hosts.cassini.iss.from_file`` reads with
@@ -124,8 +118,8 @@ a parsable time.
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
 also refuses a detector that is neither ``NAC`` nor ``WAC``, because the
-instrument LID encodes the camera as ``issna`` or ``isswa`` and a malformed LID
-must never reach a PDS4 label.
+instrument LID encodes the camera as ``issna`` or ``isswa``, and a malformed one
+must never be published.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 ``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_ID',)`` and ``_INDEX_CAMERA_MAP``
@@ -140,7 +134,9 @@ parameters in another order than the image label: blocks per group,
 algorithm, quantization factor, block type, where its own column description
 and the label give algorithm, block type, blocks per group, quantization
 factor. A label's ``(1, 1, 41, 0)`` is the index's ``(41, 1, 0, 1)``. The
-label facts are read from the label for this reason among others.
+label metadata is read from the label for this reason among others, and a
+consumer that wants these four values in the label's order has to take them
+from there.
 
 **Filespec parsing.** ``_get_label_filespec_from_index`` requires the index
 value to end ``.IMG`` and rewrites it to ``_CALIB.LBL``; both suffixes are

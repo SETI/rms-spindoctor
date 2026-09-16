@@ -220,11 +220,10 @@ a Cassini ISS record carries:
   observation this frame belongs to; either may be null when the label carries
   none.
 
-A Cassini ISS record also carries the facts in the table below, copied from the
-label stored inside the calibrated image file, which is the label the
-navigation reads. Each key is the name of the matching attribute in the
-Cassini PDS4 dictionary. Each value is the label's own, in the label's own
-form:
+A Cassini ISS record also carries the metadata in the table below, copied from
+the label stored inside the calibrated image file, which is the label the
+navigation reads. Each key is the label's own keyword, spelled as the label
+spells it, and each value is the label's own, in the label's own form:
 
 * A number stays a number and text stays text. The label writes its numbers
   to six or seven significant digits, so the detached PDS3 label file beside
@@ -232,313 +231,274 @@ form:
 * A time is the label's own text: UTC, with the day of the year, ending in
   ``Z``, for example ``2007-312T21:41:14.946Z``. The product creation time is
   the exception, as its row says.
-* A label keyword holding two or four values is split into one key per value.
+* A keyword holding several values stays a sequence of that many values, in
+  the label's own order.
 * A value the label writes as ``N/A``, ``UNK``, ``--`` or ``-999.0`` is
-  recorded as written. What it means depends on the fact, and the fact's row
-  says so wherever the label writes one.
-* A fact whose keyword the label lacks is null.
+  recorded as written. What it means depends on the keyword, and the keyword's
+  row says so wherever the label writes one.
+* A keyword the label lacks is null.
+
+Three of these keywords state something the record also states in a form of its
+own, listed above: ``DESCRIPTION`` beside ``description``, ``OBSERVATION_ID``
+beside ``observation_id``, and ``SHUTTER_MODE_ID`` beside ``shutter_mode``. The
+two spellings of each differ in case, and both are recorded.
 
 .. list-table::
    :header-rows: 1
-   :widths: 28 42 20 10
+   :widths: 32 53 15
 
-   * - Key
+   * - Keyword
      - Meaning
-     - Label keyword
      - Unit
-   * - ``mission_phase_name``
-     - The mission phase the image belongs to, for example ``TOUR``.
-     - ``MISSION_PHASE_NAME``
-     - none
-   * - ``spacecraft_clock_count_partition``
-     - The spacecraft clock partition the two clock counts belong to.
-     - ``SPACECRAFT_CLOCK_CNT_PARTITION``
-     - none
-   * - ``spacecraft_clock_start_count``
-     - The spacecraft clock count at shutter open, as text: seconds, a
-       period, then three digits of 1/256-second ticks.
-     - ``SPACECRAFT_CLOCK_START_COUNT``
-     - none
-   * - ``spacecraft_clock_stop_count``
-     - The spacecraft clock count at shutter close, in the same form.
-     - ``SPACECRAFT_CLOCK_STOP_COUNT``
-     - none
-   * - ``antiblooming_state_flag``
+   * - ``ANTIBLOOMING_STATE_FLAG``
      - Whether antiblooming was on: ``ON`` or ``OFF``.
-     - ``ANTIBLOOMING_STATE_FLAG``
      - none
-   * - ``bias_strip_mean``
+   * - ``BIAS_STRIP_MEAN``
      - The mean of the overclocked pixels, over every line but the first and
        last.
-     - ``BIAS_STRIP_MEAN``
      - DN
-   * - ``calibration_lamp_state_flag``
+   * - ``CALIBRATION_LAMP_STATE_FLAG``
      - Whether the calibration lamp was on: ``ON`` or ``OFF``, or ``N/A`` for
        the narrow angle camera, which has no lamp.
-     - ``CALIBRATION_LAMP_STATE_FLAG``
      - none
-   * - ``command_file_name``
+   * - ``COMMAND_FILE_NAME``
      - The instrument operations file that described the observation.
-     - ``COMMAND_FILE_NAME``
      - none
-   * - ``command_sequence_number``
+   * - ``COMMAND_SEQUENCE_NUMBER``
      - The trigger number of the commands that took the image.
-     - ``COMMAND_SEQUENCE_NUMBER``
      - none
-   * - ``dark_strip_mean``
+   * - ``DARK_STRIP_MEAN``
      - The mean of the extended (dark) pixels, over every line but the first
        and last.
-     - ``DARK_STRIP_MEAN``
      - DN
-   * - ``data_conversion_type``
+   * - ``DATA_CONVERSION_TYPE``
      - How the 12-bit data were reduced to 8 bits: ``12BIT`` (not reduced),
        ``TABLE`` (by look-up table) or ``8LSB`` (keeping the 8 least
        significant bits).
-     - ``DATA_CONVERSION_TYPE``
      - none
-   * - ``delayed_readout_flag``
+   * - ``DATA_SET_ID``
+     - The archived data set the image belongs to.
+     - none
+   * - ``DELAYED_READOUT_FLAG``
      - Whether the image may have waited on the detector while the other
        camera read out: ``YES`` or ``NO``.
-     - ``DELAYED_READOUT_FLAG``
      - none
-   * - ``detector_temperature``
+   * - ``DESCRIPTION``
+     - The label's free text about the image; ``N/A`` when it carries none.
+     - none
+   * - ``DETECTOR_TEMPERATURE``
      - The temperature of the detector; ``-999.0`` when the label has no
        reading.
-     - ``DETECTOR_TEMPERATURE``
      - degrees C
-   * - ``electronics_bias``
-     - The commanded electronics bias, which keeps every DN above zero.
-     - ``ELECTRONICS_BIAS``
-     - none
-   * - ``earth_received_start_time``
+   * - ``EARTH_RECEIVED_START_TIME``
      - When the earliest data of the image were received on Earth.
-     - ``EARTH_RECEIVED_START_TIME``
      - UTC
-   * - ``earth_received_stop_time``
+   * - ``EARTH_RECEIVED_STOP_TIME``
      - When the latest data of the image were received on Earth.
-     - ``EARTH_RECEIVED_STOP_TIME``
      - UTC
-   * - ``expected_maximum_full_well``
-     - The maximum DN predicted for the image, as a percentage of the
-       full-well level, ``valid_maximum_full_well``.
-     - ``EXPECTED_MAXIMUM``, first value
+   * - ``ELECTRONICS_BIAS``
+     - The commanded electronics bias, which keeps every DN above zero.
+     - none
+   * - ``EXPECTED_MAXIMUM``
+     - Two values: the maximum DN predicted for the image as a percentage of
+       the full-well level, then as a percentage of the saturation level.
+       Those two levels are the two values of ``VALID_MAXIMUM``.
      - percent
-   * - ``expected_maximum_DN_sat``
-     - The maximum DN predicted for the image, as a percentage of the
-       saturation level, ``valid_maximum_DN_sat``.
-     - ``EXPECTED_MAXIMUM``, second value
-     - percent
-   * - ``expected_packets``
+   * - ``EXPECTED_PACKETS``
      - The number of telemetry packets expected for the image, each 7616
        bits.
-     - ``EXPECTED_PACKETS``
      - packets
-   * - ``exposure_duration``
+   * - ``EXPOSURE_DURATION``
      - The exposure duration as the label states it. ``exposure_time`` is the
        same duration in seconds, except that a zero-length exposure is
        recorded there as 0.000001.
-     - ``EXPOSURE_DURATION``
      - milliseconds
-   * - ``filter_temperature``
+   * - ``FILTER_NAME``
+     - Two values, the positions of the two filter wheels, in that order.
+     - none
+   * - ``FILTER_TEMPERATURE``
      - The temperature of the filter wheels; ``-999.0`` when the label has no
        reading.
-     - ``FILTER_TEMPERATURE``
      - degrees C
-   * - ``flight_software_version_id``
+   * - ``FLIGHT_SOFTWARE_VERSION_ID``
      - The version of the instrument flight software.
-     - ``FLIGHT_SOFTWARE_VERSION_ID``
      - none
-   * - ``gain_mode_id``
+   * - ``GAIN_MODE_ID``
      - The gain setting as the label names it, for example
        ``29 ELECTRONS PER DN``; ``gain_mode`` is the same setting as a number.
-     - ``GAIN_MODE_ID``
      - none
-   * - ``ground_software_version_id``
-     - The version of the ground software that built the image.
-     - ``SOFTWARE_VERSION_ID``
-     - none
-   * - ``image_mid_time``
+   * - ``IMAGE_MID_TIME``
      - The middle of the exposure.
-     - ``IMAGE_MID_TIME``
      - UTC
-   * - ``image_number``
+   * - ``IMAGE_NUMBER``
      - The image number: the whole seconds of the spacecraft clock at shutter
        close, the number in the image's name.
-     - ``IMAGE_NUMBER``
      - none
-   * - ``image_time``
-     - Shutter close.
-     - ``IMAGE_TIME``
-     - UTC
-   * - ``image_observation_type``
+   * - ``IMAGE_OBSERVATION_TYPE``
      - The purposes of the image, for example ``SCIENCE``: text for one
        purpose, an array of text for several.
-     - ``IMAGE_OBSERVATION_TYPE``
      - none
-   * - ``instrument_data_rate``
+   * - ``IMAGE_TIME``
+     - Shutter close.
+     - UTC
+   * - ``INSTRUMENT_DATA_RATE``
      - The rate at which data left the camera; ``-999.0`` when the label has
        no value.
-     - ``INSTRUMENT_DATA_RATE``
      - kilobits per second
-   * - ``inst_cmprs_type``
-     - The on-board compression: ``LOSSLESS``, ``LOSSY`` or ``NOTCOMP`` (not
-       compressed).
-     - ``INST_CMPRS_TYPE``
+   * - ``INSTRUMENT_HOST_NAME``
+     - The spacecraft that carried the camera.
      - none
-   * - ``inst_cmprs_param_malgo``
-     - The lossy compression algorithm; ``N/A`` when the image was not lossy
-       compressed or its parameters were not recorded, as for the next three
-       keys.
-     - ``INST_CMPRS_PARAM``, first value
+   * - ``INSTRUMENT_ID``
+     - The camera that took the image, as the label names it: ``ISSNA`` or
+       ``ISSWA``.
      - none
-   * - ``inst_cmprs_param_tb``
-     - The lossy compression block type.
-     - ``INST_CMPRS_PARAM``, second value
+   * - ``INSTRUMENT_MODE_ID``
+     - The on-chip summing mode: ``FULL``, ``SUM2`` or ``SUM4``.
      - none
-   * - ``inst_cmprs_param_blocks``
-     - The number of blocks per group in lossy compression.
-     - ``INST_CMPRS_PARAM``, third value
+   * - ``INSTRUMENT_NAME``
+     - The camera's full name.
      - none
-   * - ``inst_cmprs_param_quant``
-     - The lossy compression quantization factor.
-     - ``INST_CMPRS_PARAM``, fourth value
+   * - ``INST_CMPRS_PARAM``
+     - Four values, the lossy compression parameters in the label's order:
+       algorithm, block type, blocks per group, quantization factor. Each is
+       ``N/A`` when the image was not lossy compressed or its parameters were
+       not recorded.
      - none
-   * - ``inst_cmprs_rate_expected_bits``
-     - The average number of bits per pixel expected after compression.
-     - ``INST_CMPRS_RATE``, first value
+   * - ``INST_CMPRS_RATE``
+     - Two values: the average number of bits per pixel expected after
+       compression, then the number received. The second is ``-999.0`` when
+       the label has no value, as on some lossy compressed images, most of
+       them images that were only partly received.
      - bits per pixel
-   * - ``inst_cmprs_rate_actual_bits``
-     - The average number of bits per pixel received; ``-999.0`` when the
-       label has no value, as on some lossy compressed images, most of them
-       images that were only partly received.
-     - ``INST_CMPRS_RATE``, second value
-     - bits per pixel
-   * - ``inst_cmprs_ratio``
+   * - ``INST_CMPRS_RATIO``
      - The expected image size over the size received; ``N/A`` for an image
        that was not compressed, and ``-999.0`` when the label has no value, as
        on some lossy compressed images, most of them images that were only
        partly received.
-     - ``INST_CMPRS_RATIO``
      - none
-   * - ``light_flood_state_flag``
+   * - ``INST_CMPRS_TYPE``
+     - The on-board compression: ``LOSSLESS``, ``LOSSY`` or ``NOTCOMP`` (not
+       compressed).
+     - none
+   * - ``LIGHT_FLOOD_STATE_FLAG``
      - Whether the detector was light flooded just before the image: ``ON``
        or ``OFF``.
-     - ``LIGHT_FLOOD_STATE_FLAG``
      - none
-   * - ``method_description``
+   * - ``METHOD_DESC``
      - The information or algorithm used to choose the exposure; ``N/A`` when
        none was given.
-     - ``METHOD_DESC``
      - none
-   * - ``missing_lines``
+   * - ``MISSING_LINES``
      - The number of missing or incomplete image lines, which is counted only
        for an image that was not lossy compressed: a lossy compressed image
        has ``N/A``, or on a few images ``UNK``.
-     - ``MISSING_LINES``
      - lines
-   * - ``missing_packet_flag``
+   * - ``MISSING_PACKET_FLAG``
      - Whether telemetry packets the image needed were missing: ``YES`` or
        ``NO``.
-     - ``MISSING_PACKET_FLAG``
      - none
-   * - ``optics_temperature_front``
-     - The temperature of the front optics; ``-999.0`` for an image whose
-       extended header was missing.
-     - ``OPTICS_TEMPERATURE``, first value
+   * - ``MISSION_NAME``
+     - The mission the image was taken on.
+     - none
+   * - ``MISSION_PHASE_NAME``
+     - The mission phase the image belongs to, for example ``TOUR``.
+     - none
+   * - ``OBSERVATION_ID``
+     - The observation this frame belongs to.
+     - none
+   * - ``OPTICS_TEMPERATURE``
+     - Two values, the front and the rear optics temperatures. The rear is
+       ``-999.0`` for the wide angle camera, which has no rear optics sensor,
+       and both are ``-999.0`` for an image whose extended header was
+       missing.
      - degrees C
-   * - ``optics_temperature_back``
-     - The temperature of the rear optics; ``-999.0`` for the wide angle
-       camera, which has no rear optics sensor, and for a narrow angle image
-       whose extended header was missing.
-     - ``OPTICS_TEMPERATURE``, second value
-     - degrees C
-   * - ``order_number``
+   * - ``ORDER_NUMBER``
      - The image's identifier within its instrument operations file.
-     - ``ORDER_NUMBER``
      - none
-   * - ``parallel_clock_voltage_index``
+   * - ``PARALLEL_CLOCK_VOLTAGE_INDEX``
      - The commanded parallel clock voltage index.
-     - ``PARALLEL_CLOCK_VOLTAGE_INDEX``
      - none
-   * - ``pds3_product_creation_time``
+   * - ``PREPARE_CYCLE_INDEX``
+     - The entry of the prepare-cycle table used for the image.
+     - none
+   * - ``PRODUCT_CREATION_TIME``
      - When the raw image product was built on the ground. The archive states
        this time in Pacific local time, not UTC, although some labels end it
        with ``Z``.
-     - ``PRODUCT_CREATION_TIME``
      - Pacific local time
-   * - ``pds3_product_version_type``
+   * - ``PRODUCT_ID``
+     - The raw product's identifier: its spacecraft clock partition, its
+       camera letter, and its spacecraft clock count at shutter close.
+     - none
+   * - ``PRODUCT_VERSION_TYPE``
      - The product's version type; ``FINAL`` for every archived product.
-     - ``PRODUCT_VERSION_TYPE``
      - none
-   * - ``pds3_target_desc``
-     - The intended target the exposure was chosen for.
-     - ``TARGET_DESC``
-     - none
-   * - ``pds3_target_list``
-     - The bodies in view, which the label always writes as ``N/A``.
-     - ``TARGET_LIST``
-     - none
-   * - ``pds3_target_name``
-     - The target named when the observation was planned, which is often not
-       what the image shows; ``UNK`` when it is unknown.
-     - ``TARGET_NAME``
-     - none
-   * - ``prepare_cycle_index``
-     - The entry of the prepare-cycle table used for the image.
-     - ``PREPARE_CYCLE_INDEX``
-     - none
-   * - ``readout_cycle_index``
+   * - ``READOUT_CYCLE_INDEX``
      - The entry of the readout-cycle table used for the image.
-     - ``READOUT_CYCLE_INDEX``
      - none
-   * - ``received_packets``
+   * - ``RECEIVED_PACKETS``
      - The number of telemetry packets received for the image, each 7616
        bits.
-     - ``RECEIVED_PACKETS``
      - packets
-   * - ``sensor_head_electronics_temperature``
+   * - ``SENSOR_HEAD_ELEC_TEMPERATURE``
      - The temperature of the sensor head electronics; ``-999.0`` when the
        label has no reading.
-     - ``SENSOR_HEAD_ELEC_TEMPERATURE``
      - degrees C
-   * - ``sequence_id``
+   * - ``SEQUENCE_ID``
      - The spacecraft sequence the image belongs to, for example ``S35``.
-     - ``SEQUENCE_ID``
      - none
-   * - ``sequence_number``
+   * - ``SEQUENCE_NUMBER``
      - Where the image falls in the order its observation planned.
-     - ``SEQUENCE_NUMBER``
      - none
-   * - ``sequence_title``
+   * - ``SEQUENCE_TITLE``
      - The name of the activity the image belongs to; ``--`` when none was
        given.
-     - ``SEQUENCE_TITLE``
      - none
-   * - ``shutter_state_id``
+   * - ``SHUTTER_MODE_ID``
+     - Which cameras the command exposed: ``NACONLY``, ``WACONLY``, or
+       ``BOTSIM`` for both at once.
+     - none
+   * - ``SHUTTER_STATE_ID``
      - Whether the shutter was enabled: ``ENABLED`` or ``DISABLED``. When it
        was disabled, the label's start, middle and stop times are all the
        start of the exposure window.
-     - ``SHUTTER_STATE_ID``
      - none
-   * - ``start_time_doy``
+   * - ``SOFTWARE_VERSION_ID``
+     - The version of the ground software that built the image.
+     - none
+   * - ``SPACECRAFT_CLOCK_CNT_PARTITION``
+     - The spacecraft clock partition the two clock counts belong to.
+     - none
+   * - ``SPACECRAFT_CLOCK_START_COUNT``
+     - The spacecraft clock count at shutter open, as text: seconds, a
+       period, then three digits of 1/256-second ticks.
+     - none
+   * - ``SPACECRAFT_CLOCK_STOP_COUNT``
+     - The spacecraft clock count at shutter close, in the same form.
+     - none
+   * - ``START_TIME``
      - Shutter open.
-     - ``START_TIME``
      - UTC
-   * - ``stop_time_doy``
-     - Shutter close; the same as ``image_time``.
-     - ``STOP_TIME``
+   * - ``STOP_TIME``
+     - Shutter close; the same as ``IMAGE_TIME``.
      - UTC
-   * - ``telemetry_format_id``
-     - The telemetry mode, for example ``S&ER3``; ``UNK`` when it is unknown.
-     - ``TELEMETRY_FORMAT_ID``
+   * - ``TARGET_DESC``
+     - The intended target the exposure was chosen for.
      - none
-   * - ``valid_maximum_full_well``
-     - The minimum full-well saturation level, which may exceed 4095.
-     - ``VALID_MAXIMUM``, first value
-     - DN
-   * - ``valid_maximum_DN_sat``
-     - The saturation level of the analog-to-digital converter: 4095 or 255.
-     - ``VALID_MAXIMUM``, second value
+   * - ``TARGET_LIST``
+     - The bodies in view, which the label always writes as ``N/A``.
+     - none
+   * - ``TARGET_NAME``
+     - The target named when the observation was planned, which is often not
+       what the image shows; ``UNK`` when it is unknown.
+     - none
+   * - ``TELEMETRY_FORMAT_ID``
+     - The telemetry mode, for example ``S&ER3``; ``UNK`` when it is unknown.
+     - none
+   * - ``VALID_MAXIMUM``
+     - Two values: the minimum full-well saturation level, which may exceed
+       4095, then the saturation level of the analog-to-digital converter,
+       4095 or 255.
      - DN
 
 Its ``instrument`` is ``coiss`` and its ``camera`` is ``NAC`` or ``WAC``. The
