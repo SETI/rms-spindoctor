@@ -280,9 +280,9 @@ check and the empty-root check, because it holds one task rather than the run:
 a template it cannot find raises out of every task, and the empty bundle root is
 the queue-driven run's own precondition to establish.
 
-``sd_create_bundle check`` exits 1 when it makes any finding, when the bundle's
+``sd_create_bundle check`` exits 1 when it makes any error, when the bundle's
 directory under the bundle results root is not there, and when the check itself
-stops, whose traceback it prints in place of a count; otherwise it exits 0.
+stops, whose traceback it prints in place of a count; warnings alone leave it 0.
 
 Per-dataset extension points
 ============================
