@@ -80,6 +80,19 @@ PDS_PREFIX = 'pds:'
 SEPARATOR = b','
 """What lies between two fields of an index record, and two names of its header line."""
 
+_NOT_KNOWN = 'so the index records it calls for are not known'
+"""What a supplemental file the index records cannot be read from is reported with."""
+
+_JSON_VALUES = {
+    list: 'an array',
+    str: 'a string',
+    int: 'a number',
+    float: 'a number',
+    bool: 'a boolean',
+    type(None): 'null',
+}
+"""What a place the index records are read from holds, when it holds no JSON object."""
+
 _Called = Counter[tuple[str, str]]
 """How many records each product calls for, by its logical identifier and a body's name,
 the name empty in the rings table."""
@@ -290,6 +303,83 @@ def index_layout_findings(file: str, label: Path, document: Any) -> list[Finding
     return found.findings()
 
 
+@dataclass(frozen=True)
+class _CalledBy:
+    """The index records one supplemental file calls for, and what reading it found.
+
+    Attributes:
+        bodies: The name of each body the file gives geometry, one record of the bodies
+            table each.
+        rings: Whether the file gives ring statistics, which is one record of the rings
+            table.
+        findings: One finding for each place the records are read from that holds no
+            JSON object, whose records are then not known.
+    """
+
+    bodies: tuple[str, ...]
+    rings: bool
+    findings: tuple[Finding, ...]
+
+
+def _called_by(file: str, metadata: Any) -> _CalledBy:
+    """Return the index records one supplemental file calls for.
+
+    The file the backplane stage writes holds a JSON object, whose ``backplanes`` holds
+    a ``bodies`` object of one object per body and a ``rings`` object.  A place on that
+    path holding anything else is one finding naming the file and the place, as a file
+    that is not JSON at all is one naming the file: the records it calls for are not
+    known, and the check goes on rather than ending over a bundle that was written.
+
+    Parameters:
+        file: The file's path relative to the bundle's directory, which findings name.
+        metadata: What the file holds, parsed from JSON.
+
+    Returns:
+        Each body the file gives geometry, whether it gives ring statistics, and one
+        finding for each place on that path that holds no JSON object.
+    """
+    found: list[Finding] = []
+
+    def object_at(value: Any, where: str) -> Mapping[str, Any]:
+        """Return a JSON object the records are read from, reporting anything else.
+
+        Parameters:
+            value: What the file holds there.
+            where: The keys leading to it, separated by dots, or the empty string for
+                the file's top level.
+
+        Returns:
+            The object, or an empty one when the file holds something else there, which
+            is one finding.
+        """
+        if isinstance(value, Mapping):
+            return value
+        held = _JSON_VALUES.get(type(value), 'a value')
+        at = '' if where == '' else f' at {where}'
+        found.append(
+            Finding(
+                file,
+                CheckName.INTEGRITY,
+                '',
+                f'holds {held}{at}, not a JSON object, {_NOT_KNOWN}',
+            )
+        )
+        return {}
+
+    backplanes = object_at(object_at(metadata, '').get('backplanes', {}), 'backplanes')
+    named = object_at(backplanes.get('bodies', {}), 'backplanes.bodies')
+    bodies: list[str] = []
+    for body, entry in named.items():
+        where = f'backplanes.bodies.{body}'
+        # The rule stays has_geometry's, which is handed a JSON object whatever the file
+        # holds, so that a malformed one is a finding rather than a traceback.
+        planes = object_at(object_at(entry, where).get('backplanes', {}), f'{where}.backplanes')
+        if has_geometry({'backplanes': planes}):
+            bodies.append(body)
+    rings = object_at(backplanes.get('rings', {}), 'backplanes.rings').get('backplanes')
+    return _CalledBy(bodies=tuple(bodies), rings=bool(rings), findings=tuple(found))
+
+
 def _called_for(
     bundle_dir: Path, labels: Mapping[str, Any]
 ) -> tuple[dict[str, _Called], list[Finding]]:
@@ -303,7 +393,8 @@ def _called_for(
     Returns:
         The records each table's name calls for, from each product whose label names a
         supplemental file beside it; and one finding for each such file that is not a
-        JSON document, whose records cannot be known.
+        JSON document, and one for each place a file holds no JSON object where the
+        records are read from, whose records cannot be known.
     """
     bodies: _Called = Counter()
     rings: _Called = Counter()
@@ -315,24 +406,24 @@ def _called_for(
         path = (bundle_dir / file).parent / (name or '')
         if lid is None or name is None or not path.is_file():
             continue
+        supplemental = (PurePosixPath(file).parent / name).as_posix()
         try:
             metadata = json.loads(path.read_text(encoding='utf-8'))
         except (UnicodeDecodeError, ValueError) as exc:
             findings.append(
                 Finding(
-                    (PurePosixPath(file).parent / name).as_posix(),
+                    supplemental,
                     CheckName.INTEGRITY,
                     '',
-                    f'is not a JSON document, so the index records it calls for are not '
-                    f'known: {exc}',
+                    f'is not a JSON document, {_NOT_KNOWN}: {exc}',
                 )
             )
             continue
-        backplanes = metadata.get('backplanes', {}) if isinstance(metadata, dict) else {}
-        for body, entry in backplanes.get('bodies', {}).items():
-            if has_geometry(entry):
-                bodies[(lid, body)] += 1
-        if backplanes.get('rings', {}).get('backplanes'):
+        called = _called_by(supplemental, metadata)
+        findings.extend(called.findings)
+        for body in called.bodies:
+            bodies[(lid, body)] += 1
+        if called.rings:
             rings[(lid, '')] += 1
     return {BODIES_INDEX: bodies, RINGS_INDEX: rings}, findings
 
@@ -433,7 +524,8 @@ def index_row_findings(
         ``file_spec`` or a PDS4 attribute otherwise than the product's label does, and
         each product holding more or fewer records of a table than its supplemental file
         calls for; one for a table the supplemental files call for records of that the
-        tree does not hold; and one for each supplemental file that is not JSON.
+        tree does not hold; and one for each supplemental file the records it calls for
+        cannot be read from.
     """
     called, findings = _called_for(bundle_dir, labels)
     for file, name in INDEX_LABELS.items():
