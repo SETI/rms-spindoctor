@@ -62,6 +62,9 @@ dev = [
   "pytest-profiling",
   "pytest-xdist",
   "ruff",
+  # The Cassini ISS label tests read a VICAR label directly, which is the only
+  # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops.
+  "rms-vicar",
   "rms-spindoctor[docs]",
   "rms-spindoctor[postgres]",
   "threadpoolctl",
@@ -148,6 +151,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "threadpoolctl"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "vicar.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
