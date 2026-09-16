@@ -13,6 +13,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
+from typing import cast
 
 import pdstemplate
 from filecache import FCPath, FileCache
@@ -658,7 +659,10 @@ def main_check() -> None:
             'bundle results root'
         )
         sys.exit(1)
-    bundle_dir = Path(bundle_root.as_posix())
+    # The path itself, not its spelling: a local root named file:///tmp/x is local, and
+    # its POSIX form keeps the scheme, which Path would mangle into file:/tmp/x.  No
+    # parent is made, since the check writes nothing.
+    bundle_dir = cast(Path, bundle_root.get_local_path(create_parents=False))
     if not bundle_dir.is_dir():
         print(
             f'No bundle directory at {bundle_dir}: run the labels and summary passes '
