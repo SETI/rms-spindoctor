@@ -785,7 +785,10 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
     assert list(published) == list(_W1573251410_METADATA)
     assert absent != [], 'this label is expected to state fewer than the keywords read'
     assert outside != [], 'this label is expected to carry items no attribute reads'
-    assert not isinstance(optics, list), 'this label is expected to state one optics reading'
+    assert optics is not None, 'this label is expected to state an optics reading'
+    assert not isinstance(optics, list | tuple), (
+        'this label is expected to state one optics reading'
+    )
     assert published['cassini:optics_temperature_front'] == optics
     assert published['cassini:optics_temperature_back'] is None
     assert {
