@@ -108,12 +108,13 @@ The names are the dictionary's rather than the label's so that one navigation do
 says the same thing whether it was built from a PDS3 volume or from a PDS4 source
 bundle, and whether the image file was raw or calibrated.
 
-A keyword holding several values is split by position, which is the only transformation
-made: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
-``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` each state their values in the label's own
-order, and an element is published as the label states it.  Everything else keeps the
-label's own form: a number stays a number, text stays text, and a time stays the label's
-own text.
+A keyword filling several attributes is split by position, which is the only
+transformation made: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``,
+``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` state their values in
+the label's own order, and each is published as the label states it.  A label stating
+one value for such a keyword fills the first of its attributes and leaves the rest None
+(see :func:`_element`).  Everything else keeps the label's own form: a number stays a
+number, text stays text, and a time stays the label's own text.
 
 ``pre-pds_version_number`` is stated by no keyword, which is what its ``None`` keyword
 records; the image's file name states it instead (see :func:`_version_number`).  Every
@@ -148,19 +149,29 @@ def _version_number(image_name: str) -> int | None:
 
 
 def _element(value: Any, index: int) -> Any:
-    """Return one element of a label keyword holding several values.
+    """Return the value one position of a label keyword states.
+
+    A keyword stating several values fills the attribute at each position from the value
+    written there.  A keyword stating a single value fills the first attribute with it
+    and leaves the later ones None, because one value is a reading the label has and the
+    later positions are readings it does not: a label stating ``OPTICS_TEMPERATURE`` as
+    one number states a front optics temperature and no rear one, which is what the
+    two-value form says as well when the rear reading is the ``-999.0`` of a camera with
+    no rear sensor.
 
     Parameters:
         value: What the label states for the keyword, or None when it states nothing.
-        index: Which element to take, counting from zero.
+        index: Which position to take, counting from zero.
 
     Returns:
-        That element, as the label states it, or None when the label states no sequence
-        reaching it.
+        The value at that position, as the label states it, or None when the label
+        states nothing reaching it.
     """
-    if not isinstance(value, list | tuple) or index >= len(value):
+    if value is None:
         return None
-    return value[index]
+    if not isinstance(value, list | tuple):
+        return value if index == 0 else None
+    return value[index] if index < len(value) else None
 
 
 def _label_metadata(label: Mapping[str, Any], image_name: str) -> dict[str, Any]:
