@@ -878,6 +878,14 @@ Typical workflow for generating a complete PDS4 bundle:
 
    .. code-block:: bash
 
+      sd_create_bundle labels coiss_saturn --volumes COISS_2001 --check-only \
+        --nav-results-root /data/nav/results \
+        --backplane-results-root /data/nav/backplanes
+
+   Then generate the labels:
+
+   .. code-block:: bash
+
       sd_create_bundle labels coiss_saturn --volumes COISS_2001 \
         --nav-results-root /data/nav/results \
         --backplane-results-root /data/nav/backplanes \
