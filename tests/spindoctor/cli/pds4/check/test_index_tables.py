@@ -75,6 +75,11 @@ def _findings(bundle_dir: Path, metadata: Any) -> list[Finding]:
             id='body',
         ),
         pytest.param({'backplanes': {'rings': 'yes'}}, 'a string at backplanes.rings', id='rings'),
+        pytest.param(
+            {'backplanes': {'rings': {'backplanes': 7}}},
+            'a number at backplanes.rings.backplanes',
+            id='ring_statistics',
+        ),
     ],
 )
 def test_a_supplemental_file_holding_no_json_object_is_one_finding(

@@ -376,8 +376,9 @@ def _called_by(file: str, metadata: Any) -> _CalledBy:
         planes = object_at(object_at(entry, where).get('backplanes', {}), f'{where}.backplanes')
         if has_geometry({'backplanes': planes}):
             bodies.append(body)
-    rings = object_at(backplanes.get('rings', {}), 'backplanes.rings').get('backplanes')
-    return _CalledBy(bodies=tuple(bodies), rings=bool(rings), findings=tuple(found))
+    ring = object_at(backplanes.get('rings', {}), 'backplanes.rings')
+    statistics = object_at(ring.get('backplanes', {}), 'backplanes.rings.backplanes')
+    return _CalledBy(bodies=tuple(bodies), rings=len(statistics) > 0, findings=tuple(found))
 
 
 def _called_for(
