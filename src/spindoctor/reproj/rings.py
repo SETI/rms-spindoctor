@@ -986,11 +986,18 @@ class RingMosaic:
         longitudes, radii = orbit_model.longitude_radius(obs.midtime, step=longitude_step)
 
         bp = obs.ext_bp
-        # Containment is half-open because these are pixel-corner coordinates:
-        # a frame of W columns occupies [0, W), so the centre of the last
-        # column (W - 0.5) is inside the frame and W itself is not.
-        u_limit = obs.extdata_shape_uv[0]
-        v_limit = obs.extdata_shape_uv[1]
+        # longitude_radius_to_pixels ends in obs.fov.uv_from_los, so these are
+        # coordinates of the nominal frame: a position in the extended-FOV
+        # margin is negative, and the padded frame runs from -margin to
+        # size + margin rather than from zero to the padded width.  The bounds
+        # therefore come from extfov_*_min / _max, which name the first and last
+        # pixel of that frame, and containment is half-open at the top because
+        # these are pixel corners: the centre of the last column is inside it
+        # and the boundary past that column is not.
+        u_low = float(obs.extfov_u_min)
+        v_low = float(obs.extfov_v_min)
+        u_limit = float(obs.extfov_u_max) + 1.0
+        v_limit = float(obs.extfov_v_max) + 1.0
 
         bp_radius = bp.ring_radius(ring_body_name)
         bp_longitude = bp.ring_longitude(ring_body_name)
@@ -1012,7 +1019,7 @@ class RingMosaic:
             obs, longitudes, radii, ring_body_name=ring_body_name
         )
 
-        in_fov = (u_pix >= 0.0) & (u_pix < u_limit) & (v_pix >= 0.0) & (v_pix < v_limit)
+        in_fov = (u_pix >= u_low) & (u_pix < u_limit) & (v_pix >= v_low) & (v_pix < v_limit)
         return u_pix[in_fov], v_pix[in_fov]
 
     # ------------------------------------------------------------------

@@ -43,7 +43,7 @@ from spindoctor.nav_model.stars.predicted_snr import (
     psf_sigma_px,
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
-from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.flux import clean_sclass
 from spindoctor.support.image import draw_rect
 from spindoctor.support.time import now_dt
@@ -288,11 +288,17 @@ class NavModelStars(NavModel):
                 move_u=star.move_u,
             )
             box_half = (star.psf_size[0] // 2 + 2, star.psf_size[1] // 2 + 2)
+            # Cut about the pixel the star falls in, so the box is symmetric
+            # about that pixel and the overlay drawn from the same rule covers
+            # exactly it.  Rounding the two ends independently would let them
+            # break a tie in opposite directions.
+            v_pixel = containing_pixel(v_extfov)
+            u_pixel = containing_pixel(u_extfov)
             bbox = (
-                round(v_extfov - box_half[0]),
-                round(u_extfov - box_half[1]),
-                round(v_extfov + box_half[0] + 1),
-                round(u_extfov + box_half[1] + 1),
+                v_pixel - box_half[0],
+                u_pixel - box_half[1],
+                v_pixel + box_half[0] + 1,
+                u_pixel + box_half[1] + 1,
             )
             features.append(
                 NavFeature(
@@ -365,11 +371,11 @@ class NavModelStars(NavModel):
                 # Skip body/ring-blocked stars; they are not labelled.
                 continue
             v_pos, u_pos = self._extfov_position_vu(star)
-            # The box marks the pixel the star falls in.  The position is
-            # pixel-centric, so that pixel is the nearest whole number to it,
-            # which is also how the feature's own bounding box is cut.
-            v_int = round(v_pos)
-            u_int = round(u_pos)
+            # The box marks the pixel the star falls in, selected by the same
+            # rule the feature's own bounding box is cut with, so the two cannot
+            # disagree about where the box starts.
+            v_int = containing_pixel(v_pos)
+            u_int = containing_pixel(u_pos)
             v_half = (star.psf_size[0] // 2) + 2
             u_half = (star.psf_size[1] // 2) + 2
             u_min, v_min = obs.clip_extfov(u_int - u_half, v_int - v_half)

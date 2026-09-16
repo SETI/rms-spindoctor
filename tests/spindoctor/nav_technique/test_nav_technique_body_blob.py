@@ -85,6 +85,7 @@ class _RecordingLogger:
     """Logger stand-in keeping the arguments of every debug call."""
 
     def __init__(self) -> None:
+        """Start with no recorded calls."""
         self.debug_calls: list[tuple[str, tuple[Any, ...]]] = []
 
     def debug(self, message: str, *args: Any) -> None:
