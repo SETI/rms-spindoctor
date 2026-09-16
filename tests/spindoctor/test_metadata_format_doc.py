@@ -7,8 +7,11 @@ and structurally match real writer output. Two directions are enforced:
 1. Writer-to-chapter: every key name any writer emits -- across a fully
    populated success result (with and without a fitted rotation), a failed
    result, a load-error document, and an early-return document -- appears in
-   the chapter as an inline ``key`` literal. A writer gaining a key the
-   chapter lacks fails here.
+   the chapter as an inline ``key`` literal. The one exception is metadata an
+   instrument's host publishes into the ``observation`` block, which the
+   chapter leaves to that instrument's own user-guide chapter, so it may appear
+   there instead, and only there. A writer gaining a key neither documents
+   fails here.
 2. Chapter-to-writer: each example's key structure equals the corresponding
    writer output's key structure, block by block, and the open-vocabulary
    sub-objects (diagnostics, reliability_reasons, feature_count_by_type) use
@@ -54,6 +57,18 @@ from spindoctor.support.status_reason import NavStatusReason
 _CHAPTER_PATH = (
     Path(__file__).resolve().parents[2] / 'docs' / 'user_guide' / 'user_guide_metadata.rst'
 )
+
+_INSTRUMENT_CHAPTERS = _CHAPTER_PATH.parent / 'instruments'
+"""Where the user guide's instrument chapters are, each listing its host's metadata."""
+
+_KEY_CELL = re.compile(r'^\s*\* - (.+)$', re.MULTILINE)
+"""The first cell of a ``list-table`` row, which names the key that row documents."""
+
+_HOST_METADATA: tuple[tuple[str, dict[str, Any]], ...] = (
+    ('cassini_iss', CASSINI_ISS_PUBLIC_METADATA),
+    ('galileo_ssi', GALILEO_SSI_PUBLIC_METADATA),
+)
+"""What each host the documents here are built from publishes, with its chapter's stem."""
 
 # Keys whose object values carry open-vocabulary content (feature-type
 # counts, per-file hashes, per-catalog paths, per-technique diagnostics,
@@ -104,9 +119,53 @@ def _example_json_blocks() -> list[dict[str, Any]]:
     return blocks
 
 
+def _key_literals(text: str) -> set[str]:
+    """Every inline ``literal`` in a document that is shaped like a JSON key.
+
+    A key is a word of letters, digits and underscores, in either case, optionally behind
+    a namespace and a colon, in which case it may carry hyphens too: a host may publish
+    under a lower-case name of its own, under a label's own keyword such as
+    ``MISSION_PHASE_NAME``, or under a data dictionary's name such as
+    ``cassini:pre-pds_version_number``.
+
+    Parameters:
+        text: The reStructuredText to search, such as a whole chapter or one table cell.
+
+    Returns:
+        The name in each inline literal whose whole content is one such key. A literal
+        holding anything else, such as a dotted path or a bare hyphenated word, adds
+        nothing.
+    """
+    return set(re.findall(r'``([A-Za-z_][A-Za-z0-9_]*(?::[A-Za-z_][A-Za-z0-9_-]*)?)``', text))
+
+
 def _documented_key_literals() -> set[str]:
     """Every inline ``literal`` in the chapter that is shaped like a JSON key."""
-    return set(re.findall(r'``([a-z_][a-z0-9_]*)``', _chapter_text()))
+    return _key_literals(_chapter_text())
+
+
+def _instrument_chapter_key_literals(stem: str) -> set[str]:
+    """Every key a table row's key cell names in one instrument's chapter.
+
+    A key counts only in its own row's key cell: another row's meaning may mention it, as
+    the ``STOP_TIME`` row mentions ``IMAGE_TIME``, without documenting it. A key cell
+    names one key, so that no row documents another key by naming it beside its own.
+
+    Parameters:
+        stem: The chapter's file stem, such as ``cassini_iss``.
+
+    Returns:
+        Each key named in a table row's key cell anywhere in the chapter. A row whose key
+        cell names no key, such as a header row, adds nothing.
+    """
+    chapter = _INSTRUMENT_CHAPTERS / f'{stem}.rst'
+    assert chapter.is_file(), f'instrument chapter missing at {chapter}'
+    keys: set[str] = set()
+    for cell in _KEY_CELL.findall(chapter.read_text(encoding='utf-8')):
+        named = _key_literals(cell)
+        assert len(named) <= 1, f'{chapter.name}: a key cell names {sorted(named)}'
+        keys |= named
+    return keys
 
 
 def _leaf_key_names(node: Any) -> set[str]:
@@ -439,19 +498,31 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
     """Every key any writer emits appears in the chapter as a literal.
 
     This is the staleness guard's forward direction: a writer gaining a key
-    the chapter does not document fails here, naming the missing keys.
+    the chapter does not document fails here, naming the missing keys.  Metadata a
+    host publishes may be documented in its own row of that host's instrument
+    chapter instead, since that is where a host's own metadata is listed; another
+    instrument's chapter, or another row's mention of it, does not count.
     """
-    emitted: set[str] = set()
-    emitted |= _leaf_key_names(_success_document())
-    emitted |= _leaf_key_names(_rotation_document())
-    emitted |= _leaf_key_names(_failed_document())
-    emitted |= _leaf_key_names(_internal_error_document())
-    emitted |= _leaf_key_names(_load_error_document(tmp_path))
-    emitted |= _leaf_key_names(_early_return_document(tmp_path))
-    missing = emitted - _documented_key_literals()
+    documents = [
+        _success_document(),
+        _rotation_document(),
+        _failed_document(),
+        _internal_error_document(),
+        _load_error_document(tmp_path),
+        _early_return_document(tmp_path),
+    ]
+    emitted = set().union(*(_leaf_key_names(document) for document in documents))
+    documented = _documented_key_literals().union(
+        *(
+            _leaf_key_names(metadata) & _instrument_chapter_key_literals(stem)
+            for stem, metadata in _HOST_METADATA
+        )
+    )
+    missing = emitted - documented
     assert not missing, (
         f'writer emits keys the metadata chapter never documents: {sorted(missing)}; '
-        f'update docs/user_guide/user_guide_metadata.rst'
+        f'update docs/user_guide/user_guide_metadata.rst, or, for metadata a host '
+        f'publishes, its instrument chapter'
     )
 
 

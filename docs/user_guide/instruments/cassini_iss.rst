@@ -212,13 +212,316 @@ a Cassini ISS record carries:
   fraction of a second.
 * ``filters`` -- two entries, the two filter wheels, in that order, for
   example ``["CL1", "CL2"]``.
-* ``sampling`` -- the on-chip summing mode: ``FULL``, ``SUM2`` or ``SUM4``.
-* ``gain_mode`` -- the commanded gain state: ``0`` for 215 electrons per DN,
-  ``1`` for 95, ``2`` for 29 and ``3`` for 12, or null for a label naming any
-  other.
-* ``description`` and ``observation_id`` -- the label's free text and the
-  observation this frame belongs to; either may be null when the label carries
-  none.
+* ``label_metadata`` -- everything the image itself states about the exposure,
+  in the table below.
+
+The ``label_metadata`` values come from the label stored inside the calibrated
+image file, which is the label the navigation reads. The keys are the
+attributes of the Cassini data dictionary's ISS specific attributes, each
+behind a ``cassini:`` prefix.
+Those names are used rather than the label's own so that a record says the same
+thing whether it was built from a PDS3 volume or from a PDS4 Cassini source
+bundle, and whether the image file read was raw or calibrated.
+
+Each value is the label's own, in the label's own form:
+
+* A number stays a number and text stays text. The label writes its numbers
+  to six or seven significant digits, so the detached PDS3 label file beside
+  the image can show more digits of the same value.
+* A time is the label's own text: UTC, with the day of the year, ending in
+  ``Z``, for example ``2007-312T21:41:14.946Z``. The product creation time is
+  the exception, as its row says.
+* Where one label keyword fills several attributes, each value is recorded
+  under the attribute its position names, in the label's own order. The four
+  compression parameters and the two optics temperatures are read this way,
+  among others. A label that states a single value for such a keyword fills
+  the first of its attributes, and the rest are null.
+* A value the label writes as ``N/A``, ``UNK``, ``--`` or ``-999.0`` is
+  recorded as written. What it means depends on the attribute, and the
+  attribute's row says so wherever the label writes one.
+
+Every attribute below is present on every record, so the block is the same
+shape for every image. An attribute the image does not state is null. The label
+inside a calibrated image states all of them for a tour image; an earlier image
+may state fewer, and each one it does not state is null. An earlier label may
+also carry items of its own, some of them the same quantities under different
+names, and those are not recorded.
+
+``cassini:pre-pds_version_number`` is the one value no label keyword states. It
+is taken from the image's file name, the segment after the image number, which
+is the same for a raw file and for the calibrated product made from it.
+
+Two of these attributes are recorded a second time outside the block, in the
+form the rest of the pipeline uses: the two filter names are ``filters``, and
+the shutter mode is ``shutter_mode``. A program that wants the on-chip summing
+mode reads the image size.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 36 49 15
+
+   * - Key
+     - Meaning
+     - Unit
+   * - ``cassini:mission_phase_name``
+     - The mission phase the image belongs to, for example ``TOUR``.
+     - none
+   * - ``cassini:spacecraft_clock_count_partition``
+     - The spacecraft clock partition the two clock counts belong to.
+     - none
+   * - ``cassini:spacecraft_clock_start_count``
+     - The spacecraft clock count at shutter open, as text: seconds, a
+       period, then three digits of 1/256-second ticks. ``start_time_sclk`` is
+       the same count in seconds of the clock.
+     - none
+   * - ``cassini:spacecraft_clock_stop_count``
+     - The spacecraft clock count at shutter close, in the same form.
+       ``end_time_sclk`` is the same count in seconds of the clock.
+     - none
+   * - ``cassini:limitations``
+     - The label's free text about the image; ``N/A`` when it carries none.
+     - none
+   * - ``cassini:antiblooming_state_flag``
+     - Whether antiblooming was on: ``ON`` or ``OFF``.
+     - none
+   * - ``cassini:bias_strip_mean``
+     - The mean of the overclocked pixels, over every line but the first and
+       last.
+     - DN
+   * - ``cassini:calibration_lamp_state_flag``
+     - Whether the calibration lamp was on: ``ON`` or ``OFF``, or ``N/A`` for
+       the narrow angle camera, which has no lamp.
+     - none
+   * - ``cassini:command_file_name``
+     - The instrument operations file that described the observation.
+     - none
+   * - ``cassini:command_sequence_number``
+     - The trigger number of the commands that took the image.
+     - none
+   * - ``cassini:dark_strip_mean``
+     - The mean of the extended (dark) pixels, over every line but the first
+       and last.
+     - DN
+   * - ``cassini:data_conversion_type``
+     - How the 12-bit data were reduced to 8 bits: ``12BIT`` (not reduced),
+       ``TABLE`` (by look-up table) or ``8LSB`` (keeping the 8 least
+       significant bits).
+     - none
+   * - ``cassini:delayed_readout_flag``
+     - Whether the image may have waited on the detector while the other
+       camera read out: ``YES`` or ``NO``.
+     - none
+   * - ``cassini:detector_temperature``
+     - The temperature of the detector; ``-999.0`` when the label has no
+       reading.
+     - degrees C
+   * - ``cassini:electronics_bias``
+     - The commanded electronics bias, which keeps every DN above zero.
+     - none
+   * - ``cassini:earth_received_start_time``
+     - When the earliest data of the image were received on Earth.
+     - UTC
+   * - ``cassini:earth_received_stop_time``
+     - When the latest data of the image were received on Earth.
+     - UTC
+   * - ``cassini:expected_maximum_full_well``
+     - The maximum DN predicted for the image, as a percentage of the
+       full-well level, which is ``cassini:valid_maximum_full_well``.
+     - percent
+   * - ``cassini:expected_maximum_DN_sat``
+     - The same prediction as a percentage of the saturation level, which is
+       ``cassini:valid_maximum_DN_sat``.
+     - percent
+   * - ``cassini:expected_packets``
+     - The number of telemetry packets expected for the image, each 7616
+       bits.
+     - packets
+   * - ``cassini:exposure_duration``
+     - The exposure duration as the label states it. ``exposure_time`` is the
+       same duration in seconds, except that a zero-length exposure is
+       recorded there as 0.000001.
+     - milliseconds
+   * - ``cassini:filter_name_1``
+     - The position of the first filter wheel; the first entry of ``filters``.
+     - none
+   * - ``cassini:filter_name_2``
+     - The position of the second filter wheel; the second entry of
+       ``filters``.
+     - none
+   * - ``cassini:filter_temperature``
+     - The temperature of the filter wheels; ``-999.0`` when the label has no
+       reading.
+     - degrees C
+   * - ``cassini:flight_software_version_id``
+     - The version of the instrument flight software.
+     - none
+   * - ``cassini:gain_mode_id``
+     - The gain setting as the label names it, for example
+       ``29 ELECTRONS PER DN``.
+     - none
+   * - ``cassini:ground_software_version_id``
+     - The version of the ground software that built the image.
+     - none
+   * - ``cassini:image_mid_time``
+     - The middle of the exposure.
+     - UTC
+   * - ``cassini:image_number``
+     - The image number: the whole seconds of the spacecraft clock at shutter
+       close, the number in the image's name.
+     - none
+   * - ``cassini:image_time``
+     - Shutter close; the same as ``cassini:stop_time_doy``.
+     - UTC
+   * - ``cassini:image_observation_type``
+     - The purposes of the image, for example ``SCIENCE``: text for one
+       purpose, an array of text for several.
+     - none
+   * - ``cassini:instrument_data_rate``
+     - The rate at which data left the camera; ``-999.0`` when the label has
+       no value.
+     - kilobits per second
+   * - ``cassini:instrument_mode_id``
+     - The on-chip summing mode: ``FULL``, ``SUM2`` or ``SUM4``. The recorded
+       image size follows from it.
+     - none
+   * - ``cassini:inst_cmprs_type``
+     - The on-board compression: ``LOSSLESS``, ``LOSSY`` or ``NOTCOMP`` (not
+       compressed).
+     - none
+   * - ``cassini:inst_cmprs_param_malgo``
+     - The lossy compression algorithm; ``N/A`` when the image was not lossy
+       compressed or its parameters were not recorded.
+     - none
+   * - ``cassini:inst_cmprs_param_tb``
+     - The lossy compression block type; ``N/A`` on the same images.
+     - none
+   * - ``cassini:inst_cmprs_param_blocks``
+     - The lossy compression blocks per group; ``N/A`` on the same images.
+     - none
+   * - ``cassini:inst_cmprs_param_quant``
+     - The lossy compression quantization factor; ``N/A`` on the same images.
+     - none
+   * - ``cassini:inst_cmprs_rate_expected_bits``
+     - The average number of bits per pixel expected after compression.
+     - bits per pixel
+   * - ``cassini:inst_cmprs_rate_actual_bits``
+     - The average number of bits per pixel received; ``-999.0`` when the
+       label has no value, as on some lossy compressed images, most of them
+       images that were only partly received.
+     - bits per pixel
+   * - ``cassini:inst_cmprs_ratio``
+     - The expected image size over the size received; ``N/A`` for an image
+       that was not compressed, and ``-999.0`` when the label has no value, as
+       on some lossy compressed images, most of them images that were only
+       partly received.
+     - none
+   * - ``cassini:light_flood_state_flag``
+     - Whether the detector was light flooded just before the image: ``ON``
+       or ``OFF``.
+     - none
+   * - ``cassini:method_description``
+     - The information or algorithm used to choose the exposure; ``N/A`` when
+       none was given.
+     - none
+   * - ``cassini:missing_lines``
+     - The number of missing or incomplete image lines, which is counted only
+       for an image that was not lossy compressed: a lossy compressed image
+       has ``N/A``, or on a few images ``UNK``.
+     - lines
+   * - ``cassini:missing_packet_flag``
+     - Whether telemetry packets the image needed were missing: ``YES`` or
+       ``NO``.
+     - none
+   * - ``cassini:observation_id``
+     - The observation this frame belongs to.
+     - none
+   * - ``cassini:optics_temperature_front``
+     - The temperature of the front optics. A label that states one optics
+       temperature rather than two states this one.
+     - degrees C
+   * - ``cassini:optics_temperature_back``
+     - The temperature of the rear optics; ``-999.0`` for the wide angle
+       camera, which has no rear optics sensor, and for an image whose
+       extended header was missing. Null where the label states one optics
+       temperature rather than two, which says the same thing as ``-999.0``:
+       the label carries no rear reading.
+     - degrees C
+   * - ``cassini:order_number``
+     - The image's identifier within its instrument operations file.
+     - none
+   * - ``cassini:parallel_clock_voltage_index``
+     - The commanded parallel clock voltage index.
+     - none
+   * - ``cassini:pds3_product_creation_time``
+     - When the raw image product was built on the ground. The archive states
+       this time in Pacific local time, not UTC, although some labels end it
+       with ``Z``.
+     - Pacific local time
+   * - ``cassini:pds3_product_version_type``
+     - The product's version type; ``FINAL`` for every archived product.
+     - none
+   * - ``cassini:pds3_target_desc``
+     - The intended target the exposure was chosen for.
+     - none
+   * - ``cassini:pds3_target_list``
+     - The bodies in view, which the label always writes as ``N/A``.
+     - none
+   * - ``cassini:pds3_target_name``
+     - The target named when the observation was planned, which is often not
+       what the image shows; ``UNK`` when it is unknown.
+     - none
+   * - ``cassini:pre-pds_version_number``
+     - The internal version of the image that was archived. No label keyword
+       states it; the segment after the image number in the file name does.
+     - none
+   * - ``cassini:prepare_cycle_index``
+     - The entry of the prepare-cycle table used for the image.
+     - none
+   * - ``cassini:readout_cycle_index``
+     - The entry of the readout-cycle table used for the image.
+     - none
+   * - ``cassini:received_packets``
+     - The number of telemetry packets received for the image, each 7616
+       bits.
+     - packets
+   * - ``cassini:sensor_head_electronics_temperature``
+     - The temperature of the sensor head electronics; ``-999.0`` when the
+       label has no reading.
+     - degrees C
+   * - ``cassini:sequence_id``
+     - The spacecraft sequence the image belongs to, for example ``S35``.
+     - none
+   * - ``cassini:sequence_number``
+     - Where the image falls in the order its observation planned.
+     - none
+   * - ``cassini:sequence_title``
+     - The name of the activity the image belongs to; ``--`` when none was
+       given.
+     - none
+   * - ``cassini:shutter_mode_id``
+     - Which cameras the command exposed: ``NACONLY``, ``WACONLY``, or
+       ``BOTSIM`` for both at once. Recorded again as ``shutter_mode``.
+     - none
+   * - ``cassini:shutter_state_id``
+     - Whether the shutter was enabled: ``ENABLED`` or ``DISABLED``. When it
+       was disabled, the label's start, middle and stop times are all the
+       start of the exposure window.
+     - none
+   * - ``cassini:start_time_doy``
+     - Shutter open.
+     - UTC
+   * - ``cassini:stop_time_doy``
+     - Shutter close.
+     - UTC
+   * - ``cassini:telemetry_format_id``
+     - The telemetry mode, for example ``S&ER3``; ``UNK`` when it is unknown.
+     - none
+   * - ``cassini:valid_maximum_full_well``
+     - The minimum full-well saturation level, which may exceed 4095.
+     - DN
+   * - ``cassini:valid_maximum_DN_sat``
+     - The saturation level of the analog-to-digital converter, 4095 or 255.
+     - DN
 
 Its ``instrument`` is ``coiss`` and its ``camera`` is ``NAC`` or ``WAC``. The
 instrument host LID is ``...:instrument_host:spacecraft.co``. The instrument
