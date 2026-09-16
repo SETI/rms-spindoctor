@@ -109,9 +109,9 @@ the user-guide PDF for a delivered bundle, go with #708.
 A PDS4 bundle is not a directory of labels. It is a bundle product, four or
 seven collection products, an inventory per collection, and a data file
 beside every label that names one, all of which must resolve against each
-other and against the PDS4 schemas. What the pipeline produces today is the
-per-image half of that and nothing else, and nothing in the repository can
-tell you so, because nothing validates anything.
+other and against the PDS4 schemas. When this plan was written, the pipeline
+produced the per-image half of that and nothing else, and nothing in the
+repository could tell you so, because nothing validated anything.
 
 The purpose of this plan is one reviewable artifact: a prototype bundle
 rooted at `cassini_iss_saturn_backplanes_rsfrench2027`, built from the
