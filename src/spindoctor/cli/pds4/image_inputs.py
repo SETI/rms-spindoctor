@@ -201,7 +201,8 @@ def report_image_inputs(
     """Report what one selected image has of the files the labels pass reads.
 
     Reads the image's navigation record, as the labels pass does, and looks for each
-    file; it writes no file.
+    file; it writes no file.  The two roots are normalized where they are used, by
+    :func:`image_inputs`.
 
     Parameters:
         image_file: The image.
@@ -211,12 +212,10 @@ def report_image_inputs(
     Returns:
         The report.
     """
-    nav_root = FCPath(nav_results_root)
-    backplane_root = FCPath(backplane_results_root)
     inputs = image_inputs(
         image_file.results_path_stub,
-        nav_results_root=nav_root,
-        backplane_results_root=backplane_root,
+        nav_results_root=nav_results_root,
+        backplane_results_root=backplane_results_root,
     )
     record = navigation_record(image_file, inputs)
     return InputsReport(

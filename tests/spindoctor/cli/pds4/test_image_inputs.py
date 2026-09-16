@@ -111,7 +111,7 @@ def test_a_root_given_as_a_string_or_a_path_names_the_files_an_fcpath_names(
     assert as_paths == expected
 
 
-def test_the_report_takes_the_two_roots_given_as_strings(tmp_path: Path) -> None:
+def test_a_report_built_from_string_roots_names_the_same_files(tmp_path: Path) -> None:
     """The report over roots given as strings is the report over the same FCPaths."""
     _write_inputs(tmp_path)
     report = report_image_inputs(
