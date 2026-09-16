@@ -117,6 +117,19 @@ def test_the_check_exits_one_without_a_bundle_directory(
     assert f'No bundle directory at {check_run}' in capsys.readouterr().out
 
 
+def test_the_check_creates_nothing_under_a_bundle_results_root_that_is_not_there(
+    check_run: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A root that is not there is reported missing, and looking does not create it."""
+    root = tmp_path / 'never_written'
+    monkeypatch.setattr(sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(root))
+    monkeypatch.setattr(sd_create_bundle, 'check_bundle', refuse)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_check()
+    assert excinfo.value.code == 1
+    assert not root.exists()
+
+
 def test_the_check_exits_one_over_a_bundle_results_root_that_is_not_local(
     check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
