@@ -230,6 +230,29 @@ def test_bright_star_contributes_a_masked_disc() -> None:
     assert bool(geometry.contaminant_mask[int(40.0) + margin_v, int(40.0) + margin_v])
 
 
+def test_star_disc_covers_the_pixels_the_star_lit() -> None:
+    """The star disc is painted about the star's pixel centric position.
+
+    A scene states a star's position as a pixel corner and the disc is
+    compared against pixel centric grids, so the half pixel has to come off
+    before the extfov margins go on -- exactly as the catalog-driven model
+    does it for its own star discs.  Painting at the stated number puts the
+    mask half a pixel off the light it is there to cover.  The star sits at
+    a pixel centre, so the painted disc is symmetric and its centroid is its
+    centre.
+    """
+    star = {'name': 'BRIGHT', 'v': 40.5, 'u': 60.5, 'vmag': 5.0}
+    obs = _obs([_titan()], [star])
+    geometry = _model([_titan()], [star]).geometry_inputs
+    mask = geometry.contaminant_mask
+    assert mask is not None
+    vs, us = np.nonzero(mask)
+    expected_v = 40.5 - PIXEL_CENTER_TO_CORNER_PX + int(obs.extfov_margin_v)
+    expected_u = 60.5 - PIXEL_CENTER_TO_CORNER_PX + int(obs.extfov_margin_u)
+    assert float(vs.mean()) == pytest.approx(expected_v)
+    assert float(us.mean()) == pytest.approx(expected_u)
+
+
 def test_faint_star_is_left_unmasked() -> None:
     """A star fainter than the limit is deliberately not masked.
 

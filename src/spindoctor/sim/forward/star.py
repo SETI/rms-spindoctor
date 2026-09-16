@@ -412,8 +412,16 @@ def _render_sky_counts_cached(
     hi = 10.0 ** (b * faint_cutoff_mag)
     u_draw = rng.uniform(lo, hi, size=n_stars)
     mags = np.log10(u_draw) / b if b != 0.0 else np.full(n_stars, faint_cutoff_mag)
-    vs = rng.uniform(0.0, float(size_v), size=n_stars)
-    us = rng.uniform(0.0, float(size_u), size=n_stars)
+    # The draw is a uniform pixel corner position over the frame of this grid,
+    # which spans ``[0, size]`` there; the deposit reads a pixel centric
+    # position, where the same frame spans ``[-half, size - half]``, so half a
+    # pixel of this grid comes off every draw.  Without it the outer half of the
+    # first row and column can never receive a star and the draws past the last
+    # row deposit only their in-bounds share.  Taking it off after the draw
+    # rather than shifting the sampler's bounds leaves the random stream
+    # untouched, so a seed keeps the star field it had.
+    vs = rng.uniform(0.0, float(size_v), size=n_stars) - PIXEL_CENTER_TO_CORNER_PX
+    us = rng.uniform(0.0, float(size_u), size=n_stars) - PIXEL_CENTER_TO_CORNER_PX
     for mag, v, u in zip(mags.tolist(), vs.tolist(), us.tolist(), strict=True):
         total = total_flux_for_vmag(float(mag), zero_point=zero_point, exposure_sec=exposure_sec)
         _deposit_point_mass(plane, v, u, total=total * oversample**2)

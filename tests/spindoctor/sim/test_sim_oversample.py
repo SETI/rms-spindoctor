@@ -3,14 +3,16 @@
 A scene with an active whole-scene PSF renders its radiance on an oversampled
 grid and downsamples back to the detector grid; a scene with no optics block
 renders at oversample 1.  These tests cover the oversample resolution, the
-determinism of the no-optics path, and that the oversampled render preserves
-body flux and position after the downsample.
+determinism of the no-optics path, that the oversampled render preserves body
+flux and position after the downsample, and that the classifying truth arrays
+come back describing the pixels the image put the body on.
 """
 
 from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.forward.stages import downsample_to_detector, new_sim_frame
 from spindoctor.sim.render import render_combined_model, resolve_oversample
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
@@ -181,3 +183,72 @@ def test_optics_scene_renders_deterministically() -> None:
     second, _ = render_combined_model(scene)
     assert np.array_equal(first, second)
     assert first.shape == (60, 60)
+
+
+def test_oversample_body_mask_lands_where_the_body_rendered() -> None:
+    """The downsampled body mask centroids where the rendered body does.
+
+    The image is box-averaged over each detector pixel, which is symmetric
+    about the pixel, so a mask reduced by a rule preferring one side of the
+    block describes a body a fraction of a pixel away from the one in the
+    image it is the truth for.  The scene is a fully lit sphere, whose image
+    and silhouette are both symmetric about the same point, so the two
+    centroids coincide and any preference shows up as a separation.
+    """
+    img, meta = render_combined_model(_body_scene(oversample=4))
+    image_v, image_u = _centroid(img)
+    mask_v, mask_u = _centroid(np.asarray(meta['body_masks'][0], dtype=np.float64))
+    assert abs(mask_v - image_v) < 0.01
+    assert abs(mask_u - image_u) < 0.01
+
+
+def test_oversample_body_index_map_lands_where_the_body_rendered() -> None:
+    """The downsampled body index map centroids where the rendered body does.
+
+    The index map reduces through its own rule and reaches the simulated
+    backplanes, so it gets the same check the boolean masks get.
+    """
+    img, meta = render_combined_model(_body_scene(oversample=4))
+    image_v, image_u = _centroid(img)
+    painted = (np.asarray(meta['body_index_map']) == 1).astype(np.float64)
+    index_v, index_u = _centroid(painted)
+    assert abs(index_v - image_v) < 0.01
+    assert abs(index_u - image_u) < 0.01
+
+
+def test_downsampled_mask_is_true_once_half_the_block_is() -> None:
+    """A detector pixel is masked as soon as half its subsamples are.
+
+    The threshold is counted in whole subsamples, so a block covered exactly
+    half comes out true at every oversample factor and a block covered less
+    than half comes out false.
+    """
+    mask = np.zeros((4, 8), dtype=bool)
+    mask[0, 0:2] = True
+    mask[0, 2] = True
+    frame = new_sim_frame(2, 4, oversample=2)
+    frame.truth['body_masks'] = [mask]
+    downsample_to_detector(frame, params={}, rng=np.random.default_rng(0))
+    reduced = frame.truth['body_masks'][0]
+    assert bool(reduced[0, 0])
+    assert not bool(reduced[0, 1])
+
+
+def test_downsampled_index_map_gives_a_tied_block_to_the_nearer_body() -> None:
+    """The index map ranks its labels by coverage, ties to the nearer body.
+
+    The labels run from 1 upward in near-to-far order, so two bodies
+    splitting a detector pixel evenly leave it to the nearer one; the
+    no-body label takes a pixel only where it strictly covers more of it
+    than any single body does.
+    """
+    index_map = np.zeros((2, 4), dtype=np.int32)
+    index_map[0:2, 0] = 1
+    index_map[0:2, 1] = 2
+    index_map[0, 2] = 2
+    frame = new_sim_frame(1, 2, oversample=2)
+    frame.truth['body_index_map'] = index_map
+    downsample_to_detector(frame, params={}, rng=np.random.default_rng(0))
+    reduced = frame.truth['body_index_map']
+    assert int(reduced[0, 0]) == 1
+    assert int(reduced[0, 1]) == 0
