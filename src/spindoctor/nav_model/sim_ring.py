@@ -31,6 +31,7 @@ from spindoctor.sim.ring_geometry import (
     ring_plane_from_sky,
     ring_radial_scale,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -168,8 +169,11 @@ def predict_ring_feature(
     if math.sin(math.radians(opening_deg_obs)) == 0.0:
         return PredictedRingFeature(template=None, mask=empty_mask, edges=[])
 
-    v_coords = np.arange(size_v, dtype=np.float64) + 0.5
-    u_coords = np.arange(size_u, dtype=np.float64) + 0.5
+    # The grid starts as array rows and columns and the projection works in
+    # the geometry layer's pixel corner coordinates, where the centre the
+    # caller hands in is stated, so the half pixel goes on here.
+    v_coords = np.arange(size_v, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+    u_coords = np.arange(size_u, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
     v_grid, u_grid = np.meshgrid(v_coords, u_coords, indexing='ij')
     r, lam, x, y = ring_plane_from_sky(
         v_grid - center_v, u_grid - center_u, opening_deg_obs=opening_deg_obs, node_deg=node_deg

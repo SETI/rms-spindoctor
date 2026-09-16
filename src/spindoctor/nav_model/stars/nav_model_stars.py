@@ -266,7 +266,7 @@ class NavModelStars(NavModel):
             if smear_len > max_smear:
                 skipped_smear += 1
                 continue
-            v_extfov, u_extfov = self._extfov_indices(star)
+            v_extfov, u_extfov = self._extfov_position_vu(star)
             in_body = bool((star.conflicts or '').startswith('BODY'))
             in_ring = bool((star.conflicts or '').startswith('RING'))
             # Saturation / cosmic-ray contamination is NOT determined here.  The
@@ -364,12 +364,12 @@ class NavModelStars(NavModel):
             if star.conflicts and star.conflicts != 'STAR':
                 # Skip body/ring-blocked stars; they are not labelled.
                 continue
-            v_idx, u_idx = self._extfov_indices(star)
+            v_pos, u_pos = self._extfov_position_vu(star)
             # The box marks the pixel the star falls in.  The position is
             # pixel-centric, so that pixel is the nearest whole number to it,
             # which is also how the feature's own bounding box is cut.
-            v_int = round(v_idx)
-            u_int = round(u_idx)
+            v_int = round(v_pos)
+            u_int = round(u_pos)
             v_half = (star.psf_size[0] // 2) + 2
             u_half = (star.psf_size[1] // 2) + 2
             u_min, v_min = obs.clip_extfov(u_int - u_half, v_int - v_half)
@@ -412,7 +412,7 @@ class NavModelStars(NavModel):
         )
         return annotations
 
-    def _extfov_indices(self, star: MutableStar) -> tuple[float, float]:
+    def _extfov_position_vu(self, star: MutableStar) -> tuple[float, float]:
         """Return ``(v, u)`` of ``star`` in extfov pixel-centric coordinates.
 
         Converts from the record's pixel corner position (see

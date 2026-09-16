@@ -45,7 +45,7 @@ A star record stores the catalog projection as the geometry layer returns it,
 in pixel-corner coordinates, and the record then travels to the techniques. So
 unlike the body, ring and Titan models, which convert while building their
 sampling grids, this model converts at each point of use:
-``NavModelStars._extfov_indices`` before a predicted position reaches a
+``NavModelStars._extfov_position_vu`` before a predicted position reaches a
 feature, the Titan contaminant mask before a star disc is painted, and the log
 line and metadata entry so that what a navigation document records matches
 every other position it records. Two consumers take the record unconverted
@@ -472,7 +472,7 @@ Annotation helpers
   catalog name and visual magnitude. Stars flagged with a body / ring conflict are
   skipped (they are surfaced in the per-image metadata for reviewer awareness but not
   drawn). Consumes the ``label_*`` and ``label_star_color`` keys documented above.
-- ``_extfov_indices`` — converts a star's recorded pixel-corner position to an
+- ``_extfov_position_vu`` — converts a star's recorded pixel-corner position to an
   extfov-frame pixel-centric position (see :ref:`coordinate-systems`), for the
   rectangle drawer and for the emitted feature.
 - The per-star label string is built by the module-level ``_star_label`` helper, which

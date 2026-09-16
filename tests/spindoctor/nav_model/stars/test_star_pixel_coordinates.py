@@ -1,19 +1,19 @@
 """Which coordinate system a star position is in at each stage.
 
 A star record carries pixel corner coordinates (``MutableStar``); every star technique
-measures its centroids in array indices, because each one builds its
-coordinate array with ``np.arange`` over the slice it indexes the image
+measures its centroids in pixel centric ones, because each one builds its
+coordinate array with ``np.arange`` over the slice it reads the image
 with.  These tests pin the conversion between the two at the seam where the
 model hands a predicted position to a technique, for a record from the real
 catalog reduction and for one built from a simulated scene.
 
 The anchor is external to the pipeline in every case: ``oops`` puts a default
 ``FlatFOV`` optical axis at ``uv_los``, a star image that is symmetric about
-the middle of an ``N``-pixel axis centroids at index ``(N - 1) / 2``, and the
-simulated star the image-side renderer actually draws is measured rather than
-predicted.  None of those is a restatement of the code under test, so a
-pipeline that reads uv as an index fails here by the half pixel that
-separates them.
+the middle of an ``N``-pixel axis centroids at ``(N - 1) / 2`` pixel centric,
+and the simulated star the image-side renderer actually draws is measured
+rather than predicted.  None of those is a restatement of the code under test,
+so a pipeline that reads uv pixel centric fails here by the half pixel that
+separates the two systems.
 """
 
 from typing import Any, cast
@@ -59,16 +59,16 @@ def _boresight_uv() -> float:
     return float(fov.uv_los.vals[0])
 
 
-def _boresight_index() -> float:
-    """Return the index of the pixel at the middle of the detector axis."""
+def _boresight_centric() -> float:
+    """Return the middle of the detector axis in pixel centric coordinates."""
     return (_FOV_SIZE - 1) / 2.0
 
 
-def _star_image(v_index: float, u_index: float) -> np.ndarray:
-    """Return a frame holding one round Gaussian star at a pixel index."""
+def _star_image(v_pos: float, u_pos: float) -> np.ndarray:
+    """Return a frame holding one round Gaussian star at a pixel centric position."""
     vs = np.arange(_FOV_SIZE, dtype=np.float64)[:, np.newaxis]
     us = np.arange(_FOV_SIZE, dtype=np.float64)[np.newaxis, :]
-    r2 = (vs - v_index) ** 2 + (us - u_index) ** 2
+    r2 = (vs - v_pos) ** 2 + (us - u_pos) ** 2
     return _STAR_PEAK_DN * np.exp(-r2 / (2.0 * _STAR_SIGMA_PX**2))
 
 
@@ -167,7 +167,7 @@ def _predicted_vu(star: MutableStar, *, extfov_margin: int) -> tuple[float, floa
     return geometry.predicted_vu
 
 
-def test_boresight_star_predicts_the_index_its_image_centroids_to() -> None:
+def test_boresight_star_predicts_the_position_its_image_centroids_to() -> None:
     """A star at the FOV optical axis predicts the pixel its light falls on.
 
     The star record carries the uv ``oops`` reports for the optical axis and
@@ -177,7 +177,7 @@ def test_boresight_star_predicts_the_index_its_image_centroids_to() -> None:
     """
     star = cast(MutableStar, _StarRecord(v=_boresight_uv(), u=_boresight_uv()))
     predicted = _predicted_vu(star, extfov_margin=0)
-    image = _star_image(_boresight_index(), _boresight_index())
+    image = _star_image(_boresight_centric(), _boresight_centric())
     measured, _peak = local_centroid(
         image,
         predicted,
@@ -187,7 +187,7 @@ def test_boresight_star_predicts_the_index_its_image_centroids_to() -> None:
         detection_sigma=5.0,
     )
     assert measured is not None
-    assert measured[0] == pytest.approx(_boresight_index(), abs=1e-9)
+    assert measured[0] == pytest.approx(_boresight_centric(), abs=1e-9)
     assert predicted[0] == pytest.approx(measured[0], abs=1e-9)
     assert predicted[1] == pytest.approx(measured[1], abs=1e-9)
 
@@ -208,7 +208,7 @@ def test_the_margin_does_not_disturb_the_conversion() -> None:
     predicted = _predicted_vu(star, extfov_margin=margin)
     padded = np.zeros((_FOV_SIZE + 2 * margin, _FOV_SIZE + 2 * margin), dtype=np.float64)
     padded[margin : margin + _FOV_SIZE, margin : margin + _FOV_SIZE] = _star_image(
-        _boresight_index(), _boresight_index()
+        _boresight_centric(), _boresight_centric()
     )
     measured, _peak = local_centroid(
         padded,
@@ -219,7 +219,7 @@ def test_the_margin_does_not_disturb_the_conversion() -> None:
         detection_sigma=5.0,
     )
     assert measured is not None
-    assert measured[0] == pytest.approx(_boresight_index() + margin, abs=1e-9)
+    assert measured[0] == pytest.approx(_boresight_centric() + margin, abs=1e-9)
     assert predicted[0] == pytest.approx(measured[0], abs=1e-9)
     assert predicted[1] == pytest.approx(measured[1], abs=1e-9)
 
@@ -243,8 +243,8 @@ def test_a_recorded_star_position_is_the_one_the_scene_states() -> None:
     ``test_a_scene_star_predicts_where_the_renderer_draws_it`` measures that
     the renderer draws its light there.  A reader comparing the navigation
     document against the scene file has to find the same two numbers in both,
-    so what is recorded is the scene's position and not the array index the
-    light falls on, half a pixel below it.
+    so what is recorded is the scene's position and not the pixel centric
+    coordinate the light falls on, half a pixel below it.
     """
     entry = {'name': 'S', 'v': _SCENE_STAR_V, 'u': _SCENE_STAR_U, 'vmag': 4.0}
     star = star_record_from_params(entry, index=0, default_v=0.0, default_u=0.0)
@@ -274,8 +274,8 @@ def test_a_scene_star_predicts_where_the_renderer_draws_it() -> None:
     deposits the star into an array, and the navigator side builds a record
     from it and predicts a position.  The rendered star is the anchor, so
     nothing here restates the builder's own arithmetic, and a side that read
-    the scene's corner coordinate as a pixel index would miss by the half
-    pixel that separates them.
+    the scene's pixel corner coordinate pixel centric would miss by the half
+    pixel that separates the two systems.
     """
     entry = {'name': 'S', 'v': _SCENE_STAR_V, 'u': _SCENE_STAR_U, 'vmag': 4.0}
     star = star_record_from_params(entry, index=0, default_v=0.0, default_u=0.0)

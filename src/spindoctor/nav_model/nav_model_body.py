@@ -487,8 +487,12 @@ def body_edge_in_frame(obs: Observation, body_name: str) -> bool:
     Returns:
         True when the boundary shows sky or both sides of the terminator.
     """
-    u_min, u_max = obs.extfov_u_min + 0.5, obs.extfov_u_max + 0.5
-    v_min, v_max = obs.extfov_v_min + 0.5, obs.extfov_v_max + 0.5
+    # The extended-frame bounds are array bounds; the meshgrid reads the
+    # geometry layer's pixel corner coordinates, so the half pixel goes on here.
+    u_min = obs.extfov_u_min + PIXEL_CENTER_TO_CORNER_PX
+    u_max = obs.extfov_u_max + PIXEL_CENTER_TO_CORNER_PX
+    v_min = obs.extfov_v_min + PIXEL_CENTER_TO_CORNER_PX
+    v_max = obs.extfov_v_max + PIXEL_CENTER_TO_CORNER_PX
     edges = (
         ((u_min, v_min), (u_max, v_min)),
         ((u_min, v_max), (u_max, v_max)),
@@ -948,10 +952,14 @@ class NavModelBody(NavModelBodyBase):
             body_config.oversample_edge_limit,
             body_config.oversample_maximum,
         )
-        restr_u_min = u_min + 1.0 / (2 * oversample_u)
-        restr_u_max = u_max + 1 - 1.0 / (2 * oversample_u)
-        restr_v_min = v_min + 1.0 / (2 * oversample_v)
-        restr_v_max = v_max + 1 - 1.0 / (2 * oversample_v)
+        # The box bounds are array bounds and the meshgrid reads the geometry
+        # layer's pixel corner coordinates, so the half pixel goes on here.  It
+        # is half of a SUBSAMPLE on this oversampled grid, which is the same
+        # crossing divided by the oversample factor.
+        restr_u_min = u_min + PIXEL_CENTER_TO_CORNER_PX / oversample_u
+        restr_u_max = u_max + 1 - PIXEL_CENTER_TO_CORNER_PX / oversample_u
+        restr_v_min = v_min + PIXEL_CENTER_TO_CORNER_PX / oversample_v
+        restr_v_max = v_max + 1 - PIXEL_CENTER_TO_CORNER_PX / oversample_v
         want_lambert = bool(body_config.use_lambert)
         strips = _striped_body_quantities(
             obs,

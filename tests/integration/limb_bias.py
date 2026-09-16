@@ -130,16 +130,16 @@ class RendererCentroidCheck:
 
     Attributes:
         requested_center_vu: Sub-pixel body centre requested from the
-            renderer, in the renderer's corner-origin convention.
-        geometric_center_index_vu: The geometric centre in the navigator's
-            pixel-index convention (``requested - 0.5`` on each axis).
+            renderer, in the renderer's pixel corner coordinates.
+        geometric_center_vu: The same centre in the pixel centric coordinates
+            the navigator measures in (``requested - 0.5`` on each axis).
         measured_centroid_vu: The intensity-weighted centroid of the
-            rendered body, in pixel-index coordinates.
+            rendered body, pixel centric.
         centroid_error_vu: Signed ``measured - geometric`` per axis.
     """
 
     requested_center_vu: tuple[float, float]
-    geometric_center_index_vu: tuple[float, float]
+    geometric_center_vu: tuple[float, float]
     measured_centroid_vu: tuple[float, float]
     centroid_error_vu: tuple[float, float]
 
@@ -322,19 +322,20 @@ def renderer_centroid_offset(
     the intensity-weighted centroid of the result.  A phase-0 sphere is
     radially symmetric, so its brightness centroid must coincide with its
     geometric centre; any offset would be a positional bias baked into the
-    renderer itself.  The renderer places pixel index ``i`` at coordinate
-    ``i + 0.5``, so a requested centre ``c`` lands the geometric centre at
-    pixel index ``c - 0.5``; the check compares against that.
+    renderer itself.  The renderer works in pixel corner coordinates, where a
+    pixel's centre sits half a pixel past its array row, so a requested centre
+    ``c`` puts the geometric centre at ``c - 0.5`` pixel centric; the check
+    compares against that.
 
     Parameters:
-        center_vu: Requested body centre in the renderer's corner-origin
-            convention.
+        center_vu: Requested body centre in the renderer's pixel corner
+            coordinates.
         diameter_px: Body diameter in pixels.
         size_px: Square image side in pixels.
 
     Returns:
         A :class:`RendererCentroidCheck` with the signed centroid error in
-        pixel-index coordinates.
+        pixel centric coordinates.
     """
     img = create_simulated_body(
         size=(size_px, size_px),
@@ -354,7 +355,7 @@ def renderer_centroid_offset(
     error = (centroid_v - geometric[0], centroid_u - geometric[1])
     return RendererCentroidCheck(
         requested_center_vu=center_vu,
-        geometric_center_index_vu=geometric,
+        geometric_center_vu=geometric,
         measured_centroid_vu=(centroid_v, centroid_u),
         centroid_error_vu=error,
     )
@@ -392,10 +393,10 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
     )
     row = img[round(center - 0.5)].astype(np.float64)
     grad = np.abs(np.gradient(row))
-    center_idx = center - 0.5
-    right = np.arange(row.shape[0]) > center_idx
+    center_centric = center - 0.5
+    right = np.arange(row.shape[0]) > center_centric
     ridge_idx = int(np.argmax(np.where(right, grad, 0.0)))
-    ridge_radius = float(ridge_idx) - center_idx
+    ridge_radius = float(ridge_idx) - center_centric
     geometric_radius = diameter_px / 2.0
     return geometric_radius - ridge_radius
 

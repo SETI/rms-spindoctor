@@ -31,7 +31,10 @@ Modules:
         YAML/JSON serialization helpers and ``clean_obj`` for stripping NumPy scalars
         from nested structures.
     ``constants``
-        Common mathematical constants (e.g. ``PI``, ``HALFPI``).
+        Common mathematical constants (e.g. ``PI``, ``HALFPI``), and
+        ``PIXEL_CENTER_TO_CORNER_PX``, whose docstring is the canonical statement of
+        the two pixel coordinate systems the pipeline works in and of the crossing
+        between them.
     ``exceptions``
         ``NavContractError`` -- typed exception for internal contract violations.
         ``NavPointingError`` names the failures the corrected-attitude computation

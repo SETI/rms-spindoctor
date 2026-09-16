@@ -108,8 +108,9 @@ def _deposit_point_mass(
     """Bilinearly deposit a point source's total flux at a sub-pixel position.
 
     The splat conserves the total and places the deposited centroid exactly at
-    ``(v, u)`` (pixel-centre convention: integer index ``i`` is coordinate
-    ``i``).  A non-zero motion vector distributes the mass evenly along the
+    ``(v, u)``, which it reads pixel centric because it writes into the array:
+    a whole number falls on a pixel's centre.  A non-zero motion vector
+    distributes the mass evenly along the
     centred drift track (a per-star smear the whole-scene optics stage does not
     apply).
 
