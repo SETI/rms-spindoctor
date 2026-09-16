@@ -93,14 +93,18 @@ Label and index dependencies
   ``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
   ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` each stay the list the label states.
   A keyword the label lacks is ``None``. The list is the observation keywords of the
-  image's PDS3 label, which the VICAR label states in its six property blocks. It is
-  written out rather than read from the label, so that a label carrying a keyword the
-  list omits is a difference a reader can see rather than one that drops a keyword in
-  silence; a test over a real image holds the two against each other.
+  archive's PDS3 label, which states the same set across the archive. The VICAR label
+  inside a calibrated image carries all of them for a tour-era image; an earlier
+  image's label carries fewer, so the keywords it does not state are published as
+  ``None``. Such a label may also hold items the archive's label does not state, some
+  of them differently named equivalents of the same quantities, and those are not
+  published. The list is written out rather than read from the label, so that a label
+  carrying a keyword the list omits is a difference a reader can see rather than one
+  that drops a keyword in silence; tests over a real tour-era label and a real
+  cruise-era label hold both behaviors.
   ``DESCRIPTION``, ``OBSERVATION_ID`` and ``SHUTTER_MODE_ID`` are among them, and sit
   beside the ``description``, ``observation_id`` and ``shutter_mode`` the block states
-  in its own form; the upper-case and lower-case names differ in case and do not
-  collide.
+  in its own form; no keyword collides with a key the block already holds.
 
 **Which label is read.** ``obs.dict`` is the VICAR label inside the
 ``_CALIB.IMG`` file, which ``oops.hosts.cassini.iss.from_file`` reads with

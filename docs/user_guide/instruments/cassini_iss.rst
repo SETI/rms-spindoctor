@@ -238,10 +238,17 @@ spells it, and each value is the label's own, in the label's own form:
   row says so wherever the label writes one.
 * A keyword the label lacks is null.
 
-Three of these keywords state something the record also states in a form of its
-own, listed above: ``DESCRIPTION`` beside ``description``, ``OBSERVATION_ID``
-beside ``observation_id``, and ``SHUTTER_MODE_ID`` beside ``shutter_mode``. The
-two spellings of each differ in case, and both are recorded.
+The table is the keyword set the archive's PDS3 labels state, which is the same
+across the archive. The label inside a calibrated image matches it for a tour
+image. Earlier images carry fewer of these keywords, and every keyword such a
+label does not state is recorded as null. An earlier label may also carry items
+of its own that the archive's label does not state, some of them the same
+quantities under different names; those are not recorded.
+
+Several of these keywords state a quantity the record also states in a form of
+its own, listed above. The keyword holds the label's own text, and the
+lower-case key holds the form the rest of the pipeline uses. Each such row names
+its lower-case counterpart, and both are recorded.
 
 .. list-table::
    :header-rows: 1
@@ -285,6 +292,7 @@ two spellings of each differ in case, and both are recorded.
      - none
    * - ``DESCRIPTION``
      - The label's free text about the image; ``N/A`` when it carries none.
+       Recorded again as ``description``.
      - none
    * - ``DETECTOR_TEMPERATURE``
      - The temperature of the detector; ``-999.0`` when the label has no
@@ -315,6 +323,7 @@ two spellings of each differ in case, and both are recorded.
      - milliseconds
    * - ``FILTER_NAME``
      - Two values, the positions of the two filter wheels, in that order.
+       Recorded again as ``filters``.
      - none
    * - ``FILTER_TEMPERATURE``
      - The temperature of the filter wheels; ``-999.0`` when the label has no
@@ -353,7 +362,8 @@ two spellings of each differ in case, and both are recorded.
        ``ISSWA``.
      - none
    * - ``INSTRUMENT_MODE_ID``
-     - The on-chip summing mode: ``FULL``, ``SUM2`` or ``SUM4``.
+     - The on-chip summing mode: ``FULL``, ``SUM2`` or ``SUM4``. Recorded
+       again as ``sampling``.
      - none
    * - ``INSTRUMENT_NAME``
      - The camera's full name.
@@ -404,7 +414,8 @@ two spellings of each differ in case, and both are recorded.
      - The mission phase the image belongs to, for example ``TOUR``.
      - none
    * - ``OBSERVATION_ID``
-     - The observation this frame belongs to.
+     - The observation this frame belongs to. Recorded again as
+       ``observation_id``.
      - none
    * - ``OPTICS_TEMPERATURE``
      - Two values, the front and the rear optics temperatures. The rear is
@@ -456,7 +467,7 @@ two spellings of each differ in case, and both are recorded.
      - none
    * - ``SHUTTER_MODE_ID``
      - Which cameras the command exposed: ``NACONLY``, ``WACONLY``, or
-       ``BOTSIM`` for both at once.
+       ``BOTSIM`` for both at once. Recorded again as ``shutter_mode``.
      - none
    * - ``SHUTTER_STATE_ID``
      - Whether the shutter was enabled: ``ENABLED`` or ``DISABLED``. When it
@@ -471,10 +482,12 @@ two spellings of each differ in case, and both are recorded.
      - none
    * - ``SPACECRAFT_CLOCK_START_COUNT``
      - The spacecraft clock count at shutter open, as text: seconds, a
-       period, then three digits of 1/256-second ticks.
+       period, then three digits of 1/256-second ticks. ``start_time_sclk`` is
+       the same count in seconds of the clock.
      - none
    * - ``SPACECRAFT_CLOCK_STOP_COUNT``
      - The spacecraft clock count at shutter close, in the same form.
+       ``end_time_sclk`` is the same count in seconds of the clock.
      - none
    * - ``START_TIME``
      - Shutter open.
