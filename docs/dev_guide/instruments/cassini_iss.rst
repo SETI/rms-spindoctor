@@ -95,8 +95,8 @@ Label and index dependencies
   A keyword the label lacks is ``None``. The list is the observation keywords of the
   archive's PDS3 label, which states the same set across the archive. The VICAR label
   inside a calibrated image carries all of them for a tour-era image; an earlier
-  image's label carries fewer, so the keywords it does not state are published as
-  ``None``. Such a label may also hold items the archive's label does not state, some
+  image's label may carry fewer, so the keywords it does not state are published
+  as ``None``. Such a label may also hold items the archive's label does not state, some
   of them differently named equivalents of the same quantities, and those are not
   published. The list is written out rather than read from the label, so that a label
   carrying a keyword the list omits is a difference a reader can see rather than one

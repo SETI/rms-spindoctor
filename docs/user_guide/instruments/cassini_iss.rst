@@ -240,10 +240,10 @@ spells it, and each value is the label's own, in the label's own form:
 
 The table is the keyword set the archive's PDS3 labels state, which is the same
 across the archive. The label inside a calibrated image matches it for a tour
-image. Earlier images carry fewer of these keywords, and every keyword such a
-label does not state is recorded as null. An earlier label may also carry items
-of its own that the archive's label does not state, some of them the same
-quantities under different names; those are not recorded.
+image. An earlier image may carry fewer of these keywords, and every keyword
+such a label does not state is recorded as null. An earlier label may also
+carry items of its own that the archive's label does not state, some of them
+the same quantities under different names; those are not recorded.
 
 Several of these keywords state a quantity the record also states in a form of
 its own, listed above. The keyword holds the label's own text, and the
