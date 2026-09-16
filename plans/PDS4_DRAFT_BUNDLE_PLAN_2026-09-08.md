@@ -3218,8 +3218,10 @@ network. Over the Phase 9 review's builds of the cohort bundle:
   `validate` reads the PDF with VeraPDF, which cannot parse the 18-byte stand-in
   (section 3.6). No warnings. Referential integrity: 16 checks, all passing.
 
-Over these two builds, then, `validate`'s only errors are the DOI
-placeholders, and it raises nothing `sd_create_bundle check` does not. The
+Over these two builds, then, the DOI placeholders are the plain build's only
+errors, and the stand-in build adds the `error.validation.internal_error`
+above, which the 18-byte stand-in causes and a real PDF does not. `validate`
+raises nothing `sd_create_bundle check` does not. The
 supplemental file's last line (section 2.2, row 7) is accepted by `validate`
 4.2.0: no product failed content validation. A plain build's guide references are warnings, not
 errors, in line with criterion 9: they are the missing-PDF signal. Zero
