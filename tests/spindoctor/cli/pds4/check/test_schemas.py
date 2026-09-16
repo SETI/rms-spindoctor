@@ -118,5 +118,8 @@ def test_a_relative_schema_directory_is_the_one_the_source_was_built_in(
     monkeypatch.chdir(tmp_path / 'two')
     two = SchemaSource(Path('copies'))
     url = 'https://example.invalid/v1/example.xsd'
+    # Unequal is the property the schema set's cache is keyed on; the files are what
+    # that buys, and one source answering for both is the defect.
+    assert one != two
     assert one.locate(url) == (tmp_path / 'one' / 'copies' / 'example.xsd').resolve()
     assert two.locate(url) == (tmp_path / 'two' / 'copies' / 'example.xsd').resolve()
