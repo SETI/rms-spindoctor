@@ -84,27 +84,57 @@ Label and index dependencies
   a null yields ``None``; a non-string value raises, because ``str()`` would
   serialize any object without complaint and the result would pass downstream
   as a legible shutter mode.
-* ``DESCRIPTION`` and ``OBSERVATION_ID``, both optional and recorded as
-  ``None`` when absent.
-* The label metadata. ``_label_metadata`` publishes every keyword
-  ``_LABEL_METADATA`` lists, under the keyword's own name, as the label spells it.
+* The label metadata. ``_label_metadata`` builds the ``label_metadata`` block from
+  ``_LABEL_METADATA``, a table of one entry per attribute of the Cassini data
+  dictionary's ISS specific attributes, in the order that dictionary declares them.
+  Each entry names the attribute, the PDS3 label keyword that states it, and, for a
+  keyword holding several values, which element. The published key is the attribute
+  behind the ``cassini:`` prefix.
+
+  The dictionary's names are used rather than the label's own so that a record says
+  the same thing whether it was built from a PDS3 volume or from a PDS4 Cassini source
+  bundle, and whether the image file was raw or calibrated. It is the one place in
+  the library that names PDS4 attributes, and it is deliberate.
+
   The value is what rms-vicar hands back, unconverted: numbers as numbers, text as
-  text, times as the label's day-of-year text, and a sequence as a sequence, so
-  ``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
-  ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` each stay the list the label states.
-  A keyword the label lacks is ``None``. The list is the observation keywords of the
-  archive's PDS3 label, which states the same set across the archive. The VICAR label
-  inside a calibrated image carries all of them for a tour-era image; an earlier
-  image's label may carry fewer, so the keywords it does not state are published
-  as ``None``. Such a label may also hold items the archive's label does not state, some
-  of them differently named equivalents of the same quantities, and those are not
-  published. The list is written out rather than read from the label, so that a label
-  carrying a keyword the list omits is a difference a reader can see rather than one
-  that drops a keyword in silence; tests over a real tour-era label and a real
-  cruise-era label hold both behaviors.
-  ``DESCRIPTION``, ``OBSERVATION_ID`` and ``SHUTTER_MODE_ID`` are among them, and sit
-  beside the ``description``, ``observation_id`` and ``shutter_mode`` the block states
-  in its own form; no keyword collides with a key the block already holds.
+  text, and times as the label's day-of-year text. The one transformation is the
+  positional split the attribute names require: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``,
+  ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and
+  ``VALID_MAXIMUM`` each state several values, and ``_element`` takes the one the
+  attribute's position names, returning ``None`` where the label states no sequence
+  reaching it.
+
+  ``DESCRIPTION``, ``INSTRUMENT_MODE_ID``, ``OBSERVATION_ID`` and ``SHUTTER_MODE_ID``
+  are read here under the dictionary's names for them --- ``cassini:limitations``,
+  ``cassini:instrument_mode_id``, ``cassini:observation_id`` and
+  ``cassini:shutter_mode_id``. The block no longer states any of them a second time
+  under a name of its own, so ``sampling``, ``gain_mode``, ``description`` and
+  ``observation_id`` are gone from the observation block; ``filters`` stays beside the
+  block, because every host publishes it, and ``shutter_mode`` stays because the
+  writer takes it from the ``shutter_mode`` property rather than from here. A program
+  that wants the summing mode reads the image size.
+
+  ``cassini:pre-pds_version_number`` is stated by no keyword, which is what its
+  ``None`` keyword in the table records. ``_version_number`` reads it from the image's
+  file name instead, as the segment after the image number: ``N1521598221_1.IMG`` and
+  ``N1521598221_1_CALIB.IMG`` both state ``1``, so a raw file and its calibrated
+  counterpart agree. A name the pattern does not fit states no version and the
+  attribute is ``None``, like any other unstated value.
+
+  Every attribute is published for every image, so the block is one shape across the
+  archive; an attribute whose keyword the label does not state is ``None``. The
+  keywords read are the observation keywords of the archive's PDS3 label, which states
+  the same set throughout. The VICAR label inside a calibrated image carries all of
+  them for a tour-era image; an earlier image's label may carry fewer. Such a label may
+  also hold items no attribute reads, some of them differently named equivalents of the
+  same quantities, and those are not published. The table is written out rather than
+  read from the label, so that a label carrying a keyword the table omits is a
+  difference a reader can see rather than one that drops a keyword in silence; tests
+  over a real tour-era label and a real cruise-era label hold both behaviors. Six
+  keywords a tour-era label states are read by no attribute --- ``DATA_SET_ID``,
+  ``INSTRUMENT_HOST_NAME``, ``INSTRUMENT_ID``, ``INSTRUMENT_NAME``, ``MISSION_NAME``
+  and ``PRODUCT_ID`` --- and the tour-era test names exactly those, so a seventh
+  would fail it.
 
 **Which label is read.** ``obs.dict`` is the VICAR label inside the
 ``_CALIB.IMG`` file, which ``oops.hosts.cassini.iss.from_file`` reads with
@@ -138,9 +168,11 @@ parameters in another order than the image label: blocks per group,
 algorithm, quantization factor, block type, where its own column description
 and the label give algorithm, block type, blocks per group, quantization
 factor. A label's ``(1, 1, 41, 0)`` is the index's ``(41, 1, 0, 1)``. The
-label metadata is read from the label for this reason among others, and a
-consumer that wants these four values in the label's order has to take them
-from there.
+label metadata is read from the label for this reason among others, so
+``cassini:inst_cmprs_param_malgo``, ``cassini:inst_cmprs_param_tb``,
+``cassini:inst_cmprs_param_blocks`` and ``cassini:inst_cmprs_param_quant``
+carry the label's order; a consumer filling them from an index row instead
+would shuffle them.
 
 **Filespec parsing.** ``_get_label_filespec_from_index`` requires the index
 value to end ``.IMG`` and rewrites it to ``_CALIB.LBL``; both suffixes are

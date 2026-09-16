@@ -228,9 +228,9 @@ or not a ``pointing`` block was recorded; a load-error or internal-error
 document carries none of them. Which of the keys below an instrument records,
 and what each holds for it, is in the Metadata fields section of that
 instrument's chapter under :doc:`/user_guide/instruments/instruments`; a key
-an instrument does not record is absent. An instrument may also record further
-metadata copied from the image's label; that section of its chapter lists it,
-and the table below does not repeat it. The image's path, name, camera and
+an instrument does not record is absent. An instrument may also record what the
+image itself states, in a ``label_metadata`` block of its own; that section of
+its chapter lists its keys, and the table below does not repeat them. The image's path, name, camera and
 shape are recorded once, under the identity keys.
 
 .. list-table::
@@ -310,20 +310,12 @@ shape are recorded once, under the identity keys.
      - array
      - The names of the filters the image was taken through, as strings, one
        per filter wheel; an empty array for a camera with no filters.
-   * - ``sampling``
-     - string
-     - The sampling mode the label records: how the image was summed on the
-       detector.
-   * - ``gain_mode``
-     - integer or null
-     - The camera's gain state, as a number the instrument's chapter
-       defines; ``null`` for a label naming a gain it does not list.
-   * - ``observation_id``
-     - string or null
-     - The label's observation id; ``null`` when the label carries none.
-   * - ``description``
-     - string or null
-     - A description of the image; ``null`` when the label carries none.
+   * - ``label_metadata``
+     - object
+     - What the image itself states about the exposure, for an instrument
+       that records it, under the names that instrument's data dictionary
+       gives those quantities. Its keys, their meanings and their units are
+       listed in that instrument's chapter.
 
 The navigation_result block
 ===========================
@@ -946,7 +938,7 @@ top-level ``offset`` is the full-precision form of
 its large covariance keeps it consistent with the limb fit, so nothing was
 excluded; the ``pointing`` block carries both matrices because the navigation
 succeeded without fitting a rotation. The ``observation`` block ends with the
-metadata copied from the image's label that the Cassini ISS chapter lists. Of the
+``label_metadata`` block, whose keys the Cassini ISS chapter lists. Of the
 six ``feature_inventory`` entries, four are shown; the two ``TERMINATOR_ARC``
 entries follow the same form. Of 79 SPICE kernels, three are shown.
 
@@ -974,77 +966,78 @@ entries follow the same form. Of 79 SPICE kernels, three are shown.
         "end_time_sclk": 1635282917.4609375,
         "exposure_time": 0.22,
         "filters": ["CL1", "CL2"],
-        "sampling": "FULL",
-        "gain_mode": 2,
-        "description": "N/A",
-        "observation_id": "ISS_120RH_MUTUALEVE001_PRIME",
-        "ANTIBLOOMING_STATE_FLAG": "ON",
-        "BIAS_STRIP_MEAN": 7.32844,
-        "CALIBRATION_LAMP_STATE_FLAG": "N/A",
-        "COMMAND_FILE_NAME": "trigger_24820_2.ioi",
-        "COMMAND_SEQUENCE_NUMBER": 24820,
-        "DARK_STRIP_MEAN": 0.300024,
-        "DATA_CONVERSION_TYPE": "TABLE",
-        "DATA_SET_ID": "CO-S-ISSNA/ISSWA-2-EDR-V1.0",
-        "DELAYED_READOUT_FLAG": "NO",
-        "DESCRIPTION": "N/A",
-        "DETECTOR_TEMPERATURE": -89.3184,
-        "EARTH_RECEIVED_START_TIME": "2009-300T10:02:17.070Z",
-        "EARTH_RECEIVED_STOP_TIME": "2009-300T10:02:34.491Z",
-        "ELECTRONICS_BIAS": 112,
-        "EXPECTED_MAXIMUM": [50.6578, 55.8509],
-        "EXPECTED_PACKETS": 390,
-        "EXPOSURE_DURATION": 220.0,
-        "FILTER_NAME": ["CL1", "CL2"],
-        "FILTER_TEMPERATURE": -0.468354,
-        "FLIGHT_SOFTWARE_VERSION_ID": "1.4",
-        "GAIN_MODE_ID": "29 ELECTRONS PER DN",
-        "IMAGE_MID_TIME": "2009-299T20:32:22.134Z",
-        "IMAGE_NUMBER": 1635282917,
-        "IMAGE_OBSERVATION_TYPE": "SCIENCE",
-        "IMAGE_TIME": "2009-299T20:32:22.244Z",
-        "INSTRUMENT_DATA_RATE": 182.784,
-        "INSTRUMENT_HOST_NAME": "CASSINI ORBITER",
-        "INSTRUMENT_ID": "ISSNA",
-        "INSTRUMENT_MODE_ID": "FULL",
-        "INSTRUMENT_NAME": "IMAGING SCIENCE SUBSYSTEM NARROW ANGLE",
-        "INST_CMPRS_PARAM": ["N/A", "N/A", "N/A", "N/A"],
-        "INST_CMPRS_RATE": [2.7, 1.56508],
-        "INST_CMPRS_RATIO": 5.11156,
-        "INST_CMPRS_TYPE": "LOSSLESS",
-        "LIGHT_FLOOD_STATE_FLAG": "ON",
-        "METHOD_DESC": "Rhea;ISS_120RH_MUTUALEVE001_PRIME_1",
-        "MISSING_LINES": 0,
-        "MISSING_PACKET_FLAG": "NO",
-        "MISSION_NAME": "CASSINI-HUYGENS",
-        "MISSION_PHASE_NAME": "EXTENDED MISSION",
-        "OBSERVATION_ID": "ISS_120RH_MUTUALEVE001_PRIME",
-        "OPTICS_TEMPERATURE": [0.712693, 1.90571],
-        "ORDER_NUMBER": 12,
-        "PARALLEL_CLOCK_VOLTAGE_INDEX": 9,
-        "PREPARE_CYCLE_INDEX": 0,
-        "PRODUCT_CREATION_TIME": "2009-300T13:56:32.000",
-        "PRODUCT_ID": "1_N1635282917.118",
-        "PRODUCT_VERSION_TYPE": "FINAL",
-        "READOUT_CYCLE_INDEX": 10,
-        "RECEIVED_PACKETS": 231,
-        "SENSOR_HEAD_ELEC_TEMPERATURE": 1.63302,
-        "SEQUENCE_ID": "S54",
-        "SEQUENCE_NUMBER": 12,
-        "SEQUENCE_TITLE": "MUTUALEVENT",
-        "SHUTTER_MODE_ID": "NACONLY",
-        "SHUTTER_STATE_ID": "ENABLED",
-        "SOFTWARE_VERSION_ID": "ISS 11.00 05-24-2006",
-        "SPACECRAFT_CLOCK_CNT_PARTITION": 1,
-        "SPACECRAFT_CLOCK_START_COUNT": "1635282917.063",
-        "SPACECRAFT_CLOCK_STOP_COUNT": "1635282917.118",
-        "START_TIME": "2009-299T20:32:22.024Z",
-        "STOP_TIME": "2009-299T20:32:22.244Z",
-        "TARGET_DESC": "Rhea",
-        "TARGET_LIST": "N/A",
-        "TARGET_NAME": "RHEA",
-        "TELEMETRY_FORMAT_ID": "S&ER3",
-        "VALID_MAXIMUM": [4095, 4095]
+        "label_metadata": {
+          "cassini:mission_phase_name": "EXTENDED MISSION",
+          "cassini:spacecraft_clock_count_partition": 1,
+          "cassini:spacecraft_clock_start_count": "1635282917.063",
+          "cassini:spacecraft_clock_stop_count": "1635282917.118",
+          "cassini:limitations": "N/A",
+          "cassini:antiblooming_state_flag": "ON",
+          "cassini:bias_strip_mean": 7.32844,
+          "cassini:calibration_lamp_state_flag": "N/A",
+          "cassini:command_file_name": "trigger_24820_2.ioi",
+          "cassini:command_sequence_number": 24820,
+          "cassini:dark_strip_mean": 0.300024,
+          "cassini:data_conversion_type": "TABLE",
+          "cassini:delayed_readout_flag": "NO",
+          "cassini:detector_temperature": -89.3184,
+          "cassini:electronics_bias": 112,
+          "cassini:earth_received_start_time": "2009-300T10:02:17.070Z",
+          "cassini:earth_received_stop_time": "2009-300T10:02:34.491Z",
+          "cassini:expected_maximum_full_well": 50.6578,
+          "cassini:expected_maximum_DN_sat": 55.8509,
+          "cassini:expected_packets": 390,
+          "cassini:exposure_duration": 220.0,
+          "cassini:filter_name_1": "CL1",
+          "cassini:filter_name_2": "CL2",
+          "cassini:filter_temperature": -0.468354,
+          "cassini:flight_software_version_id": "1.4",
+          "cassini:gain_mode_id": "29 ELECTRONS PER DN",
+          "cassini:ground_software_version_id": "ISS 11.00 05-24-2006",
+          "cassini:image_mid_time": "2009-299T20:32:22.134Z",
+          "cassini:image_number": 1635282917,
+          "cassini:image_time": "2009-299T20:32:22.244Z",
+          "cassini:image_observation_type": "SCIENCE",
+          "cassini:instrument_data_rate": 182.784,
+          "cassini:instrument_mode_id": "FULL",
+          "cassini:inst_cmprs_type": "LOSSLESS",
+          "cassini:inst_cmprs_param_malgo": "N/A",
+          "cassini:inst_cmprs_param_tb": "N/A",
+          "cassini:inst_cmprs_param_blocks": "N/A",
+          "cassini:inst_cmprs_param_quant": "N/A",
+          "cassini:inst_cmprs_rate_expected_bits": 2.7,
+          "cassini:inst_cmprs_rate_actual_bits": 1.56508,
+          "cassini:inst_cmprs_ratio": 5.11156,
+          "cassini:light_flood_state_flag": "ON",
+          "cassini:method_description": "Rhea;ISS_120RH_MUTUALEVE001_PRIME_1",
+          "cassini:missing_lines": 0,
+          "cassini:missing_packet_flag": "NO",
+          "cassini:observation_id": "ISS_120RH_MUTUALEVE001_PRIME",
+          "cassini:optics_temperature_front": 0.712693,
+          "cassini:optics_temperature_back": 1.90571,
+          "cassini:order_number": 12,
+          "cassini:parallel_clock_voltage_index": 9,
+          "cassini:pds3_product_creation_time": "2009-300T13:56:32.000",
+          "cassini:pds3_product_version_type": "FINAL",
+          "cassini:pds3_target_desc": "Rhea",
+          "cassini:pds3_target_list": "N/A",
+          "cassini:pds3_target_name": "RHEA",
+          "cassini:pre-pds_version_number": 1,
+          "cassini:prepare_cycle_index": 0,
+          "cassini:readout_cycle_index": 10,
+          "cassini:received_packets": 231,
+          "cassini:sensor_head_electronics_temperature": 1.63302,
+          "cassini:sequence_id": "S54",
+          "cassini:sequence_number": 12,
+          "cassini:sequence_title": "MUTUALEVENT",
+          "cassini:shutter_mode_id": "NACONLY",
+          "cassini:shutter_state_id": "ENABLED",
+          "cassini:start_time_doy": "2009-299T20:32:22.024Z",
+          "cassini:stop_time_doy": "2009-299T20:32:22.244Z",
+          "cassini:telemetry_format_id": "S&ER3",
+          "cassini:valid_maximum_full_well": 4095,
+          "cassini:valid_maximum_DN_sat": 4095
+        }
       },
       "navigation_result": {
         "status": "success",
