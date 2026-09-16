@@ -861,8 +861,9 @@ def _public_metadata(
     two can differ: the counts are the instrument's own, and the strings are SPICE's
     conversion of the exposure epochs.
 
-    The metadata the host copies out of the image's label comes last, under the label's
-    own keyword names, from the label :func:`_label` writes for the image.
+    The metadata the host reads out of the image comes last, in a ``label_metadata``
+    block under the Cassini data dictionary's own attribute names, from the label
+    :func:`_label` writes for the image and from the image's file name.
 
     Parameters:
         result: The image's result, carrying its attitude solution.
@@ -903,9 +904,5 @@ def _public_metadata(
         'camera': camera,
         'exposure_time': exposure.exposure_s,
         'filters': list(filters),
-        'sampling': sampling,
-        'gain_mode': gain_mode,
-        'description': description,
-        'observation_id': observation_id,
-        **_label_metadata(label),
+        'label_metadata': _label_metadata(label, image_name),
     }

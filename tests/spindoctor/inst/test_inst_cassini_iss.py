@@ -1,6 +1,6 @@
 """Tests for ``spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS``."""
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -31,6 +31,23 @@ from spindoctor.obs.obs_inst_cassini_iss import (
 # label tests build a bare observation and fetch nothing, so they run even
 # where the external trees are absent.
 
+_UNREAD_KEYWORDS = (
+    'DATA_SET_ID',
+    'INSTRUMENT_HOST_NAME',
+    'INSTRUMENT_ID',
+    'INSTRUMENT_NAME',
+    'MISSION_NAME',
+    'PRODUCT_ID',
+)
+"""The label keywords no published attribute holds.
+
+Each states the archive, the spacecraft, the camera or the raw product rather than the
+exposure, and the Cassini data dictionary gives the same facts elsewhere in a label: the
+camera in the instrument LID the block already states, the rest in the bundle's own
+identification.  A tour-era label states these six beyond the keywords the attributes
+read, and nothing else.
+"""
+
 
 def _obs_with_label(label: dict[str, Any]) -> ObsCassiniISS:
     """Build a bare ObsCassiniISS carrying only the given label dict.
@@ -44,11 +61,15 @@ def _obs_with_label(label: dict[str, Any]) -> ObsCassiniISS:
     return obs
 
 
-def _cassini_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
+def _cassini_observation(
+    label: VicarLabelStandIn, *, image_name: str = 'image_0001.img'
+) -> ObsCassiniISS:
     """Build a bare narrow-angle observation whose public metadata can be read.
 
     Parameters:
         label: The image's VICAR label items.
+        image_name: Basename of the image file, which is where the version number is
+            stated.  The default states none.
 
     Returns:
         The observation.
@@ -59,8 +80,26 @@ def _cassini_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
         detector='NAC',
         filter1='CL1',
         filter2='CL2',
-        sampling='FULL',
-        gain_mode=2,
+        abspath=Path('/cache') / image_name,
+    )
+
+
+def _wide_angle_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
+    """Build a bare wide angle observation, taken and named as W1573251410_1_CALIB was.
+
+    Parameters:
+        label: The image's VICAR label items.
+
+    Returns:
+        The observation.
+    """
+    return bare_observation(
+        ObsCassiniISS,
+        label,
+        detector='WAC',
+        filter1='CL1',
+        filter2='GRN',
+        abspath=Path('/cache/W1573251410_1_CALIB.IMG'),
     )
 
 
@@ -107,6 +146,11 @@ def _property_block_keywords(label: Mapping[str, Any]) -> list[str]:
         for key in keys[properties[0] : end]
         if isinstance(key, str) and not _is_marker(key, 'PROPERTY')
     ]
+
+
+def _read_keywords() -> set[str]:
+    """Return every label keyword a published attribute reads."""
+    return {keyword for _attribute, keyword, _element in _LABEL_METADATA if keyword is not None}
 
 
 def _w1573251410_label() -> VicarLabelStandIn:
@@ -191,75 +235,82 @@ def _w1573251410_label() -> VicarLabelStandIn:
 
 
 _W1573251410_METADATA: dict[str, Any] = {
-    'ANTIBLOOMING_STATE_FLAG': 'ON',
-    'BIAS_STRIP_MEAN': 22.0,
-    'CALIBRATION_LAMP_STATE_FLAG': 'OFF',
-    'COMMAND_FILE_NAME': 'trigger_7192_2.ioi',
-    'COMMAND_SEQUENCE_NUMBER': 7192,
-    'DARK_STRIP_MEAN': 19.5,
-    'DATA_CONVERSION_TYPE': 'TABLE',
-    'DATA_SET_ID': 'CO-S-ISSNA/ISSWA-2-EDR-V1.0',
-    'DELAYED_READOUT_FLAG': 'YES',
-    'DESCRIPTION': 'N/A',
-    'DETECTOR_TEMPERATURE': -87.8952,
-    'EARTH_RECEIVED_START_TIME': '2007-313T14:43:33.041Z',
-    'EARTH_RECEIVED_STOP_TIME': '2007-313T14:43:36.276Z',
-    'ELECTRONICS_BIAS': 112,
-    'EXPECTED_MAXIMUM': [56.0227, 61.7658],
-    'EXPECTED_PACKETS': 28,
-    'EXPOSURE_DURATION': 25.0,
-    'FILTER_NAME': ['CL1', 'GRN'],
-    'FILTER_TEMPERATURE': 3.19298,
-    'FLIGHT_SOFTWARE_VERSION_ID': '1.4',
-    'GAIN_MODE_ID': '29 ELECTRONS PER DN',
-    'IMAGE_MID_TIME': '2007-312T21:41:14.934Z',
-    'IMAGE_NUMBER': 1573251410,
-    'IMAGE_OBSERVATION_TYPE': 'SCIENCE',
-    'IMAGE_TIME': '2007-312T21:41:14.946Z',
-    'INSTRUMENT_DATA_RATE': 182.784,
-    'INSTRUMENT_HOST_NAME': 'CASSINI ORBITER',
-    'INSTRUMENT_ID': 'ISSWA',
-    'INSTRUMENT_MODE_ID': 'FULL',
-    'INSTRUMENT_NAME': 'IMAGING SCIENCE SUBSYSTEM WIDE ANGLE',
-    'INST_CMPRS_PARAM': [1, 1, 41, 0],
-    'INST_CMPRS_RATE': [0.194248, 0.360077],
-    'INST_CMPRS_RATIO': 22.2175,
-    'INST_CMPRS_TYPE': 'LOSSY',
-    'LIGHT_FLOOD_STATE_FLAG': 'ON',
-    'METHOD_DESC': 'ISSPT2.6.5;Saturn;ISS_052SA_STRMOVIA001_PRIME_2',
-    'MISSING_LINES': 'N/A',
-    'MISSING_PACKET_FLAG': 'NO',
-    'MISSION_NAME': 'CASSINI-HUYGENS',
-    'MISSION_PHASE_NAME': 'TOUR',
-    'OBSERVATION_ID': 'ISS_052SA_STRMOVIA001_PRIME',
-    'OPTICS_TEMPERATURE': [6.93953, -999.0],
-    'ORDER_NUMBER': 2,
-    'PARALLEL_CLOCK_VOLTAGE_INDEX': 9,
-    'PREPARE_CYCLE_INDEX': 3,
-    'PRODUCT_CREATION_TIME': '2007-313T17:04:33.000',
-    'PRODUCT_ID': '1_W1573251410.122',
-    'PRODUCT_VERSION_TYPE': 'FINAL',
-    'READOUT_CYCLE_INDEX': 15,
-    'RECEIVED_PACKETS': 51,
-    'SENSOR_HEAD_ELEC_TEMPERATURE': 2.98847,
-    'SEQUENCE_ID': 'S35',
-    'SEQUENCE_NUMBER': 148,
-    'SEQUENCE_TITLE': 'ISS_052SA_STRMOVIA001_PRIME_2',
-    'SHUTTER_MODE_ID': 'BOTSIM',
-    'SHUTTER_STATE_ID': 'ENABLED',
-    'SOFTWARE_VERSION_ID': 'ISS 11.00 05-24-2006',
-    'SPACECRAFT_CLOCK_CNT_PARTITION': 1,
-    'SPACECRAFT_CLOCK_START_COUNT': '1573251410.115',
-    'SPACECRAFT_CLOCK_STOP_COUNT': '1573251410.122',
-    'START_TIME': '2007-312T21:41:14.921Z',
-    'STOP_TIME': '2007-312T21:41:14.946Z',
-    'TARGET_DESC': 'Saturn',
-    'TARGET_LIST': 'N/A',
-    'TARGET_NAME': 'SATURN',
-    'TELEMETRY_FORMAT_ID': 'S&ER3',
-    'VALID_MAXIMUM': [4095, 4095],
+    'cassini:mission_phase_name': 'TOUR',
+    'cassini:spacecraft_clock_count_partition': 1,
+    'cassini:spacecraft_clock_start_count': '1573251410.115',
+    'cassini:spacecraft_clock_stop_count': '1573251410.122',
+    'cassini:limitations': 'N/A',
+    'cassini:antiblooming_state_flag': 'ON',
+    'cassini:bias_strip_mean': 22.0,
+    'cassini:calibration_lamp_state_flag': 'OFF',
+    'cassini:command_file_name': 'trigger_7192_2.ioi',
+    'cassini:command_sequence_number': 7192,
+    'cassini:dark_strip_mean': 19.5,
+    'cassini:data_conversion_type': 'TABLE',
+    'cassini:delayed_readout_flag': 'YES',
+    'cassini:detector_temperature': -87.8952,
+    'cassini:electronics_bias': 112,
+    'cassini:earth_received_start_time': '2007-313T14:43:33.041Z',
+    'cassini:earth_received_stop_time': '2007-313T14:43:36.276Z',
+    'cassini:expected_maximum_full_well': 56.0227,
+    'cassini:expected_maximum_DN_sat': 61.7658,
+    'cassini:expected_packets': 28,
+    'cassini:exposure_duration': 25.0,
+    'cassini:filter_name_1': 'CL1',
+    'cassini:filter_name_2': 'GRN',
+    'cassini:filter_temperature': 3.19298,
+    'cassini:flight_software_version_id': '1.4',
+    'cassini:gain_mode_id': '29 ELECTRONS PER DN',
+    'cassini:ground_software_version_id': 'ISS 11.00 05-24-2006',
+    'cassini:image_mid_time': '2007-312T21:41:14.934Z',
+    'cassini:image_number': 1573251410,
+    'cassini:image_time': '2007-312T21:41:14.946Z',
+    'cassini:image_observation_type': 'SCIENCE',
+    'cassini:instrument_data_rate': 182.784,
+    'cassini:instrument_mode_id': 'FULL',
+    'cassini:inst_cmprs_type': 'LOSSY',
+    'cassini:inst_cmprs_param_malgo': 1,
+    'cassini:inst_cmprs_param_tb': 1,
+    'cassini:inst_cmprs_param_blocks': 41,
+    'cassini:inst_cmprs_param_quant': 0,
+    'cassini:inst_cmprs_rate_expected_bits': 0.194248,
+    'cassini:inst_cmprs_rate_actual_bits': 0.360077,
+    'cassini:inst_cmprs_ratio': 22.2175,
+    'cassini:light_flood_state_flag': 'ON',
+    'cassini:method_description': 'ISSPT2.6.5;Saturn;ISS_052SA_STRMOVIA001_PRIME_2',
+    'cassini:missing_lines': 'N/A',
+    'cassini:missing_packet_flag': 'NO',
+    'cassini:observation_id': 'ISS_052SA_STRMOVIA001_PRIME',
+    'cassini:optics_temperature_front': 6.93953,
+    'cassini:optics_temperature_back': -999.0,
+    'cassini:order_number': 2,
+    'cassini:parallel_clock_voltage_index': 9,
+    'cassini:pds3_product_creation_time': '2007-313T17:04:33.000',
+    'cassini:pds3_product_version_type': 'FINAL',
+    'cassini:pds3_target_desc': 'Saturn',
+    'cassini:pds3_target_list': 'N/A',
+    'cassini:pds3_target_name': 'SATURN',
+    'cassini:pre-pds_version_number': 1,
+    'cassini:prepare_cycle_index': 3,
+    'cassini:readout_cycle_index': 15,
+    'cassini:received_packets': 51,
+    'cassini:sensor_head_electronics_temperature': 2.98847,
+    'cassini:sequence_id': 'S35',
+    'cassini:sequence_number': 148,
+    'cassini:sequence_title': 'ISS_052SA_STRMOVIA001_PRIME_2',
+    'cassini:shutter_mode_id': 'BOTSIM',
+    'cassini:shutter_state_id': 'ENABLED',
+    'cassini:start_time_doy': '2007-312T21:41:14.921Z',
+    'cassini:stop_time_doy': '2007-312T21:41:14.946Z',
+    'cassini:telemetry_format_id': 'S&ER3',
+    'cassini:valid_maximum_full_well': 4095,
+    'cassini:valid_maximum_DN_sat': 4095,
 }
-"""The label metadata W1573251410_1_CALIB's label states, under its own keyword names."""
+"""What W1573251410_1_CALIB publishes: its label's values, under the dictionary's names.
+
+The frame's file name states version 1, and its label states every keyword the attributes
+read.
+"""
 
 
 def _n1454725799_label() -> VicarLabelStandIn:
@@ -274,145 +325,14 @@ def _n1454725799_label() -> VicarLabelStandIn:
     """
     return VicarLabelStandIn(
         ANTIBLOOMING_STATE_FLAG='OFF',
-        BIAS_STRIP_MEAN=14.8699,
-        CALIBRATION_LAMP_STATE_FLAG='N/A',
-        COMMAND_FILE_NAME='OPNAV_848_3.ioi',
-        COMMAND_SEQUENCE_NUMBER=8,
-        DARK_STRIP_MEAN=0.0,
-        DATA_CONVERSION_TYPE='12BIT',
-        DATA_SET_ID='CO-S-ISSNA/ISSWA-2-EDR-V1.0',
-        DELAYED_READOUT_FLAG='NO',
-        DESCRIPTION='N/A',
-        DETECTOR_TEMPERATURE=-89.2435,
-        EARTH_RECEIVED_START_TIME='2004-039T01:35:53.622Z',
-        EARTH_RECEIVED_STOP_TIME='2004-039T01:36:55.067Z',
-        ELECTRONICS_BIAS=112,
-        EXPECTED_MAXIMUM=[50.0, 75.0],
-        EXPECTED_PACKETS=1143,
-        EXPOSURE_DURATION=80.0,
-        FILTER_NAME=['CL1', 'CL2'],
-        FILTER_TEMPERATURE=-0.468354,
-        FLIGHT_SOFTWARE_VERSION_ID='1.3',
-        GAIN_MODE_ID='29 ELECTRONS PER DN',
-        IMAGE_MID_TIME='2004-037T02:07:06.458Z',
-        IMAGE_NUMBER=1454725799,
-        IMAGE_OBSERVATION_TYPE='OPNAV',
-        IMAGE_TIME='2004-037T02:07:06.498Z',
-        INSTRUMENT_DATA_RATE=365.568,
-        INSTRUMENT_HOST_NAME='CASSINI ORBITER',
-        INSTRUMENT_ID='ISSNA',
-        INSTRUMENT_MODE_ID='FULL',
-        INSTRUMENT_NAME='IMAGING SCIENCE SUBSYSTEM NARROW ANGLE',
-        INST_CMPRS_PARAM=['N/A', 'N/A', 'N/A', 'N/A'],
-        INST_CMPRS_RATE=[6.0, 2.11688],
-        INST_CMPRS_RATIO=7.55829,
-        INST_CMPRS_TYPE='LOSSLESS',
         LIGHT_FLOOD_STATE_FLAG='ON',
-        METHOD_DESC='OPNAV MAN.',
-        MISSING_LINES=0,
-        MISSING_PACKET_FLAG='NO',
-        MISSION_NAME='CASSINI-HUYGENS',
         MISSION_PHASE_NAME='APPROACH_SCIENCE',
-        OBSERVATION_ID='NAV_C42SK_OPNAV371_PRIME',
-        OPTICS_TEMPERATURE=[0.712693, 1.82047],
-        ORDER_NUMBER=0,
-        PARALLEL_CLOCK_VOLTAGE_INDEX=9,
-        PREPARE_CYCLE_INDEX=3,
-        PRODUCT_CREATION_TIME='2004-038T19:26:35.000Z',
-        PRODUCT_ID='1_N1454725799.122',
-        PRODUCT_VERSION_TYPE='FINAL',
-        READOUT_CYCLE_INDEX=5,
-        RECEIVED_PACKETS=309,
-        SENSOR_HEAD_ELEC_TEMPERATURE=1.63302,
-        SEQUENCE_ID='C42',
-        SEQUENCE_NUMBER=1,
         SEQUENCE_TITLE='--',
-        SHUTTER_MODE_ID='NACONLY',
-        SHUTTER_STATE_ID='ENABLED',
-        SOFTWARE_VERSION_ID='ISS 9.00 05-22-2003',
-        SPACECRAFT_CLOCK_CNT_PARTITION=1,
         SPACECRAFT_CLOCK_START_COUNT='1454725799.102',
         SPACECRAFT_CLOCK_STOP_COUNT='1454725799.122',
-        START_TIME='2004-037T02:07:06.418Z',
-        STOP_TIME='2004-037T02:07:06.498Z',
-        TARGET_DESC='RHEA',
-        TARGET_LIST='N/A',
-        TARGET_NAME='SKY',
+        IMAGE_NUMBER=1454725799,
         TELEMETRY_FORMAT_ID='UNK',
-        VALID_MAXIMUM=[4095, 4095],
     )
-
-
-_N1454725799_METADATA: dict[str, Any] = {
-    'ANTIBLOOMING_STATE_FLAG': 'OFF',
-    'BIAS_STRIP_MEAN': 14.8699,
-    'CALIBRATION_LAMP_STATE_FLAG': 'N/A',
-    'COMMAND_FILE_NAME': 'OPNAV_848_3.ioi',
-    'COMMAND_SEQUENCE_NUMBER': 8,
-    'DARK_STRIP_MEAN': 0.0,
-    'DATA_CONVERSION_TYPE': '12BIT',
-    'DATA_SET_ID': 'CO-S-ISSNA/ISSWA-2-EDR-V1.0',
-    'DELAYED_READOUT_FLAG': 'NO',
-    'DESCRIPTION': 'N/A',
-    'DETECTOR_TEMPERATURE': -89.2435,
-    'EARTH_RECEIVED_START_TIME': '2004-039T01:35:53.622Z',
-    'EARTH_RECEIVED_STOP_TIME': '2004-039T01:36:55.067Z',
-    'ELECTRONICS_BIAS': 112,
-    'EXPECTED_MAXIMUM': [50.0, 75.0],
-    'EXPECTED_PACKETS': 1143,
-    'EXPOSURE_DURATION': 80.0,
-    'FILTER_NAME': ['CL1', 'CL2'],
-    'FILTER_TEMPERATURE': -0.468354,
-    'FLIGHT_SOFTWARE_VERSION_ID': '1.3',
-    'GAIN_MODE_ID': '29 ELECTRONS PER DN',
-    'IMAGE_MID_TIME': '2004-037T02:07:06.458Z',
-    'IMAGE_NUMBER': 1454725799,
-    'IMAGE_OBSERVATION_TYPE': 'OPNAV',
-    'IMAGE_TIME': '2004-037T02:07:06.498Z',
-    'INSTRUMENT_DATA_RATE': 365.568,
-    'INSTRUMENT_HOST_NAME': 'CASSINI ORBITER',
-    'INSTRUMENT_ID': 'ISSNA',
-    'INSTRUMENT_MODE_ID': 'FULL',
-    'INSTRUMENT_NAME': 'IMAGING SCIENCE SUBSYSTEM NARROW ANGLE',
-    'INST_CMPRS_PARAM': ['N/A', 'N/A', 'N/A', 'N/A'],
-    'INST_CMPRS_RATE': [6.0, 2.11688],
-    'INST_CMPRS_RATIO': 7.55829,
-    'INST_CMPRS_TYPE': 'LOSSLESS',
-    'LIGHT_FLOOD_STATE_FLAG': 'ON',
-    'METHOD_DESC': 'OPNAV MAN.',
-    'MISSING_LINES': 0,
-    'MISSING_PACKET_FLAG': 'NO',
-    'MISSION_NAME': 'CASSINI-HUYGENS',
-    'MISSION_PHASE_NAME': 'APPROACH_SCIENCE',
-    'OBSERVATION_ID': 'NAV_C42SK_OPNAV371_PRIME',
-    'OPTICS_TEMPERATURE': [0.712693, 1.82047],
-    'ORDER_NUMBER': 0,
-    'PARALLEL_CLOCK_VOLTAGE_INDEX': 9,
-    'PREPARE_CYCLE_INDEX': 3,
-    'PRODUCT_CREATION_TIME': '2004-038T19:26:35.000Z',
-    'PRODUCT_ID': '1_N1454725799.122',
-    'PRODUCT_VERSION_TYPE': 'FINAL',
-    'READOUT_CYCLE_INDEX': 5,
-    'RECEIVED_PACKETS': 309,
-    'SENSOR_HEAD_ELEC_TEMPERATURE': 1.63302,
-    'SEQUENCE_ID': 'C42',
-    'SEQUENCE_NUMBER': 1,
-    'SEQUENCE_TITLE': '--',
-    'SHUTTER_MODE_ID': 'NACONLY',
-    'SHUTTER_STATE_ID': 'ENABLED',
-    'SOFTWARE_VERSION_ID': 'ISS 9.00 05-22-2003',
-    'SPACECRAFT_CLOCK_CNT_PARTITION': 1,
-    'SPACECRAFT_CLOCK_START_COUNT': '1454725799.102',
-    'SPACECRAFT_CLOCK_STOP_COUNT': '1454725799.122',
-    'START_TIME': '2004-037T02:07:06.418Z',
-    'STOP_TIME': '2004-037T02:07:06.498Z',
-    'TARGET_DESC': 'RHEA',
-    'TARGET_LIST': 'N/A',
-    'TARGET_NAME': 'SKY',
-    'TELEMETRY_FORMAT_ID': 'UNK',
-    'VALID_MAXIMUM': [4095, 4095],
-}
-"""The label metadata N1454725799_1_CALIB's label states, under its own keyword names."""
 
 
 def _n1737255524_label() -> VicarLabelStandIn:
@@ -426,166 +346,50 @@ def _n1737255524_label() -> VicarLabelStandIn:
         The label items.
     """
     return VicarLabelStandIn(
-        ANTIBLOOMING_STATE_FLAG='OFF',
-        BIAS_STRIP_MEAN=5.66667,
-        CALIBRATION_LAMP_STATE_FLAG='N/A',
-        COMMAND_FILE_NAME='trigger_31305_1.ioi',
-        COMMAND_SEQUENCE_NUMBER=31305,
-        DARK_STRIP_MEAN=2.625,
-        DATA_CONVERSION_TYPE='TABLE',
-        DATA_SET_ID='CO-S-ISSNA/ISSWA-2-EDR-V1.0',
-        DELAYED_READOUT_FLAG='NO',
-        DESCRIPTION='N/A',
-        DETECTOR_TEMPERATURE=-89.3184,
-        EARTH_RECEIVED_START_TIME='2013-019T16:30:55.609Z',
-        EARTH_RECEIVED_STOP_TIME='2013-019T16:31:06.169Z',
-        ELECTRONICS_BIAS=112,
-        EXPECTED_MAXIMUM=[58.3402, 64.3209],
-        EXPECTED_PACKETS=674,
-        EXPOSURE_DURATION=560.0,
-        FILTER_NAME=['CL1', 'CL2'],
-        FILTER_TEMPERATURE=-0.468354,
-        FLIGHT_SOFTWARE_VERSION_ID='1.4',
-        GAIN_MODE_ID='29 ELECTRONS PER DN',
-        IMAGE_MID_TIME='2013-019T02:04:35.696Z',
         IMAGE_NUMBER=1737255524,
-        IMAGE_OBSERVATION_TYPE='SCIENCE',
-        IMAGE_TIME='2013-019T02:04:35.976Z',
-        INSTRUMENT_DATA_RATE=182.784,
-        INSTRUMENT_HOST_NAME='CASSINI ORBITER',
-        INSTRUMENT_ID='ISSNA',
-        INSTRUMENT_MODE_ID='FULL',
-        INSTRUMENT_NAME='IMAGING SCIENCE SUBSYSTEM NARROW ANGLE',
-        INST_CMPRS_PARAM=[0, 0, 1, 0],
-        INST_CMPRS_RATE=[4.7, 0.981995],
-        INST_CMPRS_RATIO=8.14668,
-        INST_CMPRS_TYPE='LOSSY',
-        LIGHT_FLOOD_STATE_FLAG='ON',
-        METHOD_DESC='ISSPT2.8;Saturn-Rings;ISS_179RI_MOONLETC001_PIE_1',
-        MISSING_LINES='N/A',
-        MISSING_PACKET_FLAG='NO',
-        MISSION_NAME='CASSINI-HUYGENS',
         MISSION_PHASE_NAME='EXTENDED-EXTENDED MISSION',
-        OBSERVATION_ID='ISS_179RI_MOONLETC001_PIE',
-        OPTICS_TEMPERATURE=[0.712693, 1.90571],
-        ORDER_NUMBER=1,
-        PARALLEL_CLOCK_VOLTAGE_INDEX=9,
-        PREPARE_CYCLE_INDEX=3,
-        PRODUCT_CREATION_TIME='2013-039T12:10:08.000',
-        PRODUCT_ID='1_N1737255524.122',
-        PRODUCT_VERSION_TYPE='FINAL',
-        READOUT_CYCLE_INDEX=5,
-        RECEIVED_PACKETS=140,
-        SENSOR_HEAD_ELEC_TEMPERATURE=1.63302,
-        SEQUENCE_ID='S77',
-        SEQUENCE_NUMBER=108,
-        SEQUENCE_TITLE='--',
-        SHUTTER_MODE_ID='NACONLY',
-        SHUTTER_STATE_ID='ENABLED',
-        SOFTWARE_VERSION_ID='ISS 11.00 05-24-2006',
-        SPACECRAFT_CLOCK_CNT_PARTITION=1,
         SPACECRAFT_CLOCK_START_COUNT='1737255523.232',
         SPACECRAFT_CLOCK_STOP_COUNT='1737255524.122',
-        START_TIME='2013-019T02:04:35.416Z',
-        STOP_TIME='2013-019T02:04:35.976Z',
-        TARGET_DESC='Saturn-Rings',
-        TARGET_LIST='N/A',
-        TARGET_NAME='SATURN',
-        TELEMETRY_FORMAT_ID='S&ER3',
-        VALID_MAXIMUM=[4095, 4095],
     )
 
 
-_N1737255524_METADATA: dict[str, Any] = {
-    'ANTIBLOOMING_STATE_FLAG': 'OFF',
-    'BIAS_STRIP_MEAN': 5.66667,
-    'CALIBRATION_LAMP_STATE_FLAG': 'N/A',
-    'COMMAND_FILE_NAME': 'trigger_31305_1.ioi',
-    'COMMAND_SEQUENCE_NUMBER': 31305,
-    'DARK_STRIP_MEAN': 2.625,
-    'DATA_CONVERSION_TYPE': 'TABLE',
-    'DATA_SET_ID': 'CO-S-ISSNA/ISSWA-2-EDR-V1.0',
-    'DELAYED_READOUT_FLAG': 'NO',
-    'DESCRIPTION': 'N/A',
-    'DETECTOR_TEMPERATURE': -89.3184,
-    'EARTH_RECEIVED_START_TIME': '2013-019T16:30:55.609Z',
-    'EARTH_RECEIVED_STOP_TIME': '2013-019T16:31:06.169Z',
-    'ELECTRONICS_BIAS': 112,
-    'EXPECTED_MAXIMUM': [58.3402, 64.3209],
-    'EXPECTED_PACKETS': 674,
-    'EXPOSURE_DURATION': 560.0,
-    'FILTER_NAME': ['CL1', 'CL2'],
-    'FILTER_TEMPERATURE': -0.468354,
-    'FLIGHT_SOFTWARE_VERSION_ID': '1.4',
-    'GAIN_MODE_ID': '29 ELECTRONS PER DN',
-    'IMAGE_MID_TIME': '2013-019T02:04:35.696Z',
-    'IMAGE_NUMBER': 1737255524,
-    'IMAGE_OBSERVATION_TYPE': 'SCIENCE',
-    'IMAGE_TIME': '2013-019T02:04:35.976Z',
-    'INSTRUMENT_DATA_RATE': 182.784,
-    'INSTRUMENT_HOST_NAME': 'CASSINI ORBITER',
-    'INSTRUMENT_ID': 'ISSNA',
-    'INSTRUMENT_MODE_ID': 'FULL',
-    'INSTRUMENT_NAME': 'IMAGING SCIENCE SUBSYSTEM NARROW ANGLE',
-    'INST_CMPRS_PARAM': [0, 0, 1, 0],
-    'INST_CMPRS_RATE': [4.7, 0.981995],
-    'INST_CMPRS_RATIO': 8.14668,
-    'INST_CMPRS_TYPE': 'LOSSY',
-    'LIGHT_FLOOD_STATE_FLAG': 'ON',
-    'METHOD_DESC': 'ISSPT2.8;Saturn-Rings;ISS_179RI_MOONLETC001_PIE_1',
-    'MISSING_LINES': 'N/A',
-    'MISSING_PACKET_FLAG': 'NO',
-    'MISSION_NAME': 'CASSINI-HUYGENS',
-    'MISSION_PHASE_NAME': 'EXTENDED-EXTENDED MISSION',
-    'OBSERVATION_ID': 'ISS_179RI_MOONLETC001_PIE',
-    'OPTICS_TEMPERATURE': [0.712693, 1.90571],
-    'ORDER_NUMBER': 1,
-    'PARALLEL_CLOCK_VOLTAGE_INDEX': 9,
-    'PREPARE_CYCLE_INDEX': 3,
-    'PRODUCT_CREATION_TIME': '2013-039T12:10:08.000',
-    'PRODUCT_ID': '1_N1737255524.122',
-    'PRODUCT_VERSION_TYPE': 'FINAL',
-    'READOUT_CYCLE_INDEX': 5,
-    'RECEIVED_PACKETS': 140,
-    'SENSOR_HEAD_ELEC_TEMPERATURE': 1.63302,
-    'SEQUENCE_ID': 'S77',
-    'SEQUENCE_NUMBER': 108,
-    'SEQUENCE_TITLE': '--',
-    'SHUTTER_MODE_ID': 'NACONLY',
-    'SHUTTER_STATE_ID': 'ENABLED',
-    'SOFTWARE_VERSION_ID': 'ISS 11.00 05-24-2006',
-    'SPACECRAFT_CLOCK_CNT_PARTITION': 1,
-    'SPACECRAFT_CLOCK_START_COUNT': '1737255523.232',
-    'SPACECRAFT_CLOCK_STOP_COUNT': '1737255524.122',
-    'START_TIME': '2013-019T02:04:35.416Z',
-    'STOP_TIME': '2013-019T02:04:35.976Z',
-    'TARGET_DESC': 'Saturn-Rings',
-    'TARGET_LIST': 'N/A',
-    'TARGET_NAME': 'SATURN',
-    'TELEMETRY_FORMAT_ID': 'S&ER3',
-    'VALID_MAXIMUM': [4095, 4095],
-}
-"""The label metadata N1737255524_1_CALIB's label states, under its own keyword names."""
+def _sequence_label() -> VicarLabelStandIn:
+    """Return a label whose sequence keywords state a different value in each position.
 
-
-def _wide_angle_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
-    """Build a bare wide angle observation, taken as W1573251410_1_CALIB was.
-
-    Parameters:
-        label: The image's VICAR label items.
+    A real label repeats a value inside a sequence -- W1573251410's compression
+    parameters are ``[1, 1, 41, 0]`` -- which would hide a swap of two positions holding
+    the same value.
 
     Returns:
-        The observation.
+        The label items.
     """
-    return bare_observation(
-        ObsCassiniISS,
-        label,
-        detector='WAC',
-        filter1='CL1',
-        filter2='GRN',
-        sampling='FULL',
-        gain_mode=2,
+    return VicarLabelStandIn(
+        EXPECTED_MAXIMUM=[11.0, 12.0],
+        FILTER_NAME=['F1', 'F2'],
+        INST_CMPRS_PARAM=[21, 22, 23, 24],
+        INST_CMPRS_RATE=[31.0, 32.0],
+        OPTICS_TEMPERATURE=[41.0, 42.0],
+        VALID_MAXIMUM=[51, 52],
     )
+
+
+_SEQUENCE_ELEMENTS: tuple[tuple[str, Any], ...] = (
+    ('cassini:expected_maximum_full_well', 11.0),
+    ('cassini:expected_maximum_DN_sat', 12.0),
+    ('cassini:filter_name_1', 'F1'),
+    ('cassini:filter_name_2', 'F2'),
+    ('cassini:inst_cmprs_param_malgo', 21),
+    ('cassini:inst_cmprs_param_tb', 22),
+    ('cassini:inst_cmprs_param_blocks', 23),
+    ('cassini:inst_cmprs_param_quant', 24),
+    ('cassini:inst_cmprs_rate_expected_bits', 31.0),
+    ('cassini:inst_cmprs_rate_actual_bits', 32.0),
+    ('cassini:optics_temperature_front', 41.0),
+    ('cassini:optics_temperature_back', 42.0),
+    ('cassini:valid_maximum_full_well', 51),
+    ('cassini:valid_maximum_DN_sat', 52),
+)
+"""Each element of :func:`_sequence_label`'s sequences, and the attribute holding it."""
 
 
 @REQUIRES_EXTERNAL_DATA
@@ -687,92 +491,181 @@ def test_a_label_without_clock_counts_publishes_null_counts() -> None:
     assert end is None
 
 
-@pytest.mark.parametrize(
-    ('build', 'metadata'),
-    [
-        pytest.param(
-            lambda: _wide_angle_observation(_w1573251410_label()),
-            _W1573251410_METADATA,
-            id='W1573251410_1_CALIB',
-        ),
-        pytest.param(
-            lambda: _cassini_observation(_n1454725799_label()),
-            _N1454725799_METADATA,
-            id='N1454725799_1_CALIB',
-        ),
-        pytest.param(
-            lambda: _cassini_observation(_n1737255524_label()),
-            _N1737255524_METADATA,
-            id='N1737255524_1_CALIB',
-        ),
-    ],
-)
-def test_the_label_metadata_is_published_as_the_label_states_it(
-    build: Callable[[], ObsCassiniISS], metadata: dict[str, Any]
-) -> None:
-    """Each keyword is published under its own name, with the value the label states.
+def test_every_attribute_is_published_with_the_value_its_keyword_states() -> None:
+    """A label stating every keyword publishes all of the attributes, with its values.
 
     W1573251410_1_CALIB's numbers stay numbers, its times are its own day-of-year
     spellings with their trailing Z, its gain mode is its text, its missing-line count is
-    the text N/A, and each of its sequence keywords stays the sequence the label states.
-    N1454725799_1_CALIB's mission phase keeps its underscore, and its antiblooming flag,
-    OFF, is published apart from its light flood flag, ON.  N1737255524_1_CALIB's exposure
-    spans a second, so its image number, the stop count's seconds, is not its start
-    count's.
+    the text N/A, and each of its sequence keywords is split into the attributes its
+    elements hold.
+    """
+    public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
+    assert public['label_metadata'] == _W1573251410_METADATA
+
+
+def test_a_label_stating_none_of_the_keywords_publishes_every_attribute_as_null() -> None:
+    """A label carrying none of them publishes the same attributes, each null.
+
+    That is what makes the block one shape for every image: a reader finds the attribute
+    whether or not the image states it, and a null says the image does not state it.
+    """
+    block = _cassini_observation(VicarLabelStandIn()).get_public_metadata()['label_metadata']
+    assert list(block) == list(_W1573251410_METADATA)
+    assert set(block.values()) == {None}
+
+
+@pytest.mark.parametrize(('attribute', 'value'), _SEQUENCE_ELEMENTS)
+def test_each_sequence_keyword_lands_in_its_elements_by_position(
+    attribute: str, value: Any
+) -> None:
+    """Each element of a sequence keyword reaches the attribute its position names.
+
+    The label's own order is what is followed.  The COISS index table writes the four
+    compression parameters in another order -- blocks per group, algorithm, quantization
+    factor, block type, against the label's algorithm, block type, blocks per group,
+    quantization factor -- so a reader taking them from an index row would publish them
+    shuffled.
 
     Parameters:
-        build: Builds the observation carrying the image's label.
-        metadata: The label metadata that label states.
+        attribute: The attribute one element is published under.
+        value: The element the label states for it.
     """
-    public = build().get_public_metadata()
-    assert {key: public[key] for key in metadata} == metadata
+    block = _cassini_observation(_sequence_label()).get_public_metadata()['label_metadata']
+    assert block[attribute] == value
+
+
+def test_the_keywords_the_block_once_stated_itself_are_published_as_attributes() -> None:
+    """The four items the block used to state under names of its own are attributes now.
+
+    Each is published once, in the block below, under the dictionary's name for it.
+    """
+    label = VicarLabelStandIn(
+        DESCRIPTION='Saturn and its rings.',
+        INSTRUMENT_MODE_ID='SUM2',
+        OBSERVATION_ID='ISS_052SA_STRMOVIA001_PRIME',
+        SHUTTER_MODE_ID='BOTSIM',
+    )
+    block = _cassini_observation(label).get_public_metadata()['label_metadata']
+    assert block['cassini:limitations'] == 'Saturn and its rings.'
+    assert block['cassini:instrument_mode_id'] == 'SUM2'
+    assert block['cassini:observation_id'] == 'ISS_052SA_STRMOVIA001_PRIME'
+    assert block['cassini:shutter_mode_id'] == 'BOTSIM'
+
+
+def test_the_items_published_twice_are_gone_from_the_top_level() -> None:
+    """Each of the four is stated once, in the block, and no longer beside it.
+
+    A program wanting the summing mode reads the image size; the label's own mode is
+    ``cassini:instrument_mode_id``.
+    """
+    public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
+    assert 'sampling' not in public
+    assert 'gain_mode' not in public
+    assert 'description' not in public
+    assert 'observation_id' not in public
+
+
+def test_the_filters_stay_beside_the_block() -> None:
+    """``filters`` is published at the top level as well, as every host publishes it."""
+    public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
+    assert public['filters'] == ['CL1', 'GRN']
+
+
+@pytest.mark.parametrize(
+    'image_name',
+    ['N1521598221_1.IMG', 'N1521598221_1_CALIB.IMG'],
+    ids=['raw', 'calibrated'],
+)
+def test_the_version_number_is_read_from_the_image_file_name(image_name: str) -> None:
+    """No keyword states the version number; the file name does, and both names agree.
+
+    It is the segment after the image number, which the calibrated file keeps, so a raw
+    file and the calibrated product made from it publish the same version.
+
+    Parameters:
+        image_name: Basename of the image file.
+    """
+    obs = _cassini_observation(VicarLabelStandIn(), image_name=image_name)
+    block = obs.get_public_metadata()['label_metadata']
+    assert block['cassini:pre-pds_version_number'] == 1
+
+
+def test_a_file_name_stating_no_version_number_publishes_null() -> None:
+    """A name the version rule does not fit states no version, like any unstated value."""
+    obs = _cassini_observation(VicarLabelStandIn(), image_name='N1521598221.IMG')
+    block = obs.get_public_metadata()['label_metadata']
+    assert block['cassini:pre-pds_version_number'] is None
+
+
+def test_the_mission_phase_keeps_the_spelling_its_label_uses() -> None:
+    """N1454725799_1_CALIB's phase keeps its underscore, and its two flags stay apart.
+
+    The value published is the label's own, not a tidied one, and a flag is published
+    from its own keyword rather than from another flag's.
+    """
+    block = _cassini_observation(_n1454725799_label()).get_public_metadata()['label_metadata']
+    assert block['cassini:mission_phase_name'] == 'APPROACH_SCIENCE'
+    assert block['cassini:antiblooming_state_flag'] == 'OFF'
+    assert block['cassini:light_flood_state_flag'] == 'ON'
+
+
+def test_the_image_number_is_the_label_value_not_the_start_count() -> None:
+    """N1737255524_1_CALIB's exposure spans a second, so the two differ.
+
+    The dictionary derives this number from the start count; the archive takes it from
+    the clock at shutter close, and the label's own value is what is published.
+    """
+    block = _cassini_observation(_n1737255524_label()).get_public_metadata()['label_metadata']
+    assert block['cassini:image_number'] == 1737255524
+    assert block['cassini:spacecraft_clock_start_count'] == '1737255523.232'
 
 
 def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
     """The metadata chapter's Cassini fixture holds the host's keys, in the host's order.
 
-    The chapter's staleness guard takes the Cassini metadata from that fixture, so a
-    keyword the host gains has to reach the fixture, and through it the chapter, rather
+    The chapter's staleness guard takes the Cassini metadata from that fixture, so an
+    attribute the host gains has to reach the fixture, and through it the chapter, rather
     than pass unexamined.
     """
     public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
     assert list(public) == list(CASSINI_ISS_PUBLIC_METADATA)
-
-
-def test_a_keyword_the_label_lacks_is_published_as_null() -> None:
-    """A label carrying none of the keywords publishes every one of them as null."""
-    public = _cassini_observation(VicarLabelStandIn()).get_public_metadata()
-    assert {key: public[key] for key in _W1573251410_METADATA} == dict.fromkeys(
-        _W1573251410_METADATA
-    )
+    assert list(public['label_metadata']) == list(CASSINI_ISS_PUBLIC_METADATA['label_metadata'])
 
 
 @REQUIRES_EXTERNAL_DATA
 def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
-    """The label metadata is read from the VICAR label inside the calibrated image file.
+    """The metadata is read from the VICAR label inside the calibrated image file.
 
-    That label writes its times with a trailing Z, keeps a sequence keyword's elements in
-    one sequence, and gives a wide angle frame's back optics temperature as -999.0, since
-    the wide angle camera has no rear optics sensor.
+    That label writes its times with a trailing Z, and gives a wide angle frame's back
+    optics temperature as -999.0, since the wide angle camera has no rear optics sensor.
+    Its two-element and four-element keywords reach the attributes their positions name,
+    and W1521598221_1_CALIB.IMG's own name states its version.
     """
     public = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01).get_public_metadata()
+    block = public['label_metadata']
     assert {
-        key: public[key]
+        key: block[key]
         for key in (
-            'IMAGE_TIME',
-            'GAIN_MODE_ID',
-            'EXPOSURE_DURATION',
-            'FILTER_NAME',
-            'OPTICS_TEMPERATURE',
-            'INST_CMPRS_PARAM',
+            'cassini:image_time',
+            'cassini:gain_mode_id',
+            'cassini:exposure_duration',
+            'cassini:filter_name_1',
+            'cassini:filter_name_2',
+            'cassini:optics_temperature_front',
+            'cassini:optics_temperature_back',
+            'cassini:inst_cmprs_param_malgo',
+            'cassini:pre-pds_version_number',
         )
     } == {
-        'IMAGE_TIME': '2006-080T01:40:16.112Z',
-        'GAIN_MODE_ID': '29 ELECTRONS PER DN',
-        'EXPOSURE_DURATION': 1500.0,
-        'FILTER_NAME': ['CL1', 'VIO'],
-        'OPTICS_TEMPERATURE': [6.93953, -999.0],
-        'INST_CMPRS_PARAM': ['N/A', 'N/A', 'N/A', 'N/A'],
+        'cassini:image_time': '2006-080T01:40:16.112Z',
+        'cassini:gain_mode_id': '29 ELECTRONS PER DN',
+        'cassini:exposure_duration': 1500.0,
+        'cassini:filter_name_1': 'CL1',
+        'cassini:filter_name_2': 'VIO',
+        'cassini:optics_temperature_front': 6.93953,
+        'cassini:optics_temperature_back': -999.0,
+        'cassini:inst_cmprs_param_malgo': 'N/A',
+        'cassini:pre-pds_version_number': 1,
     }
 
 
@@ -804,38 +697,55 @@ def test_a_plain_property_marker_delimits_the_block_without_the_marker() -> None
 
 
 @REQUIRES_EXTERNAL_DATA
-def test_a_tour_era_label_states_exactly_the_published_keywords() -> None:
-    """A tour-era label's property blocks hold exactly the keywords the host publishes.
+def test_a_tour_era_label_states_every_keyword_the_attributes_read() -> None:
+    """A tour-era label states every keyword an attribute reads, and six beyond them.
 
-    The published list is the archive's PDS3 keyword set, written out rather than read
-    from the label, so a tour-era label carrying a keyword the list omits would drop that
-    keyword in silence.  This is what says so instead.  An earlier label states fewer of
-    them, which is the case below.
+    The attributes are written out rather than read from the label, so a tour-era label
+    carrying a keyword no attribute holds would drop it in silence.  This is what says so
+    instead: the six are the ones that do not describe the exposure, and a seventh would
+    fail here.
     """
     obs = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01)
-    assert sorted(_property_block_keywords(obs.dict)) == sorted(_LABEL_METADATA)
+    stated = set(_property_block_keywords(obs.dict))
+    read = _read_keywords()
+    assert sorted(read - stated) == []
+    assert sorted(stated - read) == sorted(_UNREAD_KEYWORDS)
 
 
 @REQUIRES_EXTERNAL_DATA
-def test_a_cruise_era_label_publishes_what_it_states_and_nulls_the_rest() -> None:
+def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -> None:
     """An earlier label states fewer of the keywords, and items of its own besides.
 
     N1294562651_1_CALIB, of the earliest cruise volume, marks its property section with a
     plain ``PROPERTY`` keyword rather than the numbered form, states only some of the
-    published keywords, and carries items the archive's label does not state, among them
+    keywords the attributes read, and carries items no attribute reads, among them
     differently named equivalents such as ``FILTER1_NAME`` and ``SENSOR_HEAD_ELEC_TEMP``.
     Its label is read directly rather than through the host, because a cruise epoch has no
-    camera frame in the local kernel set and loading the image would raise.
+    camera frame in the local kernel set and loading the image would raise.  The block it
+    publishes is the same shape as a tour image's all the same.
     """
     path = cast(Path, FCPath(URL_CASSINI_ISS_CRUISE_01).retrieve())
     label = vicar.VicarImage.from_file(path, strict=False).label
+    published = _label_metadata(label, 'N1294562651_1_CALIB.IMG')
     section = _property_block_keywords(label)
-    published = _label_metadata(label)
-    stated = [keyword for keyword in _LABEL_METADATA if keyword in section]
-    absent = [keyword for keyword in _LABEL_METADATA if keyword not in section]
-    outside = [keyword for keyword in section if keyword not in _LABEL_METADATA]
-    assert absent != [], 'this label is expected to state fewer than the published keywords'
-    assert outside != [], 'this label is expected to carry items outside the published list'
-    assert {key: published[key] for key in absent} == dict.fromkeys(absent)
-    assert [key for key in outside if key in published] == []
-    assert {key: published[key] for key in stated} == {key: label.get(key, None) for key in stated}
+    absent = [
+        (attribute, keyword)
+        for attribute, keyword, _element in _LABEL_METADATA
+        if keyword is not None and keyword not in section
+    ]
+    outside = [keyword for keyword in section if keyword not in _read_keywords()]
+    assert list(published) == list(_W1573251410_METADATA)
+    assert absent != [], 'this label is expected to state fewer than the keywords read'
+    assert outside != [], 'this label is expected to carry items no attribute reads'
+    assert {
+        f'cassini:{attribute}': published[f'cassini:{attribute}'] for attribute, _ in absent
+    } == dict.fromkeys(f'cassini:{attribute}' for attribute, _ in absent)
+    assert {
+        f'cassini:{attribute}': published[f'cassini:{attribute}']
+        for attribute, keyword, element in _LABEL_METADATA
+        if keyword is not None and keyword in section and element is None
+    } == {
+        f'cassini:{attribute}': label.get(keyword, None)
+        for attribute, keyword, element in _LABEL_METADATA
+        if keyword is not None and keyword in section and element is None
+    }

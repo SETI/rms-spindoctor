@@ -122,18 +122,21 @@ def _example_json_blocks() -> list[dict[str, Any]]:
 def _key_literals(text: str) -> set[str]:
     """Every inline ``literal`` in a document that is shaped like a JSON key.
 
-    A key is a word of letters, digits and underscores, in either case: a host may publish
-    under a label's own keyword, such as ``MISSION_PHASE_NAME``, as well as under a
-    lower-case name of its own.
+    A key is a word of letters, digits and underscores, in either case, optionally behind
+    a namespace and a colon, in which case it may carry hyphens too: a host may publish
+    under a lower-case name of its own, under a label's own keyword such as
+    ``MISSION_PHASE_NAME``, or under a data dictionary's name such as
+    ``cassini:pre-pds_version_number``.
 
     Parameters:
         text: The reStructuredText to search, such as a whole chapter or one table cell.
 
     Returns:
         The name in each inline literal whose whole content is one such key. A literal
-        holding anything else, such as a dotted path or a hyphenated word, adds nothing.
+        holding anything else, such as a dotted path or a bare hyphenated word, adds
+        nothing.
     """
-    return set(re.findall(r'``([A-Za-z_][A-Za-z0-9_]*)``', text))
+    return set(re.findall(r'``([A-Za-z_][A-Za-z0-9_]*(?::[A-Za-z_][A-Za-z0-9_-]*)?)``', text))
 
 
 def _documented_key_literals() -> set[str]:
@@ -511,7 +514,7 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
     emitted = set().union(*(_leaf_key_names(document) for document in documents))
     documented = _documented_key_literals().union(
         *(
-            set(metadata) & _instrument_chapter_key_literals(stem)
+            _leaf_key_names(metadata) & _instrument_chapter_key_literals(stem)
             for stem, metadata in _HOST_METADATA
         )
     )
