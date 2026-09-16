@@ -117,6 +117,47 @@ def test_the_check_exits_one_without_a_bundle_directory(
     assert f'No bundle directory at {check_run}' in capsys.readouterr().out
 
 
+def test_the_check_exits_one_over_a_bundle_results_root_that_is_not_local(
+    check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A root that is not local is refused by its own name, and nothing is read."""
+    monkeypatch.setattr(
+        sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: 'gs://bucket/root'
+    )
+    monkeypatch.setattr(sd_create_bundle, 'check_bundle', refuse)
+    with pytest.raises(SystemExit) as excinfo:
+        sd_create_bundle.main_check()
+    assert excinfo.value.code == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f'The check reads a local tree, and gs://bucket/root/{BUNDLE_NAME} is not one: '
+        'name a local bundle results root'
+    ]
+
+
+def test_the_check_is_handed_the_bundles_own_local_directory(
+    check_run: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A local root reaches the check as the bundle's directory, a local path."""
+    seen: list[Path] = []
+
+    def _record(bundle_dir: Path, **kwargs: Any) -> list[Finding]:
+        """Stand in for the check, recording the directory it is handed.
+
+        Parameters:
+            bundle_dir: The bundle's directory.
+            **kwargs: The configuration and the schema directory.
+
+        Returns:
+            No finding.
+        """
+        seen.append(bundle_dir)
+        return []
+
+    monkeypatch.setattr(sd_create_bundle, 'check_bundle', _record)
+    sd_create_bundle.main_check()
+    assert seen == [check_run]
+
+
 def test_the_check_exits_one_with_the_traceback_of_a_check_that_stops(
     check_run: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
