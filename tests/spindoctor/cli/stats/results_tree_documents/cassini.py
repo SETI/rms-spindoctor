@@ -37,7 +37,7 @@ from spindoctor.nav_technique.diagnostics import (
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
-from spindoctor.obs.obs_inst_cassini_iss import _label_facts, _published_sclk
+from spindoctor.obs.obs_inst_cassini_iss import _label_metadata, _published_sclk
 from spindoctor.support.cmatrix import AttitudeBaseline
 from spindoctor.support.status_reason import NavStatusReason
 from spindoctor.support.time import et_to_utc
@@ -189,6 +189,7 @@ def cassini_star_and_limb() -> dict[str, Any]:
             gain_mode=3,
             observation_id='ISS_00ASA_IAPETUS001_PRIME',
             description='Iapetus limb against a star field.',
+            shutter_mode='BOTSIM',
         ),
         start=datetime(2026, 8, 8, 16, 46, 25, 933806, tzinfo=UTC),
         elapsed_s=12.5,
@@ -267,6 +268,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
             gain_mode=3,
             observation_id='ISS_00ASA_IAPETUS002_PRIME',
             description='Iapetus disc at low phase.',
+            shutter_mode='NACONLY',
         ),
         start=datetime(2026, 8, 8, 16, 46, 38, 532110, tzinfo=UTC),
         elapsed_s=8.25,
@@ -542,6 +544,7 @@ def cassini_suspect_offset() -> dict[str, Any]:
             gain_mode=3,
             observation_id='ISS_00ASA_IAPETUS003_PRIME',
             description='Iapetus against background stars.',
+            shutter_mode='NACONLY',
         ),
         start=datetime(2026, 8, 8, 16, 46, 48, 921574, tzinfo=UTC),
         elapsed_s=31.75,
@@ -640,6 +643,7 @@ def cassini_ring_edges() -> dict[str, Any]:
             gain_mode=2,
             observation_id='ISS_00ASA_IAPETUS001_PRIME',
             description='Iapetus limb against a star field.',
+            shutter_mode='BOTSIM',
         ),
         start=datetime(2026, 8, 8, 16, 47, 21, 8443, tzinfo=UTC),
         elapsed_s=12.5,
@@ -656,6 +660,9 @@ _GAIN_MODE_IDS = {
 """A label's gain text for each gain state oops reads out of it."""
 
 _SHARED_LABEL_ITEMS: dict[str, Any] = {
+    'DATA_SET_ID': 'CO-S-ISSNA/ISSWA-2-EDR-V1.0',
+    'INSTRUMENT_HOST_NAME': 'CASSINI ORBITER',
+    'MISSION_NAME': 'CASSINI-HUYGENS',
     'MISSION_PHASE_NAME': 'TOUR',
     'ANTIBLOOMING_STATE_FLAG': 'OFF',
     'BIAS_STRIP_MEAN': 7.32844,
@@ -703,17 +710,29 @@ They are N1635282917_1_CALIB's, a narrow angle frame of 2009, except for six ite
 image of Iapetus writes otherwise: ``MISSION_PHASE_NAME``, ``SOFTWARE_VERSION_ID``,
 ``SEQUENCE_ID``, ``SEQUENCE_TITLE``, ``TARGET_DESC`` and ``TARGET_NAME``.
 ``ANTIBLOOMING_STATE_FLAG`` is ``OFF`` rather than ``ON`` as well, so that it differs from
-``LIGHT_FLOOD_STATE_FLAG``, as it does on many real labels.
+``LIGHT_FLOOD_STATE_FLAG``, as it does on many real labels.  ``DATA_SET_ID``,
+``INSTRUMENT_HOST_NAME`` and ``MISSION_NAME`` are one value across the archive.
 """
 
 _CAMERA_LABEL_ITEMS: dict[str, dict[str, Any]] = {
-    'NAC': {'CALIBRATION_LAMP_STATE_FLAG': 'N/A', 'OPTICS_TEMPERATURE': [0.712693, 1.90571]},
-    'WAC': {'CALIBRATION_LAMP_STATE_FLAG': 'OFF', 'OPTICS_TEMPERATURE': [6.93953, -999.0]},
+    'NAC': {
+        'CALIBRATION_LAMP_STATE_FLAG': 'N/A',
+        'INSTRUMENT_ID': 'ISSNA',
+        'INSTRUMENT_NAME': 'IMAGING SCIENCE SUBSYSTEM NARROW ANGLE',
+        'OPTICS_TEMPERATURE': [0.712693, 1.90571],
+    },
+    'WAC': {
+        'CALIBRATION_LAMP_STATE_FLAG': 'OFF',
+        'INSTRUMENT_ID': 'ISSWA',
+        'INSTRUMENT_NAME': 'IMAGING SCIENCE SUBSYSTEM WIDE ANGLE',
+        'OPTICS_TEMPERATURE': [6.93953, -999.0],
+    },
 }
 """The label items a camera decides.
 
 The narrow angle camera has no calibration lamp and the wide angle camera no rear optics
-temperature sensor, so their labels write ``N/A`` and ``-999.0`` there.  The values are
+temperature sensor, so their labels write ``N/A`` and ``-999.0`` there, and each camera
+states its own ``INSTRUMENT_ID`` and ``INSTRUMENT_NAME``.  The values are
 N1635282917_1_CALIB's and W1521598221_1_CALIB's.
 """
 
@@ -754,13 +773,22 @@ def _build_time(et: float) -> str:
 
 
 def _label(
-    exposure: AttitudeBaseline, *, camera: str, gain_mode: int, observation_id: str
+    exposure: AttitudeBaseline,
+    *,
+    camera: str,
+    gain_mode: int,
+    observation_id: str,
+    description: str,
+    filters: tuple[str, str],
+    sampling: str,
+    shutter_mode: str,
 ) -> dict[str, Any]:
     """Return the VICAR label items one Cassini image of this tree carries.
 
     What the document chooses for itself is written the way a Cassini ISS label writes
     it: its clock counts are the recorded clock strings without their partition, its
-    image number is the whole seconds of its stop count, its exposure is in
+    image number is the whole seconds of its stop count, its product id is its camera
+    letter and its stop count behind the clock partition, its exposure is in
     milliseconds, its gain is the text oops reads the gain state out of, and its shutter
     open, midtime and shutter close are the recorded epochs in the label's day-of-year
     text.  It reached Earth and was built on the ground after its shutter
@@ -773,6 +801,10 @@ def _label(
         camera: ``NAC`` or ``WAC``.
         gain_mode: The gain state oops reads out of the label's gain mode.
         observation_id: The label's observation id, which its method description names.
+        description: The label's free text about the image.
+        filters: The two filter wheel positions, in the label's order.
+        sampling: The label's instrument mode: ``FULL``, ``SUM2`` or ``SUM4``.
+        shutter_mode: The shutter mode the exposure was commanded in.
 
     Returns:
         The label items.
@@ -787,6 +819,12 @@ def _label(
         'SPACECRAFT_CLOCK_START_COUNT': start_count,
         'SPACECRAFT_CLOCK_STOP_COUNT': stop_count,
         'IMAGE_NUMBER': int(stop_count.partition('.')[0]),
+        'PRODUCT_ID': f'{partition}_{camera[0]}{stop_count}',
+        'DESCRIPTION': description,
+        'FILTER_NAME': list(filters),
+        'INSTRUMENT_MODE_ID': sampling,
+        'OBSERVATION_ID': observation_id,
+        'SHUTTER_MODE_ID': shutter_mode,
         'EXPOSURE_DURATION': round(exposure.exposure_s * 1000.0, 3),
         'GAIN_MODE_ID': _GAIN_MODE_IDS[gain_mode],
         'METHOD_DESC': f'ISSPT2.5.4;Iapetus;{observation_id}_1',
@@ -811,6 +849,7 @@ def _public_metadata(
     gain_mode: int,
     observation_id: str,
     description: str,
+    shutter_mode: str,
 ) -> dict[str, Any]:
     """Return what the Cassini ISS host publishes about one image of this run.
 
@@ -822,8 +861,8 @@ def _public_metadata(
     two can differ: the counts are the instrument's own, and the strings are SPICE's
     conversion of the exposure epochs.
 
-    The facts the host copies out of the image's label come last, through the host's
-    own table, from the label :func:`_label` writes for the image.
+    The metadata the host copies out of the image's label comes last, under the label's
+    own keyword names, from the label :func:`_label` writes for the image.
 
     Parameters:
         result: The image's result, carrying its attitude solution.
@@ -835,12 +874,22 @@ def _public_metadata(
         gain_mode: The gain state oops reads out of the label's gain mode.
         observation_id: The label's observation id.
         description: The label's description.
+        shutter_mode: The shutter mode the exposure was commanded in.
 
     Returns:
-        The published facts, in the host's own key order.
+        The published metadata, in the host's own key order.
     """
     exposure = recorded_exposure(result)
-    label = _label(exposure, camera=camera, gain_mode=gain_mode, observation_id=observation_id)
+    label = _label(
+        exposure,
+        camera=camera,
+        gain_mode=gain_mode,
+        observation_id=observation_id,
+        description=description,
+        filters=filters,
+        sampling=sampling,
+        shutter_mode=shutter_mode,
+    )
     return {
         'image_path': holdings_path(image_name).as_posix(),
         'image_name': image_name,
@@ -858,5 +907,5 @@ def _public_metadata(
         'gain_mode': gain_mode,
         'description': description,
         'observation_id': observation_id,
-        **_label_facts(label),
+        **_label_metadata(label),
     }

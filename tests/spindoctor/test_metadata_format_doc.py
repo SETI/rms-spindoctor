@@ -7,7 +7,7 @@ and structurally match real writer output. Two directions are enforced:
 1. Writer-to-chapter: every key name any writer emits -- across a fully
    populated success result (with and without a fitted rotation), a failed
    result, a load-error document, and an early-return document -- appears in
-   the chapter as an inline ``key`` literal. The one exception is a fact an
+   the chapter as an inline ``key`` literal. The one exception is metadata an
    instrument's host publishes into the ``observation`` block, which the
    chapter leaves to that instrument's own user-guide chapter, so it may appear
    there instead, and only there. A writer gaining a key neither documents
@@ -59,12 +59,12 @@ _CHAPTER_PATH = (
 )
 
 _INSTRUMENT_CHAPTERS = _CHAPTER_PATH.parent / 'instruments'
-"""Where the user guide's instrument chapters are, each listing its host's own facts."""
+"""Where the user guide's instrument chapters are, each listing its host's metadata."""
 
 _KEY_CELL = re.compile(r'^\s*\* - (.+)$', re.MULTILINE)
 """The first cell of a ``list-table`` row, which names the key that row documents."""
 
-_HOST_FACTS: tuple[tuple[str, dict[str, Any]], ...] = (
+_HOST_METADATA: tuple[tuple[str, dict[str, Any]], ...] = (
     ('cassini_iss', CASSINI_ISS_PUBLIC_METADATA),
     ('galileo_ssi', GALILEO_SSI_PUBLIC_METADATA),
 )
@@ -122,17 +122,18 @@ def _example_json_blocks() -> list[dict[str, Any]]:
 def _key_literals(text: str) -> set[str]:
     """Every inline ``literal`` in a document that is shaped like a JSON key.
 
-    A key starts with a lowercase letter or an underscore; later letters may be capitals,
-    as in a Cassini dictionary name such as ``valid_maximum_DN_sat``.
+    A key is a word of letters, digits and underscores, in either case: a host may publish
+    under a label's own keyword, such as ``MISSION_PHASE_NAME``, as well as under a
+    lower-case name of its own.
 
     Parameters:
         text: The reStructuredText to search, such as a whole chapter or one table cell.
 
     Returns:
         The name in each inline literal whose whole content is one such key. A literal
-        holding anything else, such as a dotted path or a capitalized word, adds nothing.
+        holding anything else, such as a dotted path or a hyphenated word, adds nothing.
     """
-    return set(re.findall(r'``([a-z_][A-Za-z0-9_]*)``', text))
+    return set(re.findall(r'``([A-Za-z_][A-Za-z0-9_]*)``', text))
 
 
 def _documented_key_literals() -> set[str]:
@@ -144,8 +145,8 @@ def _instrument_chapter_key_literals(stem: str) -> set[str]:
     """Every key a table row's key cell names in one instrument's chapter.
 
     A key counts only in its own row's key cell: another row's meaning may mention it, as
-    the ``stop_time_doy`` row mentions ``image_time``, without documenting it. A key cell
-    names one key, so that no row documents another fact by naming it beside its own.
+    the ``STOP_TIME`` row mentions ``IMAGE_TIME``, without documenting it. A key cell
+    names one key, so that no row documents another key by naming it beside its own.
 
     Parameters:
         stem: The chapter's file stem, such as ``cassini_iss``.
@@ -494,9 +495,9 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
     """Every key any writer emits appears in the chapter as a literal.
 
     This is the staleness guard's forward direction: a writer gaining a key
-    the chapter does not document fails here, naming the missing keys.  A fact a
+    the chapter does not document fails here, naming the missing keys.  Metadata a
     host publishes may be documented in its own row of that host's instrument
-    chapter instead, since that is where a host's own facts are listed; another
+    chapter instead, since that is where a host's own metadata is listed; another
     instrument's chapter, or another row's mention of it, does not count.
     """
     documents = [
@@ -509,12 +510,15 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
     ]
     emitted = set().union(*(_leaf_key_names(document) for document in documents))
     documented = _documented_key_literals().union(
-        *(set(facts) & _instrument_chapter_key_literals(stem) for stem, facts in _HOST_FACTS)
+        *(
+            set(metadata) & _instrument_chapter_key_literals(stem)
+            for stem, metadata in _HOST_METADATA
+        )
     )
     missing = emitted - documented
     assert not missing, (
         f'writer emits keys the metadata chapter never documents: {sorted(missing)}; '
-        f'update docs/user_guide/user_guide_metadata.rst, or, for a fact a host '
+        f'update docs/user_guide/user_guide_metadata.rst, or, for metadata a host '
         f'publishes, its instrument chapter'
     )
 
