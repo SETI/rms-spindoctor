@@ -280,11 +280,12 @@ check and the empty-root check, because it holds one task rather than the run:
 a template it cannot find raises out of every task, and the empty bundle root is
 the queue-driven run's own precondition to establish.
 
-``sd_create_bundle check`` exits 1 when it makes any error, when the bundle's
-directory under the bundle results root is not there, and when the check itself
-stops, whose traceback it prints in place of a count; warnings alone leave it 0.
-The check reads a local tree, so a bundle results root that is not local -- one
-named ``gs://``, say -- is refused by its own name before anything is read.
+``sd_create_bundle check`` exits 1 when it makes any error, when the bundle
+results root is not local, when the bundle's directory under it is not there,
+and when the check itself stops, whose traceback it prints in place of a count;
+warnings alone leave it 0.  The check reads a local tree, so a root that is not
+local -- one named ``gs://``, say -- is refused by its own name before anything
+is read.
 
 Per-dataset extension points
 ============================
