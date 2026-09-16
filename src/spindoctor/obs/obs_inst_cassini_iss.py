@@ -167,8 +167,6 @@ def _element(value: Any, index: int) -> Any:
         The value at that position, as the label states it, or None when the label
         states nothing reaching it.
     """
-    if value is None:
-        return None
     if not isinstance(value, list | tuple):
         return value if index == 0 else None
     return value[index] if index < len(value) else None
