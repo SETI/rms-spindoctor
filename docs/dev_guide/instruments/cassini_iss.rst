@@ -100,9 +100,18 @@ Label and index dependencies
   text, and times as the label's day-of-year text. The one transformation is the
   positional split the attribute names require: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``,
   ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and
-  ``VALID_MAXIMUM`` each state several values, and ``_element`` takes the one the
-  attribute's position names, returning ``None`` where the label states no sequence
-  reaching it.
+  ``VALID_MAXIMUM`` fill several attributes each, and ``_element`` takes the value the
+  attribute's position names.
+
+  A label may state a single value where another states a sequence, and ``_element``
+  reads that as the first position: the value fills the first attribute and the later
+  ones are ``None``. ``OPTICS_TEMPERATURE`` is the keyword this happens on --- an early
+  label states one optics reading where a later one states a front reading beside a rear
+  reading. That is the same thing the two-value form says when the rear reading is the
+  ``-999.0`` a camera with no rear sensor writes, so one value and a null carry the
+  meaning the label has. Reading a single value as no sequence at all would publish the
+  front reading the label does state as ``None``, which is what the cruise-era test
+  holds against.
 
   ``DESCRIPTION``, ``INSTRUMENT_MODE_ID``, ``OBSERVATION_ID`` and ``SHUTTER_MODE_ID``
   are read here under the dictionary's names for them --- ``cassini:limitations``,

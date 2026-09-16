@@ -230,8 +230,9 @@ and what each holds for it, is in the Metadata fields section of that
 instrument's chapter under :doc:`/user_guide/instruments/instruments`; a key
 an instrument does not record is absent. An instrument may also record what the
 image itself states, in a ``label_metadata`` block of its own; that section of
-its chapter lists its keys, and the table below does not repeat them. The image's path, name, camera and
-shape are recorded once, under the identity keys.
+its chapter lists its keys, and the table below does not repeat them. The
+image's path, name, camera and shape are recorded once, under the identity
+keys.
 
 .. list-table::
    :header-rows: 1

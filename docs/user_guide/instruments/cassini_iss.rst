@@ -231,10 +231,11 @@ Each value is the label's own, in the label's own form:
 * A time is the label's own text: UTC, with the day of the year, ending in
   ``Z``, for example ``2007-312T21:41:14.946Z``. The product creation time is
   the exception, as its row says.
-* Where one label keyword holds several values, each value is recorded under
-  the attribute its position names, in the label's own order. The four
+* Where one label keyword fills several attributes, each value is recorded
+  under the attribute its position names, in the label's own order. The four
   compression parameters and the two optics temperatures are read this way,
-  among others.
+  among others. A label that states a single value for such a keyword fills
+  the first of its attributes, and the rest are null.
 * A value the label writes as ``N/A``, ``UNK``, ``--`` or ``-999.0`` is
   recorded as written. What it means depends on the attribute, and the
   attribute's row says so wherever the label writes one.
@@ -435,12 +436,15 @@ mode reads the image size.
      - The observation this frame belongs to.
      - none
    * - ``cassini:optics_temperature_front``
-     - The temperature of the front optics.
+     - The temperature of the front optics. A label that states one optics
+       temperature rather than two states this one.
      - degrees C
    * - ``cassini:optics_temperature_back``
      - The temperature of the rear optics; ``-999.0`` for the wide angle
        camera, which has no rear optics sensor, and for an image whose
-       extended header was missing.
+       extended header was missing. Null where the label states one optics
+       temperature rather than two, which says the same thing as ``-999.0``:
+       the label carries no rear reading.
      - degrees C
    * - ``cassini:order_number``
      - The image's identifier within its instrument operations file.
