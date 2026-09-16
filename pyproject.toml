@@ -64,7 +64,7 @@ dev = [
   "ruff",
   # The Cassini ISS label tests read a VICAR label directly, which is the only
   # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops.
-  "rms-vicar",
+  "rms-vicar>=1.2.1",
   "rms-spindoctor[docs]",
   "rms-spindoctor[postgres]",
   "threadpoolctl",
