@@ -48,6 +48,7 @@ from spindoctor._version import __version__ as _spindoctor_version
 from spindoctor.annotation import Annotations
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.correlate import masked_ncc, navigate_with_pyramid_kpeaks
 from spindoctor.support.image import apply_linear_gamma_stretch
 from spindoctor.support.summary_png import render_annotated_summary_rgb
@@ -77,23 +78,32 @@ def _apply_stretch_gamma(
 
 
 def _bilinear_interpolate_fov(arr: NDArrayFloatType, img_v: float, img_u: float) -> float:
-    """Bilinear sample a 2D FOV array at fractional pixel ``(img_v, img_u)``.
+    """Bilinear sample a 2D FOV array at the pixel-corner position ``(img_v, img_u)``.
+
+    The caller states the position the way a cursor and the geometry layer state
+    one, in pixel corner coordinates, and the array is addressed pixel centric, so
+    the half pixel between the two comes off here -- once, where the value crosses
+    between the stages.  Reading a pixel corner position straight as an array
+    coordinate would return the array half a pixel down and right of the position
+    asked for.
 
     Parameters:
         arr: 2-D float image in FOV coordinates.
-        img_v: Fractional row index (v).
-        img_u: Fractional column index (u).
+        img_v: V position in pixel corner coordinates.
+        img_u: U position in pixel corner coordinates.
 
     Returns:
         Interpolated sample as a scalar ``float``.
     """
     h, w = arr.shape
-    v0 = math.floor(img_v)
-    u0 = math.floor(img_u)
+    centric_v = img_v - PIXEL_CENTER_TO_CORNER_PX
+    centric_u = img_u - PIXEL_CENTER_TO_CORNER_PX
+    v0 = min(max(math.floor(centric_v), 0), h - 1)
+    u0 = min(max(math.floor(centric_u), 0), w - 1)
     v1 = min(v0 + 1, h - 1)
     u1 = min(u0 + 1, w - 1)
-    dv = img_v - v0
-    du = img_u - u0
+    dv = min(max(centric_v - v0, 0.0), 1.0)
+    du = min(max(centric_u - u0, 0.0), 1.0)
     return float(
         arr[v0, u0] * (1 - du) * (1 - dv)
         + arr[v0, u1] * du * (1 - dv)
@@ -1155,7 +1165,10 @@ class ManualNavDialog(QDialog):
         self._update_display_only()
 
     def _update_status_from_mouse(self, event: QMouseEvent) -> None:
-        # Position in label coordinates == scaled image coordinates
+        # Position in label coordinates == scaled image coordinates.  A Qt event
+        # position is pixel corner, and dividing by the zoom keeps it so, which is
+        # what the V, U readout prints; the sample beside it is taken at that same
+        # position, so the two describe one place in the frame.
         scaled_x = float(event.position().x())
         scaled_y = float(event.position().y())
         # Convert to original image coords
