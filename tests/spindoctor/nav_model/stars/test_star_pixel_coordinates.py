@@ -24,7 +24,11 @@ from oops.fov.flatfov import FlatFOV
 from psfmodel import GaussianPSF
 
 from spindoctor.feature.geometry import StarGeometry
-from spindoctor.nav_model.stars.nav_model_stars import NavModelStars
+from spindoctor.nav_model.stars.nav_model_stars import (
+    NavModelStars,
+    _star_short_info,
+    _star_summary,
+)
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.nav_technique._star_helpers import local_centroid
 from spindoctor.sim.render import render_combined_model
@@ -218,6 +222,49 @@ def test_the_margin_does_not_disturb_the_conversion() -> None:
     assert measured[0] == pytest.approx(_boresight_index() + margin, abs=1e-9)
     assert predicted[0] == pytest.approx(measured[0], abs=1e-9)
     assert predicted[1] == pytest.approx(measured[1], abs=1e-9)
+
+
+def _logged_position(line: str, axis: str) -> float:
+    """Return the number the star log line gives for one axis.
+
+    Parameters:
+        line: The line ``_star_short_info`` produced.
+        axis: ``'U'`` or ``'V'``, the field label to read.
+    """
+    fields = line.split()
+    value = fields[fields.index(axis) + 1]
+    return float(value.split('+/-')[0])
+
+
+def test_a_recorded_star_position_is_the_one_the_scene_states() -> None:
+    """The metadata entry gives back the position the scene author wrote.
+
+    The scene places the star at ``_SCENE_STAR_V`` / ``_SCENE_STAR_U``, and
+    ``test_a_scene_star_predicts_where_the_renderer_draws_it`` measures that
+    the renderer draws its light there.  A reader comparing the navigation
+    document against the scene file has to find the same two numbers in both,
+    so what is recorded is the scene's position and not the array index the
+    light falls on, half a pixel below it.
+    """
+    entry = {'name': 'S', 'v': _SCENE_STAR_V, 'u': _SCENE_STAR_U, 'vmag': 4.0}
+    star = star_record_from_params(entry, index=0, default_v=0.0, default_u=0.0)
+    summary = _star_summary(star)
+    assert summary['v'] == pytest.approx(_SCENE_STAR_V, abs=1e-9)
+    assert summary['u'] == pytest.approx(_SCENE_STAR_U, abs=1e-9)
+
+
+def test_the_star_log_line_carries_the_recorded_position() -> None:
+    """The per-image log states a star where the document and the scene do.
+
+    An operator reads the log line and the document interchangeably, so the
+    ``U`` and ``V`` fields are the scene's own numbers, to the three decimals
+    the line prints.
+    """
+    entry = {'name': 'S', 'v': _SCENE_STAR_V, 'u': _SCENE_STAR_U, 'vmag': 4.0}
+    star = star_record_from_params(entry, index=0, default_v=0.0, default_u=0.0)
+    line = _star_short_info(star)
+    assert _logged_position(line, 'V') == pytest.approx(_SCENE_STAR_V, abs=5e-4)
+    assert _logged_position(line, 'U') == pytest.approx(_SCENE_STAR_U, abs=5e-4)
 
 
 def test_a_scene_star_predicts_where_the_renderer_draws_it() -> None:

@@ -740,22 +740,44 @@ def test_predicted_centre_of_an_offset_body_keeps_the_same_half_pixel(
     assert geometry.predicted_center_vu[1] == pytest.approx(71.0, abs=1e-9)
 
 
-def test_the_reported_centre_stays_in_the_frame_the_geometry_layer_states(
-    scene: type[_SceneBackplane], tmp_path: Path
+@pytest.mark.parametrize('margin', [0, 7])
+def test_the_recorded_centre_is_the_inventory_position(
+    scene: type[_SceneBackplane], tmp_path: Path, margin: int
 ) -> None:
-    """What the model records is the field of view's own number, unconverted.
+    """What the model records is the inventory's own number for the body.
 
-    The geometry works in the array's coordinates because that is what the fit
-    measures.  A reader comparing the recorded centre against a scene file or
-    against the field of view needs the other one, so the half pixel goes back
-    on where it is reported.
+    The geometry works in the padded array's coordinates because that is what
+    the fit measures.  A reader comparing the recorded centre against a scene
+    file, an image viewer or the field of view needs the position in the image
+    itself, so the half pixel goes back on and the padding comes off.  Running
+    the same assertion under padding is what catches a margin left on.
+
+    Parameters:
+        margin: Extended-FOV padding to place the frame inside.
     """
     entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
     obs = _scene_obs(titan_entry=entry, extra={})
-    obs.extfov_margin_vu = (0, 0)
+    obs.extfov_margin_vu = (margin, margin)
     model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
     model.create_model()
     assert model.metadata['predicted_center_vu'] == pytest.approx([44.5, 71.5], abs=1e-9)
+
+
+def test_the_logged_centre_is_the_inventory_position(
+    scene: type[_SceneBackplane], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The per-image log states the centre where the document does.
+
+    An operator reads the log line and the document interchangeably, so the
+    line carries the inventory's own position in the image, with the padding
+    the geometry works in taken back off.
+    """
+    entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={})
+    obs.extfov_margin_vu = (7, 7)
+    model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
+    model.create_model()
+    assert 'Predicted center (v, u) = (44.50, 71.50)' in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

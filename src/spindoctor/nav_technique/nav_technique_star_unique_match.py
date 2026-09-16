@@ -67,6 +67,7 @@ from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     embed_rotation_unobservable,
     log_confidence_breakdown,
+    reported_position_vu,
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
@@ -695,12 +696,13 @@ class StarUniqueMatchNav(NavTechnique):
             spurious=False,
             cap=self._one_star_confidence_cap,
         )
+        reported_det = reported_position_vu(det, (margin_v, margin_u))
         self.logger.info(
             'One-star path: matched %s at (%.4f, %.4f); offset (%.4f, %.4f) '
             'px; brightness margin %.3f mag; confidence %.4f',
             brightest.feature_id,
-            det[0],
-            det[1],
+            reported_det[0],
+            reported_det[1],
             offset_v,
             offset_u,
             margin_mag,

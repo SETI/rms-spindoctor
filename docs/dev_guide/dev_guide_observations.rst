@@ -72,6 +72,17 @@ their sampling grids, so what they emit is already pixel-centric, while a star
 record outlives the model that produced it and is converted at each point of
 use instead.
 
+Every position the pipeline states to a person -- in a log line, in a
+navigation document, on an overlay label -- is pixel-corner in the nominal
+(unpadded) frame. That is the one form that compares directly against a scene
+file, an image viewer, or another program's output: a position in the extended
+frame would need the reader to know the margin too, and a pixel-centric one
+would need them to know the convention. A position inside the extended-FOV
+margin is reported as a negative number, which is where it is. Displacements
+are not positions and carry no conversion: an offset, a sigma, a smear, a
+separation, a radius, a width and a margin are the same number in either
+system.
+
 Getting this wrong is hard to detect from inside the pipeline. A navigated
 offset is the difference between a predicted position and a measured one, so a
 half-pixel error common to both cancels in everything computed from the same

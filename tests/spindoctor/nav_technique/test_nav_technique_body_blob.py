@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -23,6 +24,7 @@ from spindoctor.nav_technique.nav_technique_body_blob import (
     _clamped_kernel_radius,
     _coarse_crescent_offset,
     _coarse_disc_offset,
+    _collect_per_blob_residuals,
     _crescent_kernel,
     _disc_kernel,
     _joint_covariance,
@@ -77,6 +79,48 @@ def _make_blob_feature(
             sub_solar_dir_vu=sub_solar_dir_vu,
         ),
     )
+
+
+class _RecordingLogger:
+    """Logger stand-in keeping the arguments of every debug call."""
+
+    def __init__(self) -> None:
+        self.debug_calls: list[tuple[str, tuple[Any, ...]]] = []
+
+    def debug(self, message: str, *args: Any) -> None:
+        """Record one debug call and its arguments."""
+        self.debug_calls.append((message, args))
+
+
+def test_the_blob_line_states_both_positions_in_the_image_frame(
+    disc_image: DiscImageFactory,
+) -> None:
+    """The per-blob line names pixels of the image, not of the padded array.
+
+    The disc is drawn on the centre of row 100 and column 100 of the padded
+    array, which sits 32 rows and columns of padding in from the image's own
+    first row and column, so both the prediction and the centroid measured
+    from it are on the centre of image row 68.  A position stated to a person
+    names a row's centre by that row's number plus a half.  The coarse offset
+    between them is a difference and stays as it is.
+    """
+    drawn_vu = (100.0, 100.0)
+    image = disc_image((200, 200), drawn_vu, 8.0)
+    feature = _make_blob_feature('MIMAS', predicted_center_vu=drawn_vu, predicted_diameter_px=16.0)
+    logger = _RecordingLogger()
+    _collect_per_blob_residuals(
+        [feature],
+        image,
+        1.0,
+        0.0,
+        cast(Any, logger),
+        image_signal=np.clip(image, 0.0, None),
+        margin_vu=(32, 32),
+        prior_offset_vu=None,
+    )
+    args = logger.debug_calls[-1][1]
+    assert args[1:3] == (68.5, 68.5)
+    assert args[5:7] == (68.5, 68.5)
 
 
 def test_body_blob_recovers_planted_offset_single_blob(
