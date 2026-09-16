@@ -432,6 +432,8 @@ schemas of the dictionaries its templates declare:
 .. code-block:: yaml
 
    pds4:
+     # Abbreviated: each entry also carries the information model version and the
+     # schemas of the dictionaries its templates declare, as coiss_saturn does.
      gossi:
        template_dir: galileo_ssi_jupiter_1.0
        bundle_name: galileo_ssi_jupiter_backplanes_rsfrench2027
