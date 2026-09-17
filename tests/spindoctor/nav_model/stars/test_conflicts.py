@@ -203,6 +203,21 @@ class _FakeMeshgrid:
         return None
 
 
+@pytest.fixture(autouse=True)
+def _fresh_meshgrid_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give each test its own window recorder.
+
+    ``_FakeMeshgrid.windows`` is a class attribute, and every test that runs the
+    conflict check appends to it, so without this each test would read back its
+    predecessors' windows as well as its own.  Going through ``monkeypatch``
+    puts the pristine class list back at teardown.
+
+    Parameters:
+        monkeypatch: Replaces the recorder for the duration of one test.
+    """
+    monkeypatch.setattr(_FakeMeshgrid, 'windows', [])
+
+
 class _FakeStar:
     """Minimal star record for the conflict check."""
 
@@ -252,7 +267,6 @@ def test_the_conflict_window_is_centered_on_the_star_record_position(
     Parameters:
         monkeypatch: Patches the module's oops Meshgrid / Backplane names.
     """
-    _FakeMeshgrid.windows.clear()
     star = _run_check_one_star(
         monkeypatch,
         np.array([[60000.0, 70000.0], [95000.0, 100000.0]]),

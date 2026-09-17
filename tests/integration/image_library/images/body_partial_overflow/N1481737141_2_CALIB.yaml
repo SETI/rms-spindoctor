@@ -19,7 +19,7 @@ ground_truth:
     body_partial_overflow exemplar from cohort-curation review batch 002 (seq 021).
     Selection: DIONE | 30-60; {"apparent_diameter_px": 1161.5, "center_phase_deg": 33.843, "filter": "RED", "lat_coverage_deg": 139.5, "target": "DIONE", "year": "2004"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.392, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyDiscCorrelateNav": [-4.5, 6.9219], "BodyLimbNav": [-5.3883, 6.4939], "StarUniqueMatchNav": [-11.3827, 25.4959], "StarRefineNav": [0.0, 0.0]}.
+    Pipeline at curation: status=success, confidence=0.392, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyDiscCorrelateNav": [-4.5, 6.9219], "BodyLimbNav": [-5.3883, 6.4939], "StarUniqueMatchNav": [-11.3827, 25.4959], "StarRefineNav": [0.0, 0.0]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier.
 expected:

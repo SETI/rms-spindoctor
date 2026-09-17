@@ -85,7 +85,10 @@ orientation to turn.
 The two centers inside the optics block -- distortion.center_v / center_u and
 stray_light.center_v / center_u -- are pixel corners too.  What they name is
 where a whole-frame field is centered rather than where an object sits, and the
-same number written in either block names one point.
+same number written in either block names one point.  They do not turn with
+offset_rotation_deg: the roll moves the scene across the detector, while these
+name a place on the detector itself, so they render where the scene wrote them
+whatever the roll.
 
 Fields
 ------

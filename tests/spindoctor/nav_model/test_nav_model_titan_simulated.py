@@ -90,19 +90,41 @@ def _obs(bodies: list[dict[str, Any]], stars: list[dict[str, Any]] | None = None
 
 
 def _model_for(obs: ObsSim) -> Any:
-    """Build the simulated haze model for an observation, asserting exactly one."""
+    """Build the simulated haze model for an observation, asserting exactly one.
+
+    Parameters:
+        obs: Simulated observation to build the model against.
+
+    Returns:
+        The one simulated haze model the observation yields.
+    """
     instances = NavModelTitanSimulated.instances_for_obs(obs)
     assert len(instances) == 1
     return instances[0]
 
 
 def _model(bodies: list[dict[str, Any]], stars: list[dict[str, Any]] | None = None) -> Any:
-    """Build the simulated haze model for a scene, asserting exactly one."""
+    """Build the simulated haze model for a scene, asserting exactly one.
+
+    Parameters:
+        bodies: Body entries for the scene.
+        stars: Star entries for the scene, or None for a starless scene.
+
+    Returns:
+        The one simulated haze model the scene yields.
+    """
     return _model_for(_obs(bodies, stars))
 
 
 def _rendered_image(obs: ObsSim) -> NDArrayFloatType:
-    """The frame the simulator drew for an observation."""
+    """The frame the simulator drew for an observation.
+
+    Parameters:
+        obs: Simulated observation carrying the rendered frame.
+
+    Returns:
+        The rendered frame, as the simulator drew it.
+    """
     return np.asarray(obs.data, dtype=np.float64)
 
 

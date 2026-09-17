@@ -58,7 +58,7 @@ Theory
 
 Simulated body rendering is a controlled-input version of the same silhouette-extraction
 pipeline that drives :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`. The operator
-specifies a body in image-plane coordinates (center and per-axis radii) plus a phase /
+specifies a body in image-plane coordinates (center and per-axis full widths) plus a phase /
 lighting geometry, and the renderer paints the corresponding ellipsoidal body onto an
 extended-FOV image plus matching mask.
 
@@ -222,7 +222,7 @@ Call path traced through
 1. Open a logged section. Read the operator-supplied sim parameters off the per-instance
    dict.
 2. Convert per-axis rotations and angle parameters from degrees to radians.
-3. Call :func:`~spindoctor.nav_model.sim_body.create_simulated_body` with the per-axis radii and
+3. Call :func:`~spindoctor.nav_model.sim_body.create_simulated_body` with the per-axis full widths and
    geometry; the helper returns the rendered simulated body image.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via

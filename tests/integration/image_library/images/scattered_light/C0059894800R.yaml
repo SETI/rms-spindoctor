@@ -45,7 +45,7 @@ ground_truth:
     reflects the fit and inter-technique agreement.  The wide-offset lock is
     confidence-capped (0.6), so the fused result lands in the medium
     tier.  The residual single-detectable-star quintet frames stay failed (see
-    C0059893300R); their capability gap is tracked separately.
+    C0059893300R).
 expected:
   status: success
   confidence_tier: medium

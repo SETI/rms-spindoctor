@@ -18,7 +18,7 @@ ground_truth:
     two_bright_stars_no_body exemplar from cohort-curation review batch 002 (seq 082).
     Selection: 2004; {"filter": "CL1", "maglim": 10.5, "n_detectable": 2, "star_vmags": [8.73, 9.42, 10.99, 11.1, 11.19], "texp_s": 1.0, "year": "2004"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.771, rank=medium, techniques=['StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [3.6862, 5.7972], "StarRefineNav": [3.6961, 5.8105]}.
+    Pipeline at curation: status=success, confidence=0.771, rank=medium, techniques=['StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [3.6862, 5.7972], "StarRefineNav": [3.6961, 5.8105]}.
     Operator comment: this actually has two stars
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band. The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.

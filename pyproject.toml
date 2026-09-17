@@ -53,7 +53,11 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = [
-  "codespell",
+  # The spelling gate's configuration below leans on behavior that is not
+  # ancient: two builtin dictionaries at once, a custom dictionary that extends
+  # rather than replaces them, a narrowed word pattern, and inline
+  # `# codespell:ignore`.  Exercised with 2.4.3.
+  "codespell>=2.4",
   "coverage",
   "mypy",
   "pyinstrument",
@@ -209,7 +213,11 @@ dictionary = ".codespell-dictionary.txt,-"
 # `optical-centre` is one unknown token, and -- because this project's format
 # uses single quotes -- so is every string literal, `'colour'` included.
 regex = "[a-zA-Z]+"
-skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*.json"
+# Generated JSON only.  A blanket `*.json` also hid hand-written prose that
+# belongs in the gate -- the `rationale` fields in the Titan nominations
+# manifest, the notes in the SPICE coverage and body-radii tables, and the
+# metadata fixtures under the stats results tree.
+skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json"
 # Words the dictionaries flag that are right here.  Each is a term of art, an
 # identifier, or a spelling both dictionaries accept -- not an exception granted
 # to avoid a fix.

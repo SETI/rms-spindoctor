@@ -18,7 +18,7 @@ ground_truth:
     star_dominated exemplar from cohort-curation review batch 002 (seq 076).
     Selection: 2004 | 6; {"filter": "HAL", "maglim": 11.54, "n_detectable": 6, "star_vmags": [6.83, 6.88, 7.89, 9.41, 9.99], "texp_s": 2.6, "year": "2004"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.263, rank=low, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [3.3482, -33.6334], "StarRefineNav": [2.9437, -34.1868]}.
+    Pipeline at curation: status=success, confidence=0.263, rank=low, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [3.3482, -33.6334], "StarRefineNav": [2.9437, -34.1868]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.
 expected:

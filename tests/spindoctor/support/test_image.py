@@ -302,12 +302,13 @@ def test_draw_line() -> None:
     assert len(marked) == 6
 
 
-def test_draw_line_truncates_a_fractional_coordinate() -> None:
-    """A fractional coordinate marks the pixel that contains it, not the next one."""
+def test_draw_line_truncates_a_positive_fractional_coordinate() -> None:
+    """A positive fractional coordinate is truncated toward zero, not rounded."""
     img = np.zeros((9, 12), dtype=np.float64)
 
-    # In pixel-corner terms 3.9 lies inside pixel 3, nine tenths of the way
-    # across it; rounding to the nearer pixel center would reach row 4.
+    # ``draw_line`` converts with ``int``, so 3.9 draws on row 3.  Under the
+    # pixel-centric convention the test above pins, 3.9 lies inside pixel 4,
+    # so truncating does not name the pixel the coordinate falls in.
     draw_line(img, 1.0, 2.0, 3.9, 7.0, 3.9)
 
     marked = np.argwhere(img != 0)

@@ -169,9 +169,10 @@ the mask there would suppress good stars. The ``saturated`` and
 ``in_saturation_or_cosmic_mask`` flags therefore stay clear. Star usability is an
 occlusion-only gate.
 
-Conflict-flagged stars stay in the model's list (so the curator surfaces them in the
-sidecar) but are excluded from the autonomous matching path by the upstream
-``usable_stars`` filter consulted by every star technique.
+Conflict-flagged stars stay in the model's list, so the conflict entries the model
+records in ``model_metadata`` and the per-image log's star list still name them, but
+they are excluded from the autonomous matching path by the upstream ``usable_stars``
+filter consulted by every star technique.
 
 Magnitude detectability gate
 ----------------------------
@@ -503,7 +504,8 @@ per-image log, whose final star list prints one line per surviving star:
   ring-occlusion flag string built from the per-star conflict marking step). ``u`` and
   ``v`` are pixel-corner coordinates in the nominal (unpadded) frame, straight off the
   record (see :ref:`coordinate-systems`); the matching STAR feature's
-  ``predicted_vu`` is the same point converted to pixel-centric and shifted by the
+  :attr:`~spindoctor.feature.geometry.StarGeometry.predicted_vu` is the same point
+  converted to pixel-centric and shifted by the
   extended-FOV margin, for the techniques that measure the array.
   The two
   ``photometry_*`` booleans are the bright-end saturation provenance:

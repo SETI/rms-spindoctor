@@ -19,7 +19,7 @@ ground_truth:
     ring_plus_body exemplar from cohort-curation review batch 001 (seq 054).
     Selection: PAN | 30-60 | 30.0; {"apparent_diameter_px": 81.0, "center_phase_deg": 53.242, "filter": "CL1", "ring_edges_in_frame": ["encke_gap.inner", "encke_gap.outer"], "ring_opening_deg": 25.25, "target": "PAN", "year": "2017"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'RingEdgeNav'], per-technique offsets={"RingEdgeNav": [50.506, 6.3468], "BodyBlobNav": [2.9556, -0.7972], "BodyTerminatorNav": [-1.6716, 4.739]}.
+    Pipeline at curation: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'RingEdgeNav'], per-technique offsets={"RingEdgeNav": [50.506, 6.3468], "BodyBlobNav": [2.9556, -0.7972], "BodyTerminatorNav": [-1.6716, 4.739]}.
 expected:
   status: success
   confidence_tier: medium
