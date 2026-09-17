@@ -45,7 +45,7 @@
             <Modification_Detail>
                 <modification_date>$CURRENT_ZULU(date_only=True)$</modification_date>
                 <version_id>1.0</version_id>
-                <description>Initial version.</description>
+                <description>Initial version</description>
             </Modification_Detail>
         </Modification_History>
     </Identification_Area>
@@ -121,15 +121,9 @@
                         <geom:spice_kernel_file_name>kernels.ker</geom:spice_kernel_file_name>
                     </geom:SPICE_Kernel_Identification>
                     <geom:comment>
-                        TODO Have to figure out how to handle kernels in this dataset.
-                        This metakernel file lists all SPICE kernels used in the
-                        generation of the derived data products in the parent bundle. Some
-                        of them may not have been used directly in the generation of this
-                        product. The relevant C-kernel identified in the metakernel
-                        provided initial pointing information, which has been refined and
-                        is superseded by the pointing information in the C-matrix
-                        described in File_Area_Observational_Supplemental below. In all
-                        cases, the base coordinate frame is J2000.
+                        The metakernel kernels.ker, in the spice_kernels collection of this
+                        bundle, lists no SPICE kernels: which kernels it lists has not been
+                        decided.
                     </geom:comment>
                 </geom:SPICE_Kernel_Files>
             </geom:Geometry>
@@ -138,7 +132,7 @@
     </Observation_Area>
     <Reference_List>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:backplanes-user-guide</lid_reference>
+            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide</lid_reference>
             <reference_type>data_to_document</reference_type>
             <comment>
                 This is the user guide for the backplanes for navigated images from Cassini ISS at Saturn.

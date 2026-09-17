@@ -117,7 +117,7 @@
             <Modification_Detail>
                 <modification_date>$CURRENT_ZULU(date_only=True)$</modification_date>
                 <version_id>1.0</version_id>
-                <description>Initial version.</description>
+                <description>Initial version</description>
             </Modification_Detail>
         </Modification_History>
     </Identification_Area>
@@ -150,15 +150,6 @@
                 </Internal_Reference>
             </Observing_System_Component>
             <Observing_System_Component>
-                <name>Imaging Science Subsystem - Wide Angle</name>
-                <type>Instrument</type>
-                <description>ISSWA</description>
-                <Internal_Reference>
-                    <lid_reference>urn:nasa:pds:context:instrument:isswa.co</lid_reference>
-                    <reference_type>is_instrument</reference_type>
-                </Internal_Reference>
-            </Observing_System_Component>
-            <Observing_System_Component>
                 <name>Imaging Science Subsystem - Narrow Angle</name>
                 <type>Instrument</type>
                 <description>ISSNA</description>
@@ -167,12 +158,21 @@
                     <reference_type>is_instrument</reference_type>
                 </Internal_Reference>
             </Observing_System_Component>
+            <Observing_System_Component>
+                <name>Imaging Science Subsystem - Wide Angle</name>
+                <type>Instrument</type>
+                <description>ISSWA</description>
+                <Internal_Reference>
+                    <lid_reference>urn:nasa:pds:context:instrument:isswa.co</lid_reference>
+                    <reference_type>is_instrument</reference_type>
+                </Internal_Reference>
+            </Observing_System_Component>
         </Observing_System>
         <!-- TODO Need to add targets here -->
     </Context_Area>
     <Reference_List>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:backplanes-user-guide</lid_reference>
+            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide</lid_reference>
             <reference_type>collection_to_document</reference_type>
             <comment>
                 This is the user guide for the backplanes for navigated images from
