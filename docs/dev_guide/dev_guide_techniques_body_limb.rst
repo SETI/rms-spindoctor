@@ -11,7 +11,7 @@ each polyline against the image's edge-distance-transform. The technique consume
 :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` feature offered by the orchestrator,
 weights each vertex by its prior-precision sigma, and runs a coarse normalised-cross-correlation
 search followed by a Tukey-reweighted Levenberg-Marquardt refinement. The output is the
-joint translation that minimises the summed weighted squared distance from the model polylines
+joint translation that minimizes the summed weighted squared distance from the model polylines
 to the image edges, plus a covariance derived from the M-estimator information matrix at
 convergence.
 
@@ -32,7 +32,7 @@ the cost function and conventions specific to the limb fit.
 Cost function
 -------------
 
-The technique minimises
+The technique minimizes
 
 .. math::
 
@@ -88,7 +88,7 @@ Restrictions and assumptions
   bright-on-dark gradient direction; this is correct for every supported instrument's body
   scenes.
 - Multi-body inputs are fused into a single translation by concatenating their per-vertex
-  arrays. The joint-translation parameterisation cannot represent disagreement between bodies
+  arrays. The joint-translation parameterization cannot represent disagreement between bodies
   about the offset; if SPICE relative geometry is wrong (a body misidentification, a stale SPK)
   the joint fit walks toward the higher-vertex-count body and the lower-vertex body's residuals
   appear as outliers the Tukey weight zeroes out.
@@ -260,7 +260,7 @@ combination, see :doc:`dev_guide_techniques_confidence` for the per-term arithme
   convergence; smaller is sharper.
 - :attr:`~spindoctor.nav_technique.diagnostics.BodyLimbDiagnostics.visible_arc_px` — alpha = 0.776,
   offset = 0.0, divisor = 440.0, cap at 1.0. Total surviving polyline length in pixels,
-  capped after normalisation. More polyline earns confidence up to a 440-pixel saturation
+  capped after normalization. More polyline earns confidence up to a 440-pixel saturation
   point (calibration campaign raw p5/p50/p95 = 150/280/433).
 
 Hard-zero gate: :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious` either firing forces the confidence to zero before

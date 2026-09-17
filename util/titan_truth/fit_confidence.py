@@ -8,7 +8,7 @@ exists to handle:
 - **The label population is the wrong one.**  What the anchors have to do is
   separate the rows that are wrong by more than twice a stated per-axis bound
   while still calling themselves confident.  Those rows are a handful out of
-  several hundred, so an unweighted fit optimises the bulk and leaves them
+  several hundred, so an unweighted fit optimizes the bulk and leaves them
   exactly where they were.  This script up-weights them.
 - **One coefficient does not transfer.**  Left unbounded, the fit drives the
   arc-residual alpha to -15.12, which is a near-hard gate at half a pixel
@@ -46,7 +46,7 @@ sys.path.insert(0, str(REPO / 'src'))
 
 TECHNIQUE = 'TitanHazeNav'
 
-# The spec's terms, their normalisation, and the sign / magnitude bounds the
+# The spec's terms, their normalization, and the sign / magnitude bounds the
 # fit runs under.  Order matches config_510_techniques.yaml.
 TERMS: tuple[tuple[str, float, float, float, tuple[float, float]], ...] = (
     ('symmetry_peak_score', 0.0, 1.0, 1.0, (0.0, 6.0)),

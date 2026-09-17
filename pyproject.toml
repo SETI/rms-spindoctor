@@ -53,6 +53,7 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = [
+  "codespell",
   "coverage",
   "mypy",
   "pyinstrument",
@@ -190,6 +191,28 @@ markers = [
   "postgres: requires a PostgreSQL server named by SPINDOCTOR_TEST_POSTGRES_URL",
   "slow: per-image library regression test",
 ]
+
+[tool.codespell]
+# Two dictionaries: the default typo list, and the British-to-American list that
+# enforces `.cursor/rules/doc_python.mdc`'s spelling rule.
+builtin = "clear,en-GB_to_en-US"
+skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*.json"
+# Words the dictionaries flag that are right here.  Each is a term of art, an
+# identifier, or a spelling both dictionaries accept -- not an exception granted
+# to avoid a fix.
+#   fom            figure of merit
+#   precess*       orbital precession, not processing
+#   trough         a ring trough is a feature, not a preposition
+#   retuned        re-tuned, which is what the sentence means
+#   commnt         the NAIF utility is spelled that way
+#   uncorrect      a public method: the inverse of `correct`
+#   disjointness   the set-theoretic property
+#   unparseable    a spelling standard dictionaries accept
+#   writeable      numpy spells its array flag that way
+#   bu, nd, emiss  identifiers (a u-axis pair, `scipy.ndimage as nd`, emission)
+#   dialogue       a conversation with the operator; the widget sense is
+#                  already spelled `dialog` throughout the UI package
+ignore-words-list = "fom,precess,precessed,precesses,precessing,trough,retuned,commnt,uncorrect,disjointness,unparseable,bu,nd,emiss,re-uses,re-declaring,dialogue,writeable"
 
 [tool.ruff]
 src = ["src", "tests"]

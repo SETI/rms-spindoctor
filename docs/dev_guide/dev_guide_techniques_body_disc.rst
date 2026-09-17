@@ -42,7 +42,7 @@ Cost function
 
 Let :math:`T` be the composite template image and :math:`M` the composite template mask.
 Let :math:`I` be the observed image (or a mode-selected gradient of it; see below). The
-technique maximises the normalized cross-correlation
+technique maximizes the normalized cross-correlation
 
 .. math::
 
@@ -159,7 +159,7 @@ Restrictions and assumptions
   high-contrast template.
 - The rotation-aware schedule assumes the rotation pivot is well-defined. When every
   consumed body has a degenerate centroid (single-pixel bodies) the pivot collapses to the
-  image centre.
+  image center.
 
 Sources of uncertainty
 ----------------------

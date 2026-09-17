@@ -269,7 +269,7 @@ A single :class:`~spindoctor.obs.obs_snapshot.ObsSnapshot` is therefore **not
 safe for concurrent use across threads**. Two threads that simultaneously
 sample backplanes through the same snapshot can race on the cache and
 return inconsistent or partially-populated arrays. Code that needs to
-parallelise over a single image must give each thread its own
+parallelize over a single image must give each thread its own
 :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` -constructed snapshot
 instance; the navigation pipeline runs serially per image, so the
 single-threaded contract is sufficient for the orchestrator's own use.

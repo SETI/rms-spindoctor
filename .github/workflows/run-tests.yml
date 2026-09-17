@@ -46,6 +46,10 @@ jobs:
         run: |
           pymarkdown scan docs/ .cursor/ README.md CONTRIBUTING.md
 
+      - name: Codespell
+        run: |
+          codespell src tests docs util experiments scripts README.md CONTRIBUTING.md .cursor
+
   test:
     name: Test rms-spindoctor
     runs-on: ${{ matrix.os }}

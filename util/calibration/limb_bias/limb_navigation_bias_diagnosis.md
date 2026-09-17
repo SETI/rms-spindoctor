@@ -27,7 +27,7 @@ residual limb-fit error is purely algorithmic. Findings:
   roughly one-pixel period in the sub-pixel offset phase) rides on top of the
   directional bias.
 - The **simulator's own body renderer is clean**: its intensity-weighted
-  centroid matches the requested geometric centre to better than 2e-5 px, so
+  centroid matches the requested geometric center to better than 2e-5 px, so
   the sim can be trusted as ground truth. The bias is therefore in the
   navigation code path, not the fixture.
 - On real frames the **limb-minus-star gap is 0.5 to 1.8 px**, far larger than
@@ -72,18 +72,18 @@ algorithmic bias, not a per-frame noise draw. Probe defaults: 160 px diameter,
 ## Block 1: simulator renderer validation (constraint 3)
 
 Rendered a fully-lit (phase 0) sphere directly through the renderer at a range
-of sub-pixel centres and measured its intensity-weighted centroid. A phase-0
+of sub-pixel centers and measured its intensity-weighted centroid. A phase-0
 sphere is radially symmetric, so its brightness centroid must equal its
-geometric centre; any offset would be a renderer-baked positional bias. The
-renderer places pixel index `i` at coordinate `i + 0.5`, so a requested centre
-`c` lands the geometric centre at pixel index `c - 0.5`.
+geometric center; any offset would be a renderer-baked positional bias. The
+renderer places pixel index `i` at coordinate `i + 0.5`, so a requested center
+`c` lands the geometric center at pixel index `c - 0.5`.
 
-Result: worst-case centroid error **1.4e-5 px** across all sub-pixel centres
+Result: worst-case centroid error **1.4e-5 px** across all sub-pixel centers
 tested (`renderer_validation.csv`). The renderer is clean to far better than
 0.1 px; the sim is a trustworthy ground truth.
 
 Separately, along a scan through a phase-0 limb, the brightness **gradient
-ridge** (the steepest-slope point that the edge distance transform localises)
+ridge** (the steepest-slope point that the edge distance transform localizes)
 sits about **0.5 px inside** the geometric limb. This is the mechanism, not a
 renderer bug: the limb-darkened brightness already rolls off approaching the
 geometric limb, so the steepest slope is inboard of the true silhouette
@@ -111,7 +111,7 @@ sunlit limb toward the body interior. See `bias_vs_illumination.png`.
 | 315 | +0.096 | +0.095 | 0.136 |
 
 At illumination 90 deg (light from +u, sunlit limb on the +u side) the bias
-points -u, back toward the body centre; at 180 deg (light from +v) it points
+points -u, back toward the body center; at 180 deg (light from +v) it points
 -v. The direction tracking illumination is the defining signature of a
 photometric / limb-darkening edge-model mismatch. A fixed component of about
 0.04 px (tied to the fixed 0.3, 0.3 sub-pixel offset) rides on top, which is
@@ -240,7 +240,7 @@ directional translational bias.
 
 4. **Audit the pixel-centre convention across model outputs (hygiene).** The
    simulated body's `BODY_DISC` predicted-centre metadata is recorded at
-   `center` while the renderer places the geometric centre at `center - 0.5`.
+   `center` while the renderer places the geometric center at `center - 0.5`.
    The limb path reads the rendered mask directly and is not affected, but the
    half-pixel convention should be standardized across every model output as
    part of the redesign so a future consumer does not inherit the discrepancy.

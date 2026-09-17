@@ -65,7 +65,7 @@ Restrictions and assumptions
   rate). The reliability gate's occlusion term still applies the same way the parent
   computes it; the saturation / cosmic-ray mask is not consulted to gate stars in either
   the parent or the simulated model.
-- The synthesised effective SNR follows the parent's magnitude-margin formula against
+- The synthesized effective SNR follows the parent's magnitude-margin formula against
   ``obs.star_max_usable_vmag()``; on a simulated observation that limit is generous, so
   reliability saturates toward 1.0 and the recovered *offset* -- not the calibrated
   confidence -- is the quantity the simulated star tests assert.
