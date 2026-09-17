@@ -303,7 +303,7 @@ def _run_manual_pass(
             if result is None:
                 # ``run_manual_nav`` already logged the precise reason
                 # (no renderable features, empty composed overlay, or
-                # operator cancelled).  No metadata or PNG is written.
+                # operator canceled).  No metadata or PNG is written.
                 sys.exit(2)
 
             assert result.offset_px is not None  # status='success' guarantees offset

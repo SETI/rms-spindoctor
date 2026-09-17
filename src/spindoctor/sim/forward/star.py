@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 # The brightest magnitude the sky-count inverse-CDF samples down from.  A star
-# this bright is astronomically rare at the modelled counts (b > 0 weights the
+# this bright is astronomically rare at the modeled counts (b > 0 weights the
 # distribution toward faint stars), so the exact value only bounds the sampler.
 _SKY_BRIGHT_CUTOFF_MAG = -2.0
 
@@ -111,7 +111,7 @@ def _deposit_point_mass(
     ``(v, u)``, which it reads pixel centric because it writes into the array:
     a whole number falls on a pixel's center.  A non-zero motion vector
     distributes the mass evenly along the
-    centred drift track (a per-star smear the whole-scene optics stage does not
+    centered drift track (a per-star smear the whole-scene optics stage does not
     apply).
 
     Parameters:

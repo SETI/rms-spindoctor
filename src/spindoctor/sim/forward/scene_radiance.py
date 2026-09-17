@@ -119,7 +119,7 @@ def compose_scene_radiance(
     point_e = frame.point_e
     size_v, size_u = img.shape
     # The signal plane is the oversampled grid (V*os, U*os).  Every pixel-space
-    # quantity below (offsets, centres, radii, PSF sigmas, anti-aliasing widths)
+    # quantity below (offsets, centers, radii, PSF sigmas, anti-aliasing widths)
     # is scaled by ``os`` so the radiance renders at the oversampled resolution;
     # the box downsample after optics returns it to the detector grid.  At
     # ``os == 1`` every scale factor is an exact multiply-by-one, so a scene
@@ -198,7 +198,7 @@ def compose_scene_radiance(
 
     # The camera roll and the planted spacecraft-ephemeris parallax are both
     # detector-space displacements; geometry is built in detector coordinates
-    # about the detector centre, then multiplied by ``os`` for the oversampled
+    # about the detector center, then multiplied by ``os`` for the oversampled
     # render.  The parallax of an object at physical range R km is the planted
     # image-plane error scaled by reference_range_km / R (near objects move
     # more than far ones); stars carry no such shift.
@@ -218,8 +218,8 @@ def compose_scene_radiance(
         return spk_dv * factor, spk_du * factor
 
     # Process bodies: assign default ranges, apply parallax and the camera roll,
-    # and scale centres and axes to the oversampled grid.  A roll rotates each
-    # body's centre about the boresight and adds to its line-of-sight pose
+    # and scale centers and axes to the oversampled grid.  A roll rotates each
+    # body's center about the boresight and adds to its line-of-sight pose
     # (rotation_z), so a body moves and turns under the same pointing rotation
     # the stars do; the body NavModel predicts the unrolled geometry.
     bodies_with_ranges = []

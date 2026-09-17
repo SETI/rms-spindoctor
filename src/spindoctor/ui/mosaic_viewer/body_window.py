@@ -107,8 +107,8 @@ def _colorby_tint(
 
     Parameters:
         data: 2-D array (or masked array) of per-pixel scalar metadata values.
-        vmin: Lower clamp for the colour ramp; defaults to nanmin.
-        vmax: Upper clamp for the colour ramp; defaults to nanmax.
+        vmin: Lower clamp for the color ramp; defaults to nanmin.
+        vmax: Upper clamp for the color ramp; defaults to nanmax.
 
     Returns:
         Array of shape ``(n_rows, n_cols, 3)`` with float32 values in ``[0, 1]``.
@@ -913,7 +913,7 @@ class BodyMosaicWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_colorby_changed(self, btn: Any) -> None:
-        """Apply or clear the metadata colour tint on the image from the color-by choice."""
+        """Apply or clear the metadata color tint on the image from the color-by choice."""
         if btn is None or self._display_data is None:
             self._image_widget.set_color_tint(None)
             return
@@ -927,13 +927,13 @@ class BodyMosaicWindow(QMainWindow):
         self._on_colorby_changed(self._colorby_group.checkedButton())
 
     def _tint_with_alpha(self, tint: np.ndarray | None) -> np.ndarray | None:
-        """Blend ``tint`` toward grey using ``self._colorby_alpha`` (or pass through)."""
+        """Blend ``tint`` toward gray using ``self._colorby_alpha`` (or pass through)."""
         if tint is None or self._colorby_alpha >= 1.0:
             return tint
         return (self._colorby_alpha * tint + (1.0 - self._colorby_alpha)).astype(np.float32)
 
     def _compute_color_tint(self, key: str, dd: BodyDisplayData) -> np.ndarray | None:
-        """Return per-pixel RGB tint (n_rows, n_cols, 3) float32, or None for greyscale.
+        """Return per-pixel RGB tint (n_rows, n_cols, 3) float32, or None for grayscale.
 
         Parameters:
             key: Colorby radio button key string.

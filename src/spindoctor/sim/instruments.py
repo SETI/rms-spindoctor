@@ -91,7 +91,7 @@ def resolve_sim_inst_config(
         are supplied, otherwise the live config block).
 
     Raises:
-        ValueError: If ``instrument`` is unrecognised, or the referenced config
+        ValueError: If ``instrument`` is unrecognized, or the referenced config
             section / detector is missing.
     """
     base = _resolve_base_block(config, instrument)

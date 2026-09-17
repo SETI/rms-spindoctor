@@ -363,7 +363,7 @@ def _log_outcome(counts: IngestCounts, *, pruned: bool | None) -> None:
     navigation results that would not parse are not, and the tally is what
     tells the two apart at a glance.  Each reason names one file that carried
     it, because a reason is a field-level diagnosis and one look at a real file
-    is what turns it into a judgement about the tree.
+    is what turns it into a judgment about the tree.
 
     Parameters:
         counts: What the pass did.

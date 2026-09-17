@@ -874,7 +874,7 @@ def finish_single_body(
         half_extent_u: Projected half-extent of the silhouette along u.
         ref_center_v: Reference center V the shape was rendered at.
         ref_center_u: Reference center U the shape was rendered at.
-        halo: The body's translucent halo screen at the reference centre, or
+        halo: The body's translucent halo screen at the reference center, or
             None for a body without an atmosphere.
 
     Returns:
@@ -885,7 +885,7 @@ def finish_single_body(
     dv = center_v - ref_center_v
     du = center_u - ref_center_u
     # An exactly zero translation is the bitwise identity for the order-1
-    # spline, so a body already at the reference centre skips the full-frame
+    # spline, so a body already at the reference center skips the full-frame
     # interpolation (the shape is only read, never written).
     if dv == 0.0 and du == 0.0:
         positioned_body = body_shape

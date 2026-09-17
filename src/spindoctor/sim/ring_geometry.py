@@ -6,7 +6,7 @@ and the navigator-side predicted-ring renderer
 ``spindoctor.nav_model.nav_model_rings_simulated``) must place a feature
 edge at byte-identical pixel positions: the same true-anomaly convention,
 the same pericenter precession, the same m-mode and edge-wave forms, and
-the same pixel-center rasterisation.  With shared conventions the planted
+the same pixel-center rasterization.  With shared conventions the planted
 scene error is the only error in a recovery measurement.
 
 The ring-plane projection helpers here are the single implementation of the
@@ -566,7 +566,7 @@ def compute_antialiasing_shade(edge_dist: NDArrayFloatType, resolution: float) -
         edge_dist: Signed distance from pixel center to the edge (positive =
             inside the covered feature, negative = outside).
         resolution: Pixel resolution for anti-aliasing (the shade ramps over
-            one such window centred on the edge).
+            one such window centered on the edge).
 
     Returns:
         Anti-aliasing shade value [0, 1]; 0.5 means the pixel center sits
