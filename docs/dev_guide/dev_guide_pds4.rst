@@ -64,7 +64,8 @@ The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
 label in place before it can build the inventory).
 
-``sd_create_bundle check`` then holds the bundle the two phases wrote to PDS4, reading
+``sd_create_bundle check`` then holds the bundle the two phases wrote to the PDS4
+standard, reading
 its tree and the schemas its labels name, and writes nothing in the tree (see `Checking
 a bundle`_).  Before phase 1, ``sd_create_bundle labels --check-only`` reports whether
 each selected image has the files phase 1 reads, and writes no label, log or bundle
@@ -976,7 +977,8 @@ pass that got past that check is one that pass wrote.
 Checking a bundle
 =================
 
-``sd_create_bundle check`` holds a bundle the two passes wrote to PDS4, through
+``sd_create_bundle check`` holds a bundle the two passes wrote to the PDS4 standard,
+through
 :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`.  It reads the bundle's tree
 and the schemas its labels name, fetched by URL or read from a directory, and writes
 nothing in the tree.  Each way the tree departs
