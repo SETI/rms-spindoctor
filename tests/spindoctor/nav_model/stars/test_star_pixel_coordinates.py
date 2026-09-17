@@ -60,12 +60,26 @@ def _boresight_uv() -> float:
 
 
 def _boresight_centric() -> float:
-    """Return the middle of the detector axis in pixel centric coordinates."""
+    """Return the middle of the detector axis in pixel centric coordinates.
+
+    Returns:
+        ``(_FOV_SIZE - 1) / 2``, the array's own middle, which is the same
+        point the field of view reports as its boresight.
+    """
     return (_FOV_SIZE - 1) / 2.0
 
 
 def _star_image(v_pos: float, u_pos: float) -> np.ndarray:
-    """Return a frame holding one round Gaussian star at a pixel centric position."""
+    """Return a frame holding one round Gaussian star at a pixel centric position.
+
+    Parameters:
+        v_pos: Row of the star's centre, pixel centric.
+        u_pos: Column of the star's centre, pixel centric.
+
+    Returns:
+        A ``_FOV_SIZE`` square float frame whose only content is that star,
+        symmetric about the position given, so its centroid is that position.
+    """
     vs = np.arange(_FOV_SIZE, dtype=np.float64)[:, np.newaxis]
     us = np.arange(_FOV_SIZE, dtype=np.float64)[np.newaxis, :]
     r2 = (vs - v_pos) ** 2 + (us - u_pos) ** 2
