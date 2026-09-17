@@ -878,7 +878,7 @@ interrupts its synthetic ramp of longitudes; its plain range is 0 to 360.
 took each plane's statistics before the merge, which then masks a ring pixel a nearer
 body covers and gives a pixel two bodies share to the nearer, so the metadata, the data
 label and Phase 7's index tables stated ranges over pixels the product's own arrays have
-no value at: N1671602206 was labelled with a ring longitude of 10.767 to 258.852 where
+no value at: N1671602206 was labeled with a ring longitude of 10.767 to 258.852 where
 its FITS spans 241.932 to 258.852, and a greatest radial resolution of 3818.0 km against
 1151.4.  The writer now takes every statistic from the planes the FITS holds, over the
 pixels where each has a value: a body's over the pixels the body identity map gives it,
@@ -2556,7 +2556,7 @@ configuration, the ring longitude and its resolution are in radians.  Each new o
 test was driven red by a mutation: forty-one, all killed.
 
 Real frames, re-navigated so that their documents record the exposure times, then
-backplaned and labelled with this code: every ring value the data labels of N1671602206
+backplaned and labeled with this code: every ring value the data labels of N1671602206
 and W1626850595 state equals its FITS array's, thirty of thirty, N1671602206's ring
 longitude now 241.932 to 258.852 deg and its greatest radial resolution 1151.4 km.  The
 code review's star-only frame N1607625633 is skipped, the labels pass exiting 0 with

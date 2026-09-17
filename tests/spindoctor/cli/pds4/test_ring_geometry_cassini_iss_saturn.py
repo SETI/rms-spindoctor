@@ -47,7 +47,7 @@ def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
     return mini_nav_cohorts(CohortCassiniISSSaturn)
 
 
-def _labelled(cohort: Cohort, tmp_path: Path, stub: str) -> ElementTree.Element:
+def _labeled(cohort: Cohort, tmp_path: Path, stub: str) -> ElementTree.Element:
     """Label one cohort image with the shipped templates and return its data label's root.
 
     Parameters:
@@ -99,7 +99,7 @@ def test_only_the_ring_image_s_data_label_states_the_ring_geometry(
     cassini_cohort: Cohort, tmp_path: Path, stub: str, count: int
 ) -> None:
     """The image with ring backplanes states the ring geometry, and the other none."""
-    root = _labelled(cassini_cohort, tmp_path, stub)
+    root = _labeled(cassini_cohort, tmp_path, stub)
     assert len(root.findall(RING_SYSTEMS, NAMESPACES)) == count
 
 
@@ -117,7 +117,7 @@ def test_the_ring_geometry_states_each_ring_statistic_and_the_incidence_angle(
     rings = json.loads(metadata_path.read_text(encoding='utf-8'))['rings']
     statistics = rings['backplanes']
     incidence = rings['incidence_angle']
-    geometry = _labelled(cassini_cohort, tmp_path, RINGS_STUB).find(GEOMETRY, NAMESPACES)
+    geometry = _labeled(cassini_cohort, tmp_path, RINGS_STUB).find(GEOMETRY, NAMESPACES)
     assert geometry is not None
     stated = _stated(geometry)
 
@@ -166,7 +166,7 @@ def test_the_ring_geometry_is_in_the_plane_of_saturn_s_equator_at_the_image_s_mi
     The basis epoch is the midpoint of the start and the stop the label states, as the
     label's midtime is written.
     """
-    root = _labelled(cassini_cohort, tmp_path, RINGS_STUB)
+    root = _labeled(cassini_cohort, tmp_path, RINGS_STUB)
     time_coordinates = 'pds:Observation_Area/pds:Time_Coordinates'
     start = root.findtext(f'{time_coordinates}/pds:start_date_time', namespaces=NAMESPACES)
     stop = root.findtext(f'{time_coordinates}/pds:stop_date_time', namespaces=NAMESPACES)
