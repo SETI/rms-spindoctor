@@ -2113,7 +2113,7 @@ Details settled during execution, none of them a change of intent:
   member carries a phrase that identifies it, and a test binds that phrase to
   the entry carrying it and to that entry's place in the list, then compares the
   four lists entry for entry. So an entry deleted, an entry that states two
-  members because a neighbour absorbed the deleted one's phrase, an entry that
+  members because a neighbor absorbed the deleted one's phrase, an entry that
   states none, a member added to one list and not the others, and a list whose
   members come in another order all fail. What that test cannot check is whether
   an entry tells the truth about the member it states: an entry that keeps its

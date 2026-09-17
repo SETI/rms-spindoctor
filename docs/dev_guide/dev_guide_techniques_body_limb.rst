@@ -9,7 +9,7 @@ Overview
 from one or more body limb polylines by aligning
 each polyline against the image's edge-distance-transform. The technique consumes every
 :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` feature offered by the orchestrator,
-weights each vertex by its prior-precision sigma, and runs a coarse normalised-cross-correlation
+weights each vertex by its prior-precision sigma, and runs a coarse normalized-cross-correlation
 search followed by a Tukey-reweighted Levenberg-Marquardt refinement. The output is the
 joint translation that minimizes the summed weighted squared distance from the model polylines
 to the image edges, plus a covariance derived from the M-estimator information matrix at
@@ -349,7 +349,7 @@ Call path traced through
 4. Decide whether to fit camera rotation by reading
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`. When rotation
    is fit, the rotation pivot is set to the
-   centroid of the concatenated vertices and the pivot-to-image-centre distance is computed
+   centroid of the concatenated vertices and the pivot-to-image-center distance is computed
    via :func:`~spindoctor.nav_technique.nav_technique.rotation_pivot_distance_px` for the convergence
    test.
 5. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine` with the polyline,

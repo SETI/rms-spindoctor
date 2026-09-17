@@ -91,7 +91,7 @@ Per-term breakdown
 
 The evaluator can return a per-term contribution trace alongside the calibrated confidence.
 The trace records, for each term, the raw attribute value, the normalized value, the alpha,
-and the resulting alpha-times-normalised contribution to the sigmoid argument. Logging this
+and the resulting alpha-times-normalized contribution to the sigmoid argument. Logging this
 trace at INFO when confidence falls below a threshold gives an operator a one-line diagnostic
 of which term (or which hard-zero gate) drove the result down.
 

@@ -227,7 +227,7 @@ Call path traced through
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask
-   neighbour-shift helper.
+   neighbor-shift helper.
 6. Promote the rendered image and the masks from sensor-shaped arrays to extfov-shaped
    arrays (zero-padded for the extfov margin).
 7. Record the predicted center, the subject range, and the bounding box on the model's

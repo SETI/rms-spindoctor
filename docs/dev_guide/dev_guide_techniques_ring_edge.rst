@@ -316,7 +316,7 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   bound).
 - ``gradient_ridge_refine`` — int flag, default ``1`` (ON). Final continuous
   gradient-ridge sub-pixel refinement after the DT LM converges. The binary edge mask
-  quantises detected edges to the integer pixel grid, so on dense real ring scenes many
+  quantizes detected edges to the integer pixel grid, so on dense real ring scenes many
   model vertices land exactly on edge pixels, where the DT is zero and carries no
   gradient to step along; the continuous pass refines against the un-thresholded gradient
   magnitude, recovering the sub-pixel offset the quantized DT discards. The pass shares

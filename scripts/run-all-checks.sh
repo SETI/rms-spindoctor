@@ -366,7 +366,7 @@ run_markdown_checks() {
     source "$VENV/bin/activate"
 
     print_info "Running codespell (typos and British spellings)..."
-    if python -m codespell_lib src tests docs util experiments scripts README.md CONTRIBUTING.md .cursor; then
+    if python -m codespell_lib src tests docs util experiments scripts plans README.md CONTRIBUTING.md .cursor; then
         print_success "codespell passed"
     else
         print_error "codespell failed"
@@ -426,7 +426,7 @@ run_docs_build() {
 
     local codespell_failed=false
     print_info "Running codespell (typos and British spellings)..."
-    if python -m codespell_lib src tests docs util experiments scripts README.md CONTRIBUTING.md .cursor; then
+    if python -m codespell_lib src tests docs util experiments scripts plans README.md CONTRIBUTING.md .cursor; then
         print_success "codespell passed"
     else
         print_error "codespell failed"

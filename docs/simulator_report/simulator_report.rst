@@ -110,7 +110,7 @@ blob, a little past it to show the degradation.
 
 ``BodyBlobNav`` previously stopped at ~6 px (the predicted bounding box plus its
 per-body slop), past which the brightness-weighted centroid clipped and silently
-biased. A coarse lit-shape correlation now re-centres each blob's box on the body
+biased. A coarse lit-shape correlation now re-centers each blob's box on the body
 across the full search window before the centroid is taken, so the capture range
 matches the other techniques (recovery holds to a few hundredths of a pixel out to the
 extfov margin on the low-phase ``small_sphere_base`` sweep). The template tracks phase:
@@ -1118,7 +1118,7 @@ method: the mirror-correlation scan searches the whole margin and the arc fit
 recentres once, so nothing degrades across the range. The **blob now holds across the navigable
 range too**: for the 20 px body it stays under ~0.01 px out to ~45 px, where it
 was previously a ~6 px small-offset technique (degrading to ~5.8 px at 20 px) --
-the blob-shaped-disc coarse acquisition re-centres the integration window on the
+the blob-shaped-disc coarse acquisition re-centers the integration window on the
 body before the centroid, so the body no longer clips out of the predicted bbox.
 The disc template models only a near-full disc, so this holds for bodies at least
 half-lit; a high-phase crescent beyond its bbox still needs a prior. See
@@ -1439,7 +1439,7 @@ transform but no model mismatch (the shape- and pose-mismatch sweeps are the
 exceptions), so each clean-recovery number is a point on the self-consistency
 floor.  Real accuracy is what the navigator achieves when the frame it sees
 differs from the model it assumes.  The sweeps here drive one render-vs-navigate
-mismatch at a time -- the axes catalogued below -- and report the recovery
+mismatch at a time -- the axes cataloged below -- and report the recovery
 error as a function of that mismatch; the accuracy-vs-mismatch curve is the
 product.
 

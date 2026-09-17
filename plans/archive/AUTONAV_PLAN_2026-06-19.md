@@ -47,7 +47,7 @@ record across all open issues now lives in `plans/ROADMAP.md`.
   kernel hot path)** was not filed (perf-only); **§7 shape integration** is
   tracked by #23.
 - A first pass of these issues was created pre-review as #159-#171; those were
-  closed as duplicates/superseded in favour of the reviewed set above.
+  closed as duplicates/superseded in favor of the reviewed set above.
 
 **On the path to the goal:** producing a full set of **SPICE CK kernels with
 updated pointing** as a delivered product is tracked by #188 (#50, internal
@@ -1064,7 +1064,7 @@ RORO compliance, D5 inline-imports rule, D8 falsy-check rule, D9 getattr,
 D11 Annotations carve-out, E3 sphinx clean target, E5 CHANGELOG.md
 existence check, E6 README badge audit, E7 sentence spacing, F2 already
 addressed under §50–60, G5 CI matrix vs requires-python check, H13 UI
-deferred under §66, I6 PyQt6 rationale acknowledgement) are accepted as
+deferred under §66, I6 PyQt6 rationale acknowledgment) are accepted as
 implementation-time conventions. Their absence from this section means
 "apply the cursor rule as written, no special handling".
 
@@ -1187,7 +1187,7 @@ phase-blocker.
   `capsys.readouterr().out`.
 - **Frozen dataclasses validate on construction.** Public dataclasses
   use `__post_init__` to enforce documented invariants;
-  `object.__setattr__` is the standard escape hatch for normalising
+  `object.__setattr__` is the standard escape hatch for normalizing
   inputs in a frozen dataclass.
 - **Sphinx `automodule` for re-exporting packages uses `:no-index:`**
   to avoid duplicate cross-references with the submodule pages
@@ -1236,7 +1236,7 @@ phase-blocker.
 > the per-phase sections at the top of this file (Phase 0 → Phase
 > 12+). Where this checklist's "Pending" subsection and a per-phase
 > "Scope (in)" disagree, the **per-phase section wins** — it has been
-> reorganised for context-friendly delivery, while the checklist
+> reorganized for context-friendly delivery, while the checklist
 > below is preserved as a flat, comprehensive index of every
 > outstanding item. Read this section to *survey* what is left;
 > read the per-phase sections to *do* the next phase.
@@ -1455,7 +1455,7 @@ below (see "Phase 10" and `PHASE10_CURATION.md`).
   stellar aberration, proper motion, FOV projection, dedup),
   `conflicts` (body / ring occlusion via the `oops` backplane),
   `predicted_snr` (per-star integrated SNR with
-  `SCLASS_TO_B_MINUS_V` colour lookup), `smeared_psf` (smear-aware
+  `SCLASS_TO_B_MINUS_V` color lookup), `smeared_psf` (smear-aware
   PSF rendering and per-image smear-vector computation from SPICE
   brackets), `detection` (DAOPHOT-style matched-filter detector with
   CCD bloom and shape cuts), and the orchestrator itself.  Emits
@@ -1484,7 +1484,7 @@ below (see "Phase 10" and `PHASE10_CURATION.md`).
   non-mutating; the ``with_prior`` boundary validates the prior
   offset and covariance and takes an independent copy + freezes the
   array so the caller cannot mutate it after the fact).
-- `Provenance` (``__post_init__`` normalises ``spice_kernels``,
+- `Provenance` (``__post_init__`` normalizes ``spice_kernels``,
   ``technique_names``, ``extractor_names`` to deterministic sorted
   tuples; derives ``spice_kernel_count``; wraps
   ``static_data_hashes`` with ``MappingProxyType``).
@@ -1529,7 +1529,7 @@ below (see "Phase 10" and `PHASE10_CURATION.md`).
   `nav_offset` and `nav_offset_cloud_tasks`.  The
   ``_write_summary_png`` step is an honest no-op that logs at INFO
   until the annotation-rendering pipeline lands; the misleading
-  1×1 grey PNG placeholder is gone.
+  1×1 gray PNG placeholder is gone.
 
 **Manual navigation (Part 12.6)**
 
@@ -1610,7 +1610,7 @@ below (see "Phase 10" and `PHASE10_CURATION.md`).
 **Provenance population** — *Superseded by `core_rewrite_catchup` (shipped); see "Phase 3 — Foundation completion + per-instrument config wiring (complete)".*
 
 - ``Provenance`` dataclass shape is final (sorted-tuple
-  normalisation, derived ``spice_kernel_count``,
+  normalization, derived ``spice_kernel_count``,
   ``MappingProxyType``-wrapped ``static_data_hashes``).
 - Pending: actually populate ``spice_kernels`` from
   ``spice.ktotal`` / ``spice.kdata``; populate
@@ -1735,7 +1735,7 @@ image library lands.
 
 **Documentation (Part 8)**
 
-*Partially superseded by `core_rewrite_catchup` (shipped):* `developer_guide_static_data.rst` and `developer_guide_logging.rst` shipped in Phase 3. The remaining Sphinx pages (autonomous-nav, features, filters, uncertainty, orchestrator, cli, testing, metadata schema, troubleshooting, image library, migration) are still pending — Phase 11 covers the documentation-finalisation sweep.
+*Partially superseded by `core_rewrite_catchup` (shipped):* `developer_guide_static_data.rst` and `developer_guide_logging.rst` shipped in Phase 3. The remaining Sphinx pages (autonomous-nav, features, filters, uncertainty, orchestrator, cli, testing, metadata schema, troubleshooting, image library, migration) are still pending — Phase 11 covers the documentation-finalization sweep.
 
 - All new Sphinx pages: `developer_guide_autonomous_nav.rst`,
   `developer_guide_features.rst`,
@@ -1903,7 +1903,7 @@ work can construct any of these and trust the inputs are checked.
 - ``ConfidenceSpec.__post_init__`` validates types of every field
   and takes a defensive shallow copy of ``hard_zero_if`` so the
   frozen dataclass cannot be mutated through the caller's dict.
-- ``Provenance.__post_init__`` normalises ``spice_kernels``,
+- ``Provenance.__post_init__`` normalizes ``spice_kernels``,
   ``technique_names``, ``extractor_names`` to deterministic sorted
   tuples; derives ``spice_kernel_count`` from
   ``len(spice_kernels)``; wraps ``static_data_hashes`` with
@@ -2005,7 +2005,7 @@ work can construct any of these and trust the inputs are checked.
 - **Frozen dataclasses validate on construction.**  Public
   dataclasses use ``__post_init__`` to enforce documented
   invariants; ``object.__setattr__`` is the standard escape hatch
-  for normalising inputs in a frozen dataclass.
+  for normalizing inputs in a frozen dataclass.
 - **Sphinx ``automodule`` for re-exporting packages uses
   ``:no-index:``** to avoid duplicate cross-references with the
   submodule pages (see ``docs/api_reference/api_feature.rst``).
@@ -2525,7 +2525,7 @@ F. **Image-quality classifier completeness.**
 
 G. **Static data — `config_220_body_shape.yaml` (initial).**
    - Populate the bodies needed for the Phase 4 first integration
-     image plus immediate neighbours (~10 bodies; full ~55-body
+     image plus immediate neighbors (~10 bodies; full ~55-body
      coverage lands in Phase 10). Per-body schema in Part 5;
      AI-drafted citations per Part 0 §74; PR limit ≤ 10 bodies.
    - Add the schema validator test (`test_body_shape_citations.py`
@@ -2574,7 +2574,7 @@ overview at the top of the file.
 
 ### What shipped in Phase 3
 
-- **Config files renumbered** to three-digit prefixes (`010`/`020`/.../`950`); ring catalogues moved to the `3N0` band, per-instrument blocks to the `4N0` band; bootstrap scalar angle fields converted to degrees (`max_phase_angle_deg`, `max_incidence_angle_deg`, `max_emission_angle_deg`, `lon_resolution_deg`, `lat_resolution_deg`, `max_subsolar_dist_deg`).
+- **Config files renumbered** to three-digit prefixes (`010`/`020`/.../`950`); ring catalogs moved to the `3N0` band, per-instrument blocks to the `4N0` band; bootstrap scalar angle fields converted to degrees (`max_phase_angle_deg`, `max_incidence_angle_deg`, `max_emission_angle_deg`, `lon_resolution_deg`, `lat_resolution_deg`, `max_subsolar_dist_deg`).
 - **Per-instrument `noise:` / `mag_offset:` / `image_quality_thresholds:` / `source_image_filter:` / `fit_camera_rotation:` / `max_rotation_deg:` blocks** added to every shipped `config_4N0_inst_*.yaml`. A second `cassini_iss_calib:` block was added because the Cassini loader picks the calibrated-IF block when the filename contains `_CALIB`; raw-DN and CALIB I/F products no longer share the same blank / saturation / noisy thresholds.
 - **`nav.nav_orchestrator.instrument_config.instrument_settings_from_obs(obs)`** translates the per-camera YAML block into a frozen `InstrumentSettings` dataclass that the orchestrator consumes. Missing `data_units`, missing `noise.saturation_dn` (raw_dn), and missing `image_quality_thresholds` blocks fail fast at navigate time.
 - **Orchestrator wiring.** The hard-coded `DEFAULT_FULL_WELL_DN_12_BIT` constant is gone; `_make_context` now reads the per-instrument saturation DN, image-quality thresholds, and source-image filter from `obs.inst_config`. Calibrated-IF instruments without preserved raw-saturation flags emit a one-line WARNING and an empty saturation mask.
@@ -2724,7 +2724,7 @@ infrastructure, no new classes" (annotation reuse); Part 4
 - **Per-image regression test (`tests/integration/test_autonomous_nav.py`).** Discovery via `pytest_generate_tests` parametrizes one test per discovered sidecar with the `image_id` as the test ID; each parametrized run is conditionally skipped when the shared `pds3_holdings_dir` session fixture (defined in `tests/integration/conftest.py` per Part 0 §56) reports that `PDS3_HOLDINGS_DIR` is unset. Each parametrized run navigates the image end-to-end and asserts (a) `NavResult.status` exact match, (b) `NavResult.confidence_rank` exact match, (c) `offset_px` within `offset_uncertainty_px + 0.5 px` slack on each axis for `ok` results, (d) `expected.primary_technique` is the highest-confidence per-technique result with ties broken by `(-confidence, technique_name)` ascending per Part 0 §14, (e) every name in `techniques_must_run` appears in `per_technique` and no name in `techniques_must_skip` does. The `pds3://`-URL resolver is in the same module; absolute-path URLs are passed through to `FCPath` for local-debug convenience.
 - **Regression-baseline test layer (`tests/integration/test_baselines.py`).** Citations test (every baseline JSON cites an existing sidecar; filename stem matches `image_id`) plus four round-trip unit tests for `Baseline` (offset rounded to 4 decimals, confidence to 3, JSON round-trip equality, deterministic serialization with sorted keys + trailing newline) plus a per-image baseline regression that recomputes the rounded `(offset_dv_px, offset_du_px, confidence)` triple via `Baseline.from_run` and asserts byte-equal match against the seeded JSON. Per Part 0 §11 the baseline schema deliberately omits `pipeline_run_iso8601` because it is the only provenance field that is not byte-identical between identical runs.
 - **Summary-PNG renderer (`nav.navigate_image_files._write_summary_png`).** Replaces the honest INFO-level no-op with a thin driver: applies a percentile-based linear stretch (0.001 / 0.999 quantiles) via `nav.support.image.apply_linear_gamma_stretch`, replicates the grayscale into three channels, calls `Annotations.combine` on the orchestrator-assembled `NavResult.annotations` collection at `result.offset_px`, and replaces every background pixel where the overlay carries any non-zero channel with the overlay color. PIL-encoded and written via `FCPath.write_bytes`. The renderer also emits a faithful image-only PNG when the orchestrator returned a failure (no annotations) so the operator can still inspect why the pipeline failed.
-- **Annotations module fix (`nav.annotation.annotations._add_text`).** Dropped the deprecated PIL `Image.getdata()` reshape dance in favour of `np.array(text_im, dtype=np.uint8)` so the dialog and the renderer no longer trip the Pillow 14 deprecation warning under `filterwarnings = ["error"]`.
+- **Annotations module fix (`nav.annotation.annotations._add_text`).** Dropped the deprecated PIL `Image.getdata()` reshape dance in favor of `np.array(text_im, dtype=np.uint8)` so the dialog and the renderer no longer trip the Pillow 14 deprecation warning under `filterwarnings = ["error"]`.
 - **`apply_linear_gamma_stretch` migrated to non-Qt module.** Moved from `nav.ui.common` to `nav.support.image` so the renderer (which is core-pipeline code, not GUI) can import it without pulling PyQt6 into the import graph. Three Qt-side callers (`manual_nav_dialog`, `mosaic_viewer.sphere_render`, `mosaic_viewer.tiled_image_widget`) updated to import from the new location. The `nav.ui.common._require_finite_int_or_float` helper is now imported from the same module. The corresponding `apply_linear_gamma_stretch` tests (11 of them) moved from `tests/nav/ui/test_common.py` to `tests/nav/support/test_image.py`.
 - **`compose_dialog_overlay` (`nav.feature.composition`).** New companion to `compose_template_features` that additionally rasterizes every polyline-bearing feature's `vertices_vu` as single-pixel marks and every `BodyBlobGeometry`'s predicted silhouette as a 1-pixel circle outline (via `nav.support.image.draw_circle`). Out-of-bounds vertices and circle pixels are silently clipped; partial-FOV blobs render their visible arc. The manual-nav dialog uses this composer instead of the bitmap-only `compose_template_features` so scenes whose only emitted features are limbs / terminators / ring edges (or whose only emitted feature is a `BODY_BLOB`) still get a useful overlay. Every existing `compose_template_features` test still passes; three new tests cover the polyline raster + blob-circle render + ext-FOV clipping.
 - **`NavOrchestrator.prepare(obs, *, apply_gate=True)`.** New public method that runs the same pre-technique pipeline as `navigate` (provenance, NavContext, image classifier, NavModel `create_model`, feature extraction, reliability gate) and returns `(context, kept_features)` without running any technique. When `apply_gate=False`, the reliability gate is skipped and every emitted feature is returned — this is what `run_manual_nav` calls so the operator visually overrides the autonomous reliability decision (a low-reliability feature that the gate would drop is still useful for manual alignment). Hard-failure image classes are logged but not short-circuited so the manual-nav dialog can inspect blank or saturated frames. The refactor also extracts two private helpers `_build_models` and `_extract_and_gate` shared by `prepare` and `navigate` so the model-build / gate logging stays consistent across both entry points.
@@ -3420,7 +3420,7 @@ C. **Library expansion.**
   `StarUniqueMatchNav.navigate`.  This keeps the spec evaluator
   schema-stable while still respecting the design's mode-driven
   ceiling.
-- **Local-window detection.** Both techniques use a localised
+- **Local-window detection.** Both techniques use a localized
   brightness-peak + brightness-weighted-moment centroid inside a
   per-prediction window (no global `detect_sources` call).  This
   keeps the techniques feasible on images where the global DAOPHOT
@@ -3581,8 +3581,8 @@ Phase 9 (branch `core_rewrite_phase9`) ships per-instrument camera-rotation corr
 **Scope (in):**
 
 A. **Per-technique 3-DoF math.** Each technique's cost function gains a third parameter `dθ` bounded by `±deg_to_rad(max_rotation_deg)` per Part 5b. Per-technique pivot rules (body centroid, planet centroid, point-set centroid) implemented as documented; every technique populates `rotation_rad` / `sigma_rotation_rad` on `NavTechniqueResult`.
-   - **DT-based techniques** (`BodyLimbNav`, `BodyTerminatorNav`, `RingEdgeNav`) thread `fit_rotation` through `lm_subpixel_refine`; the existing LM machinery already supported a third rotation parameter. Pivot is the centroid of polyline vertices; `pivot_distance_px` is the pivot-to-image-centre distance (floored at 1.0). The Tukey-weighted M-estimator information matrix at convergence yields the 3×3 covariance via `pinvh`.
-   - **`BodyDiscCorrelateNav`** runs the 11 + 5 + 3 rotation-sample pyramid per Part 5b §"Sub-decisions / pessimism": level 0 spans `±max_rotation_deg` in 1° steps, level 1 spans the level-0 winner ±1° in 0.5° steps, level 2 spans the level-1 winner ±0.5° in 0.25° steps. The composite template is pre-rotated about the centroid-of-body-centres pivot via `scipy.ndimage.rotate` for each sample; `navigate_with_pyramid_kpeaks` runs unchanged per sample. The level-2 quality curvature feeds `sigma_theta`; non-concave curvature falls back to the rotation-unobservable sentinel.
+   - **DT-based techniques** (`BodyLimbNav`, `BodyTerminatorNav`, `RingEdgeNav`) thread `fit_rotation` through `lm_subpixel_refine`; the existing LM machinery already supported a third rotation parameter. Pivot is the centroid of polyline vertices; `pivot_distance_px` is the pivot-to-image-center distance (floored at 1.0). The Tukey-weighted M-estimator information matrix at convergence yields the 3×3 covariance via `pinvh`.
+   - **`BodyDiscCorrelateNav`** runs the 11 + 5 + 3 rotation-sample pyramid per Part 5b §"Sub-decisions / pessimism": level 0 spans `±max_rotation_deg` in 1° steps, level 1 spans the level-0 winner ±1° in 0.5° steps, level 2 spans the level-1 winner ±0.5° in 0.25° steps. The composite template is pre-rotated about the centroid-of-body-centers pivot via `scipy.ndimage.rotate` for each sample; `navigate_with_pyramid_kpeaks` runs unchanged per sample. The level-2 quality curvature feeds `sigma_theta`; non-concave curvature falls back to the rotation-unobservable sentinel.
    - **`RingAnnulusNav`** consumes the same template-NCC code path as `BodyDiscCorrelateNav`; for this phase it emits a rank-deficient 3×3 (rotation unobservable) when the flag is on. Multi-planet ring-system scenes are rare enough that the 3-D NCC pyramid was not justified; can be lit up later if observed need warrants.
    - **`BodyBlobNav`** is rotation-invariant by construction (a centroid does not move under rotation about itself); reports a rank-deficient 3×3 with `ROTATION_UNOBSERVABLE_VARIANCE = 1.0e15` on the rotation diagonal. `pinvh` in the ensemble combine treats that eigenvalue as null and drops the technique's rotation contribution while still fusing its translation constraint.
    - **`StarFieldFromCatalogNav`** runs Tukey-reweighted Kabsch / orthogonal Procrustes on the inlier set: weighted centroids, weighted cross-covariance SVD, `R = U diag(1, det(U V.T)) V.T` to keep the result a proper rotation. The 3×3 covariance is the per-axis residual variance for translation plus `σ²_θ = σ²_residual / Σ_i w_i |cat_i − centroid|²` for rotation. Sub-piece in `_star_helpers.similarity_transform_fit`; same helper consumed by both other star techniques.
@@ -3600,7 +3600,7 @@ E. **Library expansion (deferred).** "2–3 VGISS / GOSSI images where rotation 
 
 ### Implementation notes
 
-- **Rotation pivot per technique.** Polyline DT techniques (`BodyLimbNav`, `BodyTerminatorNav`, `RingEdgeNav`) use the centroid of consumed vertices as a pragmatic substitute for "predicted body centre" / "predicted planet centre" — `LimbPolyline` / `TerminatorPolyline` / `RingEdgePolyline` do not carry the body-centre coordinate, and the LM fit is robust to small pivot mis-placement because the rotation parameter is a small-angle perturbation. `BodyDiscCorrelateNav` reads `predicted_center_vu` from each `BodyDiscGeometry` directly. The star techniques' pivot is the weighted centroid of the inlier catalog points (returned on `SimilarityFit.pivot_vu`).
+- **Rotation pivot per technique.** Polyline DT techniques (`BodyLimbNav`, `BodyTerminatorNav`, `RingEdgeNav`) use the centroid of consumed vertices as a pragmatic substitute for "predicted body center" / "predicted planet center" — `LimbPolyline` / `TerminatorPolyline` / `RingEdgePolyline` do not carry the body-center coordinate, and the LM fit is robust to small pivot mis-placement because the rotation parameter is a small-angle perturbation. `BodyDiscCorrelateNav` reads `predicted_center_vu` from each `BodyDiscGeometry` directly. The star techniques' pivot is the weighted centroid of the inlier catalog points (returned on `SimilarityFit.pivot_vu`).
 - **`ROTATION_UNOBSERVABLE_VARIANCE` sentinel.** A literal `+inf` on the rotation diagonal is rejected by `np.linalg.eigvalsh` (returns NaN), so the no-rotation-evidence path uses the finite sentinel `1.0e15`. The ensemble's `pinvh`-based combine sees the rotation eigenvalue as null relative to the translation block and drops the technique's rotation contribution. The helper trio `ROTATION_UNOBSERVABLE_VARIANCE` / `embed_rotation_unobservable` / `rotation_unobservable_sigma_rad` lives in `nav.nav_technique.nav_technique` so every technique imports from one place.
 - **`at_edge` semantics for rotation.** A rotation magnitude `≥ 0.95 × max_rotation_deg` triggers `at_edge = True`, OR-ed with the existing translation `at_edge` rule. A separate INFO log line reports the converged rotation (in degrees) plus its sigma plus an `AT_EDGE` annotation when the rotation cap is the trigger.
 - **`NavContext.with_prior` accepts 3×3 covariance.** Pass-1 ensemble outputs that carry rotation collapse to the 2×2 translation block before pass-2 — pass-2 techniques re-derive any rotation prior from their own geometry; the rotation prior carries no useful information across the pass boundary.
@@ -3677,7 +3677,7 @@ C. **Confidence-formula calibration.** `confidence = sigmoid(α₀ +
    `config_510_techniques.yaml` are arithmetically illustrative
    only — they are not claimed to produce the example confidence
    values stated alongside them; calibration replaces them.
-   Per-instrument behaviour is handled per WS-5: per-instrument
+   Per-instrument behavior is handled per WS-5: per-instrument
    reliability diagrams once each instrument's library images are
    in, with schema promotion to per-instrument α vectors only where
    the diagrams demand it.
@@ -3706,7 +3706,7 @@ F. **STAR predicted-SNR unit handling for calibrated images
    1. The live STAR reliability path no longer consumes DN-SNR at
       all.  Star selection and the feature-emission gate are now
       purely magnitude based against ``obs.star_max_usable_vmag()``;
-      the CRLB / reliability helpers synthesise a unit-agnostic
+      the CRLB / reliability helpers synthesize a unit-agnostic
       effective SNR from magnitude headroom
       (``snr_eff = SNR_REF * 2.512 ** (mag_limit - vmag)``, ``SNR_REF
       = 8.0``) in ``nav_model_stars.py``.  Because the limiting
@@ -4165,7 +4165,7 @@ Implementation: each `config_4N0_inst_*.yaml` carries a per-camera `mag_offset:`
 
 **Per-instrument star PSF.** Each camera/filter combination has its own star PSF. The existing `obs.star_psf()` returns the right PSF for the current obs, sourced from per-instrument config. The new pipeline calls it unchanged — no plan-level work needed beyond making sure the SNR / smear / detection code paths use the obs-supplied PSF, not a global default.
 
-**Star-poor missions.** Galileo SSI and Voyager ISS imaging frames have lower sensitivity than Cassini ISS or NHLORRI; predicted SNR is below threshold for catalogued stars in the majority of *science* frames (long-exposure body or ring imaging). Both archives also contain star-calibration frames where stars are well-detected; those are not the typical case but exist and are exercised by the test library. The implications:
+**Star-poor missions.** Galileo SSI and Voyager ISS imaging frames have lower sensitivity than Cassini ISS or NHLORRI; predicted SNR is below threshold for cataloged stars in the majority of *science* frames (long-exposure body or ring imaging). Both archives also contain star-calibration frames where stars are well-detected; those are not the typical case but exist and are exercised by the test library. The implications:
 - The orchestrator must not require stars to navigate; body / ring techniques carry the load on routine science frames in these missions.
 - `StarFeatureExtractor.is_applicable` returns `False` quickly when predicted-SNR for every star in catalog is below threshold — no detection sweep wasted.
 - Test library (Part 10) intentionally over-samples star-only Cassini / NHLORRI scenes (where stars commonly work) and star-absent Galileo / Voyager science scenes (where they don't), so calibration and regression coverage matches reality. Star-cal frames from VGISS / GOSSI are valid library entries when they exist for the right instrument/camera mix.
@@ -6466,7 +6466,7 @@ If an image shows a body that's not in `config_220_body_shape.yaml`, extractor u
 ## Part 13 — Phasing (legacy phase plan — superseded; preserved for cutover gating)
 
 The original phase plan that this section once contained has been
-**reorganised** into the per-phase sections at the top of this file
+**reorganized** into the per-phase sections at the top of this file
 ("Phase 0" through "Phase 12+"). Those sections are now the source
 of truth. The legacy phase numbering (legacy Phase 1 ↔ Foundation,
 legacy Phase 2 ↔ Extractors, legacy Phase 3 ↔ Techniques,
@@ -6502,7 +6502,7 @@ in the per-phase sections at the top of this file:
 This subsection is **load-bearing** and applies to new Phase 11 (or
 to the moment when the cutover branch's legacy-deleting change-set
 merges, whichever is in flight). It is preserved verbatim from the
-legacy plan because nothing in the per-phase reorganisation
+legacy plan because nothing in the per-phase reorganization
 supersedes the gating contract.
 
 The legacy code is deleted in the cutover change-set per Cardinal
@@ -6743,7 +6743,7 @@ architecture leaves room for them.
    the name, the coarse stage is *not* an NCC: it renders the model
    polyline as a binary mask, slides it across the per-instrument
    `extfov_margin_vu` window (Cassini NAC 1024: ±50 v / ±140 u px),
-   and picks the integer offset that maximises the count of
+   and picks the integer offset that maximizes the count of
    polyline pixels landing on a thresholded image edge pixel.
    Because the score is a polarity-blind binary overlap count, any
    region of the image with high edge density (rings, terminator,
@@ -6758,7 +6758,7 @@ architecture leaves room for them.
    small, and the spurious gates
    (`dt_fit_rms_px > 5 * sigma_min`, `tukey_inlier_count < 6`,
    inlier_fraction < 5 %) miss the failure because the wrong
-   neighbourhood does have edges.  The result is a confident-but-
+   neighborhood does have edges.  The result is a confident-but-
    wrong offset, exactly the failure class the orchestrator's
    ensemble vote is least equipped to detect (a single high-
    confidence wrong group dominates anything weaker).
@@ -6772,8 +6772,8 @@ architecture leaves room for them.
      per-vertex outward normal already on `LimbPolyline` and the
      per-pixel gradient image already cached on
      `NavContext.image_gradient_vu_ext`.  This makes the coarse
-     stage optimise the same quantity the LM stage already
-     optimises (polarity-respecting edge alignment) instead of a
+     stage optimize the same quantity the LM stage already
+     optimizes (polarity-respecting edge alignment) instead of a
      polarity-blind proxy, so distractor edges with the wrong
      gradient direction (ring inner edge, crater rim with the wrong
      light side) stop dominating the peak.  No new image-side
@@ -6805,7 +6805,7 @@ architecture leaves room for them.
      `BodyLimbNav.requires_prior = True`, and let the limb
      technique run as a local refinement in pass 2 with a tiny
      search window.  The two-pass orchestration already exists
-     for the star-then-body case; this generalises it within the
+     for the star-then-body case; this generalizes it within the
      body model family.  The same pattern applies to
      `RingEdgeNav` once a confident ring-annulus result is
      available.
@@ -7159,7 +7159,7 @@ scratch.
 - **`navigate_image_files` does not accept a `model_factory`
   argument.**  It calls `build_models_for_obs(snapshot)` itself.  The
   caller supplies only `nav_models` / `nav_techniques` glob patterns.
-- **Float-rounding in JSON output** is centralised in
+- **Float-rounding in JSON output** is centralized in
   `nav.nav_orchestrator.curator`: 4 decimals for pixel quantities, 3
   for confidence, 6 for ET; ``inf`` becomes the
   `JSON_INF_SENTINEL = 1e9` finite sentinel.  Anywhere else in the
@@ -7167,7 +7167,7 @@ scratch.
 - **Manual-nav offset uncertainty** is currently a constant
   ``_MANUAL_OFFSET_SIGMA_PX = 1.0`` per axis in
   `nav_technique_manual.py`.  Change it if operator precision is ever
-  characterised against the library; do not let it become a config
+  characterized against the library; do not let it become a config
   knob without a real reason.
 - **`NavStatusReason` uses `StrEnum`.**  The minimum Python version is
   3.11; `StrEnum` is available natively.  Do not regress to a

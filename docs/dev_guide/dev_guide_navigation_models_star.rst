@@ -135,7 +135,7 @@ absorb two distinct saturated records.
 Among the references that fall inside their own widened reach the match takes the brightest,
 not the merely nearest, breaking a brightness tie on separation. A bright unrelated reference
 earns a wide reach of its own from its large magnitude gap to the saturated candidate, so a
-pure nearest-neighbour rule could let it capture the candidate when it happens to sit closer
+pure nearest-neighbor rule could let it capture the candidate when it happens to sit closer
 than the true twin. Preferring the brightest qualifying reference blocks that: UCAC4
 saturation drives a bright star's reading systematically faint, so a faint reading is best
 explained by the brightest reference that can account for it. The failure mode this guards
@@ -421,7 +421,7 @@ Source files:
   :mod:`spindoctor.nav_model.stars.conflicts` body / ring conflict marking.
 - ``src/spindoctor/nav_model/stars/predicted_snr.py`` —
   :func:`~spindoctor.nav_model.stars.predicted_snr.psf_sigma_px` (used by the model and the
-  detection helpers) and the ``SCLASS_TO_B_MINUS_V`` spectral-class-to-colour table.
+  detection helpers) and the ``SCLASS_TO_B_MINUS_V`` spectral-class-to-color table.
   :func:`~spindoctor.nav_model.stars.predicted_snr.predicted_snr` is a raw-DN photometry
   diagnostic and is not the model's detectability gate.
 - ``src/spindoctor/nav_model/stars/smeared_psf.py`` —
