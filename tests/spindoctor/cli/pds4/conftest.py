@@ -25,6 +25,7 @@ outputs live under ``tmp_path``.
 
 import csv
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -35,8 +36,14 @@ from astropy.io import fits
 from filecache import FCPath
 from tests.mini_nav_results.cohort import Cohort
 
+from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.collections import (
+    CollectionOutcome,
+    generate_collection_files,
+    generate_global_index_files,
+)
 from spindoctor.cli.pds4.epochs import EpochRange
-from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 # Minimal pdstemplate templates.  Each references only variables the module under
@@ -68,6 +75,8 @@ COLLECTION_BROWSE_TEMPLATE = (
     '<Collection_Browse>\n  <csv>$COLLECTION_BROWSE_CSV_PATH$</csv>\n</Collection_Browse>\n'
 )
 GLOBAL_INDEX_TEMPLATE = '<Index>\n  <records>$FILE_RECORDS$</records>\n</Index>\n'
+BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
+"""A template naming a variable no caller defines, so the render errors."""
 
 LABELS_TEMPLATES = {'data.lblx': DATA_TEMPLATE, 'browse.lblx': BROWSE_TEMPLATE}
 """The templates the per-image labels pass renders, and their fake bodies."""
@@ -438,6 +447,22 @@ to ``2004-02-22T05:32:17Z``.
 """
 
 
+def run_collections(env: BundleEnv, *, epochs: EpochRange | None = A_RANGE) -> CollectionOutcome:
+    """Run generate_collection_files against the environment's bundle root.
+
+    Parameters:
+        env: The hermetic bundle environment to process.
+        epochs: The range of the products' epochs to hand the generator.
+
+    Returns:
+        What the generation came to: the collection labels not written, and the images
+        whose products disagree.
+    """
+    return generate_collection_files(
+        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER, epochs=epochs
+    )
+
+
 def write_nav_inputs(
     env: BundleEnv,
     *,
@@ -539,6 +564,20 @@ def write_supplemental(
     return path
 
 
+def _touch_placeholder(path: Path) -> Path:
+    """Create a placeholder label at a path, and the directories above it.
+
+    Parameters:
+        path: Where the placeholder goes.
+
+    Returns:
+        ``path``.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('<placeholder/>\n', encoding='utf-8')
+    return path
+
+
 def touch_label(data_dir: Path, stub: str) -> Path:
     """Create a ``<stub>_backplanes.lblx`` placeholder in the bundle data tree.
 
@@ -549,20 +588,30 @@ def touch_label(data_dir: Path, stub: str) -> Path:
     Returns:
         The path of the created label file.
     """
-    path = data_dir / f'{stub}_backplanes.lblx'
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text('<placeholder/>\n', encoding='utf-8')
-    return path
+    return _touch_placeholder(data_dir / f'{stub}_backplanes.lblx')
 
 
-def read_tab(path: Path) -> list[list[str]]:
-    """Read a collection or index ``.tab`` file as CSV rows.
+def touch_browse_label(browse_dir: Path, stub: str) -> Path:
+    """Create a ``<stub>_summary.lblx`` placeholder in the bundle browse tree.
 
     Parameters:
-        path: The ``.tab`` file to read.
+        browse_dir: The bundle's ``browse`` directory.
+        stub: Path stub (may include shard subdirectories) for the image.
 
     Returns:
-        All rows, header first, as lists of strings.
+        The path of the created label file.
+    """
+    return _touch_placeholder(browse_dir / f'{stub}_summary.lblx')
+
+
+def read_csv_rows(path: Path) -> list[list[str]]:
+    """Read a collection inventory or a global index table as comma-separated rows.
+
+    Parameters:
+        path: The inventory or table to read.
+
+    Returns:
+        Every row, in file order, as lists of strings.
     """
     with path.open(newline='', encoding='utf-8') as f:
         return list(csv.reader(f))
@@ -617,3 +666,35 @@ def make_cohort_bundle_env(cohort: Cohort, tmp_path: Path) -> CohortBundleEnv:
         bundle_results_root=bundle_results_root,
         bundle_dir=bundle_results_root / dataset.pds4_bundle_name(),
     )
+
+
+def write_cohort_bundle(cohort: Cohort, tmp_path: Path, stubs: Sequence[str]) -> CohortBundleEnv:
+    """Build a bundle over some of a cohort's images, running both passes.
+
+    The labels pass runs over each image in turn.  Then the summary pass's two
+    generators run in the order the pass runs them: the global index first, whose
+    range of the products' epochs the collection generator is handed.
+
+    Parameters:
+        cohort: The session's cohort, holding the navigation and backplane roots the
+            run reads.
+        tmp_path: Base temporary directory for this test's bundle output.
+        stubs: The images to bundle, by results path stub.
+
+    Returns:
+        The environment the bundle was written into.
+    """
+    env = make_cohort_bundle_env(cohort, tmp_path)
+    bundle_results_root = FCPath(env.bundle_results_root)
+    for stub in stubs:
+        generate_bundle_data_files(
+            env.dataset,
+            cohort.batch(stub),
+            nav_results_root=FCPath(cohort.nav_results_root),
+            backplane_results_root=FCPath(cohort.backplane_results_root),
+            bundle_results_root=bundle_results_root,
+            logger=MAIN_LOGGER,
+        )
+    index = generate_global_index_files(bundle_results_root, env.dataset, MAIN_LOGGER)
+    generate_collection_files(bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs)
+    return env
