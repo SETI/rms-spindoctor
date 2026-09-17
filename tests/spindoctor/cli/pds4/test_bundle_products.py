@@ -1,16 +1,16 @@
 """Spec-first tests for the bundle's run-level products (phase 6).
 
 Contract under test (docs/dev_guide/dev_guide_pds4.rst "The bundle's run-level products"
-and "Exit status"): ``generate_bundle_products`` copies the readme, the user guide when
-the template directory holds it, the metakernel and the static collections' inventories
-from the template directory into the bundle, renders a label beside each, and renders the
-bundle label last, keeping it only over a bundle holding a label for every collection it
-declares.  An inventory lists a product of the bundle only when that product's label is in
-the bundle, and a collection left with no member is not written.  A bundle without the
-user guide is one warning naming the file rather than a label not written.  Every label is
-attempted, and each one not written is counted.  The summary pass clears an earlier run's
-products before it writes, and, in a bundle on the local file system, the user guide's
-directory with them when it is left empty.
+and "Exit status"): ``generate_bundle_products`` renders the readme and the static
+collections' inventories from the template directory into the bundle and copies the user
+guide when the template directory holds it and the metakernel, renders a label beside
+each, and renders the bundle label last, keeping it only over a bundle holding a label for
+every collection it declares.  An inventory lists a product of the bundle only when that
+product's label is in the bundle, and a collection left with no member is not written.  A
+bundle without the user guide is one warning naming the file rather than a label not
+written.  Every label is attempted, and each one not written is counted.  The summary pass
+clears an earlier run's products before it writes, and, in a bundle on the local file
+system, the user guide's directory with them when it is left empty.
 
 What the shipped Cassini templates say is tested over the cohort in
 ``test_bundle_products_cassini_iss_saturn.py``.
@@ -128,14 +128,18 @@ COPIES = {
     'spice_kernels/collection_spice_kernels.csv': 'collection_spice_kernels.csv',
     'xml_schema/collection_xml_schema.csv': 'collection_xml_schema.csv',
 }
-"""Each file the bundle takes from the template directory as it is, and its name there."""
+"""Each file the bundle takes from the template directory as it is, and its name there.
+
+The readme and the inventories are rendered, and their stand-ins name no variable, so each
+is the template directory's file as it is, as the copied metakernel is.
+"""
 
 
-def test_the_copied_products_are_the_template_directory_s_files(tmp_path: Path) -> None:
+def test_the_products_taken_from_the_template_directory_are_its_files(tmp_path: Path) -> None:
     """The readme, the metakernel and each static inventory are the template directory's.
 
-    The template directory holds the user guide, so the document inventory is copied as
-    it is too.
+    The template directory holds the user guide, so the document inventory is written as
+    it renders too.
     """
     env = _bundle_env(tmp_path)
     _run(env)
@@ -164,6 +168,28 @@ def test_the_context_inventory_lists_each_target_after_the_template_directory_s_
         ['S', 'urn:nasa:pds:context:target:fake.planet::1.0'],
         ['S', 'urn:nasa:pds:context:target:fake.moon::1.0'],
     ]
+
+
+def test_the_miscellaneous_inventory_cites_the_document_inventory_s_members_as_they_render(
+    tmp_path: Path,
+) -> None:
+    """The miscellaneous inventory's ``S`` lines are the document inventory's, as it renders.
+
+    The document inventory the template directory ships is a template, and one of its
+    ``S`` lines here names the bundle through the bundle's variables; the miscellaneous
+    inventory cites each ``S`` line as the document collection's own inventory is
+    written, so the two cannot disagree.
+    """
+    document = (
+        'S,urn:nasa:pds:context:instrument:fake::1.0\n'
+        'S,$BUNDLE_LID$:document:fake-cited-document::$BUNDLE_VERSION$\n'
+        f'P,urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:document:fake-user-guide::1.0\n'
+    )
+    env = _bundle_env(tmp_path, template_contents={'collection_document.csv': document})
+    _run(env)
+    cited = read_csv_rows(env.bundle_dir / 'miscellaneous' / 'collection_miscellaneous.csv')
+    listed = read_csv_rows(env.bundle_dir / 'document' / 'collection_document.csv')
+    assert [row for row in cited if row[0] == 'S'] == [row for row in listed if row[0] == 'S']
 
 
 def test_a_user_guide_the_template_directory_holds_is_copied_labeled_and_listed(
@@ -240,6 +266,27 @@ def test_a_spice_kernel_collection_whose_metakernel_label_was_not_written_is_not
     errors = _lines_holding(capsys, 'The spice_kernels collection was not written')
     assert len(errors) == 1
     assert '| ERROR |' in errors[0]
+
+
+def test_a_static_collection_whose_inventory_does_not_render_leaves_neither_file(
+    tmp_path: Path,
+) -> None:
+    """An inventory whose template errors leaves its collection with neither of its files.
+
+    What an earlier run left at the inventory's path and at its label's is removed, so no
+    label describes an inventory this run did not write.  That it counts, and costs the
+    bundle label, is the static inventory case of the failed-render test.
+    """
+    env = _bundle_env(tmp_path, template_contents={'collection_context.csv': BROKEN_TEMPLATE})
+    earlier = [
+        env.bundle_dir / 'context' / name
+        for name in ('collection_context.csv', 'collection_context.lblx')
+    ]
+    earlier[0].parent.mkdir(parents=True)
+    for path in earlier:
+        path.write_text('an earlier run\n', encoding='utf-8')
+    _run(env)
+    assert [path for path in earlier if path.exists()] == []
 
 
 def test_a_rerun_without_the_user_guide_leaves_no_user_guide_directory(tmp_path: Path) -> None:
@@ -369,27 +416,34 @@ def test_a_bundle_label_with_no_range_to_state_is_not_written(
             3,
         ),
         ('collection_context.lblx', {'context/collection_context.lblx', 'bundle.lblx'}, 2),
+        (
+            'collection_context.csv',
+            {'context/collection_context.csv', 'context/collection_context.lblx', 'bundle.lblx'},
+            2,
+        ),
+        ('readme.txt', {'readme.txt'}, 1),
         ('bundle.lblx', {'bundle.lblx'}, 1),
     ],
-    ids=['user guide', 'metakernel', 'static collection', 'bundle'],
+    ids=['user guide', 'metakernel', 'static collection', 'static inventory', 'readme', 'bundle'],
 )
-def test_a_run_level_label_that_fails_to_render_is_counted(
+def test_a_run_level_product_that_fails_to_render_is_counted(
     tmp_path: Path, broken: str, absent: set[str], failed: int
 ) -> None:
-    """A run-level label that fails is counted, and every other run-level product is written.
+    """A failed run-level render counts, and every other run-level product is written.
 
     Each is a case of its own because each is counted by a statement of its own.  Every
-    label is attempted whichever fail, so each case holds every run-level product but the
-    failed label and what its failure takes with it.  The metakernel's takes the SPICE
-    kernel collection, which then has no member; a static collection's leaves that
-    collection without its label; and either takes the bundle label, which declares the
-    collection.  Each of those counts.
+    template is attempted whichever fail, so each case holds every run-level product but
+    the failed one and what its failure takes with it.  The metakernel's label takes the
+    SPICE kernel collection, which then has no member; a static collection's label leaves
+    that collection without its label; its inventory leaves it with neither; and each of
+    these takes the bundle label, which declares the collection.  Each of those counts,
+    and so does the readme.
 
     Parameters:
         tmp_path: Base temporary directory.
         broken: The template whose render errors in this case.
         absent: The run-level products not on disk afterwards.
-        failed: The labels not written.
+        failed: The labels, and the readme, not written.
     """
     env = _bundle_env(tmp_path, template_contents={broken: BROKEN_TEMPLATE})
     assert _run(env) == failed

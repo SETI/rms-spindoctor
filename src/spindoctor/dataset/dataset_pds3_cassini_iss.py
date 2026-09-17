@@ -15,7 +15,7 @@ from spindoctor.support.time import (
     pds4_utc_midpoint,
 )
 
-from .dataset import ImageFile, ImageFiles, Pds4Pass, pds4_label_name
+from .dataset import ImageFile, ImageFiles, Pds4Pass, Pds4Schema, pds4_label_name
 from .dataset_pds3 import DataSetPDS3
 
 _SOURCE_PRODUCT_REFERENCE_TYPE = 'data_to_calibrated_source_product'
@@ -444,15 +444,64 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_bundle_name(self) -> str:
         """Returns bundle name for PDS4 bundle generation.
 
+        Reads ``config.pds4.<dataset>.bundle_name``, which has no default: the shipped
+        configuration sets it for the dataset that bundles.
+
         Returns:
             Bundle name.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no ``bundle_name``.
         """
-        # Check config first
-        dataset_config = self.config.pds4.get(self._dataset_name_for_pds4_config(), {})
-        if 'bundle_name' in dataset_config:
-            return str(dataset_config['bundle_name'])
-        # Default
-        return self._default_pds4_bundle_name()
+        return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_name'])
+
+    def pds4_bundle_version(self) -> str:
+        """Returns the bundle's version, which each of the bundle's own products carries.
+
+        Reads ``config.pds4.<dataset>.bundle_version``, which has no default: the shipped
+        configuration sets it for the dataset that bundles.
+
+        Returns:
+            The version, in the PDS4 ``<major>.<minor>`` form.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no ``bundle_version``.
+        """
+        return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_version'])
+
+    def pds4_information_model_version(self) -> str:
+        """Returns the information model version the bundle's labels are written against.
+
+        Reads ``config.pds4.<dataset>.information_model_version``, which has no default.
+
+        Returns:
+            The version, in the PDS4 four-part form.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no information model version.
+        """
+        dataset_config = self.config.pds4[self._dataset_name_for_pds4_config()]
+        return str(dataset_config['information_model_version'])
+
+    def pds4_schemas(self) -> dict[str, Pds4Schema]:
+        """Returns the schema of each PDS4 dictionary the bundle's labels declare.
+
+        Reads ``config.pds4.<dataset>.schemas``, which has no default: a mapping from each
+        dictionary's namespace prefix to its schema's ``location`` and ``lidvid``.
+
+        Returns:
+            Each dictionary's schema, by its namespace prefix, in the order the
+            configuration gives them.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no schemas, or a schema no
+                location or LIDVID.
+        """
+        dataset_config = self.config.pds4[self._dataset_name_for_pds4_config()]
+        return {
+            str(prefix): Pds4Schema(location=str(entry['location']), lidvid=str(entry['lidvid']))
+            for prefix, entry in dataset_config['schemas'].items()
+        }
 
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Returns the file names one bundle pass must find in the template directory.
@@ -577,11 +626,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             image_name: The image name to convert to a browse LID.
 
         Returns:
-            The browse LIDVID.
+            The browse LID at the bundle's version, :meth:`pds4_bundle_version`.
         """
-        image_name = image_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        return f'urn:nasa:pds:{self.pds4_bundle_name()}:browse:{image_lid_part}::1.0'
+        return f'{self.pds4_image_name_to_browse_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_image_name_to_data_lid(self, image_name: str) -> str:
         """Returns the data LID for the given image name.
@@ -603,11 +650,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             image_name: The image name to convert to a data LID.
 
         Returns:
-            The data LIDVID.
+            The data LID at the bundle's version, :meth:`pds4_bundle_version`.
         """
-        image_name = image_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        return f'urn:nasa:pds:{self.pds4_bundle_name()}:data:{image_lid_part}::1.0'
+        return f'{self.pds4_image_name_to_data_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_template_variables(
         self,
@@ -695,16 +740,12 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             vars_dict['START_DATE_TIME'], vars_dict['STOP_DATE_TIME']
         )
 
-        # Placeholder values for required template variables
-        pds4_bundle_name = self.pds4_bundle_name()
-        image_name = image_file.image_file_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        vars_dict['BUNDLE_LID'] = f'urn:nasa:pds:{pds4_bundle_name}'
-        vars_dict['BUNDLE_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}::1.0'
-        vars_dict['BROWSE_LID'] = f'urn:nasa:pds:{pds4_bundle_name}:browse:{image_lid_part}'
-        vars_dict['BROWSE_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}:browse:{image_lid_part}::1.0'
-        vars_dict['DATA_LID'] = f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}'
-        vars_dict['DATA_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}::1.0'
+        # The product's own LIDs and LIDVIDs
+        image_name = image_file.image_file_name
+        vars_dict['BROWSE_LID'] = self.pds4_image_name_to_browse_lid(image_name)
+        vars_dict['BROWSE_LIDVID'] = self.pds4_image_name_to_browse_lidvid(image_name)
+        vars_dict['DATA_LID'] = self.pds4_image_name_to_data_lid(image_name)
+        vars_dict['DATA_LIDVID'] = self.pds4_image_name_to_data_lidvid(image_name)
         vars_dict['TITLE'] = f'Backplanes for {image_file.image_file_name}'
         vars_dict['DESCRIPTION'] = f'Backplanes for navigated image {image_file.image_file_name}'
         vars_dict['COMMENT'] = 'Generated from navigated image data'
@@ -862,14 +903,6 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         """
         raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
 
-    def _default_pds4_bundle_name(self) -> str:
-        """Returns the default bundle name.
-
-        Returns:
-            Default bundle name.
-        """
-        raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
-
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.
 
@@ -894,9 +927,6 @@ class DataSetPDS3CassiniISSCruise(DataSetPDS3CassiniISS):
     def _default_pds4_template_dir(self) -> str:
         return 'cassini_iss_cruise_1.0'
 
-    def _default_pds4_bundle_name(self) -> str:
-        return 'cassini_iss_cruise_backplanes_rsfrench2027'
-
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.
 
@@ -918,9 +948,6 @@ class DataSetPDS3CassiniISSSaturn(DataSetPDS3CassiniISS):
 
     def _default_pds4_template_dir(self) -> str:
         return 'cassini_iss_saturn_1.0'
-
-    def _default_pds4_bundle_name(self) -> str:
-        return 'cassini_iss_saturn_backplanes_rsfrench2027'
 
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.

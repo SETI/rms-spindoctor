@@ -2,13 +2,46 @@ pds4:
   coiss_saturn:
     template_dir: cassini_iss_saturn_1.0
     bundle_name: cassini_iss_saturn_backplanes_rsfrench2027
-  # Add other datasets as needed
+    # The version the bundle, each of its collections and each of its products carry,
+    # and the version in every LIDVID naming one of them.  Quoted: a version is text,
+    # and 1.10 is not 1.1.
+    bundle_version: '1.0'
+    # The PDS4 information model the labels are written against, which every label
+    # states and the common dictionary's Schematron requires of its own build.
+    information_model_version: '1.24.0.0'
+    # The schema of each dictionary the labels declare, by the prefix its namespace
+    # takes in a label: the URL of its XML schema and its Schematron less the extension,
+    # and the LIDVID the XML schema collection lists it by, in the collection's order.
+    # Moving a dictionary to another version is an edit here and nowhere else.
+    schemas:
+      pds:
+        location: https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:pds-xml_schema::1.24
+      disp:
+        location: https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1O00_1510
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:disp-xml_schema::1.15
+      geom:
+        location: https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:geom-xml_schema::1.19
+      rings:
+        location: https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1F00
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:rings-xml_schema::1.15
+      cassini:
+        location: https://pds.nasa.gov/pds4/mission/cassini/v1/PDS4_CASSINI_1O00_1800
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:cassini-xml_schema::1.18
+  # Entries for other datasets, commented out, each giving the dataset's template
+  # directory and its bundle's name and version.  A dataset builds a bundle only once its
+  # entry has every key the coiss_saturn entry has and the dataset implements the PDS4
+  # hooks.
   # gossi:
   #   template_dir: galileo_ssi_jupiter_1.0
   #   bundle_name: galileo_ssi_jupiter_backplanes_rsfrench2027
+  #   bundle_version: '1.0'
   # nhlorri:
   #   template_dir: newhorizons_lorri_pluto_1.0
   #   bundle_name: newhorizons_lorri_pluto_backplanes_rsfrench2027
+  #   bundle_version: '1.0'
   # vgiss:
   #   template_dir: voyager_iss_saturn_1.0
   #   bundle_name: voyager_iss_saturn_backplanes_rsfrench2027
+  #   bundle_version: '1.0'

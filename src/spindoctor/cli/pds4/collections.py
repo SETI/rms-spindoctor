@@ -20,6 +20,7 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.targets import Pds4Target
@@ -404,7 +405,9 @@ def generate_collection_files(
     Every collection label that can be written is attempted, whichever of them fail: a
     broken data collection template must not hide a broken browse collection one.  An
     inventory is written before its label, which reads the inventory's size, checksum
-    and record count, and stays whether or not the label renders.
+    and record count, and stays whether or not the label renders.  Each label is handed
+    the variables :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` gives
+    every template of the bundle beside its own.
 
     Every collection template the dataset declares is required.  The caller is
     expected to have checked them before processing anything, so one that is
@@ -436,6 +439,7 @@ def generate_collection_files(
     template_dir = dataset.pds4_bundle_template_dir()
     bundle_root = bundle_results_root / bundle_name
     products = _CollectionProducts.in_bundle(bundle_root)
+    variables = bundle_variables(dataset)
     failed_labels = 0
 
     # Each collection's products, found by their labels: the data products by the data
@@ -469,7 +473,7 @@ def generate_collection_files(
     # Each template is parsed whether or not its collection is written, so one missing
     # from the tree raises rather than being passed over.
     data_template = pdstemplate.PdsTemplate(str(template_base / 'collection_data.lblx'))
-    data_vars: dict[str, Any] = {
+    data_vars: dict[str, Any] = variables | {
         'COLLECTION_DATA_CSV_PATH': products.data_inventory.as_posix(),
         'TARGETS': targets,
     }
@@ -500,7 +504,8 @@ def generate_collection_files(
         primaries=[dataset.pds4_image_name_to_browse_lidvid(name) for name in browse_names],
         secondaries=[],
         template=browse_template,
-        template_vars={'COLLECTION_BROWSE_CSV_PATH': products.browse_inventory.as_posix()},
+        template_vars=variables
+        | {'COLLECTION_BROWSE_CSV_PATH': products.browse_inventory.as_posix()},
         reasons_not_written=[],
         logger=logger,
     ):

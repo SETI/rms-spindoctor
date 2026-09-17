@@ -11,10 +11,10 @@ stage consumes.  That is :class:`BundleEnv`, and it is how the plumbing is
 tested: which file goes where, which variable reaches which template, what a
 render that errors leaves behind.
 
-:class:`CohortBundleEnv` is the other half.  It runs the registered dataset a
-cohort's bundle is built with over the templates that dataset ships, on the
-products the cohort writes, and it is how a question about what a label *says*
-is asked -- an epoch, a target, a described data object.  Neither
+``CohortBundleEnv``, in ``cohort_bundle.py``, is the other half.  It runs the
+registered dataset a cohort's bundle is built with over the templates that dataset
+ships, on the products the cohort writes, and it is how a question about what a label
+*says* is asked -- an epoch, a target, a described data object.  Neither
 answers the other's question: a label rendered from a template the test wrote
 says whatever the test put there, and a plumbing failure inside the shipped
 template set is a needle in three hundred lines of XML.
@@ -34,18 +34,19 @@ from typing import Any, cast
 import numpy as np
 from astropy.io import fits
 from filecache import FCPath
-from tests.mini_nav_results.cohort import Cohort
+from tests.spindoctor.cli.sd_create_bundle_helpers import (
+    STAND_IN_INFORMATION_MODEL_VERSION,
+    STAND_IN_SCHEMAS,
+)
 
-from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
-from spindoctor.cli.pds4.bundle_products import generate_bundle_products
 from spindoctor.cli.pds4.collections import CollectionOutcome, generate_collection_files
 from spindoctor.cli.pds4.epochs import EpochRange
-from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.cli.pds4.targets import Pds4Target
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
-from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
+from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass, Pds4Schema
 
 DEFAULT_BUNDLE_NAME = 'fake_bundle'
+DEFAULT_BUNDLE_VERSION = '1.0'
 DEFAULT_SHARD = 'shard0'
 
 PDS4_NAMESPACE = 'http://pds.nasa.gov/pds4/pds/v1'
@@ -312,6 +313,8 @@ class FakePds4DataSet:
         template_variables: dict[str, Any] | None = None,
         bodies: list[dict[str, Any]] | None = None,
         rings: list[dict[str, Any]] | None = None,
+        information_model_version: str = STAND_IN_INFORMATION_MODEL_VERSION,
+        schemas: dict[str, Pds4Schema] | None = None,
     ) -> None:
         """Build the fake dataset.
 
@@ -323,10 +326,15 @@ class FakePds4DataSet:
                 :meth:`pds4_template_variables`; empty dict when None.
             bodies: ``config.backplanes.bodies`` entries (dicts with a ``name`` key).
             rings: ``config.backplanes.rings`` entries (dicts with a ``name`` key).
+            information_model_version: Served by :meth:`pds4_information_model_version`.
+            schemas: Served by :meth:`pds4_schemas`; the neutral stand-in when None, and
+                a registered dataset's own for templates it ships, which declare them.
         """
         self._template_dir = template_dir
         self._bundle_name = bundle_name
         self._shard = shard
+        self._information_model_version = information_model_version
+        self._schemas = dict(STAND_IN_SCHEMAS) if schemas is None else schemas
         self.template_variables: dict[str, Any] = (
             template_variables if template_variables is not None else {}
         )
@@ -351,6 +359,18 @@ class FakePds4DataSet:
     def pds4_bundle_name(self) -> str:
         """Return the configured bundle name."""
         return self._bundle_name
+
+    def pds4_bundle_version(self) -> str:
+        """Return the bundle's version, which each of its products carries."""
+        return DEFAULT_BUNDLE_VERSION
+
+    def pds4_information_model_version(self) -> str:
+        """Return the information model version the labels are written against."""
+        return self._information_model_version
+
+    def pds4_schemas(self) -> dict[str, Pds4Schema]:
+        """Return the dictionary schemas the labels declare."""
+        return dict(self._schemas)
 
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Return the template filenames the given pass must find.
@@ -402,7 +422,7 @@ class FakePds4DataSet:
         Parameters:
             image_name: The image name, used verbatim as the LID part.
         """
-        return f'{self.pds4_image_name_to_data_lid(image_name)}::1.0'
+        return f'{self.pds4_image_name_to_data_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_image_name_to_browse_lid(self, image_name: str) -> str:
         """Return the canonical browse LID for the given image name.
@@ -418,7 +438,7 @@ class FakePds4DataSet:
         Parameters:
             image_name: The image name, used verbatim as the LID part.
         """
-        return f'{self.pds4_image_name_to_browse_lid(image_name)}::1.0'
+        return f'{self.pds4_image_name_to_browse_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_template_variables(
         self,
@@ -581,6 +601,8 @@ def make_bundle_env(
     template_variables: dict[str, Any] | None = None,
     bodies: list[dict[str, Any]] | None = None,
     rings: list[dict[str, Any]] | None = None,
+    information_model_version: str = STAND_IN_INFORMATION_MODEL_VERSION,
+    schemas: dict[str, Pds4Schema] | None = None,
 ) -> BundleEnv:
     """Build the standard single-image bundle environment under ``tmp_path``.
 
@@ -598,6 +620,11 @@ def make_bundle_env(
             entries matching ``image_name``.
         bodies: ``config.backplanes.bodies`` entries for the fake dataset.
         rings: ``config.backplanes.rings`` entries for the fake dataset.
+        information_model_version: The information model version the fake dataset gives
+            the labels.
+        schemas: The dictionary schemas the fake dataset gives the labels; the neutral
+            stand-in when None.  A test rendering templates a registered dataset ships
+            hands them that dataset's, which those templates declare.
 
     Returns:
         The populated :class:`BundleEnv`.
@@ -616,6 +643,8 @@ def make_bundle_env(
         template_variables=template_variables,
         bodies=bodies,
         rings=rings,
+        information_model_version=information_model_version,
+        schemas=schemas,
     )
 
     image_file = make_image_file(image_name, results_path_stub=results_path_stub, base_dir=tmp_path)
@@ -870,111 +899,3 @@ def read_index_rows(path: Path) -> list[list[str]]:
     """
     lines = path.read_bytes().decode('ascii').splitlines()
     return [[cell.strip() for cell in line.split(',')] for line in lines]
-
-
-@dataclass
-class CohortBundleEnv:
-    """A bundle-generation environment over a cohort and its bundle's shipped templates.
-
-    Where :class:`BundleEnv` controls every variable so that the substitution
-    plumbing can be asserted on, this one controls none of them: the dataset is
-    the registered one the cohort's bundle is built with, the templates are the
-    ones that dataset ships, and the inputs are the documents and products a
-    navigation run and the backplane stage leave behind.  What it is for is
-    asserting what a label says, which nothing built out of stand-ins can
-    answer.
-
-    Attributes:
-        dataset: The registered dataset the cohort's bundle is built with,
-            serving its own ``pds4_*`` hooks and its own template directory.
-        cohort: The written cohort, holding both input roots and every image.
-        bundle_results_root: Where this test's bundle goes.
-        bundle_dir: ``bundle_results_root / <the dataset's bundle name>``.
-    """
-
-    dataset: DataSet
-    cohort: Cohort
-    bundle_results_root: Path
-    bundle_dir: Path
-
-
-def make_cohort_bundle_env(cohort: Cohort, tmp_path: Path) -> CohortBundleEnv:
-    """Build a bundle environment over the cohort, writing into ``tmp_path``.
-
-    The cohort is read-only and shared by the session; only the bundle the run
-    writes belongs to one test.
-
-    Parameters:
-        cohort: The session's cohort, holding the navigation and backplane
-            roots the run reads.
-        tmp_path: Base temporary directory for this test's bundle output.
-
-    Returns:
-        The populated :class:`CohortBundleEnv`.
-    """
-    dataset = cohort.dataset()
-    bundle_results_root = tmp_path / 'bundle'
-    bundle_results_root.mkdir(parents=True, exist_ok=True)
-    return CohortBundleEnv(
-        dataset=dataset,
-        cohort=cohort,
-        bundle_results_root=bundle_results_root,
-        bundle_dir=bundle_results_root / dataset.pds4_bundle_name(),
-    )
-
-
-def label_cohort_images(env: CohortBundleEnv, stubs: Sequence[str]) -> None:
-    """Run the labels pass over some of the environment's cohort images, in turn.
-
-    Parameters:
-        env: The environment whose cohort the images are from and whose bundle the
-            labels go into.
-        stubs: The images to label, by results path stub.
-    """
-    for stub in stubs:
-        generate_bundle_data_files(
-            env.dataset,
-            env.cohort.batch(stub),
-            nav_results_root=FCPath(env.cohort.nav_results_root),
-            backplane_results_root=FCPath(env.cohort.backplane_results_root),
-            bundle_results_root=FCPath(env.bundle_results_root),
-            logger=MAIN_LOGGER,
-        )
-
-
-def summarize_bundle(env: CohortBundleEnv) -> None:
-    """Run the summary pass's three generators over the environment's bundle.
-
-    They run in the order the pass runs them: the global index first, whose range of
-    the products' epochs and whose targets the collection generator and the run-level
-    products are handed, and the run-level products last.
-
-    Parameters:
-        env: The environment whose bundle is summarized.
-    """
-    bundle_results_root = FCPath(env.bundle_results_root)
-    index = generate_global_index_files(bundle_results_root, env.dataset, MAIN_LOGGER)
-    generate_collection_files(
-        bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs, targets=index.targets
-    )
-    generate_bundle_products(
-        bundle_results_root, env.dataset, MAIN_LOGGER, epochs=index.epochs, targets=index.targets
-    )
-
-
-def write_cohort_bundle(cohort: Cohort, tmp_path: Path, stubs: Sequence[str]) -> CohortBundleEnv:
-    """Build a bundle over some of a cohort's images, running both passes.
-
-    Parameters:
-        cohort: The session's cohort, holding the navigation and backplane roots the
-            run reads.
-        tmp_path: Base temporary directory for this test's bundle output.
-        stubs: The images to bundle, by results path stub.
-
-    Returns:
-        The environment the bundle was written into.
-    """
-    env = make_cohort_bundle_env(cohort, tmp_path)
-    label_cohort_images(env, stubs)
-    summarize_bundle(env)
-    return env

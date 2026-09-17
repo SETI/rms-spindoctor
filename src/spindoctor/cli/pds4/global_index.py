@@ -37,6 +37,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.bundle_products import clear_bundle_products, secondary_members
+from spindoctor.cli.pds4.bundle_variables import bundle_variables
 from spindoctor.cli.pds4.collections import (
     clear_collection_products,
     data_directory,
@@ -156,9 +157,6 @@ BODIES_INDEX = 'global_bodies_index'
 
 RINGS_INDEX = 'global_rings_index'
 """The rings table's name: the stem of its file and its label, and its LID's last part."""
-
-INDEX_VERSION = '1.0'
-"""The version of each index product, which its label states and its inventory line names."""
 
 _NO_INDEX_PRODUCT = (
     'neither index table was written with its label, so the collection holds no product of its own'
@@ -461,6 +459,7 @@ def _write_index(
     rows: list[list[str]],
     *,
     lid: str,
+    variables: Mapping[str, Any],
     template: pdstemplate.PdsTemplate,
     logger: PdsLogger,
 ) -> IndexWritten:
@@ -471,7 +470,7 @@ def _write_index(
     cannot be described: neither it nor its label is written.  That is no failure, since
     a bundle can hold no image with ring backplanes, and the log says so at info level.
     Otherwise the table is laid out by :func:`lay_out_table` and written as ASCII, and
-    then its label is rendered from ``template``, handed:
+    then its label is rendered from ``template``, handed ``variables`` and:
 
     - ``INDEX_LID``, the product's LID;
     - ``INDEX_TABLE_PATH``, the table's path, from which the label reads its size,
@@ -491,6 +490,8 @@ def _write_index(
         columns: The table's columns, in order.
         rows: The table's rows, each holding one rendered cell per column.
         lid: The product's LID.
+        variables: The variables every template of the bundle resolves against, as
+            :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` gives them.
         template: The parsed template the label renders from.
         logger: Logger for diagnostic messages.
 
@@ -511,6 +512,7 @@ def _write_index(
         f.writelines(laid_out.records)
     logger.info('Generated "%s" with %d rows', table.name, len(rows))
     template_vars = {
+        **variables,
         'INDEX_LID': lid,
         'INDEX_TABLE_PATH': table.as_posix(),
         'HEADER_LENGTH': len(laid_out.header),
@@ -587,9 +589,11 @@ def generate_global_index_files(
 
     The miscellaneous collection is written after the tables, its inventory
     ``collection_miscellaneous.csv`` and its label beside them: a ``P`` line for each
-    index product whose label is on disk, by its LID and :data:`INDEX_VERSION`, and then
+    index product whose label is on disk, by its LID and the bundle's version,
+    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_version`, and then
     an ``S`` line for each secondary member the template directory's document inventory
-    cites, through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`.  It
+    cites, as that inventory renders with the bundle's variables, through
+    :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`.  It
     takes its members from the index labels, as the data collection takes its members
     from the data labels, so with neither index product labeled -- no image gives either
     table a row, or neither label renders -- it is not written at all, whatever it would
@@ -659,6 +663,7 @@ def generate_global_index_files(
     bundle_name = dataset.pds4_bundle_name()
     template_dir = FCPath(dataset.pds4_bundle_template_dir())
     bundle_root = bundle_results_root / bundle_name
+    variables = bundle_variables(dataset)
     config = dataset.config
 
     # Each configured plane and the two columns its statistic fills, from its
@@ -790,6 +795,7 @@ def generate_global_index_files(
         ],
         body_index_rows,
         lid=index_lid(bundle_name, BODIES_INDEX),
+        variables=variables,
         template=bodies_template,
         logger=logger,
     )
@@ -809,6 +815,7 @@ def generate_global_index_files(
         ],
         ring_index_rows,
         lid=index_lid(bundle_name, RINGS_INDEX),
+        variables=variables,
         template=rings_template,
         logger=logger,
     )
@@ -822,8 +829,9 @@ def generate_global_index_files(
     # labels of its own kind, so with neither index product labeled it holds nothing of
     # its own and is not written, whatever it would cite: it counts, and the bundle
     # label, which declares it, goes with it.
+    bundle_version = dataset.pds4_bundle_version()
     primaries = [
-        f'{index_lid(bundle_name, name)}::{INDEX_VERSION}'
+        f'{index_lid(bundle_name, name)}::{bundle_version}'
         for name, written in ((BODIES_INDEX, bodies_written), (RINGS_INDEX, rings_written))
         if written is IndexWritten.LABELED
     ]
@@ -832,9 +840,10 @@ def generate_global_index_files(
         collection_inventory,
         collection_label,
         primaries=primaries,
-        secondaries=secondary_members(template_dir),
+        secondaries=secondary_members(template_dir, variables),
         template=collection_template,
-        template_vars={'COLLECTION_MISCELLANEOUS_CSV_PATH': collection_inventory.as_posix()},
+        template_vars=variables
+        | {'COLLECTION_MISCELLANEOUS_CSV_PATH': collection_inventory.as_posix()},
         reasons_not_written=[] if primaries else [_NO_INDEX_PRODUCT],
         logger=logger,
     ):
