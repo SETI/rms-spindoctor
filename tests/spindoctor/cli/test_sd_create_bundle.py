@@ -1,10 +1,11 @@
-"""Tests that a bundle run which did not write every label says so in its result.
+"""Tests that a labels run which did not write every label says so in its result.
 
 ``pdstemplate`` reports a label it could not render through its return value
 rather than by raising, so a run that dropped one looks exactly like a run that
 did not, unless the drivers act on what came back to them.  These pin that: what
-each of the three entry points -- the two subcommands and the cloud-task worker
--- does with a product it failed to write, and what it does with none.
+the labels subcommand and the cloud-task worker each do with a product they failed
+to write, and what they do with none.  The summary subcommand's are in
+``test_sd_create_bundle_summary.py``.
 
 Each entry point is stood up on stubs, because what is under test is the
 counting and the report, not the configuration loading, the logging setup or the
@@ -12,7 +13,6 @@ generation they read.
 """
 
 import argparse
-from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any, cast
@@ -20,180 +20,15 @@ from typing import Any, cast
 import pdstemplate
 import pytest
 from cloud_tasks.worker import WorkerData
-from filecache import FCPath
-from tests.spindoctor.cli.pds4.conftest import (
-    RUN_LEVEL_PRODUCTS,
-    make_bundle_env,
-    touch_browse_label,
-    touch_label,
-    write_supplemental,
+from tests.spindoctor.cli.sd_create_bundle_helpers import (
+    BUNDLE_NAME,
+    batch_image_name,
+    stub_dataset,
 )
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
-from spindoctor.cli.pds4.bundle_products import BundleProductsOutcome
-from spindoctor.cli.pds4.collections import CollectionOutcome, GlobalIndexOutcome
-from spindoctor.cli.pds4.epochs import EpochRange
-from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 from spindoctor.dataset.dataset_sim import DataSetSim
-
-
-def _image_file(name: str, *, base_dir: Path | None = None) -> ImageFile:
-    """Build one hermetic image file whose URLs are never retrieved.
-
-    Parameters:
-        name: Bare image name.
-        base_dir: Directory the URLs live in; the non-writable ``/hermetic``
-            when None.  Only a call path that resolves ``image_file_path``,
-            which creates the URL's parent directory, needs a real one.
-
-    Returns:
-        The constructed image file.
-    """
-    base = str(base_dir) if base_dir is not None else '/hermetic'
-    return ImageFile(
-        image_file_url=FCPath(f'{base}/{name}.img'),
-        label_file_url=FCPath(f'{base}/{name}.lbl'),
-        results_path_stub=f'res/{name}',
-    )
-
-
-def _batch_image_name(batch: int, index: int) -> str:
-    """Name the image at one position of one enumerated batch.
-
-    Parameters:
-        batch: Which batch the image is in.
-        index: The image's position within that batch.
-
-    Returns:
-        The bare image name.
-    """
-    return f'12345678{batch}{index}w'
-
-
-BUNDLE_NAME = 'fake_bundle'
-"""The bundle the stub dataset names, and so the directory a run writes into."""
-
-REQUIRED_TEMPLATES: dict[Pds4Pass, list[str]] = {
-    'labels': ['data.lblx', 'browse.lblx'],
-    'summary': [
-        'collection_data.lblx',
-        'collection_browse.lblx',
-        'global_index_bodies.lblx',
-        'global_index_rings.lblx',
-    ],
-}
-"""What the stub dataset declares each pass must find: the templates that pass renders."""
-
-SUMMARY_PRODUCTS = (
-    'data/collection_data.csv',
-    'data/collection_data.lblx',
-    'browse/collection_browse.csv',
-    'browse/collection_browse.lblx',
-    'document/supplemental/global_index_bodies.tab',
-    'document/supplemental/global_index_bodies.lblx',
-    'document/supplemental/global_index_rings.tab',
-    'document/supplemental/global_index_rings.lblx',
-    *RUN_LEVEL_PRODUCTS,
-)
-"""Every file the summary pass writes over a template directory holding the user guide."""
-
-
-class _StubDataset:
-    """A dataset serving the pds4_* hooks the drivers call, over chosen batches.
-
-    It carries a configuration declaring no backplanes, as every dataset carries
-    one, for the summary pass's index generator to read.
-    """
-
-    def __init__(
-        self,
-        template_dir: Path,
-        *,
-        image_count: int = 1,
-        batch_count: int = 1,
-        base_dir: Path | None = None,
-    ) -> None:
-        """Prepare an enumeration of batches holding that many images each.
-
-        Parameters:
-            template_dir: Directory served as the dataset's template directory.
-            image_count: How many images each batch holds.
-            batch_count: How many batches the enumeration yields.
-            base_dir: Directory the enumerated images live in; only a run that
-                reaches the real generation needs a real one.
-        """
-        self._template_dir = template_dir
-        self._image_count = image_count
-        self._batch_count = batch_count
-        self._base_dir = base_dir
-        self.config = SimpleNamespace(backplanes=SimpleNamespace(bodies=[], rings=[]))
-
-    def pds4_bundle_name(self) -> str:
-        """Return the bundle name whose directory the run writes into."""
-        return BUNDLE_NAME
-
-    def pds4_bundle_template_dir(self) -> str:
-        """Return the template directory the declared templates are looked for in."""
-        return str(self._template_dir)
-
-    def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
-        """Return the template filenames the given pass must find.
-
-        Parameters:
-            pds4_pass: Which pass's templates to name.
-        """
-        return REQUIRED_TEMPLATES[pds4_pass]
-
-    def yield_image_files_from_arguments(
-        self, arguments: argparse.Namespace
-    ) -> Iterator[ImageFiles]:
-        """Yield the batches the run will process.
-
-        Parameters:
-            arguments: The parsed command line, unused.
-
-        Yields:
-            Each batch, holding the configured number of images.
-        """
-        for batch in range(self._batch_count):
-            yield ImageFiles(
-                image_files=[
-                    _image_file(_batch_image_name(batch, n), base_dir=self._base_dir)
-                    for n in range(self._image_count)
-                ]
-            )
-
-
-def _stub_dataset(
-    tmp_path: Path,
-    *,
-    image_count: int = 1,
-    batch_count: int = 1,
-    base_dir: Path | None = None,
-) -> _StubDataset:
-    """Build the stub dataset over a template directory holding every template.
-
-    Parameters:
-        tmp_path: Base temporary directory the template directory lives under.
-        image_count: How many images each enumerated batch holds.
-        batch_count: How many batches the enumeration yields.
-        base_dir: Directory the enumerated images live in.
-
-    Returns:
-        The stub dataset, whose template directory is already populated.
-    """
-    template_dir = tmp_path / 'templates'
-    template_dir.mkdir(exist_ok=True)
-    for names in REQUIRED_TEMPLATES.values():
-        for name in names:
-            (template_dir / name).write_text('<Product/>\n', encoding='utf-8')
-    return _StubDataset(
-        template_dir,
-        image_count=image_count,
-        batch_count=batch_count,
-        base_dir=base_dir,
-    )
 
 
 @pytest.fixture
@@ -213,28 +48,7 @@ def labels_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sd_create_bundle, 'get_backplane_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(pdstemplate.PdsTemplate, 'set_logger', staticmethod(lambda *a: None))
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path))
-
-
-@pytest.fixture
-def summary_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stand the summary subcommand up on stubs, leaving only its counting live.
-
-    Parameters:
-        tmp_path: Base temporary directory served as the bundle results root.
-        monkeypatch: Fixture the stand-ins are installed through.
-    """
-    monkeypatch.setattr(
-        sd_create_bundle,
-        'parse_args_summary',
-        lambda _: argparse.Namespace(dataset_name='stub'),
-    )
-    monkeypatch.setattr(sd_create_bundle, 'load_default_and_user_config', lambda *a: None)
-    monkeypatch.setattr(sd_create_bundle, 'build_run_logging', lambda *a: None)
-    monkeypatch.setattr(sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
-    monkeypatch.setattr(pdstemplate.PdsTemplate, 'set_logger', staticmethod(lambda *a: None))
-    dataset = _stub_dataset(tmp_path)
-    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', stub_dataset(tmp_path))
 
 
 def _labels_outcome(monkeypatch: pytest.MonkeyPatch, outcome: BundleDataOutcome) -> None:
@@ -245,40 +59,6 @@ def _labels_outcome(monkeypatch: pytest.MonkeyPatch, outcome: BundleDataOutcome)
         outcome: What generating one image's data files is to report.
     """
     monkeypatch.setattr(sd_create_bundle, 'generate_bundle_data_files', lambda **kwargs: outcome)
-
-
-def _summary_counts(
-    monkeypatch: pytest.MonkeyPatch,
-    collections: int,
-    index: int,
-    *,
-    disagreeing: int = 0,
-    bundle: int = 0,
-) -> None:
-    """Make the three summary generators report the given counts.
-
-    Parameters:
-        monkeypatch: Fixture the stand-ins are installed through.
-        collections: Failed collection labels to report.
-        index: Failed global index labels to report.
-        disagreeing: Images whose products disagree, for the collection generator to
-            report.
-        bundle: Failed run-level labels to report.
-    """
-    index_outcome = GlobalIndexOutcome(failed_labels=index, epochs=None)
-    collection_outcome = CollectionOutcome(
-        failed_labels=collections, disagreeing_images=disagreeing
-    )
-    bundle_outcome = BundleProductsOutcome(failed_labels=bundle)
-    monkeypatch.setattr(
-        sd_create_bundle, 'generate_collection_files', lambda **kwargs: collection_outcome
-    )
-    monkeypatch.setattr(
-        sd_create_bundle, 'generate_global_index_files', lambda **kwargs: index_outcome
-    )
-    monkeypatch.setattr(
-        sd_create_bundle, 'generate_bundle_products', lambda **kwargs: bundle_outcome
-    )
 
 
 def _dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -429,7 +209,7 @@ def test_main_labels_exits_non_zero_when_a_batch_is_not_one_image(
         monkeypatch: Fixture the two-image enumeration is installed through.
         tmp_path: Base temporary directory the stub dataset is built under.
     """
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, image_count=2))
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', stub_dataset(tmp_path, image_count=2))
     _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_labels()
@@ -453,7 +233,7 @@ def test_a_malformed_batch_counts_every_image_it_holds(
         tmp_path: Base temporary directory the stub dataset is built under.
         capsys: Fixture the closing line is read from.
     """
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, image_count=2))
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', stub_dataset(tmp_path, image_count=2))
     _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
     with pytest.raises(SystemExit):
         sd_create_bundle.main_labels()
@@ -477,7 +257,7 @@ def test_an_empty_batch_fails_the_run_it_adds_no_images_to(
         tmp_path: Base temporary directory the stub dataset is built under.
         capsys: Fixture the closing line is read from.
     """
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, image_count=0))
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', stub_dataset(tmp_path, image_count=0))
     _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_labels()
@@ -525,7 +305,7 @@ def test_main_labels_reports_a_selection_that_matched_no_images(
         tmp_path: Base temporary directory the stub dataset is built under.
         capsys: Fixture the closing report is read from.
     """
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, batch_count=0))
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', stub_dataset(tmp_path, batch_count=0))
     _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
     sd_create_bundle.main_labels()
     assert 'Label generation complete: 0 image(s) labeled, 0 skipped' in capsys.readouterr().out
@@ -565,7 +345,7 @@ def test_a_dry_run_over_a_malformed_batch_reports_it_and_exits_zero(
         capsys: Fixture the report is read from.
     """
     _dry_run(monkeypatch)
-    monkeypatch.setattr(sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, image_count=2))
+    monkeypatch.setattr(sd_create_bundle, 'DATASET', stub_dataset(tmp_path, image_count=2))
     _labels_outcome(monkeypatch, BundleDataOutcome.WRITTEN)
     sd_create_bundle.main_labels()
     assert 'Expected 1 image file, got 2' in capsys.readouterr().out
@@ -587,9 +367,9 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
     traceback do not carry.
     """
     monkeypatch.setattr(
-        sd_create_bundle, 'DATASET', _stub_dataset(tmp_path, batch_count=3, base_dir=tmp_path)
+        sd_create_bundle, 'DATASET', stub_dataset(tmp_path, batch_count=3, base_dir=tmp_path)
     )
-    middle = _batch_image_name(1, 0)
+    middle = batch_image_name(1, 0)
     unparseable = tmp_path / 'res' / f'{middle}_metadata.json'
     unparseable.parent.mkdir(parents=True, exist_ok=True)
     unparseable.write_text('not json at all', encoding='utf-8')
@@ -604,306 +384,6 @@ def test_main_labels_carries_on_past_an_image_it_could_not_read(
         '1 whose labels were not written'
     )
     assert expected in out
-
-
-def test_main_summary_refuses_a_template_the_dataset_does_not_have(
-    summary_run: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The summary pass checks its own templates up front, as the labels pass does.
-
-    The two passes render different templates, so each looks for the ones it
-    renders; a summary run whose collection template is not there stops on it
-    even though the labels pass before it found everything it needed.
-    """
-    missing = tmp_path / 'templates' / 'collection_data.lblx'
-    missing.unlink()
-    _summary_counts(monkeypatch, collections=0, index=0)
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-    assert f'PDS4 template not found: {missing}' in capsys.readouterr().out
-
-
-def _latitude_in(units: str) -> dict[str, Any]:
-    """Return one body's latitude statistic, recorded in the given unit.
-
-    Parameters:
-        units: The unit the statistic records.  The configuration the test gives its
-            dataset declares the latitude plane in radians, whose statistics are
-            taken in degrees.
-
-    Returns:
-        The ``backplanes.bodies`` payload of a supplemental file.
-    """
-    return {'MOON': {'backplanes': {'latitude': {'min': -1.2, 'max': 1.4, 'units': units}}}}
-
-
-def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
-    summary_run: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A run refused over a supplemental file leaves no file of the pass behind.
-
-    The first run writes every file of the pass; the second is refused over a second
-    supplemental file, one recording its statistic in another unit.  The generators
-    are the real ones, so an earlier run's inventory or collection label left beside
-    no index is reported here, as is an earlier run's index or run-level product; and
-    the log gives the reason the run was refused.
-    """
-    env = make_bundle_env(tmp_path / 'env', bodies=[{'name': 'latitude', 'units': 'rad'}])
-    dataset = env.dataset.as_dataset()
-    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
-    monkeypatch.setattr(
-        sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(env.bundle_results_root)
-    )
-    data_dir = env.bundle_dir / 'data'
-    touch_label(data_dir, 'shard0/1111111111n')
-    touch_browse_label(env.bundle_dir / 'browse', 'shard0/1111111111n')
-    write_supplemental(data_dir, 'shard0/1111111111n', bodies=_latitude_in('deg'))
-    sd_create_bundle.main_summary()
-    products = [env.bundle_dir / name for name in SUMMARY_PRODUCTS]
-    assert [product for product in products if not product.exists()] == []
-    write_supplemental(data_dir, 'shard0/2222222222w', bodies=_latitude_in('rad'))
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-    assert [product for product in products if product.exists()] == []
-    expected = 'records the latitude statistic in rad where the configuration expects deg'
-    assert expected in capsys.readouterr().out
-
-
-def test_a_summary_over_no_data_label_exits_one_and_writes_neither_collection(
-    summary_run: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Supplemental files and no data label end the summary non-zero, with no collection.
-
-    This is the tree a labels pass leaves when every data label fails to render, since
-    it writes an image's supplemental file before the image's data label.  The index
-    then has a range to hand on, but neither collection has a member, and a collection
-    label states at least one record, so neither collection is written, each counts
-    among the labels not written, and the log names each; so does the bundle label,
-    which declares both.  The image, a supplemental file with no data label, is one
-    whose products disagree, and the closing line counts it beside the labels.  The
-    generators are the real ones.
-    """
-    env = make_bundle_env(tmp_path / 'env')
-    dataset = env.dataset.as_dataset()
-    monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)
-    monkeypatch.setattr(
-        sd_create_bundle, 'get_pds4_bundle_results_root', lambda *a: str(env.bundle_results_root)
-    )
-    write_supplemental(env.bundle_dir / 'data', 'shard0/1111111111n')
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-    not_written = ('data/collection_', 'browse/collection_', 'bundle.lblx')
-    unwritten = [env.bundle_dir / name for name in SUMMARY_PRODUCTS if name.startswith(not_written)]
-    assert [product for product in unwritten if product.exists()] == []
-    out = capsys.readouterr().out
-    closing = (
-        'Summary generation incomplete: 3 label(s) were not written, '
-        '1 image(s) whose products disagree'
-    )
-    assert closing in out
-    assert 'The data collection was not written' in out
-    assert 'The browse collection was not written' in out
-
-
-@pytest.mark.parametrize(
-    ('collections', 'index', 'disagreeing', 'bundle'),
-    [(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)],
-    ids=['collection label', 'index label', 'disagreeing image', 'run-level label'],
-)
-def test_main_summary_exits_non_zero_when_a_count_is_not_zero(
-    summary_run: None,
-    monkeypatch: pytest.MonkeyPatch,
-    collections: int,
-    index: int,
-    disagreeing: int,
-    bundle: int,
-) -> None:
-    """A label not written, or an image whose products disagree, ends the run non-zero.
-
-    Each count is a case of its own because the run has to act on each: a summary
-    that reported only one generator's failed labels, or only failed labels and no
-    disagreeing image, would still pass a test that never gave it the other.
-
-    Parameters:
-        summary_run: Fixture standing the subcommand up on stubs.
-        monkeypatch: Fixture the counts are installed through.
-        collections: Failed collection labels for this case.
-        index: Failed global index labels for this case.
-        disagreeing: Images whose products disagree, for this case.
-        bundle: Failed run-level labels for this case.
-    """
-    _summary_counts(
-        monkeypatch, collections=collections, index=index, disagreeing=disagreeing, bundle=bundle
-    )
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-
-
-def test_main_summary_reports_why_the_index_could_not_be_generated(
-    summary_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """An index generator that raises ends the run with the reason in the log.
-
-    A supplemental file in another unit is refused with a message naming the
-    file and both units, and the frames of a traceback do not carry it.
-    """
-    unreached = CollectionOutcome(failed_labels=0, disagreeing_images=0)
-    monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', lambda **kwargs: unreached)
-
-    def _refuse(**kwargs: Any) -> int:
-        """Refuse the index the way a supplemental file in another unit is refused.
-
-        Parameters:
-            **kwargs: What the driver passed, unused.
-
-        Raises:
-            ValueError: Always, naming a file and both units.
-        """
-        raise ValueError(
-            'Supplemental file X records the tilt statistic in rad where the '
-            'configuration expects deg'
-        )
-
-    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', _refuse)
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-    out = capsys.readouterr().out
-    assert 'Supplemental file X records the tilt statistic in rad' in out
-
-
-def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
-    summary_run: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A collection generator that raises ends the run with the reason in the log.
-
-    The bundle here has no data directory, and the collection generator refuses it
-    naming the directory it looked for.  The index generator, which runs first and
-    refuses such a bundle the same way, is stood in for, so that the refusal the log
-    reports is the collection generator's.  The frames of a traceback show the
-    statement that raised but not the path it interpolated, so the path is what says
-    the reason reached the log.
-    """
-    outcome = GlobalIndexOutcome(failed_labels=0, epochs=None)
-    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', lambda **kwargs: outcome)
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-    missing = tmp_path / BUNDLE_NAME / 'data'
-    expected = f'Failed to generate collection files: Data directory does not exist: {missing}'
-    assert expected in capsys.readouterr().out
-
-
-def test_main_summary_reports_why_the_bundle_products_could_not_be_generated(
-    summary_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A run-level generator that raises ends the run with the reason in the log.
-
-    A file the template directory does not hold is refused naming it, which the frames
-    of a traceback do not carry.
-    """
-    _summary_counts(monkeypatch, collections=0, index=0)
-
-    def _refuse(**kwargs: Any) -> BundleProductsOutcome:
-        """Refuse the way a file missing from the template directory is refused.
-
-        Parameters:
-            **kwargs: What the driver passed, unused.
-
-        Raises:
-            FileNotFoundError: Always, naming the file.
-        """
-        raise FileNotFoundError('No such file: templates/readme.txt')
-
-    monkeypatch.setattr(sd_create_bundle, 'generate_bundle_products', _refuse)
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-    expected = 'Failed to generate the bundle products: No such file: templates/readme.txt'
-    assert expected in capsys.readouterr().out
-
-
-def test_main_summary_hands_the_index_s_range_to_the_generators_after_it(
-    summary_run: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The index runs first, and the collections and then the run-level products get its range.
-
-    The scan of the supplemental files is the pass's one read of them, so the range
-    the data collection label and the bundle label state can come from nowhere else.
-    """
-    calls: list[str] = []
-    handed: list[Any] = []
-    epochs = EpochRange(start_et=100.0, stop_et=900.0)
-
-    def _index(**kwargs: Any) -> GlobalIndexOutcome:
-        """Record the call, and report the range.
-
-        Parameters:
-            **kwargs: What the driver passed, unused.
-
-        Returns:
-            An outcome carrying the range and no failed label.
-        """
-        calls.append('index')
-        return GlobalIndexOutcome(failed_labels=0, epochs=epochs)
-
-    def _collections(**kwargs: Any) -> CollectionOutcome:
-        """Record the call and the range it is handed, and report nothing counted.
-
-        Parameters:
-            **kwargs: What the driver passed; ``epochs`` is recorded.
-
-        Returns:
-            An outcome with no failed label and no disagreeing image.
-        """
-        calls.append('collections')
-        handed.append(kwargs['epochs'])
-        return CollectionOutcome(failed_labels=0, disagreeing_images=0)
-
-    def _bundle(**kwargs: Any) -> BundleProductsOutcome:
-        """Record the call and the range it is handed, and report nothing counted.
-
-        Parameters:
-            **kwargs: What the driver passed; ``epochs`` is recorded.
-
-        Returns:
-            An outcome with no failed label.
-        """
-        calls.append('bundle')
-        handed.append(kwargs['epochs'])
-        return BundleProductsOutcome(failed_labels=0)
-
-    monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', _index)
-    monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', _collections)
-    monkeypatch.setattr(sd_create_bundle, 'generate_bundle_products', _bundle)
-    sd_create_bundle.main_summary()
-    assert calls == ['index', 'collections', 'bundle']
-    assert handed == [epochs, epochs]
-
-
-def test_main_summary_exits_zero_when_every_label_is_written(
-    summary_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A summary that wrote every label reports completion and does not end the process."""
-    _summary_counts(monkeypatch, collections=0, index=0)
-    sd_create_bundle.main_summary()
-    assert 'Summary generation complete' in capsys.readouterr().out
 
 
 @pytest.fixture
@@ -922,7 +402,7 @@ def cloud_task_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(module, 'get_nav_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(module, 'get_backplane_results_root', lambda *a: str(tmp_path))
     monkeypatch.setattr(module, 'get_pds4_bundle_results_root', lambda *a: str(tmp_path))
-    dataset = _stub_dataset(tmp_path)
+    dataset = stub_dataset(tmp_path)
     monkeypatch.setattr(module, 'dataset_name_to_class', lambda _: lambda: dataset)
 
 

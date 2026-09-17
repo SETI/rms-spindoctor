@@ -100,8 +100,9 @@ def test_cassini_lid_strips_version_suffix_and_extension(tmp_path: Path) -> None
         'collection_document.csv',
         'collection_xml_schema.lblx',
         'collection_xml_schema.csv',
-        'global_index_bodies.lblx',
-        'global_index_rings.lblx',
+        'global_bodies_index.lblx',
+        'global_rings_index.lblx',
+        'collection_miscellaneous.lblx',
         'cassini-iss-saturn-backplanes-user-guide.lblx',
         'collection_spice_kernels.lblx',
         'collection_spice_kernels.csv',
@@ -171,7 +172,7 @@ def test_cassini_default_template_dir_is_shipped_package_data(tmp_path: Path) ->
     assert (template_dir / 'data.lblx').is_file()
     assert (template_dir / 'browse.lblx').is_file()
     assert (template_dir / 'collection_data.lblx').is_file()
-    assert (template_dir / 'global_index_bodies.lblx').is_file()
+    assert (template_dir / 'global_bodies_index.lblx').is_file()
 
 
 def test_cassini_config_overrides_template_dir_and_bundle_name(tmp_path: Path) -> None:
@@ -250,10 +251,10 @@ def test_a_start_nanoseconds_short_of_its_millisecond_is_written_as_pds3_states_
     """
     stop_et = float(julian.tdb_from_tai(julian.tai_from_iso('2009-247T15:07:30.812')))
     start_et = stop_et - 50.0 / 1000.0
-    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
+    observation = {'start_time_et': start_et, 'end_time_et': stop_et}
     variables = _cassini_dataset(tmp_path).pds4_template_variables(
         image_file=make_image_file('W1630770594_1'),
-        nav_metadata={'status': 'success', 'navigation_result': {'times': times}},
+        nav_metadata={'status': 'success', 'observation': observation},
         backplane_metadata={},
     )
     assert variables['START_DATE_TIME'] == '2009-09-04T15:07:30.762Z'
@@ -278,10 +279,10 @@ def test_an_odd_millisecond_exposure_s_midtime_is_its_half_millisecond_taken_up(
     """
     stop_et = float(julian.tdb_from_tai(julian.tai_from_iso('2009-236T04:55:38.829')))
     start_et = stop_et - 5.0 / 1000.0
-    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
+    observation = {'start_time_et': start_et, 'end_time_et': stop_et}
     variables = _cassini_dataset(tmp_path).pds4_template_variables(
         image_file=make_image_file('W1629783475_1'),
-        nav_metadata={'status': 'success', 'navigation_result': {'times': times}},
+        nav_metadata={'status': 'success', 'observation': observation},
         backplane_metadata={},
     )
     assert variables['IMAGE_MID_TIME'] == '2009-08-24T04:55:38.827Z'

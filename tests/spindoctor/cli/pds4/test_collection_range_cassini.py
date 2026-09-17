@@ -58,10 +58,10 @@ def test_the_range_contains_a_data_label_s_times_where_they_meet_its_seconds(
     """
     start_et = 129399999.18533078
     stop_et = 130700001.18485416
-    times = {'start_et': start_et, 'stop_et': stop_et, 'midtime_et': (start_et + stop_et) / 2}
+    observation = {'start_time_et': start_et, 'end_time_et': stop_et}
     written = DataSetPDS3CassiniISSSaturn(tmp_path / 'holdings').pds4_template_variables(
         image_file=make_image_file('N1454725799_1'),
-        nav_metadata={'status': 'success', 'navigation_result': {'times': times}},
+        nav_metadata={'status': 'success', 'observation': observation},
         backplane_metadata={},
     )
     stated = EpochRange(start_et=start_et, stop_et=stop_et).template_variables()

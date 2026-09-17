@@ -5,11 +5,12 @@ PDS4 Bundle Generation
 The :mod:`pds4` package builds PDS4-compliant bundles from SpinDoctor's per-image
 navigation metadata and per-pixel backplanes. A bundle is the deliverable the
 Ring-Moon Systems node ships to PDS for archive: one collection of data labels
-(one per image), one collection of browse PNGs, the context, document, SPICE
-kernel and XML schema collections, and the bundle label that wires them
-together. This chapter covers the bundle-generation driver, the per-dataset
-extension points, the templated label workflow, the bundle's run-level products,
-and the output layout.
+(one per image), one collection of browse PNGs, the context, document,
+miscellaneous, SPICE kernel and XML schema collections, and the bundle label that
+wires them together. This chapter covers the bundle-generation driver, the
+per-dataset extension points, the templated label workflow, the global index and
+the miscellaneous collection, the bundle's run-level products, and the output
+layout.
 
 The user-facing CLI walkthrough lives at :doc:`/user_guide/user_guide_pds4_bundle`; this
 chapter is the developer's reference.
@@ -32,11 +33,12 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    the copy is the same bytes (see `The FITS and its data objects`_).
 
 2. **Collections and indexes.**  After every per-image data label is in place,
-   :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` reads
+   :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` reads
    every ``_supplemental.txt`` in the bundle's ``data/`` tree once, writes the
-   ``global_index_bodies`` and ``global_index_rings`` tables and their labels
-   under ``document/supplemental/``, and takes the range of the products'
-   exposure epochs in the same read.  Then
+   ``global_bodies_index`` and ``global_rings_index`` tables and their labels,
+   and the miscellaneous collection that lists them, into ``miscellaneous/`` (see
+   `The global index and the miscellaneous collection`_), and takes the range of
+   the products' exposure epochs in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
    ``data/`` and ``browse/`` trees, collects every ``_backplanes.lblx`` and
    ``_summary.lblx`` it finds, sorts each set by product name -- the file name
@@ -93,7 +95,7 @@ per-product report would be the same line thousands of times.  The two passes
 render different templates and each checks its own.
 
 Each index column is written in the format
-:data:`~spindoctor.cli.pds4.collections.INDEX_VALUE_FORMATS` gives its unit, each
+:data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives its unit, each
 chosen from what one pixel resolves, within the roughly seven significant digits a
 float32 array carries.  Nothing
 checks the configured units when a bundle is written: a unit the table has no
@@ -120,7 +122,8 @@ an image whose data or browse label failed to render, an image whose summary PNG
 was not in the navigation results, an image whose backplane metadata records a
 statistic no global index column can hold (one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or
-infinite), an image whose navigation recorded no pointing (see `Epochs`_),
+infinite), an image whose navigation document records no exposure times in its
+observation block, as a navigation by an earlier version left it (see `Epochs`_),
 and an image whose processing raised an error -- and exits 1 when that count is not
 zero.  An image with such a statistic is failed before anything is
 written for it, and the log names the image, the plane and what the document
@@ -150,7 +153,11 @@ have processed.
 ``sd_create_bundle summary`` counts the collection, index and run-level labels it
 did not write, over its three generators, and exits 1 the same way.  The index
 tables are written either way, and so is the inventory of a collection whose label
-fails to render.  The bundle label counts when it is not written: it is kept only
+fails to render.  An index table no image gives a row is not written, nor its label,
+and does not count: a table label states at least one record, and a bundle with no
+image with ring backplanes is not a fault.  With neither table written, though, the
+miscellaneous collection holds nothing of its own, so it is not written, and it counts.
+The bundle label counts when it is not written: it is kept only
 over a bundle holding a label for every collection it declares, and with no range
 to state it is not rendered (see `The bundle's run-level products`_).  A metakernel
 label that fails to render leaves the SPICE kernel collection with no member, so that
@@ -161,8 +168,8 @@ left at either path is removed -- and counts once among the labels not written,
 with an error naming the collection and each reason.  A collection label states at
 least one record, so a collection with no label of its kind on disk -- no data
 label, or no browse label -- is never written.  The data collection label also
-states the range of its products' epochs, so a data tree
-holding no supplemental file writes no data collection (see `Epochs`_).  The
+states the range of its products' epochs, so a data tree in which no data label has
+a supplemental file beside it writes no data collection (see `Epochs`_).  The
 global index is generated first, and it refuses a
 bundle with no ``data/`` directory, naming the directory, before any product of
 the pass is cleared or written.  The pass also exits 1 when a supplemental file
@@ -171,16 +178,17 @@ configuration gives its plane, or a minimum or maximum that is NaN or infinite -
 the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  The index tables and
-labels an earlier run wrote, its collection inventories and labels, and its
-run-level products are cleared once the index generator has found the ``data/``
-directory and before the first supplemental file is read, all of them by the index
-generator since it runs first, so a run refused for want of ``data/`` leaves them as
-they were.  Every supplemental file is read, and every value in
+labels and the miscellaneous collection an earlier run wrote, its collection
+inventories and labels, and its run-level products are cleared once the index generator
+has found the ``data/`` directory and before the first supplemental file is read, all of
+them by the index generator since it runs first, so a run refused for want of ``data/``
+leaves them as they were.  Every supplemental file is read, and every value in
 both index tables rendered, before either table is opened, so a run refused over a
 supplemental file leaves no product of the pass, neither this run's nor an earlier
 run's.  The pass reads each
 supplemental file as the labels pass wrote it and checks nothing in it but the
-statistics; whether a data label is beside it is the product check that follows.
+statistics; whether a data label is beside it is the product check that follows, and a
+supplemental file with no data label beside it adds no row to either index table.
 Anything else unexpected raises, and the run ends with exit status 1.
 
 The summary pass inventories each collection from the labels of its own kind, the
@@ -207,10 +215,9 @@ A summary pass that exits 1 does not repair the bundle: the generators report wh
 they cannot describe, and what they wrote stays, but for two things.  A collection
 that cannot be written has whatever an earlier run left at its paths removed, and
 the bundle label, rendered and then found to name a collection the bundle does not
-hold, is removed in the same run.  After one, the index tables can hold rows for an
-image with no data label, since they are built from the supplemental files; the
-browse labels can name a data collection that was not written, and the data labels a
-browse collection that was not written; a user guide whose label failed is in
+hold, is removed in the same run.  After one, the browse labels can name a data
+collection that was not written, and the data labels a browse collection that was not
+written; a user guide whose label failed is in
 ``document/user_guide/`` unlabeled and unlisted; and a metakernel whose label failed
 is in ``spice_kernels/`` with neither label nor collection.  The bundle label names no
 collection the bundle does not hold, except after a run refused before it cleared
@@ -292,7 +299,12 @@ The full extension-point set:
   parsed from ``<image>_backplane_metadata.json``. The dataset is free to
   derive any per-image quantity the templates reference (target body,
   observer, mid-time, exposure, filters, navigation offset and confidence,
-  per-backplane min/max/units, and so on).
+  per-backplane min/max/units, and so on), and the product the backplanes were
+  computed from: the Cassini hook cites the calibrated image the navigation read
+  as a ``Source_Product_External``, by its volume and the file specification of
+  its label within that volume, since no PDS4 bundle holds calibrated Cassini ISS
+  images yet; the label names it through a ``Source_Product_Internal`` once one
+  does.
 
 Reference implementation:
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS`
@@ -440,8 +452,9 @@ layout:
      kernels.lblx                             # metakernel label
      collection_xml_schema.lblx               # schema-collection label
      collection_xml_schema.csv                # schema inventory (copied)
-     global_index_bodies.lblx                 # per-bundle bodies summary
-     global_index_rings.lblx                  # per-bundle rings summary
+     global_bodies_index.lblx                 # bodies index label
+     global_rings_index.lblx                  # rings index label
+     collection_miscellaneous.lblx            # miscellaneous-collection label
      cassini-iss-saturn-backplanes-user-guide.lblx  # user-guide label
      cassini-iss-saturn-backplanes-user-guide.pdf   # the user-guide PDF, when it exists
 
@@ -511,10 +524,12 @@ so the source's description is the copy's.
 Epochs
 ======
 
-Every exposure time a label states (``start_date_time``, ``stop_date_time``, and
-the collection's range) comes from the epochs the navigation recorded:
-``start_et``, ``stop_et`` and ``midtime_et`` under ``navigation_result.times``, in
-TDB seconds past J2000.  They are turned into UTC by one rule, in
+Every exposure time a label or an index table states (``start_date_time``,
+``stop_date_time``, and the collection's range) comes from the exposure the
+navigation document's ``observation`` block records: ``start_time_et`` and
+``end_time_et``, in TDB seconds past J2000, which the instrument host publishes for
+every image whose navigation ran to a result, whether or not it solved a pointing.
+They are turned into UTC by one rule, in
 :mod:`spindoctor.support.time`: :func:`~spindoctor.support.time.et_to_utc` writes
 the plain ISO spelling the observation metadata and the statistics report use,
 and :func:`~spindoctor.support.time.et_to_pds4_utc` the spelling a PDS4 label
@@ -539,27 +554,160 @@ midpoint of the two as written, a half millisecond rounding up, through
 :func:`~spindoctor.support.time.pds4_utc_midpoint`: an exposure an odd number of
 milliseconds long has its midtime on a half millisecond, where the recorded midtime
 epoch lands a few nanoseconds to either side, and PDS3's ``IMAGE_MID_TIME`` takes the
-half up.  The navigation writes ``navigation_result.times`` only beside the pointing
-it solved, and records a success with no pointing when the attitude cannot be computed
-or the instrument has no SPICE camera frame mapped.
-:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails such an
-image before anything is written for it, the log naming the image; it checks only
-that ``navigation_result.times`` is there, and where it is, the epochs are read as
-recorded.  The summary pass needs no check of the times: the labels pass fails such
-an image before it writes anything for it, its supplemental file included.
+half up.  The navigation records a success with no pointing when the attitude cannot
+be computed or the instrument has no SPICE camera frame mapped, and the document's
+``observation`` block records the exposure all the same, so such an image is bundled
+like any other.  A navigation by an earlier version recorded the exposure times only
+beside a solved pointing, under ``navigation_result.times``, and none in the
+``observation`` block.
+:func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails an image
+whose block holds no ``start_time_et`` before anything is written for it, the log
+naming the image, and the image is bundled once it is navigated again; the times are
+not taken from ``navigation_result.times`` instead, so every time the bundle states
+comes from the one block.  The epochs are read as recorded, and the supplemental file
+carries the whole navigation document, so the summary pass reads the same block.  It
+checks nothing: a supplemental file the labels pass wrote always holds the times, and
+a bundle is written into an empty directory.
 
 The data collection label states the range of the products' epochs: the least
-start and the greatest stop over every supplemental file, written to whole seconds
-with the start rounded down and the stop up.  The range is taken in the one read
+start and the greatest stop over the images the data collection holds, as their
+supplemental files record them, written to whole seconds with the start rounded
+down and the stop up.  A supplemental file with no data label beside it is not in
+the range, as it gives the index no row.  The range is taken in the one read
 of the supplemental files the summary pass makes -- the global
 index's -- by an :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`, and
-:func:`~spindoctor.cli.pds4.collections.generate_global_index_files` returns it in
-its :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome`.  That is why the
+:func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns it in
+its :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome`.  That is why the
 summary pass runs the index first and hands the range to
 :func:`~spindoctor.cli.pds4.collections.generate_collection_files`.  A scan that
-read no supplemental file yields no range, and the data collection is then not
-written, neither its inventory nor its label, rather than labeled with empty dates
-(see `Exit status`_).
+took in no member's supplemental file yields no range, and the data collection is
+then not written, neither its inventory nor its label, rather than labeled with
+empty dates (see `Exit status`_).
+
+The global index and the miscellaneous collection
+=================================================
+
+:func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` writes two tables
+into the bundle's ``miscellaneous/`` directory, each with its label beside it, and then
+the collection that holds them:
+
+- ``global_bodies_index.tab``, one row for each body of each image the data collection
+  holds;
+- ``global_rings_index.tab``, one row for each such image with ring backplanes;
+- ``collection_miscellaneous.csv`` and ``collection_miscellaneous.lblx``.
+
+Each product's LID is built from the bundle's name, as the bundle's own is, by
+:func:`~spindoctor.cli.pds4.global_index.index_lid`:
+``urn:nasa:pds:<bundle>:miscellaneous:global_bodies_index`` and
+``...:global_rings_index``, at the version
+:data:`~spindoctor.cli.pds4.global_index.INDEX_VERSION`.
+
+**Which images get a row.**  The rows are exactly the images the data inventory lists:
+both take the data labels in the data tree from
+:func:`~spindoctor.cli.pds4.collections.data_products`, so the tables and the inventory
+cannot disagree about what the bundle holds.  The values come from each image's
+supplemental file.  A supplemental file with no data label beside it adds no row, and
+its epochs are not in the range the data collection label states; its statistics are
+still checked, as every supplemental file's are.
+
+A body gets a row of the bodies table whether or not it has any statistic: the backplane
+writer records a body in the backplane document from the image's inventory alone when
+none of its planes has a value there, and each of that row's statistic cells is then the
+masked value.  The rings are recorded only with their statistics, so an image whose rings
+have none gets no row of the rings table.
+
+**The table.**  Each table is fixed width, as the reference bundle's index tables are:
+a header line naming the fields, separated by commas, and then the rows.
+:func:`~spindoctor.cli.pds4.global_index.lay_out_table` pads every field to the longest
+value written in its column, a statistic right-justified and text left-justified, puts a
+comma between fields and a line feed after the last, and returns the header, the records
+and where each :class:`~spindoctor.cli.pds4.global_index.IndexField` lies.  A field's
+length comes from its column's values rather than from its format, since values under
+one format differ in length (``1.000`` and ``-12.500``).  The table is written as ASCII
+through ``FCPath.open``.
+
+**The columns.**  The bodies table begins with ``pds:logical_identifier``
+(``ASCII_LID``), ``body_name`` and ``file_spec``, the path of the data label relative to
+the bundle's root; the rings table with ``pds:logical_identifier`` and ``file_spec``.
+Both then give ``pds:start_date_time`` and ``pds:stop_date_time``
+(``ASCII_Date_Time_YMD_UTC``), the image's exposure start and stop, which
+:func:`~spindoctor.cli.pds4.epochs.exposure_times` writes from the epochs the
+supplemental file records, to the millisecond, as the data label states them.
+Then each configured plane gives its table two columns, the least and the greatest value
+its statistic spans, as :class:`~spindoctor.cli.pds4.global_index.IndexColumn` entries
+built from the plane's entry in ``config_900_backplanes.yaml``, whose ``index`` block
+names the two columns, their ``data_type`` and their descriptions:
+
+.. code-block:: yaml
+
+   - name: body_latitude
+     method: latitude
+     units: rad
+     index:
+       data_type: ASCII_Real
+       minimum:
+         name: geom:minimum_latitude
+         description: >-
+           The least planetocentric latitude over the pixels where the body_latitude
+           backplane has a value for the body.
+       maximum:
+         name: geom:maximum_latitude
+         description: >-
+           The greatest planetocentric latitude over the pixels where the
+           body_latitude backplane has a value for the body.
+
+A column is named for a PDS4 dictionary attribute, with the dictionary's prefix, where it
+holds the quantity that attribute defines, as ``geom:minimum_latitude`` and
+``rings:minimum_ring_radius`` do, and has a name of its own otherwise, as
+``minimum_body_longitude`` does: both dictionaries define a longitude range as wrapped at
+the prime meridian, and the statistics are a plain least and greatest.  A column's unit
+is the unit its statistic is in, the plane's ``units`` restated through
+:func:`~spindoctor.cli.backplanes.statistics.statistics_units`, so an angular column is in
+degrees although its array is in radians (see :doc:`dev_guide_backplanes`), and its
+format is the one :data:`~spindoctor.cli.pds4.global_index.INDEX_VALUE_FORMATS` gives that
+unit.
+
+**Missing values.**  Where an image has no statistic for a plane, both of its cells hold
+the configured masked value, ``backplanes.masked_value``, written in the column's format:
+``-999.000`` in a ``deg`` column, ``-999.0`` in ``km``, ``-999.00000000`` in
+``deg/pixel`` and ``-999.00`` in ``km/pixel``.  Every statistic field of a label declares
+that text as the ``missing_constant`` of a ``Special_Constants`` block, in the spelling
+its cells have, so a reader comparing a cell's text with the declared constant finds it,
+and every value of a column, a missing one included, is written in one form.
+
+**The label.**  ``global_bodies_index.lblx`` and ``global_rings_index.lblx`` are
+``Product_Ancillary`` labels, each a ``Header`` over the header line and a
+``Table_Character`` over the records.  The generator hands each template ``INDEX_LID``,
+``INDEX_TABLE_PATH``, ``HEADER_LENGTH`` (the header line's length, its line feed
+included, which is also the table's offset), ``RECORD_LENGTH`` and ``FIELDS``, the
+fields the table was laid out with.  A ``$FOR`` over ``FIELDS`` writes one
+``Field_Character`` per column, so a change to the configuration moves a table and its
+label together.  ``records`` is the table's line count less the header line.
+
+**A table with no row.**  ``PDS4_PDS_1O00.xsd`` gives ``records`` a minimum of 1, so no
+label can describe an empty table.  A table no image gives a row, such as the rings table
+of a bundle with no image with ring backplanes, is not written, nor its label, and is not
+listed; the run says so at info level and counts nothing against the run.  When neither
+table is written, the miscellaneous collection has nothing of its own to hold and is not
+written either, which does count (below).
+
+**The collection.**  After the tables, the generator writes the miscellaneous collection,
+as the data inventory is written after its labels, through
+:func:`~spindoctor.cli.pds4.collections.write_collection`, the one writer of the
+generated collections: a ``P`` line for each index product whose label is on disk, then
+an ``S`` line for each secondary member of the document inventory the template directory
+ships, taken through :func:`~spindoctor.cli.pds4.bundle_products.secondary_members`, so
+that the two inventories cite the same context products and ISS data user guide.  The
+collection label, ``collection_miscellaneous.lblx``, has ``collection_type``
+``Miscellaneous``.  The collection takes its members from the index labels, as the data
+and browse collections take theirs from labels of their own kind, so with neither index
+product labeled -- no image gives either table a row, or neither label renders -- it is
+not written, whatever the document inventory cites, and counts once as a label not
+written; the bundle label, which declares it, is then not written either (see
+`Exit status`_).
+
+The index products and the collection are cleared with the rest of the summary pass's
+products before any supplemental file is read (see `Exit status`_).
 
 The bundle's run-level products
 ===============================
@@ -657,14 +805,16 @@ The two passes write this tree:
      document/
        collection_document.csv               # summary pass
        collection_document.lblx              # summary pass
-       supplemental/
-         global_index_bodies.tab             # summary pass
-         global_index_bodies.lblx            # summary pass
-         global_index_rings.tab              # summary pass
-         global_index_rings.lblx             # summary pass
        user_guide/                           # only when the template directory holds it
          <user guide>.pdf                    # summary pass, copied
          <user guide>.lblx                   # summary pass
+     miscellaneous/
+       collection_miscellaneous.csv          # summary pass
+       collection_miscellaneous.lblx         # summary pass
+       global_bodies_index.tab               # summary pass
+       global_bodies_index.lblx              # summary pass
+       global_rings_index.tab                # summary pass, when an image has rings
+       global_rings_index.lblx               # summary pass, when an image has rings
      spice_kernels/
        collection_spice_kernels.csv          # summary pass, copied
        collection_spice_kernels.lblx         # summary pass
@@ -810,10 +960,16 @@ listed below, plus the
 documented above.
 
 - :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` — phase 1, one image.
-- :func:`~spindoctor.cli.pds4.collections.generate_collection_files` — phase 2, collection
-  + bundle assembly.
-- :func:`~spindoctor.cli.pds4.collections.generate_global_index_files` — per-bundle bodies
-  / rings global indexes.
+- :func:`~spindoctor.cli.pds4.collections.generate_collection_files` — phase 2, the data
+  and browse collections; and :func:`~spindoctor.cli.pds4.collections.write_collection`,
+  the one writer of every generated collection's inventory and label.
+- :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` — the bodies and
+  rings global index tables, their labels, and the miscellaneous collection; and
+  :func:`~spindoctor.cli.pds4.global_index.lay_out_table`, which lays a table out fixed
+  width.
+- :func:`~spindoctor.cli.pds4.bundle_products.secondary_members` — the secondary members
+  the document inventory the template directory ships cites, which the miscellaneous
+  inventory lists too.
 - :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` — phase 2, the
   run-level products: the readme, the static collections, the user guide and the bundle
   label; and :func:`~spindoctor.cli.pds4.bundle_products.clear_bundle_products`, which
@@ -827,9 +983,11 @@ documented above.
   and arrays of a backplane FITS, read from the source before the copy is made,
   for the data label of its copy.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan` and
-  :class:`~spindoctor.cli.pds4.collections.GlobalIndexOutcome` — the range of the
+  :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome` — the range of the
   products' epochs, taken in the global index's read of the supplemental files
   and handed to the collection generator.
+- :func:`~spindoctor.cli.pds4.epochs.exposure_times` — an image's exposure start and
+  stop as the index tables write them, to the millisecond, as its data label does.
 - :func:`~spindoctor.support.time.et_to_pds4_utc` — the PDS4 spelling of an epoch,
   beside :func:`~spindoctor.support.time.et_to_utc`, in the one conversion, and
   :func:`~spindoctor.support.time.pds4_utc_midpoint`, the midpoint of two times so

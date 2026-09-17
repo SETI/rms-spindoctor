@@ -59,14 +59,16 @@ The two passes write this directory structure:
    ├── document/
    │   ├── collection_document.csv
    │   ├── collection_document.lblx
-   │   ├── supplemental/
-   │   │   ├── global_index_bodies.lblx
-   │   │   ├── global_index_bodies.tab
-   │   │   ├── global_index_rings.lblx
-   │   │   └── global_index_rings.tab
    │   └── user_guide/
    │       ├── <user_guide>.lblx
    │       └── <user_guide>.pdf
+   ├── miscellaneous/
+   │   ├── collection_miscellaneous.csv
+   │   ├── collection_miscellaneous.lblx
+   │   ├── global_bodies_index.lblx
+   │   ├── global_bodies_index.tab
+   │   ├── global_rings_index.lblx
+   │   └── global_rings_index.tab
    ├── spice_kernels/
    │   ├── collection_spice_kernels.csv
    │   ├── collection_spice_kernels.lblx
@@ -77,7 +79,9 @@ The two passes write this directory structure:
        └── collection_xml_schema.lblx
 
 The user guide and its label are in ``document/user_guide/`` only when the dataset's
-template directory holds the user-guide PDF (see `Templates`_).
+template directory holds the user-guide PDF (see `Templates`_). The rings index and its
+label are in ``miscellaneous/`` only when some image in the bundle has ring backplanes
+(see `Global Index Tables`_).
 
 The directory structure within ``data/`` and ``browse/`` mirrors the structure of the
 original PDS4 dataset (if it existed), with paths derived from image names using
@@ -283,8 +287,14 @@ its unit. Each float array declares the masked value (``backplanes.masked_value`
 ``-999.0`` as shipped) as its missing constant.
 
 Each data label states when its image's exposure began and ended, in its
-``Time_Coordinates``: the start and stop in UTC, to the millisecond, as in
+``Time_Coordinates``: the start and stop the navigation recorded for the exposure,
+whether or not it found the pointing, in UTC, to the millisecond, as in
 ``2004-02-07T04:25:35.585Z``.
+
+Each data label cites, as its source product, the calibrated image its backplanes
+were computed from, as the PDS Ring-Moon Systems Node holds it: by the image's volume
+and the path of its label within that volume, as in
+``COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL``.
 
 All files are placed in the bundle directory structure under ``data/`` and ``browse/``
 directories, with paths determined by dataset-specific logic.
@@ -304,14 +314,17 @@ The summary pass generates:
   * ``collection_browse.csv``: CSV file listing all browse products in the bundle
   * ``collection_browse.lblx``: PDS4 label for the browse collection
 
-* **Global Index Files**:
+* **Miscellaneous Collection**, in ``miscellaneous/`` (see `Global Index Tables`_):
 
-  * ``global_index_bodies.tab``: CSV file with one row per image/body combination,
-    containing min/max values for each configured backplane type
-  * ``global_index_bodies.lblx``: PDS4 label for the bodies index
-  * ``global_index_rings.tab``: CSV file with one row per image, containing min/max
-    values for each configured ring backplane type
-  * ``global_index_rings.lblx``: PDS4 label for the rings index
+  * ``global_bodies_index.tab``: a table with one row for each body of each image in
+    the bundle, giving the least and the greatest value of each body backplane
+  * ``global_bodies_index.lblx``: PDS4 label for the bodies index
+  * ``global_rings_index.tab``: a table with one row for each image with ring
+    backplanes, giving the least and the greatest value of each ring backplane
+  * ``global_rings_index.lblx``: PDS4 label for the rings index
+  * ``collection_miscellaneous.csv``: the collection's members: the index tables it
+    holds, and the context products and documents the bundle cites
+  * ``collection_miscellaneous.lblx``: PDS4 label for the collection
 
 * **Bundle Files**:
 
@@ -342,10 +355,44 @@ down, to the latest exposure stop, rounded up, as in ``2004-02-07T04:25:35Z`` to
 ``2004-02-22T05:32:17Z``. The bundle label is written only when every collection it
 names is in the bundle.
 
-Each min/max column is written with a precision suited to its unit: three
-decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and five
-significant figures for ``km/pixel``. Angular columns are in degrees, although
-the backplane arrays are in radians (see :doc:`user_guide_backplanes`).
+Global Index Tables
+^^^^^^^^^^^^^^^^^^^
+
+The two index tables in ``miscellaneous/`` summarize the backplanes of every image the
+bundle's data collection holds, so that a program can choose images without opening a
+FITS file.
+
+* ``global_bodies_index.tab`` has one row for each body of each image.
+* ``global_rings_index.tab`` has one row for each image that has ring backplanes. When
+  no image has ring backplanes, neither this table nor its label is written.
+
+When neither table has a row, the miscellaneous collection is not written either, and
+the summary pass exits 1 (see `Exit Status`_).
+
+Each table begins with one line naming its columns, separated by commas. Every row
+after it has the same length: each value is padded with spaces to its column's width
+and followed by a comma, the last by the end of the line. The label beside each table
+gives every column's name, position, width, data type, unit and description.
+
+A row's first column, ``pds:logical_identifier``, is the logical identifier of the
+image's data product, and its ``file_spec`` column is the path of that product's label
+in the bundle. Its ``pds:start_date_time`` and ``pds:stop_date_time`` columns give when
+the exposure began and ended, in UTC to the millisecond, as that label does. The bodies
+table's ``body_name`` column names the body. The other
+columns come in pairs, the least and the greatest value one backplane takes over the
+pixels where it has a value, named as the configuration names them, as in
+``geom:minimum_latitude`` and ``geom:maximum_latitude``.
+
+Angular columns are in degrees, although the backplane arrays are in radians (see
+:doc:`user_guide_backplanes`). Each column is written with a precision suited to its
+unit: three decimal places for ``deg``, one for ``km``, eight for ``deg/pixel``, and
+five significant figures for ``km/pixel``.
+
+Where an image has no value for a backplane, both of its columns hold the masked value
+(``backplanes.masked_value``, ``-999`` as shipped), written with the column's own
+precision: ``-999.000`` in a column of degrees, ``-999.0`` in kilometers,
+``-999.00000000`` in degrees per pixel and ``-999.00`` in kilometers per pixel. The
+label declares that value, as written, as the column's missing constant.
 
 Exit Status
 ===========
@@ -360,12 +407,15 @@ with exit status 2 before it does anything.
   and skipped, and, when any failed, the number whose labels were not written.
 
   An image with nothing to describe (never navigated, navigation failed, or no
-  backplanes) is skipped, which is not an error. An image fails if a label
-  cannot be written, its summary PNG is missing, its navigation recorded no
-  pointing, or its backplane metadata holds a statistic the index tables
-  cannot hold (one in a unit other than the configured one, or a minimum or
-  maximum that is NaN or infinite). For such a statistic, regenerate that image's
-  backplanes.
+  backplanes) is skipped, which is not an error. An image whose navigation
+  recorded no pointing is bundled like any other. An image fails if a label
+  cannot be written, its summary PNG is missing, its backplane metadata holds a
+  statistic the index tables cannot hold (one in a unit other than the
+  configured one, or a minimum or maximum that is NaN or infinite), or it was
+  navigated by an earlier version, which did not record the exposure times with
+  the observation. For such a statistic, regenerate that image's backplanes; an
+  image navigated by an earlier version must be navigated again before it can be
+  bundled.
 
   ``--dry-run`` writes nothing and ends with the number of images it would
   process. It exits 0 if the bundle directory is empty and every template is
@@ -383,8 +433,12 @@ with exit status 2 before it does anything.
   the selection, then run both passes again into an empty directory. It exits 1
   if a label cannot be written, the bundle label included: that label is written
   only when every collection it names is in the bundle, so a collection that was not
-  written leaves the bundle without it. A missing user-guide PDF is a warning, not a
-  failure. If a supplemental file holds such a statistic, it exits 1 and leaves none
+  written leaves the bundle without it. A missing user-guide PDF is a warning, not
+  a failure. An index table with no rows is not written; the log records
+  that, and it is not a failure. When neither table is written, though, the
+  miscellaneous collection has no products, and the pass exits 1 as for any
+  collection with none.
+  If a supplemental file holds such a statistic, it exits 1 and leaves none
   of the files the summary pass writes: regenerate the backplanes, then the bundle,
   into an empty directory.
 
@@ -449,8 +503,9 @@ Each dataset has its own template directory containing:
 * ``browse.lblx``: Template for individual browse product labels
 * ``collection_data.lblx``: Template for data collection label
 * ``collection_browse.lblx``: Template for browse collection label
-* ``global_index_bodies.lblx``: Template for bodies global index label
-* ``global_index_rings.lblx``: Template for rings global index label
+* ``global_bodies_index.lblx`` and ``global_rings_index.lblx``: Templates for the
+  index tables' labels
+* ``collection_miscellaneous.lblx``: Template for the miscellaneous collection label
 * ``bundle.lblx``: Template for the bundle label
 * ``readme.txt``: The bundle's readme, copied into the bundle as it is
 * ``collection_context.csv``, ``collection_document.csv``,
@@ -549,9 +604,9 @@ Common Issues
 
 * **Bundle label not written**: the summary pass names each collection the bundle
   label names that is not in the bundle, and the error for that collection, earlier
-  in the log, says why it was not written. Or it says the data tree holds no
-  supplemental file, so there is no time range for the label to state: the labels
-  pass labeled no image, and has to be run first.
+  in the log, says why it was not written. Or it says no data label in the data tree
+  has a supplemental file beside it, so there is no time range for the label to
+  state: the labels pass labeled no image, and has to be run first.
 
 * **Summary PNG not found**: that image is failed. A successfully navigated
   image always has one, so either it was removed from the navigation results or

@@ -374,8 +374,8 @@ def test_a_statistic_that_is_not_a_finite_number_fails_the_image(
 ) -> None:
     """A maximum of NaN fails the image, and the log names the plane and the value.
 
-    No index column can hold it, and a blank in its place would say the plane
-    measured nothing, so it is refused as a statistic in another unit is.
+    No index column can hold it, and the masked value written in its place would say
+    the plane measured nothing, so it is refused as a statistic in another unit is.
     """
     env = make_bundle_env(tmp_path, bodies=RESOLUTION_PLANE)
     write_nav_inputs(env, backplane_metadata=_resolution_document(math.nan))
@@ -390,6 +390,44 @@ def test_a_statistic_that_is_not_a_finite_number_writes_nothing(tmp_path: Path) 
     write_nav_inputs(env, backplane_metadata=_resolution_document(math.nan))
     _generate(env)
     assert not env.bundle_dir.exists()
+
+
+EARLIER_VERSION_DOCUMENT: dict[str, Any] = {
+    'observation': {
+        'image_path': 'holdings/calibrated/COISS_2xxx/COISS_2001/data/N1234567890_1_CALIB.IMG',
+        'image_name': 'N1234567890_1_CALIB.IMG',
+        'instrument': 'coiss',
+        'camera': 'NAC',
+        'shutter_mode': 'NACONLY',
+        'image_shape': [1024, 1024],
+    },
+    'navigation_result': {
+        'times': {'start_et': 129399999.77, 'stop_et': 129400000.23, 'midtime_et': 129400000.0}
+    },
+}
+"""A success document an earlier version of the navigation wrote, less its pointing.
+
+Its observation block holds the keys such a document's does, and no exposure times; the
+times are only in its navigation result, beside the pointing that version solved.
+"""
+
+
+def test_a_document_navigated_before_the_observation_recorded_times_fails_with_nothing_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A document with no times in its observation block fails its image, writing nothing.
+
+    An earlier version of the navigation recorded the exposure's epochs only beside its
+    pointing, under ``navigation_result.times``.  The labels take the times from the
+    observation block alone, so the image is failed with one line saying why, to be
+    navigated again, rather than by an error from deeper in the pass.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, nav_extra=EARLIER_VERSION_DOCUMENT)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert not env.bundle_dir.exists()
+    assert 'records no exposure times in its observation block' in capsys.readouterr().out
 
 
 def test_malformed_nav_metadata_raises(tmp_path: Path) -> None:

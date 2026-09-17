@@ -25,8 +25,8 @@ from filecache import file_cache as file_cache_module
 from filecache.file_cache_source import FileCacheSourceFake
 
 from spindoctor.cli.pds4.bundle_products import clear_bundle_products, generate_bundle_products
-from spindoctor.cli.pds4.collections import generate_global_index_files
 from spindoctor.cli.pds4.epochs import EpochRange
+from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.config import MAIN_LOGGER
 
 from .conftest import (
@@ -43,13 +43,19 @@ from .conftest import (
     run_collections,
     touch_browse_label,
     touch_label,
+    write_supplemental,
 )
 
 
 def _bundle_env(
     tmp_path: Path, *, template_contents: dict[str, str] | None = None, browse: bool = True
 ) -> BundleEnv:
-    """Build a bundle whose data and browse collections the summary pass has written.
+    """Build a bundle whose index and data and browse collections the pass has written.
+
+    The index generator runs first, as in the summary pass, and writes the miscellaneous
+    collection, which the bundle label declares; then the data and browse collections
+    are written.  The one image has a data label and a supplemental file naming one
+    body, so the bodies table has a row, which the miscellaneous collection holds.
 
     Parameters:
         tmp_path: Base temporary directory.
@@ -62,8 +68,14 @@ def _bundle_env(
     """
     env = make_bundle_env(tmp_path, template_contents=template_contents)
     touch_label(env.bundle_dir / 'data', 'shard0/1234567890w')
+    write_supplemental(
+        env.bundle_dir / 'data', 'shard0/1234567890w', bodies={'MOON': {'backplanes': {}}}
+    )
     if browse:
         touch_browse_label(env.bundle_dir / 'browse', 'shard0/1234567890w')
+    generate_global_index_files(
+        FCPath(env.bundle_results_root), env.dataset.as_dataset(), MAIN_LOGGER
+    )
     run_collections(env)
     return env
 

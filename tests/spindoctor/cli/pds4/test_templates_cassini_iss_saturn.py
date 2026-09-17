@@ -4,8 +4,9 @@ What a label rendered from the templates the package ships for the Cassini ISS
 Saturn bundle says, over the bundle's cohort or over hand-made inputs: that the
 shipped draft templates render without substitution errors, that the cohort's
 navigated images land in their shards and the one that did not navigate is
-skipped, that a data label states its exposure's start and stop and an image
-whose navigation recorded none fails, that a data label describes the backplane
+skipped, that a data label states its exposure's start and stop, an image whose
+navigation recorded no pointing included, and cites the calibrated image it was
+computed from, that a data label describes the backplane
 FITS beside it, HDU by HDU and byte for byte, that the collection inventory names
 the LIDs the labels do, that each collection label names the inventory beside it
 and counts its products, and that the inventories the template directory ships
@@ -299,15 +300,17 @@ def test_a_cohort_data_label_states_its_exposure_s_start_and_stop(
     assert re.findall(r'<stop_date_time>(.*)</stop_date_time>', text) == [stop]
 
 
-def test_a_navigated_image_that_recorded_no_pointing_fails_with_nothing_written(
-    cassini_cohort: Cohort, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_a_navigated_image_that_recorded_no_pointing_is_bundled_with_its_observed_times(
+    cassini_cohort: Cohort, tmp_path: Path
 ) -> None:
-    """A success document with no times fails its image, and the bundle stays as it was.
+    """An image whose navigation recorded no pointing gets its products, times and all.
 
     A navigation that recorded no pointing has no ``navigation_result.times`` either, and
-    a data label takes its exposure's start and end from those.  The document is the
-    cohort's limb image's as written, its times and pointing taken out, under a navigation
-    root of the test's own.
+    its document's ``observation`` block records the exposure all the same, which is
+    what a data label states.  The document is the cohort's limb image's as written, its
+    times and pointing taken out, under a navigation root of the test's own beside the
+    image's summary PNG, so the start and stop its label states can come only from the
+    observation block.  They are the limb image's, as SPICE writes them.
     """
     cohort_document = cassini_cohort.nav_results_root / f'{LIMB_STUB}_metadata.json'
     document = json.loads(cohort_document.read_text(encoding='utf-8'))
@@ -316,6 +319,10 @@ def test_a_navigated_image_that_recorded_no_pointing_fails_with_nothing_written(
     written = tmp_path / 'nav' / f'{LIMB_STUB}_metadata.json'
     written.parent.mkdir(parents=True)
     written.write_text(json.dumps(document), encoding='utf-8')
+    summary_png = f'{LIMB_STUB}_summary.png'
+    (tmp_path / 'nav' / summary_png).write_bytes(
+        (cassini_cohort.nav_results_root / summary_png).read_bytes()
+    )
     env = make_cohort_bundle_env(cassini_cohort, tmp_path)
     outcome = generate_bundle_data_files(
         env.dataset,
@@ -325,9 +332,13 @@ def test_a_navigated_image_that_recorded_no_pointing_fails_with_nothing_written(
         bundle_results_root=FCPath(env.bundle_results_root),
         logger=MAIN_LOGGER,
     )
-    assert outcome is BundleDataOutcome.FAILED
-    assert not env.bundle_dir.exists()
-    assert 'its navigation recorded no pointing' in capsys.readouterr().out
+    label = env.bundle_dir / 'data' / f'{_product_stem(LIMB_IMAGE_NAME)}_backplanes.lblx'
+    text = label.read_text(encoding='utf-8')
+    assert outcome is BundleDataOutcome.WRITTEN
+    starts = re.findall(r'<start_date_time>(.*)</start_date_time>', text)
+    stops = re.findall(r'<stop_date_time>(.*)</stop_date_time>', text)
+    assert starts == ['2004-02-07T04:25:35.585Z']
+    assert stops == ['2004-02-07T04:25:36.045Z']
 
 
 def test_cassini_inventory_lidvid_matches_label_lid(tmp_path: Path) -> None:
@@ -787,6 +798,53 @@ def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
     assert without_constant == []
 
 
+SOURCE_PRODUCT = 'pds:Reference_List/pds:Source_Product_External'
+"""Where a data label cites the product its backplanes were computed from."""
+
+SOURCE_PRODUCT_CHILDREN = [
+    'external_source_product_identifier',
+    'reference_type',
+    'curating_facility',
+    'description',
+]
+"""The source-product block's elements, in the order the XSD's sequence gives them.
+
+``PDS4_PDS_1O00.xsd`` orders a ``Source_Product_External`` as the identifier, the
+reference type, a ``doi``, the curating facility and a description; the block gives no
+``doi``.
+"""
+
+
+def test_a_cohort_data_label_cites_the_calibrated_image_it_was_computed_from(
+    cassini_cohort: Cohort, tmp_path: Path
+) -> None:
+    """The data label cites the calibrated image as an external source product.
+
+    No PDS4 bundle holds calibrated Cassini ISS images yet, so the label names the image
+    the navigation read as the Ring-Moon Systems Node holds it: by its volume and the
+    file specification of its label within that volume, as a calibrated product, and
+    with the node as its curating facility.  Its elements come in the order the schema's
+    sequence gives them, which a test of the values alone would not notice, and its
+    description says what the product is.
+    """
+    label = _label_cohort_image(cassini_cohort, tmp_path, LIMB_STUB, LIMB_IMAGE_NAME)
+    root = ElementTree.parse(label).getroot()
+    identifier = _text(root, f'{SOURCE_PRODUCT}/pds:external_source_product_identifier')
+    reference_type = _text(root, f'{SOURCE_PRODUCT}/pds:reference_type')
+    curating_facility = _text(root, f'{SOURCE_PRODUCT}/pds:curating_facility')
+    description = ' '.join(_text(root, f'{SOURCE_PRODUCT}/pds:description').split())
+    block = root.find(SOURCE_PRODUCT, PDS4_NAMESPACES)
+    children = [] if block is None else [child.tag.rpartition('}')[2] for child in block]
+    assert identifier == f'COISS_2001:data/1454725799_1455008789/{LIMB_IMAGE_NAME}.LBL'
+    assert reference_type == 'data_to_calibrated_source_product'
+    assert curating_facility == 'PDS Ring-Moon Systems Node'
+    assert children == SOURCE_PRODUCT_CHILDREN
+    assert description == (
+        'The calibrated image the backplanes were computed from, named by its volume and '
+        'the file specification of its label within that volume.'
+    )
+
+
 # ---------------------------------------------------------------------------
 # The collection inventories and their labels
 # ---------------------------------------------------------------------------
@@ -796,6 +854,7 @@ COLLECTION_INVENTORIES = {
     'browse/collection_browse.lblx': 'collection_browse.csv',
     'context/collection_context.lblx': 'collection_context.csv',
     'document/collection_document.lblx': 'collection_document.csv',
+    'miscellaneous/collection_miscellaneous.lblx': 'collection_miscellaneous.csv',
     'spice_kernels/collection_spice_kernels.lblx': 'collection_spice_kernels.csv',
     'xml_schema/collection_xml_schema.lblx': 'collection_xml_schema.csv',
 }

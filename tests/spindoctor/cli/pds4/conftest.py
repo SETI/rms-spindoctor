@@ -38,12 +38,9 @@ from tests.mini_nav_results.cohort import Cohort
 
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.bundle_products import generate_bundle_products
-from spindoctor.cli.pds4.collections import (
-    CollectionOutcome,
-    generate_collection_files,
-    generate_global_index_files,
-)
+from spindoctor.cli.pds4.collections import CollectionOutcome, generate_collection_files
 from spindoctor.cli.pds4.epochs import EpochRange
+from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
@@ -77,7 +74,15 @@ def collection_template(collection: str, body: str) -> str:
     )
 
 
-BUNDLE_COLLECTIONS = ('browse', 'context', 'data', 'document', 'spice_kernels', 'xml_schema')
+BUNDLE_COLLECTIONS = (
+    'browse',
+    'context',
+    'data',
+    'document',
+    'miscellaneous',
+    'spice_kernels',
+    'xml_schema',
+)
 """The collections the summary pass writes, which the stand-in bundle label declares."""
 
 
@@ -133,7 +138,13 @@ COLLECTION_DATA_TEMPLATE = collection_template(
 COLLECTION_BROWSE_TEMPLATE = collection_template(
     'browse', '  <csv>$COLLECTION_BROWSE_CSV_PATH$</csv>\n'
 )
-GLOBAL_INDEX_TEMPLATE = '<Index>\n  <records>$FILE_RECORDS$</records>\n</Index>\n'
+GLOBAL_INDEX_TEMPLATE = (
+    '<Index>\n  <lid>$INDEX_LID$</lid>\n'
+    '  <records>$FILE_RECORDS(INDEX_TABLE_PATH)-1$</records>\n</Index>\n'
+)
+COLLECTION_MISCELLANEOUS_TEMPLATE = collection_template(
+    'miscellaneous', '  <csv>$COLLECTION_MISCELLANEOUS_CSV_PATH$</csv>\n'
+)
 BROKEN_TEMPLATE = '<Broken>$COMPLETELY_UNSET_VARIABLE$</Broken>\n'
 """A template naming a variable no caller defines, so the render errors."""
 
@@ -206,8 +217,9 @@ LABELS_TEMPLATES = {'data.lblx': DATA_TEMPLATE, 'browse.lblx': BROWSE_TEMPLATE}
 SUMMARY_TEMPLATES = {
     'collection_data.lblx': COLLECTION_DATA_TEMPLATE,
     'collection_browse.lblx': COLLECTION_BROWSE_TEMPLATE,
-    'global_index_bodies.lblx': GLOBAL_INDEX_TEMPLATE,
-    'global_index_rings.lblx': GLOBAL_INDEX_TEMPLATE,
+    'global_bodies_index.lblx': GLOBAL_INDEX_TEMPLATE,
+    'global_rings_index.lblx': GLOBAL_INDEX_TEMPLATE,
+    'collection_miscellaneous.lblx': COLLECTION_MISCELLANEOUS_TEMPLATE,
     **RUN_LEVEL_FILES,
 }
 """The files the summary pass takes from the template directory, and their fake content."""
@@ -443,6 +455,28 @@ def write_templates(template_dir: Path, contents: dict[str, str]) -> None:
         (template_dir / filename).write_text(content, encoding='utf-8')
 
 
+def index_entry(name: str, units: str) -> dict[str, Any]:
+    """Return a backplane configuration entry, with the index block the index tables read.
+
+    Parameters:
+        name: The plane's name.
+        units: The unit its array carries.
+
+    Returns:
+        The entry: its name and units, and an ``index`` block naming its two columns
+        ``minimum_<name>`` and ``maximum_<name>``, each ``ASCII_Real`` and described.
+    """
+    return {
+        'name': name,
+        'units': units,
+        'index': {
+            'data_type': 'ASCII_Real',
+            'minimum': {'name': f'minimum_{name}', 'description': f'The least {name}.'},
+            'maximum': {'name': f'maximum_{name}', 'description': f'The greatest {name}.'},
+        },
+    }
+
+
 @dataclass
 class BundleEnv:
     """A complete hermetic environment for one bundle-generation call.
@@ -536,31 +570,30 @@ def make_bundle_env(
     )
 
 
-NAVIGATED_TIMES: dict[str, float] = {
-    'start_et': 129399999.77,
-    'stop_et': 129400000.23,
-    'midtime_et': 129400000.0,
+NAVIGATED_EXPOSURE: dict[str, float] = {
+    'start_time_et': 129399999.77,
+    'end_time_et': 129400000.23,
 }
-"""The exposure epochs a success document records under ``navigation_result.times``.
+"""The exposure a success document's ``observation`` block records, in TDB seconds.
 
-A navigated image's document records its exposure's epochs beside its pointing, the
-labels pass fails an image whose document records none, and the summary pass reads them
-from every supplemental file, so every navigated document and every supplemental file
-the plumbing tests write records these.
+The navigation records an image's exposure in the ``observation`` block of its
+document, pointing or not; both passes read the start and end from there, the summary
+pass from every supplemental file, so every navigated document and every supplemental
+file the plumbing tests write records these.
 """
 
 
 def navigated_document(**extra: Any) -> dict[str, Any]:
-    """Return a success navigation document recording an exposure's epochs.
+    """Return a success navigation document recording an exposure.
 
     Parameters:
         **extra: Keys merged into the document, over the two it holds otherwise.
 
     Returns:
-        A document with ``status`` ``success`` and a ``navigation_result`` whose
-        ``times`` are :data:`NAVIGATED_TIMES`, with ``extra`` merged in.
+        A document with ``status`` ``success`` and an ``observation`` block recording
+        :data:`NAVIGATED_EXPOSURE`, with ``extra`` merged in.
     """
-    return {'status': 'success', 'navigation_result': {'times': dict(NAVIGATED_TIMES)}, **extra}
+    return {'status': 'success', 'observation': dict(NAVIGATED_EXPOSURE), **extra}
 
 
 A_RANGE = EpochRange(start_et=129399999.77, stop_et=130700000.54)
@@ -598,14 +631,14 @@ def write_nav_inputs(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Write the navigation and backplane input files for the environment's image.
 
-    The navigation document is :func:`navigated_document`'s, recording an exposure's
-    epochs, so that a success document is one the labels pass can label.
+    The navigation document is :func:`navigated_document`'s, whose ``observation`` block
+    records an exposure, so that a success document is one the labels pass can label.
 
     Parameters:
         env: The bundle environment to populate.
         status: Navigation ``status`` value; None omits the key entirely.
         nav_extra: Extra keys merged into the navigation metadata dict, over the
-            ``navigation_result`` it holds otherwise.
+            ``status`` and ``observation`` it holds otherwise.
         backplane_metadata: Backplane metadata dict; a small default when None.
         summary_png: Bytes for the ``_summary.png`` file; None writes no PNG.
 
@@ -730,16 +763,33 @@ def touch_browse_label(browse_dir: Path, stub: str) -> Path:
 
 
 def read_csv_rows(path: Path) -> list[list[str]]:
-    """Read a collection inventory or a global index table as comma-separated rows.
+    """Read a collection inventory as comma-separated rows.
 
     Parameters:
-        path: The inventory or table to read.
+        path: The inventory to read.
 
     Returns:
         Every row, in file order, as lists of strings.
     """
     with path.open(newline='', encoding='utf-8') as f:
         return list(csv.reader(f))
+
+
+def read_index_rows(path: Path) -> list[list[str]]:
+    """Read a global index table as its header line and its rows, each cell unpadded.
+
+    Every field of a record is padded to its column's length and the fields are
+    separated by commas, which no value holds, so a line's cells are its parts between
+    commas with the padding stripped.
+
+    Parameters:
+        path: The table to read.
+
+    Returns:
+        The header line's names, then each record's values, in file order.
+    """
+    lines = path.read_bytes().decode('ascii').splitlines()
+    return [[cell.strip() for cell in line.split(',')] for line in lines]
 
 
 @dataclass

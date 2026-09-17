@@ -5,9 +5,10 @@ plane restated through :func:`~spindoctor.cli.backplanes.statistics.statistics_u
 and holds only finite numbers, each written in the format that unit calls for.  So a
 statistic of a configured plane can be indexed only when the unit it records is that
 unit and neither its minimum nor its maximum is NaN or infinite.  A statistic in
-another unit would put its column in two units with nothing saying so; a NaN or an
-infinity has no decimal form, and a blank in its place would say the plane measured
-nothing.
+another unit would put its column in two units with nothing saying so, and a NaN or
+an infinity has no decimal form.  Nor can either be written as a missing statistic is,
+as the configured masked value: that would say the plane measured nothing, where it
+measured something the column cannot hold.
 
 The labels pass fails an image whose backplane metadata holds such a statistic,
 before writing anything for it, and the summary pass fails the run over a
@@ -31,8 +32,8 @@ _UNIT_REASON = (
 """Why a statistic in another unit cannot be indexed."""
 
 _VALUE_REASON = (
-    'an index column holds only finite numbers, and a blank in one would say the plane '
-    'measured nothing'
+    'an index column holds only finite numbers, and writing the masked value in its place '
+    'would say the plane measured nothing'
 )
 """Why a NaN or infinite minimum or maximum cannot be indexed."""
 
@@ -50,8 +51,9 @@ class UnindexableStatistic:
             finite number``.
         reason: Why a column cannot take the statistic as recorded, as a clause a
             message puts after the description: for a unit, that every column is in
-            the one unit the configuration gives its plane; for a value, what a
-            column holds instead.
+            the one unit the configuration gives its plane; for a value, that a column
+            holds only finite numbers, and that the masked value written in its place
+            would say the plane measured nothing.
     """
 
     plane: str

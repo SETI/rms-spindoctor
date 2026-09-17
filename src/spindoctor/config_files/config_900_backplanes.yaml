@@ -1,46 +1,231 @@
 backplanes:
+  # Each plane names the oops backplane method it is evaluated with and the units its
+  # array carries. Its index block describes the two columns the PDS4 bundle's global
+  # index tables give its statistic, the least and the greatest value it takes: each
+  # column's field name, as the table's header line and its label give it, the PDS4
+  # data type of its values, and its description. A field takes a PDS4 dictionary
+  # attribute's name, with the dictionary's prefix, where the column holds the quantity
+  # that attribute defines, and a name of its own otherwise. A column's unit is not
+  # given here: it is the unit the plane's statistic is in, which for an angular plane
+  # is degrees although the array is in radians.
   bodies:
     - name: body_longitude
       method: longitude
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: minimum_body_longitude
+          description: >-
+            The least planetocentric longitude, measured westward from the body's IAU
+            prime meridian from 0 to 360 degrees, over the pixels where the
+            body_longitude backplane has a value for the body. The range is not
+            wrapped: a body seen across its prime meridian spans from near 0 to near
+            360.
+        maximum:
+          name: maximum_body_longitude
+          description: >-
+            The greatest planetocentric longitude, measured westward from the body's
+            IAU prime meridian from 0 to 360 degrees, over the pixels where the
+            body_longitude backplane has a value for the body. The range is not
+            wrapped: a body seen across its prime meridian spans from near 0 to near
+            360.
     - name: body_latitude
       method: latitude
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: geom:minimum_latitude
+          description: >-
+            The least planetocentric latitude over the pixels where the body_latitude
+            backplane has a value for the body.
+        maximum:
+          name: geom:maximum_latitude
+          description: >-
+            The greatest planetocentric latitude over the pixels where the
+            body_latitude backplane has a value for the body.
     - name: body_incidence_angle
       method: incidence_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: geom:minimum_incidence_angle
+          description: >-
+            The least incidence angle of the arriving light at the body's surface over
+            the pixels where the body_incidence_angle backplane has a value for the
+            body.
+        maximum:
+          name: geom:maximum_incidence_angle
+          description: >-
+            The greatest incidence angle of the arriving light at the body's surface
+            over the pixels where the body_incidence_angle backplane has a value for
+            the body.
     - name: body_emission_angle
       method: emission_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: geom:minimum_emission_angle
+          description: >-
+            The least emission angle of the departing light at the body's surface over
+            the pixels where the body_emission_angle backplane has a value for the
+            body.
+        maximum:
+          name: geom:maximum_emission_angle
+          description: >-
+            The greatest emission angle of the departing light at the body's surface
+            over the pixels where the body_emission_angle backplane has a value for
+            the body.
     - name: body_phase_angle
       method: phase_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: geom:minimum_phase_angle
+          description: >-
+            The least phase angle between the arriving and the departing light over the
+            pixels where the body_phase_angle backplane has a value for the body.
+        maximum:
+          name: geom:maximum_phase_angle
+          description: >-
+            The greatest phase angle between the arriving and the departing light over
+            the pixels where the body_phase_angle backplane has a value for the body.
     - name: body_finest_resolution
       method: finest_resolution
       units: km/pixel
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: minimum_body_finest_resolution
+          description: >-
+            The least projected size of a pixel on the body's surface, in the direction
+            in which that size is smallest, over the pixels where the
+            body_finest_resolution backplane has a value for the body.
+        maximum:
+          name: maximum_body_finest_resolution
+          description: >-
+            The greatest projected size of a pixel on the body's surface, in the
+            direction in which that size is smallest, over the pixels where the
+            body_finest_resolution backplane has a value for the body.
     - name: body_coarsest_resolution
       method: coarsest_resolution
       units: km/pixel
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: minimum_body_coarsest_resolution
+          description: >-
+            The least projected size of a pixel on the body's surface, in the direction
+            in which that size is largest, over the pixels where the
+            body_coarsest_resolution backplane has a value for the body.
+        maximum:
+          name: maximum_body_coarsest_resolution
+          description: >-
+            The greatest projected size of a pixel on the body's surface, in the
+            direction in which that size is largest, over the pixels where the
+            body_coarsest_resolution backplane has a value for the body.
 
   rings:
     - name: ring_radius
       method: ring_radius
       units: km
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_ring_radius
+          description: >-
+            The least ring radius over the pixels where the ring_radius backplane has a
+            value.
+        maximum:
+          name: rings:maximum_ring_radius
+          description: >-
+            The greatest ring radius over the pixels where the ring_radius backplane has
+            a value.
     - name: ring_longitude
       method: ring_longitude
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: minimum_ring_longitude
+          description: >-
+            The least ring longitude, measured from the J2000 ascending node from 0 to
+            360 degrees, over the pixels where the ring_longitude backplane has a value.
+            The range is not wrapped: rings seen across zero longitude span from near 0
+            to near 360.
+        maximum:
+          name: maximum_ring_longitude
+          description: >-
+            The greatest ring longitude, measured from the J2000 ascending node from 0
+            to 360 degrees, over the pixels where the ring_longitude backplane has a
+            value. The range is not wrapped: rings seen across zero longitude span from
+            near 0 to near 360.
     - name: ring_emission_angle
       method: ring_emission_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_emission_angle
+          description: >-
+            The least emission angle, measured from the normal to the ring plane on its
+            sunlit side, over the pixels where the ring_emission_angle backplane has a
+            value.
+        maximum:
+          name: rings:maximum_emission_angle
+          description: >-
+            The greatest emission angle, measured from the normal to the ring plane on
+            its sunlit side, over the pixels where the ring_emission_angle backplane has
+            a value.
     - name: ring_phase_angle
       method: phase_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_phase_angle
+          description: >-
+            The least phase angle between the arriving and the departing light over the
+            pixels where the ring_phase_angle backplane has a value.
+        maximum:
+          name: rings:maximum_phase_angle
+          description: >-
+            The greatest phase angle between the arriving and the departing light over
+            the pixels where the ring_phase_angle backplane has a value.
     - name: ring_radial_resolution
       method: ring_radial_resolution
       units: km/pixel
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_radial_resolution
+          description: >-
+            The least projected radial size of a pixel in the ring plane over the pixels
+            where the ring_radial_resolution backplane has a value.
+        maximum:
+          name: rings:maximum_radial_resolution
+          description: >-
+            The greatest projected radial size of a pixel in the ring plane over the
+            pixels where the ring_radial_resolution backplane has a value.
     - name: ring_longitudinal_resolution
       method: ring_angular_resolution
       units: rad/pixel
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_longitudinal_resolution
+          description: >-
+            The least projected size of a pixel in ring longitude over the pixels where
+            the ring_longitudinal_resolution backplane has a value.
+        maximum:
+          name: rings:maximum_longitudinal_resolution
+          description: >-
+            The greatest projected size of a pixel in ring longitude over the pixels
+            where the ring_longitudinal_resolution backplane has a value.
 
   # Value written wherever a backplane has no valid measurement. It sits outside
   # the range of every plane written -- longitudes 0 to 360, latitudes -90 to 90,
