@@ -159,7 +159,7 @@ def write_kernels(
         cspyce.furnsh(str(path))
     baselines = []
     try:
-        for name, centre, with_av in (
+        for name, center, with_av in (
             (BASELINE_A, IMAGE_A_ET, True),
             (BASELINE_B, IMAGE_B_ET, angular_velocity_in_b),
         ):
@@ -168,7 +168,7 @@ def write_kernels(
                 path,
                 ck_frame_id=CASSINI_CK_FRAME_ID,
                 sclk_id=CASSINI_SCLK_ID,
-                epochs=[centre - 10.0, centre, centre + 10.0],
+                epochs=[center - 10.0, center, center + 10.0],
                 attitude=baseline_attitude,
                 angular_velocity=baseline_angular_velocity if with_av else None,
             )

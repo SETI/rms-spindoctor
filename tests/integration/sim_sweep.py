@@ -250,7 +250,7 @@ def run_sweep(spec: SweepSpec) -> list[SweepRow]:
 
     When ``spec.technique`` is a specific technique name (not ``'*'``) the sweep
     pins that technique and reads its *own* recovered offset/roll, so a technique
-    can be characterised even when its clean-field confidence holds the fused
+    can be characterized even when its clean-field confidence holds the fused
     status below success. With ``'*'`` the fused full-ensemble result is used.
 
     When ``spec.ensemble_seeds > 1`` each sweep point is navigated once per seed

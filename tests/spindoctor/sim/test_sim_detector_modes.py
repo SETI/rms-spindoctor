@@ -330,14 +330,14 @@ def test_fixed_pattern_response_is_stable_per_seed() -> None:
 
 
 def test_fixed_pattern_vignetting_darkens_the_corner() -> None:
-    """Corner vignetting lowers the corner response below the centre."""
+    """Corner vignetting lowers the corner response below the center."""
     electrons = np.full((_SIZE, _SIZE), 1000.0, dtype=np.float64)
     add_fixed_pattern_response(
         electrons, prnu_rms=0.0, vignetting_frac=0.1, dust_donut_count=0, rng=_rng(1)
     )
-    centre = float(electrons[_SIZE // 2, _SIZE // 2])
+    center = float(electrons[_SIZE // 2, _SIZE // 2])
     corner = float(electrons[0, 0])
-    assert corner < centre
+    assert corner < center
 
 
 def test_fixed_pattern_stitch_comb_raises_periodic_columns() -> None:

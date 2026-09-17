@@ -1,4 +1,4 @@
-"""The two frame-fixed optics centres land on the same point.
+"""The two frame-fixed optics centers land on the same point.
 
 ``optics.distortion.center_v`` / ``center_u`` and ``optics.stray_light.center_v``
 / ``center_u`` are both stated the way every other scene position is, in
@@ -28,10 +28,10 @@ _CENTER = 20.0
 
 
 def _expected_oversampled_center(detector_center: float) -> float:
-    """Where a stated centre lands on the oversampled grid.
+    """Where a stated center lands on the oversampled grid.
 
     Parameters:
-        detector_center: The centre as a scene states it.
+        detector_center: The center as a scene states it.
 
     Returns:
         The same point in pixel-centric coordinates on the oversampled grid.
@@ -68,10 +68,10 @@ def test_the_radial_bump_is_symmetric_about_the_stated_centre() -> None:
 
 
 def test_the_radial_bump_defaults_to_the_frame_centre() -> None:
-    """With no centre the bump sits at the middle of the frame.
+    """With no center the bump sits at the middle of the frame.
 
     On an even-sized frame that middle falls between two samples, so the two
-    straddling rows carry the same value.  A centre half a pixel off would make
+    straddling rows carry the same value.  A center half a pixel off would make
     one of them the unique peak, which is what distinguishes the two.
     """
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
@@ -130,8 +130,8 @@ def _warp_fixed_point(distortion: dict[str, Any]) -> float:
     A warp resamples the plane, so feeding it a ramp whose value *is* its own v
     coordinate makes the result read out the source coordinate each output
     sample was drawn from.  The difference between that and the output
-    coordinate is zero exactly at the centre and changes sign across it, so the
-    centre comes out of a zero crossing -- measured to well under a pixel, and
+    coordinate is zero exactly at the center and changes sign across it, so the
+    center comes out of a zero crossing -- measured to well under a pixel, and
     without the test naming the number it is checking.
 
     Parameters:
@@ -158,12 +158,12 @@ def _warp_fixed_point(distortion: dict[str, Any]) -> float:
 
 
 def test_distortion_holds_its_stated_centre_fixed() -> None:
-    """The point a radial warp leaves in place is the centre the scene stated."""
+    """The point a radial warp leaves in place is the center the scene stated."""
     fixed = _warp_fixed_point({'k1': 0.6, 'k2': 0.0, 'center_v': _CENTER, 'center_u': _CENTER})
     assert fixed == pytest.approx(_expected_oversampled_center(_CENTER), abs=0.05)
 
 
 def test_distortion_defaults_to_the_frame_centre() -> None:
-    """With no centre stated the warp holds the middle of the frame fixed."""
+    """With no center stated the warp holds the middle of the frame fixed."""
     fixed = _warp_fixed_point({'k1': 0.6, 'k2': 0.0})
     assert fixed == pytest.approx((_SIZE * _OVERSAMPLE - 1) / 2.0, abs=0.05)

@@ -3,7 +3,7 @@
 Runs three blocks and writes CSV tables plus a console summary:
 
 1. Simulator renderer validation.  Confirms the sim body renderer plants a
-   body at its requested sub-pixel centre with no positional bias, and
+   body at its requested sub-pixel center with no positional bias, and
    quantifies how far the brightness gradient ridge sits inside the geometric
    limb (the photometric roll-off signature).
 
@@ -74,7 +74,7 @@ def _fmt(sample: LimbBiasSample) -> str:
 def run_renderer_validation(writer: Any) -> None:
     """Print and record the renderer geometry validation block."""
     print('\n=== Block 1: simulator renderer validation ===')
-    print('Intensity-weighted centroid vs geometric centre (phase 0 sphere):')
+    print('Intensity-weighted centroid vs geometric center (phase 0 sphere):')
     writer.writerow(['sub_check', 'center_v', 'center_u', 'err_v_px', 'err_u_px', 'err_mag_px'])
     worst = 0.0
     for cv in (100.0, 100.25, 100.5, 100.75):

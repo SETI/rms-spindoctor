@@ -521,7 +521,7 @@ def test_partial_distortion_edit_leaves_center_u_absent(
 def test_partial_distortion_center_u_displays_frame_center(
     monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
 ) -> None:
-    """The centre-u spin shows the effective default (frame centre) when absent."""
+    """The center-u spin shows the effective default (frame center) when absent."""
     scene = {
         'instrument': 'coiss_nac',
         'size_v': 64,

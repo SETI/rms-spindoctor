@@ -203,7 +203,7 @@ def test_body_lookup_takes_the_nearest_longitude_column(body_widget: TiledImageW
 
 
 def _painted_row_of_marked_latitude(qapp: QApplication, marked_row: int) -> list[int]:
-    """Paint the body canvas with one white data row and return its grey column."""
+    """Paint the body canvas with one white data row and return its gray column."""
     widget = TiledImageWidget()
     data = np.zeros((_BODY_N_LAT, _BODY_N_LON), dtype=np.float64)
     data[marked_row, :] = 1.0
@@ -224,14 +224,14 @@ def _painted_row_of_marked_latitude(qapp: QApplication, marked_row: int) -> list
 
 def test_canvas_top_row_paints_the_north_pole_row(qapp: QApplication) -> None:
     """The canvas's first row paints the data row at +90 deg, not the one below it."""
-    greys = _painted_row_of_marked_latitude(qapp, _BODY_N_LAT - 1)
-    assert greys[0] == 255
+    grays = _painted_row_of_marked_latitude(qapp, _BODY_N_LAT - 1)
+    assert grays[0] == 255
 
 
 def test_canvas_bottom_row_paints_the_south_pole_row(qapp: QApplication) -> None:
     """The canvas's last row paints the data row at -90 deg rather than no data."""
-    greys = _painted_row_of_marked_latitude(qapp, 0)
-    assert greys[_BODY_N_LAT - 1] == 255
+    grays = _painted_row_of_marked_latitude(qapp, 0)
+    assert grays[_BODY_N_LAT - 1] == 255
 
 
 def test_cursor_position_scales_without_quantizing(ring_widget: TiledImageWidget) -> None:

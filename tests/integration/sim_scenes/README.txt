@@ -59,7 +59,7 @@ Pixel convention
 Every position that places something in a scene is a PIXEL CORNER: a star's
 v / u, a body's center_v / center_u, and the ring system's geometry center_v /
 center_u.  Integer N is the boundary between pixel N-1 and pixel N, so the
-centre of pixel N is N + 0.5 and the centre of a size_v by size_u frame is
+center of pixel N is N + 0.5 and the center of a size_v by size_u frame is
 (size_v / 2, size_u / 2).  This is the oops uv convention, the one the FOV,
 backplane, and star-record code underneath already use, so a position written
 here is the same number those read.
@@ -73,7 +73,7 @@ convention: the frame's center (size_v / 2, size_u / 2).  The stars, the bodies,
 and the ring system all pivot there, so a rolled scene plants a truth its three
 families of content agree on.
 
-The two centres inside the optics block -- distortion.center_v / center_u and
+The two centers inside the optics block -- distortion.center_v / center_u and
 stray_light.center_v / center_u -- are pixel corners too.  What they name is
 where a whole-frame field is centered rather than where an object sits, and the
 same number written in either block names one point.
@@ -193,7 +193,7 @@ from the body params with nav_override overlaid -- the channel that makes the
 navigation geometry diverge from the render geometry.  Use it to render an
 irregular mesh yet predict its smooth (ellipsoidal) limit (mesh_lumpiness 0.0)
 for a shape mismatch, or to predict the same body at a different pose_euler_deg
-for a pose disagreement.  The override never changes the centre, so the
+for a pose disagreement.  The override never changes the center, so the
 predicted body stays at the unshifted position the planted offset is measured
 from.
 

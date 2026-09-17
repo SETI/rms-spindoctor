@@ -5,7 +5,7 @@ size_v: 220
 size_u: 220
 random_seed: 15
 exposure_sec: 1.0
-# The planted-ephemeris-error axis: a centred navigable ringlet whose
+# The planted-ephemeris-error axis: a centered navigable ringlet whose
 # rendered orbit is displaced 2.5 px outward of the catalog orbit the
 # navigator predicts from (delta_a_px, a truth key).  A uniform radial
 # misplacement has no exact translational equivalent, but the robust

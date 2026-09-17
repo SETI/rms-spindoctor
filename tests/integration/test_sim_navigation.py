@@ -14,7 +14,7 @@ from spindoctor.obs.obs_inst_sim import ObsSim
 
 
 def _disc_scene(*, offset_v: float = 0.0, offset_u: float = 0.0) -> dict[str, Any]:
-    """A clean centred disc scene with an optional planted offset."""
+    """A clean centered disc scene with an optional planted offset."""
     return {
         'size_v': 128,
         'size_u': 128,
