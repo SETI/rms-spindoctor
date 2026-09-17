@@ -5,7 +5,7 @@ size_v: 220
 size_u: 220
 random_seed: 7
 exposure_sec: 1.0
-# A flat (rank-1) face-on ring_system ringlet: the ring centre sits
+# A flat (rank-1) face-on ring_system ringlet: the ring center sits
 # ~50000 px off-frame to the left, so the two edges crossing the FOV are
 # straight to well under the 1 px FLAT_CURVATURE_THRESHOLD_PX (sagitta
 # ~0.2 px over the frame) and the simulated ring model emits both

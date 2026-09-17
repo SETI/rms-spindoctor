@@ -12,6 +12,11 @@ def try_corr_offset(image, model, mask, **kwargs):
 def main():
     gauss_psf = GaussianPSF(sigma=2.0)
 
+    # ``eval_rect``'s offset is measured from the upper left corner of the center
+    # pixel -- its own default (0.5, 0.5) sits on that pixel's center -- so these
+    # are pixel corner offsets, the same convention gaussian_patch uses in the
+    # other two scripts here.  Only the image-minus-model difference is measured,
+    # so the shift under test is (0.3, 0.0) px.
     image_size = (100, 100)
     image_psf_size = (7, 7)
     image_offset = (0.3, 0.0)

@@ -31,7 +31,12 @@ and build requirements without repeating them.
 ## 2. Prose Conventions
 
 - One space between a sentence-ending period and the next sentence.
-- American spelling, not British (e.g. `color`, not `colour`).
+- American spelling, not British: `center` not `centre`, `color` not `colour`,
+  `normalize` not `normalise`. Enforced by `codespell`; see the allow-list in
+  `pyproject.toml` for the terms of art it is told to accept. A line that needs
+  a word the gate is right to flag -- a test whose subject is the misspelling,
+  an external API name -- carries an inline `codespell:ignore <word>` with the
+  reason beside it, rather than widening the allow-list for everyone.
 - Define each domain-specific term on first use.
 - Describe the **current** state of the software only. Never anchor prose to a
   moment in time or to migration history: avoid "new", "legacy", "old",

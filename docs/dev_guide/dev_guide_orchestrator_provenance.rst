@@ -24,8 +24,8 @@ The provenance envelope captures three independent kinds of state:
 - **External-data state.**  ``spice_kernels`` lists every SPICE kernel actually loaded;
   ``static_data_hashes`` sha256-hashes every YAML in
   ``src/spindoctor/config_files`` whose filename matches one of the
-  ``_STATIC_DATA_PREFIXES`` (``config_220_`` for the body shape catalogue, ``config_3``
-  for ring catalogues, ``config_4`` for per-instrument blocks); ``star_catalogs``
+  ``_STATIC_DATA_PREFIXES`` (``config_220_`` for the body shape catalog, ``config_3``
+  for ring catalogs, ``config_4`` for per-instrument blocks); ``star_catalogs``
   records each configured star catalog's name and its resolved path or URL (the same
   roots the catalog constructors read: ``UCAC4_PATH``, ``YBSC_PATH``, and
   ``SPICE_PATH``/``OOPS_RESOURCES`` for Tycho-2).  Catalog version numbers are not
@@ -125,7 +125,7 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
 The dataclass enforces invariants in ``__post_init__``: every collection input is coerced
 to its read-only / sorted form so two
 :class:`~spindoctor.nav_orchestrator.provenance.Provenance` instances with the same inputs are
-byte-identical for hash / serialisation.
+byte-identical for hash / serialization.
 
 Examples
 ========

@@ -45,7 +45,7 @@ TERMINATOR_SPURIOUS_MIN_INLIER_FRACTION = BodyTerminatorNav.tuning['spurious_min
 TERMINATOR_SPURIOUS_DT_FLOOR_PX = BodyTerminatorNav.tuning['spurious_dt_floor_px']
 
 # Terminator tests always use a right-side crescent: a half-arc spanning
-# [-pi/2, pi/2] around the body centre.  Other techniques use different
+# [-pi/2, pi/2] around the body center.  Other techniques use different
 # angle ranges, so the bounds are a per-test parameter rather than a
 # shared fixture default.
 _TERMINATOR_ANGLE_START: float = -np.pi / 2.0

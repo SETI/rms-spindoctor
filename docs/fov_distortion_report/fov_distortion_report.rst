@@ -105,6 +105,12 @@ warp the radial displacement in pixels is
 ``rho_ref * (k1 * rho_n**3 + k2 * rho_n**5)``, so fitting the radial residual on
 the ``rho_n**3`` and ``rho_n**5`` basis recovers ``k1`` and ``k2`` directly.
 
+The distortion stage works in pixel-centric coordinates on the render grid, and
+``center`` and ``p`` are positions there, while a scene states its optical
+center as ``optics.distortion.center_v`` / ``center_u`` in pixel-corner
+coordinates on the detector grid and the stage converts it. See
+:ref:`coordinate-systems`.
+
 Per-instrument aggregation
 --------------------------
 
@@ -262,9 +268,8 @@ rotation whose value changes from image to image:
    :width: 100%
    :alt: Voyager 2 ISS WAC residual field, twist removed, and radial profile.
 
-   Voyager 2 ISS WAC. The residual field carries a large rotation, and the
-   distortion residual is the largest of any instrument, reflecting the
-   resampled vidicon geometry.
+   Voyager 2 ISS WAC. The residual field carries a large rotation, and a large
+   distortion residual, reflecting the resampled vidicon geometry.
 
 .. figure:: _figures/vg2iss_wac_twist.png
    :width: 100%
@@ -428,8 +433,7 @@ component alone, with each residual's radial projection removed.
    Voyager 2 ISS WAC. The full field (left) reaches several tenths of a pixel,
    and the non-radial component (right) is a substantial fraction of it: the
    resampled vidicon geometry carries coherent tangential distortion, not just a
-   radial term. The non-radial RMS is the amplitude the simulator's non-radial
-   wander term reproduces.
+   radial term.
 
 Interpretation and recommendations
 ==================================
@@ -460,18 +464,20 @@ Rotation fitting during navigation
   twist, so navigation must fit the rotation per frame for these cameras. This
   is the measured basis for enabling per-frame rotation fitting on Voyager, and
   the timing below shows that fit adds negligible time on star fields. The
-  residual distortion is the largest of any instrument, consistent
-  with the resampled vidicon geometry, and the residual floor is high (0.25 to
-  0.34 px), so the Voyager numbers are lower-confidence than the Cassini ones.
+  residual distortion is large, consistent with the resampled vidicon geometry,
+  and the residual floor is high (0.25 to 0.34 px), so the Voyager numbers carry
+  lower confidence than their residual floor alone would suggest.
 
 Feeding the simulator and the pointing kernels
 ----------------------------------------------
 
 The per-instrument radial coefficients ``k1`` and ``k2`` are reported in the
 simulator distortion stage's convention and populate that stage's per-instrument
-residual-distortion defaults, alongside the non-radial RMS as the non-radial
-wander amplitude, replacing the earlier single-amplitude interim estimates. The
-radial amplitudes differ sharply between cameras: Cassini and New Horizons LORRI
+residual-distortion defaults. The simulator's non-radial wander amplitude is set
+separately: it ships at 0.0 px for Cassini ISS NAC, Cassini ISS WAC, Galileo SSI
+and New Horizons LORRI, so the non-radial term is off for those four, and at
+0.2 px for the Voyager entry. The radial amplitudes differ sharply between
+cameras: Cassini and New Horizons LORRI
 sit at or near their noise floors (a few hundredths of a pixel), while Galileo
 SSI reaches ~0.5 px at the field corner and Voyager several tenths of a pixel, so
 those two set meaningfully larger distortion defaults. The simulator keys

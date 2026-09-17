@@ -34,7 +34,7 @@ Theory
 Information boundary
 --------------------
 
-Every quantity this model reads comes from the filtered ``nav_params`` view: the body's centre,
+Every quantity this model reads comes from the filtered ``nav_params`` view: the body's center,
 its image-plane axes, its pixel scale, its phase, and its illumination direction -- catalog
 geometry a real pipeline would read from SPICE. The ``atmosphere`` block that gives the rendered
 body its soft haze limb is truth and is never read here. The envelope radius comes from the same
@@ -47,9 +47,9 @@ Parameter mapping
 
 Each real-frame quantity has a deliberate simulated analog:
 
-- **Predicted centre** -- the operator's stated centre, shifted into extended-FOV coordinates.
+- **Predicted center** -- the operator's stated center, shifted into extended-FOV coordinates.
 - **Solid radius** -- the mean of the two image-plane semi-axes, the way the real model averages
-  the two per-axis centre resolutions into one scale.
+  the two per-axis center resolutions into one scale.
 - **Envelope radius** -- the solid radius plus the configured atmosphere height converted
   through the scene's own pixel scale.
 - **Symmetry axis** -- the scene's illumination direction, expressed in the fitting library's
@@ -67,12 +67,11 @@ Coordinate convention
 ---------------------
 
 A scene states every position in pixel-corner coordinates (see
-:ref:`sim-pixel-convention`), so a body stated at ``center_v`` paints its silhouette centred
+:ref:`sim-pixel-convention`), so a body stated at ``center_v`` paints its silhouette centered
 at ``center_v - 0.5`` in pixel-centric coordinates. A predicted position at this stage is
-pixel-centric, so this model converts, by
-:data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX`. Measured
-directly: without the shift every simulated frame carries a flat 0.500 px cross-track error,
-half the method's entire clean-scene cross-track budget spent on a coordinate convention.
+pixel-centric, so this model converts each scene coordinate into that system by
+subtracting :data:`~spindoctor.support.constants.PIXEL_CENTER_TO_CORNER_PX` from it, and
+then adds the extended-FOV margin.
 
 Restrictions and assumptions
 ----------------------------
@@ -101,9 +100,9 @@ The model consumes the same ``titan`` configuration block as its catalog-driven 
 
 Scene-side, the body parameters it requires are
 :data:`~spindoctor.nav_model.nav_model_titan_simulated.REQUIRED_SIM_PARAMS` -- ``center_v``,
-``center_u``, ``axis1``, ``axis2``, and ``km_per_pixel``. The centre and the two image-plane
+``center_u``, ``axis1``, ``axis2``, and ``km_per_pixel``. The center and the two image-plane
 axes give the predicted disc; the pixel scale is what turns the configured atmosphere height in
-kilometres into an envelope radius in pixels, and without it the envelope -- the outer bound of
+kilometers into an envelope radius in pixels, and without it the envelope -- the outer bound of
 everything the fit samples -- would have to be invented. ``phase_angle``,
 ``illumination_angle``, ``rotation_z``, and ``range_km`` are read when present.
 

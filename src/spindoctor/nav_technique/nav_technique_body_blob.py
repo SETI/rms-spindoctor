@@ -37,6 +37,7 @@ from spindoctor.nav_technique.nav_technique import (
     embed_rotation_unobservable,
     load_ncc_covariance_tuning,
     log_confidence_breakdown,
+    reported_position_vu,
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
@@ -119,13 +120,13 @@ _COARSE_CORRELATION_MAX_PHASE_DEG: float = 90.0
 """Phase at which the coarse-acquisition template switches disc -> crescent.
 
 The coarse acquisition correlates a matched-filter template of the predicted
-lit silhouette against the observed signal to re-centre each blob's bounding
+lit silhouette against the observed signal to re-center each blob's bounding
 box on the body.  While the body is at least half-lit a filled disc models
 that silhouette, so at or below this phase the disc template runs.  Above it
 the sunlit region is a thin crescent whose bright pixels sit a fraction of a
 radius off the body center: a disc template locks onto the crescent arc
 rather than the center, so the technique instead correlates a crescent
-template synthesised at the body's phase and sub-solar direction (see
+template synthesized at the body's phase and sub-solar direction (see
 :func:`_crescent_kernel`).  When that direction is unknown -- a body absent
 its illumination geometry -- the high-phase blob keeps its predicted bbox
 (no relocation) and relies on the brightness-weighted centroid's existing
@@ -139,7 +140,7 @@ def _disc_kernel(radius_px: float) -> NDArrayFloatType:
 
     The kernel is the blob-shaped template the coarse acquisition correlates
     against the observed signal: a disc whose response, convolved with the
-    lit-signal image, peaks where a body-sized bright region is best centred.
+    lit-signal image, peaks where a body-sized bright region is best centered.
     """
     r = max(math.ceil(radius_px), 1)
     yy, xx = np.mgrid[-r : r + 1, -r : r + 1]
@@ -152,7 +153,7 @@ def _crescent_kernel(
 ) -> NDArrayFloatType:
     """Return a Lambertian-crescent matched-filter kernel.
 
-    Synthesises the expected lit silhouette of a sphere of the predicted
+    Synthesizes the expected lit silhouette of a sphere of the predicted
     radius at the given phase, illuminated from the image-plane direction
     ``sub_solar_dir_vu`` -- the template the coarse acquisition correlates
     when a body is past half phase.  Each pixel inside the projected disc
@@ -206,7 +207,7 @@ def _coarse_correlation_offset(
 
     Cross-correlates ``kernel`` (a disc or crescent template) against the
     lit-signal image and returns the integer ``(dv, du)`` shift that
-    re-centres the blob's predicted bounding box onto the observed body,
+    re-centers the blob's predicted bounding box onto the observed body,
     searched over ``predicted_center +/- margin``.  This extends the blob's
     capture range from the predicted bounding box (a few pixels) to the full
     extended-FOV search window: a brightness-weighted centroid only sees the
@@ -214,23 +215,23 @@ def _coarse_correlation_offset(
     finds the body anywhere in the window even when SPICE mis-predicts it by
     tens of pixels.  The kernel is flipped before the FFT convolution so the
     operation is a correlation -- the peak lands where the template's geometric
-    centre best overlaps the body.
+    center best overlaps the body.
 
     ``predicted_center_vu`` is the predicted *brightness* centroid (the lit
     centroid the feature carries), which on a crescent sits off the geometric
-    centre.  The correlation peak is the body's geometric centre, so the
+    center.  The correlation peak is the body's geometric center, so the
     kernel's own brightness-centroid offset is added back: the returned shift
     maps the predicted lit centroid onto the observed lit centroid, matching
     the residual the caller forms against ``predicted_center_vu``.  For a
-    symmetric disc the offset is zero and the shift is just peak-minus-centre.
+    symmetric disc the offset is zero and the shift is just peak-minus-center.
 
     Parameters:
         image_signal: ``(H, W)`` lit signal (image minus background, clipped
             at zero, sky-masked), in extfov coordinates.
-        kernel: Odd-sized matched-filter template centred on its middle pixel.
+        kernel: Odd-sized matched-filter template centered on its middle pixel.
         predicted_center_vu: Predicted body lit centroid in extfov coordinates.
         margin_vu: ``(margin_v, margin_u)`` search half-window about the
-            predicted centre.
+            predicted center.
 
     Returns:
         ``(dv, du)`` integer bbox shift (observed minus predicted lit
@@ -265,7 +266,7 @@ def _kernel_centroid_offset(kernel: NDArrayFloatType) -> tuple[float, float]:
     Zero for a symmetric template (a filled disc); for a crescent it is the
     lit-centroid displacement toward the bright limb, which
     :func:`_coarse_correlation_offset` adds back so the recovered shift is in
-    terms of the lit centroid rather than the geometric centre.
+    terms of the lit centroid rather than the geometric center.
     """
     total = float(kernel.sum())
     if total <= 0.0:
@@ -363,7 +364,7 @@ def _brightness_weighted_centroid(
 
     The centroid is computed over every above-background pixel inside the
     feature's predicted bounding box, **shifted by ``coarse_offset_vu``** so
-    the box is re-centred on where the coarse acquisition (a blob-disc
+    the box is re-centered on where the coarse acquisition (a blob-disc
     correlation, or an installed prior) located the body.  Without the shift
     the box only captures the body under small SPICE pointing error (its
     per-body slop); with it the box tracks the body across the full search
@@ -424,7 +425,7 @@ def _collect_per_blob_residuals(
     """Extract the per-blob ``observed - predicted`` residuals + weights.
 
     Iterates the input features in order and, for each blob, first finds a
-    coarse integer offset that re-centres the predicted bbox on the body --
+    coarse integer offset that re-centers the predicted bbox on the body --
     either the installed pass-1 ``prior_offset_vu`` (rounded), when one is
     available from another technique, or a blob-shaped-disc correlation over
     the search window (:func:`_coarse_disc_offset`).  It then computes a
@@ -456,7 +457,7 @@ def _collect_per_blob_residuals(
         # matched-filter template of the predicted lit silhouette to find the
         # body across the full window.  A filled disc models that silhouette
         # while the body is at least half-lit; past half phase a crescent
-        # template synthesised at the body's sub-solar direction is needed,
+        # template synthesized at the body's sub-solar direction is needed,
         # since a disc locks onto the off-center crescent arc.  When the
         # crescent's direction is unknown the high-phase blob keeps its
         # predicted bbox (see _COARSE_CORRELATION_MAX_PHASE_DEG).
@@ -522,16 +523,20 @@ def _collect_per_blob_residuals(
         flags_factor = float(getattr(feature.flags, 'phase_irregularity_factor', 0.0))
         phase_angles_deg.append(flags_phase)
         phase_irregularity_factors.append(max(0.0, flags_factor))
+        # The offsets are differences and stay as they are; the two
+        # positions beside them are stated the way a person reads one.
+        reported_pred = reported_position_vu((pred_v, pred_u), margin_vu)
+        reported_obs = reported_position_vu((obs_v, obs_u), margin_vu)
         logger.debug(
             'Blob %s: predicted (%.2f, %.2f), coarse offset (%d, %d), observed (%.2f, %.2f), '
             'background %.2f DN, SNR %.2f, N_lit %d, weight %.3g',
             feature.feature_id,
-            pred_v,
-            pred_u,
+            reported_pred[0],
+            reported_pred[1],
             coarse_offset[0],
             coarse_offset[1],
-            obs_v,
-            obs_u,
+            reported_obs[0],
+            reported_obs[1],
             background,
             snr,
             n_lit,

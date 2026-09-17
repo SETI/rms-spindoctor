@@ -79,7 +79,7 @@ Per-image, the driver runs three phases:
    copies that source's per-backplane values into the master arrays.
    The merge also fills a per-pixel ``BODY_ID_MAP`` carrying the NAIF ID
    of the source that won at each pixel.  :func:`~spindoctor.cli.backplanes.writer.write_fits`
-   serialises the master arrays and the body-ID map to FITS, attaching
+   serializes the master arrays and the body-ID map to FITS, attaching
    the ``BUNIT`` header from the per-backplane config, and writes a
    companion ``_backplane_metadata.json`` with per-body inventory and
    per-backplane min/max statistics.
@@ -99,7 +99,7 @@ Entry points
 (``src/spindoctor/cli/sd_backplanes.py`` and ``src/spindoctor/cli/sd_backplanes_cloud_tasks.py``)
 are thin CLI wrappers around
 :func:`~spindoctor.cli.backplanes.backplanes.generate_backplanes_image_files`. CLI flags,
-selection options, and per-batch behaviour are documented at
+selection options, and per-batch behavior are documented at
 :doc:`/user_guide/user_guide_backplanes`. Code that embeds backplane generation in a
 Python pipeline calls the function directly.
 
@@ -150,7 +150,7 @@ inventory. For each body:
 1. Query the per-image inventory to get the body's predicted bounding
    box (``u_min_unclipped`` … ``v_max_unclipped``); clip into the
    sensor. Bodies with no overlap contribute nothing.
-2. Build a meshgrid of pixel centres inside the clipped bounding box,
+2. Build a meshgrid of pixel centers inside the clipped bounding box,
    build an :class:`oops.backplane.Backplane` over that meshgrid, and
    evaluate every method named in ``backplanes.bodies``.
 3. Mask each per-pixel array against the body silhouette (the
@@ -165,7 +165,7 @@ inventory. For each body:
 
 Simulated bodies (when ``snapshot.is_simulated``) take the
 ``_create_simulated_body_backplane`` path: the per-pixel array is a
-synthesised constant within the simulated body's mask
+synthesized constant within the simulated body's mask
 (``snapshot.sim_body_mask_map[body_name]`` if present, otherwise the body
 slot in ``snapshot.sim_body_index_map`` matched against
 ``snapshot.sim_body_order_near_to_far``). Simulation produces deterministic
@@ -208,7 +208,7 @@ zero there already means no body claimed the pixel.
 The function also fills a sensor-shaped ``BODY_ID_MAP`` carrying the NAIF
 ID of the winning source per pixel. Bodies use their real NAIF IDs;
 rings use a deterministic ring-system ID (``cspyce.bodn2c('SATURN_RINGS')``
-or equivalent). Simulated sources use their synthesised fake IDs so the
+or equivalent). Simulated sources use their synthesized fake IDs so the
 map is well-formed even on simulated images.
 
 The merge is symmetric in bodies and rings: a body silhouette in front of
@@ -220,7 +220,7 @@ does not enforce a body-then-rings precedence order.
 FITS writer
 ===========
 
-:func:`~spindoctor.cli.backplanes.writer.write_fits` serialises the master arrays. The
+:func:`~spindoctor.cli.backplanes.writer.write_fits` serializes the master arrays. The
 output FITS file structure:
 
 - **Primary HDU** — empty, conventional placeholder.
@@ -233,11 +233,19 @@ output FITS file structure:
   no-body-in-FOV image contributes no HDU).
 
 Alongside the FITS file the writer drops a companion
-``<image>_backplane_metadata.json`` containing:
+``<image>_backplane_metadata.json`` with two top-level keys, ``bodies``
+and ``rings``:
 
-- the per-image dataset / instrument / observation metadata,
-- the per-body inventory (NAIF ID, name, predicted bounding box),
-- the per-backplane min / max / mean / valid-pixel-count statistics.
+- ``bodies`` holds one entry per body in the field of view, keyed by body
+  name. Each entry carries a ``backplanes`` sub-dict of per-backplane
+  statistics, ``center_uv`` — the body's predicted center as ``[v, u]``, a
+  pixel-corner position in the nominal frame (see
+  :ref:`coordinate-systems`) — ``center_range``, the range to that center
+  in km, and ``size_uv``, the body's ``[u, v]`` pixel diameters.
+- ``rings`` holds a ``backplanes`` sub-dict of the same statistics.
+
+A ``backplanes`` sub-dict is keyed by backplane name, and each entry gives
+the min and the max over that backplane's valid pixels.
 
 Each statistic states the unit its values are in, which for an angular plane
 is not the unit of the array it was taken from.

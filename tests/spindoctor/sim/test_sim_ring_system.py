@@ -109,7 +109,7 @@ def _system(
     node: float = 0.0,
     **extra: Any,
 ) -> dict[str, Any]:
-    """A ring_system mapping centred for a 96x96 frame."""
+    """A ring_system mapping centered for a 96x96 frame."""
     system: dict[str, Any] = {
         'geometry': {
             'center_v': 48.0,

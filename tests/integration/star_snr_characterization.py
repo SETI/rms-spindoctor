@@ -7,7 +7,7 @@ moment-only, the PSF-fit-everywhere extreme, and the shipped SNR-adaptive choice
 under several background conditions (clean, elevated read noise, a stray-light
 gradient).  It writes one comparison figure per background to
 ``docs/simulator_report/_figures/`` so the moment/PSF crossover and the adaptive
-choice's lower-envelope behaviour can be read off directly.
+choice's lower-envelope behavior can be read off directly.
 
 Run with::
 

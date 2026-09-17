@@ -93,9 +93,9 @@ def _zero_padded_shift(
     padding on the boundary.
 
     Equivalent to ``np.roll`` but drops out-of-bounds pixels rather than
-    wrapping them to the opposite edge — the wrapping behaviour is wrong
+    wrapping them to the opposite edge — the wrapping behavior is wrong
     for body / ring templates whose support sits anywhere off the array
-    centre, because rotation about a pivot followed by a shift back
+    center, because rotation about a pivot followed by a shift back
     would otherwise smear template content into the diametrically
     opposite corner of the image.
 
@@ -127,8 +127,8 @@ def _rotate_template(
     """Rotate the composite template + mask about ``pivot_vu`` by ``theta_rad``.
 
     Uses :func:`scipy.ndimage.rotate` followed by a zero-padded translate
-    that re-centres the rotation pivot — ``ndimage.rotate`` rotates about
-    the array centre, so we shift the array so the pivot is at the centre,
+    that re-centers the rotation pivot — ``ndimage.rotate`` rotates about
+    the array center, so we shift the array so the pivot is at the center,
     rotate, then shift back.  Both shifts use :func:`_zero_padded_shift`
     rather than ``np.roll`` so out-of-bounds pixels are dropped instead of
     wrapping to the opposite edge (a wrap would smear template content
@@ -138,17 +138,17 @@ def _rotate_template(
     rounding error is well below the per-pixel template grid.
 
     Returns the rotated template (float64, same shape as input) and the
-    rotated mask (bool, same shape).  The mask uses nearest-neighbour
+    rotated mask (bool, same shape).  The mask uses nearest-neighbor
     interpolation so it stays binary.
     """
     if abs(theta_rad) < 1e-12:
         return template_img.astype(np.float64, copy=True), template_mask.astype(bool, copy=True)
     pivot_v, pivot_u = pivot_vu
     h, w = template_img.shape[:2]
-    centre_v = (h - 1) / 2.0
-    centre_u = (w - 1) / 2.0
-    shift_v = round(centre_v - pivot_v)
-    shift_u = round(centre_u - pivot_u)
+    center_v = (h - 1) / 2.0
+    center_u = (w - 1) / 2.0
+    shift_v = round(center_v - pivot_v)
+    shift_u = round(center_u - pivot_u)
     shifted = _zero_padded_shift(template_img.astype(np.float64, copy=False), shift_v, shift_u)
     shifted_mask = _zero_padded_shift(
         template_mask.astype(np.uint8, copy=False), shift_v, shift_u, fill_value=0
@@ -178,12 +178,17 @@ def _rotate_template(
 
 
 def _composite_pivot_vu(features: list[NavFeature]) -> tuple[float, float]:
-    """Return the centroid-of-body-centres pivot for a multi-body composite.
+    """Return the centroid-of-body-centers pivot for a multi-body composite.
 
     The composite template is the union of every body's per-body template
     painted into ext-FOV coordinates; the natural rotation pivot is the
-    centroid of the bodies' predicted centres in that same frame.  A
-    single-body composite reduces to that body's predicted centre.
+    centroid of the bodies' predicted centers in that same frame.  A
+    single-body composite reduces to that body's predicted center.
+
+    The centers are extfov pixel centric, which is the system
+    :func:`_rotate_template` states the array's own center in, so the shift
+    that brings the pivot onto that center is the whole of the offset between
+    them.
 
     Raises:
         ValueError: if ``features`` is empty (the upstream feasibility
@@ -194,12 +199,12 @@ def _composite_pivot_vu(features: list[NavFeature]) -> tuple[float, float]:
         raise ValueError(
             '_composite_pivot_vu requires at least one BODY_DISC feature; got an empty list'
         )
-    centres = [
+    centers = [
         feat.geometry.predicted_center_vu  # type: ignore[union-attr]
         for feat in features
     ]
-    cv = sum(c[0] for c in centres) / len(centres)
-    cu = sum(c[1] for c in centres) / len(centres)
+    cv = sum(c[0] for c in centers) / len(centers)
+    cu = sum(c[1] for c in centers) / len(centers)
     return float(cv), float(cu)
 
 
@@ -504,9 +509,9 @@ class BodyDiscCorrelateNav(NavTechnique):
           ``2 * max_rotation_deg / 10`` deg, which is exactly 1 deg at
           the default ``max_rotation_deg = 5``).  Pick the rotation with
           the highest NCC peak quality.
-        * Level 1 — 5 samples in 0.5 deg steps centred on the level-0
+        * Level 1 — 5 samples in 0.5 deg steps centered on the level-0
           winner.  Pick the new winner.
-        * Level 2 — 3 samples in 0.25 deg steps centred on the level-1
+        * Level 2 — 3 samples in 0.25 deg steps centered on the level-1
           winner.  The peak's local quality curvature feeds the rotation
           uncertainty estimate.
 
@@ -535,7 +540,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             upsample_factor=upsample_factor,
             consistency_tol=consistency_tol,
         )
-        # Level 1: 5 samples in 0.5 deg steps centred on the level-0 winner,
+        # Level 1: 5 samples in 0.5 deg steps centered on the level-0 winner,
         # clamped to the configured ``+-max_rotation_deg`` cap so the
         # outer-loop search never proposes a rotation outside the
         # operator-supplied envelope.
@@ -559,7 +564,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             upsample_factor=upsample_factor,
             consistency_tol=consistency_tol,
         )
-        # Level 2: 3 samples in 0.25 deg steps centred on the level-1
+        # Level 2: 3 samples in 0.25 deg steps centered on the level-1
         # winner, again clamped to the cap.
         step_l2 = math.radians(0.25)
         l2_thetas = [
@@ -622,7 +627,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             image: Source image (ext-FOV) shared across rotation samples.
             template_img: Composite body-disc template (pre-rotation).
             template_mask: Mask of the composite template.
-            pivot_vu: Centroid-of-body-centres pivot ``(v, u)``; the
+            pivot_vu: Centroid-of-body-centers pivot ``(v, u)``; the
                 template is rotated about this pixel before each NCC.
             max_offset_vu: Translation-search window in pixels.
             data_mask: Optional sensor mask passed through to the
@@ -717,7 +722,7 @@ class BodyDiscCorrelateNav(NavTechnique):
         :func:`spindoctor.support.correlate.navigate_with_pyramid_kpeaks` is a
         PSR / PMR-style separation ratio, not a log-likelihood.  The
         former curvature-to-variance map ``sigma_theta**2 = 1 / (-H *
-        q_centre)`` (with ``H`` the level-2 quality second derivative)
+        q_center)`` (with ``H`` the level-2 quality second derivative)
         is dimensionally ``rad**2 / quality**2`` and has no calibrated
         relationship to angular variance: PSR/PMR do not live on a
         log-likelihood scale, so the curvature carries no Fisher

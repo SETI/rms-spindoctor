@@ -954,7 +954,7 @@ def _write_ck_of_only_a_clockless_object(directory: Path, name: str) -> Path:
 def test_a_file_of_only_unclockable_objects_does_not_stop_the_scan(
     pool: KernelPool, tmp_path: Path
 ) -> None:
-    """A kernel whose every object lacks a clock indexes beside its neighbours."""
+    """A kernel whose every object lacks a clock indexes beside its neighbors."""
     root = tmp_path / 'CK-reconstructed'
     _write_ck(root, _RECONSTRUCTED_NAME)
     _write_ck_of_only_a_clockless_object(root, 'merged_clockless_v001.bc')

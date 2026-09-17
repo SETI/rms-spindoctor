@@ -228,7 +228,7 @@ expected.confidence_tier     ALLOWED_TIERS
   conflicted  - MUST pair with status='conflicted'.
 
   Tier is a calibration TARGET, not a description of current
-  pipeline behaviour. The calibration sweep tunes the per-
+  pipeline behavior. The calibration sweep tunes the per-
   technique alpha coefficients to make the autonomous result land
   the tier you write here. Pick conservatively: a 'medium' that
   comes back 'high' after calibration is a free win you can
@@ -260,7 +260,7 @@ expected.primary_technique     NAV_TECHNIQUES
     rings + body                 -> highest of RingEdgeNav vs body
                                     technique
 
-  All recognised technique names:
+  All recognized technique names:
 
     BodyDiscCorrelateNav
     BodyLimbNav

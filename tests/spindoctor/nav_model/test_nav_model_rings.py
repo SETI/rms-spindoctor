@@ -93,7 +93,7 @@ def test_is_straight_line_for_collinear_points() -> None:
 def test_is_straight_line_for_curved_points() -> None:
     """Points with curvature above the threshold are not flagged straight.
 
-    The SVD-based test projects the centred points onto the smallest
+    The SVD-based test projects the centered points onto the smallest
     singular direction and compares the maximum deviation to
     ``FLAT_CURVATURE_THRESHOLD_PX = 1.0``.  We construct a triangle whose
     apex is far enough from the line connecting the endpoints that the
@@ -132,7 +132,7 @@ def test_ring_edge_reliability_caps_at_one() -> None:
     assert out == pytest.approx(1.0)
 
 
-def test_ring_edge_reliability_penalises_straight_lines() -> None:
+def test_ring_edge_reliability_penalizes_straight_lines() -> None:
     """Straight-line edges receive a 0.7 multiplier."""
     curved = _ring_edge_reliability(
         catalog_default=0.7,
@@ -304,7 +304,7 @@ def test_require_positive_finite_planet_scalar_rejects_non_numeric() -> None:
 def test_polyline_normals_are_radially_signed_with_a_radius_backplane() -> None:
     """A rasterized closed ring emits outward-radial normals, not scan-order ones.
 
-    The mask-neighbour test fixes only the normal AXIS: it probes ``v - 1``
+    The mask-neighbor test fixes only the normal AXIS: it probes ``v - 1``
     before ``v + 1`` and ``u - 1`` before ``u + 1``, so on a closed ring the
     emitted signs follow scan order and rasterization.  Measured on this
     fixture without a radius backplane, the mean dot with the true outward
@@ -345,7 +345,7 @@ def test_polyline_normals_unsigned_without_a_radius_backplane() -> None:
     The distinguishing property is the SIGN, not the length: a fully
     radially-signed result is also unit length, so asserting length alone
     would pass either way.  Without the backplane the sign comes from the
-    mask-neighbour scan order, which on a closed ring puts a large share of
+    mask-neighbor scan order, which on a closed ring puts a large share of
     the normals on the inward side -- a signed result would have none.
     """
     size = 201
@@ -362,7 +362,7 @@ def test_polyline_normals_unsigned_without_a_radius_backplane() -> None:
     dots = np.sum(normals * true_radial, axis=1)
     # Exactly half the ring's vertices come out pointing INWARD: the scan
     # tests v - 1 before v + 1 and u - 1 before u + 1, so the sign is set by
-    # which neighbour is probed first, not by the geometry.
+    # which neighbor is probed first, not by the geometry.
     assert int(np.count_nonzero(dots < 0.0)) == 190
     assert int(np.count_nonzero(dots > 0.0)) == 190
 
@@ -603,7 +603,7 @@ def _rings_model_for_annulus(
     surviving edge routes to the annulus-template path rather than the per-edge
     path.  The template is composited from ``model_img`` / ``model_mask``, which
     ``to_features`` trims against the occlusion mask before compositing -- the
-    behaviour under test.  As in ``_render``, the edge mask is passed through
+    behavior under test.  As in ``_render``, the edge mask is passed through
     ``_visible_edge_info`` before it lands on ``_render_results`` while the
     full-feature render is stored untrimmed.
 

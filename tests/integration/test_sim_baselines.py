@@ -57,7 +57,7 @@ def test_scene_matches_baseline(baseline_path: Path) -> None:
 
 
 def test_baseline_json_round_trips(tmp_path: Path) -> None:
-    """A baseline serialised and reloaded compares equal."""
+    """A baseline serialized and reloaded compares equal."""
     baseline = SimBaseline(
         scene_name='example',
         status='success',
@@ -71,7 +71,7 @@ def test_baseline_json_round_trips(tmp_path: Path) -> None:
 
 
 def test_failed_baseline_round_trips(tmp_path: Path) -> None:
-    """A failed-scene baseline (null offsets) serialises and reloads."""
+    """A failed-scene baseline (null offsets) serializes and reloads."""
     baseline = SimBaseline(
         scene_name='failed_example',
         status='failed',

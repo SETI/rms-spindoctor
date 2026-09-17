@@ -7,6 +7,7 @@ from tests.spindoctor.inst.conftest import (
     bare_observation,
     published_clock_counts,
 )
+from tests.spindoctor.public_metadata_galileo_ssi import GALILEO_SSI_PUBLIC_METADATA
 
 import spindoctor.obs.obs_inst_galileo_ssi as obstgossi
 from spindoctor.obs.obs_inst_galileo_ssi import ObsGalileoSSI
@@ -80,6 +81,17 @@ def test_the_published_count_is_a_fractional_rim_count_with_no_stop() -> None:
     assert start == pytest.approx(3603611 + 68 / 91 + 2 / 910 + 4 / 7280, abs=1e-9)
     assert midtime is None
     assert end is None
+
+
+def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
+    """The metadata chapter's Galileo fixture holds the host's keys, in the host's order.
+
+    The chapter's staleness guard takes the Galileo facts from that fixture, so a fact the
+    host gains has to reach the fixture, and through it the chapter.
+    """
+    label = VicarLabelStandIn(RIM=3603611, MOD91=68, MOD10=2, MOD8=4)
+    public = bare_observation(ObsGalileoSSI, label, filter='CLEAR').get_public_metadata()
+    assert list(public) == list(GALILEO_SSI_PUBLIC_METADATA)
 
 
 def test_a_label_missing_a_clock_item_publishes_no_count() -> None:

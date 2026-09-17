@@ -54,10 +54,19 @@ def sample_dt_bilinear(dt: NDArrayFloatType, vertices_vu: NDArrayFloatType) -> N
     sum (or the weighted sum, with M-estimator weights) is what an LM
     refinement minimizes.
 
+    The sampler reads a vertex pixel centric: it clamps to ``h - 1`` and
+    ``w - 1`` and takes ``floor(v)``, so a whole number samples that pixel's
+    own value.  This is the crossing point for every distance-transform
+    technique.  A caller handing it pixel corner coordinates displaces every
+    vertex by half a pixel in the same direction, and that error does not
+    cancel: the fit minimizes the residual rather than differencing two of
+    them, so the bias lands in the answer.
+
     Parameters:
         dt: 2-D distance-transform array (output of ``apply_filter`` with
             ``DISTANCE_TRANSFORM`` kind, or an externally-built DT).
-        vertices_vu: ``(N, 2)`` array of (v, u) sub-pixel vertex positions.
+        vertices_vu: ``(N, 2)`` array of (v, u) sub-pixel vertex positions,
+            pixel centric.
 
     Returns:
         ``(N,)`` array of bilinear-interpolated DT values at each vertex.

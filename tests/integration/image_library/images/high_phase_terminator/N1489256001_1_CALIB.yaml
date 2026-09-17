@@ -19,9 +19,9 @@ ground_truth:
     high_phase_terminator exemplar from cohort-curation review batch 002 (seq 039).
     Selection: DIONE | 90-120; {"apparent_diameter_px": 160.4, "center_phase_deg": 106.863, "filter": "P120", "lat_coverage_deg": 119.1, "target": "DIONE", "year": "2005"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.841, rank=high, techniques=['BodyLimbNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyLimbNav": [5.5269, -0.8399], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [4.8156, -0.4015]}.
+    Pipeline at curation: status=success, confidence=0.841, rank=high, techniques=['BodyLimbNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyLimbNav": [5.5269, -0.8399], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [4.8156, -0.4015]}.
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/BodyTerminatorNav -> measured success/medium/BodyLimbNav. Primary re-ratcheted BodyTerminatorNav->BodyLimbNav: BodyTerminatorNav no longer emits a result after the terminator refit; BodyLimbNav carries the frame and techniques_must_run is updated to it. Tier and offset unchanged.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is BodyLimbNav: BodyTerminatorNav emits no result on this frame, so BodyLimbNav carries it.
 expected:
   status: success
   confidence_tier: medium

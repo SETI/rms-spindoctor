@@ -162,7 +162,7 @@ def test_run_manual_nav_returns_result_on_accept() -> None:
 
 
 def test_run_manual_nav_returns_none_on_cancel() -> None:
-    """When the dialog is cancelled ``run_manual_nav`` returns ``None``."""
+    """When the dialog is canceled ``run_manual_nav`` returns ``None``."""
     obs = _FakeObsForRunManual()
     obs.with_template = True  # type: ignore[attr-defined]
     fake_dialog, _instances = _make_fake_dialog((False, None, None))
@@ -174,7 +174,7 @@ def test_run_manual_nav_returns_none_on_cancel() -> None:
 def test_run_manual_nav_runs_on_template_less_star_feature() -> None:
     """A STAR feature without a template still renders as a marker rectangle.
 
-    The dialog opens because ``StarGeometry`` is recognised by both
+    The dialog opens because ``StarGeometry`` is recognized by both
     ``compose_dialog_overlay`` and ``NavTechniqueManual.is_feasible`` —
     the absence of ``template_img`` / ``template_mask`` no longer
     short-circuits feasibility for star-only scenes.

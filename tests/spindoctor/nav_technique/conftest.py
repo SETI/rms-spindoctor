@@ -2,12 +2,30 @@
 
 Each technique end-to-end test needs the same scaffolding: a fake observation
 (``FakeObs``), a synthetic image, a populated ``NavContext``, and per-feature
-polyline / feature factories.  Centralising these here removes the per-file
+polyline / feature factories.  Centralizing these here removes the per-file
 duplication and makes the technique tests focus on their assertions instead of
 their setup.
 
 Fixtures are exposed as **factory fixtures** — each yields a small builder
 function, so each test calls the builder with its own per-test parameters.
+
+What these fixtures can and cannot establish
+--------------------------------------------
+
+Every image factory draws its scene about a ``center_vu`` the test chooses,
+over a grid built with ``np.arange``, so the scene is stated in the pixel
+centric coordinates the array itself uses.  Every geometry factory then states
+its polyline vertices and its predicted positions about that same number.  A
+technique test therefore recovers the offset the test planted between the two
+whatever coordinate system the model layer works in, because both sides of the
+comparison were written here from one number.  That is what a technique test is
+for -- it measures a fit, not a convention -- but it means nothing in this
+directory can fail on a pixel coordinate convention, and a tolerance here is a
+statement about the fitter's convergence rather than about a coordinate system.
+The tests that pin where a model's emitted vertices actually sit live beside
+the models, in ``tests/spindoctor/nav_model``, and anchor on something outside
+the model: a frame's own symmetry, a fixture's stated sphere or ramp, or the
+optical axis ``oops`` reports.
 """
 
 from __future__ import annotations

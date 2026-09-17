@@ -18,7 +18,7 @@ ground_truth:
     multi_body exemplar from cohort-curation review batch 002 (seq 046).
     Selection: DIONE+MIMAS; {"filter": "CL1", "largest_px": 137.4, "targets_px": {"DIONE": 137.4, "MIMAS": 41.4}, "year": "2006"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.413, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [2.1094, -22.9844], "BodyLimbNav": [2.0088, -23.0733]}.
+    Pipeline at curation: status=success, confidence=0.413, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [2.1094, -22.9844], "BodyLimbNav": [2.0088, -23.0733]}.
 expected:
   status: success
   confidence_tier: medium

@@ -19,8 +19,8 @@ ground_truth:
     body_irregular exemplar from cohort-curation review batch 001 (seq 013).
     Selection: EPIMETHEUS | <30; {"apparent_diameter_px": 630.4, "center_phase_deg": 28.482, "filter": "P120", "target": "EPIMETHEUS", "year": "2015"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [0.0, 0.0], "BodyBlobNav": [-25.983, -54.4295], "StarRefineNav": [0.0, 0.0]}.
-    Tier ratchet 2026-07-16: the 2026-07-14 NCC/blob covariance rederivation adds a size-scaled centroid-model-error term, so the sigma-based tier gate now rates the unchanged, ground-truth-consistent BodyBlobNav solution low. Ratcheted medium -> low.
+    Pipeline at curation: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [0.0, 0.0], "BodyBlobNav": [-25.983, -54.4295], "StarRefineNav": [0.0, 0.0]}.
+    The NCC/blob covariance carries a size-scaled centroid-model-error term, so the sigma-based tier gate rates the ground-truth-consistent BodyBlobNav solution low.
 expected:
   status: success
   confidence_tier: low

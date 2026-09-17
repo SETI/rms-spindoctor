@@ -1,6 +1,6 @@
 """Simulated-body NavModel.
 
-Renders a body from operator-supplied geometric parameters (centre, axes,
+Renders a body from operator-supplied geometric parameters (center, axes,
 rotation, lighting) rather than from SPICE.  Used by the simulated-image
 GUI to compose synthetic test scenes; the rendered body becomes a
 ``BODY_DISC`` ``NavFeature`` that the standard pipeline can navigate
@@ -43,6 +43,7 @@ from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, 
 from spindoctor.nav_model.sim_body import create_simulated_body
 from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.sim.mesh_geometry import mesh_spec_from_params, render_mesh_body_image
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.image import shift_array
 from spindoctor.support.time import now_dt
@@ -94,7 +95,7 @@ def _limb_polyline_from_mask(
 
     Each ``True`` pixel of ``limb_mask`` (a body pixel adjacent to sky) becomes
     one vertex.  The outward normal points away from the body interior: it is the
-    normalized sum of the unit directions toward each non-body 4-neighbour, so a
+    normalized sum of the unit directions toward each non-body 4-neighbor, so a
     vertex on the sunward limb gets a normal pointing into the sky.
 
     Parameters:
@@ -138,7 +139,7 @@ def _terminator_ridge_mask(
     ``DARK_SIDE_ILLUM_STRENGTH``, so brightness ``> 0`` is the whole visible
     disc while brightness above the floor is the lit region; the unlit disc is
     their difference.  A ridge pixel is a lit pixel with an unlit *interior*
-    disc pixel as a 4-neighbour -- the interior restriction drops the
+    disc pixel as a 4-neighbor -- the interior restriction drops the
     anti-aliased limb ring (unlit only because its edge brightness has ramped
     below the floor), which keeps the ridge off the silhouette everywhere the
     lit and unlit regions are separated by more than a pixel (the cusps of a
@@ -254,7 +255,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         sim_params: Dictionary of simulation parameters.  Expected keys:
 
             - ``name``
-            - ``center_v``, ``center_u`` (pixel coordinates of the centre)
+            - ``center_v``, ``center_u`` (pixel coordinates of the center)
             - ``range_km`` (km; subject distance, defaults to inf)
             - ``axis1``, ``axis2``, ``axis3`` (pixels; full widths of the
               ellipsoid axes)
@@ -316,7 +317,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         an irregular mesh at the true pose yet predicts an ellipsoid (shape
         mismatch, B7 scenario 2), or the same mesh at a different pose
         (chaotic-rotator pose disagreement, B7 scenario 3), without touching
-        the rendered image.  The override never changes the centre, so the
+        the rendered image.  The override never changes the center, so the
         predicted body stays at the unshifted position the planted offset is
         measured from.
 
@@ -400,8 +401,8 @@ class NavModelBodySimulated(NavModelBodyBase):
             size: Optional canvas shape ``(v, u)``; defaults to the obs data
                 shape.  The unclipped whole-body render behind the
                 visible-arc fraction passes a body-sized canvas here.
-            center: Optional body centre ``(v, u)`` on that canvas; defaults
-                to the rendered params' own predicted centre.
+            center: Optional body center ``(v, u)`` on that canvas; defaults
+                to the rendered params' own predicted center.
             params: Optional body-parameter dict to render instead of this
                 model's own ``sim_params``.  The occlusion path renders each
                 nearer sibling's predicted silhouette through this.
@@ -476,9 +477,14 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._model_img = model_img_full
         self._body_mask = body_mask_full
         self._limb_mask = limb_mask_full
+        # The scene states the body's center in pixel corner coordinates,
+        # which is what the silhouette renderer draws against (it puts the
+        # center of pixel i at i + 0.5).  The payload is pixel centric, and so
+        # is the lit-weighted centroid this value is differenced against, so
+        # the half pixel comes off next to the margin that goes on.
         self._predicted_center_vu = (
-            center_v + ext_margin_v,
-            center_u + ext_margin_u,
+            center_v - PIXEL_CENTER_TO_CORNER_PX + ext_margin_v,
+            center_u - PIXEL_CENTER_TO_CORNER_PX + ext_margin_u,
         )
         self._subject_range_km = float(p.get('range_km', float('inf')))
         self._occluder_mask = self._compute_occluder_mask()
@@ -807,13 +813,13 @@ class NavModelBodySimulated(NavModelBodyBase):
         ``self._body_mask`` (brightness ``> 0``) is the whole visible disc while
         ``model_img > DARK_SIDE_ILLUM_STRENGTH`` is the lit region; the unlit
         disc is their difference.  A terminator vertex is a lit pixel with an
-        unlit *interior* disc pixel as a 4-neighbour -- the interior restriction
+        unlit *interior* disc pixel as a 4-neighbor -- the interior restriction
         drops the anti-aliased limb ring (unlit only because its edge brightness
         has ramped below the floor), keeping the polyline interior to the disc
         everywhere except the cusp-adjacent vertices of a very thin crescent,
         where terminator and limb meet within a pixel and a few vertices land
         on the silhouette (at phase 150 roughly 9 of 155 vertices; the
-        SPICE-backed model's sampler shares the behaviour).  The outward
+        SPICE-backed model's sampler shares the behavior).  The outward
         normal is the gradient of the lit mask, so it points from the lit side
         toward the unlit side, the convention the SPICE-backed body model's
         terminator sampler uses.
@@ -953,11 +959,13 @@ class NavModelBodySimulated(NavModelBodyBase):
         """Emit body silhouette + label annotations for the summary PNG."""
         if self._model_img is None or self._body_mask is None or self._limb_mask is None:
             return Annotations()
-        center_v = float(self._sim_params.get('center_v', self.obs.data_shape_v / 2.0))
-        center_u = float(self._sim_params.get('center_u', self.obs.data_shape_u / 2.0))
+        # The label anchor is a pixel of the nominal frame, so it comes off
+        # the payload's extended-frame pixel-centric center rather than off
+        # the scene's pixel-corner one.
+        v_center, u_center = self._predicted_center_vu
         return self._create_annotations(
-            round(center_u),
-            round(center_v),
+            containing_pixel(u_center - self.obs.extfov_margin_u),
+            containing_pixel(v_center - self.obs.extfov_margin_v),
             self._model_img,
             self._limb_mask,
             self._body_mask,

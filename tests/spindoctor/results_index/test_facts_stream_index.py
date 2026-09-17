@@ -5,7 +5,7 @@ guarantees a reader of documents has for nothing and an index has to be made to
 keep.  The facts are the whole row whatever columns a consumer selected; a
 selection narrows a stream of facts exactly as it narrows a stream of records; a
 read naming its own stubs is answered in the order it named them, in batches, and
-still honours everything else the selection says; and every one of those reads
+still honors everything else the selection says; and every one of those reads
 carries the root half of the key.  The connection the pass borrows comes back.
 """
 
@@ -66,7 +66,7 @@ def test_the_consumers_columns_are_fewer_than_the_whole_row() -> None:
 
 @pytest.mark.parametrize('which', BOTH_ROOTS)
 def test_a_mission_filter_keeps_one_missions_images(two_roots: TwoRoots, which: str) -> None:
-    """The restriction both storages honour the same way.
+    """The restriction both storages honor the same way.
 
     Parameters:
         two_roots: The two ingested roots and their index.
@@ -205,7 +205,7 @@ def test_the_named_stubs_really_do_cross_a_batch_boundary() -> None:
     assert len(_NAMES_CROSSING_A_BATCH) > STUBS_PER_STATEMENT
 
 
-def test_named_stubs_still_honour_the_mission(two_roots: TwoRoots) -> None:
+def test_named_stubs_still_honor_the_mission(two_roots: TwoRoots) -> None:
     """A selection is a narrowing whatever else it names.
 
     Parameters:
@@ -216,7 +216,7 @@ def test_named_stubs_still_honour_the_mission(two_roots: TwoRoots) -> None:
     assert [stub_of(one) for one in found] == [SUCCESS_STUB]
 
 
-def test_named_stubs_still_honour_a_time_bound(two_roots: TwoRoots) -> None:
+def test_named_stubs_still_honor_a_time_bound(two_roots: TwoRoots) -> None:
     """The other half of what a selection restricts a named read by.
 
     Parameters:

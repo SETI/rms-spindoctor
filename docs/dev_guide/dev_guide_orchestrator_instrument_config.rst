@@ -12,7 +12,7 @@ an observation. The companion function
 per-camera ``inst_config`` mapping that an
 :class:`~spindoctor.obs.obs_inst.ObsInst` populates from
 ``config_4N0_inst_*.yaml`` and returns a populated dataclass. Every per-instrument
-behavioural branch in :class:`~spindoctor.nav_orchestrator.orchestrator.NavOrchestrator` ultimately
+behavioral branch in :class:`~spindoctor.nav_orchestrator.orchestrator.NavOrchestrator` ultimately
 reads off this dataclass.
 
 Theory

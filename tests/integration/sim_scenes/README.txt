@@ -59,18 +59,36 @@ Pixel convention
 Every position that places something in a scene is a PIXEL CORNER: a star's
 v / u, a body's center_v / center_u, and the ring system's geometry center_v /
 center_u.  Integer N is the boundary between pixel N-1 and pixel N, so the
-centre of pixel N is N + 0.5 and the centre of a size_v by size_u frame is
+center of pixel N is N + 0.5 and the center of a size_v by size_u frame is
 (size_v / 2, size_u / 2).  This is the oops uv convention, the one the FOV,
 backplane, and star-record code underneath already use, so a position written
 here is the same number those read.
 
-Displacements carry no datum and need no such care: offset_v / offset_u,
-move_v / move_u, catalog_error_v / catalog_error_u, and a companion's sep_px
-are differences between two positions.
+Displacements carry no origin convention and need no such care: offset_v /
+offset_u, move_v / move_u, catalog_error_v / catalog_error_u, and a
+companion's sep_px are differences between two positions.
 
-The two centres inside the optics block -- distortion.center_v / center_u and
-stray_light.center_v / center_u -- are pixel indices instead.  They name where
-a whole-frame field is centred rather than where an object sits.
+The planted offset_rotation_deg turns POSITIONS about ONE point in that same
+convention: the frame's center (size_v / 2, size_u / 2).  Catalog star
+positions, body centers, and the ring system's center all pivot there, so a
+rolled scene plants a truth its three families of content agree on.  The two
+orientations describing a whole projected pattern take the roll as well: a
+body's rotation_z and the ring system's node_deg.
+
+It does not turn the per-object quantities already stated in the detector
+frame: move_v / move_u and a companion's angle_deg render at the angle the
+scene wrote, whatever the roll, so stating them as they are to appear on the
+detector is what a scene author does.  The sky_counts background field is not
+rotated either -- its positions are drawn uniformly at random, so it carries no
+orientation to turn.
+
+The two centers inside the optics block -- distortion.center_v / center_u and
+stray_light.center_v / center_u -- are pixel corners too.  What they name is
+where a whole-frame field is centered rather than where an object sits, and the
+same number written in either block names one point.  They do not turn with
+offset_rotation_deg: the roll moves the scene across the detector, while these
+name a place on the detector itself, so they render where the scene wrote them
+whatever the roll.
 
 Fields
 ------
@@ -152,9 +170,10 @@ Fields
                                      dv_px/du_px/object_class), distortion (k1, k2,
                                      center_v, center_u, nonradial_rms_px), ghosts (list
                                      of dv_px/du_px/amplitude/defocus_sigma), stray_light
-                                     (amplitude, direction_deg, model linear|radial)
+                                     (amplitude, direction_deg, center_v, center_u,
+                                     model linear|radial)
   detector         (mapping, opt)    detector-chain override: gain_state (must be
-                                     catalogued for the instrument), detector_model
+                                     cataloged for the instrument), detector_model
                                      (ccd | vidicon), exposure_ref_sec, quantization
                                      (exact | 8bit | uneven_12bit | sqrt_lut); omitted
                                      keys track the instrument catalog
@@ -187,7 +206,7 @@ from the body params with nav_override overlaid -- the channel that makes the
 navigation geometry diverge from the render geometry.  Use it to render an
 irregular mesh yet predict its smooth (ellipsoidal) limit (mesh_lumpiness 0.0)
 for a shape mismatch, or to predict the same body at a different pose_euler_deg
-for a pose disagreement.  The override never changes the centre, so the
+for a pose disagreement.  The override never changes the center, so the
 predicted body stays at the unshifted position the planted offset is measured
 from.
 

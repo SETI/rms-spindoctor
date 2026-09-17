@@ -27,7 +27,7 @@ import numpy as np
 from scipy.ndimage import (
     distance_transform_edt,
     gaussian_filter,
-    grey_dilation,
+    grey_dilation,  # codespell:ignore grey -- scipy spells it that way
     rotate,
     sobel,
 )
@@ -52,10 +52,18 @@ class NavFilterKind(Enum):
     - ``BANDPASS_DOG``: difference-of-Gaussians bandpass; subtract a heavy-blur
       from a light-blur of the input to suppress low-frequency content while
       preserving sharper detail.
-    - ``DISTANCE_TRANSFORM``: signed distance transform of a thresholded edge
-      map; only meaningful as a precomputed image-side quantity, not a generic
-      operator.  ``apply_filter`` raises if asked to apply it to a non-binary
-      array.
+    - ``DISTANCE_TRANSFORM``: Euclidean distance transform of a thresholded
+      edge map.  It is NOT signed: wherever there is an edge to measure from,
+      the values are non-negative and the zero locus is the edge pixels
+      themselves, at their own centers, rather than an oriented boundary
+      running along pixel edges half a pixel away.  Truncated at
+      ``dt_half_width_px`` when that is positive and left uncapped when it is
+      not.  An input with no edge at all is the one case that returns something
+      other than a distance: every pixel comes back at ``dt_half_width_px``,
+      which is negative if that is how it was set.  Only meaningful as a
+      precomputed image-side quantity, not a generic operator.  ``apply_filter``
+      thresholds whatever it is handed at ``!= 0`` rather than rejecting a
+      non-binary array.
     - ``GRADIENT_OF_GAUSSIAN``: gradient magnitude of a Gaussian-smoothed
       input; isotropic blur followed by Sobel.
     - ``MORPH_DILATE``: morphological dilation by a structuring element of
@@ -214,15 +222,32 @@ def _apply_morph_dilate(arr: NDArrayFloatType, spec: NavFilterSpec) -> NDArrayFl
     if half_v <= 0 and half_u <= 0:
         return arr
     size = (2 * max(half_v, 0) + 1, 2 * max(half_u, 0) + 1)
-    return cast(NDArrayFloatType, grey_dilation(arr, size=size))
+    return cast(NDArrayFloatType, grey_dilation(arr, size=size))  # codespell:ignore grey
 
 
 def _apply_distance_transform(arr: NDArrayFloatType, spec: NavFilterSpec) -> NDArrayFloatType:
-    """Apply Euclidean distance transform of a binary input.
+    """Apply Euclidean distance transform of a thresholded input.
 
-    The input must be a 2-D boolean / 0-1 array indicating "edge pixels".
-    The result is the distance from each non-edge pixel to the nearest edge
-    pixel, clipped to ``dt_half_width_px``.
+    Any 2-D float array is accepted: a pixel counts as an edge where it is
+    non-zero, so a boolean or 0-1 array is the usual input rather than a
+    required one.  The result is the distance from each pixel to the nearest
+    edge pixel, zero on the edge pixels themselves.
+
+    Truncation is conditional.  A positive ``dt_half_width_px`` caps the
+    distances at that value; a zero or negative one leaves them uncapped, so a
+    caller reading the result as a bounded quantity must set it.
+    :class:`~spindoctor.nav_orchestrator.image_derivatives.ImageDerivativesConfig`
+    rejects a non-positive width, but this function is reachable without it.
+
+    Parameters:
+        arr: The array to threshold and transform.
+        spec: Carries ``dt_half_width_px``, the truncation distance.
+
+    Returns:
+        The distances, as float64.  An array with no non-zero pixel has no
+        edge to measure from, so every pixel is returned at
+        ``dt_half_width_px`` -- including when that is zero or negative, which
+        returns that value uniformly rather than a distance.
     """
     bin_arr = arr != 0
     if not bin_arr.any():

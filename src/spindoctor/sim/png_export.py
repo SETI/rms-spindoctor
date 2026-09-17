@@ -87,7 +87,7 @@ def save_png(
         low_percentile: Percentile mapped to black.
         high_percentile: Percentile mapped to white.
         gamma: Display gamma; values above 1 lift dim features.
-        upscale: Integer nearest-neighbour magnification, so a small frame is
+        upscale: Integer nearest-neighbor magnification, so a small frame is
             still legible in a document (1 disables it).
 
     Returns:
@@ -127,7 +127,7 @@ def render_scene_png(
         low_percentile: Percentile mapped to black.
         high_percentile: Percentile mapped to white.
         gamma: Display gamma; values above 1 lift dim features.
-        upscale: Integer nearest-neighbour magnification.
+        upscale: Integer nearest-neighbor magnification.
 
     Returns:
         The written path.

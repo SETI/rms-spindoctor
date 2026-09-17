@@ -28,12 +28,11 @@ ground_truth:
     Cassini WAC clear+VIO frame from the COISS_1xxx Jupiter cruise leg
     (2003), navigable via its star field and body. Saturn's rings are
     far too distant to appear in this frame (the rings model correctly
-    emits no feature), so this is a stars_plus_body scene; an earlier
-    ring_only_curved classification with a RingAnnulusNav expectation
-    was wrong. Ground truth was operator-verified by star/body alignment
-    in the manual-nav dialog (2026-07-13).
+    emits no feature), so this is a stars_plus_body scene. Ground truth
+    was operator-verified by star/body alignment in the manual-nav
+    dialog (2026-07-13).
 
-    Re-ratchet 2026-07-23: the star-navigation hardening (two-star unique-match assignment and PSF-refined multi-star refine) now locks this WAC cruise field, closing the earlier all_techniques_spurious failure. Measured success/medium/StarRefineNav on truth (fused (-0.27, -2.95), confidence 0.847, offset within slack). StarFieldFromCatalogNav still reports too_few_inliers on the sparse cruise field (1 inlier < 6), so the committed answer comes from the two-star StarUniqueMatchNav plus its StarRefineNav refinement, and StarRefineNav (multi-star, uncapped) is the highest-confidence contributor. The earlier expected primary StarFieldFromCatalogNav and low tier predated that hardening: a well-refined multi-star fix earns medium, and the pattern matcher does not carry this field.
+    Two-star unique-match assignment and PSF-refined multi-star refine lock this WAC cruise field: measured success/medium/StarRefineNav on truth (fused (-0.27, -2.95), confidence 0.847, offset within slack). StarFieldFromCatalogNav reports too_few_inliers on the sparse cruise field (1 inlier < 6), so the committed answer comes from the two-star StarUniqueMatchNav plus its StarRefineNav refinement, and StarRefineNav (multi-star, uncapped) is the highest-confidence contributor: a well-refined multi-star fix earns medium, and the pattern matcher does not carry this field.
 
 expected:
   # success | failed | conflicted

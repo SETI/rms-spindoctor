@@ -222,7 +222,7 @@ def test_snr_reason_score_caps_at_one() -> None:
     assert _snr_reason_score(snr=200.0, min_snr=8.0) == 1.0
 
 
-def test_snr_reason_score_default_centre_50() -> None:
+def test_snr_reason_score_default_center_50() -> None:
     """When no floor is configured the score saturates at SNR=50."""
     assert _snr_reason_score(snr=50.0, min_snr=0.0) == 1.0
     assert _snr_reason_score(snr=25.0, min_snr=0.0) == pytest.approx(0.5)
@@ -437,6 +437,29 @@ def test_to_annotations_renders_overlay_for_usable_stars() -> None:
     assert len(annotation.text_info_list) == 1
 
 
+def test_the_drawn_star_box_covers_the_feature_bounding_box() -> None:
+    """The overlay marks the pixels the STAR feature's bounding box names.
+
+    An operator confirming that a star sits inside its predicted box reads the
+    overlay, and a star technique searches the feature's bounding box; the two
+    have to name the same pixels or the confirmation is of a box the pipeline
+    never used.  This star sits a fifth of a pixel into its row and column,
+    which is where a box centered by truncation rather than by the nearest
+    pixel lands one row and one column low.
+    """
+    model, _obs = _make_model()
+    star = _FakeMutableStar(unique_number=1, vmag=4.0, u=50.2, v=60.2)
+    model._stars = [cast(MutableStar, star)]
+    context = _FakeContext()
+    geometry = model.to_features(cast(NavContext, context))[0].geometry
+    assert isinstance(geometry, StarGeometry)
+    overlay = model.to_annotations(cast(NavContext, context)).annotations[0].overlay
+    rows = np.flatnonzero(overlay.any(axis=1))
+    cols = np.flatnonzero(overlay.any(axis=0))
+    drawn = (int(rows[0]), int(cols[0]), int(rows[-1]) + 1, int(cols[-1]) + 1)
+    assert drawn == geometry.bbox_extfov_vu
+
+
 def test_to_annotations_skips_stars_blocked_by_body_or_ring() -> None:
     """A star tagged with a BODY or RING conflict is excluded from the overlay."""
     model, _obs = _make_model()
@@ -456,7 +479,7 @@ def test_to_annotations_skips_stars_blocked_by_body_or_ring() -> None:
 
 
 def test_to_annotations_keeps_stars_with_star_only_conflict() -> None:
-    """A star tagged with the ``'STAR'`` conflict is still labelled."""
+    """A star tagged with the ``'STAR'`` conflict is still labeled."""
     model, _obs = _make_model()
     star = _FakeMutableStar(unique_number=1, vmag=4.0, u=50.0, v=60.0, conflicts='STAR')
     model._stars = [cast(MutableStar, star)]

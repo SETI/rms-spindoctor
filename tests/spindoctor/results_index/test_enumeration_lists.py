@@ -51,7 +51,7 @@ Each phrase is bound to the entry that carries it and to that entry's place in
 the list, in :func:`_members_by_entry`, so what is compared is which member each
 entry states rather than which phrases the region holds somewhere.  That is what
 makes a deletion fail: an entry removed, an entry that states two members
-because a neighbour absorbed the deleted one's phrase, an entry that states
+because a neighbor absorbed the deleted one's phrase, an entry that states
 none, and a list whose members come in another order are all a mismatch.
 
 It cannot check that an entry tells the truth about the member it states.  These
@@ -235,7 +235,7 @@ def _members_by_entry(entries: Sequence[str]) -> list[list[str]]:
     """Return what each entry of one list states, entry by entry.
 
     The nesting is the whole point: a member is bound to the entry carrying its
-    phrase, so a phrase found in a neighbouring entry does not stand in for the
+    phrase, so a phrase found in a neighboring entry does not stand in for the
     entry that was deleted.  Flattened, the two are the same multiset, and a
     list that lost a member and gained the phrase elsewhere reads as unchanged.
 
@@ -282,7 +282,7 @@ def test_every_list_states_each_member_in_an_entry_of_its_own(
     from the tree, silently and by however many documents the ingest refused, so
     the operator choosing between them is told which members of this list apply
     to their root.  The way that account has twice been lost is deletion: the
-    paragraph goes, and some neighbour ends up carrying the words.  Bound entry
+    paragraph goes, and some neighbor ends up carrying the words.  Bound entry
     by entry, that is a list one entry short whose surviving entries no longer
     line up with the members, however the phrases are distributed.
 

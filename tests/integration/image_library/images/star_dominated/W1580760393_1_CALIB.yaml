@@ -27,12 +27,9 @@ ground_truth:
   notes: |
     Cassini WAC clear-filter star field, 26 s exposure. Navigable: the
     catalog stars align with detections at this offset, operator-verified
-    in the manual-nav dialog (2026-07-13). An earlier version of this
-    entry expected status failed (from a period when a broken star gate
-    could not close the frame); ground truth and expected were re-saved
-    to success/high.
+    in the manual-nav dialog (2026-07-13).
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/high/StarFieldFromCatalogNav -> measured success/high/StarRefineNav. Primary re-ratcheted StarFieldFromCatalogNav->StarRefineNav: the refit re-balanced the star-field terms so the 95-star refine (0.9513) edges the field matcher 0.95 hard cap. A multi-star refine legitimately carries the pick; status/tier/offset unchanged.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarRefineNav: the 95-star refine (0.9513) edges the field matcher's 0.95 hard cap, so a multi-star refine legitimately carries the pick.
 
 expected:
   # success | failed | conflicted

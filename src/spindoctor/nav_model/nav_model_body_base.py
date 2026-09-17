@@ -302,7 +302,7 @@ class NavModelBodyBase(NavModel):
         if not math.isfinite(phase_angle_deg):
             phase_angle_deg = 0.0
         # Clamp to the BodyBlobFlags valid range; phase outside [0, 180]
-        # is a corner-case artefact, never a physical value.
+        # is a corner-case artifact, never a physical value.
         phase_angle_deg = max(0.0, min(180.0, phase_angle_deg))
         phase_irregularity_factor = self._phase_irregularity_factor(shape, phase_angle_deg)
         sigma_irregular_px = phase_irregularity_factor * (self._predicted_diameter_px / 2.0)
@@ -381,9 +381,11 @@ class NavModelBodyBase(NavModel):
         """Return the brightness-weighted centroid of the rendered body.
 
         Falls back to the geometric center when the model is empty or
-        the body mask is all-False (degenerate render).  The centroid
-        is in the same extfov coordinate frame ``_predicted_center_vu``
-        uses, so the BLOB feature's geometry stays self-consistent.
+        the body mask is all-False (degenerate render).  The moment is
+        taken over array indices, so the centroid is extfov pixel
+        centric -- the system ``_predicted_center_vu`` is in, which is
+        what lets the two be differenced and what the BLOB feature's
+        consumer measures its own centroid in.
         """
         assert self._model_img is not None
         assert self._body_mask is not None
@@ -409,10 +411,14 @@ class NavModelBodyBase(NavModel):
         ``(0.0, 0.0)``; the technique uses the disc template there and never
         consults the direction.
 
+        Both ends of the difference are extfov pixel centric, so the
+        offset between them is the physical one and nothing survives of
+        where the whole numbers fall.
+
         Parameters:
             lit_centroid_vu: The brightness-weighted centroid (the value
                 stored as the feature's predicted center), in the same extfov
-                frame as ``_predicted_center_vu``.
+                pixel centric coordinates as ``_predicted_center_vu``.
 
         Returns:
             Unit ``(v, u)`` direction toward the bright limb, or

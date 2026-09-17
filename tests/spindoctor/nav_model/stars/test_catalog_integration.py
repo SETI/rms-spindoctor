@@ -208,7 +208,7 @@ def test_stars_in_extfov_skips_records_with_missing_radec(
     # Inject a star whose ``ra`` is None into the FakeStarCatalog list so
     # the post-filter reduction loop hits the early-skip branch.  The
     # patched getter is reached via dynamic attribute lookup on the
-    # catalog module so monkeypatch's swap is honoured.
+    # catalog module so monkeypatch's swap is honored.
     cat = cast(Any, nav_catalog.get_ucac4_catalog())
     bad = make_star(unique_number=2, ra=0.05, dec=0.05, vmag=5.0)
     bad.ra = None
@@ -480,7 +480,7 @@ def test_reduce_catalogs_collapses_saturated_ucac4_onto_ybsc_twin(
     """A saturated UCAC4 bright star collapses onto its native YBSC twin.
 
     UCAC4 reports the star three-plus magnitudes too faint (mirroring the
-    Pleiades Eta Tau, catalogued near V6.7 against a true V2.9), so the
+    Pleiades Eta Tau, cataloged near V6.7 against a true V2.9), so the
     merge kept both records; the reduction resolves the field to the single
     YBSC record, which carries the true magnitude and accurate astrometry.
     """
@@ -609,12 +609,12 @@ def test_edge_gate_keeps_a_star_whose_psf_window_fits(
 ) -> None:
     """The extfov edge gate is decided where the PSF window lives: pixel-centric.
 
-    A 100-row frame padded by 10 makes index 109 the last row an extfov array
+    A 100-row frame padded by 10 makes row 109 the last row an extfov array
     has, and a 5x5 window reaches two rows either side of its star.  The star
     is placed so that window ends just inside that last row, and then just
-    past it.  The record states the position in pixel corner coordinates, half a pixel above
-    the index, so a gate comparing that uv against the index bound would
-    reject the star whose window fits.
+    past it.  The record states the position in pixel corner coordinates, half
+    a pixel above the pixel centric one, so a gate comparing that uv against
+    the array's own bound would reject the star whose window fits.
     """
     obs = FakeObs(
         data=np.zeros((100, 100), dtype=np.float64),
@@ -625,7 +625,7 @@ def test_edge_gate_keeps_a_star_whose_psf_window_fits(
     )
     psf_half_v = obs.star_psf_size(None)[0] // 2
     # The far edge of the window overhangs the last extfov row by
-    # ``overhang_px``; the record states that star's index in uv.
+    # ``overhang_px``; the record states that position in pixel corner uv.
     star_uv_v = obs.extfov_v_max - psf_half_v + overhang_px + PIXEL_CENTER_TO_CORNER_PX
     obs.radec_to_uv = lambda _ra, _dec, _tfrac: (0.0, star_uv_v)
     install_fake_catalogs(

@@ -792,7 +792,8 @@ def test_a_root_the_fan_out_could_not_list_is_not_stamped(
     nothing to measure against and must not stamp it -- otherwise the mistyped
     root reads as a fully ingested empty tree.
     """
-    absent = tmp_path / 'nav-offset-reuslts'
+    # The mistyping of 'results' is the subject of this test.
+    absent = tmp_path / 'nav-offset-reslts'
     url = index_url(tmp_path / 'index.sqlite3')
     fan_out(url, [absent], logger=quiet_logger)
     complete(url, [absent], [], logger=quiet_logger)
@@ -803,7 +804,8 @@ def test_a_root_the_fan_out_could_not_list_stays_unreadable(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger
 ) -> None:
     """Which is what a consumer asks about, and the whole point of not stamping."""
-    absent = tmp_path / 'nav-offset-reuslts'
+    # The mistyping of 'results' is the subject of this test.
+    absent = tmp_path / 'nav-offset-reslts'
     url = index_url(tmp_path / 'index.sqlite3')
     fan_out(url, [absent], logger=quiet_logger)
     complete(url, [absent], [], logger=quiet_logger)

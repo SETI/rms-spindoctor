@@ -56,8 +56,11 @@ class NavContext:
             ``[..., 1]`` is ``g_u``).  Sampled by the polarity filter to
             compare each model vertex's outward normal against the image's
             edge direction.
-        image_edge_dt_ext: Optional shared signed distance transform of the
-            thresholded gradient image.
+        image_edge_dt_ext: Optional shared Euclidean distance transform of
+            the thresholded gradient image.  It is not signed: the values are
+            non-negative everywhere and the zero locus is the edge pixels
+            themselves, at their own centers, not an oriented boundary
+            running along pixel edges half a pixel away.
         prior_offset_px: Prior offset from pass 1, ``None`` on pass 1.
         prior_covariance_px2: Prior offset covariance from pass 1.
         pre_filter_applied: NavFilterSpec applied to the source image (for

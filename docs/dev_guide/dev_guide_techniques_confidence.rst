@@ -10,7 +10,7 @@ uses to convert a typed diagnostics dataclass into a calibrated :math:`[0, 1]` c
 its :class:`~spindoctor.nav_technique.technique_result.NavTechniqueResult`. Each technique declares
 a YAML spec — a constant baseline, a list of linear terms keyed by diagnostic-attribute name,
 optional hard-zero gates, and an optional post-sigmoid clamp — and the shared evaluator
-applies that spec uniformly. Centralising the math means a config-load validation pass can
+applies that spec uniformly. Centralizing the math means a config-load validation pass can
 verify every spec at startup and adding a new technique requires no new scoring code.
 
 Theory
@@ -29,10 +29,10 @@ result, :math:`\mathrm{normalize}_{i}` applies a per-term offset / divisor / cap
 transformation, :math:`\alpha_{0}` and :math:`\alpha_{i}` are configured coefficients, and
 :math:`\sigma` is the logistic sigmoid.
 
-Per-term normalisation
+Per-term normalization
 ----------------------
 
-The normalisation transformation applied to each raw value is
+The normalization transformation applied to each raw value is
 
 .. math::
 
@@ -90,8 +90,8 @@ Per-term breakdown
 ------------------
 
 The evaluator can return a per-term contribution trace alongside the calibrated confidence.
-The trace records, for each term, the raw attribute value, the normalised value, the alpha,
-and the resulting alpha-times-normalised contribution to the sigmoid argument. Logging this
+The trace records, for each term, the raw attribute value, the normalized value, the alpha,
+and the resulting alpha-times-normalized contribution to the sigmoid argument. Logging this
 trace at INFO when confidence falls below a threshold gives an operator a one-line diagnostic
 of which term (or which hard-zero gate) drove the result down.
 
@@ -134,13 +134,13 @@ shape is:
   - ``feature`` — str, the diagnostic-attribute name. Must exist on the technique's
     diagnostics dataclass and appear in the technique's
     :attr:`~spindoctor.nav_technique.nav_technique.NavTechnique.confidence_attributes` allow-list.
-  - ``alpha`` — float (dimensionless). Linear coefficient applied after normalisation.
+  - ``alpha`` — float (dimensionless). Linear coefficient applied after normalization.
   - ``offset`` — float, default ``0.0``. Subtracted from the raw value before division. Same
     units as the raw value.
   - ``divisor`` — float, default ``1.0``. Divides after offset; must be non-zero. Same units
     as the raw value.
   - ``cap_at`` — float in :math:`[0, 1]` or ``null``, default ``null``. Optional upper bound
-    on the normalised value. When set, both clips negative values to 0 and the post-scale
+    on the normalized value. When set, both clips negative values to 0 and the post-scale
     value to ``cap_at``.
 
 - ``hard_zero_if`` — mapping of str to bool, default empty. Keys must reference attributes
@@ -215,10 +215,10 @@ Call path traced through
    when missing) and compare against the demanded boolean. If any condition holds,
    short-circuit with a ``0.0`` confidence (and a hard-zero-tagged
    :class:`~spindoctor.nav_technique.confidence.ConfidenceBreakdown` when the caller asked for one).
-2. Initialise the sigmoid argument with
+2. Initialize the sigmoid argument with
    :attr:`~spindoctor.nav_technique.confidence.ConfidenceSpec.alpha0`.
 3. For each term in :attr:`~spindoctor.nav_technique.confidence.ConfidenceSpec.terms`, fetch the
-   named attribute, apply the offset / divisor / cap normalisation, multiply by the alpha,
+   named attribute, apply the offset / divisor / cap normalization, multiply by the alpha,
    and accumulate the contribution. Record the per-term contribution in a
    :class:`~spindoctor.nav_technique.confidence.ConfidenceTermContribution` when a breakdown was
    requested.
@@ -289,5 +289,5 @@ sigmoid argument is
 :math:`0.132 + 1.068 \cdot 0.85 - 1.303 \cdot 0.4 + 0.776 \cdot (120 / 440) = 0.730`, the
 sigmoid evaluates to approximately ``0.675``, and the technique reports a calibrated
 confidence of ~0.67. When :func:`~spindoctor.nav_technique.nav_technique.log_confidence_breakdown`
-fires, every term's raw / normalised / contribution numbers appear in the per-image log so an
+fires, every term's raw / normalized / contribution numbers appear in the per-image log so an
 operator can trace which diagnostic carried the score.

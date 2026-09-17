@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import sys
 import traceback
 from pathlib import Path
@@ -108,8 +107,8 @@ def _colorby_tint(
 
     Parameters:
         data: 2-D array (or masked array) of per-pixel scalar metadata values.
-        vmin: Lower clamp for the colour ramp; defaults to nanmin.
-        vmax: Upper clamp for the colour ramp; defaults to nanmax.
+        vmin: Lower clamp for the color ramp; defaults to nanmin.
+        vmax: Upper clamp for the color ramp; defaults to nanmax.
 
     Returns:
         Array of shape ``(n_rows, n_cols, 3)`` with float32 values in ``[0, 1]``.
@@ -914,7 +913,7 @@ class BodyMosaicWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_colorby_changed(self, btn: Any) -> None:
-        """Apply or clear the metadata colour tint on the image from the color-by choice."""
+        """Apply or clear the metadata color tint on the image from the color-by choice."""
         if btn is None or self._display_data is None:
             self._image_widget.set_color_tint(None)
             return
@@ -928,13 +927,13 @@ class BodyMosaicWindow(QMainWindow):
         self._on_colorby_changed(self._colorby_group.checkedButton())
 
     def _tint_with_alpha(self, tint: np.ndarray | None) -> np.ndarray | None:
-        """Blend ``tint`` toward grey using ``self._colorby_alpha`` (or pass through)."""
+        """Blend ``tint`` toward gray using ``self._colorby_alpha`` (or pass through)."""
         if tint is None or self._colorby_alpha >= 1.0:
             return tint
         return (self._colorby_alpha * tint + (1.0 - self._colorby_alpha)).astype(np.float32)
 
     def _compute_color_tint(self, key: str, dd: BodyDisplayData) -> np.ndarray | None:
-        """Return per-pixel RGB tint (n_rows, n_cols, 3) float32, or None for greyscale.
+        """Return per-pixel RGB tint (n_rows, n_cols, 3) float32, or None for grayscale.
 
         Parameters:
             key: Colorby radio button key string.
@@ -993,48 +992,19 @@ class BodyMosaicWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _update_overlays(self, _checked: bool = False) -> None:
-        """Update graticule / row-column overlays from checkbox state and projection mode."""
+        """Update the graticule overlay from the checkbox state.
+
+        The body display is always built on the full-sphere canvas
+        (:meth:`_apply_body_display_image` asks for one), which draws its own
+        parallels and meridians in viewport coordinates, so the row / column
+        overlays stay cleared.
+        """
         dd = self._display_data
-        if dd is None:
-            self._image_widget.set_body_sphere_geo_overlays(False, False)
-            self._image_widget.set_show_rows([])
-            self._image_widget.set_show_cols([])
-            return
-
-        if self._image_widget.is_body_full_sphere_canvas():
-            self._image_widget.set_body_sphere_geo_overlays(
-                self._chk_parallels.isChecked(),
-                self._chk_meridians.isChecked(),
-            )
-            self._image_widget.set_show_rows([])
-            self._image_widget.set_show_cols([])
-            return
-
-        if self._chk_parallels.isChecked():
-            lat_lo, lat_hi = -90.0, 90.0
-            step = _nice_overlay_step(lat_hi - lat_lo, max_lines=8)
-            row_ys = []
-            lat = math.ceil(lat_lo / step) * step
-            while lat <= lat_hi + 1e-9:
-                py = (90.0 - lat) / dd.lat_resolution_deg
-                row_ys.append(round(py))
-                lat += step
-            self._image_widget.set_show_rows(row_ys)
-        else:
-            self._image_widget.set_show_rows([])
-
-        if self._chk_meridians.isChecked():
-            lon_lo, lon_hi = -180.0, 180.0
-            step = _nice_overlay_step(lon_hi - lon_lo, max_lines=12)
-            col_xs = []
-            lon = math.ceil(lon_lo / step) * step
-            while lon <= lon_hi + 1e-9:
-                px = (lon - (-180.0)) / dd.lon_resolution_deg
-                col_xs.append(round(px))
-                lon += step
-            self._image_widget.set_show_cols(col_xs)
-        else:
-            self._image_widget.set_show_cols([])
+        show_parallels = dd is not None and self._chk_parallels.isChecked()
+        show_meridians = dd is not None and self._chk_meridians.isChecked()
+        self._image_widget.set_body_sphere_geo_overlays(show_parallels, show_meridians)
+        self._image_widget.set_show_rows([])
+        self._image_widget.set_show_cols([])
 
     def _update_axis_ticks(self, _checked: bool = False) -> None:
         """Push latitude/longitude tick visibility to the image widget."""
@@ -1094,8 +1064,9 @@ class BodyMosaicWindow(QMainWindow):
         n_r = view_ma.shape[0]
 
         if self._proj_kind != ProjectionKind.RECT:
-            # px/py are viewport coords; convert to geographic
-            lon_deg, lat_deg, on_surface = self._image_widget.viewport_to_lonlat(int(px), int(py))
+            # px/py are the cursor's own continuous viewport position; convert to
+            # geographic without quantizing it to a whole screen pixel first.
+            lon_deg, lat_deg, on_surface = self._image_widget.viewport_to_lonlat(px, py)
             if not on_surface:
                 self._clear_info()
                 return
@@ -1111,13 +1082,15 @@ class BodyMosaicWindow(QMainWindow):
             if self._image_widget.is_body_full_sphere_canvas():
                 dc, dr, inside = self._image_widget.body_sphere_data_indices(lon_deg, lat_deg)
             else:
+                # Each column and row is one point sample, so the column or row a
+                # coordinate names is the one whose sample is nearest it.
                 lm = lon_deg % 360.0
                 dc = -1
                 for cand in (lm, lm - 360.0, lm + 360.0):
                     if lon_min - 1e-9 <= cand <= lon_max + 1e-9:
-                        dc = int(np.floor((cand - lon_min) / d_lon))
+                        dc = int(np.round((cand - lon_min) / d_lon))
                         break
-                dr = int(np.floor((lat_deg - lat_min) / dd.lat_resolution_deg))
+                dr = int(np.round((lat_deg - lat_min) / dd.lat_resolution_deg))
                 inside = 0 <= dc < n_c and 0 <= dr < n_r
             coord_str = f'X: {px:8.2f}  Y: {py:7.2f}'
 
@@ -1206,21 +1179,3 @@ class BodyMosaicWindow(QMainWindow):
             fm = QFontMetrics(img_lbl.font())
             source_display = fm.elidedText(source_display, Qt.TextElideMode.ElideRight, iw)
         img_lbl.setText(source_display)
-
-
-def _nice_overlay_step(span: float, max_lines: int = 8) -> float:
-    """Pick a human-readable overlay tick step from ``span`` and ``max_lines``.
-
-    Units match ``span`` (e.g. degrees). Tries preferred steps
-    ``[0.5, 1, 2, ...]`` in ascending order and returns the smallest step ``>= span /
-    max_lines``, or ``raw`` if none qualify. Non-positive ``span`` returns ``10.0``.
-    """
-    if span <= 0:
-        return 10.0
-    raw = span / max_lines
-    # Ascending order: return the first (smallest) nice step >= raw.
-    preferred = [0.5, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60, 90]
-    for s in preferred:
-        if s >= raw:
-            return s
-    return raw

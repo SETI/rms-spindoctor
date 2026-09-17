@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -23,6 +24,7 @@ from spindoctor.nav_technique.nav_technique_body_blob import (
     _clamped_kernel_radius,
     _coarse_crescent_offset,
     _coarse_disc_offset,
+    _collect_per_blob_residuals,
     _crescent_kernel,
     _disc_kernel,
     _joint_covariance,
@@ -77,6 +79,49 @@ def _make_blob_feature(
             sub_solar_dir_vu=sub_solar_dir_vu,
         ),
     )
+
+
+class _RecordingLogger:
+    """Logger stand-in keeping the arguments of every debug call."""
+
+    def __init__(self) -> None:
+        """Start with no recorded calls."""
+        self.debug_calls: list[tuple[str, tuple[Any, ...]]] = []
+
+    def debug(self, message: str, *args: Any) -> None:
+        """Record one debug call and its arguments."""
+        self.debug_calls.append((message, args))
+
+
+def test_the_blob_line_states_both_positions_in_the_image_frame(
+    disc_image: DiscImageFactory,
+) -> None:
+    """The per-blob line names pixels of the image, not of the padded array.
+
+    The disc is drawn on the center of row 100 and column 100 of the padded
+    array, which sits 32 rows and columns of padding in from the image's own
+    first row and column, so both the prediction and the centroid measured
+    from it are on the center of image row 68.  A position stated to a person
+    names a row's center by that row's number plus a half.  The coarse offset
+    between them is a difference and stays as it is.
+    """
+    drawn_vu = (100.0, 100.0)
+    image = disc_image((200, 200), drawn_vu, 8.0)
+    feature = _make_blob_feature('MIMAS', predicted_center_vu=drawn_vu, predicted_diameter_px=16.0)
+    logger = _RecordingLogger()
+    _collect_per_blob_residuals(
+        [feature],
+        image,
+        1.0,
+        0.0,
+        cast(Any, logger),
+        image_signal=np.clip(image, 0.0, None),
+        margin_vu=(32, 32),
+        prior_offset_vu=None,
+    )
+    args = logger.debug_calls[-1][1]
+    assert args[1:3] == (68.5, 68.5)
+    assert args[5:7] == (68.5, 68.5)
 
 
 def test_body_blob_recovers_planted_offset_single_blob(
@@ -633,21 +678,27 @@ def test_kernel_centroid_offset_is_zero_for_a_disc() -> None:
 
 
 def test_kernel_centroid_offset_points_toward_the_bright_limb() -> None:
-    """A crescent's brightness centroid is displaced toward the sub-solar limb."""
+    """A crescent's brightness centroid is displaced toward the sub-solar limb.
+
+    The sun points along +u alone, so the crescent is mirror-symmetric in v
+    and its centroid cannot move off the kernel's own middle row at all: the
+    v bound is exact rather than approximate, and a crescent built about the
+    wrong row would fail it by however far it was built wrong.
+    """
     # Sun toward +u (right): the lit centroid sits right of the geometric center.
     kernel = _crescent_kernel(10.0, math.radians(120.0), (0.0, 1.0))
     off_v, off_u = _kernel_centroid_offset(kernel)
     assert off_u > 1.0
-    assert off_v == pytest.approx(0.0, abs=0.2)
+    assert off_v == pytest.approx(0.0, abs=1e-12)
 
 
 def test_coarse_crescent_offset_locates_a_displaced_crescent() -> None:
     """The crescent filter maps the predicted lit centroid onto the observed one.
 
-    The observed body is a crescent of the modelled shape placed at geometric
-    centre (80, 95); the prediction is the unshifted geometric centre (64, 64).
+    The observed body is a crescent of the modeled shape placed at geometric
+    center (80, 95); the prediction is the unshifted geometric center (64, 64).
     Because the feature carries the *lit* centroid, the same brightness-centroid
-    offset is added to both predicted and observed centres, so the recovered
+    offset is added to both predicted and observed centers, so the recovered
     shift must equal the geometric displacement ``(16, 31)`` -- this pins the
     lit-vs-geometric-centroid bookkeeping the coarse stage depends on.
     """
@@ -662,7 +713,7 @@ def test_coarse_crescent_offset_locates_a_displaced_crescent() -> None:
     signal = np.zeros(shape, dtype=np.float64)
     v0, u0 = body_center[0] - half, body_center[1] - half
     signal[v0 : v0 + kernel.shape[0], u0 : u0 + kernel.shape[1]] = 100.0 * kernel
-    # Feature carries the lit centroid: geometric centre + kernel centroid off.
+    # Feature carries the lit centroid: geometric center + kernel centroid off.
     pred_lit_vu = (64.0 + centroid_off[0], 64.0 + centroid_off[1])
     dv, du = _coarse_crescent_offset(
         signal,
@@ -682,7 +733,7 @@ def test_body_blob_high_phase_crescent_relocates_with_sub_solar_dir(
 ) -> None:
     """A high-phase blob carrying a sub-solar direction is found beyond its bbox.
 
-    With the direction known the coarse stage synthesises a crescent template
+    With the direction known the coarse stage synthesizes a crescent template
     and correlates it, so a body displaced well outside its predicted bounding
     box is relocated -- the case the skipped disc template cannot handle.  A
     fully-lit disc stands in for the body here; the crescent template still

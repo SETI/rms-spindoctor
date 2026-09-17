@@ -39,6 +39,7 @@ from spindoctor.sim.forward.body_texture import (
 )
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['create_simulated_body', 'render_single_body']
@@ -406,17 +407,15 @@ def carve_crater_heights(
             rng, R_min * aa_scale, R_max * aa_scale, alpha=crater_power_law_exponent
         )
 
-        # Compute distances from crater center.
-        # v_coords/u_coords are in centered pixel coordinates: (index + 0.5 - work_center_*).
-        # Convert crater center (array indices) to the same coordinate system.
-        # Compute distances in absolute pixel-index coordinates to avoid frame mismatches:
-        # v_coords/u_coords are in centered coords: (idx + 0.5 - work_center_*).
-        # Convert them back to absolute index coords by adding work_center_*,
-        # then subtract the crater center at (idx_crater + 0.5).
+        # Distances from the crater center, taken in the frame's own pixel
+        # corner coordinates so the two frames cannot disagree.  v_coords and
+        # u_coords are pixel corner coordinates with the body center already
+        # taken off, so adding it back restores them.  The crater center picked
+        # above is an array row and column, so the half pixel goes on here.
         v_abs = v_coords + work_center_v
         u_abs = u_coords + work_center_u
-        center_v_abs = float(v_crater) + 0.5
-        center_u_abs = float(u_crater) + 0.5
+        center_v_abs = float(v_crater) + PIXEL_CENTER_TO_CORNER_PX
+        center_u_abs = float(u_crater) + PIXEL_CENTER_TO_CORNER_PX
         v_dist = v_abs - center_v_abs
         u_dist = u_abs - center_u_abs
         crater_dist = np.sqrt(v_dist**2 + u_dist**2)
@@ -779,7 +778,7 @@ def render_single_body(
             body_seed=body_seed,
         )
 
-    # The exponential haze layer evaluates over the reference-centred disc
+    # The exponential haze layer evaluates over the reference-centered disc
     # after shading, so the same call serves both render paths; a body with no
     # 'atmosphere' block never enters the haze code and renders hard-limbed.
     # The on-disc haze joins the opaque disc paint; the above-limb glow rides
@@ -856,7 +855,7 @@ def finish_single_body(
     ref_center_u: float,
     halo: HaloScreen | None = None,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
-    """Translate a reference-centred body shape into place and composite it.
+    """Translate a reference-centered body shape into place and composite it.
 
     Only the opaque body paints here (last writer wins); an atmospheric
     body's translucent halo is translated alongside it and returned on the
@@ -875,7 +874,7 @@ def finish_single_body(
         half_extent_u: Projected half-extent of the silhouette along u.
         ref_center_v: Reference center V the shape was rendered at.
         ref_center_u: Reference center U the shape was rendered at.
-        halo: The body's translucent halo screen at the reference centre, or
+        halo: The body's translucent halo screen at the reference center, or
             None for a body without an atmosphere.
 
     Returns:
@@ -886,7 +885,7 @@ def finish_single_body(
     dv = center_v - ref_center_v
     du = center_u - ref_center_u
     # An exactly zero translation is the bitwise identity for the order-1
-    # spline, so a body already at the reference centre skips the full-frame
+    # spline, so a body already at the reference center skips the full-frame
     # interpolation (the shape is only read, never written).
     if dv == 0.0 and du == 0.0:
         positioned_body = body_shape

@@ -105,8 +105,8 @@ def test_detect_ccd_bloom_columns_rejects_min_run_below_2() -> None:
         detect_ccd_bloom_columns(image, full_well_dn=4095.0, min_run=1)
 
 
-def test_centroid_gaussian_fit_returns_zero_offset_for_centred_blob() -> None:
-    """A symmetric Gaussian centred on the box returns ``(0, 0)``."""
+def test_centroid_gaussian_fit_returns_zero_offset_for_centered_blob() -> None:
+    """A symmetric Gaussian centered on the box returns ``(0, 0)``."""
     box = _gaussian_kernel(5, 1.0)
     dv, du = centroid_gaussian_fit(box)
     assert dv == pytest.approx(0.0, abs=1e-9)
@@ -134,7 +134,7 @@ def test_centroid_gaussian_fit_rejects_non_square_box() -> None:
 def test_centroid_saturated_uses_annular_moment() -> None:
     """Saturated cores fall back to an annular brightness moment."""
     box = np.zeros((5, 5), dtype=np.float64)
-    # Saturated centre + lit annulus on the right side.
+    # Saturated center + lit annulus on the right side.
     box[2, 2] = 4096.0
     box[2, 3] = 1000.0
     box[1, 3] = 500.0
@@ -172,7 +172,15 @@ def test_apply_shape_cuts_rejects_high_roundness() -> None:
 
 
 def test_detect_sources_finds_planted_star() -> None:
-    """A single Gaussian planted in noise is recovered with sub-pixel centroid."""
+    """A single Gaussian planted in noise is recovered with sub-pixel centroid.
+
+    The kernel is symmetric about its own middle sample, so planting it into
+    rows 20 to 26 and columns 30 to 36 puts its center on the center of pixel
+    ``(23, 33)``, which is the pixel centric position the centroid has to come
+    back with.  The seeded noise realization moves it by about a thousandth of
+    a pixel, and the bound is ten times that, two orders of magnitude below
+    the half pixel that separates the two coordinate systems.
+    """
     rng = np.random.default_rng(0)
     image = rng.normal(scale=0.5, size=(50, 50)).astype(np.float64)
     star = _gaussian_kernel(7, 1.2) * 200.0
@@ -190,8 +198,8 @@ def test_detect_sources_finds_planted_star() -> None:
     )
     assert len(sources) >= 1
     best = max(sources, key=lambda s: s.peak_dn)
-    assert best.v == pytest.approx(23.0, abs=0.6)
-    assert best.u == pytest.approx(33.0, abs=0.6)
+    assert best.v == pytest.approx(23.0, abs=0.01)
+    assert best.u == pytest.approx(33.0, abs=0.01)
     assert isinstance(best, DetectedSource)
     assert best.saturated is False
 
@@ -226,7 +234,7 @@ def test_centroid_gaussian_fit_returns_zero_when_box_is_below_background() -> No
 def test_centroid_saturated_returns_zero_when_annulus_below_background() -> None:
     """A saturated box with no annular signal returns ``(0, 0)``."""
     box = np.full((5, 5), 100.0, dtype=np.float64)
-    box[2, 2] = 5000.0  # saturated centre, no annular signal
+    box[2, 2] = 5000.0  # saturated center, no annular signal
     out = centroid_saturated(box, full_well_dn=4095.0, half_width_inner=1, half_width_outer=2)
     assert out == (0.0, 0.0)
 
@@ -273,8 +281,8 @@ def test_detect_sources_finds_saturated_star() -> None:
     assert any(s.saturated for s in sources)
 
 
-def test_sharpness_roundness_returns_zero_for_dark_centre() -> None:
-    """A dark-centre box returns ``(0, 0)`` directly via the ``centre <= 0`` early-out."""
+def test_sharpness_roundness_returns_zero_for_dark_center() -> None:
+    """A dark-center box returns ``(0, 0)`` directly via the ``center <= 0`` early-out."""
     box = np.full((5, 5), -1.0, dtype=np.float64)
     sharp, round_ = _sharpness_roundness(box)
     assert sharp == 0.0
@@ -285,7 +293,7 @@ def test_sharpness_roundness_returns_zero_round_when_marginals_are_flat() -> Non
     """Symmetric marginals collapse the variance to zero; roundness is 0."""
     # Uniform fill; col_var == row_var == 0 -> roundness = 0 by short-circuit.
     box = np.full((5, 5), 100.0, dtype=np.float64)
-    box[2, 2] = 200.0  # bump the centre so ``centre > 0``
+    box[2, 2] = 200.0  # bump the center so ``center > 0``
     sharp, round_ = _sharpness_roundness(box)
     assert round_ == 0.0
     assert sharp > 0.0

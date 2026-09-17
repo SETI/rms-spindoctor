@@ -1,7 +1,7 @@
 """Shared image-side derivatives consumed by every DT-based technique.
 
 The orchestrator computes one gradient-magnitude image, one gradient-vector
-image, and one signed distance-transform image per navigation; every limb /
+image, and one edge distance-transform image per navigation; every limb /
 terminator / ring-edge technique then samples those products at its own
 model polylines.  Computing them once keeps the per-image cost bounded
 regardless of how many DT techniques run.
@@ -21,10 +21,13 @@ Three quantities are produced and attached to the per-image
     with the model's outward normal at each polyline vertex.
 
 ``image_edge_dt_ext``
-    Distance transform of the binarised gradient image, with the threshold
-    chosen as ``edge_threshold_k_sigma * image_noise_sigma``.  The DT is
-    truncated at :data:`DEFAULT_DT_HALF_WIDTH_PX` so the per-pixel cost is
-    bounded for the DT-based techniques' Levenberg-Marquardt step.
+    Euclidean distance transform of the binarised gradient image, with the
+    threshold chosen as ``edge_threshold_k_sigma * image_noise_sigma``.  The DT
+    is truncated at :data:`DEFAULT_DT_HALF_WIDTH_PX` so the per-pixel cost is
+    bounded for the DT-based techniques' Levenberg-Marquardt step.  It is not
+    signed: the values are non-negative everywhere and the zero locus is the
+    edge pixels themselves, at their own centers, not an oriented boundary
+    running along pixel edges half a pixel away.
 
 The thresholding intentionally treats *every* edge pixel as a candidate; the
 per-technique polarity filter rejects matches that disagree on the gradient
@@ -207,7 +210,7 @@ def _build_edge_dt_from_gradients(
     # non-maximum suppression along the local gradient direction.  A naive
     # 3x3 NMS would discard most edge pixels along a smooth ridge; the
     # directional check compares each candidate only against the two
-    # neighbours along its own gradient direction, leaving the full edge
+    # neighbors along its own gradient direction, leaving the full edge
     # length intact and producing a usable input for both the
     # cross-correlation coarse search and the distance transform.  (On a flat
     # plateau of exactly-equal gradient magnitude the ``>=`` tie-break keeps
@@ -283,8 +286,8 @@ def _directional_nms(
     """Return a Canny-style thin edge mask in float form (0.0 / 1.0).
 
     Each pixel above ``threshold`` is kept only if its magnitude is at
-    least as large as both of its neighbours along the local gradient
-    direction.  The gradient direction is quantised to four cardinal
+    least as large as both of its neighbors along the local gradient
+    direction.  The gradient direction is quantized to four cardinal
     sectors (0, 45, 90, 135 degrees from horizontal) so the lookup
     reduces to a small fixed set of shifts.
 

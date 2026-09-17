@@ -1211,17 +1211,30 @@ class BodyMosaic:
         u_pixels = u_sv.vals
         v_pixels = v_sv.vals
 
-        goodumask = np.logical_and(u_pixels >= u_min, u_pixels <= u_max)
-        goodvmask = np.logical_and(v_pixels >= v_min, v_pixels <= v_max)
+        # u_pixels / v_pixels are pixel-corner coordinates, so the region running
+        # from column u_min to column u_max occupies [u_min, u_max + 1) and the
+        # containment test is half-open at the top. Closing it at u_max would
+        # admit only the left edge of the last column and reject the rest of it.
+        # Without subimage_edges these bounds are the frame's own, whose
+        # outermost columns a non-zero edge_margin masks out below in any case,
+        # so no product built with the default margin changes. With a subimage
+        # crop the bound is interior to the frame and edge_margin does not
+        # cover it, and the last column of the crop is now sampled across its
+        # whole width.
+        goodumask = np.logical_and(u_pixels >= u_min, u_pixels < u_max + 1)
+        goodvmask = np.logical_and(v_pixels >= v_min, v_pixels < v_max + 1)
         goodmask = goodumask & goodvmask & ~pixmask
 
         # Keep the fractional pixel positions: integer indices serve the mask
         # and backplane lookups, while the fractions drive sub-pixel sampling
-        # when zoom > 1.
+        # when zoom > 1. The mask above guarantees the region-relative
+        # coordinates are non-negative, so floor is what the conversion to a
+        # column number needs; it is spelled out rather than left to astype's
+        # truncation, which would round the wrong way for a negative value.
         good_u_frac = u_pixels[goodmask] - u_min
         good_v_frac = v_pixels[goodmask] - v_min
-        good_u = good_u_frac.astype('int')
-        good_v = good_v_frac.astype('int')
+        good_u = np.floor(good_u_frac).astype(int)
+        good_v = np.floor(good_v_frac).astype(int)
         good_lat = lat_bins[goodmask]
         good_lon = lon_bins[goodmask]
 
@@ -1301,6 +1314,17 @@ class BodyMosaic:
         # The zoomed image must be interpolated, not block-replicated: sampling
         # it at the fractional pixel positions is what gives zoom > 1 its
         # documented sub-pixel meaning.
+        #
+        # grid_mode=True is not scipy's default and is load-bearing here. It
+        # makes ndimage_zoom treat a pixel as a square of unit area rather than
+        # as a point at its center, so the zoomed array is the same region of
+        # the sky divided into zoom times as many pixels: sub-pixel s of pixel p
+        # covers [p + s / zoom, p + (s + 1) / zoom) in the original. That is
+        # exactly the convention the sampling below relies on, where a
+        # region-relative pixel-corner coordinate scaled by zoom and floored
+        # names the sub-pixel containing it. With the default grid_mode=False
+        # the zoomed grid's endpoints are pinned to the original pixel centers
+        # instead, which shifts and rescales it by up to half a pixel.
         if self._zoom == 1:
             zoom_data = np.array(subimg, copy=True)
         else:

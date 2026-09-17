@@ -18,12 +18,11 @@ ground_truth:
     star_dominated exemplar from cohort-curation review batch 002 (seq 077).
     Selection: 2004 | 3; {"filter": "CL1", "maglim": 9.04, "n_detectable": 3, "star_vmags": [6.51, 8.12, 8.66, 9.33, 9.46], "texp_s": 0.26, "year": "2004"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Offset produced by the triage rescue pass (rescue_config.yaml: relaxed uncalibrated technique alpha0 / spurious knobs, lowered ensemble min_confidence and reliability-gate thresholds via the orchestrator config section). The default pipeline failed this frame; the confidence value below is from the relaxed run and is not meaningful. Ground truth rests on the operator overlay verification.
-    First-curation pipeline snapshot (2026-07): status=success, confidence=0.343, rank=low, techniques=['StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [1.5485, -7.4586], "StarRefineNav": [1.5558, -7.4517]}.
-    Operator comment: re-vote: rescued with relaxed gates (previous vote: None)
-    A later clean run of the default pipeline (2026-07-13) navigates this frame at high/0.686 after the confidence recalibration that followed first curation; expected.confidence_tier reflects that current behavior. The frame no longer needs the relaxed-gate rescue its earlier snapshot was taken under.
+    Offset produced by the triage rescue pass (rescue_config.yaml: relaxed uncalibrated technique alpha0 / spurious knobs, lowered ensemble min_confidence and reliability-gate thresholds via the orchestrator config section). The confidence in the snapshot below is from the relaxed run and is not meaningful. Ground truth rests on the operator overlay verification.
+    Pipeline at curation: status=success, confidence=0.343, rank=low, techniques=['StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [1.5485, -7.4586], "StarRefineNav": [1.5558, -7.4517]}.
+    Operator comment: rescued with relaxed gates
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/high/StarFieldFromCatalogNav -> measured success/medium/StarUniqueMatchNav. Tier high->medium under the recalibrated 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band that the campaign's planted ring-orbit-error failure mass moved out of the high tier; the confidence did not move materially, the boundary did. Offset unchanged and within slack. Primary also moves to StarUniqueMatchNav with the recalibrated confidences. StarFieldFromCatalogNav no longer emits a result (below the RANSAC inlier floor after the refit); techniques_must_run updated to the carrying technique.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band. The primary is StarUniqueMatchNav, the highest-confidence contributor. StarFieldFromCatalogNav emits no result on this frame (below the RANSAC inlier floor).
 expected:
   status: success
   confidence_tier: medium

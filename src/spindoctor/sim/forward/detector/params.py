@@ -182,7 +182,7 @@ def _resolve_gain(
     state = int(state)
     if state not in table:
         raise DetectorParamError(
-            f'sim instrument {instrument!r} has no catalogued gain state {state}; '
+            f'sim instrument {instrument!r} has no cataloged gain state {state}; '
             f'available states: {sorted(table)}'
         )
     return float(table[state])

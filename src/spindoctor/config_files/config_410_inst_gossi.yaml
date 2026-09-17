@@ -9,13 +9,13 @@ galileo_ssi:
     100: [7, 7]
   # Galileo SSI carries non-negligible attitude rotation residuals, and they
   # are deliberately left unfitted.  Nothing can currently use a fitted
-  # rotation: each technique measures it about its own centre, so the
+  # rotation: each technique measures it about its own center, so the
   # translations that come back with it are not in one convention, and a
-  # rotation without a recorded centre cannot be carried into an attitude at
+  # rotation without a recorded center cannot be carried into an attitude at
   # all -- which suppresses the corrected C-matrix and omits the frame from
   # the corrected kernels.  With fitting off the twist is absorbed into the
   # reported translation.  Issue #434 is the standing account and proposes
-  # fitting about the FOV centre, which would make it usable.
+  # fitting about the FOV center, which would make it usable.
   fit_camera_rotation: false
   max_rotation_deg: 5.0
   noise:

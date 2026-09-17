@@ -121,7 +121,7 @@ def _frame_row(frame: FrameMeasurement) -> dict[str, object]:
 
 
 def _summary_dict(summary: InstrumentSummary) -> dict[str, object]:
-    """Serialise an instrument summary to a JSON-friendly dict."""
+    """Serialize an instrument summary to a JSON-friendly dict."""
     out: dict[str, object] = {
         'inst_id': summary.inst_id,
         'label': summary.label,
@@ -179,7 +179,7 @@ def run_cohort(
     report_figures: bool,
     cohort_name: str,
 ) -> InstrumentSummary:
-    """Measure and summarise one cohort, writing all artifacts.
+    """Measure and summarize one cohort, writing all artifacts.
 
     Parameters:
         config: The cohort configuration.

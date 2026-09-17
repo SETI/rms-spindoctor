@@ -110,7 +110,7 @@ def test_ring_edge_nav_mixed_curved_and_flat_full_rank(
     bar_image = np.zeros(shape, dtype=np.float64)
     bar_image[150:152, 30:190] = 100.0
     image = np.clip(image + bar_image, 0.0, 100.0)
-    # Both polylines share offset (-1.5, 0): curved centre at
+    # Both polylines share offset (-1.5, 0): curved center at
     # (cv_disc + 1.5, cu_disc) and flat polyline at v = 151 + 1.5.
     curved_v, curved_n = circle_polyline((cv_disc + 1.5, cu_disc), 24.0, 120)
     flat_v, flat_n = flat_polyline(152.5, 40.0, 180.0, 80)
@@ -575,7 +575,7 @@ def test_ring_edge_nav_flat_parallel_edges_with_minority_snaps_not_spurious(
     Models the ``ring_only_flat`` production regression (#203, Cassini
     N1863267799): parallel straight Keeler-gap edges fit cleanly while a
     minority of vertices (an edge too faint to detect, vertices snapping
-    to a neighbouring parallel edge 9-30 px away) are Tukey outliers.
+    to a neighboring parallel edge 9-30 px away) are Tukey outliers.
     Those outliers inflate every raw per-edge residual statistic past any
     sigma-derived threshold even though the joint fit is correct — which is
     exactly what used to gate every flat ansa frame as spurious.  The fit
@@ -599,7 +599,7 @@ def test_ring_edge_nav_flat_parallel_edges_with_minority_snaps_not_spurious(
     context = make_nav_context(image)
 
     # Per-edge residuals: 85% of vertices at the ~1 px fit residual, 15%
-    # snapped to a parallel neighbour 20 px away.  Raw per-edge RMS is
+    # snapped to a parallel neighbor 20 px away.  Raw per-edge RMS is
     # sqrt(0.85*1 + 0.15*400) ~ 7.8 px — any sigma-derived residual gate
     # would fire — but the inlier fraction is 0.85, well above the gate.
     n_per_edge = 60

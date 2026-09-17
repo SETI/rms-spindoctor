@@ -331,7 +331,7 @@ def test_body_disc_3dof_emits_3x3_covariance(
     result = technique.navigate([feature], context)
     assert result.covariance_px2.shape == (3, 3)
     assert result.rotation_rad is not None
-    # No rotation planted; the level-2 winner is centred on zero with the
+    # No rotation planted; the level-2 winner is centered on zero with the
     # 0.25 deg sample step, so |rotation| stays well inside one step.
     assert abs(result.rotation_rad) <= np.deg2rad(0.5)
     # Rotation is reported unobservable: the rotation-variance slot carries
@@ -351,7 +351,7 @@ def test_body_disc_3dof_emits_3x3_covariance(
 def test_rotation_sigma_from_quality_reports_unobservable() -> None:
     """NAV-010: ``_rotation_sigma_from_quality`` always returns None.
 
-    Even a sharply concave, well-centred quality parabola (the case the
+    Even a sharply concave, well-centered quality parabola (the case the
     former curvature->variance map turned into a finite sigma) now
     returns None, routing the caller to the rotation-unobservable
     sentinel.  The PSR/PMR quality is not a log-likelihood, so no

@@ -9,6 +9,7 @@ from pdslogger import PdsLogger
 from spindoctor.cli.backplanes.statistics import PlaneStatistics, plane_statistics
 from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 
 def _create_simulated_body_backplane(
@@ -136,11 +137,14 @@ def create_body_backplanes(
             # Nothing visible
             continue
 
-        # Build restricted meshgrid covering the clipped rectangle (inclusive indices)
+        # Build restricted meshgrid covering the clipped rectangle. The clip
+        # names whole columns and rows; Meshgrid works in the geometry layer's
+        # pixel-corner coordinates, so each bound is converted from the column's
+        # own number to the column's center.
         meshgrid = Meshgrid.for_fov(
             snapshot.fov,
-            origin=(u0 + 0.5, v0 + 0.5),
-            limit=(u1 + 0.5, v1 + 0.5),
+            origin=(u0 + PIXEL_CENTER_TO_CORNER_PX, v0 + PIXEL_CENTER_TO_CORNER_PX),
+            limit=(u1 + PIXEL_CENTER_TO_CORNER_PX, v1 + PIXEL_CENTER_TO_CORNER_PX),
             swap=True,
         )
         bp = Backplane(snapshot, meshgrid=meshgrid)

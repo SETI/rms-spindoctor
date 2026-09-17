@@ -23,6 +23,7 @@ from spindoctor.nav_technique.confidence import ConfidenceBreakdown, ConfidenceS
 from spindoctor.nav_technique.diagnostics import NavTechniqueDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.nav_base import NavBase
 from spindoctor.support.types import NDArrayFloatType
 
@@ -41,6 +42,7 @@ __all__ = [
     'load_model_error_floor',
     'load_ncc_covariance_tuning',
     'log_confidence_breakdown',
+    'reported_position_vu',
     'rotation_pivot_distance_px',
     'rotation_unobservable_sigma_rad',
     'search_window_for_obs',
@@ -128,7 +130,7 @@ def search_window_for_obs(context: NavContext) -> tuple[int, int]:
 
     Every translation-fit technique reads the per-instrument extfov
     margin from ``context.obs.extfov_margin_vu`` to bound its at-edge
-    detection.  Centralising the read in one helper keeps the convention
+    detection.  Centralizing the read in one helper keeps the convention
     uniform: a test obs stand-in that omits the attribute surfaces an
     ``AttributeError`` rather than silently falling through to a
     fabricated default.
@@ -137,10 +139,36 @@ def search_window_for_obs(context: NavContext) -> tuple[int, int]:
     return (int(margin[0]), int(margin[1]))
 
 
+def reported_position_vu(
+    position_vu: tuple[float, float], margin_vu: tuple[int, int]
+) -> tuple[float, float]:
+    """Return a technique's working position in the form a person reads.
+
+    A technique works in the extended frame, pixel-centric, because that is
+    what it measures the padded image array in.  A position stated to a person
+    is in the nominal (unpadded) frame, pixel-corner, which is the form that
+    compares directly against a scene file, an image viewer, or another
+    program's output.  A position inside the extended-FOV margin comes back
+    negative, which is where it is.
+
+    Parameters:
+        position_vu: ``(v, u)`` in the extended frame, pixel-centric.
+        margin_vu: ``(margin_v, margin_u)`` extended-FOV margin in whole
+            pixels of padding.
+
+    Returns:
+        ``(v, u)`` in the nominal frame, pixel-corner.
+    """
+    return (
+        position_vu[0] + PIXEL_CENTER_TO_CORNER_PX - margin_vu[0],
+        position_vu[1] + PIXEL_CENTER_TO_CORNER_PX - margin_vu[1],
+    )
+
+
 def rotation_pivot_distance_px(
     pivot_vu: tuple[float, float], image_shape_vu: tuple[int, int]
 ) -> float:
-    """Return the rotation-pivot's distance from the image centre.
+    """Return the rotation-pivot's distance from the image center.
 
     Used by 3-DoF DT-fit techniques to convert the LM rotation step into a
     pixel-equivalent value for the convergence test.
@@ -150,13 +178,13 @@ def rotation_pivot_distance_px(
         image_shape_vu: Image shape ``(height, width)`` in V/U pixels.
 
     Returns:
-        Euclidean distance from ``pivot_vu`` to the image centre, floored
-        at ``1.0`` so a pivot landing exactly on the image centre still
+        Euclidean distance from ``pivot_vu`` to the image center, floored
+        at ``1.0`` so a pivot landing exactly on the image center still
         yields a non-zero convergence threshold.
     """
-    centre_v = float(image_shape_vu[0]) / 2.0
-    centre_u = float(image_shape_vu[1]) / 2.0
-    dist = math.hypot(float(pivot_vu[0]) - centre_v, float(pivot_vu[1]) - centre_u)
+    center_v = float(image_shape_vu[0]) / 2.0
+    center_u = float(image_shape_vu[1]) / 2.0
+    dist = math.hypot(float(pivot_vu[0]) - center_v, float(pivot_vu[1]) - center_u)
     return max(dist, 1.0)
 
 
@@ -523,7 +551,7 @@ def technique_tier(technique_name: str) -> str:
     Returns ``'primary'`` for an unregistered name so unknown techniques (test
     stubs, future plug-ins) are treated as primary by construction; an explicit
     ``tier='fallback'`` declaration is required to opt into the fallback-drop
-    behaviour.  Shared by the orchestrator's fallback pre-filter and the
+    behavior.  Shared by the orchestrator's fallback pre-filter and the
     ensemble's fallback-supersession pass so the tier rule lives in one place.
     """
     for cls in NavTechnique._registry:

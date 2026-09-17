@@ -355,7 +355,7 @@ a name a later lookup can collide with. It is not free of consequence, though:
 ``oops`` caches every ``Cmatrix`` by its matrix, so each image re-pointed to a
 distinct attitude leaves one wayframe and two frame-cache entries behind for the
 life of the process. That growth is pinned by a test rather than left to be
-discovered as a memory report from a full-catalogue run.
+discovered as a memory report from a full-catalog run.
 
 ``R_hat`` is measured for one reason only: the gate. Before anything is
 applied, in order:

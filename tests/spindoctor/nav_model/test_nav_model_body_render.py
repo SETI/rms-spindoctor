@@ -10,8 +10,8 @@ docstrings, not from the current implementation:
   is the Lambert cosine plus a small floor on lit silhouette pixels (or the
   0.01 visibility floor when the body is entirely dark).
 - The limb mask is the set of *lit* silhouette pixels with at least one
-  off-body neighbour; the terminator mask is the set of lit pixels with at
-  least one dark neighbour.
+  off-body neighbor; the terminator mask is the set of lit pixels with at
+  least one dark neighbor.
 - ``visible_lit_fraction`` and ``overflow_fraction`` follow the documented
   formulas over the discrete masks.
 - An empty silhouette collapses every downstream product (masks, samplers,
@@ -40,9 +40,15 @@ import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.annotation import Annotations
 from spindoctor.config.config import Config
 from spindoctor.feature.feature import NavFeature
-from spindoctor.feature.geometry import LimbPolyline
+from spindoctor.feature.geometry import (
+    BodyBlobGeometry,
+    BodyDiscGeometry,
+    LimbPolyline,
+    TerminatorPolyline,
+)
 from spindoctor.nav_model.nav_model_body import NavModelBody
 from spindoctor.nav_orchestrator.nav_context import NavContext
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _BODY = 'TESTBODY'
@@ -53,10 +59,10 @@ class _SphereSpec:
     """Analytic orthographic-sphere scene driving the fake backplane.
 
     Parameters:
-        center_vu: Sphere centre in FOV pixel coordinates ``(v, u)``.
+        center_vu: Sphere center in the FOV's pixel corner coordinates ``(v, u)``.
         radius_px: Sphere radius in pixels.
         sun_vuz: Sun direction in the ``(v, u, z)`` image frame where ``+z``
-            points toward the observer.  Normalised on use.
+            points toward the observer.  Normalized on use.
         km_per_px: Constant km/px scale on the resolved body.
     """
 
@@ -104,7 +110,7 @@ def _sphere_backplane_class(spec: _SphereSpec) -> type:
             self._mg = meshgrid
 
         def _grid(self) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-            """Return ``(vv, uu)`` sample-centre coordinate arrays."""
+            """Return ``(vv, uu)`` sample-center coordinate arrays."""
             assert self._mg.origin is not None
             assert self._mg.limit is not None
             assert self._mg.oversample is not None
@@ -170,7 +176,7 @@ def _make_obs(
         spec: Sphere geometry (drives the inventory bounding box).
         data_shape: Sensor-area ``(rows, cols)`` shape.
         margin: Extfov margin applied to both axes.
-        phase_deg: Centre phase angle reported by the geometry backplane.
+        phase_deg: Center phase angle reported by the geometry backplane.
         sub_solar_lonlat_deg: ``(lon, lat)`` reported for the sub-solar point.
         sub_observer_lonlat_deg: ``(lon, lat)`` reported for the sub-observer
             point.
@@ -266,14 +272,18 @@ def _feature_types(features: list[NavFeature]) -> set[str]:
 
 
 def _analytic_disc(obs: FakeObs, spec: _SphereSpec) -> NDArrayBoolType:
-    """Return the analytic pixel-centre silhouette in extfov coordinates.
+    """Return the analytic pixel-center silhouette in extfov coordinates.
 
-    Pixel index ``i`` covers continuous coordinate ``[i, i + 1)``, so its
-    centre sits at ``i + 0.5`` in the FOV frame the sphere is defined in.
+    Array row ``i`` covers ``[i, i + 1)`` in the pixel corner coordinates the
+    sphere is defined in, so its center sits at ``i + 0.5`` there.
 
     Parameters:
         obs: Observation defining the extfov grid.
         spec: Sphere geometry.
+
+    Returns:
+        A boolean array of the extfov shape, true at every pixel whose center
+        lies within the sphere's radius of its center.
     """
     shape = obs.extdata_shape_vu
     vv, uu = np.indices(shape, dtype=np.float64)
@@ -328,8 +338,8 @@ def test_model_img_lambert_plus_floor_at_disc_center(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A lit pixel's value is the Lambert cosine plus the 0.05 floor."""
-    # Centre the sphere on a pixel centre (pixel 50 spans [50, 51)) so the
-    # centre pixel's surface normal is +z and cos(incidence) = cos(60).
+    # Center the sphere on a pixel center (pixel 50 spans [50, 51)) so the
+    # center pixel's surface normal is +z and cos(incidence) = cos(60).
     spec = _SphereSpec((50.5, 50.5), 20.0, sun_vuz=_sun_for_angle(60.0))
     model, obs = _make_model(monkeypatch, spec)
     model.create_model()
@@ -384,8 +394,45 @@ def test_albedo_scales_brightness(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_body_mask_centers_where_the_fixture_placed_the_sphere(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The rendered silhouette's centroid is the sphere's stated center.
+
+    The fixture states the sphere's center in pixel corner coordinates and the
+    mask is addressed by rows and columns, so the centroid of the marked
+    pixels has to come back half a pixel below the stated number.  The disc is
+    symmetric about that point, so the centroid is exact rather than
+    approximate, and half a pixel of grid error anywhere between the meshgrid
+    origin and the mask moves it by half a pixel.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    model, obs = _make_model(monkeypatch, spec)
+    model.create_model()
+    assert model._body_mask is not None
+    vs, us = np.where(model._body_mask)
+    expected_v = spec.center_vu[0] + obs.extfov_margin_v - PIXEL_CENTER_TO_CORNER_PX
+    expected_u = spec.center_vu[1] + obs.extfov_margin_u - PIXEL_CENTER_TO_CORNER_PX
+    assert float(vs.mean()) == pytest.approx(expected_v, abs=1e-12)
+    assert float(us.mean()) == pytest.approx(expected_u, abs=1e-12)
+
+
 def test_body_mask_matches_analytic_silhouette(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The rendered silhouette agrees with the analytic disc (IoU > 0.9)."""
+    """The rendered silhouette covers the same ground as the analytic disc.
+
+    This is an extent check, not a placement one: the oversampled render marks
+    a pixel its analytic pixel-center counterpart misses wherever the two
+    disagree about a boundary pixel, which costs about two percent of the
+    union on a radius-20 disc.  An overlap ratio degrades so gently under a
+    rigid shift that it cannot resolve half a pixel at any threshold worth
+    writing; placement is pinned by the centroid test above.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
     spec = _SphereSpec((50.0, 50.0), 20.0)
     model, obs = _make_model(monkeypatch, spec)
     model.create_model()
@@ -393,11 +440,11 @@ def test_body_mask_matches_analytic_silhouette(monkeypatch: pytest.MonkeyPatch) 
     analytic = _analytic_disc(obs, spec)
     intersection = int((model._body_mask & analytic).sum())
     union = int((model._body_mask | analytic).sum())
-    assert intersection / union > 0.9
+    assert intersection / union > 0.97
 
 
 def test_limb_mask_is_boundary_subset_of_body(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every limb pixel is a silhouette pixel with an off-body 4-neighbour."""
+    """Every limb pixel is a silhouette pixel with an off-body 4-neighbor."""
     model, _obs = _make_model(monkeypatch, _SphereSpec((50.0, 50.0), 20.0))
     model.create_model()
     assert model._limb_mask is not None
@@ -407,13 +454,13 @@ def test_limb_mask_is_boundary_subset_of_body(monkeypatch: pytest.MonkeyPatch) -
     assert bool(limb.any())
     assert bool((limb & ~body).sum() == 0)
     off = ~body
-    has_space_neighbour = (
+    has_space_neighbor = (
         np.roll(off, 1, axis=0)
         | np.roll(off, -1, axis=0)
         | np.roll(off, 1, axis=1)
         | np.roll(off, -1, axis=1)
     )
-    assert bool((limb & ~has_space_neighbour).sum() == 0)
+    assert bool((limb & ~has_space_neighbor).sum() == 0)
 
 
 def test_limb_mask_empty_for_fully_dark_body(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -429,11 +476,19 @@ def test_limb_mask_empty_for_fully_dark_body(monkeypatch: pytest.MonkeyPatch) ->
 def test_terminator_location_matches_analytic_prediction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The terminator ridge sits at ``u = center_u - r*cos(alpha)`` mid-disc.
+    """The terminator ridge's innermost column is the first lit one.
 
     For an orthographic sphere lit from ``alpha`` degrees off the observer
-    axis (tilt along +u), the terminator's innermost column is at
-    ``center_u - radius * cos(alpha)``.
+    axis (tilt along +u), the analytic terminator crosses mid-disc at pixel
+    corner ``center_u - radius * cos(alpha)``.  The ridge is a set of columns,
+    so what it can say is which column that crossing falls in: the leftmost
+    ridge column is the first one whose own center is on the lit side, which
+    bounds it on one side exactly and on the other by the one pixel a column
+    number resolves.  A sub-pixel statement would have to measure where the
+    Lambert reflectance reaches zero, not where the ridge mask begins.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
     """
     alpha_deg = 60.0
     spec = _SphereSpec((50.0, 50.0), 20.0, sun_vuz=_sun_for_angle(alpha_deg))
@@ -443,9 +498,13 @@ def test_terminator_location_matches_analytic_prediction(
     vs, us = np.where(model._terminator_mask)
     assert vs.size > 0
     expected_u = (
-        spec.center_vu[1] - spec.radius_px * math.cos(math.radians(alpha_deg)) + obs.extfov_margin_u
+        spec.center_vu[1]
+        - spec.radius_px * math.cos(math.radians(alpha_deg))
+        + obs.extfov_margin_u
+        - PIXEL_CENTER_TO_CORNER_PX
     )
-    assert float(us.min()) == pytest.approx(expected_u, abs=2.0)
+    assert float(us.min()) >= expected_u
+    assert float(us.min()) < expected_u + 1.0
 
 
 def test_terminator_empty_when_fully_lit(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -457,15 +516,26 @@ def test_terminator_empty_when_fully_lit(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_nonsquare_fov_places_body_correctly(monkeypatch: pytest.MonkeyPatch) -> None:
-    """On a non-square FOV the silhouette lands at the predicted extfov centre."""
+    """On a non-square FOV the silhouette lands at the stated extfov center.
+
+    The two axes have different lengths and different centers, so an axis
+    mix-up that a square frame hides shows here.  The silhouette is symmetric
+    about its center, so its centroid is the stated pixel corner center less
+    the half pixel that converts to rows and columns, exactly.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
     spec = _SphereSpec((30.0, 90.0), 15.0)
     model, obs = _make_model(monkeypatch, spec, data_shape=(60, 120))
     model.create_model()
     assert model._body_mask is not None
     vs, us = np.where(model._body_mask)
     assert vs.size > 0
-    assert float(vs.mean()) == pytest.approx(30.0 + obs.extfov_margin_v, abs=1.0)
-    assert float(us.mean()) == pytest.approx(90.0 + obs.extfov_margin_u, abs=1.0)
+    expected_v = spec.center_vu[0] + obs.extfov_margin_v - PIXEL_CENTER_TO_CORNER_PX
+    expected_u = spec.center_vu[1] + obs.extfov_margin_u - PIXEL_CENTER_TO_CORNER_PX
+    assert float(vs.mean()) == pytest.approx(expected_v, abs=1e-12)
+    assert float(us.mean()) == pytest.approx(expected_u, abs=1e-12)
 
 
 # ---------------------------------------------------------------------------
@@ -541,7 +611,7 @@ def test_overflow_fraction_matches_off_sensor_area(monkeypatch: pytest.MonkeyPat
 
     Checked twice per the documented formula ``1 - |body & sensor| / |body|``:
     exactly against the model's own discrete masks, and approximately against
-    an independent analytic pixel-centre count (the rendered mask is
+    an independent analytic pixel-center count (the rendered mask is
     anti-aliased, so the analytic count carries a small boundary tolerance).
     """
     spec = _SphereSpec((50.0, 95.0), 10.0)
@@ -606,7 +676,7 @@ def test_guaranteed_visible_flag_false_near_edge(monkeypatch: pytest.MonkeyPatch
 def test_empty_silhouette_produces_empty_products(monkeypatch: pytest.MonkeyPatch) -> None:
     """An empty silhouette collapses masks, image, and km/px without failing.
 
-    The sphere is placed between the oversampled sample centres so no sample
+    The sphere is placed between the oversampled sample centers so no sample
     lands on the body; per the dev guide, an empty mask collapses the sampler
     to zero-length arrays and the downstream gates skip every feature.
     """
@@ -704,6 +774,76 @@ def test_no_disc_when_overflow_exceeds_cap(monkeypatch: pytest.MonkeyPatch) -> N
     assert 'BODY_DISC' not in types_emitted
 
 
+def test_disc_center_is_the_projected_position_not_the_bbox_midpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The BODY_DISC center is the inventory's exact position, converted once.
+
+    The sphere sits at (50.3, 60.3) in the field of view, whose whole numbers
+    fall on pixel boundaries, and its radius is 8 px.  The inventory's integer
+    bounding box is therefore floor(50.3 - 8) = 42 to ceil(50.3 + 8) = 59 in
+    v, and 52 to 69 in u, whose midpoints are 50.5 and 60.5.  Neither is where
+    the body is: floor and ceil each move away from the center by the
+    fractional part they are handed, and the two only cancel when those
+    fractions are complementary, so the midpoint wanders by up to half a pixel
+    as the body moves.
+
+    The payload is pixel centric, where a whole number falls at a pixel's
+    center, so the answer is the projected position less half a pixel, plus
+    the 10-pixel margin the extended frame adds: 50.3 - 0.5 + 10 = 59.8 in v
+    and 60.3 - 0.5 + 10 = 69.8 in u.  Taking the bounding-box midpoint instead
+    would give 60.5 and 70.5 -- wrong by the 0.2 px it rounds off and by the
+    half pixel it never converts.
+    """
+    spec = _SphereSpec((50.3, 60.3), 8.0)
+    model, obs = _make_model(monkeypatch, spec, margin=10)
+    model.create_model()
+    disc = next(
+        f for f in model.to_features(_noise_context(obs)) if f.feature_type.name == 'BODY_DISC'
+    )
+    geometry = disc.geometry
+    assert isinstance(geometry, BodyDiscGeometry)
+    # The sphere is one of the positions where the two answers differ; a
+    # center whose two fractional parts were complementary could not tell
+    # the bounding-box midpoint from the projected position.
+    assert (math.floor(50.3 - 8.0) + math.ceil(50.3 + 8.0)) / 2.0 != 50.3
+    assert geometry.predicted_center_vu[0] == pytest.approx(59.8)
+    assert geometry.predicted_center_vu[1] == pytest.approx(69.8)
+
+
+def test_sub_solar_direction_collapses_on_a_full_phase_disc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A full-phase body reports no sub-solar direction, as the gate says.
+
+    The Sun is on the observer's axis, so the render is rotationally
+    symmetric and its brightness centroid falls on the geometric center.  The
+    BODY_BLOB direction is the vector between those two, and both are extfov
+    pixel centric, so the vector is the zero one, well inside the half-pixel
+    floor below which the direction is meaningless.  A geometric center
+    carried in pixel corner coordinates would instead sit half a pixel away
+    on each axis, a length of 0.707 px, clearing that floor and reporting a
+    45-degree direction on a body whose illumination has no direction at all.
+
+    The centroid also has to land on the center for the blob's predicted
+    position to mean anything, so that is asserted first.
+    """
+    spec = _SphereSpec((50.5, 50.5), 20.0)
+    model, obs = _make_model(monkeypatch, spec, margin=10, phase_deg=0.0)
+    model.create_model()
+    blob = next(
+        f for f in model.to_features(_noise_context(obs)) if f.feature_type.name == 'BODY_BLOB'
+    )
+    geometry = blob.geometry
+    assert isinstance(geometry, BodyBlobGeometry)
+    # 50.5 in the field of view is the center of pixel 50, which is 50.0 in
+    # the array's own coordinates, and the margin puts it at 60.0.
+    assert geometry.predicted_center_vu[0] == pytest.approx(60.0)
+    assert geometry.predicted_center_vu[1] == pytest.approx(60.0)
+    assert blob.flags is not None
+    assert getattr(blob.flags, 'sub_solar_dir_vu', None) == (0.0, 0.0)
+
+
 def test_no_features_for_subpixel_body(monkeypatch: pytest.MonkeyPatch) -> None:
     """A body below the blob-diameter floor emits nothing at all."""
     model, obs = _make_model(monkeypatch, _SphereSpec((50.0, 50.0), 0.6))
@@ -738,10 +878,70 @@ def _limb_feature(model: NavModelBody, context: NavContext) -> NavFeature:
     return next(f for f in features if f.feature_type.name == 'LIMB_ARC')
 
 
+def test_limb_arc_vertices_are_whole_pixel_centric_positions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every LIMB_ARC vertex names a pixel, so it carries no fraction.
+
+    The ridge is read off a mask, so each vertex is a row and a column stated
+    in pixel centric coordinates.  Any fraction in a vertex means a conversion
+    reached the polyline, and the vertices are what every distance-transform
+    residual downstream is measured from.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
+    model, obs = _make_model(monkeypatch, _SphereSpec((50.0, 50.0), 20.0))
+    model.create_model()
+    limb = _limb_feature(model, bare_nav_context(cast(Any, obs)))
+    geometry = limb.geometry
+    assert isinstance(geometry, LimbPolyline)
+    vertices = geometry.vertices_vu
+    assert vertices.shape[0] > 0
+    assert np.array_equal(vertices, np.rint(vertices))
+
+
+def test_limb_arc_vertices_center_on_the_stated_sphere_center(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ring of LIMB_ARC vertices is centered on the sphere the fixture stated.
+
+    A closed limb is symmetric about the body center, so the mean of its
+    vertices is that center, in the pixel centric coordinates the vertices are
+    stated in.  Unlike a test that indexes a filled disc, this degrades by
+    exactly the amount of any rigid shift rather than gracefully, so half a
+    pixel between the meshgrid and the polyline fails it by half a pixel.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    model, obs = _make_model(monkeypatch, spec)
+    model.create_model()
+    limb = _limb_feature(model, bare_nav_context(cast(Any, obs)))
+    geometry = limb.geometry
+    assert isinstance(geometry, LimbPolyline)
+    expected_v = spec.center_vu[0] + obs.extfov_margin_v - PIXEL_CENTER_TO_CORNER_PX
+    expected_u = spec.center_vu[1] + obs.extfov_margin_u - PIXEL_CENTER_TO_CORNER_PX
+    assert float(geometry.vertices_vu[:, 0].mean()) == pytest.approx(expected_v, abs=1e-12)
+    assert float(geometry.vertices_vu[:, 1].mean()) == pytest.approx(expected_u, abs=1e-12)
+
+
 def test_limb_arc_vertices_lie_on_silhouette_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every LIMB_ARC vertex is a silhouette pixel adjacent to space."""
+    """Every LIMB_ARC vertex is a silhouette pixel adjacent to space.
+
+    This is a membership property between the polyline and the mask it was
+    read off, so it says nothing about where either sits on the sky.  The
+    vertex is rounded up at a half rather than truncated toward zero, which
+    lets a vertex displaced half a pixel down the axis address its neighbor
+    and fail; a displacement the other way rounds back onto the pixel it
+    started from, which is why the position of the ring is pinned separately.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
     model, obs = _make_model(monkeypatch, _SphereSpec((50.0, 50.0), 20.0))
     model.create_model()
     limb = _limb_feature(model, bare_nav_context(cast(Any, obs)))
@@ -750,20 +950,20 @@ def test_limb_arc_vertices_lie_on_silhouette_boundary(
     assert model._body_mask is not None
     body = model._body_mask
     off = ~body
-    has_space_neighbour = (
+    has_space_neighbor = (
         np.roll(off, 1, axis=0)
         | np.roll(off, -1, axis=0)
         | np.roll(off, 1, axis=1)
         | np.roll(off, -1, axis=1)
     )
-    vs = geometry.vertices_vu[:, 0].astype(int)
-    us = geometry.vertices_vu[:, 1].astype(int)
+    vs = np.floor(geometry.vertices_vu[:, 0] + PIXEL_CENTER_TO_CORNER_PX).astype(int)
+    us = np.floor(geometry.vertices_vu[:, 1] + PIXEL_CENTER_TO_CORNER_PX).astype(int)
     assert bool(body[vs, us].all())
-    assert bool(has_space_neighbour[vs, us].all())
+    assert bool(has_space_neighbor[vs, us].all())
 
 
 def test_limb_arc_normals_point_outward(monkeypatch: pytest.MonkeyPatch) -> None:
-    """LIMB_ARC normals point away from the body centre at >=95% of vertices."""
+    """LIMB_ARC normals point away from the body center at >=95% of vertices."""
     spec = _SphereSpec((50.0, 50.0), 20.0)
     model, obs = _make_model(monkeypatch, spec)
     model.create_model()
@@ -791,6 +991,33 @@ def test_limb_arc_sigmas_positive_and_finite(monkeypatch: pytest.MonkeyPatch) ->
     assert isinstance(geometry, LimbPolyline)
     assert bool(np.all(geometry.sigma_normal_per_vertex_px > 0.0))
     assert bool(np.all(np.isfinite(geometry.sigma_normal_per_vertex_px)))
+
+
+def test_terminator_arc_vertices_straddle_the_stated_sphere_center(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The TERMINATOR_ARC ridge is symmetric about the sphere's center row.
+
+    The fixture tilts the sun along +u alone, so the terminator it draws is
+    mirror-symmetric in v about the center the fixture stated, and the mean of
+    the ridge's vertices has to land on that row in the pixel centric
+    coordinates the vertices are stated in.  The anchor is the fixture's own
+    number, not anything the model computed, so half a pixel anywhere between
+    the meshgrid and the polyline fails it.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
+    alpha_deg = 60.0
+    spec = _SphereSpec((50.0, 50.0), 20.0, sun_vuz=_sun_for_angle(alpha_deg))
+    model, obs = _make_model(monkeypatch, spec, phase_deg=alpha_deg)
+    model.create_model()
+    features = model.to_features(_noise_context(obs))
+    terminator = next(f for f in features if f.feature_type.name == 'TERMINATOR_ARC')
+    geometry = terminator.geometry
+    assert isinstance(geometry, TerminatorPolyline)
+    expected_v = spec.center_vu[0] + obs.extfov_margin_v - PIXEL_CENTER_TO_CORNER_PX
+    assert float(geometry.vertices_vu[:, 0].mean()) == pytest.approx(expected_v, abs=1e-12)
 
 
 def test_disc_template_matches_model_crop(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -892,7 +1119,7 @@ def test_to_annotations_emits_body_overlay(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def _covering_spec(sun_vuz: tuple[float, float, float] = (0.0, 0.0, 1.0)) -> _SphereSpec:
-    """A sphere far larger than the frame and centred on it.
+    """A sphere far larger than the frame and centered on it.
 
     Parameters:
         sun_vuz: Sun direction; along the observer axis the whole frame is lit,

@@ -27,12 +27,10 @@ ground_truth:
   notes: |
     Body partially overflowing the FOV with a visible limb arc,
     navigable by eye. Ground truth was operator-verified in the
-    manual-nav dialog (2026-07-13), correcting an earlier offset of
-    (11.0, 29.5) to (13.93, 28.72) px. The default pipeline currently
+    manual-nav dialog (2026-07-13). The default pipeline currently
     fails this frame (all_techniques_spurious; the disc correlator's
-    best basin lands at the search-window edge) - a gate gap tracked
-    separately; expected below encodes the navigable truth, so the
-    autonomous regression stays red locally until that gap is closed.
+    best basin lands at the search-window edge). Expected below encodes
+    the navigable truth, so the autonomous regression is deliberately red.
 
 expected:
   # success | failed | conflicted

@@ -1,6 +1,6 @@
 """Tests for ``spindoctor.ui.mosaic_viewer.projections``.
 
-Covers pure-math behaviour of every public function:
+Covers pure-math behavior of every public function:
 
 - ``lonlat_to_display`` -- forward projection
 - ``display_to_lonlat`` -- inverse projection
@@ -157,7 +157,7 @@ def test_mollweide_round_trip() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_polar_n_pole_maps_to_centre() -> None:
+def test_polar_n_pole_maps_to_center() -> None:
     """POLAR_N: the north pole (lat=90) projects to exactly (cx, cy)."""
     params = _params(ProjectionKind.POLAR_N)
     lon = np.array([0.0])
@@ -212,7 +212,7 @@ def test_polar_n_equator_radius_equals_one_normalized() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_mollweide_origin_maps_to_centre() -> None:
+def test_mollweide_origin_maps_to_center() -> None:
     """MOLLWEIDE: lon=0, lat=0 projects to exactly (cx, cy)."""
     params = _params(ProjectionKind.MOLLWEIDE)
     vx, vy, vis = lonlat_to_display(np.array([0.0]), np.array([0.0]), params)
@@ -225,7 +225,7 @@ def test_mollweide_origin_maps_to_centre() -> None:
 def test_mollweide_lon180_maps_to_left_edge() -> None:
     """MOLLWEIDE: lon=180, lat=0 projects to the left edge (xn = -2*sqrt(2)).
 
-    The forward formula normalises longitude to [-180, 180] via
+    The forward formula normalizes longitude to [-180, 180] via
     ``mod(lon + 180, 360) - 180``.  At lon=180 this yields -180 deg (i.e.
     lon_r = -pi), which maps to xn = -2*sqrt(2) -- the left boundary of the
     ellipse.
@@ -246,7 +246,7 @@ def test_mollweide_lon180_maps_to_left_edge() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_sphere3d_front_hemisphere_centre_maps_to_centre() -> None:
+def test_sphere3d_front_hemisphere_center_maps_to_center() -> None:
     """SPHERE_3D: lon=0, lat=0 with yaw=pitch=0 projects to (cx, cy), visible=True."""
     params = _params_3d()
     vx, vy, vis = lonlat_to_display(np.array([0.0]), np.array([0.0]), params)
@@ -290,7 +290,7 @@ def test_sphere3d_south_pole_visible_no_yaw() -> None:
 def test_sphere_pixel_off_disk_returns_hit_false() -> None:
     """sphere_pixel_to_lonlat: pixels outside sphere disk return hit=False."""
     params = _params_3d()
-    # Place pixel more than one radius away from centre in x
+    # Place pixel more than one radius away from center in x
     vx = np.array([_CX + _SCALE + 1.0])
     vy = np.array([_CY])
 
@@ -299,8 +299,8 @@ def test_sphere_pixel_off_disk_returns_hit_false() -> None:
     assert not hit[0]
 
 
-def test_sphere_pixel_centre_returns_lon0_lat0() -> None:
-    """sphere_pixel_to_lonlat: the display centre maps back to lon=0, lat=0."""
+def test_sphere_pixel_center_returns_lon0_lat0() -> None:
+    """sphere_pixel_to_lonlat: the display center maps back to lon=0, lat=0."""
     params = _params_3d()
     vx = np.array([_CX])
     vy = np.array([_CY])
@@ -316,7 +316,7 @@ def test_sphere_pixel_centre_returns_lon0_lat0() -> None:
 def test_sphere_pixel_on_disk_boundary_returns_hit_true() -> None:
     """sphere_pixel_to_lonlat: a pixel exactly on the limb (r=1) returns hit=True."""
     params = _params_3d()
-    # Place pixel exactly one radius to the right of centre
+    # Place pixel exactly one radius to the right of center
     vx = np.array([_CX + _SCALE])
     vy = np.array([_CY])
 
@@ -358,7 +358,7 @@ def test_sphere3d_round_trip_front_hemisphere() -> None:
 
 
 def test_sphere3d_round_trip_with_yaw_and_pitch() -> None:
-    """SPHERE_3D round-trip holds when camera is not centred on lon=0, lat=0.
+    """SPHERE_3D round-trip holds when camera is not centered on lon=0, lat=0.
 
     Uses yaw=45 deg and pitch=30 deg to exercise the rotation matrix path.
     """

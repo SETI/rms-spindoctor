@@ -200,7 +200,7 @@ class NavFeature:
             cov.setflags(write=False)
             # Replace the user-supplied array with the canonical float64
             # read-only copy so techniques see uniform dtype + immutability.
-            # object.__setattr__ is the standard escape hatch for normalising
+            # object.__setattr__ is the standard escape hatch for normalizing
             # inputs in a frozen dataclass's __post_init__.
             object.__setattr__(self, 'position_cov_px', cov)
         if (self.template_img is None) != (self.template_mask is None):

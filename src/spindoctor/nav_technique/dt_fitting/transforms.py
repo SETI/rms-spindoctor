@@ -35,10 +35,10 @@ def _rotate_vertices(
     pv, pu = pivot_vu
     cos_t = math.cos(theta)
     sin_t = math.sin(theta)
-    centred_v = vertices_vu[:, 0] - pv
-    centred_u = vertices_vu[:, 1] - pu
-    new_v = pv + cos_t * centred_v - sin_t * centred_u
-    new_u = pu + sin_t * centred_v + cos_t * centred_u
+    centered_v = vertices_vu[:, 0] - pv
+    centered_u = vertices_vu[:, 1] - pu
+    new_v = pv + cos_t * centered_v - sin_t * centered_u
+    new_u = pu + sin_t * centered_v + cos_t * centered_u
     return cast(NDArrayFloatType, np.stack([new_v, new_u], axis=-1))
 
 
@@ -141,7 +141,7 @@ def _weighted_normal_equations(
 
 
 def _weighted_cost(weights: NDArrayFloatType, residuals: NDArrayFloatType) -> float:
-    """Sum of ``w_i * r_i**2`` (the quantity LM minimises)."""
+    """Sum of ``w_i * r_i**2`` (the quantity LM minimizes)."""
     return float(np.sum(weights * residuals * residuals))
 
 

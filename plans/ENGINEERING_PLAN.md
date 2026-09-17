@@ -241,7 +241,7 @@ diagnosis attributes the dominant term to the photometric roll-off, not DT
 quantization, and ranks the fixes: (1) fit a photometric limb (predict the
 limb-darkened-disc-convolved-with-PSF brightness profile and match it, #150);
 (2) a matched-filter sub-pixel edge estimator to remove the interpolation
-ripple (#282); (3) a pixel-centre convention audit (#283). **Constraint:** do
+ripple (#282); (3) a pixel-center convention audit (#283). **Constraint:** do
 not enable a fitter change until
 the real-image measurement exists (Track A #225 provides it) — the current
 partial cancellation is accidental and a well-meaning "fix" can make real
@@ -268,7 +268,7 @@ and starts with a design document, not code.
   operator picks (accept the 2-px-class ground truth, keep TERMINATOR_ARC for
   SPICE-known synchronous rotators, or shape models per #23).
 - **#635** — the star pixel datum: a star record carries oops uv (a pixel's
-  corner) and every star technique measures array indices (a pixel's centre),
+  corner) and every star technique measures array indices (a pixel's center),
   so every star-derived offset was short by half a pixel in both axes. Fixed
   by declaring the convention on `MutableStar` and converting at each point of
   use (`STAR_UV_DATUM_PX`). The library's star-derived ground truths carried
@@ -289,11 +289,63 @@ and starts with a design document, not code.
   the record builder copies a scene position through. The shipped scenes moved
   by half a pixel in the files, and every one of the 64 renders byte-identical
   to what it rendered before.
+- **#642** — the simulator turns a planted roll about one point: the frame's
+  center in pixel corner coordinates, where the body and ring paths already
+  pivoted. `render_stars` was reading `size / 2` as a pixel centric coordinate,
+  half a detector pixel away, so a rolled scene planted a star truth its own
+  bodies and rings disagreed with. Moving a pivot by `d` shifts every rendered
+  position by `(I - R) d`, a rigid `2 |d| sin(theta / 2)` the same near the
+  center as far from it, so the one shipped scene with a roll moved its whole
+  star field by 0.0169 px and the other 63 render byte-identical. That scene's
+  baseline flipped from `conflicted` to `success`: `StarUniqueMatchNav` had been
+  confidently answering it 11 px wrong and now declines, which is the #639
+  window fragility tipping on a 0.01 px render change in either direction, not a
+  navigation improvement this earned. One finding from the same audit is filed
+  and left out of that change: a roll rotates positions and poses but not a
+  star's smear vector, a companion's position angle, or the background sky field
+  (#644).
 - **#640** — the star edge cull expresses the four extended-FOV bounds in uv
   before it tests six uv positions against them, so the gate no longer sits
   half a pixel inside the edge it names. Across the 75 library frames one
   star changes state, on `lor_0030713597_0x633_sci`; it lands ten rows into
   the zero-filled extfov margin, so no frame's navigation moves.
+- **The pixel-convention audit** — every use of a pixel coordinate in the
+  repository was read against the two systems the code names with
+  `PIXEL_CENTER_TO_CORNER_PX`: pixel corner, which the `oops` geometry calls
+  answer in and which everything a person writes or reads is stated in, and
+  pixel centric, which anything addressing an array works in -- including every
+  position a feature payload carries. Neither system is universal to a layer;
+  each field declares its own, and `feature/geometry.py` states positions
+  pixel-centric while its half-open bounding boxes are pixel-corner. Nav core, every GUI
+  program, every command-line program, and the documentation were all in
+  scope.
+
+  The measured fixes: the Titan haze fit converts the inventory position it
+  starts from, worth ~0.71 px on every real Titan frame, and its sub-solar
+  direction no longer mixes the two systems, so its degeneracy gate can fire
+  (#648, #649). The simulator reduces a truth mask by coverage rather than by
+  its center subsample, taking the mask centroid error from 0.142 px to zero
+  (#650). A zoomed ring mosaic puts a cell's sub-samples around that cell's own
+  coordinate, so its radius and longitude metadata are no longer up to half a
+  cell high (#651). The mosaic viewer's readouts and tick labels, the scene
+  editor's markers and hit tests, and every position reported to an operator
+  are stated where the operator supplies them (#652, #653, #654).
+
+  Two structural changes stand behind those. Feature geometry payloads declare
+  their coordinate system on the field, and `predicted_center_vu` means pixel
+  centric on every payload that carries one rather than differing between them
+  (#655, #664). The sixteen conversions that were
+  spelled as a bare `0.5` are named (#660).
+
+  The rest is instrumentation and record. The documentation agrees with the
+  code, and the observations guide says where each system is used and where
+  the conversion happens (#657). The tests that looked like convention tests
+  but passed under every candidate convention now fail on a wrong one (#659).
+  The YAML records carry no issue numbers or history (#661). #656 records why
+  none of the three instruments positioned to catch a half-pixel offset did:
+  a navigated offset is a difference, so an error shared by prediction and
+  measurement cancels everywhere except the absolute answer, and the library
+  gate's tolerance carries the defect as its pad.
 - **Titan haze fit** — the haze solar-symmetry method ships and is validated;
   four measured refinements remain: the arc ray reach sized by the search
   window rather than by where the limb can be (#403), the flat arc-residual

@@ -50,7 +50,15 @@ def test_whole_scene_smear_conserves_signal() -> None:
 
 
 def _star_and_body_scene(*, smear: list[dict[str, Any]] | None) -> dict[str, Any]:
-    """A scene with a centered body and an off-centre star, optional smear."""
+    """A scene with a centered body and an off-center star, optional smear.
+
+    Parameters:
+        smear: Smear entries to place in the scene's ``optics`` block, or None
+            to leave the block out entirely.
+
+    Returns:
+        The scene mapping, ready to render.
+    """
     scene: dict[str, Any] = {
         'size_v': 60,
         'size_u': 60,

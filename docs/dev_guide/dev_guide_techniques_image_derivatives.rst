@@ -65,15 +65,15 @@ Two steps:
   terminator, and ring edges with margin.
 
 - **Directional non-maximum suppression.**  Each candidate pixel is kept only if its
-  magnitude is at least as large as both of its neighbours along the local gradient
-  direction. The gradient direction is quantised to four 45-degree sectors (boundaries at
+  magnitude is at least as large as both of its neighbors along the local gradient
+  direction. The gradient direction is quantized to four 45-degree sectors (boundaries at
   22.5, 67.5, 112.5, and 157.5 degrees from the u-axis) so the lookup reduces to a small
   fixed set of 3 × 3 shifts. The standard Canny rule keeps the full edge length intact while
   thinning the gradient ridge to one pixel wide — the right input for both the integer
   cross-correlation and the distance transform.
 
 A naive 3 × 3 NMS would discard most pixels along a smooth ridge; the directional check
-preserves edge length by comparing each candidate only against the two neighbours along its
+preserves edge length by comparing each candidate only against the two neighbors along its
 own gradient direction.
 
 Truncated distance transform
@@ -107,7 +107,7 @@ Restrictions and assumptions
   DT techniques actually fit.
 - The input image must be 2-D and contain only finite values. NaN or +/-inf pixels would
   propagate through the Gaussian and Sobel passes and poison every downstream consumer; the
-  pass raises rather than silently degrading. The orchestrator sanitises the per-instrument
+  pass raises rather than silently degrading. The orchestrator sanitizes the per-instrument
   missing-data marker (including the calibrated-IF ``NaN`` marker) to a finite fill before
   invoking this pass, so calibrated frames with NaN dropout markers reach the derivative
   kernels as finite data.

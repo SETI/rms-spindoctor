@@ -103,7 +103,7 @@ class ModeRow:
     # ---- Row construction ----
 
     def _add_param_row(self, form: QFormLayout, param: ModeParam) -> None:
-        """Add one labelled parameter widget to the row's form."""
+        """Add one labeled parameter widget to the row's form."""
         if param.kind == 'int_list':
             form.addRow(f'{param.name}:', self._build_int_list_widget(param))
             return

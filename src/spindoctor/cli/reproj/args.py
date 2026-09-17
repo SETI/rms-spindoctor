@@ -294,7 +294,7 @@ def add_body_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=DEFAULT_COPY_SLOP,
         help=(
-            'Extra pixels around each copied pixel to reduce isolated-pixel artefacts. '
+            'Extra pixels around each copied pixel to reduce isolated-pixel artifacts. '
             f'Default: {DEFAULT_COPY_SLOP}.'
         ),
     )
@@ -421,8 +421,13 @@ def add_ring_args(parser: argparse.ArgumentParser) -> None:
         default='1',
         metavar='N or R,L',
         help=(
-            'Zoom factor for sub-pixel interpolation. An integer applies uniformly; '
-            '"R,L" sets separate radial and longitudinal zoom factors. Default: 1.'
+            'Sub-samples taken per output cell along each axis, averaged into that '
+            'cell, so a scalar N takes N by N of them. The image is not interpolated: '
+            'each sub-sample reads the one pixel '
+            'containing it. Raising this smooths the output and fills cells a single '
+            'sample would miss, and costs run time as the product of the radial and '
+            'longitudinal factors. An integer applies uniformly, so the cost is its '
+            'square; "R,L" sets the two separately. Default: 1.'
         ),
     )
     grp.add_argument(
@@ -489,7 +494,7 @@ def add_display_args(parser: argparse.ArgumentParser) -> None:
     Side effects:
         Adds a ``Display`` group with stretch black/white/gamma defaults and
         optional body/ring overlay toggles plus ``--verbose``. Defaults match the
-        viewer's auto-stretch behaviour when black/white are omitted. Does not raise.
+        viewer's auto-stretch behavior when black/white are omitted. Does not raise.
     """
     disp = parser.add_argument_group('Display')
     disp.add_argument(

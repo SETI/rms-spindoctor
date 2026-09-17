@@ -43,7 +43,7 @@ from spindoctor.nav_model.stars.predicted_snr import (
     psf_sigma_px,
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
-from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.flux import clean_sclass
 from spindoctor.support.image import draw_rect
 from spindoctor.support.time import now_dt
@@ -64,16 +64,16 @@ __all__ = [
 # The star gate is purely magnitude based: the catalog reduction and this
 # model drop any star fainter than ``obs.star_max_usable_vmag()``.  The
 # CRLB-covariance and reliability helpers still want an SNR-like quantity,
-# so we synthesise one from how far below the limiting magnitude the star
+# so we synthesize one from how far below the limiting magnitude the star
 # sits.  A star exactly at the limit gets ``snr_eff == SNR_REF``; every
 # extra magnitude of headroom multiplies the effective SNR by one Pogson
 # ratio (``2.512``), matching the flux ratio per magnitude.
 #
-# ``SNR_REF`` is set to 8.0 — just below the reliability sigmoid centre
+# ``SNR_REF`` is set to 8.0 — just below the reliability sigmoid center
 # (snr=10) so a star at the very edge of usability lands near the steep
 # part of the curve (reliability ~0.34) rather than saturating it, while a
 # star a few magnitudes brighter saturates the curve toward 1.0.
-# ``SNR_FLOOR`` keeps the synthesised SNR strictly positive so the
+# ``SNR_FLOOR`` keeps the synthesized SNR strictly positive so the
 # covariance never degenerates to the zero-SNR huge-variance branch.
 SNR_REF: float = 8.0
 SNR_FLOOR: float = 0.1
@@ -266,7 +266,7 @@ class NavModelStars(NavModel):
             if smear_len > max_smear:
                 skipped_smear += 1
                 continue
-            v_extfov, u_extfov = self._extfov_indices(star)
+            v_extfov, u_extfov = self._extfov_position_vu(star)
             in_body = bool((star.conflicts or '').startswith('BODY'))
             in_ring = bool((star.conflicts or '').startswith('RING'))
             # Saturation / cosmic-ray contamination is NOT determined here.  The
@@ -288,11 +288,17 @@ class NavModelStars(NavModel):
                 move_u=star.move_u,
             )
             box_half = (star.psf_size[0] // 2 + 2, star.psf_size[1] // 2 + 2)
+            # Cut about the pixel the star falls in, so the box is symmetric
+            # about that pixel and the overlay drawn from the same rule covers
+            # exactly it.  Rounding the two ends independently would let them
+            # break a tie in opposite directions.
+            v_pixel = containing_pixel(v_extfov)
+            u_pixel = containing_pixel(u_extfov)
             bbox = (
-                round(v_extfov - box_half[0]),
-                round(u_extfov - box_half[1]),
-                round(v_extfov + box_half[0] + 1),
-                round(u_extfov + box_half[1] + 1),
+                v_pixel - box_half[0],
+                u_pixel - box_half[1],
+                v_pixel + box_half[0] + 1,
+                u_pixel + box_half[1] + 1,
             )
             features.append(
                 NavFeature(
@@ -362,11 +368,14 @@ class NavModelStars(NavModel):
         stretch_boxes: list[tuple[int, int, int, int]] = []
         for star in self._stars:
             if star.conflicts and star.conflicts != 'STAR':
-                # Skip body/ring-blocked stars; they are not labelled.
+                # Skip body/ring-blocked stars; they are not labeled.
                 continue
-            v_idx, u_idx = self._extfov_indices(star)
-            v_int = int(v_idx)
-            u_int = int(u_idx)
+            v_pos, u_pos = self._extfov_position_vu(star)
+            # The box marks the pixel the star falls in, selected by the same
+            # rule the feature's own bounding box is cut with, so the two cannot
+            # disagree about where the box starts.
+            v_int = containing_pixel(v_pos)
+            u_int = containing_pixel(u_pos)
             v_half = (star.psf_size[0] // 2) + 2
             u_half = (star.psf_size[1] // 2) + 2
             u_min, v_min = obs.clip_extfov(u_int - u_half, v_int - v_half)
@@ -409,7 +418,7 @@ class NavModelStars(NavModel):
         )
         return annotations
 
-    def _extfov_indices(self, star: MutableStar) -> tuple[float, float]:
+    def _extfov_position_vu(self, star: MutableStar) -> tuple[float, float]:
         """Return ``(v, u)`` of ``star`` in extfov pixel-centric coordinates.
 
         Converts from the record's pixel corner position (see
@@ -536,7 +545,7 @@ def _snr_reason_score(snr: float, min_snr: float) -> float:
     effective SNR (``SNR_REF * 2.512 ** (mag_limit - vmag)``), not a
     photometric DN SNR.  This helper folds the configured floor in: when
     ``min_snr > 0``, the score is ``snr / min_snr`` capped at 1; when no
-    floor is configured, an SNR of 50 saturates the score (the same centre
+    floor is configured, an SNR of 50 saturates the score (the same center
     the reliability sigmoid uses).
 
     Parameters:
@@ -580,7 +589,7 @@ def _reliability_from_snr(
     """
     if in_body or in_ring or in_saturation:
         return 0.0
-    # Sigmoid centred near snr=10 with a span of ~5 — stars at snr=20 are
+    # Sigmoid centered near snr=10 with a span of ~5 — stars at snr=20 are
     # saturated to ~1, stars at snr=5 are around 0.27.  Coefficients are
     # the calibration starting point; phase-5 fitting will refine them.
     z = 0.2 * (snr - 10.0)
@@ -597,19 +606,18 @@ def _star_feature_id(star: MutableStar) -> str:
 def _star_short_info(star: MutableStar) -> str:
     """Return a one-line text summary of a star, suitable for INFO logging.
 
-    The line keeps the shape operators grep for.  The
-    ``U`` and ``V`` values are pixel-centric coordinates in the
-    nominal (unpadded) frame, which is the convention every other position in
-    a navigation log and document uses; the ``+/-`` figure after each is the
-    per-exposure smear amplitude along that axis.
+    The line keeps the shape operators grep for.  ``U`` and ``V`` are the
+    star's position in pixel-corner coordinates in the nominal (unpadded)
+    frame; the ``+/-`` figure after each is the per-exposure smear amplitude
+    along that axis.
     """
     jb = getattr(star, 'johnson_mag_b', None) or 0.0
     jv = getattr(star, 'johnson_mag_v', None) or 0.0
     temp = getattr(star, 'temperature', None) or 0.0
     return (
         f'Star {star.catalog_name:>6s}/{star.pretty_name:>9s} '
-        f'U {star.u - PIXEL_CENTER_TO_CORNER_PX:9.3f}+/-{abs(star.move_u):7.3f} '
-        f'V {star.v - PIXEL_CENTER_TO_CORNER_PX:9.3f}+/-{abs(star.move_v):7.3f} '
+        f'U {star.u:9.3f}+/-{abs(star.move_u):7.3f} '
+        f'V {star.v:9.3f}+/-{abs(star.move_v):7.3f} '
         f'VMAG {(-1.0 if star.vmag is None else star.vmag):6.3f} '
         f'JBMAG {jb:6.3f} '
         f'JVMAG {jv:6.3f} '
@@ -622,13 +630,8 @@ def _star_short_info(star: MutableStar) -> str:
 def _star_summary(star: MutableStar) -> dict[str, Any]:
     """Return a compact JSON-friendly summary of a star (for metadata).
 
-    ``u`` and ``v`` are pixel-centric coordinates in the nominal
-    (unpadded) frame, the same numbers the log line carries.  Every position
-    a navigation document records is pixel-centric, so a reader needs to know
-    only which frame it is in: this one is the unpadded frame, and a STAR
-    feature's ``predicted_vu`` is the same point plus the extended-FOV margin.
-    The record itself holds pixel corner coordinates, which is this value plus
-    ``PIXEL_CENTER_TO_CORNER_PX``.
+    ``u`` and ``v`` are the star's position in pixel-corner coordinates in the
+    nominal (unpadded) frame, the same numbers the log line carries.
     """
     return {
         'catalog_name': star.catalog_name,
@@ -639,8 +642,8 @@ def _star_summary(star: MutableStar) -> dict[str, Any]:
         'vmag': star.vmag,
         'photometry_corrected': star.photometry_corrected,
         'photometry_saturated': star.photometry_saturated,
-        'u': star.u - PIXEL_CENTER_TO_CORNER_PX,
-        'v': star.v - PIXEL_CENTER_TO_CORNER_PX,
+        'u': star.u,
+        'v': star.v,
         'move_u': star.move_u,
         'move_v': star.move_v,
         'spectral_class': star.spectral_class,

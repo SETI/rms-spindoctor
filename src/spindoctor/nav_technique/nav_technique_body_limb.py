@@ -3,9 +3,9 @@
 Consumes every ``LIMB_ARC`` feature in the input set, concatenates their
 per-vertex positions, weights them by ``1 / sigma_normal_per_vertex_px**2``,
 and runs the shared distance-transform fitter to recover a single
-translation that minimises the joint cost across all bodies.  Multi-body
+translation that minimizes the joint cost across all bodies.  Multi-body
 inputs improve the fit by ``sqrt(N_bodies)`` when SPICE relative geometry
-is correct; the joint-translation parameterisation cannot represent
+is correct; the joint-translation parameterization cannot represent
 "swap two moons" mistakes by construction.
 """
 
@@ -97,7 +97,7 @@ class BodyLimbNav(NavTechnique):
 
     Consumes every ``LIMB_ARC`` feature whose visible arc length meets the
     feasibility threshold and produces one combined translation offset by
-    minimising the summed weighted squared distance from the model
+    minimizing the summed weighted squared distance from the model
     polylines to the image edge distance transform.  Per-vertex weights
     follow the prior precision ``1 / sigma_normal_per_vertex_px**2``;
     Tukey biweight reweighting handles the per-image outliers.
@@ -330,7 +330,7 @@ class BodyLimbNav(NavTechnique):
             # the "LM walked past the boundary" case — the latter happens
             # when the LM follows a DT gradient outside the coarse-NCC
             # window and produces an offset that ``ObsSnapshot.extract_offset_array``
-            # cannot honour without zero-fill.
+            # cannot honor without zero-fill.
             at_edge = (
                 abs(dv_final) >= margin_v - self._at_edge_tolerance_px
                 or abs(du_final) >= margin_u - self._at_edge_tolerance_px
@@ -514,7 +514,7 @@ def _aggregate_visible_arc_fraction(features: list[NavFeature]) -> float:
 
     The reliability breakdown carries each feature's visible-arc fraction
     on the predicted polyline; the diagnostic on the navigation result
-    summarises across all consumed features by weighting each fraction by
+    summarizes across all consumed features by weighting each fraction by
     the count of surviving vertices.  The result is in ``[0, 1]``.
     """
     total_weighted = 0.0

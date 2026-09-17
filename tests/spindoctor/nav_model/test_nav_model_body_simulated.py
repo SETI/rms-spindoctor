@@ -6,17 +6,20 @@ cover the mesh-vs-ellipsoid prediction split, the pose-disagreement fixture, and
 that the predicted mesh reproduces the rendered data when the params agree.
 """
 
+import math
 from typing import Any
 
 import numpy as np
 import pytest
 from tests.shims import bare_nav_context
 
+from spindoctor.annotation import Annotations
 from spindoctor.feature.feature import NavFeature
 from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _SIZE = 96
 
@@ -30,7 +33,7 @@ def _obs() -> ObsSim:
 
 
 def _body_params(**overrides: Any) -> dict[str, Any]:
-    """Centred irregular-body params for prediction and rendering."""
+    """Centered irregular-body params for prediction and rendering."""
     params = {
         'name': 'HYPERION',
         'center_v': _SIZE / 2.0,
@@ -67,6 +70,41 @@ def _mesh_params(**overrides: Any) -> dict[str, Any]:
     )
 
 
+def test_the_label_anchors_on_the_pixel_the_body_center_falls_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The label is anchored on the row and column holding the body's center.
+
+    A scene states a center as a pixel corner, so row 40 spans 40.0 to 41.0
+    and a center of 40.7 falls inside it.  The anchor addresses a pixel of the
+    image, so it is that row, whatever the fraction is.
+
+    Parameters:
+        monkeypatch: Records the anchor the annotation builder is handed.
+    """
+    anchors: list[tuple[int, int]] = []
+
+    def _record(
+        self: NavModelBodySimulated,
+        u_center: int,
+        v_center: int,
+        model: np.ndarray,
+        limb_mask: np.ndarray,
+        body_mask: np.ndarray,
+    ) -> Annotations:
+        """Stand in for the annotation builder, keeping its anchor."""
+        anchors.append((v_center, u_center))
+        return Annotations()
+
+    monkeypatch.setattr(NavModelBodySimulated, '_create_annotations', _record)
+    obs = _obs()
+    params = _body_params(center_v=40.7, center_u=52.7)
+    model = NavModelBodySimulated('body', obs, params['name'], params)
+    model.create_model()
+    model.to_annotations(bare_nav_context(obs))
+    assert anchors[0] == (math.floor(params['center_v']), math.floor(params['center_u']))
+
+
 def test_mesh_prediction_differs_from_ellipsoid() -> None:
     """Predicting a mesh vs an ellipsoid of equal axes gives different masks."""
     obs = _obs()
@@ -84,7 +122,14 @@ def test_mesh_prediction_pose_disagreement_changes_mask() -> None:
 
 
 def test_mesh_prediction_matches_rendered_data() -> None:
-    """With identical params, the predicted mesh reproduces the rendered shape."""
+    """With identical params the predicted mesh is the rendered shape, pixel for pixel.
+
+    Both sides call the same mesh renderer, so this is a round trip: it pins
+    that the model passes the scene's params through unaltered and lands the
+    result on the same grid, and it is blind to a coordinate convention the
+    two sides get wrong together.  Being a round trip, it can be exact, and an
+    overlap ratio would only hide the pixels that a placement error moves.
+    """
     obs = _obs()
     body = _mesh_params()
     predicted = _data_region(obs, _predicted_mask(obs, body))
@@ -99,9 +144,25 @@ def test_mesh_prediction_matches_rendered_data() -> None:
         }
     )
     rendered = img > 0
-    intersection = int((predicted & rendered).sum())
-    union = int((predicted | rendered).sum())
-    assert intersection / union > 0.98
+    assert np.array_equal(predicted, rendered)
+
+
+def test_prediction_centers_on_the_center_the_scene_states() -> None:
+    """The predicted silhouette's centroid is the scene's own center.
+
+    The anchor is outside both sides of the round trip above: the scene states
+    a pixel corner center, the mask is addressed by rows and columns, and the
+    ellipsoid is symmetric about its center, so the centroid of the marked
+    pixels is the stated number less the half pixel that converts between the
+    two coordinate systems, exactly.  A model reading the scene's center pixel
+    centric fails here by that half pixel.
+    """
+    obs = _obs()
+    predicted = _data_region(obs, _predicted_mask(obs, _body_params()))
+    vs, us = np.where(predicted)
+    expected = _SIZE / 2.0 - PIXEL_CENTER_TO_CORNER_PX
+    assert float(vs.mean()) == pytest.approx(expected, abs=1e-12)
+    assert float(us.mean()) == pytest.approx(expected, abs=1e-12)
 
 
 def test_mesh_prediction_is_deterministic() -> None:
@@ -229,7 +290,7 @@ def test_gates_off_limb_is_geometric_not_terminator() -> None:
 
     For a phase-120 sphere the lit-region boundary includes the terminator,
     which cuts through the disc interior; the lit geometric limb keeps every
-    vertex on the silhouette outline (constant radius from the centre).
+    vertex on the silhouette outline (constant radius from the center).
     """
     vertices = _ungated_limb_vertices(_large_body(phase_angle=120.0))
     obs = _limb_obs()
@@ -298,7 +359,7 @@ def test_terminator_arc_is_interior_not_geometric_limb() -> None:
     """The terminator lies inside the disc, distinct from the silhouette limb.
 
     At 90-degree phase the lit/unlit boundary is a great circle cutting through
-    the disc centre, so its vertices span radii from near the centre out to the
+    the disc center, so its vertices span radii from near the center out to the
     limb -- unlike the geometric limb, whose vertices all sit near the disc
     edge.  The mean terminator radius therefore sits well inside the limb.
     """
@@ -371,7 +432,7 @@ def test_terminator_arc_fraction_fully_framed_is_near_one() -> None:
 def test_terminator_arc_fraction_drops_when_frame_clips_it() -> None:
     """A body whose terminator runs off the frame edge scores a lower fraction.
 
-    Centre the body near the frame edge so part of the lit/unlit boundary
+    Center the body near the frame edge so part of the lit/unlit boundary
     falls outside the render; the visible-arc fraction must report the
     surviving portion, not 1.0 (the honest input BodyTerminatorNav's
     confidence needs).
@@ -416,7 +477,7 @@ def _blob_feature(obs: ObsSim, body_params: dict[str, Any], context: NavContext)
 
 
 def _small_body(obs: ObsSim) -> dict[str, Any]:
-    """A 12 px sphere at low phase, centred in ``obs``'s frame."""
+    """A 12 px sphere at low phase, centered in ``obs``'s frame."""
     return {
         'name': 'RHEA',
         'center_v': obs.data_shape_v / 2.0,
@@ -483,7 +544,7 @@ def test_blob_admits_mostly_offscreen_body() -> None:
     import dataclasses
 
     obs = _obs()
-    # Body centred 2 px inside the frame edge: roughly half the 20 px
+    # Body centered 2 px inside the frame edge: roughly half the 20 px
     # silhouette hangs past the sensor into the extfov margin.
     params = dict(_small_body(obs))
     params.update(center_v=2.0, axis1=20.0, axis2=20.0, axis3=20.0)
@@ -534,7 +595,7 @@ def test_limb_arc_fraction_fully_framed_is_near_one() -> None:
 def test_limb_arc_fraction_drops_when_frame_clips_it() -> None:
     """A body sliding off the frame edge scores a lower limb fraction.
 
-    Centre the body near the frame edge so part of the silhouette boundary
+    Center the body near the frame edge so part of the silhouette boundary
     falls outside the render; the visible-arc fraction must report the
     surviving portion, not 1.0 (the honest input BodyLimbNav's
     visible_limb_arc_fraction confidence term needs).

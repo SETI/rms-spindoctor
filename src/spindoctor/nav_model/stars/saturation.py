@@ -25,8 +25,8 @@ is the in-field union of the two: YBSC wherever it covers a star (it
 carries a self-consistent Johnson V/B pair), and Tycho-2 elsewhere, which
 reaches the V6.5 to V8 stars YBSC misses.  A star corrected against YBSC
 inherits its Johnson pair; a star corrected against Tycho-2 adopts
-Tycho-2's V and fakes its colour from spectral class, because this
-pipeline discards Tycho-2's own colour.  Only UCAC4 saturates: Tycho-2
+Tycho-2's V and fakes its color from spectral class, because this
+pipeline discards Tycho-2's own color.  Only UCAC4 saturates: Tycho-2
 and YBSC records are references, never correction candidates, so a
 reference is never corrected against itself.
 
@@ -43,7 +43,7 @@ by more than the merge's duplicate-magnitude tolerance, a bright star that
 UCAC4 saturates is kept twice after the merge: a saturated UCAC4 record
 plus its accurate Tycho-2 (or YBSC) twin.  Correcting the UCAC4 record
 brings the two magnitudes back into agreement and exposes the duplicate,
-which the final collapse resolves in favour of the twin that never needed
+which the final collapse resolves in favor of the twin that never needed
 correcting -- the same saturation that corrupts UCAC4's photometry also
 displaces its astrometry, so the catalog that read the star at its true
 magnitude also placed it accurately.  That astrometric displacement is
@@ -274,7 +274,7 @@ def _best_mag_aware_match(
     explained by the brightest reference that can account for it, not by
     whichever bright star happens to sit closest.  Because a bright
     unrelated reference earns a wide reach of its own from its large
-    magnitude gap, a pure nearest-neighbour rule would let it win over the
+    magnitude gap, a pure nearest-neighbor rule would let it win over the
     true twin when it sits closer; the brightness preference does not.
 
     Parameters:
@@ -392,7 +392,7 @@ def correct_star_photometry(
     (``vmag``, the Johnson pair, ``b_v``, and a recomputed ``dn``) while
     keeping its own astrometry.  A match against YBSC propagates YBSC's
     self-consistent Johnson pair; a match against Tycho-2 adopts Tycho-2's
-    V and fakes the colour from the candidate's spectral class.  A matched
+    V and fakes the color from the candidate's spectral class.  A matched
     record is flagged ``photometry_corrected``; a bright record with no
     reference in either catalog is flagged ``photometry_saturated`` so
     downstream consumers know its magnitude is an untrusted lower bound.
@@ -554,9 +554,9 @@ def _apply_reference_photometry(star: MutableStar, ref: MutableStar) -> None:
 
     A YBSC reference supplies a self-consistent Johnson V/B pair, which is
     propagated directly.  A Tycho-2 reference (this pipeline discards its
-    colour) supplies only V; the colour is faked from the corrected star's
-    own spectral class, matching the catalog reduction's colour-faking, and
-    ``johnson_mag_faked`` is set so downstream code knows the colour is
+    color) supplies only V; the color is faked from the corrected star's
+    own spectral class, matching the catalog reduction's color-faking, and
+    ``johnson_mag_faked`` is set so downstream code knows the color is
     synthetic.
 
     Parameters:
@@ -571,14 +571,14 @@ def _apply_reference_photometry(star: MutableStar, ref: MutableStar) -> None:
             star.johnson_mag_b = ref.johnson_mag_b
             star.b_v = ref.johnson_mag_b - star.johnson_mag_v
         else:
-            # No Johnson B from YBSC: treat the star as its own B (colour 0)
+            # No Johnson B from YBSC: treat the star as its own B (color 0)
             # so johnson_mag_b and b_v stay mutually consistent.
             star.johnson_mag_b = star.johnson_mag_v
             star.b_v = 0.0
         star.johnson_mag_faked = False
     else:
         # Tycho-2 reference (or a YBSC record lacking Johnson V): adopt V and
-        # fake the colour from the star's own spectral class.
+        # fake the color from the star's own spectral class.
         star.johnson_mag_v = ref_vmag
         star.johnson_mag_b = ref_vmag + SCLASS_TO_B_MINUS_V[clean_sclass(star.spectral_class)]
         star.b_v = star.johnson_mag_b - star.johnson_mag_v

@@ -38,11 +38,11 @@ __all__ = [
 def parse_ring_occlusion_annuli(
     raw: dict[str, list[list[float]]] | None,
 ) -> dict[str, list[tuple[float, float]]]:
-    """Validate and normalise a ring-occlusion annulus mapping.
+    """Validate and normalize a ring-occlusion annulus mapping.
 
     The YAML config exposes per-planet annulus pairs as nested lists
     (``[[inner_km, outer_km], ...]``); this helper validates each pair,
-    rejects degenerate (inner >= outer) annuli, and normalises the
+    rejects degenerate (inner >= outer) annuli, and normalizes the
     planet keys to upper case so lookup is case-insensitive.
 
     Parameters:

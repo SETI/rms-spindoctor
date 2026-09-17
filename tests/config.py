@@ -62,6 +62,14 @@ URL_CASSINI_ISS_STARS_01 = 'https://pds-rings.seti.org/holdings/calibrated/COISS
 # https://opus.pds-rings.seti.org/#/view=detail&detail=co-iss-n1521881358
 URL_CASSINI_ISS_STARS_02 = 'https://pds-rings.seti.org/holdings/calibrated/COISS_2xxx/COISS_2021/data/1521798868_1521893025/N1521881358_2_CALIB.IMG'
 
+# Image from the earliest cruise volume, COISS_1001
+# Camera: Cassini ISS NAC
+# Exposure: 0.03 sec
+# Its VICAR label marks its property section with a plain PROPERTY keyword rather
+# than the numbered form, states fewer of the archive's observation keywords than a
+# tour label does, and carries items of its own under different names.
+URL_CASSINI_ISS_CRUISE_01 = 'https://pds-rings.seti.org/holdings/calibrated/COISS_1xxx/COISS_1001/data/1294561143_1295221348/N1294562651_1_CALIB.IMG'
+
 # Image of Io
 # Camera: Galileo SSI
 # Size: 800x800 (cutout window 431x411)

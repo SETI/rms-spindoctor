@@ -6,7 +6,7 @@ rotational error (FOV twist) and the lateral residual distortion (the
 field-position-dependent displacement left after the known distortion model is
 removed).
 
-The package is organised so the numerical core carries no navigation
+The package is organized so the numerical core carries no navigation
 dependency and is unit-tested on synthetic point clouds:
 
 - ``decompose``: pure-numpy decomposition of a per-star residual field into a

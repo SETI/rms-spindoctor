@@ -310,6 +310,35 @@ def test_sky_counts_are_deterministic() -> None:
     assert np.array_equal(render(), render())
 
 
+def test_sky_field_reaches_both_edges_of_the_frame_alike() -> None:
+    """The sky draw covers the frame the deposit sees, not a half-pixel shift of it.
+
+    The deposit reads a pixel centric position, where a ``size``-wide frame
+    spans ``[-0.5, size - 0.5]``.  Drawing over ``[0, size)`` instead leaves
+    the outer half of the first row and column unable to hold a star center
+    while half a pixel of field runs off the far edge, so the first row
+    collects about half the flux the last one does.  Over the frame the
+    deposit sees, the two edges agree.  A flat count law (``b`` zero) gives
+    every drawn star the same flux, so the row and column sums count stars.
+    """
+    plane = np.zeros((32, 32), dtype=np.float64)
+    render_sky_counts(
+        plane,
+        seed=11,
+        a=2.0,
+        b=0.0,
+        density_factor=1400.0,
+        pixel_scale_arcsec=60.0,
+        faint_cutoff_mag=10.0,
+        zero_point=1.0e4,
+        exposure_sec=1.0,
+        diffuse_flux_per_px=0.0,
+        oversample=1,
+    )
+    assert abs(float(plane[0].sum() / plane[-1].sum()) - 1.0) < 0.1
+    assert abs(float(plane[:, 0].sum() / plane[:, -1].sum()) - 1.0) < 0.1
+
+
 def test_faint_cutoff_deepens_with_a_brighter_zero_point() -> None:
     """A higher zero point (more sensitive camera) pushes the cutoff fainter."""
     dim = faint_sky_cutoff_mag(zero_point=1.0e6, exposure_sec=1.0, read_noise=12.0, psf_sigma=0.54)

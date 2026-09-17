@@ -47,7 +47,7 @@ _BASE_ATMOSPHERE: dict[str, Any] = {'scale_height_px': 7.0, 'tau_ref': 3.0, 'g':
 
 
 def _render(atmosphere: dict[str, Any], *, phase_deg: float = 35.0) -> NDArrayFloatType:
-    """Render a centred hazy sphere and composite its halo over black.
+    """Render a centered hazy sphere and composite its halo over black.
 
     Parameters:
         atmosphere: The body's ``atmosphere`` block.
@@ -90,7 +90,7 @@ def _with(**structure: Any) -> dict[str, Any]:
 
 
 def _offsets() -> tuple[NDArrayFloatType, NDArrayFloatType]:
-    """Per-pixel ``(v, u)`` offsets from the body centre."""
+    """Per-pixel ``(v, u)`` offsets from the body center."""
     v_idx, u_idx = np.mgrid[0:_SIZE, 0:_SIZE].astype(np.float64)
     return cast(NDArrayFloatType, v_idx + 0.5 - _CENTER), cast(
         NDArrayFloatType, u_idx + 0.5 - _CENTER
@@ -106,7 +106,7 @@ def _glow_axis_deg(img: NDArrayFloatType) -> float:
     the right), so it is directly comparable to the commanded angle.
 
     Parameters:
-        img: A rendered image with the body centred at ``_CENTER``.
+        img: A rendered image with the body centered at ``_CENTER``.
 
     Returns:
         The glow direction in degrees.
@@ -128,7 +128,7 @@ def _falloff_length(img: NDArrayFloatType, direction_deg: float) -> float:
     ``-1 / scale_height``.
 
     Parameters:
-        img: A rendered image with the body centred at ``_CENTER``.
+        img: A rendered image with the body centered at ``_CENTER``.
         direction_deg: Radial direction in the scene's illumination-angle
             convention (0 = toward the top, 90 = toward the right).
 
@@ -156,7 +156,7 @@ def _disc_mean(img: NDArrayFloatType, *, southern: bool) -> float:
     the render already saturates would report the clip, not the scaling.
 
     Parameters:
-        img: A rendered image with the body centred at ``_CENTER``.
+        img: A rendered image with the body centered at ``_CENTER``.
         southern: True for the positive-v half, False for the negative-v one.
 
     Returns:
@@ -360,7 +360,7 @@ def test_interior_ramp_tilts_the_disc_brightness_along_the_axis() -> None:
 
 
 def test_cloud_blob_brightens_the_disc_where_it_was_placed() -> None:
-    """A blob adds its amplitude at its own centre and nothing far away.
+    """A blob adds its amplitude at its own center and nothing far away.
 
     Placed on the anti-sunward interior, where the disc is dim enough that
     the added amplitude has headroom inside the [0, 1] signal plane.
@@ -449,8 +449,11 @@ def test_validator_rejects_a_sharpness_gradient_at_the_bound() -> None:
 
 def test_validator_rejects_an_unknown_cloud_blob_key() -> None:
     """A typo inside a cloud entry fails rather than rendering nothing."""
+    # The axis order of `center_vu` written the wrong way round is what is
+    # under test; the scene layer names a pixel pair `vu` and an oops uv `uv`,
+    # so this is the typo an author actually makes.
     scene = _scene_with_atmosphere(
-        _with(cloud_blobs=[{'centre_vu': [0.0, 0.0], 'sigma_px': 2.0, 'amplitude': 0.1}])
+        _with(cloud_blobs=[{'center_uv': [0.0, 0.0], 'sigma_px': 2.0, 'amplitude': 0.1}])
     )
     with pytest.raises(SimSceneValidationError, match='unknown keys'):
         validate_sim_params(scene, source='probe')
@@ -464,7 +467,7 @@ def test_validator_requires_a_cloud_blob_amplitude() -> None:
 
 
 def test_validator_rejects_a_malformed_cloud_blob_center() -> None:
-    """A cloud centre must be a two-element offset pair."""
+    """A cloud center must be a two-element offset pair."""
     scene = _scene_with_atmosphere(
         _with(cloud_blobs=[{'center_vu': [1.0], 'sigma_px': 2.0, 'amplitude': 0.1}])
     )

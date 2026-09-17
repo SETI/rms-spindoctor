@@ -34,7 +34,7 @@ def test_absorbed_sensitivity_short_arc_absorbs_along_its_normal() -> None:
     normals = _arc_normals(10.0)
     g = _absorbed_orbit_sensitivity(normals, np.ones(len(normals)))
     assert float(np.linalg.norm(g)) == pytest.approx(1.0, abs=0.01)
-    # The arc is centred on +u, so the sensitivity points along u.
+    # The arc is centered on +u, so the sensitivity points along u.
     assert abs(float(g[1])) == pytest.approx(1.0, abs=0.01)
     assert abs(float(g[0])) < 0.01
 

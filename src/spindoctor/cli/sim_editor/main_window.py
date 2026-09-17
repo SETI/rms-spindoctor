@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
-from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -278,7 +278,7 @@ class CreateSimulatedImageModel(
             self._image_label.setCursor(Qt.CursorShape.ClosedHandCursor)
         elif event.button() == Qt.MouseButton.RightButton:
             # Select model at cursor
-            img_v, img_u = self._label_pos_to_image_vu(event.position().toPoint())
+            img_v, img_u = self._label_pos_to_image_vu(event.position())
             self._select_model_at(img_v, img_u)
             self._right_drag_active = True
             self._last_drag_img_vu = (img_v, img_u)
@@ -287,11 +287,11 @@ class CreateSimulatedImageModel(
         """Pan or drag the selected object and update the status bar."""
         self._zoom_ctl.on_mouse_move(event)
         # status
-        self._update_status_bar(event.position().toPoint())
+        self._update_status_bar(event.position())
 
         # Right-drag to move selected model
         if self._right_drag_active and self._selected_model_key is not None:
-            img_v, img_u = self._label_pos_to_image_vu(event.position().toPoint())
+            img_v, img_u = self._label_pos_to_image_vu(event.position())
             self._move_selected_by(img_v, img_u)
 
     def _on_release(self, event: QMouseEvent) -> None:
@@ -307,14 +307,14 @@ class CreateSimulatedImageModel(
         self._zoom_ctl.on_wheel(event)
 
     def _zoom_in(self) -> None:
-        """Zoom in about the viewport centre."""
-        # The ZoomPanController's centre-anchored zoom is identical to the
+        """Zoom in about the viewport center."""
+        # The ZoomPanController's center-anchored zoom is identical to the
         # open-coded version (it wraps this window's scroll area + zoom state).
         if self._base_pixmap is not None:
             self._zoom_ctl.zoom_in_center()
 
     def _zoom_out(self) -> None:
-        """Zoom out about the viewport centre."""
+        """Zoom out about the viewport center."""
         if self._base_pixmap is not None:
             self._zoom_ctl.zoom_out_center()
 
@@ -339,16 +339,34 @@ class CreateSimulatedImageModel(
         self._zoom_label.setText(f'Zoom: {self._zoom_factor:.2f}x')
         self._update_display()
 
-    def _label_pos_to_image_vu(self, label_pos: QPoint) -> tuple[float, float]:
-        """Convert a label pixel position to image (v, u) coordinates."""
-        scaled_x = float(label_pos.x())
-        scaled_y = float(label_pos.y())
-        img_u = scaled_x / self._zoom_factor
-        img_v = scaled_y / self._zoom_factor
+    def _label_pos_to_image_vu(self, label_pos: QPointF) -> tuple[float, float]:
+        """Convert a label position to an image (v, u) position.
+
+        A Qt event position is already a continuous pixel corner coordinate, the
+        same measure a scene states every position in, and the zoom divide keeps
+        it continuous.  Taking the whole number first would quantize the result to
+        multiples of ``1 / zoom``, and at zoom 1 no cursor position could then
+        name a pixel's center at all.
+
+        Parameters:
+            label_pos: Cursor position in label coordinates.
+
+        Returns:
+            ``(v, u)`` in image pixel corner coordinates.
+        """
+        img_u = float(label_pos.x()) / self._zoom_factor
+        img_v = float(label_pos.y()) / self._zoom_factor
         return img_v, img_u
 
-    def _update_status_bar(self, label_pos: QPoint) -> None:
-        """Update the status bar with the cursor's (v, u) and pixel value."""
+    def _update_status_bar(self, label_pos: QPointF) -> None:
+        """Update the status bar with the cursor's (v, u) and pixel value.
+
+        The printed position is the continuous pixel corner one; the sampled pixel
+        is the one containing it, which is its floor.
+
+        Parameters:
+            label_pos: Cursor position in label coordinates.
+        """
         self._zoom_label.setText(f'Zoom: {self._zoom_factor:.2f}x')
         if self._current_image is None:
             self._status_label.setText('V, U: --------, --------  Value: --')
@@ -365,7 +383,7 @@ class CreateSimulatedImageModel(
 
     # ---- Visual toggles ----
     def _toggle_visual_aids(self, state: Any) -> None:
-        """Toggle the body/star/ring centre overlays."""
+        """Toggle the body/star/ring center overlays."""
         if isinstance(state, Qt.CheckState):
             self._show_visual_aids = state is Qt.CheckState.Checked
         elif isinstance(state, int):
@@ -377,7 +395,7 @@ class CreateSimulatedImageModel(
             self._display_image()
 
     def _toggle_zoom_sharp(self, state: Any) -> None:
-        """Toggle nearest-neighbour (sharp) vs smooth zoom scaling."""
+        """Toggle nearest-neighbor (sharp) vs smooth zoom scaling."""
         self._zoom_sharp = state == int(cast(int, Qt.CheckState.Checked.value))
         self._update_display()
 

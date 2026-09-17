@@ -9,7 +9,7 @@ instrument PSF inset, and saves the current preview to PNG.
 from typing import Any
 
 import numpy as np
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessageBox, QVBoxLayout
 
@@ -17,6 +17,7 @@ from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments import resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 
 def _dn_to_display_uint8(image: Any) -> Any:
@@ -155,30 +156,34 @@ class RenderDisplayMixin(SimEditorBase):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.drawImage(0, 0, qimage)
         if self._show_visual_aids:
+            # A scene states every position as a pixel corner and a QPainter
+            # coordinate is the same measure, so these marks take the scene value
+            # itself: no conversion, and no rounding either, or the mark for a
+            # center at 12.5 would be drawn at 12.
             pen = QPen(QColor(255, 0, 0), 2)
             painter.setPen(pen)
             # Draw centers for bodies
             for b in self.sim_params.get('bodies', []):
-                center_x = int(b.get('center_u', 0))
-                center_y = int(b.get('center_v', 0))
-                painter.drawEllipse(center_x - 4, center_y - 4, 8, 8)
+                center_x = float(b.get('center_u', 0.0))
+                center_y = float(b.get('center_v', 0.0))
+                painter.drawEllipse(QRectF(center_x - 4.0, center_y - 4.0, 8.0, 8.0))
             # Draw stars as small crosses
             pen = QPen(QColor(255, 255, 0), 1)
             painter.setPen(pen)
             for s in self.sim_params.get('stars', []):
-                u = int(s.get('u', 0))
-                v = int(s.get('v', 0))
-                painter.drawLine(u - 4, v, u + 4, v)
-                painter.drawLine(u, v - 4, u, v + 4)
+                u = float(s.get('u', 0.0))
+                v = float(s.get('v', 0.0))
+                painter.drawLine(QPointF(u - 4.0, v), QPointF(u + 4.0, v))
+                painter.drawLine(QPointF(u, v - 4.0), QPointF(u, v + 4.0))
             # Draw the ring system's shared center as a small circle
             ring_system = self.sim_params.get('ring_system')
             if isinstance(ring_system, dict):
                 pen = QPen(QColor(0, 255, 255), 2)
                 painter.setPen(pen)
                 geometry = ring_system.get('geometry') or {}
-                center_u = int(geometry.get('center_u', 0))
-                center_v = int(geometry.get('center_v', 0))
-                painter.drawEllipse(center_u - 4, center_v - 4, 8, 8)
+                center_u = float(geometry.get('center_u', 0.0))
+                center_v = float(geometry.get('center_v', 0.0))
+                painter.drawEllipse(QRectF(center_u - 4.0, center_v - 4.0, 8.0, 8.0))
         painter.end()
         self._base_pixmap = pixmap
         self._update_display()
@@ -213,14 +218,21 @@ class RenderDisplayMixin(SimEditorBase):
 
         Checks bodies and rings together, sorted by range (near to far), and selects
         the first match (topmost object).
+
+        Parameters:
+            img_v: Cursor V position in pixel corner coordinates.
+            img_u: Cursor U position in pixel corner coordinates.
         """
         height = int(self.sim_params['size_v'])
         width = int(self.sim_params['size_u'])
-        v_i = round(img_v)
-        u_i = round(img_u)
-        if not (0 <= v_i < height and 0 <= u_i < width):
+        if not (0.0 <= img_v < height and 0.0 <= img_u < width):
             self._selected_model_key = None
             return
+        # The mask pixel a click lands in is the one CONTAINING the pixel corner
+        # position, which is its floor; rounding would credit the click to the
+        # next pixel over for the whole upper half of every pixel.
+        v_i = int(img_v)
+        u_i = int(img_u)
 
         # Collect all objects (bodies and rings) with their ranges and masks
         objects: list[tuple[float, str, int, Any]] = []  # (range, kind, index, mask)
@@ -263,12 +275,17 @@ class RenderDisplayMixin(SimEditorBase):
         # Stars are always behind bodies and rings
         star_info = self._last_meta.get('star_info', [])
         if star_info:
+            # A hit-test entry states the RENDERED position pixel centric, while
+            # the cursor arrives pixel corner, so the cursor crosses to the
+            # renderer's system once before the two are differenced.
+            centric_v = img_v - PIXEL_CENTER_TO_CORNER_PX
+            centric_u = img_u - PIXEL_CENTER_TO_CORNER_PX
             for j, info in enumerate(star_info):
                 cv = info['center_v']
                 cu = info['center_u']
                 sigma = info['sigma']
-                dv = img_v - cv
-                du = img_u - cu
+                dv = centric_v - cv
+                du = centric_u - cu
                 r2 = dv * dv + du * du
                 # Gaussian threshold ~ 3 sigma circle, floored so a
                 # PSF-free star (recorded sigma 0, a 1-px spike) still

@@ -1,4 +1,4 @@
-"""The two frame-fixed optics centres land on the same point.
+"""The two frame-fixed optics centers land on the same point.
 
 ``optics.distortion.center_v`` / ``center_u`` and ``optics.stray_light.center_v``
 / ``center_u`` are both stated the way every other scene position is, in
@@ -11,6 +11,7 @@ The two arrive there by different code, so these tests measure where each field
 actually ends up rather than comparing the arithmetic to itself.
 """
 
+import math
 from typing import Any
 
 import numpy as np
@@ -27,10 +28,10 @@ _CENTER = 20.0
 
 
 def _expected_oversampled_center(detector_center: float) -> float:
-    """Where a stated centre lands on the oversampled grid.
+    """Where a stated center lands on the oversampled grid.
 
     Parameters:
-        detector_center: The centre as a scene states it.
+        detector_center: The center as a scene states it.
 
     Returns:
         The same point in pixel-centric coordinates on the oversampled grid.
@@ -50,30 +51,50 @@ def _scene(optics: dict[str, Any]) -> dict[str, Any]:
     return {'random_seed': 1, 'optics': optics}
 
 
-def test_the_radial_bump_peaks_on_the_stated_centre() -> None:
-    """A radial field's peak is at the centre it was given, in the grid's own terms."""
+def test_the_radial_bump_is_symmetric_about_the_stated_center() -> None:
+    """A radial field is equidistant-valued either side of the center it was given.
+
+    An ``argmax`` cannot settle this.  The field is smooth, so a center half a
+    sample off leaves the same sample brightest (and at exactly half a sample the
+    two straddling samples tie, which ``argmax`` breaks toward the lower one).
+    Equality of two samples placed symmetrically about the stated center moves
+    the moment the center does, in either direction.
+    """
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     apply_stray_light(img, amplitude=0.5, model='radial', center_v=11.0, center_u=29.0)
-    peak_v, peak_u = np.unravel_index(int(np.argmax(img)), img.shape)
-    assert (int(peak_v), int(peak_u)) == (11, 29)
+    for gap in (1, 2, 3):
+        assert float(img[11 - gap, 29]) == pytest.approx(float(img[11 + gap, 29]))
+        assert float(img[11, 29 - gap]) == pytest.approx(float(img[11, 29 + gap]))
 
 
-def test_the_radial_bump_defaults_to_the_frame_centre() -> None:
-    """With no centre the bump sits at the middle of the frame.
+def test_the_radial_bump_defaults_to_the_frame_center() -> None:
+    """With no center the bump sits at the middle of the frame.
 
     On an even-sized frame that middle falls between two samples, so the two
-    straddling rows carry the same value.  A centre half a pixel off would make
+    straddling rows carry the same value.  A center half a pixel off would make
     one of them the unique peak, which is what distinguishes the two.
     """
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     apply_stray_light(img, amplitude=0.5, model='radial')
     low, high = _SIZE // 2 - 1, _SIZE // 2
     assert float(img[low, low]) == pytest.approx(float(img[high, high]))
-    assert float(img[low, high]) == pytest.approx(float(img[high, low]))
+    # Not the transpose of the line above: this one holds the column fixed, so it
+    # is sensitive to the v center alone.  Comparing ``img[low, high]`` against
+    # ``img[high, low]`` instead would be true of any radial field whose two
+    # center coordinates are equal, whatever they are, and so could not fail.
+    assert float(img[low, low]) == pytest.approx(float(img[high, low]))
 
 
-def test_stray_light_converts_its_centre_onto_the_oversampled_grid() -> None:
-    """The stated centre reaches the grid the field is evaluated on."""
+def test_stray_light_converts_its_center_onto_the_oversampled_grid() -> None:
+    """The stated center reaches the grid the field is evaluated on.
+
+    Measured by symmetry rather than by a peak.  The conversion moves the center
+    by half a subsample, which is exactly the distance an integer ``argmax``
+    cannot resolve: against an expected center of ``N + 0.5`` both ``N`` and
+    ``N + 1`` sit within half a sample, so a peak test accepts the conversion
+    omitted, doubled, or applied with the wrong sign.  Samples placed
+    symmetrically about the expected center are equal only where it actually is.
+    """
     frame = new_sim_frame(_SIZE, _SIZE, oversample=_OVERSAMPLE)
     apply_optics(
         frame,
@@ -89,10 +110,18 @@ def test_stray_light_converts_its_centre_onto_the_oversampled_grid() -> None:
         ),
         rng=np.random.default_rng(1),
     )
-    peak_v, peak_u = np.unravel_index(int(np.argmax(frame.signal)), frame.signal.shape)
     expected = _expected_oversampled_center(_CENTER)
-    assert int(peak_v) == pytest.approx(expected, abs=0.5)
-    assert int(peak_u) == pytest.approx(expected, abs=0.5)
+    lo = math.floor(expected)
+    hi = lo + 1
+    col = lo
+    assert float(frame.signal[lo, col]) == pytest.approx(float(frame.signal[hi, col]))
+    for gap in (1, 2, 3):
+        assert float(frame.signal[lo - gap, col]) == pytest.approx(
+            float(frame.signal[hi + gap, col])
+        )
+        assert float(frame.signal[col, lo - gap]) == pytest.approx(
+            float(frame.signal[col, hi + gap])
+        )
 
 
 def _warp_fixed_point(distortion: dict[str, Any]) -> float:
@@ -101,8 +130,8 @@ def _warp_fixed_point(distortion: dict[str, Any]) -> float:
     A warp resamples the plane, so feeding it a ramp whose value *is* its own v
     coordinate makes the result read out the source coordinate each output
     sample was drawn from.  The difference between that and the output
-    coordinate is zero exactly at the centre and changes sign across it, so the
-    centre comes out of a zero crossing -- measured to well under a pixel, and
+    coordinate is zero exactly at the center and changes sign across it, so the
+    center comes out of a zero crossing -- measured to well under a pixel, and
     without the test naming the number it is checking.
 
     Parameters:
@@ -128,13 +157,13 @@ def _warp_fixed_point(distortion: dict[str, Any]) -> float:
     return float(v[i] - d[i] * (v[i + 1] - v[i]) / (d[i + 1] - d[i]))
 
 
-def test_distortion_holds_its_stated_centre_fixed() -> None:
-    """The point a radial warp leaves in place is the centre the scene stated."""
+def test_distortion_holds_its_stated_center_fixed() -> None:
+    """The point a radial warp leaves in place is the center the scene stated."""
     fixed = _warp_fixed_point({'k1': 0.6, 'k2': 0.0, 'center_v': _CENTER, 'center_u': _CENTER})
     assert fixed == pytest.approx(_expected_oversampled_center(_CENTER), abs=0.05)
 
 
-def test_distortion_defaults_to_the_frame_centre() -> None:
-    """With no centre stated the warp holds the middle of the frame fixed."""
+def test_distortion_defaults_to_the_frame_center() -> None:
+    """With no center stated the warp holds the middle of the frame fixed."""
     fixed = _warp_fixed_point({'k1': 0.6, 'k2': 0.0})
     assert fixed == pytest.approx((_SIZE * _OVERSAMPLE - 1) / 2.0, abs=0.05)

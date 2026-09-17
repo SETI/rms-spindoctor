@@ -137,7 +137,7 @@ def test_a_carried_record_supplies_the_pointing_it_records(
 def test_a_record_carried_for_a_deleted_document_is_still_answered(
     file_source: FilePointingSource, tree: Path
 ) -> None:
-    """The declared behaviour change: the run reads what it read at selection time.
+    """The declared behavior change: the run reads what it read at selection time.
 
     A document that leaves the tree between the selection and the per-image
     stage is no longer noticed, which narrows a window every run has rather than
