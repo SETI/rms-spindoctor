@@ -64,9 +64,9 @@ centre of pixel N is N + 0.5 and the centre of a size_v by size_u frame is
 backplane, and star-record code underneath already use, so a position written
 here is the same number those read.
 
-Displacements carry no datum and need no such care: offset_v / offset_u,
-move_v / move_u, catalog_error_v / catalog_error_u, and a companion's sep_px
-are differences between two positions.
+Displacements carry no origin convention and need no such care: offset_v /
+offset_u, move_v / move_u, catalog_error_v / catalog_error_u, and a
+companion's sep_px are differences between two positions.
 
 The planted offset_rotation_deg turns the scene about ONE point in that same
 convention: the frame's centre (size_v / 2, size_u / 2).  The stars, the bodies,

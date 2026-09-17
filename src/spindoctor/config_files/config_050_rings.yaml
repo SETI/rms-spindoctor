@@ -17,10 +17,9 @@ rings:
   # NOT a small term in pixels at high resolution: ring-edge navigation runs
   # far below 5 km/px -- the ring_only_flat Keeler-gap library frames measure
   # ~0.34 km/px at the edge, where 2 km is ~5.9 px and drives tier demotions.
-  # (An earlier note said ~1 km/px; that was the whole-image floored value,
-  # not the edge-local scale the term actually converts at.)  See
-  # nav_model_rings.py for the contested fully-correlated severity assumption
-  # this value is consumed under.
+  # The term converts at that edge-local scale, not at the whole-image
+  # floored scale.  See nav_model_rings.py for the contested
+  # fully-correlated severity assumption this value is consumed under.
   default_orbit_radial_sigma_km: 2.0
 
   # Fraction of an edge's catalog rms treated as a COHERENT whole-edge
@@ -40,11 +39,13 @@ rings:
   # approximate the mode-fitted-to-unfitted ratio above, but nothing has
   # measured it, so the conservative 1.0 ships.
   orbit_radial_sigma_correlated_fraction: 1.0
-  fiducial_feature_threshold: 3
-  fiducial_rms_gain: 2
-  fiducial_min_feature_width: 2
-  one_sided_feature_width: 30.0
-  fiducial_ephemeris_width: 100
+  # The five fiducial-classifier knobs below are reserved: no code reads them.
+  fiducial_feature_threshold: 3       # (count) aligned edge measurements to promote
+  fiducial_rms_gain: 2                # (dimensionless) RMS gain term
+  fiducial_min_feature_width: 2       # (px) radial width below which promotion is
+                                      # suppressed
+  one_sided_feature_width: 30.0       # (px) width used for one-sided gap/step features
+  fiducial_ephemeris_width: 100       # (px) ephemeris-radius matching tolerance
   min_curvature_low_confidence:
     - 0.0
     - 0.5

@@ -19,7 +19,7 @@ ground_truth:
   notes: |
     A ring edge with no other ring features at right edge of FOV. High curvature.
 
-    Phase-4 status: RingEdgeNav's DT fit converges at offset (5.00, -25.00) — within 0.08 px in dv and 0.68 px in du of the operator's ground truth, with a sub-pixel RMS of 0.70. The fit is excellent. The current confidence formula sums per-edge DT RMS across edges (per_edge_dt_rms_summed = 119) and the alpha=-2.0 calibration constant was tuned for ~1 px expected per-edge values, so the sigmoid argument collapses to -238 and the formula returns confidence=0.0. The orchestrator therefore reports status=failed (combined confidence below min_confidence) even though the answer is correct. Phase 10 calibration target: divide per_edge_dt_rms_summed by edge count (or change the formula's normalisation) so the constant retunes against the full 50-image library.
+    RingEdgeNav's DT fit converges at offset (5.00, -25.00) — within 0.08 px in dv and 0.68 px in du of the operator's ground truth, with a sub-pixel RMS of 0.70. The fit is excellent. The current confidence formula sums per-edge DT RMS across edges (per_edge_dt_rms_summed = 119) and the alpha=-2.0 calibration constant was tuned for ~1 px expected per-edge values, so the sigmoid argument collapses to -238 and the formula returns confidence=0.0. The orchestrator therefore reports status=failed (combined confidence below min_confidence) even though the answer is correct.
 
 expected:
   status: failed

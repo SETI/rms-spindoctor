@@ -19,9 +19,7 @@ ground_truth:
   notes: |
     A high-phase terminator arc with no other features in the FOV.
 
-    Phase-4 status: BodyLimbNav and BodyTerminatorNav both fire and BodyLimbNav's offset (6.09, 1.19) lands within ~1 px of the operator's ground truth. The ensemble flags the result conflicted because the summed-confidence gap between the two techniques (0.045) falls below the agreement_gap threshold (0.5), even though the techniques' offsets agree closely. The headline answer is correct; only the ok-vs-conflicted status decision is wrong. Phase 10 calibration target: lower agreement_gap (or replace it with a per-axis disagreement-in-pixels test) so near-agreeing techniques don't trip the conflict detector.
-
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected conflicted/conflicted/BodyLimbNav -> measured success/low/BodyLimbNav. Status conflicted->success/low: the sim-anchored BodyTerminatorNav refit drops the ~0.05-confidence terminator vote that previously tripped the agreement-gap conflict detector; with only BodyLimbNav voting the frame resolves to a clean low-tier success on the operator offset. BodyTerminatorNav no longer emits a result here and is removed from techniques_must_run.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). BodyTerminatorNav emits no result on this frame, so with only BodyLimbNav voting it resolves to a clean low-tier success on the operator offset.
 
 expected:
   status: success

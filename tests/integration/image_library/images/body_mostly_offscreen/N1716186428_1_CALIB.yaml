@@ -19,7 +19,7 @@ ground_truth:
   notes: |
     Tethys offset to upper left of frame. Brightly lit limb fully visible. Limb is obviously not a perfect ellipsoid. Nothing else in the FOV.
 
-    Phase-4 status: BodyLimbNav LM iteration walks away from the coarse-NCC starting point (which lands within ~1 px of the operator's dv) and converges on a wrong local minimum where ~13 limb vertices coincide with internal Tethys crater rims. The Phase-4 SPURIOUS_MIN_INLIER_FRACTION safety net catches this and flags the result spurious, so the orchestrator returns status=failed (status_reason=all_techniques_spurious) rather than reporting a wrong-offset moderate-confidence answer. Phase 5 follow-up: tighter Tukey scaling on heavily-cratered surfaces, polarity-aware DT that downweights internal-body edges, and/or LM step-size cap so the refinement cannot diverge far from the coarse seed.
+    BodyLimbNav LM iteration walks away from the coarse-NCC starting point (which lands within ~1 px of the operator's dv) and converges on a wrong local minimum where ~13 limb vertices coincide with internal Tethys crater rims. The SPURIOUS_MIN_INLIER_FRACTION safety net catches this and flags the result spurious, so the orchestrator returns status=failed (status_reason=all_techniques_spurious) rather than reporting a wrong-offset moderate-confidence answer.
 
 expected:
   status: failed

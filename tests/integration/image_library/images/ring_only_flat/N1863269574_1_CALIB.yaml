@@ -39,27 +39,25 @@ ground_truth:
     confidence=0.952, rank=high, status_reason=rank_1_only; RingEdgeNav
     raw fit (-49.4562, 4.4777) projects to 4.4777 px along the normal,
     identical to the voted representative point.
-    Tier ratchet 2026-07-16: the 2026-07-14 rank-aware ensemble policy caps a fused result with rank-deficient covariance at medium (the unobservable along-edge axis is an assumption, not a measurement); the RingEdgeNav fit and its projection onto the operator-verified normal are unchanged. Ratcheted high -> medium.
-    Tier ratchet 2026-07-19: the ring radial orbit-uncertainty channel
-    prices each consumed edge's own catalog orbit-solution rms as a
-    fully-correlated radial displacement.  This frame fuses the Keeler-A
-    Ring OE IER (rms 1.006 km) and the Keeler IEG (rms 3.620 km) at a
-    local radial scale near 0.34 km/px, giving an LM-weight-weighted
-    effective sigma of 5.171 px along the edge normal (the fit is rank-1,
-    so the term lands entirely on the observable normal axis); the fused
-    sigma 5.17 px exceeds the medium tier's 2 px cap.  The RingEdgeNav
-    fit and its projection onto the operator-verified normal are
-    unchanged -- only the reported uncertainty moved.  Ratcheted
-    medium -> low.
-    CONTESTED, not settled: catalog rms is an orbit-fit residual that
-    mixes a coherent radius error with longitude-varying resonant wander,
-    which does not displace an edge coherently (the A-ring outer edge
-    measures 10.18 km fitted without m-modes and 1.78 km with nine).  The
-    severity applied here is an upper bound and is plausibly several-fold
-    over-severe on exactly these shepherded Keeler edges; a mode-aware
-    decomposition pricing only the m=0 part is the principled fix and is
-    not implemented.  Five operator-verified ring_only_flat frames move
-    medium -> low under this assumption.
+    The ring radial orbit-uncertainty channel prices each consumed edge's
+    own catalog orbit-solution rms as a fully-correlated radial
+    displacement.  This frame fuses the Keeler-A Ring OE IER (rms 1.006 km)
+    and the Keeler IEG (rms 3.620 km) at a local radial scale near 0.34
+    km/px, giving an LM-weight-weighted effective sigma of 5.171 px along
+    the edge normal (the fit is rank-1, so the term lands entirely on the
+    observable normal axis); the fused sigma 5.17 px exceeds the medium
+    tier's 2 px cap.  The RingEdgeNav fit and its projection onto the
+    operator-verified normal are those recorded above; only the reported
+    uncertainty differs.
+    CONTESTED, not settled: catalog rms is an orbit-fit residual that mixes
+    a coherent radius error with longitude-varying resonant wander, which
+    does not displace an edge coherently (the A-ring outer edge measures
+    10.18 km fitted without m-modes and 1.78 km with nine).  The severity
+    applied here is an upper bound and is plausibly several-fold over-severe
+    on exactly these shepherded Keeler edges; a mode-aware decomposition
+    pricing only the m=0 part is the principled fix and is not
+    implemented.  Five operator-verified ring_only_flat frames are priced
+    low under this assumption.
 expected:
   status: success
   confidence_tier: low

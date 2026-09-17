@@ -20,9 +20,8 @@ ground_truth:
     Selection: ENCELADUS | <30; {"apparent_diameter_px": 788.6, "center_phase_deg": 21.271, "filter": "CL1", "lat_coverage_deg": 161.4, "target": "ENCELADUS", "year": "2011"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
     Pipeline: status=success, confidence=0.377, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [17.5, -19.3281], "BodyLimbNav": [18.2049, -19.6064]}.
-    Primary ratchet 2026-07-16: after the 2026-07-14 NCC-covariance rederivation BodyLimbNav is the highest-confidence technique; disc and limb still agree at the operator-verified offset and the navigation is unchanged. Ratcheted BodyDiscCorrelateNav -> BodyLimbNav.
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/BodyLimbNav -> measured success/low/BodyDiscCorrelateNav. Tier medium->low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. Offset unchanged and within slack. Primary also moves to BodyDiscCorrelateNav with the recalibrated confidences.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. The primary is BodyDiscCorrelateNav, the highest-confidence contributor.
 expected:
   status: success
   confidence_tier: low
