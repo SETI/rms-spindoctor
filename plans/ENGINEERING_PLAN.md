@@ -402,8 +402,8 @@ labels state real exposure times and describe the backplane FITS beside
 them, tested over a synthetic cohort of navigation and backplane
 products, and `sd_create_bundle check` holds a bundle to the PDS4 schemas,
 the Schematron rules and its own tables, gated by a test over that cohort —
-but its templates are still drafts in places, so its output is not yet
-valid PDS4. The other three instruments additionally hit
+but its templates are still drafts in places, so its output does not yet validate
+against the PDS4 standard. The other three instruments additionally hit
 `NotImplementedError` walls in their `pds4_*` DataSet hooks. The work
 is therefore: finish and validate Cassini first (final templates; the
 remaining phases of `PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, which finishes as

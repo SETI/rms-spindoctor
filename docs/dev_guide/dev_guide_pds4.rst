@@ -208,7 +208,7 @@ global index step, so a document inventory that cannot be rendered stops the sum
 pass there, with exit status 1, the index tables and their labels on disk and nothing
 the pass writes after them.  A readme that fails to render counts too, and so does the
 bundle label, which the package's template gives the readme's creation time.  A user-guide
-PDF the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what PDS4 requires of it is not
+PDF the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what the PDS4 standard requires of it is not
 written at all -- neither its inventory nor its label, and whatever an earlier run
 left at either path is removed -- and counts once among the labels not written,
 with an error naming the collection and each reason.  A collection label states at
@@ -711,8 +711,8 @@ a run starts; a test over the shipped configuration holds it to the stage's own 
 list and ring target.
 
 ``data.lblx`` names an image's targets, handed to it as ``TARGETS``, one
-``Target_Identification`` each, with a ``data_to_target`` reference.  PDS4 requires a
-data label to name one at least.  An image whose backplane metadata names none -- no
+``Target_Identification`` each, with a ``data_to_target`` reference.  The PDS4 standard
+requires a data label to name one at least.  An image whose backplane metadata names none -- no
 body, and no ring statistic -- has no geometry for a data label to describe, so the
 labels pass skips it before anything is written for it, logging why, and
 :func:`~spindoctor.cli.pds4.targets.covers_a_target` decides it without reading a
@@ -982,7 +982,8 @@ through
 :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`.  It reads the bundle's tree
 and the schemas its labels name, fetched by URL or read from a directory, and writes
 nothing in the tree.  Each way the tree departs
-from PDS4 is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which names the
+from the PDS4 standard is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which
+names the
 file, whether it is an error or a warning, the check that found it, where in the file,
 and what is wrong; an XML schema error also names its kind, the class of the xmlschema
 validator that failed, which does not change with xmlschema's wording.  The program
