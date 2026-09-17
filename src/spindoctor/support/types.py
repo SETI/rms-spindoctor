@@ -8,7 +8,7 @@ variable, the ``PathLike`` union accepted by I/O helpers, and the
 ``MutableStar`` protocol describing the in-memory star-record shape
 used by the star-catalog reduction code.
 
-Centralising these aliases keeps every import site aligned on a single
+Centralizing these aliases keeps every import site aligned on a single
 spelling for the heavily-used numpy types and lets a downstream module
 narrow them in one place.
 """

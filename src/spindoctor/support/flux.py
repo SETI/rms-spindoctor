@@ -111,7 +111,7 @@
 #     logger = logging.getLogger(_LOGGING_NAME+'.calibrate_iof_image_as_dn')
 
 #     if data is None:
-#         # Can be overriden if we want to calibrate some other data block
+#         # Can be overridden if we want to calibrate some other data block
 #         data = obs.data
 
 #     key = (obs.clean_detector, obs.filter1, obs.filter2, obs.texp)

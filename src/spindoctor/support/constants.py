@@ -41,7 +41,7 @@ def containing_pixel(position: float) -> int:
     ``i``, so the pixel containing it is the nearest whole number.  A position
     of exactly ``i + 0.5`` is on the boundary and belongs to neither; it is
     given to the upper pixel, consistently.  ``round`` would not do that: it
-    breaks a tie to the even neighbour, so it hands ``40.5`` down to 40 and
+    breaks a tie to the even neighbor, so it hands ``40.5`` down to 40 and
     ``41.5`` up to 42, and two sites rounding two ends of the same box can then
     disagree about where the box starts.
 

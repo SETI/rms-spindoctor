@@ -67,9 +67,9 @@ samples are grouped, and seventy times the frame's area is seventy frames'
 work.  Undersampling is the bound that reaches the cost itself, and what it
 spends is angular resolution.
 
-The axis is one angle, ``atan2`` of the offset from the disc centre to the
+The axis is one angle, ``atan2`` of the offset from the disc center to the
 minimum-incidence pixel, which is the sub-solar point on the SOLID body and
-projects ``r_solid * sin(phase)`` from the centre (``r_solid`` itself, at
+projects ``r_solid * sin(phase)`` from the center (``r_solid`` itself, at
 the limb, above 90 degrees of phase).  Sampling every k-th pixel locates
 that pixel to within the stride, so the angle moves by about
 ``k / (r_solid * sin(phase))`` radians.  The stride is the smallest INTEGER
@@ -158,12 +158,12 @@ pass and a whole-frame one.
 """
 
 _MASK_BOX_SLOP_PX: float = 0.5
-"""Slop added when converting a field-of-view centre to a bounding-box index.
+"""Slop added when converting a field-of-view center to a bounding-box index.
 
 Field-of-view coordinates run half a pixel ahead of the pixel-centric coordinates a
-bounding box is expressed in, so a box derived from a centre plus a radius
+bounding box is expressed in, so a box derived from a center plus a radius
 is widened by this much to compensate that frame shift. The inventory
-midpoint feeding the centre may itself be quantized by up to half a pixel,
+midpoint feeding the center may itself be quantized by up to half a pixel,
 so the low edge of the box can still fall one pixel short; every consumer
 carries pad far in excess of that residual.
 """
@@ -600,7 +600,7 @@ def _symmetry_axis(
             ``2 * r_env / sqrt(max_samples)``, up to twice that estimate
             just above a threshold.  The pixel it locates is the sub-solar
             point on the solid body, ``r_solid * sin(phase)`` from the
-            centre (``r_solid``, at the limb, above 90 degrees of phase), so
+            center (``r_solid``, at the limb, above 90 degrees of phase), so
             the angle quantizes by about ``2 * (r_env / r_solid) /
             (sqrt(max_samples) * sin(phase))`` radians and up to twice that:
             for a million samples under the shipped 700 km atmosphere, 0.15
@@ -737,7 +737,7 @@ def paint_disc(mask: NDArrayBoolType, center_vu: tuple[float, float], radius_px:
 
     Parameters:
         mask: Extfov-shaped boolean mask, modified in place.
-        center_vu: ``(v, u)`` disc centre in extfov coordinates.
+        center_vu: ``(v, u)`` disc center in extfov coordinates.
         radius_px: Disc radius in pixels.
     """
     rows, cols = mask.shape
@@ -840,7 +840,7 @@ def occluded_disc_fraction(
 
     Parameters:
         occluder_ext: Extfov-shaped boolean mask of occluding pixels.
-        center_vu: ``(v, u)`` envelope centre in extfov coordinates.
+        center_vu: ``(v, u)`` envelope center in extfov coordinates.
         r_env_px: Envelope radius in pixels.
 
     Returns:

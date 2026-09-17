@@ -296,7 +296,7 @@ class RingAnnulusNav(NavTechnique):
             # error displaces the whole annulus coherently and the correlation
             # absorbs it into the reported offset.  Widen the covariance by the
             # declared orbit sigma along the translation such a displacement is
-            # absorbed into -- the correlation-side analogue of the RingEdgeNav
+            # absorbed into -- the correlation-side analog of the RingEdgeNav
             # channel, so a tight lock on a misplaced annulus is not reported as
             # a tight pointing fix.  On a closed ring the absorbed direction is
             # near zero (a uniform radial error dilates rather than translates)

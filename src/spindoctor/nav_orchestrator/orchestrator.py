@@ -1222,7 +1222,7 @@ class NavOrchestrator(NavBase):
         settings = instrument_settings_from_obs(obs)
         raw_image = obs.extdata.astype('float64')
         sensor_mask = obs.extfov_data_sensor_mask()
-        # Sanitise the missing-data sentinel before any finite-only
+        # Sanitize the missing-data sentinel before any finite-only
         # computation.  For calibrated-IF instruments the sentinel is
         # literally NaN (CISS CALIB ``marker_value: NaN``); leaving those
         # NaN in place would make ``_smooth_and_compute_gradients`` raise
