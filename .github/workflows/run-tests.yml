@@ -48,7 +48,7 @@ jobs:
 
       - name: Codespell
         run: |
-          codespell src tests docs util experiments scripts README.md CONTRIBUTING.md .cursor
+          codespell src tests docs util experiments scripts plans README.md CONTRIBUTING.md .cursor
 
   test:
     name: Test rms-spindoctor

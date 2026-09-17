@@ -196,6 +196,19 @@ markers = [
 # Two dictionaries: the default typo list, and the British-to-American list that
 # enforces `.cursor/rules/doc_python.mdc`'s spelling rule.
 builtin = "clear,en-GB_to_en-US"
+# The builtin British list carries a base word but not every inflection, so it
+# catches `catalogue` and lets `catalogued` through.  `.codespell-dictionary.txt`
+# adds the ones this tree actually uses, in codespell's `wrong->right` format --
+# one pair per line, no comments or blanks, which that parser rejects.  The `-`
+# is what keeps the builtins above: naming a dictionary without it replaces them
+# rather than extending them, and it trails the filename because a value opening
+# with `-` reads as another flag.
+dictionary = ".codespell-dictionary.txt,-"
+# Split on everything that is not an ASCII letter.  The default word pattern
+# keeps hyphens and apostrophes, which hides two whole classes: a compound like
+# `optical-centre` is one unknown token, and -- because this project's format
+# uses single quotes -- so is every string literal, `'colour'` included.
+regex = "[a-zA-Z]+"
 skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*.json"
 # Words the dictionaries flag that are right here.  Each is a term of art, an
 # identifier, or a spelling both dictionaries accept -- not an exception granted
@@ -212,7 +225,17 @@ skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*.json"
 #   bu, nd, emiss  identifiers (a u-axis pair, `scipy.ndimage as nd`, emission)
 #   dialogue       a conversation with the operator; the widget sense is
 #                  already spelled `dialog` throughout the UI package
-ignore-words-list = "fom,precess,precessed,precesses,precessing,trough,retuned,commnt,uncorrect,disjointness,unparseable,bu,nd,emiss,re-uses,re-declaring,dialogue,writeable"
+#   checkin        the SQLAlchemy pool event is named that
+#   ser            a ring key: the single-edge ringlet the fixtures build
+# The rest are fragments the word pattern above creates, not words anyone
+# wrote -- it splits on every character that is not an ASCII letter:
+#   mis            the prefix in `mis-lock`, `mis-convergence`, `mis-aligned`
+#   ons            the tail of `follow-ons`
+#   ue             the u-axis half of a pixel pair written `(ve, ue)`
+#   atleast        the tail of `np.atleast_1d`
+#   wasn           the head of `wasn't`
+#   caf            the head of `cafe` written with its accent
+ignore-words-list = "fom,precess,precessed,precesses,precessing,trough,retuned,commnt,uncorrect,disjointness,unparseable,bu,nd,emiss,dialogue,writeable,checkin,ser,mis,ons,ue,atleast,wasn,caf"
 
 [tool.ruff]
 src = ["src", "tests"]
