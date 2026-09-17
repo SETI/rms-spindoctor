@@ -25,7 +25,8 @@ what it did not. The `rf_pds4_draft_bundle` branch was cut 2026-09-09 from
 `main` at `bc103ffb`. `main` was merged into the branch on 2026-09-10 as
 `7d12a974`, bringing #613.
 
-Phases 1-7 have run; Phases 8-10 have not. Two changes landed ahead of
+Phases 1-7 have run, and Part A of Phase 8; Part B of Phase 8, the mission area, and
+Phases 9-10 have not. Two changes landed ahead of
 the phases, both because they must precede anything generated against them: the
 rings dictionary bump recorded in section 3.9, and the masked-value change
 recorded in section 3.13, which alters what the backplane arrays contain and
@@ -57,7 +58,7 @@ this table first and trusts it over any recollection.
 | 5 — Inventories that conform | **done** | `rf_pds4_phase5`, section 3.5; #602 is closed by hand when its PR merges (section 8), #265 staying open for its Phase 10 part |
 | 6 — Bundle-level and static products | **done** | `rf_pds4_phase6`, sections 3.1, 3.2, 3.5, 3.6, 3.9 and 3.13; #74 is closed by hand when its PR merges (section 8), #72 staying open for Phase 8's targets; the operator has since ruled on the source product, and Phase 7 applies the ruling (#678, section 3.13) |
 | 7 — The miscellaneous collection and its global index labels | **done** | `rf_pds4_phase7`, sections 3.1, 3.4, 3.5, 3.8 and 3.13; #76, #601 and #678 are closed by hand when its PR merges (section 8), #601 and #678 by the operator's rulings of 2026-09-14 (section 3.13) |
-| 8 — Targets, mission area, ring geometry | not started | |
+| 8 — Targets, mission area, ring geometry | **Part A done**; Part B not started | Part A, the targets and the ring geometry, on `rf_pds4_phase8`, sections 3.5, 3.7 and 3.13; #73, #75, #47 and #72 are closed by hand when its PR merges (section 8). Part B, `cassini:ISS_Specific_Attributes`, is read from the navigation document's `observation` block, which #684 adds on a branch against `main` by the operator's direction; it reaches this stack once #684 merges and `main` is merged into `rf_pds4_draft_bundle` (section 3.7) |
 | 9 — Parameterize the bundle name and version | not started | |
 | 10 — Validation, the integrity pass, and the draft run | not started | |
 
@@ -201,8 +202,8 @@ plan).
 | # | Defect | Location | Tracked as |
 |---|---|---|---|
 | 1 | `SOURCE_IMAGE_LIDVID` is set to the product's own data LIDVID, so every product cites itself as its source. The calibrated image the navigation reads has no PDS4 counterpart to name instead (section 3.13). | `dataset_pds3_cassini_iss.py:688` | #678; fixed by Phase 7, which applies the operator's ruling and cites the calibrated image as a `Source_Product_External` (section 3.13) |
-| 2 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list |
-| 3 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label, in the data collection label (a Mission Science Data collection, whose references are `collection_to_target`) and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. | `data.lblx:93,130`, `bundle.lblx`, `collection_data.lblx`, `kernels.lblx` | #73, #79, #75, #47 |
+| 2 | `cassini:ISS_Specific_Attributes` is an empty element. Meanwhile `pds4_template_variables` computes about thirty `cassini:*` variables that `data.lblx` never references — `grep -c "cassini:" data.lblx` is 4, all structural. | `data.lblx:94-100` | #53 list; Part B of Phase 8 fills it from the navigation document's `observation` block (#684, section 3.7) |
+| 3 | No `Target_Identification` anywhere, though the data label's schema requires one and the PDS4 Schematron one in the bundle label, in the data collection label (a Mission Science Data collection, whose references are `collection_to_target`) and in a `Product_SPICE_Kernel`; no rings discipline area; no ring incidence angle in the label. `config_900_backplanes.yaml` already reserves `target_lids: {}` for the mapping. Fixed by Part A of Phase 8: the table is filled, every label the schemas require a target of names its targets from it, a data label states its ring geometry and the incidence angle the backplane stage now records, and the context inventory lists the targets (section 3.7). | `data.lblx:93,130`, `bundle.lblx`, `collection_data.lblx`, `kernels.lblx` | #73, #75 and #47, closed by Phase 8; #79 stays open |
 | 4 | Bundle name and `version_id` `1.0` are hardcoded throughout the templates, though config carries `bundle_name`. | templates | #71 |
 | 5 | Nothing validates. No `validate` invocation, no schema check in CI, no `xmlschema` or `lxml` dependency in `pyproject.toml`. | — | #53 list |
 | 6 | A navigated image whose navigation recorded no pointing has no `navigation_result.times`: `build_metadata_dict` writes the times only beside a pointing, and the navigation records a success with no pointing when `compute_pointing` raises `NavPointingError` or the instrument has no SPICE camera frame mapped. Its data label has no start or stop to state, so the labels pass fails the image with nothing written. | `curator.py:353-355`, `orchestrator.py:512-538` | #619, closed by #624, which records the times in the `observation` block; fixed by Phase 7, whose labels pass reads them from there, and fails the image of a document an earlier version wrote, which records none there, until it is navigated again (section 3.4) |
@@ -624,10 +625,11 @@ written, whatever an earlier run left at either path is removed, it counts
 once among the labels not written, and the bundle label, which declares it, is
 removed by its member check, so the summary pass exits 1.
 
-Four are **copied** from the template directory (section 3.2), because
-their membership is fixed: context, document, spice_kernels and schema. An
-inventory lists its `P` line, a product of this bundle, only when that
-product's label is in the bundle: the document inventory leaves out the user
+Three are **copied** from the template directory (section 3.2), because
+their membership is fixed: document, spice_kernels and schema. The fourth,
+context, is **written** from the members the template directory ships and every
+target the data labels name (Phase 8). An inventory lists its `P` line, a
+product of this bundle, only when that product's label is in the bundle: the document inventory leaves out the user
 guide when the template directory holds no guide or the guide's label failed
 (section 3.6), and the SPICE kernel collection, whose one member is the
 metakernel, is by the rule above not written when the metakernel's label is
@@ -650,9 +652,13 @@ which is LID-only; both forms appear to pass, so prefer the versioned one
 and let validation say otherwise.
 
 Our `collection_context.csv` lists the mission, the spacecraft and the two
-cameras, and no target, where the reference's lists every target its labels
-name. Its targets come with the target table of section 3.7, in Phase 8,
-whose text carries the assignment and its test.
+cameras, from the template directory, and then every target the data labels
+name, one `S` line each at the version the targets table gives it (section
+3.7), as the reference's lists every target its labels name. The summary pass
+writes it from those four lines and the targets its one read of the
+supplemental files takes, so its label's record count is its lines; it is
+cleared with the other run-level products before that read; and a test holds
+every target LID a data label references to a line of it.
 
 A collection inventory also carries **`S` members**, not only `P`. The
 reference's document and miscellaneous inventories both list the context
@@ -662,8 +668,12 @@ collection references, not just what it owns. Ours do the same: the document
 inventory the template directory ships lists the four context products and the
 ISS data user guide at `::2.0` as `S` members, and the miscellaneous inventory
 takes its `S` members from that one file (`bundle_products.secondary_members`),
-so the two cannot disagree about them. Whether both also list the target
-context products, as the reference's do, is Phase 8's to decide.
+so the two cannot disagree about them. Neither lists the target context
+products, which the reference's both do: their `S` members are the context
+products their own collections' labels reference, and no document or
+miscellaneous label names a target. The data and SPICE kernel inventories,
+whose labels do name the targets, list their own products alone, as the
+reference's do (Phase 8, section 3.13).
 
 ### 3.6 The document collection
 
@@ -710,29 +720,183 @@ it (Phase 6).
 
 ### 3.7 Targets and the mission area
 
-`config_900_backplanes.yaml` already reserves `target_lids: {}` with the
-comment "used for label target identification". That is the home.
+**The targets table** is `backplanes.target_lids` in `config_900_backplanes.yaml`,
+which had reserved it empty.  Part A of Phase 8 filled it by hand for every body the
+backplane stage can produce backplanes for in a Saturn image -- Saturn and the nineteen
+satellites `config_100_satellites.yaml` lists for it, the list
+`backplanes_bodies.backplane_body_names` gives -- and for the ring target Saturn's ring
+backplanes are computed for, `SATURN_MAIN_RINGS` (`backplanes_rings.ring_target`; #618
+would move that choice into configuration).  That is more than the bodies the cohort
+holds, so a real run meets no body without an entry.  Each entry is keyed by the name
+the backplane metadata gives the target and gives its context product's LID and
+version, and the name and type the product gives the target.  The values are the PDS
+registry's answers of 2026-09-14 to
 
-For the draft, populate it by hand for the Saturn system bodies the cohort
-actually contains — the backplane metadata's `bodies` keys name them, so the
-required set is discoverable from the products, not guessed — plus Saturn's
-rings. Each entry carries the PDS4 context LID, the target name and the
-target type. `data.lblx` grows a `$FOR` over the targets present in this
-image's backplane metadata, emitting one `Target_Identification` each.
-Scraping the context products to maintain that table is #79 and stays a
-follow-up; a hand table for one planetary system is a dozen lines and does
-not block a draft.
+```bash
+curl -sL -H 'Accept: application/json' \
+  https://pds.nasa.gov/api/search/1/products/urn:nasa:pds:context:target:<id>/latest
+```
 
-`cassini:ISS_Specific_Attributes` is filled from the `cassini:*` variables
-`pds4_template_variables` already computes and the template already ignores.
-Which of the thirty belong in the label is a schema question, not a code
-question: implement the ones the `PDS4_CASSINI_1O00_1800` schema requires,
-plus those with a non-empty value from the index row, and let validation
-settle the rest.
+reading `lidvid`, `pds:Target.pds:name` and `pds:Target.pds:type` from its `properties`.
+The main rings' product was found by searching for every Saturn ring target,
 
-Ring geometry (#75) and the ring incidence angle in the label rather than as
-a backplane (#47) go in the same phase, from `rings.backplanes` in the
-backplane metadata.
+```bash
+curl -sL -G -H 'Accept: application/json' https://pds.nasa.gov/api/search/1/products \
+  --data-urlencode 'q=(lid like "urn:nasa:pds:context:target:ring.saturn*")'
+```
+
+which returned two, `ring.saturn.rings` ("Saturn Rings") and `ring.saturn.f_ring`
+("F Ring of Saturn"); `ring.saturn.main_rings` does not exist.
+
+| Key | Context product, `urn:nasa:pds:context:target:` ... | Version | Name | Type |
+|---|---|---|---|---|
+| `SATURN` | `planet.saturn` | 1.4 | Saturn | Planet |
+| `ATLAS` | `satellite.saturn.atlas` | 1.2 | Atlas | Satellite |
+| `CALYPSO` | `satellite.saturn.calypso` | 1.2 | Calypso | Satellite |
+| `DAPHNIS` | `satellite.saturn.daphnis` | 1.2 | Daphnis | Satellite |
+| `DIONE` | `satellite.saturn.dione` | 1.2 | Dione | Satellite |
+| `ENCELADUS` | `satellite.saturn.enceladus` | 1.2 | Enceladus | Satellite |
+| `EPIMETHEUS` | `satellite.saturn.epimetheus` | 1.2 | Epimetheus | Satellite |
+| `HELENE` | `satellite.saturn.helene` | 1.3 | Helene | Satellite |
+| `HYPERION` | `satellite.saturn.hyperion` | 1.2 | Hyperion | Satellite |
+| `IAPETUS` | `satellite.saturn.iapetus` | 1.2 | Iapetus | Satellite |
+| `JANUS` | `satellite.saturn.janus` | 1.2 | Janus | Satellite |
+| `MIMAS` | `satellite.saturn.mimas` | 1.2 | Mimas | Satellite |
+| `PAN` | `satellite.saturn.pan` | 1.2 | Pan | Satellite |
+| `PANDORA` | `satellite.saturn.pandora` | 1.2 | Pandora | Satellite |
+| `PHOEBE` | `satellite.saturn.phoebe` | 1.2 | Phoebe | Satellite |
+| `PROMETHEUS` | `satellite.saturn.prometheus` | 1.2 | Prometheus | Satellite |
+| `RHEA` | `satellite.saturn.rhea` | 1.2 | Rhea | Satellite |
+| `TELESTO` | `satellite.saturn.telesto` | 1.2 | Telesto | Satellite |
+| `TETHYS` | `satellite.saturn.tethys` | 1.2 | Tethys | Satellite |
+| `TITAN` | `satellite.saturn.titan` | 1.1 | Titan | Satellite |
+| `SATURN_MAIN_RINGS` | `ring.saturn.rings` | 1.1 | Saturn Rings | Ring |
+
+The guard is a test over the shipped configuration, holding the table to the stage's
+own body list and ring target for Saturn; nothing checks it when a run starts, and a
+name with no entry raises, naming it, which fails that image.  Scraping the context
+products to maintain the table stays #79.
+
+**Which labels name which targets.**  A data label names one `Target_Identification` for
+each body its image's backplane metadata names that has geometry -- a statistic at
+least, as `targets.has_geometry` decides; a body the inventory found in the field of
+view that shows at no pixel is named with no statistic, and is no target (Phase 8's last
+round; Part A named it, and W1479724035 names nine bodies, seven with no pixel) -- and
+one for the rings when the metadata holds a ring statistic, each with
+the name and type its context product gives and an `Internal_Reference` to its LID of
+type `data_to_target`, in the table's order.  An image whose metadata names no body with
+geometry and holds no ring statistic has no target, which `PDS4_PDS_1O00.xsd` requires of a data
+label, and its backplanes hold no geometry for a label to describe, so it is skipped,
+with one log line, before anything is written for it and before the checks that fail an
+image.  Under the provisional rule that an absent input is a skip, which #600 will
+decide, a skip is not a failure, and the run's exit status is unaffected (the fix
+round; Part A failed it, so no real run could exit 0).  Such images are many.  By the RMS
+Node's summary tables, 71,246 of the 405,121 images of COISS_2001-2116, 17.6%, show no
+Saturn, none of the nineteen satellites and no main-ring pixel: sky frames (16,043),
+Saturn-targeted frames that miss it (12,520, 487 NAC F-ring frames among them), irregular
+moons (Kiviuq alone 4,740), and Pallene and Methone; 2,086 of the reference's 20,584
+reprojected images are among them.  The repository's own star-dominated library frames
+are such images, and so are 24 of the 424 successes of the operator's 2026-09-11 run.  An
+F-ring frame's ring pixels lie outside `SATURN_MAIN_RINGS` -- N1467350440's are at
+139,630 to 140,612 km -- so the F-ring frames come in only if #618 changes the ring
+target.  `targets.covers_a_target` decides the skip without reading a ring target, so
+backplanes an earlier version generated, which record none, still reach the check that
+fails them.  The bundle label (`bundle_to_target`), the data collection label and the
+SPICE kernel collection label (`collection_to_target`) and the metakernel label
+(`data_to_target`, in its `Context_Area`) name every target the data collection's
+members name, which the summary pass takes in its one read of the supplemental files,
+over the data inventory's members, as it takes the range of their epochs, and which
+`GlobalIndexOutcome` returns beside the range.  A summary pass over data members an
+earlier labels pass wrote, before the ring target was recorded, raises a bare
+`KeyError: 'target'` from that read; nothing checks for it, since a bundle is written
+into an empty directory and regenerated (the 2026-09-11 ruling), as Phase 7 decided for
+the times.  The context inventory lists each target (section 3.5).  Stars are not
+targets (section 3.13).
+
+**The ring geometry and the incidence angle** (#75, #47).  The rings dictionary
+describes an image's ring geometry in one class, `rings:Reprojection_Geometry` within
+`rings:Ring_Reprojection`, which the reference's data labels fill for their reprojected
+images.  Of the dictionary's other classes, `rings:Ring_Spectrum` holds every one of an
+image's ranges of radius, longitude, angles and resolutions but the longitudinal
+resolution, but it describes ring spectra and spectrograms, and the dictionary's
+Schematron requires it to identify the observation's wavelengths; section 3.13 records
+the question this leaves open.  A data label of an image with ring backplanes fills
+it from the ring statistics, each written as the global index tables write it and
+stated in the unit its attribute takes: `minimum_` and `maximum_phase_angle`,
+`_emission_angle`, `_inertial_ring_longitude` (deg), its range wrapped at the prime
+meridian (below), and `_ring_radius` (km), and, in its
+`Reprojection_Grid_Parameters`, `_radial_resolution` (km) and
+`_longitudinal_resolution` (deg), each a size per pixel stated in the length or the angle
+a pixel spans.  The incidence angle is one angle over an image, so no backplane holds
+it: the backplane stage now records it in the backplane metadata's `rings` block as
+`incidence_angle`, a value in degrees with its unit, beside `target`, the ring target
+the ring backplanes were computed for, which the targets table keys the rings by.  It is
+`oops`'s `ring_center_incidence_angle` on the observation's full-frame backplane and the
+ring target the ring backplanes use: the incidence at the ring system's center, for the
+light that reaches the camera at the observation's midtime, measured from the normal on
+the sunlit side.  On the real ring frame N1863267861 it is 63.334 deg, 0.00006 deg from
+90 less the Sun's elevation above Saturn's equator as SPICE gives it, and within
+0.003 deg of every one of the frame's 1048576 ring pixels' `ring_incidence_angle`.  The
+stage also keeps `ring_incidence_angle` at each pixel, on the same target and measured
+the same way, which no plane holds either, so #47 stands: the writer records its least,
+greatest and mean over the ring pixels the merged planes hold, as `min`, `max` and
+`mean` beside the center's `value`, and the label states those three as the mean, the
+minimum and the maximum incidence angle, where the reference states one value as all
+three (the fix round).  On N1671602206 the center's angle is 82.57158 deg and its ring
+pixels' 82.57085 to 82.57104, mean 82.57096, the rings about the center being hidden;
+on W1626850595, 89.67993 at the center and 89.67993 to 89.67996 over the rings.  The class's required elements say what the product is:
+`reprojection_plane` `Equator`, `corotating_flag` `N`, and `epoch_reprojection_basis_utc`
+the image's midtime, which with no co-rotation the longitudes do not depend on; its
+description says the arrays are the image's own lines and samples, not a reprojection,
+and how the longitude range is wrapped.  An image of backplanes an earlier version
+generated -- ring statistics without the angle's range over the ring pixels, whether
+with no angle at all or with the center's alone -- is failed before anything is written
+for it, until they are regenerated: those backplanes took their statistics before the
+merge, too (below).  The cohort's backplane fixtures carry the angle SPICE gives at each
+cohort epoch, as the stage writes it -- 64.59619, 64.68149 and 64.59625 deg -- and at
+each ring pixel an angle ramping a thousandth of a degree either side of it.
+
+**The wrapped longitude range** (the fix round).  The rings dictionary defines
+`minimum_` and `maximum_inertial_ring_longitude` as a range wrapped at the prime
+meridian, the minimum above the maximum where it crosses zero, so the label states the
+ring longitude statistic's `wrapped_min` and `wrapped_max`, which the backplane stage
+records beside its plain `min` and `max`, in degrees like them, from the merged plane.
+Taken on the circle, the widest gap between the longitudes, the gap across zero among
+them, is the part the image does not cover, and the arc runs from the longitude after it
+to the one before it (`statistics.wrapped_range`).  When the widest gap is the one
+across zero the arc is the plain least and greatest; of two gaps equally wide the one
+across zero is taken, so the plain range stands; a longitude rounded to 360 is the one
+at zero; and longitudes leaving no gap wider than the image's coarsest longitudinal
+resolution, the greatest value of `ring_longitudinal_resolution`, cover the circle,
+stated as 0 to 360.  N1591060671's rings, 359.687 across zero to 0.402 deg, are stated
+so, where the plain range stated the whole circle.  The index tables keep the plain
+least and greatest under their own names (section 3.13).  The cohort's ring image
+records the range the stage writes, 216.0 across zero to 204.706, since Saturn's disc
+interrupts its synthetic ramp of longitudes; its plain range is 0 to 360.
+
+**Statistics over the product's own pixels** (the fix round).  The body and ring stages
+took each plane's statistics before the merge, which then masks a ring pixel a nearer
+body covers and gives a pixel two bodies share to the nearer, so the metadata, the data
+label and Phase 7's index tables stated ranges over pixels the product's own arrays have
+no value at: N1671602206 was labeled with a ring longitude of 10.767 to 258.852 where
+its FITS spans 241.932 to 258.852, and a greatest radial resolution of 3818.0 km against
+1151.4.  The writer now takes every statistic from the planes the FITS holds, over the
+pixels where each has a value: a body's over the pixels the body identity map gives it,
+the rings' over every pixel; a body a nearer body hides entirely is recorded with no
+statistic.  The wrapped range and the incidence range are taken over the same merged
+planes.  The index tables' values change with it for any image where a body covers the
+rings or another body; the cohort's do not, since none of its bodies covers either.
+Regenerated with this code, every ring value the data labels of N1671602206 and
+W1626850595 state equals its FITS array's, thirty of thirty.
+
+**The mission area** is Part B of Phase 8.  `cassini:ISS_Specific_Attributes` is to be
+filled from the Cassini facts the navigation document's `observation` block records,
+which #684 adds to what `ObsCassiniISS.get_public_metadata()` publishes, on a branch
+against `main`, by the operator's direction; the bundle's supplemental file already
+carries the whole document.  It reaches this stack after #684 merges and `main` is merged
+into `rf_pds4_draft_bundle`.  The `cassini:*` variables `pds4_template_variables` reads
+from the image's PDS3 index row are not the source, since a run's row holds two columns
+(Phase 8's text).
 
 ### 3.8 Units: radians in the arrays, degrees in the tables
 
@@ -987,8 +1151,9 @@ What the Cassini ISS Saturn cohort holds beyond the documents:
   statistics name the same backplanes the FITS carries, since the global
   index columns come from one and the arrays from the other.
 - **`ImageFile`s carrying `index_file_row`**, because sixty-six of the
-  seventy `cassini:*` template variables are read from the PDS3 index row and
-  Phase 8 puts them in the label. No index file is parsed; the row is a dict,
+  seventy `cassini:*` template variables are read from the PDS3 index row, a
+  source Part B of Phase 8 replaces with the navigation document's
+  `observation` block (#684). No index file is parsed; the row is a dict,
   keyed by the index file's own column names.
 - **Coverage the bundle stage cares about**, which the stats corpus has no
   reason to carry: two images whose numbers shard into *different*
@@ -1003,7 +1168,7 @@ that writes it.
 **A 16 by 16 frame records `INSTRUMENT_MODE_ID = FULL`.** `FULL` is a
 claim about size and no Cassini mode value names a frame this small, so
 there is no truthful value to record instead and the simplification
-stands. It stops being purely internal at Phase 8, which puts
+stands. It stops being purely internal at Part B of Phase 8, which puts
 `cassini:instrument_mode_id` into the same label as Phase 4's 16-element
 `Array_2D_Image` blocks: re-check it there, and decide whether the
 cohort grows a full-size frame for one image or the label carries the
@@ -1013,10 +1178,14 @@ mode the row holds.
 resolves overlapping bodies by nearest distance and aggregates a plane's
 statistics over all of them, and a cohort with one body per frame cannot
 tell a correct aggregation from one that reports the first body it
-found. A second body is what Phase 7 and Phase 8 need, since that is
+found. A second body is what Phase 7 needed, since that is
 where a per-body inventory and the global index columns over it are
 written; the backplane fixture takes a tuple of bodies already, so
-adding one is a line in the image's declaration.
+adding one is a line in the image's declaration. Part A of Phase 8 held a
+data label to two bodies by giving the limb image's backplane metadata a
+second body in the test itself, under a backplane root of its own, and left
+the cohort as it is, so the aggregation over overlapping bodies still has
+no cohort image to be tested on.
 
 **The backplane products under `/data` are not ground truth for this.**
 They were written before the masked value became `-999`, so every plane
@@ -1346,13 +1515,20 @@ once it exists (#687). Phase 7 applies it. `data.lblx` carries a
 declined:
 
 - **Science facets.** The reference's bundle label carries `Science_Facets`
-  (Visible; Rings; Ring-Moon Systems) and its data collection label (Visible;
-  Ring-Moon Systems); ours carry a comment asking whether they are needed.
-  Phase 8, which owns the rest of the `Context_Area`, decides them.
+  (Visible; Rings; Ring-Moon Systems) and its data collection label and data labels
+  (Visible; Ring-Moon Systems). Decided in Phase 8: the bundle, data collection and
+  data labels carry one `Science_Facets`, `wavelength_range` Visible and
+  `discipline_name` Ring-Moon Systems, as the reference's data collection and data
+  labels do, both values in the lists the `PDS4_PDS_1O00` Schematron allows, and
+  Ring-Moon Systems taking no `facet1`. Declined: the bundle label's `domain` Rings,
+  since this bundle's backplanes cover bodies as well as rings. The comments that only
+  asked about them are gone.
 - **The SPICE kernel collection label.** Adopted: a `Context_Area` with the
   reference's `Primary_Result_Summary` (`purpose` Observation Geometry,
   `processing_level` Derived) and a `Collection/description`. Its targets are
-  Phase 8's.
+  named since Phase 8's fix round: every target the data labels name, with
+  `collection_to_target`, where the reference's names its two ring targets. Its
+  inventory lists the metakernel alone, as the reference's does.
 - **The user guide's LID and file name.** Declined. The reference names both
   `f-ring-mosaics-user-guide`; ours has the LID
   `...:document:backplanes-user-guide`, which section 3.1's tree gives it and
@@ -1445,6 +1621,75 @@ declined:
 - **The title.** Adopted: the reference's is "Global Mosaic Index", and ours
   are "Global Bodies Index" and "Global Rings Index", each label's citation
   description saying which bundle and images the table indexes.
+
+**Differences Phase 8 made**, each deliberate:
+
+- **Stars are not targets.** The reference's bundle label names stars as targets (R
+  Lyrae among them), and its context inventory lists nine `star.*` context products:
+  they are the stars its occultation data were measured against. A backplane bundle's
+  targets are what its images are of, the bodies and the rings, and not what the
+  navigation used: an image navigated on stars names no star, and the targets table
+  holds none.
+- **The document and miscellaneous inventories list no target.** The reference's both
+  list its four target context products as `S` members, though no document or
+  miscellaneous label of it names a target. Here an inventory's `S` members are the
+  context products its own collection's labels reference, so neither lists one, and the
+  context inventory lists every one (section 3.5); `bundle_products.secondary_members`
+  is unchanged.
+- **The ring geometry of an image that is not reprojected.** The reference fills
+  `rings:Reprojection_Geometry` for images it reprojected onto a radius and longitude
+  grid; ours fills it for images laid out as their own lines and samples, since no other
+  class of the rings dictionary fits an image's ring ranges (the next item), with
+  `corotating_flag` N, `reprojection_plane` Equator, the midtime as the basis epoch, grid
+  parameters holding the resolutions alone, and a description saying so (section 3.7).
+  Its longitude range is the one the dictionary defines, wrapped at the prime meridian,
+  its minimum above its maximum across zero, where the index tables keep the plain least
+  and greatest. Its incidence angle is the mean, the least and the greatest over the
+  image's ring pixels, where the reference states one value as all three. Both are the
+  fix round's: Part A stated the plain range, and the angle at the ring center as all
+  three.
+- **Open, for the operator or the Rings Node before delivery: the ring geometry's
+  class.** The product review reads the class's definition -- "the parameters describing
+  reprojection geometry when the ring(s) is reprojected based on a fixed grid of
+  coordinates (e.g., radius vs. longitude)" -- and `epoch_reprojection_basis_utc`'s, "the
+  basis epoch for the corotating frame", with `reprojection_plane` "required in labels of
+  ring reprojection products", as meant for reprojected rings. The values fit
+  their definitions, and the description tells a reader that the arrays are the image's
+  own lines and samples, but a harvester would file every product as a reprojection. No
+  other rings class fits better: `rings:Ring_Spectrum` holds every one of the ranges but
+  the longitudinal resolution, but it describes ring spectra and spectrograms, and the
+  dictionary's Schematron requires it to identify the observation's wavelengths. The code
+  review's alternative is geom's `Illumination_Geometry`, whose `Illumination_Min_Max`
+  holds the least and greatest emission, incidence and phase angles over a target or the
+  whole field of view, and whose emission angle geom defines for rings too; the radius,
+  longitude and resolution ranges would then have no class. Nothing changes until the
+  question is answered.
+- **The satellites' `alternate_designation`s and NAIF description.** Declined. The
+  reference's satellite `Target_Identification`s carry `alternate_designation`s --
+  Prometheus's are "Saturn XVI (Prometheus)", "S/1980 S 27" and "NAIF ID 616" -- and a
+  `description` giving the NAIF ID, the center of motion, and its LID and NAIF ID. Ours
+  give the name, the type and the reference, from the targets table, which holds each
+  target's LID, version, name and type as the registry gives them; the rest is in the
+  context product each label refers to, and holding it here would be four more fields
+  for each of the table's 21 entries, which scraping the context products (#79) would
+  fill.
+- **The metakernel label names the union.** Declined: the reference's `kernels.lblx`
+  names its two ring targets, what its data are of; ours names every target the data
+  labels name, since a backplane bundle's data are of the bodies as well as the rings,
+  and the SPICE kernel collection label names the same.
+- **The ring block's mean phase and emission angles, `local_identifier`s and
+  `Local_Internal_Reference`.** Declined. The statistics record no mean of any plane
+  (#253 records the dev guide's promise of one), so the label states the incidence
+  angle's mean alone, which the writer takes for the range #47 asked for; a mean for
+  each ring plane would be a new statistic for every plane, the index tables' columns
+  included. The reference's `local_identifier`s on `Reprojection_Geometry` and
+  `Reprojection_Grid_Parameters`, and its `Local_Internal_Reference` from
+  `Ring_Reprojection` to its reprojected image's array, tie its one reprojected array to
+  its geometry; ours describes every ring plane of the FITS together, so no one array is
+  the one the geometry is of, and nothing refers to either class by identifier.
+- **Versioned context members.** Declined: the reference's context inventory lists LIDs
+  without versions; ours lists each member at its version, `S,<lidvid>`, as section 3.5
+  writes every member of an inventory.
 
 Six places where this plan deliberately does **not** follow the reference:
 
@@ -1992,12 +2237,16 @@ and the range of the epochs the data collection and bundle labels state is taken
 over the members alone, the same images as the rows, so that a supplemental file
 with no data label cannot widen it. That is the index half of #602.
 
-A body the backplane document names gets a bodies row whether or not it has any
-statistic, since the backplane writer records a body from the image's inventory
-alone when none of its planes has a value, and every statistic cell of that row
-is the masked value; rings with no statistic get no rings row, since the writer
-records the rings only with their statistics. Both predate this phase and are
-left as they are; the dev guide says so.
+A body the backplane document names gets a bodies row only when it has geometry,
+a statistic at least, as `targets.has_geometry` decides: the backplane writer
+records a body from the image's inventory alone when none of its planes has a
+value, and a row for it would measure nothing. This phase gave such a body a row
+of masked values; Phase 8's last round reversed that, since on real frames the
+table would fill with rows that measured nothing (W1479724035 names nine bodies,
+seven with no pixel). A body with statistics for some planes and not others still
+has its row, the masked value in the columns it has none for. Rings with no
+statistic get no rings row, since the writer records the rings only with their
+statistics. The dev guide says both.
 
 **The tables are fixed width**, as the reference's are: a comma-separated header
 line, then rows each field of which is padded to the longest value written in
@@ -2175,67 +2424,234 @@ Closes #76, #601 and #678, by hand when its PR merges into
 
 ### Phase 8 — Targets, mission area, ring geometry
 
-`target_lids` populated for the Saturn system. `Target_Identification` per
-body present in the image's backplane metadata.
-`cassini:ISS_Specific_Attributes` filled from the already-computed
-variables. Ring geometry class fields and the ring incidence angle in the
-label.
+Split in two by the operator's direction.  **Part A**, the targets and the ring
+geometry, is done on `rf_pds4_phase8`.  **Part B**, the mission area, is not started,
+and waits on #684.
 
-**The bundle, data collection and metakernel labels take targets too.** The
-PDS4 Schematron requires a `Target_Identification` in the bundle label, in a
-`Product_SPICE_Kernel`'s `Context_Area`, and in the data collection label's,
-since a Mission Science Data collection names its targets, there with
-`collection_to_target` references. `bundle.lblx`, `collection_data.lblx` and
-`kernels.lblx` have none, as the data labels have none (section 2.2 row 3).
-This phase also decides the `Science_Facets` the reference's bundle and data
-collection labels carry and ours only ask about in a comment (section 3.13),
-with the rest of the `Context_Area`.
+**Part A.**  Section 3.7 carries the design and the targets table; what landed:
 
-**The context inventory lists the targets.** `collection_context.csv` lists
-every target context product the data labels reference, taken from
-`target_lids`, as the reference bundle's lists every target its labels name;
-today it lists the mission, the spacecraft and the two cameras and no target
-(section 3.5). Each target is an `S` member carrying its version, as section
-3.5 has every member do.
+- **The targets table**, `backplanes.target_lids`, filled from the PDS registry for
+  Saturn, the nineteen satellites the configuration lists for it and
+  `SATURN_MAIN_RINGS`.  `src/spindoctor/cli/pds4/targets.py` reads it (`target_table`),
+  says which targets an image's backplane metadata names (`image_targets`), and takes
+  them over the summary pass's read (`TargetScan`), each list in the table's order.  The
+  stage's body list and ring target became one function each,
+  `backplanes_bodies.backplane_body_names` and `backplanes_rings.ring_target`, which the
+  writer uses too, so that the guard, a test over the shipped configuration, asks the
+  stage's own rules rather than restating them.
+- **The data label** names one `Target_Identification` per body its backplane metadata
+  names and one for the rings when the metadata holds a ring statistic, each with a
+  `data_to_target` reference.  An image naming none is skipped before anything is written
+  for it (the fix round; Part A failed it), and a name with no entry raises, naming it,
+  which the labels driver counts.  The
+  XSD error each data label carried is gone.
+- **The run-level labels.**  The bundle label (`bundle_to_target`), the data collection
+  label (`collection_to_target`) and the metakernel label (`data_to_target`) name every
+  target the data collection's members name, which the global index takes in its one
+  read of the supplemental files and returns beside the range in `GlobalIndexOutcome`; the
+  driver hands both on.  The evaluator's five target failures are gone.
+- **The context inventory** is written, the template directory's four lines and then an
+  `S` line per target at its version, and cleared with the other run-level products
+  (section 3.5).  The document and miscellaneous inventories list no target (section
+  3.13).
+- **Science facets**: one, Visible and Ring-Moon Systems, in the bundle, data collection
+  and data labels, with no domain (section 3.13).
+- **The ring incidence angle** (#47): the backplane stage records `rings.target` and
+  `rings.incidence_angle`, `oops`'s `ring_center_incidence_angle` in degrees, for every
+  image with a closest planet, and the cohort's fixtures carry them as the stage writes
+  them.  An image of backplanes generated before is failed before anything is written for
+  it.
+- **The ring geometry** (#75): `src/spindoctor/cli/pds4/ring_geometry.py` builds
+  `rings:Reprojection_Geometry` from the ring statistics and the angle, which `data.lblx`
+  states for an image with ring backplanes and not for one without.
 
-**Whether other inventories list the targets too.** The reference's document
-and miscellaneous inventories both list its target context products as `S`
-members, and this phase decides whether ours do. If they do, the
-miscellaneous inventory needs a source other than the document inventory the
-template directory ships, from which it takes its `S` lines today
-(`bundle_products.secondary_members`), since the targets come from
-`target_lids` and not from a shipped file.
+Tests.  Over stand-ins: an image's targets are its bodies with geometry (Part A's test
+held a body with no statistic a target too; the last round reversed it), and the ring
+target only beside a ring statistic, in the table's order; a name with no
+entry is refused by name, by the scan too as it reads; a scan's targets are every
+product's, once each; the global index takes only the data collection's members'
+targets; the table's entries become targets in order, a version as text; the data label
+is handed the targets; an image naming no target is skipped, and one with ring
+statistics and no incidence angle fails, each with nothing written; a body with no entry
+raises with nothing
+written; the ring geometry states each range and the incidence angle in the schema's
+order, each resolution in the size a pixel spans, and leaves out a plane with no
+statistic; the context inventory lists each target after the template directory's lines;
+the driver hands both generators the index's range and targets; the ring stage takes the
+incidence angle at the ring center on the ring target, in degrees; and the writer records
+the target and the angle in the `rings` block.  Over the shipped configuration: every body
+the stage looks for in a Saturn image, and its ring target, has an entry, and every
+configured ring plane has a place in the ring geometry.  Over the cohort: each data label
+names the targets its backplanes cover, with `data_to_target`; an image given two bodies
+names both; the bundle, data collection and metakernel labels name every target, each
+with its reference type; every target a data label references is in the context
+inventory, each at its registered version; only the ring image states the ring geometry,
+its values are the metadata's written as the tables write them, and its fixed elements are
+the equator, no co-rotation and the midtime; and the bundle, data collection and data
+labels declare the facets.  Each new or changed test was driven red by a mutation: fifty,
+all killed.
 
-**The index row a run hands over holds two columns.** The enumeration reads
-only the columns it declares -- `_INDEX_COLUMNS` plus `_INDEX_CAMERA_COLUMNS`,
-which for Cassini are `FILE_SPECIFICATION_NAME` and `INSTRUMENT_ID`, plus the
-four a BOTSIM grouping adds -- and `PdsTable` returns those alone, so every one
-of the seventy `cassini:*` variables `pds4_template_variables` reads from
-`index_file_row` takes its default on every real run. Declaring the columns the
-label reads is this phase's, and so is the second half of it: a dozen of those
-variables name columns the COISS index has no such column for
-(`SPACECRAFT_CLOCK_COUNT_PARTITION` against the index's
-`SPACECRAFT_CLOCK_CNT_PARTITION`, `FILTER1` and `FILTER2` against one
-two-element `FILTER_NAME`, `GROUND_SOFTWARE_VERSION_ID` against
-`SOFTWARE_VERSION_ID`, `START_TIME_DOY` and `STOP_TIME_DOY` against
-`START_TIME` and `STOP_TIME`, and the `EXPECTED_MAXIMUM` / `VALID_MAXIMUM` /
-`INST_CMPRS_RATE` pairs against one array column each). One more reads a
-column the index has, but the wrong one: `cassini:image_mid_time` is filled
-from `IMAGE_TIME`, the shutter-close time, where the index carries an
-`IMAGE_MID_TIME`; for the cohort's limb image that is `04:25:36.045` against
-an `IMAGE_MID_TIME` of `04:25:35.815`. The cohort keys its rows by the
-index's own names, so both halves are visible there rather than papered
-over.
+Checks over the cohort bundle -- plain, with a stand-in guide, with a statistic dropped
+from every body and with no ring statistic -- offline as in Phase 7: the XSD finds only
+the `TODO DOI` placeholders, two in `bundle.lblx` and four more in the guide's label when
+it is there; every Schematron rule of the five dictionaries finds nothing; and the table
+check (`check_misc`) finds what it found at `758c09de` and nothing new -- the user guide's
+LID resolving to nothing where the PDF is absent, and, in the two builds that alter
+supplemental files after the labels pass, the data labels' sizes and checksums of those
+files.  Against the `758c09de` builds, nine files of each differ, as they should: both
+supplemental files, 123 bytes longer for the `rings` block's target and angle, so both data
+labels' statements of their size and checksum; both data labels for the facets and the
+targets, and the ring image's for its ring geometry; the bundle, data collection and
+metakernel labels for their targets, and the first two for the facets; and the context
+inventory, three target lines longer, with its label's size, checksum and records.  In the
+build with no ring statistic the ring target is in neither the run-level labels nor the
+context inventory, since that build strips the statistics from the supplemental files after
+the ring image's data label names it.
 
-Tests: an image with two bodies emits two `Target_Identification` blocks; an
-image with rings emits the ring geometry block and one without emits none;
-every target LID a data label references is listed in the context inventory;
-and the bundle, data collection and metakernel labels carry the targets the
-Schematron requires of them.
+**The fix round**, after the product and code reviews of Part A.  Section 3.7 carries the
+design; what changed:
 
-Closes #73, #75, #47, and #72, the context collection, which Phase 6 wrote
-and whose targets this phase adds; contributes to #53's template list. #79
-stays open.
+- **An image whose backplanes cover no target is skipped**, not failed, before the checks
+  that fail an image, with one log line, and the run's exit status is unaffected: 17.6%
+  of COISS_2001-2116 are such images, the F-ring frames among them, which come in only if
+  #618 changes the ring target (section 3.7).
+- **Statistics over the product's own pixels.**  The writer takes every statistic from
+  the merged planes, a body's over the pixels the body identity map gives it and the
+  rings' over every pixel, and the stages compute none; `merge.body_naif_id` is the one
+  NAIF lookup the merge and the writer share.  The index tables' values change for any
+  image where a body covers the rings or another body; the cohort's do not.
+- **The wrapped ring longitude range**, `statistics.wrapped_range`, recorded as the ring
+  longitude statistic's `wrapped_min` and `wrapped_max` and stated by the label.
+- **The incidence range.**  The ring stage keeps `ring_incidence_angle` at each pixel, the
+  writer records its `min`, `max` and `mean` over the merged ring pixels beside the
+  center's `value`, and the label states those three; the check for backplanes of an
+  earlier version asks for the range.
+- **The SPICE kernel collection label** names the targets, with `collection_to_target`.
+- **Stand-in values** in the generic ring tests, three of which held Saturn's.
+- **Pins** for Part A's two surviving mutations: the summary pass reads each supplemental
+  file once (M15), and only the context inventory lists a target (M18).
+- **Section 3.13** records the ring geometry's class as open, for the operator or the
+  Rings Node, with geom's `Illumination_Geometry` as the code review's alternative, and
+  the four other differences from the reference the product review found, each declined
+  with its reason.  The dev guide and section 3.7 say that `rings:Ring_Spectrum` holds the
+  ranges but describes spectra, and that nothing checks a summary pass over an earlier
+  labels pass.
+
+Tests.  An image whose backplanes cover no target is skipped with nothing written,
+whatever its navigation document records, and a labels run over one, generating for
+real, counts it skipped, writes nothing and exits 0.  The writer's statistics leave out
+the rings, and the part of a body, that a nearer body covers, and a body hidden entirely
+has none; the wrapped range and the incidence range leave out the covered rings too; the
+incidence range leaves out a ring pixel with no angle, and its mean is not its median;
+and the wrapped range measures gaps against the coarsest pixel.  `wrapped_range`: an arc
+across zero starts at the greater longitude, one not across it is the plain range, a tie
+keeps the plain range, 360 is zero, no gap wider than the resolution is the whole
+circle, and a plane in radians is wrapped in degrees.  The ring stage keeps the angle at
+each pixel, on the ring target and from the sunlit side, in radians, the masked value
+off the rings.  The label states the wrapped range and the incidence's mean, least and
+greatest; backplanes with no incidence angle, and with the center's alone, both fail;
+the kernel collection label names the targets; the summary pass reads each supplemental
+file once; and only the context inventory lists a target.  Over the shipped
+configuration, the ring longitude and its resolution are in radians.  Each new or changed
+test was driven red by a mutation: forty-one, all killed.
+
+Real frames, re-navigated so that their documents record the exposure times, then
+backplaned and labeled with this code: every ring value the data labels of N1671602206
+and W1626850595 state equals its FITS array's, thirty of thirty, N1671602206's ring
+longitude now 241.932 to 258.852 deg and its greatest radial resolution 1151.4 km.  The
+code review's star-only frame N1607625633 is skipped, the labels pass exiting 0 with
+nothing written.
+
+Checks over the cohort bundle, offline as before, in six builds: Part A's four, one
+whose ring image's rings block is N1591060671's as the stage now writes it, and one
+whose limb image's metadata is the F-ring frame N1467350440's.  The XSD finds only the
+`TODO DOI` placeholders, two in `bundle.lblx` and four more in the guide's label when it
+is there; every Schematron rule of the five dictionaries finds nothing; and the table
+check finds what it found for Part A.  Against Part A's builds, four files of each of its
+four cases differ: the ring image's supplemental file, 178 bytes longer in the plain
+build for the wrapped range and the incidence range, and so its data label, which also
+states them in its new description's terms; the SPICE kernel collection label, for its
+targets; and the readme, for its sentence on the images left out and the Phase 7 fix
+merged at `8d704fc6`.  The limb image's products and the context inventory are
+unchanged.  The crossing build's ring label states the longitude from 359.687 to
+0.402 deg; the cohort's own ring label states 216.000 to 204.706, and the incidence
+64.681, 64.680 and 64.682.  In the last build the limb image is skipped with the log
+line, the bundle holds the ring image alone, and the context inventory lists Saturn and
+its rings but not Enceladus.
+
+**The last round**, after the product and code verifications of the fix round:
+
+- **Statistics in double precision.**  `plane_statistics` restated a float32 plane's
+  radians in degrees in float32, so a size per pixel in degrees, written to eight
+  decimals, lost its last digit: W1626850595 stated 0.27105078 where its FITS array,
+  converted in double, gives 0.27105080.  It now converts in float64, and the wrapped
+  range is found over the same values.
+- **NaN in the wrapped range** is ignored, as `nanmin` and `nanmax` ignore it for the
+  plain range, and longitudes that are all NaN give NaN for both ends.
+- **One rule for a body with geometry.**  A body counts only when its backplanes hold at
+  least one statistic, as `targets.has_geometry` decides, and the one rule serves the
+  skip, the targets, which the run-level labels and the context inventory follow, and
+  the rows of the bodies index (section 3.7).  The last reverses Phase 7's row of
+  missing values for a body with no statistic, which on real frames would fill the
+  table with rows that measured nothing; a body with statistics for some planes and not
+  others keeps its row.
+- **Pins** for the fix round's two surviving mutations: the cohort's rings index row
+  states the plain ring longitude, 0 to 360, where its data label states the wrapped
+  range, 216.000 to 204.706 (N29); and the writer test's ring pixels span 41 to 49 deg,
+  mean 43, about a center of 40, the least, the greatest and the mean each pinned on
+  its own (N17).
+- **The readme** says which images the bundle leaves out and why, naming the 19
+  satellites, and five rst lines the fix round and this round left past 90 characters
+  are wrapped.
+- **Older body-only backplanes**: no change, since backplanes are regenerated before a
+  delivery build.
+
+Tests.  A float32 radian value whose degrees differ in the eighth decimal is stated as
+its float64 conversion; a NaN among the longitudes leaves the arc as it is, and
+longitudes all NaN give none; a frame naming only a body with no statistic is skipped;
+of two bodies, one with a statistic and one without, the data label names one target,
+the bodies index has one row, and the one without is no target; the rings index states
+the plain longitude; and the writer's least, greatest and mean incidence each stand
+apart from the center's.  Each new or changed test was driven red by a mutation:
+eleven, all killed.
+
+Checks.  At `6d86f0d5`, ruff, the format check (796 files) and mypy (797 source files)
+are clean, and so are sphinx and pymarkdown; the unit suite passes, 12647 and 6
+xfailed.  The plain cohort bundle, rebuilt, has only the `TODO DOI` placeholders for the
+XSD, nothing for any Schematron rule, and the table check's seven findings of the fix
+round, the user guide's LID with no PDF.  Against the fix round's build, both index
+tables are byte-identical and every value a label states is unchanged: the statistics'
+double-precision digits change the two supplemental files, 8154 to 8149 bytes and 9179
+to 9229, and so each data label's statement of that file's size and checksum; the readme
+is the other difference.
+
+**Part B: the mission area.**  `cassini:ISS_Specific_Attributes` is to be filled from the
+Cassini facts the navigation document's `observation` block records, which #684 adds, on
+a branch against `main`, by the operator's direction.  It reaches this stack after #684
+merges and `main` is merged into `rf_pds4_draft_bundle`, and it replaces the source the
+`cassini:*` mapping of `pds4_template_variables` reads rather than declaring that
+source's columns.
+
+*History: the index row.*  The mapping reads the image's PDS3 index row, and a run hands
+over a row of two columns: the enumeration reads only the columns it declares --
+`_INDEX_COLUMNS` plus `_INDEX_CAMERA_COLUMNS`, which for Cassini are
+`FILE_SPECIFICATION_NAME` and `INSTRUMENT_ID`, plus the four a BOTSIM grouping adds --
+and `PdsTable` returns those alone, so every one of the seventy `cassini:*` variables
+takes its default on every real run.  Declaring the columns the label reads was to be
+this phase's, with its second half: a dozen of those variables name columns the COISS
+index has no such column for (`SPACECRAFT_CLOCK_COUNT_PARTITION` against the index's
+`SPACECRAFT_CLOCK_CNT_PARTITION`, `FILTER1` and `FILTER2` against one two-element
+`FILTER_NAME`, `GROUND_SOFTWARE_VERSION_ID` against `SOFTWARE_VERSION_ID`,
+`START_TIME_DOY` and `STOP_TIME_DOY` against `START_TIME` and `STOP_TIME`, and the
+`EXPECTED_MAXIMUM` / `VALID_MAXIMUM` / `INST_CMPRS_RATE` pairs against one array column
+each), and `cassini:image_mid_time` is filled from `IMAGE_TIME`, the shutter-close time,
+where the index carries an `IMAGE_MID_TIME` (`04:25:36.045` against `04:25:35.815` for the
+cohort's limb image).  The cohort keys its rows by the index's own names, so both halves
+are visible there.  Part B takes the facts from the observation block instead.
+
+Part A closes #73, #75, #47 and #72, the context collection, which Phase 6 wrote and whose
+targets Part A adds, by hand when its PR merges into `rf_pds4_draft_bundle` (section 8);
+it contributes to #53's template list.  #79 and #618 stay open.
 
 ### Phase 9 — Parameterize the bundle name and version
 
@@ -2286,15 +2702,14 @@ checks referential integrity, but it is Java and does not belong in this
 repository's CI; the Python check is the gate that runs on every PR, and
 `validate` is run once by hand for the draft.
 
-Until Phase 8 lands and the DOIs are registered, the check over the synthetic
-cohort is expected to report exactly these, and nothing else. From the XSD:
-each data label's missing `Target_Identification`, and the `TODO DOI`
-placeholders in `bundle.lblx` and the user guide's label (section 3.13). From
-the Schematron, five failures, all targets: `bundle.lblx`'s two, for its
-targets' name and type; `collection_data.lblx`'s two, under
-`pds:Product_Collection/pds:Context_Area`, which requires a Mission Science
-Data collection's targets' name and type; and `kernels.lblx`'s one, under
-`pds:Product_SPICE_Kernel/pds:Context_Area`.
+Until the DOIs are registered, the check over the synthetic cohort is expected to
+report exactly the `TODO DOI` placeholders in `bundle.lblx` and the user guide's
+label (section 3.13), from the XSD, and nothing else. Part A of Phase 8 removed
+the rest: each data label's missing `Target_Identification`, and the Schematron's
+five failures, all targets -- `bundle.lblx`'s two, for its targets' name and type;
+`collection_data.lblx`'s two, under `pds:Product_Collection/pds:Context_Area`,
+which requires a Mission Science Data collection's targets' name and type; and
+`kernels.lblx`'s one, under `pds:Product_SPICE_Kernel/pds:Context_Area`.
 
 The Schematron checks a value against its rule's vocabulary, not against what
 the product is: over Phase 6's cohort bundle the evaluator refuses a
@@ -2455,7 +2870,15 @@ branch.
   pixels get no `BODY_ID_MAP` entry; the sentinel makes that gap harmless
   for consumers without closing it.
 - #79 — scrape the PDS4 context products so `target_lids` is maintained
-  rather than hand-written.
+  rather than hand-written; Phase 8 filled it by hand from the PDS registry
+  (section 3.7).
+- #618 — choose each planet's ring target from configuration. The ring target
+  the backplane metadata names, which keys the rings in the targets table, is
+  `backplanes_rings.ring_target`'s, and moving its rule for Saturn into
+  configuration leaves the table's key as it is.
+- #684 — the Cassini ISS label facts the navigation document's `observation`
+  block is to record, from which Part B of Phase 8 fills
+  `cassini:ISS_Specific_Attributes` (section 3.7).
 - #677 — which SPICE kernels the bundle's metakernel lists, a
   navigation question. Phase 6 shipped the `spice_kernels` collection with a
   metakernel that lists none and says so.

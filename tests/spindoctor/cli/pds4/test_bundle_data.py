@@ -28,16 +28,20 @@ import pytest
 from filecache import FCPath
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
+from spindoctor.cli.pds4.targets import target_table
 from spindoctor.config import MAIN_LOGGER
 from spindoctor.dataset.dataset import ImageFiles
 
 from .conftest import (
     DATA_TEMPLATE,
+    PLUMBING_RING_TARGET,
     BundleEnv,
     NoPds4DataSet,
     make_bundle_env,
     make_image_file,
+    measured_body,
     navigated_document,
+    ring_metadata,
     write_nav_inputs,
 )
 
@@ -118,7 +122,7 @@ def test_supplemental_combines_navigation_and_backplane_metadata(tmp_path: Path)
     nav_metadata, backplane_metadata = write_nav_inputs(
         env,
         nav_extra={'offset': {'dv': 1.5, 'du': -2.0}},
-        backplane_metadata={'bodies': {'MOON_A': {'backplanes': {}}}, 'rings': {}},
+        backplane_metadata={'bodies': {'MOON_A': measured_body()}, 'rings': {}},
     )
     _generate(env)
     suppl = env.bundle_dir / 'data' / f'{env.pds4_path_stub}_supplemental.txt'
@@ -170,6 +174,48 @@ def test_template_variables_hook_receives_both_metadata_dicts(tmp_path: Path) ->
     assert call['image_file'] is env.image_file
     assert call['nav_metadata'] == nav_metadata
     assert call['backplane_metadata'] == backplane_metadata
+
+
+def test_the_data_label_is_handed_each_target_the_backplane_metadata_names(
+    tmp_path: Path,
+) -> None:
+    """The data label's template is handed the image's targets, in the table's order.
+
+    The metadata names two bodies in an order other than the table's and holds a ring
+    statistic, so the targets are both bodies and then the ring target.
+    """
+    env = make_bundle_env(tmp_path)
+    ring_statistics = {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}}
+    write_nav_inputs(
+        env,
+        backplane_metadata={
+            'bodies': {'MOON_A': measured_body(), 'PLANET': measured_body()},
+            'rings': ring_metadata(ring_statistics),
+        },
+    )
+    _generate(env)
+    table = target_table(env.dataset.as_dataset().config)
+    expected = (table['PLANET'], table['MOON_A'], table[PLUMBING_RING_TARGET])
+    assert env.dataset.template_variables['TARGETS'] == expected
+
+
+def test_the_data_label_names_only_the_bodies_with_geometry(tmp_path: Path) -> None:
+    """Of two bodies the metadata names, the one with no statistic is not a target.
+
+    It is a body the image's inventory found that shows at no pixel, so the label would
+    name a target it does not describe.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(
+        env,
+        backplane_metadata={
+            'bodies': {'MOON_A': {'backplanes': {}}, 'PLANET': measured_body()},
+            'rings': {},
+        },
+    )
+    _generate(env)
+    table = target_table(env.dataset.as_dataset().config)
+    assert env.dataset.template_variables['TARGETS'] == (table['PLANET'],)
 
 
 def test_browse_png_copied_byte_identical(tmp_path: Path) -> None:
@@ -308,7 +354,7 @@ def _ring_resolution_document(units: str) -> dict[str, Any]:
         The document, in the shape the backplane writer leaves on disk.
     """
     statistic: dict[str, Any] = {'min': 1.4e-05, 'max': 3.9e-05, 'units': units}
-    return {'bodies': {}, 'rings': {'backplanes': {'longitudinal_resolution': statistic}}}
+    return {'bodies': {}, 'rings': ring_metadata({'longitudinal_resolution': statistic})}
 
 
 def test_a_statistic_in_another_unit_fails_the_image(tmp_path: Path) -> None:
@@ -428,6 +474,100 @@ def test_a_document_navigated_before_the_observation_recorded_times_fails_with_n
     assert outcome is BundleDataOutcome.FAILED
     assert not env.bundle_dir.exists()
     assert 'records no exposure times in its observation block' in capsys.readouterr().out
+
+
+NO_TARGET: dict[str, Any] = {'bodies': {}, 'rings': ring_metadata({})}
+"""Backplane metadata naming no body and holding no ring statistic, as a star field's.
+
+Its rings block names a ring target and an incidence angle, as the stage records them for
+every image with a closest planet, beside no ring statistic.
+"""
+
+
+def test_an_image_whose_backplanes_cover_no_target_is_skipped_with_nothing_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Backplanes covering no body and no rings hold nothing for a data label to describe.
+
+    The image is skipped, with one line saying why, before anything is written for it.
+    The ring target its metadata names beside no ring statistic is not a target, since
+    there are no ring backplanes to describe.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, backplane_metadata=NO_TARGET)
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.SKIPPED
+    assert not env.bundle_dir.exists()
+    expected = 'its backplanes hold no body and no ring, so there is nothing for its data label'
+    assert expected in capsys.readouterr().out
+
+
+def test_an_image_whose_only_body_shows_at_no_pixel_is_skipped(tmp_path: Path) -> None:
+    """A body the metadata names with no statistic gives its image no geometry.
+
+    The backplane stage names every body the image's inventory finds in its field of
+    view, so a body that shows at no pixel is named with nothing measured.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(
+        env,
+        backplane_metadata={'bodies': {'MOON': {'backplanes': {}}}, 'rings': ring_metadata({})},
+    )
+    assert _generate(env) is BundleDataOutcome.SKIPPED
+
+
+def test_an_image_covering_no_target_is_skipped_whatever_its_navigation_document_records(
+    tmp_path: Path,
+) -> None:
+    """An image with nothing to describe is skipped though an earlier version navigated it.
+
+    Nothing would be written for it however its document were read, so navigating it
+    again, which the failure asks for, would change nothing.
+    """
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, nav_extra=EARLIER_VERSION_DOCUMENT, backplane_metadata=NO_TARGET)
+    assert _generate(env) is BundleDataOutcome.SKIPPED
+
+
+@pytest.mark.parametrize(
+    'incidence',
+    [None, {'value': 45.0, 'units': 'deg'}],
+    ids=['no incidence angle', 'no incidence angle over the ring pixels'],
+)
+def test_ring_statistics_with_no_incidence_range_fail_the_image_with_nothing_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], incidence: dict[str, Any] | None
+) -> None:
+    """Backplanes an earlier version generated fail the image, whatever of the angle they hold.
+
+    The earliest recorded ring statistics with no ring target and no incidence angle, and
+    later ones the angle at the ring center alone.  None recorded the angle over the ring
+    pixels the ring geometry states, and all took their statistics before the merge, so
+    the image is failed with one line saying why, to have its backplanes regenerated,
+    rather than by an error from deeper in the pass.
+    """
+    env = make_bundle_env(tmp_path)
+    rings: dict[str, Any] = {
+        'backplanes': {'ring_radius': {'min': 70000.0, 'max': 140000.0, 'units': 'km'}}
+    }
+    if incidence is not None:
+        rings |= {'target': PLUMBING_RING_TARGET, 'incidence_angle': incidence}
+    write_nav_inputs(
+        env, backplane_metadata={'bodies': {'MOON': {'backplanes': {}}}, 'rings': rings}
+    )
+    outcome = _generate(env)
+    assert outcome is BundleDataOutcome.FAILED
+    assert not env.bundle_dir.exists()
+    expected = 'records ring statistics but not the incidence angle over the ring pixels'
+    assert expected in capsys.readouterr().out
+
+
+def test_a_target_the_table_has_no_entry_for_raises_with_nothing_written(tmp_path: Path) -> None:
+    """A body the targets table does not identify is refused by name, nothing written."""
+    env = make_bundle_env(tmp_path)
+    write_nav_inputs(env, backplane_metadata={'bodies': {'MOON_C': measured_body()}, 'rings': {}})
+    with pytest.raises(KeyError, match='no entry for MOON_C'):
+        _generate(env)
+    assert not env.bundle_dir.exists()
 
 
 def test_malformed_nav_metadata_raises(tmp_path: Path) -> None:

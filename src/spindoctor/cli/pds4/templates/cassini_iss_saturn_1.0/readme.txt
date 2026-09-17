@@ -1,11 +1,19 @@
 This bundle contains backplane products generated from Cassini ISS calibrated
 images, along with associated metadata and documentation.
 
+An image is left out of the bundle when its backplanes hold no geometry: when no
+pixel of it shows Saturn, Saturn's main rings, or one of the 19 satellites the
+backplanes are computed for (Atlas, Calypso, Daphnis, Dione, Enceladus,
+Epimetheus, Helene, Hyperion, Iapetus, Janus, Mimas, Pan, Pandora, Phoebe,
+Prometheus, Rhea, Telesto, Tethys and Titan). A frame of stars alone is left
+out, for example, and so is a frame of the F ring alone, which lies outside the
+main rings.
+
 The document collection contains a detailed, comprehensive User Guide which
 provides an overview of the contents of this bundle and how to use it.
 
 Index tables summarize the backplanes for ease of use in automated pipelines: a
-bodies table, with a row for each body in each image's backplanes, and a rings
+bodies table, with a row for each body seen in each image, and a rings
 table, with a row for each image with ring backplanes. A table is omitted when
 no image contributes a row. The tables are in the miscellaneous collection.
 

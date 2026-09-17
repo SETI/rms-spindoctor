@@ -62,7 +62,6 @@ def _body_entry(
         'arrays': {bp_type: arr},
         'masks': {bp_type: mask},
         'distance': distance,
-        'statistics': {},
     }
 
 
@@ -84,7 +83,6 @@ def _rings_result(
         'arrays': arrays,
         'masks': masks,
         'distance': distance,
-        'statistics': {},
     }
 
 
@@ -243,7 +241,6 @@ def test_merge_inconsistent_masks_within_body_raise(snapshot: HermeticObs) -> No
             'arrays': {'a': arr, 'b': arr},
             'masks': {'a': mask_a, 'b': mask_b},
             'distance': 1.0,
-            'statistics': {},
         }
     }
     with pytest.raises(ValueError, match='not all the same'):

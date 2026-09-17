@@ -214,6 +214,8 @@ Backplanes are configured under ``backplanes`` in
 - ``backplanes.rings``: list of ring backplane entries with the same
   structure. The special ``distance`` entry is used only for per-pixel
   merge ordering and is not written as an HDU.
+- ``backplanes.target_lids``: the PDS4 targets table a bundle's labels read, one
+  entry for each body and ring target (see :doc:`user_guide_pds4_bundle`).
 
 Outputs
 -------
@@ -230,13 +232,47 @@ For each processed image, ``sd_backplanes`` writes two files under
 
 - ``<results_path_stub>_backplane_metadata.json`` containing per-body
   inventory information and per-backplane ``min``/``max`` statistics with the
-  ``units`` they are in (consumed by ``sd_create_bundle`` when generating PDS4
-  labels).
+  ``units`` they are in, and, for the rings, the ring target and the incidence
+  angle of sunlight on the ring plane (consumed by ``sd_create_bundle`` when
+  generating PDS4 labels).
 
 Angular backplane arrays are in radians, as their ``BUNIT`` headers say. In the
 metadata file an angular plane's minimum and maximum are in degrees (``rad``
 becomes ``deg``, ``rad/pixel`` becomes ``deg/pixel``), and each statistic records
 its unit.
+
+Each minimum and maximum is taken over the pixels where the FITS plane has a value.
+A body's are taken over the pixels ``BODY_ID_MAP`` gives that body, so a part of a
+body, or of the rings, that a nearer body covers does not count.
+
+The ring longitude's statistic also records ``wrapped_min`` and ``wrapped_max``, in
+degrees: the arc of longitude the image's ring pixels cover, from where it starts to
+where it ends. Where the arc crosses zero, ``wrapped_min`` is greater than
+``wrapped_max``. An image covering the whole circle records 0 and 360.
+
+The metadata file's ``rings`` block names the ring target the ring backplanes are
+computed for, as ``target``, and records ``incidence_angle``: the angle between the
+direction sunlight arrives from and the normal to the ring plane on its sunlit side,
+from 0 to 90 degrees, with its unit. Sunlight falls on the ring plane at one angle over
+the whole image, so no backplane holds it; it is taken once, at the center of the ring
+system, for the light that reached the camera at the observation's midtime. Both are
+recorded for every image that has a closest planet, whether or not any of its pixels is
+on the rings. Where the image's ring backplanes have values, ``incidence_angle`` also
+records the least, the greatest and the mean angle over those pixels, as ``min``,
+``max`` and ``mean``, which differ from the angle at the center by thousandths of a
+degree. The ring statistics are under ``backplanes``:
+
+.. code-block:: json
+
+   {
+     "rings": {
+       "target": "SATURN_MAIN_RINGS",
+       "incidence_angle": {
+         "value": 82.57158, "min": 82.57085, "max": 82.57104, "mean": 82.57096, "units": "deg"
+       },
+       "backplanes": {"ring_radius": {"min": 74659.8, "max": 136779.0, "units": "km"}}
+     }
+   }
 
 Logs are written under the log root rather than beside these products: the
 run's own log to ``{log_root}/sd_backplanes/main_{timestamp}.log`` and one per
