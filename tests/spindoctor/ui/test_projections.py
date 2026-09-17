@@ -157,7 +157,7 @@ def test_mollweide_round_trip() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_polar_n_pole_maps_to_centre() -> None:
+def test_polar_n_pole_maps_to_center() -> None:
     """POLAR_N: the north pole (lat=90) projects to exactly (cx, cy)."""
     params = _params(ProjectionKind.POLAR_N)
     lon = np.array([0.0])
@@ -212,7 +212,7 @@ def test_polar_n_equator_radius_equals_one_normalized() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_mollweide_origin_maps_to_centre() -> None:
+def test_mollweide_origin_maps_to_center() -> None:
     """MOLLWEIDE: lon=0, lat=0 projects to exactly (cx, cy)."""
     params = _params(ProjectionKind.MOLLWEIDE)
     vx, vy, vis = lonlat_to_display(np.array([0.0]), np.array([0.0]), params)
@@ -246,7 +246,7 @@ def test_mollweide_lon180_maps_to_left_edge() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_sphere3d_front_hemisphere_centre_maps_to_centre() -> None:
+def test_sphere3d_front_hemisphere_center_maps_to_center() -> None:
     """SPHERE_3D: lon=0, lat=0 with yaw=pitch=0 projects to (cx, cy), visible=True."""
     params = _params_3d()
     vx, vy, vis = lonlat_to_display(np.array([0.0]), np.array([0.0]), params)
@@ -299,7 +299,7 @@ def test_sphere_pixel_off_disk_returns_hit_false() -> None:
     assert not hit[0]
 
 
-def test_sphere_pixel_centre_returns_lon0_lat0() -> None:
+def test_sphere_pixel_center_returns_lon0_lat0() -> None:
     """sphere_pixel_to_lonlat: the display center maps back to lon=0, lat=0."""
     params = _params_3d()
     vx = np.array([_CX])

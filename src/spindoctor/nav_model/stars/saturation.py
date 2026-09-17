@@ -274,7 +274,7 @@ def _best_mag_aware_match(
     explained by the brightest reference that can account for it, not by
     whichever bright star happens to sit closest.  Because a bright
     unrelated reference earns a wide reach of its own from its large
-    magnitude gap, a pure nearest-neighbour rule would let it win over the
+    magnitude gap, a pure nearest-neighbor rule would let it win over the
     true twin when it sits closer; the brightness preference does not.
 
     Parameters:
@@ -555,7 +555,7 @@ def _apply_reference_photometry(star: MutableStar, ref: MutableStar) -> None:
     A YBSC reference supplies a self-consistent Johnson V/B pair, which is
     propagated directly.  A Tycho-2 reference (this pipeline discards its
     color) supplies only V; the color is faked from the corrected star's
-    own spectral class, matching the catalog reduction's colour-faking, and
+    own spectral class, matching the catalog reduction's color-faking, and
     ``johnson_mag_faked`` is set so downstream code knows the color is
     synthetic.
 

@@ -324,7 +324,7 @@ def test_correct_star_photometry_both_corrected_prefers_precedence_regardless_of
     assert out == [ucac4]
 
 
-def test_correct_star_photometry_ignores_none_vmag_neighbour() -> None:
+def test_correct_star_photometry_ignores_none_vmag_neighbor() -> None:
     """A co-located record with no magnitude is never treated as a duplicate."""
     star = _ucac4(*_ETA_TAU, 6.68)
     ref = _ybsc(*_ETA_TAU, 2.87)
@@ -339,7 +339,7 @@ def test_correct_star_photometry_ignores_none_vmag_neighbour() -> None:
     assert ghost in out
 
 
-def test_correct_star_photometry_keeps_corrected_star_with_distant_neighbour() -> None:
+def test_correct_star_photometry_keeps_corrected_star_with_distant_neighbor() -> None:
     """A corrected star with only a distant neighbor is kept as-is."""
     star = _ucac4(*_ETA_TAU, 6.68)
     ref = _ybsc(*_ETA_TAU, 2.87)
@@ -513,7 +513,7 @@ def test_correct_star_photometry_corrects_against_tycho2_reference() -> None:
     assert star.vmag == pytest.approx(6.9)
 
 
-def test_correct_star_photometry_tycho2_correction_fakes_colour() -> None:
+def test_correct_star_photometry_tycho2_correction_fakes_color() -> None:
     """A Tycho-2 correction fakes the color from spectral class (faked flag set)."""
     star = _ucac4(*_ETA_TAU, 7.7)
     star.spectral_class = 'G0'
@@ -611,7 +611,7 @@ def test_correct_star_photometry_no_widening_for_small_gap() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_correct_star_photometry_keeps_neighbour_beyond_vmag_tolerance() -> None:
+def test_correct_star_photometry_keeps_neighbor_beyond_vmag_tolerance() -> None:
     """A co-located neighbor outside the magnitude tolerance is not collapsed.
 
     After correction the saturated record reads V2.87; a genuinely different
@@ -718,7 +718,7 @@ def test_best_mag_aware_match_prefers_brighter_true_twin_over_nearer_unrelated()
     The candidate reads V6.7 (a saturated bright star).  A V4.0 reference
     sits 4 arcsec away and the candidate's true V2.8 twin sits 8 arcsec
     away; both fall inside their own magnitude-widened reach.  A pure
-    nearest-neighbour rule would correct the candidate to the nearer,
+    nearest-neighbor rule would correct the candidate to the nearer,
     unrelated V4.0 star; the brightness preference returns the V2.8 twin
     instead.
     """

@@ -308,7 +308,7 @@ class CreateSimulatedImageModel(
 
     def _zoom_in(self) -> None:
         """Zoom in about the viewport center."""
-        # The ZoomPanController's centre-anchored zoom is identical to the
+        # The ZoomPanController's center-anchored zoom is identical to the
         # open-coded version (it wraps this window's scroll area + zoom state).
         if self._base_pixmap is not None:
             self._zoom_ctl.zoom_in_center()
@@ -395,7 +395,7 @@ class CreateSimulatedImageModel(
             self._display_image()
 
     def _toggle_zoom_sharp(self, state: Any) -> None:
-        """Toggle nearest-neighbour (sharp) vs smooth zoom scaling."""
+        """Toggle nearest-neighbor (sharp) vs smooth zoom scaling."""
         self._zoom_sharp = state == int(cast(int, Qt.CheckState.Checked.value))
         self._update_display()
 

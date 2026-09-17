@@ -193,7 +193,7 @@ def gradient_ridge_refine(
         fit_rotation: when True the parameter vector is ``(dv, du, dtheta)``.
         pivot_vu: rotation pivot; defaults to the centroid of
             ``vertices_vu``.
-        pivot_distance_px: pivot-to-image-centre distance for the rotation
+        pivot_distance_px: pivot-to-image-center distance for the rotation
             step-norm conversion.  Required when ``fit_rotation`` is True.
         max_iterations: Gauss-Newton iteration cap.
         step_tolerance_px: step-norm threshold for convergence.

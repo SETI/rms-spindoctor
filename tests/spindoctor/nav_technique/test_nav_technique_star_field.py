@@ -612,7 +612,7 @@ class _PSFProviderObs:
 def _render_eval_rect_star(
     image: np.ndarray, center_vu: tuple[float, float], *, peak_dn: float, sigma: float
 ) -> None:
-    """Stamp a pixel-integrated Gaussian whose centroid lands at pixel-centre ``center``.
+    """Stamp a pixel-integrated Gaussian whose centroid lands at pixel-center ``center``.
 
     Uses the same ``eval_rect(offset + 0.5)`` convention as the production
     renderer, so a ``find_position`` fit (which reports the ``eval_rect``

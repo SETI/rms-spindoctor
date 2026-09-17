@@ -308,7 +308,7 @@ class TestSphere3DMeridianLon0:
         for _x, y in lon0_seg:
             assert abs(y - CY) <= SCALE + 0.5
 
-    def test_lon0_segment_centred_on_cy(self) -> None:
+    def test_lon0_segment_centered_on_cy(self) -> None:
         """The lon=0 meridian segment is vertically symmetric about cy.
 
         With yaw=pitch=0 the equator lat=0 maps to yn=0, so the midpoint of

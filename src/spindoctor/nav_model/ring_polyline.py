@@ -80,7 +80,7 @@ def _polyline_from_edge_mask(
     """Extract a polyline + per-vertex normal from a 1-pixel-wide edge mask.
 
     Each True pixel becomes one polyline vertex.  The normal AXIS at each
-    vertex comes from the local mask-neighbour test: whichever side has no
+    vertex comes from the local mask-neighbor test: whichever side has no
     mask pixel is the off-edge side.  That test alone fixes only the axis,
     never a consistent sense -- it scans ``v - 1`` before ``v + 1`` and
     ``u - 1`` before ``u + 1``, so on a closed ring the emitted signs follow

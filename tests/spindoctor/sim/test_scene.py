@@ -213,8 +213,8 @@ def test_validate_sim_params_rejects_nonpositive_surge_width() -> None:
 def test_validate_sim_params_rejects_unknown_star_key() -> None:
     """An unmodeled per-star key fails validation."""
     params = _sim_params()
-    params['stars'] = [{'name': 'S', 'v': 10.0, 'u': 10.0, 'vmag': 5.0, 'colour': 'red'}]
-    with pytest.raises(SimSceneValidationError, match=r'stars\[0\].*colour'):
+    params['stars'] = [{'name': 'S', 'v': 10.0, 'u': 10.0, 'vmag': 5.0, 'color': 'red'}]
+    with pytest.raises(SimSceneValidationError, match=r'stars\[0\].*color'):
         validate_sim_params(params)
 
 
@@ -342,13 +342,13 @@ def test_validate_sim_params_rejects_uncatalogued_wac_gain_state() -> None:
     params['instrument'] = 'coiss_wac'
     params['detector'] = {'gain_state': 3}
     with pytest.raises(
-        SimSceneValidationError, match=r'gain_state 3 is not catalogued.*coiss_wac.*\[2\]'
+        SimSceneValidationError, match=r'gain_state 3 is not cataloged.*coiss_wac.*\[2\]'
     ):
         validate_sim_params(params)
 
 
-def test_validate_sim_params_accepts_catalogued_gain_state() -> None:
-    """The catalogued WAC state 2 validates."""
+def test_validate_sim_params_accepts_cataloged_gain_state() -> None:
+    """The cataloged WAC state 2 validates."""
     params = _sim_params()
     params['instrument'] = 'coiss_wac'
     params['detector'] = {'gain_state': 2}

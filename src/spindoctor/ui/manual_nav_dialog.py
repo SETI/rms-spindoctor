@@ -1045,7 +1045,7 @@ class ManualNavDialog(QDialog):
     # ---- Zoom/pan helpers (parity with sim_body_gui) ----
 
     def _zoom_in_center(self) -> None:
-        # Centre-anchored zoom is provided by the controller (it wraps this
+        # Center-anchored zoom is provided by the controller (it wraps this
         # window's scroll area); delegate instead of re-implementing it.
         self._zoom_ctl.zoom_in_center()
 

@@ -213,10 +213,10 @@ def test_array_zoom() -> None:
     # In pixel-corner coordinates the source cell's center is (1.5, 2.5) and
     # the zoom puts the replicated block's center at (4.5, 10.0), which is the
     # source center scaled by the zoom factor.
-    zoomed_centre_v = marked[:, 0].mean() + PIXEL_CENTER_TO_CORNER_PX
-    zoomed_centre_u = marked[:, 1].mean() + PIXEL_CENTER_TO_CORNER_PX
-    assert zoomed_centre_v == 4.5
-    assert zoomed_centre_u == 10.0
+    zoomed_center_v = marked[:, 0].mean() + PIXEL_CENTER_TO_CORNER_PX
+    zoomed_center_u = marked[:, 1].mean() + PIXEL_CENTER_TO_CORNER_PX
+    assert zoomed_center_v == 4.5
+    assert zoomed_center_u == 10.0
 
 
 def test_array_unzoom() -> None:

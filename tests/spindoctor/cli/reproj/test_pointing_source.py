@@ -381,7 +381,7 @@ def test_a_refusal_recorded_under_another_root_does_not_refuse_this_one(
 
     One index holds several roots, and a stub one of them refused is routinely
     a stub another simply never navigated; a lookup that dropped the root would
-    fail an image on the strength of its neighbour's refusal.
+    fail an image on the strength of its neighbor's refusal.
     """
     silent, _refused, engine = _one_root_refused_it(tmp_path, quiet_ingest_logger)
     try:
@@ -776,7 +776,7 @@ def test_a_stub_recorded_only_under_another_root_is_absent(
     """An image navigated under one root was not navigated under the other.
 
     The backplane raise is what carries this, and a lookup that forgot the root
-    would find the neighbour's row and build a product from it.
+    would find the neighbor's row and build a product from it.
     """
     first = tmp_path / 'nav_a'
     second = tmp_path / 'nav_b'

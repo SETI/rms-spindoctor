@@ -15,7 +15,7 @@ from spindoctor.nav_model.stars.conflicts import (
 )
 
 
-def test_parse_ring_occlusion_annuli_normalises_keys() -> None:
+def test_parse_ring_occlusion_annuli_normalizes_keys() -> None:
     """Planet keys are normalized to upper case in the returned mapping."""
     result = parse_ring_occlusion_annuli({'saturn': [[100.0, 200.0]]})
     assert list(result.keys()) == ['SATURN']
@@ -238,7 +238,7 @@ def _run_check_one_star(
     return star
 
 
-def test_the_conflict_window_is_centred_on_the_star_record_position(
+def test_the_conflict_window_is_centered_on_the_star_record_position(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The window brackets the uv the star record carries, unconverted.

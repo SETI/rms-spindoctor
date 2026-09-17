@@ -196,7 +196,7 @@ def lm_subpixel_refine(
             ``(dv, du, dtheta)``; otherwise ``(dv, du)``.
         pivot_vu: ``(v_p, u_p)`` rotation pivot.  Defaults to the
             centroid of ``vertices_vu``.
-        pivot_distance_px: Approximate pivot-to-image-centre distance in
+        pivot_distance_px: Approximate pivot-to-image-center distance in
             pixels; used to convert rotation steps into pixel-equivalent
             increments for the convergence test.  Required when
             ``fit_rotation`` is True; ignored otherwise.

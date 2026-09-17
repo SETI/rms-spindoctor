@@ -778,7 +778,7 @@ def render_single_body(
             body_seed=body_seed,
         )
 
-    # The exponential haze layer evaluates over the reference-centred disc
+    # The exponential haze layer evaluates over the reference-centered disc
     # after shading, so the same call serves both render paths; a body with no
     # 'atmosphere' block never enters the haze code and renders hard-limbed.
     # The on-disc haze joins the opaque disc paint; the above-limb glow rides
@@ -855,7 +855,7 @@ def finish_single_body(
     ref_center_u: float,
     halo: HaloScreen | None = None,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
-    """Translate a reference-centred body shape into place and composite it.
+    """Translate a reference-centered body shape into place and composite it.
 
     Only the opaque body paints here (last writer wins); an atmospheric
     body's translucent halo is translated alongside it and returned on the

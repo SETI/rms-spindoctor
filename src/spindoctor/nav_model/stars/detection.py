@@ -302,9 +302,9 @@ def _sharpness_roundness(
     center = float(box[n, n])
     if center <= 0.0:
         return 0.0, 0.0
-    neighbour_sum = float(np.sum(box) - center)
-    neighbour_count = box.size - 1
-    sharp = (center - neighbour_sum / neighbour_count) / center
+    neighbor_sum = float(np.sum(box) - center)
+    neighbor_count = box.size - 1
+    sharp = (center - neighbor_sum / neighbor_count) / center
     col_marginal = np.sum(box, axis=0)
     row_marginal = np.sum(box, axis=1)
     col_var = _marginal_variance(col_marginal)

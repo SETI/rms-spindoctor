@@ -50,7 +50,7 @@ def test_whole_scene_smear_conserves_signal() -> None:
 
 
 def _star_and_body_scene(*, smear: list[dict[str, Any]] | None) -> dict[str, Any]:
-    """A scene with a centered body and an off-centre star, optional smear."""
+    """A scene with a centered body and an off-center star, optional smear."""
     scene: dict[str, Any] = {
         'size_v': 60,
         'size_u': 60,

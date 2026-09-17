@@ -593,7 +593,7 @@ def _navigate_clean(
     _run_technique(haze_disc_image, make_nav_context, make_titan_feature, offset_vu=(0.3, -0.4))
 
 
-def test_the_predicted_centre_is_logged_in_the_image_frame(
+def test_the_predicted_center_is_logged_in_the_image_frame(
     haze_disc_image: HazeDiscImageFactory,
     make_nav_context: NavContextFactory,
     make_titan_feature: NavFeatureFactory,

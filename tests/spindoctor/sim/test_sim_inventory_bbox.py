@@ -120,7 +120,7 @@ def test_bbox_u_limits_match_rotated_ellipse() -> None:
     assert inventory['u_max_unclipped'] == pytest.approx(_CENTER + _HALF_U)
 
 
-def test_silhouette_centres_on_the_bbox_centre() -> None:
+def test_silhouette_centers_on_the_bbox_center() -> None:
     """The rendered silhouette's centroid is the middle of the inventory bbox.
 
     This is the one statement here that resolves the conversion the bbox

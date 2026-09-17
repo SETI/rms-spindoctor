@@ -113,7 +113,7 @@ def test_build_image_edge_dt_returns_arrays_shaped_like_the_image() -> None:
     assert edge_dt.shape == (40, 40)
 
 
-def test_gradient_ridge_centres_on_the_planted_edge() -> None:
+def test_gradient_ridge_centers_on_the_planted_edge() -> None:
     """The smoothed gradient peaks where the bar's boundary was drawn.
 
     The bar states each boundary as a pixel-centric row and leaves the rows it
@@ -131,7 +131,7 @@ def test_gradient_ridge_centres_on_the_planted_edge() -> None:
     assert trailing == pytest.approx(_BAR_TRAILING_V, abs=_RIDGE_TOLERANCE_PX)
 
 
-def test_edge_dt_zero_locus_is_the_pixel_whose_centre_is_nearest_the_edge() -> None:
+def test_edge_dt_zero_locus_is_the_pixel_whose_center_is_nearest_the_edge() -> None:
     """The distance transform reads zero on one row per edge, at that row's center.
 
     Every DT-based residual in the pipeline is measured against this zero
