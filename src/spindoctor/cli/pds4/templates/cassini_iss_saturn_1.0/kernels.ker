@@ -1,8 +1,0 @@
-KPL/MK
-
-   SPICE metakernel of the bundle "Backplanes for Navigated Images from
-   Cassini ISS at Saturn".
-
-   It lists no SPICE kernels. Which kernels it lists has not been decided,
-   so it holds no KERNELS_TO_LOAD assignment, and loading it loads no
-   kernel.

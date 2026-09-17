@@ -11,7 +11,7 @@ from spindoctor.config import Config
 from spindoctor.support.misc import safe_lstrip_zero
 from spindoctor.support.time import et_to_pds4_utc, pds4_utc_midpoint
 
-from .dataset import ImageFile, ImageFiles, Pds4Pass, pds4_label_name
+from .dataset import ImageFile, ImageFiles, Pds4Pass
 from .dataset_pds3 import DataSetPDS3
 
 _PDS4_TIME_DIGITS = 3
@@ -448,42 +448,22 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         return self._default_pds4_bundle_name()
 
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
-        """Returns the file names one bundle pass must find in the template directory.
-
-        The summary pass's are the templates of the data and browse collections and the
-        global index, and those of the run-level products: the bundle label, the readme,
-        the context, document, SPICE kernel and XML schema collections' inventories and
-        labels, the metakernel and its label, and the user guide's label.
+        """Returns the template filenames one bundle pass must find for this dataset.
 
         Parameters:
-            pds4_pass: Which pass's files to name: ``labels`` for the per-image pass,
-                ``summary`` for the pass writing the collections, the index and the
-                bundle's run-level products.
+            pds4_pass: Which pass's templates to name: ``labels`` for the
+                per-image pass, ``summary`` for the collection and index pass.
 
         Returns:
-            The file names, relative to the template directory.
+            The filenames, relative to the template directory.
         """
         if pds4_pass == 'labels':
             return ['data.lblx', 'browse.lblx']
-        user_guide_label = pds4_label_name(self.pds4_user_guide_file_name())
         return [
             'collection_data.lblx',
             'collection_browse.lblx',
             'global_index_bodies.lblx',
             'global_index_rings.lblx',
-            'bundle.lblx',
-            'readme.txt',
-            'collection_context.csv',
-            'collection_context.lblx',
-            'collection_document.csv',
-            'collection_document.lblx',
-            'collection_spice_kernels.csv',
-            'collection_spice_kernels.lblx',
-            'kernels.ker',
-            'kernels.lblx',
-            'collection_xml_schema.csv',
-            'collection_xml_schema.lblx',
-            user_guide_label,
         ]
 
     @staticmethod
@@ -838,16 +818,6 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         """
         raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
 
-    def pds4_user_guide_file_name(self) -> str:
-        """Returns the file name of the bundle's user guide in the template directory.
-
-        Each registered subclass names its own bundle's guide; this class names none.
-
-        Raises:
-            NotImplementedError: Always, as for the class's other PDS4 defaults.
-        """
-        raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
-
 
 class DataSetPDS3CassiniISSCruise(DataSetPDS3CassiniISS):
     """Implements dataset access for PDS3 Cassini ISS Cruise data (volumes 1001-1009)."""
@@ -865,14 +835,6 @@ class DataSetPDS3CassiniISSCruise(DataSetPDS3CassiniISS):
     def _default_pds4_bundle_name(self) -> str:
         return 'cassini_iss_cruise_backplanes_rsfrench2027'
 
-    def pds4_user_guide_file_name(self) -> str:
-        """Returns the file name of the bundle's user guide in the template directory.
-
-        Returns:
-            ``cassini-iss-cruise-backplanes-user-guide.pdf``.
-        """
-        return 'cassini-iss-cruise-backplanes-user-guide.pdf'
-
 
 class DataSetPDS3CassiniISSSaturn(DataSetPDS3CassiniISS):
     """Implements dataset access for PDS3 Cassini ISS Saturn data (volumes 2001-2116)."""
@@ -889,11 +851,3 @@ class DataSetPDS3CassiniISSSaturn(DataSetPDS3CassiniISS):
 
     def _default_pds4_bundle_name(self) -> str:
         return 'cassini_iss_saturn_backplanes_rsfrench2027'
-
-    def pds4_user_guide_file_name(self) -> str:
-        """Returns the file name of the bundle's user guide in the template directory.
-
-        Returns:
-            ``cassini-iss-saturn-backplanes-user-guide.pdf``.
-        """
-        return 'cassini-iss-saturn-backplanes-user-guide.pdf'

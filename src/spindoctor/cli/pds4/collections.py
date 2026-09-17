@@ -10,7 +10,6 @@ from filecache import FCPath
 from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import statistics_units
-from spindoctor.cli.pds4.bundle_products import clear_bundle_products
 from spindoctor.cli.pds4.epochs import EpochRange, EpochRangeScan
 from spindoctor.cli.pds4.labels import write_label
 from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
@@ -587,13 +586,10 @@ def generate_global_index_files(
     Both index tables and both index labels are cleared before any supplemental
     file is read, as :func:`~spindoctor.cli.pds4.labels.write_label` clears a
     label before it renders, and so are the two collection inventories and two
-    collection labels :func:`generate_collection_files` writes after the index, and
-    every run-level product
-    :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` writes last.
+    collection labels :func:`generate_collection_files` writes after the index.
     A run refused over what a supplemental file holds therefore leaves no product of
     the summary pass, neither this run's nor an earlier run's: no index still
-    describing the bundle as it was, no inventory beside no index, and no bundle label
-    declaring collections that are not there.
+    describing the bundle as it was, and no inventory beside no index.
 
     Both index templates the dataset declares are required.  The caller is
     expected to have checked them before processing anything, so one that is
@@ -646,9 +642,9 @@ def generate_global_index_files(
 
     # Cleared before any supplemental file is read, by the rule write_label keeps
     # for a label that what is on disk is what this run wrote: the index's own
-    # products, and the collection files and run-level products the pass writes after
-    # it, so a refusal over one cannot leave an earlier run's index describing the
-    # bundle as it was, nor an earlier run's inventory and its label beside no index.
+    # products, and the collection files the pass writes after it, so a refusal
+    # over one cannot leave an earlier run's index describing the bundle as it was,
+    # nor an earlier run's inventory and its label beside no index.
     supplemental_dir = bundle_root / 'document' / 'supplemental'
     bodies_tab = supplemental_dir / 'global_index_bodies.tab'
     bodies_label = supplemental_dir / 'global_index_bodies.lblx'
@@ -658,7 +654,6 @@ def generate_global_index_files(
     collection_products = _CollectionProducts.in_bundle(bundle_root).paths()
     for summary_product in (*index_products, *collection_products):
         summary_product.unlink(missing_ok=True)
-    clear_bundle_products(bundle_root, dataset)
 
     # Scan for all supplemental files
     supplemental_files: list[FCPath] = []

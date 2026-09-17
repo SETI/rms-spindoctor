@@ -118,7 +118,7 @@
             <Modification_Detail>
                 <modification_date>$CURRENT_ZULU(date_only=True)$</modification_date>
                 <version_id>1.0</version_id>
-                <description>Initial version</description>
+                <description>Initial version.</description>
             </Modification_Detail>
         </Modification_History>
     </Identification_Area>
@@ -142,20 +142,20 @@
                 </Internal_Reference>
             </Observing_System_Component>
             <Observing_System_Component>
-                <name>Imaging Science Subsystem - Narrow Angle</name>
-                <type>Instrument</type>
-                <description>ISSNA</description>
-                <Internal_Reference>
-                    <lid_reference>urn:nasa:pds:context:instrument:issna.co</lid_reference>
-                    <reference_type>is_instrument</reference_type>
-                </Internal_Reference>
-            </Observing_System_Component>
-            <Observing_System_Component>
                 <name>Imaging Science Subsystem - Wide Angle</name>
                 <type>Instrument</type>
                 <description>ISSWA</description>
                 <Internal_Reference>
                     <lid_reference>urn:nasa:pds:context:instrument:isswa.co</lid_reference>
+                    <reference_type>is_instrument</reference_type>
+                </Internal_Reference>
+            </Observing_System_Component>
+            <Observing_System_Component>
+                <name>Imaging Science Subsystem - Narrow Angle</name>
+                <type>Instrument</type>
+                <description>ISSNA</description>
+                <Internal_Reference>
+                    <lid_reference>urn:nasa:pds:context:instrument:issna.co</lid_reference>
                     <reference_type>is_instrument</reference_type>
                 </Internal_Reference>
             </Observing_System_Component>
@@ -179,8 +179,8 @@
             <files>1</files>
             <Document_File>
                 <file_name>cassini-iss-saturn-backplanes-user-guide.pdf</file_name>
-                <creation_date_time>$FILE_ZULU(USER_GUIDE_PATH)$</creation_date_time>
-                <md5_checksum>$FILE_MD5(USER_GUIDE_PATH)$</md5_checksum>
+                <creation_date_time>$FILE_ZULU("cassini-iss-saturn-backplanes-user-guide.pdf")$</creation_date_time>
+                <md5_checksum>$FILE_MD5("cassini-iss-saturn-backplanes-user-guide.pdf")$</md5_checksum>
                 <document_standard_id>PDF</document_standard_id>
             </Document_File>
         </Document_Edition>

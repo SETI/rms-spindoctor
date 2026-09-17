@@ -2,7 +2,9 @@ This bundle contains backplane products generated from Cassini ISS calibrated
 images, along with associated metadata and documentation.
 
 The document collection contains a detailed, comprehensive User Guide which
-provides an overview of the contents of this bundle and how to use it.
+provides an overview of the contents of this bundle and how to use it, along
+with index files that summarize information about all backplanes for ease of
+use in automated pipelines.
 
 The most current version of the entire bundle may be obtained from the PDS using
 the logical identifier:
@@ -20,8 +22,9 @@ Systems Node: https://pds-rings.seti.org/
 The following is the recommended information to include in a (e.g. journal)
 citation of this data set:
 
+  # TODO Update
   "French, R.S.,
-   Backplanes for Navigated Images from Cassini ISS at Saturn.
+   Backplane Products Generated from Cassini ISS Saturn Images.
    PDS Ring-Moon Systems (RMS). DOI TBD."
 
 For questions concerning this data set, please contact:

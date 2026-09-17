@@ -22,7 +22,6 @@ import pytest
 from cloud_tasks.worker import WorkerData
 from filecache import FCPath
 from tests.spindoctor.cli.pds4.conftest import (
-    RUN_LEVEL_PRODUCTS,
     make_bundle_env,
     touch_browse_label,
     touch_label,
@@ -31,7 +30,6 @@ from tests.spindoctor.cli.pds4.conftest import (
 
 from spindoctor.cli import sd_create_bundle, sd_create_bundle_cloud_tasks
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome
-from spindoctor.cli.pds4.bundle_products import BundleProductsOutcome
 from spindoctor.cli.pds4.collections import CollectionOutcome, GlobalIndexOutcome
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
@@ -94,9 +92,8 @@ SUMMARY_PRODUCTS = (
     'document/supplemental/global_index_bodies.lblx',
     'document/supplemental/global_index_rings.tab',
     'document/supplemental/global_index_rings.lblx',
-    *RUN_LEVEL_PRODUCTS,
 )
-"""Every file the summary pass writes over a template directory holding the user guide."""
+"""Every file the summary pass writes, relative to the bundle's directory."""
 
 
 class _StubDataset:
@@ -248,14 +245,9 @@ def _labels_outcome(monkeypatch: pytest.MonkeyPatch, outcome: BundleDataOutcome)
 
 
 def _summary_counts(
-    monkeypatch: pytest.MonkeyPatch,
-    collections: int,
-    index: int,
-    *,
-    disagreeing: int = 0,
-    bundle: int = 0,
+    monkeypatch: pytest.MonkeyPatch, collections: int, index: int, *, disagreeing: int = 0
 ) -> None:
-    """Make the three summary generators report the given counts.
+    """Make the two summary generators report the given counts.
 
     Parameters:
         monkeypatch: Fixture the stand-ins are installed through.
@@ -263,21 +255,16 @@ def _summary_counts(
         index: Failed global index labels to report.
         disagreeing: Images whose products disagree, for the collection generator to
             report.
-        bundle: Failed run-level labels to report.
     """
     index_outcome = GlobalIndexOutcome(failed_labels=index, epochs=None)
     collection_outcome = CollectionOutcome(
         failed_labels=collections, disagreeing_images=disagreeing
     )
-    bundle_outcome = BundleProductsOutcome(failed_labels=bundle)
     monkeypatch.setattr(
         sd_create_bundle, 'generate_collection_files', lambda **kwargs: collection_outcome
     )
     monkeypatch.setattr(
         sd_create_bundle, 'generate_global_index_files', lambda **kwargs: index_outcome
-    )
-    monkeypatch.setattr(
-        sd_create_bundle, 'generate_bundle_products', lambda **kwargs: bundle_outcome
     )
 
 
@@ -650,10 +637,10 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     """A run refused over a supplemental file leaves no file of the pass behind.
 
     The first run writes every file of the pass; the second is refused over a second
-    supplemental file, one recording its statistic in another unit.  The generators
+    supplemental file, one recording its statistic in another unit.  Both generators
     are the real ones, so an earlier run's inventory or collection label left beside
-    no index is reported here, as is an earlier run's index or run-level product; and
-    the log gives the reason the run was refused.
+    no index is reported here, as is an earlier run's index; and the log gives the
+    reason the run was refused.
     """
     env = make_bundle_env(tmp_path / 'env', bodies=[{'name': 'latitude', 'units': 'rad'}])
     dataset = env.dataset.as_dataset()
@@ -689,10 +676,9 @@ def test_a_summary_over_no_data_label_exits_one_and_writes_neither_collection(
     it writes an image's supplemental file before the image's data label.  The index
     then has a range to hand on, but neither collection has a member, and a collection
     label states at least one record, so neither collection is written, each counts
-    among the labels not written, and the log names each; so does the bundle label,
-    which declares both.  The image, a supplemental file with no data label, is one
-    whose products disagree, and the closing line counts it beside the labels.  The
-    generators are the real ones.
+    among the labels not written, and the log names each.  The image, a supplemental
+    file with no data label, is one whose products disagree, and the closing line
+    counts it beside the labels.  Both generators are the real ones.
     """
     env = make_bundle_env(tmp_path / 'env')
     dataset = env.dataset.as_dataset()
@@ -704,12 +690,11 @@ def test_a_summary_over_no_data_label_exits_one_and_writes_neither_collection(
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
-    not_written = ('data/collection_', 'browse/collection_', 'bundle.lblx')
-    unwritten = [env.bundle_dir / name for name in SUMMARY_PRODUCTS if name.startswith(not_written)]
-    assert [product for product in unwritten if product.exists()] == []
+    collections = [env.bundle_dir / name for name in SUMMARY_PRODUCTS if 'collection_' in name]
+    assert [product for product in collections if product.exists()] == []
     out = capsys.readouterr().out
     closing = (
-        'Summary generation incomplete: 3 label(s) were not written, '
+        'Summary generation incomplete: 2 label(s) were not written, '
         '1 image(s) whose products disagree'
     )
     assert closing in out
@@ -718,9 +703,9 @@ def test_a_summary_over_no_data_label_exits_one_and_writes_neither_collection(
 
 
 @pytest.mark.parametrize(
-    ('collections', 'index', 'disagreeing', 'bundle'),
-    [(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)],
-    ids=['collection label', 'index label', 'disagreeing image', 'run-level label'],
+    ('collections', 'index', 'disagreeing'),
+    [(1, 0, 0), (0, 1, 0), (0, 0, 1)],
+    ids=['collection label', 'index label', 'disagreeing image'],
 )
 def test_main_summary_exits_non_zero_when_a_count_is_not_zero(
     summary_run: None,
@@ -728,13 +713,12 @@ def test_main_summary_exits_non_zero_when_a_count_is_not_zero(
     collections: int,
     index: int,
     disagreeing: int,
-    bundle: int,
 ) -> None:
     """A label not written, or an image whose products disagree, ends the run non-zero.
 
     Each count is a case of its own because the run has to act on each: a summary
-    that reported only one generator's failed labels, or only failed labels and no
-    disagreeing image, would still pass a test that never gave it the other.
+    that reported only the second generator's failed labels, or only failed labels
+    and no disagreeing image, would still pass a test that never gave it the other.
 
     Parameters:
         summary_run: Fixture standing the subcommand up on stubs.
@@ -742,11 +726,8 @@ def test_main_summary_exits_non_zero_when_a_count_is_not_zero(
         collections: Failed collection labels for this case.
         index: Failed global index labels for this case.
         disagreeing: Images whose products disagree, for this case.
-        bundle: Failed run-level labels for this case.
     """
-    _summary_counts(
-        monkeypatch, collections=collections, index=index, disagreeing=disagreeing, bundle=bundle
-    )
+    _summary_counts(monkeypatch, collections=collections, index=index, disagreeing=disagreeing)
     with pytest.raises(SystemExit) as excinfo:
         sd_create_bundle.main_summary()
     assert excinfo.value.code == 1
@@ -810,42 +791,13 @@ def test_main_summary_reports_why_the_collection_files_could_not_be_generated(
     assert expected in capsys.readouterr().out
 
 
-def test_main_summary_reports_why_the_bundle_products_could_not_be_generated(
-    summary_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A run-level generator that raises ends the run with the reason in the log.
-
-    A file the template directory does not hold is refused naming it, which the frames
-    of a traceback do not carry.
-    """
-    _summary_counts(monkeypatch, collections=0, index=0)
-
-    def _refuse(**kwargs: Any) -> BundleProductsOutcome:
-        """Refuse the way a file missing from the template directory is refused.
-
-        Parameters:
-            **kwargs: What the driver passed, unused.
-
-        Raises:
-            FileNotFoundError: Always, naming the file.
-        """
-        raise FileNotFoundError('No such file: templates/readme.txt')
-
-    monkeypatch.setattr(sd_create_bundle, 'generate_bundle_products', _refuse)
-    with pytest.raises(SystemExit) as excinfo:
-        sd_create_bundle.main_summary()
-    assert excinfo.value.code == 1
-    expected = 'Failed to generate the bundle products: No such file: templates/readme.txt'
-    assert expected in capsys.readouterr().out
-
-
-def test_main_summary_hands_the_index_s_range_to_the_generators_after_it(
+def test_main_summary_hands_the_index_s_range_to_the_collection_files(
     summary_run: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The index runs first, and the collections and then the run-level products get its range.
+    """The index runs first, and the collection files are handed the range its scan took.
 
     The scan of the supplemental files is the pass's one read of them, so the range
-    the data collection label and the bundle label state can come from nowhere else.
+    the data collection label states can come from nowhere else.
     """
     calls: list[str] = []
     handed: list[Any] = []
@@ -876,25 +828,11 @@ def test_main_summary_hands_the_index_s_range_to_the_generators_after_it(
         handed.append(kwargs['epochs'])
         return CollectionOutcome(failed_labels=0, disagreeing_images=0)
 
-    def _bundle(**kwargs: Any) -> BundleProductsOutcome:
-        """Record the call and the range it is handed, and report nothing counted.
-
-        Parameters:
-            **kwargs: What the driver passed; ``epochs`` is recorded.
-
-        Returns:
-            An outcome with no failed label.
-        """
-        calls.append('bundle')
-        handed.append(kwargs['epochs'])
-        return BundleProductsOutcome(failed_labels=0)
-
     monkeypatch.setattr(sd_create_bundle, 'generate_global_index_files', _index)
     monkeypatch.setattr(sd_create_bundle, 'generate_collection_files', _collections)
-    monkeypatch.setattr(sd_create_bundle, 'generate_bundle_products', _bundle)
     sd_create_bundle.main_summary()
-    assert calls == ['index', 'collections', 'bundle']
-    assert handed == [epochs, epochs]
+    assert calls == ['index', 'collections']
+    assert handed == [epochs]
 
 
 def test_main_summary_exits_zero_when_every_label_is_written(

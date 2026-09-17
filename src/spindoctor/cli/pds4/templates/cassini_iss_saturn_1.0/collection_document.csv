@@ -1,6 +1,2 @@
-P,urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:document:backplanes-user-guide::1.0
+P,urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:backplanes-user-guide::1.0
 S,urn:nasa:pds:cassini_iss_saturn:document:iss-data-user-guide::2.0
-S,urn:nasa:pds:context:instrument:issna.co::1.2
-S,urn:nasa:pds:context:instrument:isswa.co::1.2
-S,urn:nasa:pds:context:instrument_host:spacecraft.co::1.4
-S,urn:nasa:pds:context:investigation:mission.cassini-huygens::1.5
