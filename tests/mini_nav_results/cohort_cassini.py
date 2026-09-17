@@ -89,7 +89,7 @@ GATED_MIDTIME_ET = 129400823.55
 """The epoch of the image whose features all fell below the gate.
 
 Minutes after the first, so the two sit in one observation directory: an image
-the bundle has nothing to say about is the ordinary neighbour of one it does.
+the bundle has nothing to say about is the ordinary neighbor of one it does.
 """
 
 _LIMB_SUBTREE = 'COISS_2001/data/1454725799_1455008789'
@@ -609,10 +609,10 @@ class CohortCassiniISSSaturn(Cohort):
     }
     """What one plane of each name spans, in the units the configuration declares.
 
-    Radians for the angles and the longitudes, kilometres for the ring radii, and
+    Radians for the angles and the longitudes, kilometers for the ring radii, and
     km or radians per pixel for the resolutions -- the units the arrays carry.  The
     ring radii span Saturn's main rings; the resolutions are what a Cassini frame
-    of a body a few hundred thousand kilometres away resolves.
+    of a body a few hundred thousand kilometers away resolves.
     """
 
     @classmethod

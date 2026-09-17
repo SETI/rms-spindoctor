@@ -461,7 +461,7 @@ NUMPY_TYPES = {'IEEE754MSBSingle': '>f4', 'SignedMSB4': '>i4'}
 """The numpy type each PDS4 data type names."""
 
 
-def _labelled_fits(
+def _labeled_fits(
     cohort: Cohort, tmp_path: Path, stub: str, image_name: str
 ) -> tuple[ElementTree.Element, Path]:
     """Label one cohort image, returning the label's root and the FITS it names.
@@ -542,7 +542,7 @@ def test_a_cohort_data_label_describes_each_hdu_where_the_fits_holds_it(
     the file's bytes at each array's offset, as its stated lines, samples and type, each
     array is the one astropy reads for its HDU, and its type and unit are the HDU's.
     """
-    root, fits_copy = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
+    root, fits_copy = _labeled_fits(cassini_cohort, tmp_path, stub, image_name)
     raw = fits_copy.read_bytes()
     with fits.open(fits_copy) as hdul:
         hdu_count = len(hdul)
@@ -583,7 +583,7 @@ def test_a_cohort_data_label_declares_the_masked_value_its_float_arrays_hold(
     body claimed the pixel and a ring plane where one did.  Every masked pixel holds the
     declared value, and no measured one does.
     """
-    root, fits_copy = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
+    root, fits_copy = _labeled_fits(cassini_cohort, tmp_path, stub, image_name)
     raw = fits_copy.read_bytes()
     masked_value = float(DEFAULT_CONFIG.backplanes.masked_value)
     arrays = {
@@ -631,7 +631,7 @@ def test_only_the_ring_image_s_data_label_describes_ring_arrays(
         image_name: That image's calibrated name.
         has_rings: Whether the cohort gives the image ring backplanes.
     """
-    root, _ = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
+    root, _ = _labeled_fits(cassini_cohort, tmp_path, stub, image_name)
     identifiers = [
         _text(array, 'pds:local_identifier') for array in _data_objects(root, 'Array_2D_Image')
     ]
@@ -653,7 +653,7 @@ def test_each_array_of_a_cohort_data_label_has_display_settings_that_resolve(
     ``local_identifier_reference`` names one of them, and the references are the
     arrays', one each, in the order the arrays are described.
     """
-    root, _ = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
+    root, _ = _labeled_fits(cassini_cohort, tmp_path, stub, image_name)
     identifiers = [
         element.text for element in root.iterfind('.//pds:local_identifier', PDS4_NAMESPACES)
     ]
@@ -693,7 +693,7 @@ def test_each_data_object_of_a_cohort_data_label_is_in_the_schema_s_shape(
     constants where it has them; the parsing standard is one the Schematron names for
     FITS and the index order the one it allows.  The ``File`` comes first.
     """
-    root, _ = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
+    root, _ = _labeled_fits(cassini_cohort, tmp_path, stub, image_name)
     file_area = root.find('pds:File_Area_Observational', PDS4_NAMESPACES)
     assert file_area is not None
     assert _children(file_area)[0] == 'File'
@@ -752,7 +752,7 @@ def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
     The method is the one the shipped configuration names for the plane, the unit the
     HDU's ``BUNIT`` as astropy reads it, and the constant the configured masked value.
     """
-    root, fits_copy = _labelled_fits(cassini_cohort, tmp_path, stub, image_name)
+    root, fits_copy = _labeled_fits(cassini_cohort, tmp_path, stub, image_name)
     methods = {
         entry['name']: entry['method']
         for entry in [*DEFAULT_CONFIG.backplanes.bodies, *DEFAULT_CONFIG.backplanes.rings]

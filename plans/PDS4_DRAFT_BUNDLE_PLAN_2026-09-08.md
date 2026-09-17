@@ -641,13 +641,13 @@ name heuristic.
 What follows for the labels, and what a later reader must not "fix":
 
 - The `Array_2D_Image` blocks Phase 4 generates state `unit` from the HDU's
-  `BUNIT`, so an angular plane is labelled `rad`. The label describes the
+  `BUNIT`, so an angular plane is labeled `rad`. The label describes the
   array, and the array is radians.
 - The `Field_Character` blocks Phase 7 generates for the global index take
   their `unit` from the same config entry the column was built from, mapped
   through `statistics_units`, the function that produced the column's values,
   so a label and the column it describes cannot disagree: an angular column is
-  labelled `deg`, a resolution in radians per pixel `deg/pixel`.
+  labeled `deg`, a resolution in radians per pixel `deg/pixel`.
 - So one bundle carries `unit="rad"` on an array and `unit="deg"` on the
   table summarizing it, deliberately: each label is correct about the file it
   describes.
@@ -1593,7 +1593,7 @@ The one row that would have outlived this plan was the angular-unit
 difference between the arrays and the tables, and the difference itself
 turned out not to be a defect: section 3.8 records it as the design, decided
 2026-09-09, and both backplane guides now say so where a reader will meet it.
-What was a defect was the conversion recognising only the literal `rad`,
+What was a defect was the conversion recognizing only the literal `rad`,
 leaving `ring_longitudinal_resolution` in radians per pixel in a table of
 degrees; that is fixed, and the formatting half of #607 closes on the same
 branch, with a format per unit that section 3.8 records; Phase 7 sizes its
@@ -1676,7 +1676,7 @@ other's defects:
   conventions: mypy strict with no new suppressions, no issue numbers in
   docstrings or `.rst`, positional-versus-keyword grouping, modules under
   1000 lines. And the tests themselves: a test that cannot fail is worse
-  than no test, so check that each new one fails when the behaviour it
+  than no test, so check that each new one fails when the behavior it
   claims to pin is broken.
 - **A product reviewer**, reading what came out. Generate a bundle from the
   cohort, open the files, and hold them against the phase's acceptance
@@ -1704,7 +1704,7 @@ is open and is not the operator's to answer alone: whether this information
 model build's dictionaries are registered (section 3.9), which the
 Engineering Node is being asked. It bears on acceptance criterion 6 and on
 nothing before Phase 10. The angular-unit question that section 3.8 once
-held open was settled 2026-09-09 in favour of degrees in the tables, which is
+held open was settled 2026-09-09 in favor of degrees in the tables, which is
 what the products did for every angular column but one.
 
 The branch merges to `main` as a merge commit, not a squash, so the
