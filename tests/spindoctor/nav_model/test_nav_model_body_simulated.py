@@ -33,7 +33,7 @@ def _obs() -> ObsSim:
 
 
 def _body_params(**overrides: Any) -> dict[str, Any]:
-    """Centred irregular-body params for prediction and rendering."""
+    """Centered irregular-body params for prediction and rendering."""
     params = {
         'name': 'HYPERION',
         'center_v': _SIZE / 2.0,
@@ -290,7 +290,7 @@ def test_gates_off_limb_is_geometric_not_terminator() -> None:
 
     For a phase-120 sphere the lit-region boundary includes the terminator,
     which cuts through the disc interior; the lit geometric limb keeps every
-    vertex on the silhouette outline (constant radius from the centre).
+    vertex on the silhouette outline (constant radius from the center).
     """
     vertices = _ungated_limb_vertices(_large_body(phase_angle=120.0))
     obs = _limb_obs()
@@ -359,7 +359,7 @@ def test_terminator_arc_is_interior_not_geometric_limb() -> None:
     """The terminator lies inside the disc, distinct from the silhouette limb.
 
     At 90-degree phase the lit/unlit boundary is a great circle cutting through
-    the disc centre, so its vertices span radii from near the centre out to the
+    the disc center, so its vertices span radii from near the center out to the
     limb -- unlike the geometric limb, whose vertices all sit near the disc
     edge.  The mean terminator radius therefore sits well inside the limb.
     """
@@ -432,7 +432,7 @@ def test_terminator_arc_fraction_fully_framed_is_near_one() -> None:
 def test_terminator_arc_fraction_drops_when_frame_clips_it() -> None:
     """A body whose terminator runs off the frame edge scores a lower fraction.
 
-    Centre the body near the frame edge so part of the lit/unlit boundary
+    Center the body near the frame edge so part of the lit/unlit boundary
     falls outside the render; the visible-arc fraction must report the
     surviving portion, not 1.0 (the honest input BodyTerminatorNav's
     confidence needs).
@@ -477,7 +477,7 @@ def _blob_feature(obs: ObsSim, body_params: dict[str, Any], context: NavContext)
 
 
 def _small_body(obs: ObsSim) -> dict[str, Any]:
-    """A 12 px sphere at low phase, centred in ``obs``'s frame."""
+    """A 12 px sphere at low phase, centered in ``obs``'s frame."""
     return {
         'name': 'RHEA',
         'center_v': obs.data_shape_v / 2.0,
@@ -544,7 +544,7 @@ def test_blob_admits_mostly_offscreen_body() -> None:
     import dataclasses
 
     obs = _obs()
-    # Body centred 2 px inside the frame edge: roughly half the 20 px
+    # Body centered 2 px inside the frame edge: roughly half the 20 px
     # silhouette hangs past the sensor into the extfov margin.
     params = dict(_small_body(obs))
     params.update(center_v=2.0, axis1=20.0, axis2=20.0, axis3=20.0)
@@ -595,7 +595,7 @@ def test_limb_arc_fraction_fully_framed_is_near_one() -> None:
 def test_limb_arc_fraction_drops_when_frame_clips_it() -> None:
     """A body sliding off the frame edge scores a lower limb fraction.
 
-    Centre the body near the frame edge so part of the silhouette boundary
+    Center the body near the frame edge so part of the silhouette boundary
     falls outside the render; the visible-arc fraction must report the
     surviving portion, not 1.0 (the honest input BodyLimbNav's
     visible_limb_arc_fraction confidence term needs).

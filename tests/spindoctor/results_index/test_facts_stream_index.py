@@ -5,7 +5,7 @@ guarantees a reader of documents has for nothing and an index has to be made to
 keep.  The facts are the whole row whatever columns a consumer selected; a
 selection narrows a stream of facts exactly as it narrows a stream of records; a
 read naming its own stubs is answered in the order it named them, in batches, and
-still honours everything else the selection says; and every one of those reads
+still honors everything else the selection says; and every one of those reads
 carries the root half of the key.  The connection the pass borrows comes back.
 """
 
@@ -66,7 +66,7 @@ def test_the_consumers_columns_are_fewer_than_the_whole_row() -> None:
 
 @pytest.mark.parametrize('which', BOTH_ROOTS)
 def test_a_mission_filter_keeps_one_missions_images(two_roots: TwoRoots, which: str) -> None:
-    """The restriction both storages honour the same way.
+    """The restriction both storages honor the same way.
 
     Parameters:
         two_roots: The two ingested roots and their index.

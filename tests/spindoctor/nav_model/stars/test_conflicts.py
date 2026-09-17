@@ -16,7 +16,7 @@ from spindoctor.nav_model.stars.conflicts import (
 
 
 def test_parse_ring_occlusion_annuli_normalises_keys() -> None:
-    """Planet keys are normalised to upper case in the returned mapping."""
+    """Planet keys are normalized to upper case in the returned mapping."""
     result = parse_ring_occlusion_annuli({'saturn': [[100.0, 200.0]]})
     assert list(result.keys()) == ['SATURN']
     assert result['SATURN'] == [(100.0, 200.0)]

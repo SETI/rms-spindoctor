@@ -208,7 +208,7 @@ def test_stars_in_extfov_skips_records_with_missing_radec(
     # Inject a star whose ``ra`` is None into the FakeStarCatalog list so
     # the post-filter reduction loop hits the early-skip branch.  The
     # patched getter is reached via dynamic attribute lookup on the
-    # catalog module so monkeypatch's swap is honoured.
+    # catalog module so monkeypatch's swap is honored.
     cat = cast(Any, nav_catalog.get_ucac4_catalog())
     bad = make_star(unique_number=2, ra=0.05, dec=0.05, vmag=5.0)
     bad.ra = None

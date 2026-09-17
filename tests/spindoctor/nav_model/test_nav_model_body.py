@@ -249,7 +249,7 @@ def _synthetic_disc_masks(
     vv, uu = np.indices((size, size), dtype=np.float64)
     dist = np.hypot(vv - center[0], uu - center[1])
     silhouette = dist <= radius
-    # 1-px ridge: silhouette pixels with at least one space (False) neighbour.
+    # 1-px ridge: silhouette pixels with at least one space (False) neighbor.
     space = ~silhouette
     ridge = silhouette & (
         np.roll(space, 1, axis=0)

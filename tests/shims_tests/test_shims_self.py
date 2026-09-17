@@ -28,7 +28,7 @@ from tests.shims import (
 
 
 def test_plant_circular_body_paints_disc_of_correct_radius() -> None:
-    """A 5-px-radius circle paints exactly the pixels with centre distance <= radius."""
+    """A 5-px-radius circle paints exactly the pixels with center distance <= radius."""
     shape = (40, 40)
     centre_vu = (20.0, 20.0)
     radius_px = 5.0
@@ -47,7 +47,7 @@ def test_plant_circular_body_paints_disc_of_correct_radius() -> None:
 
 
 def test_plant_circular_body_incidence_increases_with_radius() -> None:
-    """The synthetic incidence ramps from 0 at centre to pi/2 at limb."""
+    """The synthetic incidence ramps from 0 at center to pi/2 at limb."""
     data = plant_circular_body(
         shape=(40, 40), centre_vu=(20.0, 20.0), radius_px=10.0, resolution_km_px=1.0
     )

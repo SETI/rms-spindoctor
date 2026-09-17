@@ -174,7 +174,7 @@ class _FakeObsForBracket:
 def test_render_smeared_psf_phases_a_negative_uv_into_the_unit_interval() -> None:
     """A star in the extended-FOV margin has a negative uv and still phases right.
 
-    ``eval_rect`` measures its offset from the centre pixel's lower edge and
+    ``eval_rect`` measures its offset from the center pixel's lower edge and
     wants a fraction in [0, 1).  Truncating toward zero would hand it a negative
     one and displace the stamp by a whole pixel on that axis.
     """

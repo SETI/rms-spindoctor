@@ -45,10 +45,10 @@ class _Sphere:
     """Analytic orthographic-sphere geometry driving the fake backplane.
 
     Parameters:
-        center_vu: Sphere centre in FOV pixel coordinates ``(v, u)``.
+        center_vu: Sphere center in FOV pixel coordinates ``(v, u)``.
         radius_px: Sphere radius in pixels.
         sun_vuz: Sun direction in the ``(v, u, z)`` image frame; ``+z`` points
-            toward the observer.  Normalised on use.
+            toward the observer.  Normalized on use.
         km_per_px: Constant km/px scale on the resolved body.
     """
 
@@ -163,7 +163,7 @@ def _make_obs(
         target: Target sphere geometry (drives the inventory bounding box).
         data_shape: Sensor-area ``(rows, cols)`` shape.
         margin: Extfov margin applied to both axes.
-        phase_deg: Centre phase angle reported by the geometry backplane.
+        phase_deg: Center phase angle reported by the geometry backplane.
         target_range_km: Subject range recorded in the inventory.
     """
     center_v, center_u = target.center_vu
@@ -213,7 +213,7 @@ def _make_model(
         occluder_range_km: Sibling range recorded on the wiring; strictly
             nearer than ``target_range_km`` unless overridden.
         target_range_km: Subject range of the navigated body.
-        phase_deg: Centre phase angle reported by the geometry backplane.
+        phase_deg: Center phase angle reported by the geometry backplane.
     """
     obs, inventory = _make_obs(target, phase_deg=phase_deg, target_range_km=target_range_km)
     render_occluder = occluder if occluder is not None else target
@@ -502,25 +502,25 @@ def _fov_obs(shape: tuple[int, int] = (100, 100), margin: tuple[int, int] = (10,
     return FakeObs(data=np.zeros(shape), extfov_margin_vu=margin)
 
 
-def _entry(*, centre: tuple[float, float], size: tuple[float, float]) -> dict[str, Any]:
-    """An inventory record placing a disc of the given centre and pixel size.
+def _entry(*, center: tuple[float, float], size: tuple[float, float]) -> dict[str, Any]:
+    """An inventory record placing a disc of the given center and pixel size.
 
     Parameters:
-        centre: ``(u, v)`` centre of the disc in field-of-view coordinates.
+        center: ``(u, v)`` center of the disc in field-of-view coordinates.
         size: ``(u, v)`` full pixel extent of the disc.
 
     Returns:
-        The record, carrying the centre, the pixel sizes and the unclipped
+        The record, carrying the center, the pixel sizes and the unclipped
         bounding box the caller reads.
     """
     return {
-        'center_uv': np.array([centre[0], centre[1]]),
+        'center_uv': np.array([center[0], center[1]]),
         'u_pixel_size': size[0],
         'v_pixel_size': size[1],
-        'u_min_unclipped': centre[0] - size[0] / 2.0,
-        'u_max_unclipped': centre[0] + size[0] / 2.0,
-        'v_min_unclipped': centre[1] - size[1] / 2.0,
-        'v_max_unclipped': centre[1] + size[1] / 2.0,
+        'u_min_unclipped': center[0] - size[0] / 2.0,
+        'u_max_unclipped': center[0] + size[0] / 2.0,
+        'v_min_unclipped': center[1] - size[1] / 2.0,
+        'v_max_unclipped': center[1] + size[1] / 2.0,
         'range': 1.0e5,
     }
 
@@ -528,7 +528,7 @@ def _entry(*, centre: tuple[float, float], size: tuple[float, float]) -> dict[st
 def test_a_body_covering_every_corner_fills_the_frame() -> None:
     """A disc large enough to swallow the extended frame reports that it does."""
     obs = _fov_obs()
-    entry = _entry(centre=(50.0, 50.0), size=(4000.0, 4000.0))
+    entry = _entry(center=(50.0, 50.0), size=(4000.0, 4000.0))
     assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is True
 
 
@@ -542,7 +542,7 @@ def test_a_body_leaving_one_corner_uncovered_does_not_fill_the_frame() -> None:
     obs = _fov_obs()
     # Chosen so the box clears the frame on every side and the ellipse does
     # not: the far corner sits at 1.02 of the ellipse's radius.
-    entry = _entry(centre=(50.0, 50.0), size=(400.0, 122.0))
+    entry = _entry(center=(50.0, 50.0), size=(400.0, 122.0))
     assert entry['u_min_unclipped'] <= obs.extfov_u_min
     assert entry['u_max_unclipped'] >= obs.extfov_u_max
     assert entry['v_min_unclipped'] <= obs.extfov_v_min
@@ -553,12 +553,12 @@ def test_a_body_leaving_one_corner_uncovered_does_not_fill_the_frame() -> None:
 def test_a_body_off_to_one_side_does_not_fill_the_frame() -> None:
     """Size alone does not decide it; where the body sits does."""
     obs = _fov_obs()
-    entry = _entry(centre=(-2000.0, 50.0), size=(4000.0, 4000.0))
+    entry = _entry(center=(-2000.0, 50.0), size=(4000.0, 4000.0))
     assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False
 
 
 def test_a_body_with_no_measurable_size_does_not_fill_the_frame() -> None:
     """A disc of no extent covers nothing, and is looked at rather than dismissed."""
     obs = _fov_obs()
-    entry = _entry(centre=(50.0, 50.0), size=(0.0, 0.0))
+    entry = _entry(center=(50.0, 50.0), size=(0.0, 0.0))
     assert nav_model_body_module.body_fills_extfov(cast(Any, obs), entry) is False

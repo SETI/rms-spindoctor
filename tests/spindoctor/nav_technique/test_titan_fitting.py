@@ -15,7 +15,7 @@ which the along-track center shift and the free radius are nearly
 degenerate, so the along-track sigma is close to the single-ray
 limb-location sigma with essentially no averaging benefit, and at a
 signal-to-noise ratio of 20 the steepest-gradient estimator locates one ray
-to about 0.7 px.  Over 120 randomised scenes at that noise level the
+to about 0.7 px.  Over 120 randomized scenes at that noise level the
 along-track error has a standard deviation of 0.30 px, a 95th percentile of
 1.03 px and a maximum of 1.20 px, while the cross-track error never exceeds
 0.05 px.

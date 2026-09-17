@@ -35,15 +35,15 @@ from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.star_records import star_record_from_params
 from spindoctor.support.types import MutableStar
 
-# Odd, so the FOV's optical axis falls on the centre of one pixel rather than
+# Odd, so the FOV's optical axis falls on the center of one pixel rather than
 # on the boundary between two -- a boundary would leave the brightest-pixel
-# search a tie to break and put the centroid box off centre.
+# search a tie to break and put the centroid box off center.
 _FOV_SIZE = 129
 _STAR_SIGMA_PX = 1.5
 _STAR_PEAK_DN = 1000.0
 
-# A scene star well away from the frame centre, so a prediction that mistook
-# the frame centre for the star would not pass by accident.
+# A scene star well away from the frame center, so a prediction that mistook
+# the frame center for the star would not pass by accident.
 _SCENE_STAR_V = 40.5
 _SCENE_STAR_U = 60.5
 

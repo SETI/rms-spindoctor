@@ -399,7 +399,7 @@ class TestPass4FadeConflict:
             min_allowed_fade_width_pix=10.0,
         )
         result = flt.filter([feature, neighbor])
-        # The neighbor passes, but ser should be excluded
+        # The neighbor passes, but set should be excluded
         keys = [f.key for f in result]
         assert 'ser' not in keys
 
