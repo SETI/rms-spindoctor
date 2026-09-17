@@ -1317,13 +1317,13 @@ class BodyMosaic:
         #
         # grid_mode=True is not scipy's default and is load-bearing here. It
         # makes ndimage_zoom treat a pixel as a square of unit area rather than
-        # as a point at its centre, so the zoomed array is the same region of
+        # as a point at its center, so the zoomed array is the same region of
         # the sky divided into zoom times as many pixels: sub-pixel s of pixel p
         # covers [p + s / zoom, p + (s + 1) / zoom) in the original. That is
         # exactly the convention the sampling below relies on, where a
         # region-relative pixel-corner coordinate scaled by zoom and floored
         # names the sub-pixel containing it. With the default grid_mode=False
-        # the zoomed grid's endpoints are pinned to the original pixel centres
+        # the zoomed grid's endpoints are pinned to the original pixel centers
         # instead, which shifts and rescales it by up to half a pixel.
         if self._zoom == 1:
             zoom_data = np.array(subimg, copy=True)

@@ -203,16 +203,16 @@ def test_array_zoom() -> None:
     assert zoomed.shape == (12, 20)
     marked = np.argwhere(zoomed == 7.0)
     # The source cell's replicated block starts where the cell starts, at rows
-    # 1*3 and columns 2*4; it is not centred on the cell's own centre.
+    # 1*3 and columns 2*4; it is not centered on the cell's own center.
     assert marked[:, 0].min() == 3
     assert marked[:, 0].max() == 5
     assert marked[:, 1].min() == 8
     assert marked[:, 1].max() == 11
     # Nothing outside that block is written.
     assert np.count_nonzero(zoomed) == 12
-    # In pixel-corner coordinates the source cell's centre is (1.5, 2.5) and
-    # the zoom puts the replicated block's centre at (4.5, 10.0), which is the
-    # source centre scaled by the zoom factor.
+    # In pixel-corner coordinates the source cell's center is (1.5, 2.5) and
+    # the zoom puts the replicated block's center at (4.5, 10.0), which is the
+    # source center scaled by the zoom factor.
     zoomed_centre_v = marked[:, 0].mean() + PIXEL_CENTER_TO_CORNER_PX
     zoomed_centre_u = marked[:, 1].mean() + PIXEL_CENTER_TO_CORNER_PX
     assert zoomed_centre_v == 4.5
@@ -222,7 +222,7 @@ def test_array_zoom() -> None:
 def test_array_unzoom() -> None:
     """Each unzoomed cell is the mean of its source block, and no other statistic."""
     # This block's mean (9.0) differs from its min (0.0), its max (50.0), its
-    # median (4.0), its centre sample (4.0) and its first sample (0.0), so only
+    # median (4.0), its center sample (4.0) and its first sample (0.0), so only
     # a block mean produces the expected values.
     block = np.array([[0.0, 1.0, 2.0], [3.0, 4.0, 50.0], [6.0, 7.0, 8.0]])
     array = np.zeros((6, 6))
@@ -294,7 +294,7 @@ def test_draw_line() -> None:
 
     marked = np.argwhere(img != 0)
     # The line's own row is the row named by the argument, so a whole-number
-    # coordinate sits at the centre of that pixel: it is pixel-centric.
+    # coordinate sits at the center of that pixel: it is pixel-centric.
     assert sorted(set(marked[:, 0].tolist())) == [3]
     assert marked[:, 1].min() == 2
     assert marked[:, 1].max() == 7
@@ -307,7 +307,7 @@ def test_draw_line_truncates_a_fractional_coordinate() -> None:
     img = np.zeros((9, 12), dtype=np.float64)
 
     # In pixel-corner terms 3.9 lies inside pixel 3, nine tenths of the way
-    # across it; rounding to the nearer pixel centre would reach row 4.
+    # across it; rounding to the nearer pixel center would reach row 4.
     draw_line(img, 1.0, 2.0, 3.9, 7.0, 3.9)
 
     marked = np.argwhere(img != 0)
@@ -343,7 +343,7 @@ def _test_draw_rect_placeholder() -> None:  # TODO: Implement
 
 
 def test_draw_circle() -> None:
-    """A circle is centred on the named pixel itself: the centre is pixel-centric."""
+    """A circle is centered on the named pixel itself: the center is pixel-centric."""
     x0 = 6
     y0 = 6
     radius = 4
@@ -352,17 +352,17 @@ def test_draw_circle() -> None:
     draw_circle(img, 1.0, x0, y0, radius)
 
     marked = np.argwhere(img != 0)
-    # The marked figure's own centroid is the named pixel. Reading the centre
+    # The marked figure's own centroid is the named pixel. Reading the center
     # as pixel-corner would put the figure half a pixel up and to the left, at
     # a centroid of (5.5, 5.5).
     assert marked[:, 0].mean() == 6.0
     assert marked[:, 1].mean() == 6.0
     # The figure is its own mirror image about row y0 and about column x0,
-    # which only holds when those whole numbers are pixel centres.
+    # which only holds when those whole numbers are pixel centers.
     window = img[y0 - radius : y0 + radius + 1, x0 - radius : x0 + radius + 1]
     assert np.array_equal(window, window[::-1, :])
     assert np.array_equal(window, window[:, ::-1])
-    # The four cardinal points lie exactly radius pixels from the centre pixel.
+    # The four cardinal points lie exactly radius pixels from the center pixel.
     assert img[y0, x0 + radius] != 0
     assert img[y0, x0 - radius] != 0
     assert img[y0 + radius, x0] != 0

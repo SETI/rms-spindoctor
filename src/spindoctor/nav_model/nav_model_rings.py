@@ -383,9 +383,9 @@ class NavModelRings(NavModelRingsBase):
         self._metadata['planet'] = planet
         self._extfov_v_size = obs.extdata_shape_vu[0]
         self._extfov_u_size = obs.extdata_shape_vu[1]
-        # The centre of the extended frame, in the pixel centric coordinates
-        # the payload is stated in: a whole number falls at a pixel's centre
-        # there, so a size-wide frame runs from 0 to size - 1 and its centre
+        # The center of the extended frame, in the pixel centric coordinates
+        # the payload is stated in: a whole number falls at a pixel's center
+        # there, so a size-wide frame runs from 0 to size - 1 and its center
         # is (size - 1) / 2.
         self._predicted_center_vu = (
             (float(self._extfov_v_size) - 1.0) / 2.0,

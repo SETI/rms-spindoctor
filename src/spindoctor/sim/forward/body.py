@@ -407,10 +407,10 @@ def carve_crater_heights(
             rng, R_min * aa_scale, R_max * aa_scale, alpha=crater_power_law_exponent
         )
 
-        # Distances from the crater centre, taken in the frame's own pixel
+        # Distances from the crater center, taken in the frame's own pixel
         # corner coordinates so the two frames cannot disagree.  v_coords and
-        # u_coords are pixel corner coordinates with the body centre already
-        # taken off, so adding it back restores them.  The crater centre picked
+        # u_coords are pixel corner coordinates with the body center already
+        # taken off, so adding it back restores them.  The crater center picked
         # above is an array row and column, so the half pixel goes on here.
         v_abs = v_coords + work_center_v
         u_abs = u_coords + work_center_u

@@ -159,7 +159,7 @@ class RenderDisplayMixin(SimEditorBase):
             # A scene states every position as a pixel corner and a QPainter
             # coordinate is the same measure, so these marks take the scene value
             # itself: no conversion, and no rounding either, or the mark for a
-            # centre at 12.5 would be drawn at 12.
+            # center at 12.5 would be drawn at 12.
             pen = QPen(QColor(255, 0, 0), 2)
             painter.setPen(pen)
             # Draw centers for bodies

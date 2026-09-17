@@ -480,7 +480,7 @@ def test_noise_bias_and_bloom_handlers(model: Any) -> None:
 
 
 def test_stray_center_writes_only_while_enabled(model: Any) -> None:
-    """A stray-light centre spin writes its key only while the enable is on."""
+    """A stray-light center spin writes its key only while the enable is on."""
     model._on_stray_center_v(40.0)
     assert 'center_v' not in model.sim_params.get('optics', {}).get('stray_light', {})
     model._stray_center_check.setChecked(True)

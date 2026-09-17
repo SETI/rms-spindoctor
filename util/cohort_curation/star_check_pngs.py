@@ -143,7 +143,7 @@ def render_one(rec: dict, entry: dict, batch_dir: Path) -> str | None:
         # The bbox is a half-open slice range, so v0 and v1 name the two
         # outer boundaries of the pixels it covers and their midpoint is a
         # pixel-corner position: a box covering rows 10 to 14 is [10, 15) and
-        # its midpoint 12.5 is the centre of row 12.
+        # its midpoint 12.5 is the center of row 12.
         v0, u0, v1, u1 = f['bbox_extfov_vu']
         v = (v0 + v1) / 2.0 - mv
         u = (u0 + u1) / 2.0 - mu
@@ -153,7 +153,7 @@ def render_one(rec: dict, entry: dict, batch_dir: Path) -> str | None:
         if not (0 <= v < data.shape[0] and 0 <= u < data.shape[1]):
             continue
         # Pillow addresses whole cells, so it reads a whole number as the
-        # centre of a pixel; the half pixel comes off where the position
+        # center of a pixel; the half pixel comes off where the position
         # crosses into it.
         vc = v - PIXEL_CENTER_TO_CORNER_PX
         uc = u - PIXEL_CENTER_TO_CORNER_PX

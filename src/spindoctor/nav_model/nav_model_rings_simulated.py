@@ -221,9 +221,9 @@ class NavModelRingsSimulated(NavModelRingsBase):
             len(prediction.edges),
         )
         self._prediction = prediction
-        # The scene states the ring system's centre in pixel corner
+        # The scene states the ring system's center in pixel corner
         # coordinates, which is what ``predict_ring_feature`` renders against
-        # (it puts the centre of pixel i at i + 0.5).  The payload is pixel
+        # (it puts the center of pixel i at i + 0.5).  The payload is pixel
         # centric, so the half pixel comes off here.
         self._predicted_center_vu = (
             center_v - PIXEL_CENTER_TO_CORNER_PX,

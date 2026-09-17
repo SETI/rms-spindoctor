@@ -59,9 +59,9 @@ Everything in this file uses the ``(v, u)`` pixel convention: ``v`` is the row
 ``(v, u)``, its actual position in the image is ``(v + dv, u + du)``.
 
 A position the pipeline states -- the ``(v, u)`` above, a star position in a
-navigation log, a predicted body centre -- is written in pixel-corner
+navigation log, a predicted body center -- is written in pixel-corner
 coordinates in the image frame, measured from the image's upper-left corner, so
-a whole number falls on the boundary between two pixels and the centre of row
+a whole number falls on the boundary between two pixels and the center of row
 ``n`` is ``n + 0.5``. A star at ``v = 64.5`` sits in the middle of row 64.
 Positions are measured in the image itself, not in the padded frame the
 navigation searches, so something just outside the image is stated at a negative

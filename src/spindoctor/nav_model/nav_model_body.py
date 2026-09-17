@@ -860,7 +860,7 @@ class NavModelBody(NavModelBodyBase):
         # (u, v).  The payload is pixel centric, so the half pixel comes off
         # next to the margin that goes on.  The bounding box is not a stand-in
         # for the position: its bounds are floor(u - r) and ceil(u + r), whose
-        # midpoint lands on the centre only when the two fractional parts
+        # midpoint lands on the center only when the two fractional parts
         # happen to be complementary.
         center_uv = inventory['center_uv']
         self._predicted_center_vu = (

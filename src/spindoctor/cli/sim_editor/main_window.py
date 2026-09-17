@@ -346,7 +346,7 @@ class CreateSimulatedImageModel(
         same measure a scene states every position in, and the zoom divide keeps
         it continuous.  Taking the whole number first would quantize the result to
         multiples of ``1 / zoom``, and at zoom 1 no cursor position could then
-        name a pixel's centre at all.
+        name a pixel's center at all.
 
         Parameters:
             label_pos: Cursor position in label coordinates.

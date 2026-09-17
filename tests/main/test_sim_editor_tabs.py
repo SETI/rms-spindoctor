@@ -952,21 +952,21 @@ def test_ring_advanced_groups_only_on_first_feature_tab(model: Any) -> None:
 
 
 def test_gui_added_body_defaults_to_the_frame_centre(model: Any) -> None:
-    """A new body starts at the frame centre in pixel corner coordinates."""
+    """A new body starts at the frame center in pixel corner coordinates."""
     model._add_body_tab()
     body = model.sim_params['bodies'][0]
     assert body['center_v'] == model.sim_params['size_v'] / 2.0
 
 
 def test_gui_added_star_defaults_to_the_frame_centre(model: Any) -> None:
-    """A new star starts at the frame centre in pixel corner coordinates."""
+    """A new star starts at the frame center in pixel corner coordinates."""
     model._add_star_tab()
     star = model.sim_params['stars'][0]
     assert star['v'] == model.sim_params['size_v'] / 2.0
 
 
 def test_gui_added_body_and_ring_system_are_concentric(model: Any) -> None:
-    """A fresh scene's body and ring system share one centre."""
+    """A fresh scene's body and ring system share one center."""
     model._add_body_tab()
     model._add_ring_tab()
     body = model.sim_params['bodies'][0]
@@ -975,7 +975,7 @@ def test_gui_added_body_and_ring_system_are_concentric(model: Any) -> None:
 
 
 def test_gui_added_star_and_ring_system_are_concentric(model: Any) -> None:
-    """A fresh scene's star and ring system share one centre."""
+    """A fresh scene's star and ring system share one center."""
     model._add_star_tab()
     model._add_ring_tab()
     star = model.sim_params['stars'][0]
@@ -984,7 +984,7 @@ def test_gui_added_star_and_ring_system_are_concentric(model: Any) -> None:
 
 
 def test_stray_center_keys_absent_unless_enabled(model: Any) -> None:
-    """The stray-light block omits the bump-centre keys until enabled."""
+    """The stray-light block omits the bump-center keys until enabled."""
     model._stray_group.setChecked(True)
     block = model.sim_params['optics']['stray_light']
     assert 'center_v' not in block
@@ -992,7 +992,7 @@ def test_stray_center_keys_absent_unless_enabled(model: Any) -> None:
 
 
 def test_stray_center_zero_is_authorable(model: Any) -> None:
-    """An explicit 0.0 bump centre survives (no 0.0-to-absent flip)."""
+    """An explicit 0.0 bump center survives (no 0.0-to-absent flip)."""
     model._stray_group.setChecked(True)
     model._stray_center_check.setChecked(True)
     model._stray_center_v_spin.setValue(0.0)
@@ -1003,7 +1003,7 @@ def test_stray_center_zero_is_authorable(model: Any) -> None:
 
 
 def test_stray_center_uncheck_drops_both_keys(model: Any) -> None:
-    """Unchecking the bump-centre enable removes both centre keys."""
+    """Unchecking the bump-center enable removes both center keys."""
     model._stray_group.setChecked(True)
     model._stray_center_check.setChecked(True)
     model._stray_center_v_spin.setValue(40.0)
@@ -1015,6 +1015,6 @@ def test_stray_center_uncheck_drops_both_keys(model: Any) -> None:
 
 
 def test_stray_center_spin_shows_the_frame_centre_when_absent(model: Any) -> None:
-    """With no centre key the spin displays the centre the renderer will use."""
+    """With no center key the spin displays the center the renderer will use."""
     model._stray_group.setChecked(True)
     assert model._stray_center_v_spin.value() == model.sim_params['size_v'] / 2.0
