@@ -312,8 +312,8 @@ The global index tables live in a **`miscellaneous` collection of their
 own**, not under `document/supplemental/`, where the code wrote them until
 Phase 7.
 They are not documents: they are derived tables a pipeline reads to select
-images without opening a FITS, and PDS4 has a collection type for exactly
-that. Checked against `PDS4_PDS_1O00`: `collection_type` must be one of ten
+images without opening a FITS, and the PDS4 standard has a collection type for
+exactly that. Checked against `PDS4_PDS_1O00`: `collection_type` must be one of ten
 values, `Miscellaneous` is among them, and the bundle-level reference type
 `bundle_has_miscellaneous_collection` is in the Schematron's controlled
 list. The F ring bundle has the same collection, spelled the same way, with
@@ -572,7 +572,7 @@ to be at least 1, so no label can describe an empty inventory; with the
 header row counted, as before Phase 5, an empty collection's label stated one
 record, valid only by accident. It is one rule with the data collection's
 range (section 3.4): a generated collection is written only when its label
-can state everything PDS4 requires of it -- at least one member, and for the
+can state everything the PDS4 standard requires of it -- at least one member, and for the
 data collection the range of its members' epochs. One that cannot is not
 written at all, neither its inventory nor its label, whatever an earlier run
 left at either path is removed, and it counts once among the labels not
