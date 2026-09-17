@@ -42,16 +42,16 @@ them, are described once in :ref:`coordinate-systems`. Two things are specific
 to stars.
 
 A star record stores the catalog projection as the geometry layer returns it,
-in pixel-corner coordinates, and the record then travels to the techniques. So
-unlike the body, ring and Titan models, which convert while building their
-sampling grids, this model converts at each point of use:
-``NavModelStars._extfov_position_vu`` before a predicted position reaches a
-feature, the Titan contaminant mask before a star disc is painted, and the log
-line and metadata entry so that what a navigation document records matches
-every other position it records. Two consumers take the record unconverted
-because they want pixel-corner coordinates: the conflict-check meshgrid, which
-is laid out in them, and the smeared-PSF stamp, whose ``eval_rect`` offset is
-measured from a pixel's lower edge.
+in pixel-corner coordinates, and the record then travels to the techniques. It
+outlives the model that produced it, so it keeps those coordinates and each
+point of use converts: ``NavModelStars._extfov_position_vu`` before a predicted
+position reaches a feature and before the rectangle drawer marks a star, and
+the Titan contaminant mask before a star disc is painted. Three consumers take
+the record unconverted because they want pixel-corner coordinates: the
+conflict-check meshgrid, which is laid out in them; the smeared-PSF stamp,
+whose ``eval_rect`` offset is measured from a pixel's lower edge; and the log
+line and metadata entry, which state the nominal-frame position the record
+already holds.
 
 The extended-FOV edge cull converts the other way. It drops a star whose PSF
 window would spill off the padded array, and holds six freshly projected
@@ -487,8 +487,10 @@ Per-image metadata
 ------------------
 
 :meth:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars.create_model` populates
-:attr:`~spindoctor.nav_model.nav_model.NavModel.metadata` with the following entries for the
-curator to surface in the per-image JSON sidecar:
+:attr:`~spindoctor.nav_model.nav_model.NavModel.metadata` with the following entries.
+They ride on the navigation result as ``model_metadata``, which the
+manual-navigation path carries through; the form a person reads them in is the
+per-image log, whose final star list prints one line per surviving star:
 
 - ``start_time`` / ``end_time`` / ``elapsed_time_sec`` — wall-clock timing for the model
   build.
@@ -500,10 +502,9 @@ curator to surface in the per-image JSON sidecar:
   ``move_v``, ``spectral_class``, and ``conflicts`` (the comma-separated body- /
   ring-occlusion flag string built from the per-star conflict marking step). ``u`` and
   ``v`` are pixel-corner coordinates in the nominal (unpadded) frame, straight off the
-  record, which is the form every position reported to a person is stated in (see
-  :ref:`coordinate-systems`); the matching STAR feature's ``predicted_vu`` is the same
-  point converted to pixel-centric and shifted by the extended-FOV margin, for the
-  techniques that measure the array.
+  record (see :ref:`coordinate-systems`); the matching STAR feature's
+  ``predicted_vu`` is the same point converted to pixel-centric and shifted by the
+  extended-FOV margin, for the techniques that measure the array.
   The two
   ``photometry_*`` booleans are the bright-end saturation provenance:
   ``photometry_corrected`` marks a record whose magnitude was replaced by a YBSC or Tycho-2

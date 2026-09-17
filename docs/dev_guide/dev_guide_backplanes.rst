@@ -225,11 +225,19 @@ output FITS file structure:
   contributes no HDU).
 
 Alongside the FITS file the writer drops a companion
-``<image>_backplane_metadata.json`` containing:
+``<image>_backplane_metadata.json`` with two top-level keys, ``bodies``
+and ``rings``:
 
-- the per-image dataset / instrument / observation metadata,
-- the per-body inventory (NAIF ID, name, predicted bounding box),
-- the per-backplane min / max / mean / valid-pixel-count statistics.
+- ``bodies`` holds one entry per body in the field of view, keyed by body
+  name. Each entry carries a ``backplanes`` sub-dict of per-backplane
+  statistics, ``center_uv`` — the body's predicted centre as ``[v, u]``, a
+  pixel-corner position in the nominal frame (see
+  :ref:`coordinate-systems`) — ``center_range``, the range to that centre
+  in km, and ``size_uv``, the body's ``[u, v]`` pixel diameters.
+- ``rings`` holds a ``backplanes`` sub-dict of the same statistics.
+
+A ``backplanes`` sub-dict is keyed by backplane name, and each entry gives
+the min and the max over that backplane's valid pixels.
 
 The PDS4 bundle generator (:doc:`dev_guide_pds4`) reads this sidecar
 when rendering the per-image data label.

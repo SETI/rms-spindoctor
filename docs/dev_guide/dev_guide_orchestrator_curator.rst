@@ -164,7 +164,7 @@ Examples
     {
       "navigation_result": {
         "status": "success",
-        "offset_px": [11.06, 30.53],
+        "offset_px": [12.06, 30.53],
         "sigma_px": [2.613, 2.6128],
         "confidence_rank": "low",
         "confidence": 0.675,

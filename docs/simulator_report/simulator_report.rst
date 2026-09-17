@@ -138,7 +138,8 @@ deliberate (integration-marked) tier:
 
 .. code-block:: bash
 
-   pytest tests/integration/test_sim_algorithmic_invariants.py -m "" -n auto --dist=loadfile
+   export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
+   pytest tests/integration/test_sim_algorithmic_invariants.py -m "" -n 4 --dist=loadfile
 
 Targeted regression scenes under ``sim_scenes/regression/`` guard specific
 behaviours in the normal suite without running the full sweep.
@@ -258,22 +259,24 @@ from.
      - hot_pixel_fraction
      - cosmic_ray_rate_per_sec
      - Provenance
-   * - ``coiss_nac``
-     - 2.0e-3
+   * - ``coiss_calib_nac``
+     - 1.6e-5
      - 0.0
-     - Hot-pixel fraction is an interim value (~0.15-0.28% of pixels).
-       Cosmic-ray rate is a retained zero: the 58-frame calibrated NAC cohort
-       measures a 2.75e-4 per-frame transient spike fraction, but that
-       incidence is exposure-independent while the chain's cosmic-ray stage
+     - Hot-pixel fraction measured on the 58-frame calibrated NAC cohort as its
+       stationary spike fraction: single-pixel spikes recurring at fixed
+       positions across the cohort.  Cosmic-ray rate is a retained zero: the
+       same cohort measures a 2.75e-4 per-frame transient spike fraction, but
+       that incidence is exposure-independent while the chain's cosmic-ray stage
        scales counts with exposure and deposits near full well, so a fitted
        rate is not adopted through this chain.  Unblocked by a per-readout,
        modest-amplitude transient term.
-   * - ``coiss_wac``
-     - 2.0e-3
+   * - ``coiss_calib_wac``
+     - 1.6e-5
      - 0.0
-     - Hot-pixel fraction interim, shared with the NAC.  Cosmic-ray rate is a
-       retained zero for the same exposure-independence and full-well-amplitude
-       mismatch; the 4-frame WAC cohort is star-contaminated besides (its
+     - Hot-pixel fraction shared with the calibrated NAC measurement.
+       Cosmic-ray rate is a retained zero for the same exposure-independence
+       and full-well-amplitude mismatch; the 4-frame WAC cohort is
+       star-contaminated besides (its
        4.89e-4 transient fraction comes entirely from the three star frames,
        the one body frame measuring zero).
    * - ``gossi``
