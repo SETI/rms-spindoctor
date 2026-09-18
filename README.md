@@ -132,6 +132,13 @@ sd_create_bundle labels coiss_saturn \
   --backplane-results-root /path/to/backplane_results \
   --bundle-results-root /path/to/bundle_results \
   --volumes COISS_2001
+sd_create_bundle summary coiss_saturn --bundle-results-root /path/to/bundle_results
+```
+
+Check the bundle against the PDS4 schemas, its tables and itself:
+
+```bash
+sd_create_bundle check coiss_saturn --bundle-results-root /path/to/bundle_results
 ```
 
 ### Mosaicing

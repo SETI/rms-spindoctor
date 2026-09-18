@@ -11,6 +11,8 @@ requires-python = ">=3.11"
 dependencies = [
   "astropy>=6.0",
   "cspyce>=2.3.5",
+  "elementpath>=5.0.4",
+  "lxml>=6.0.4",
   "matplotlib",
   "numpy>=2.2.0",
   "PyQt6",
@@ -27,7 +29,8 @@ dependencies = [
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
   "scipy",
-  "sqlalchemy>=2.0"
+  "sqlalchemy>=2.0",
+  "xmlschema>=4.1.0"
 ]
 license = {text = "Apache-2.0"}
 maintainers = [
@@ -127,6 +130,10 @@ module = "julian.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = "lxml.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "oops.*"
 ignore_missing_imports = true
 
@@ -216,8 +223,10 @@ regex = "[a-zA-Z]+"
 # Generated JSON only.  A blanket `*.json` also hid hand-written prose that
 # belongs in the gate -- the `rationale` fields in the Titan nominations
 # manifest, the notes in the SPICE coverage and body-radii tables, and the
-# metadata fixtures under the stats results tree.
-skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json"
+# metadata fixtures under the stats results tree.  The PDS4 schemas are a
+# cached, verbatim copy of the NASA information model, typos and all; fixing
+# one would mean the cache no longer matches what `validate` checks against.
+skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json,*/pds4/check/schemas/*"
 # Words the dictionaries flag that are right here.  Each is a term of art, an
 # identifier, or a spelling both dictionaries accept -- not an exception granted
 # to avoid a fix.
