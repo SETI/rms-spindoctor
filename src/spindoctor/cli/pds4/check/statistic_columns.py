@@ -1,18 +1,17 @@
 """The statistic columns of a bundle's global index tables, held to the configuration.
 
-The configuration declares each backplane plane with the unit its array carries and, in
-its ``index`` block, the names of the two columns a global index table gives its
-statistic, the least and the greatest value.  A label describing such a column -- a
-``Field_Character`` of that name -- has to state the unit the plane's statistic is in,
-which :func:`~spindoctor.cli.backplanes.statistics.statistics_units` derives from the
-plane's unit, and has to declare as its missing constant the configured masked value
-written in the format of that unit,
-:func:`~spindoctor.cli.pds4.global_index.index_value_format`.
+The summary pass builds every statistic column of the global index tables from the
+configuration, through :func:`~spindoctor.cli.pds4.index_columns.statistic_index_columns`:
+each configured plane's least and greatest value, the range wrapped at zero of a plane
+whose index block gives it columns, and the ring incidence angle's least, greatest and
+mean.  A label describing such a column -- a ``Field_Character`` of that name -- has to
+state the unit its plane's statistic is in, and has to declare as its missing constant
+the configured masked value written in the column's format.
 
-Both are the summary pass's own helpers, reused so that each rule is stated once: the
-check holds a label to the configuration as the summary pass reads it, and a defect in a
-helper would pass it.  The summary pass's tests pin the helpers themselves, in
-``tests/spindoctor/cli/backplanes/test_statistics.py`` and
+The columns are the summary pass's own, taken from the same function, so that each rule
+is stated once: the check holds a label to the configuration as the summary pass reads
+it, and a defect in that function would pass it.  The summary pass's tests pin its parts
+themselves, in ``tests/spindoctor/cli/backplanes/test_statistics.py`` and
 ``tests/spindoctor/cli/pds4/test_global_index.py``.
 """
 
@@ -20,10 +19,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.check.elements import child_text, element_path
 from spindoctor.cli.pds4.check.findings import CheckName, Finding
-from spindoctor.cli.pds4.global_index import index_value_format
+from spindoctor.cli.pds4.index_columns import statistic_index_columns
 from spindoctor.config import Config
 
 
@@ -32,7 +30,7 @@ class StatisticColumn:
     """What the configuration says one statistic column of a global index table holds.
 
     Attributes:
-        unit: The unit of its values: the unit its plane's statistic is in.
+        unit: The unit of its values.
         missing_constant: The configured masked value, written in the column's format.
     """
 
@@ -44,26 +42,21 @@ def statistic_columns(config: Config) -> dict[str, StatisticColumn]:
     """Return every statistic column the configuration declares, by its name.
 
     Parameters:
-        config: The configuration, whose ``backplanes`` section declares the planes.
+        config: The configuration, whose ``backplanes`` section declares the columns.
 
     Returns:
-        Each plane's minimum and maximum columns, by the names its ``index`` block gives
-        them, over the body planes and the ring planes.
+        Each statistic column of either global index table, by the name its index block
+        gives it: each plane's minimum and maximum, a plane's wrapped pair, and the ring
+        incidence angle's three.
 
     Raises:
         KeyError: If a plane's statistic is in a unit the index tables have no format for.
     """
-    backplanes = config.backplanes
-    masked_value = float(backplanes.masked_value)
-    columns: dict[str, StatisticColumn] = {}
-    for entry in [*backplanes.bodies, *backplanes.rings]:
-        column = StatisticColumn(
-            unit=statistics_units(entry['units']),
-            missing_constant=index_value_format(entry['units']).render(masked_value),
-        )
-        for end in ('minimum', 'maximum'):
-            columns[str(entry['index'][end]['name'])] = column
-    return columns
+    return {
+        column.name: StatisticColumn(unit=column.unit, missing_constant=column.missing_constant)
+        for column in statistic_index_columns(config)
+        if column.unit is not None and column.missing_constant is not None
+    }
 
 
 def statistic_column_findings(

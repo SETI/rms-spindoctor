@@ -437,9 +437,13 @@ Work items, in dependency order:
 5. **Label and collection completeness** — done: the bundle's name and
    version and the schema locations, each set once in the configuration (the
    PDS4 plan's Phase 9, closing #71), and the context collection's targets
-   (#72), target handling (#73), the ring geometry class fields (#75) and the
-   ring incidence angle (#47), which are Part A of its Phase 8; each is closed
-   by hand when its PR merges.
+   (#72) and target handling (#73), which are Part A of its Phase 8; each is
+   closed by hand when its PR merges. The ring geometry class fields (#75) and
+   the ring incidence angle in the label (#47) are closed as not planned: by
+   the operator's decision of 2026-09-15 the data labels name the ring target
+   alone and leave every ring range to the global rings index, which also
+   states the incidence angle's least, greatest and mean and the wrapped
+   longitude arc.
 6. **The integrity pass** — done: `sd_create_bundle check` checks a written
    bundle as a whole, and `sd_create_bundle labels --check-only` reports
    whether each selected image has the pass's inputs (Part A of the PDS4

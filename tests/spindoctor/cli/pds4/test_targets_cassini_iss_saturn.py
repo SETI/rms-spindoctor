@@ -5,8 +5,9 @@ identified, so every body and ring target the backplane stage can produce for an
 Saturn has to have an entry there: an image naming one without could not be labeled.
 These hold the shipped table to the stage's own rules for the bodies and the ring target
 it looks for, and hold the data labels the shipped templates render over the cohort to
-the targets their images' backplanes cover.  What the labels pass does with the targets is
-tested over stand-in templates in ``test_bundle_data.py``.
+the targets their images' backplanes cover, and to nothing of the rings but their target.
+What the labels pass does with the targets is tested over stand-in templates in
+``test_bundle_data.py``.
 """
 
 import json
@@ -38,6 +39,9 @@ SATURN = ('Saturn', 'Planet', 'urn:nasa:pds:context:target:planet.saturn')
 
 SATURN_RINGS = ('Saturn Rings', 'Ring', 'urn:nasa:pds:context:target:ring.saturn.rings')
 """The ring image's ring target, as its context product gives it."""
+
+RINGS_NAMESPACE = 'http://pds.nasa.gov/pds4/rings/v1'
+"""The PDS4 rings dictionary's namespace, in which no data label states anything."""
 
 
 @pytest.fixture
@@ -121,6 +125,26 @@ def test_a_cohort_data_label_names_each_target_its_backplanes_cover(
     label_cohort_images(env, [stub])
     named = _targets_named(_data_label(env.bundle_dir), 'Observation_Area')
     assert named == [(*target, 'data_to_target') for target in expected]
+
+
+def test_the_ring_image_s_data_label_names_the_ring_target_and_no_ring_geometry(
+    cassini_cohort: Cohort, tmp_path: Path
+) -> None:
+    """The ring image's data label names its ring target and no rings dictionary element.
+
+    Every range of the image's rings is left to the rings index, so no element of the
+    label is in the rings dictionary's namespace.
+    """
+    env = make_cohort_bundle_env(cassini_cohort, tmp_path)
+    label_cohort_images(env, [RINGS_STUB])
+    label = _data_label(env.bundle_dir)
+    in_rings = [
+        element.tag
+        for element in ElementTree.parse(label).iter()
+        if element.tag.startswith(f'{{{RINGS_NAMESPACE}}}')
+    ]
+    assert in_rings == []
+    assert (*SATURN_RINGS, 'data_to_target') in _targets_named(label, 'Observation_Area')
 
 
 def test_the_data_label_of_an_image_with_two_bodies_names_both(

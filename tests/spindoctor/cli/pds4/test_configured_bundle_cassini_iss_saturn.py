@@ -50,7 +50,6 @@ NAMESPACES = {
     'pds': 'http://pds.nasa.gov/pds4/pds/v1',
     'disp': 'http://pds.nasa.gov/pds4/disp/v1',
     'geom': 'http://pds.nasa.gov/pds4/geom/v1',
-    'rings': 'http://pds.nasa.gov/pds4/rings/v1',
     'cassini': 'http://pds.nasa.gov/pds4/mission/cassini/v1',
 }
 """The namespace of each dictionary the bundle's labels declare, by its prefix."""

@@ -193,7 +193,9 @@ def test_a_cache_that_cannot_be_written_is_a_finding_for_each_url_and_no_traceba
         f'label.lblx: error [xsd] declares the XML schema {url}, but it cannot be fetched'
         for url in urls
     ]
-    assert (excinfo.value.code, fetched, 'Traceback' in '\n'.join(lines)) == (1, expected, False)
+    assert excinfo.value.code == 1
+    assert fetched == expected
+    assert 'Traceback' not in '\n'.join(lines)
 
 
 @pytest.mark.parametrize(

@@ -10,6 +10,13 @@ from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
+BODY_LONGITUDE = 'body_longitude'
+"""The configured body plane holding a body's longitude.
+
+Its statistic also records its range wrapped at zero, the arc of longitude the body's
+pixels cover.
+"""
+
 
 def _create_simulated_body_backplane(
     snapshot: ObsSnapshot,

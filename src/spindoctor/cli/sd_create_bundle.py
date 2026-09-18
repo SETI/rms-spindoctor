@@ -13,6 +13,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
+from typing import cast
 
 import pdstemplate
 from filecache import FCPath, FileCache
@@ -637,9 +638,12 @@ def main_check() -> None:
     nothing but that cache, not even a log: it prints one line per finding, an error or
     a warning, and then the number of each.
 
-    The run ends with exit status 1 when there is any error, when there is no bundle
-    directory to check, or when the check itself fails, whose traceback it prints.
-    Warnings alone leave it 0.
+    The check reads a local tree, so a bundle results root that is not local -- one
+    named ``gs://``, say -- is refused by its own name, before anything is read.
+
+    The run ends with exit status 1 when there is any error, when the bundle results
+    root is not local, when there is no bundle directory to check, or when the check
+    itself fails, whose traceback it prints.  Warnings alone leave it 0.
     """
     arguments = parse_args_check(sys.argv[2:])
 
@@ -648,7 +652,17 @@ def main_check() -> None:
 
     dataset = dataset_name_to_class(arguments.dataset_name)()
     bundle_results_root = get_pds4_bundle_results_root(arguments, DEFAULT_CONFIG)
-    bundle_dir = Path(bundle_results_root) / dataset.pds4_bundle_name()
+    bundle_root = FCPath(bundle_results_root) / dataset.pds4_bundle_name()
+    if not bundle_root.is_local():
+        print(
+            f'The check reads a local tree, and {bundle_root} is not one: name a local '
+            'bundle results root'
+        )
+        sys.exit(1)
+    # The path itself, not its spelling: a local root named file:///tmp/x is local, and
+    # its POSIX form keeps the scheme, which Path would mangle into file:/tmp/x.  No
+    # parent is made, since the check writes nothing.
+    bundle_dir = cast(Path, bundle_root.get_local_path(create_parents=False))
     if not bundle_dir.is_dir():
         print(
             f'No bundle directory at {bundle_dir}: run the labels and summary passes '

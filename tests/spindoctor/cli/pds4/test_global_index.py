@@ -26,13 +26,15 @@ from typing import Any
 import pytest
 from filecache import FCPath
 
-from spindoctor.cli.pds4.global_index import IndexValueFormat, generate_global_index_files
-from spindoctor.config import MAIN_LOGGER
+from spindoctor.cli.pds4.global_index import generate_global_index_files
+from spindoctor.cli.pds4.index_columns import IndexValueFormat
+from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
 from .conftest import (
     BROKEN_TEMPLATE,
     DEFAULT_BUNDLE_NAME,
     GLOBAL_INDEX_TEMPLATE,
+    PLUMBING_RING_TARGET,
     BundleEnv,
     index_entry,
     make_bundle_env,
@@ -123,6 +125,101 @@ def _write_image(
 
 MISCELLANEOUS = f'urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:miscellaneous'
 """The miscellaneous collection's LID, which each index product's LID begins with."""
+
+RING_LONGITUDE_ENTRY = next(
+    entry for entry in DEFAULT_CONFIG.backplanes.rings if entry['name'] == 'ring_longitude'
+)
+"""The shipped ring longitude plane, whose index block gives it two wrapped columns."""
+
+UNRECORDED_COLUMNS = (
+    'rings:minimum_inertial_ring_longitude',
+    'rings:maximum_inertial_ring_longitude',
+    'rings:minimum_incidence_angle',
+    'rings:maximum_incidence_angle',
+    'rings:mean_incidence_angle',
+)
+"""The rings table's columns of values that backplanes an earlier version generated lack."""
+
+
+def test_values_the_backplanes_do_not_record_give_missing_cells(tmp_path: Path) -> None:
+    """A wrapped arc and an incidence range the metadata does not record are missing cells.
+
+    Backplanes an earlier version generated record the ring longitude's plain range alone
+    and the incidence angle at the ring center alone.  The image is indexed like any
+    other, and each of the five cells holds the masked value in degrees' format.
+    """
+    env = _index_env(tmp_path, rings=[RING_LONGITUDE_ENTRY])
+    rings = {
+        'target': PLUMBING_RING_TARGET,
+        'incidence_angle': {'value': 45.0, 'units': 'deg'},
+        'backplanes': {'ring_longitude': {'min': 10.0, 'max': 20.0, 'units': 'deg'}},
+    }
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=rings)
+    _run_global_index(env)
+    header, row = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
+    assert [row[header.index(name)] for name in UNRECORDED_COLUMNS] == ['-999.000'] * 5
+
+
+INCIDENCE_COLUMNS = (
+    'rings:minimum_incidence_angle',
+    'rings:maximum_incidence_angle',
+    'rings:mean_incidence_angle',
+)
+"""The rings table's columns of the incidence angle's least, greatest and mean."""
+
+
+def test_a_partial_incidence_block_gives_each_member_it_records(tmp_path: Path) -> None:
+    """Each member of the incidence angle is written on its own, the others missing.
+
+    A block recording its mean alone, and no unit, is indexed like any other: the mean is
+    written, and the least and the greatest are missing cells.
+    """
+    env = _index_env(tmp_path)
+    rings = {**RING_STATS, 'incidence_angle': {'mean': 45.125}}
+    _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', rings=rings)
+    _run_global_index(env)
+    header, row = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_rings_index.tab')
+    assert [row[header.index(name)] for name in INCIDENCE_COLUMNS] == [
+        '-999.000',
+        '-999.000',
+        '45.125',
+    ]
+
+
+BODY_LONGITUDE_ENTRY = next(
+    entry for entry in DEFAULT_CONFIG.backplanes.bodies if entry['name'] == 'body_longitude'
+)
+"""The shipped body longitude plane, whose index block gives it two wrapped columns."""
+
+BODY_ARC_COLUMNS = ('minimum_wrapped_body_longitude', 'maximum_wrapped_body_longitude')
+"""The bodies table's columns of the arc of longitude a body covers."""
+
+
+def test_a_body_s_arc_is_stated_where_recorded_and_missing_where_not(tmp_path: Path) -> None:
+    """A body's arc across its prime meridian is stated; an older body's is missing.
+
+    The first image's body records the arc from 350 degrees across the prime meridian to
+    10, which its row states as recorded.  The second's, from backplanes an earlier
+    version generated, records its plain range alone, and its row's two arc cells hold
+    the masked value in degrees' format.
+    """
+    env = _index_env(tmp_path, bodies=[BODY_LONGITUDE_ENTRY])
+    plain = {'min': 0.5, 'max': 359.5, 'units': 'deg'}
+    crossing = {**plain, 'wrapped_min': 350.0, 'wrapped_max': 10.0}
+    data_dir = env.bundle_dir / 'data'
+    _write_image(
+        data_dir,
+        'shard0/1111111111n',
+        bodies={'MOON_A': {'backplanes': {'body_longitude': crossing}}},
+    )
+    _write_image(
+        data_dir, 'shard0/2222222222w', bodies={'MOON_A': {'backplanes': {'body_longitude': plain}}}
+    )
+    _run_global_index(env)
+    header, *rows = read_index_rows(env.bundle_dir / 'miscellaneous' / 'global_bodies_index.tab')
+    arcs = [[row[header.index(name)] for name in BODY_ARC_COLUMNS] for row in rows]
+    assert arcs[0] == ['350.000', '10.000']
+    assert arcs[1] == ['-999.000', '-999.000']
 
 
 def _primary_members(env: BundleEnv) -> list[str]:
@@ -611,6 +708,9 @@ def test_rings_index_row_only_for_images_with_ring_backplanes(tmp_path: Path) ->
         'pds:stop_date_time',
         'minimum_radius',
         'maximum_radius',
+        'rings:minimum_incidence_angle',
+        'rings:maximum_incidence_angle',
+        'rings:mean_incidence_angle',
     ]
     assert len(rows) == 2
     assert rows[1][1] == 'data/shard0/2222222222w_backplanes.lblx'

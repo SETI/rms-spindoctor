@@ -188,21 +188,35 @@ def test_a_missing_constant_respelled_is_found(plain_bundle: Path, tmp_path: Pat
     assert expected in _read(bundle, BODIES)
 
 
-def test_an_angle_column_in_radians_is_found(plain_bundle: Path, tmp_path: Path) -> None:
-    """A ``unit`` of ``rad`` on an angle column is not the degrees its statistic is in."""
+@pytest.mark.parametrize(
+    'column',
+    [
+        'rings:minimum_emission_angle',
+        'rings:minimum_inertial_ring_longitude',
+        'rings:mean_incidence_angle',
+    ],
+    ids=['plane', 'wrapped arc', 'incidence angle'],
+)
+def test_an_angle_column_in_radians_is_found(
+    plain_bundle: Path, tmp_path: Path, column: str
+) -> None:
+    """A ``unit`` of ``rad`` on an angle column is not the degrees its statistic is in.
+
+    A plane's column, a wrapped arc's and the incidence angle's are held alike.
+
+    Parameters:
+        plain_bundle: The cohort's bundle, which the test copies.
+        tmp_path: Where the copy goes.
+        column: The column whose unit is changed.
+    """
     bundle = copy_bundle(plain_bundle, tmp_path)
-    substitute_once(
-        bundle / RINGS,
-        r'<unit>deg</unit>',
-        '<unit>rad</unit>',
-        within='rings:minimum_emission_angle',
-    )
-    location, _, _ = table_field(bundle, RINGS, 'rings:minimum_emission_angle')
+    substitute_once(bundle / RINGS, r'<unit>deg</unit>', '<unit>rad</unit>', within=column)
+    location, _, _ = table_field(bundle, RINGS, column)
     expected = Finding(
         RINGS,
         CheckName.TABLE,
         location,
-        "rings:minimum_emission_angle states rad, but its plane's statistic is in deg",
+        f"{column} states rad, but its plane's statistic is in deg",
     )
     assert expected in _read(bundle, RINGS)
 
