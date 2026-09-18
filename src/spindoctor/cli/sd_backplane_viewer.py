@@ -892,9 +892,7 @@ class NavBackplaneViewer(QDialog):
         if self._body_show.isChecked() and body_name in self._bp_body_map and body_name != 'None':
             arr, units = self._bp_body_map[body_name]
             if arr.shape == (h, w):
-                valid = np.isfinite(arr) & (
-                    (self._body_id_map != 0) if self._body_id_map is not None else True
-                )
+                valid = self._valid_pixels(arr)
                 rgba = self._composite_scalar_layer(
                     rgba,
                     arr,
@@ -910,9 +908,7 @@ class NavBackplaneViewer(QDialog):
         if self._ring_show.isChecked() and ring_name in self._bp_ring_map and ring_name != 'None':
             arr, units = self._bp_ring_map[ring_name]
             if arr.shape == (h, w):
-                valid = np.isfinite(arr) & (
-                    (self._body_id_map == 0) if self._body_id_map is not None else True
-                )
+                valid = self._valid_pixels(arr)
                 rgba = self._composite_scalar_layer(
                     rgba,
                     arr,
@@ -967,6 +963,24 @@ class NavBackplaneViewer(QDialog):
                 self._ring_combo.setCurrentIndex(idx)
         self._body_combo.blockSignals(False)
         self._ring_combo.blockSignals(False)
+
+    def _valid_pixels(self, arr: np.ndarray) -> np.ndarray:
+        """Return the mask of pixels a backplane array actually measured.
+
+        A pixel is measured when it is finite and is not the configured masked
+        value.  The array itself carries that, so one rule serves both the body
+        and the ring planes; deriving validity from ``BODY_ID_MAP`` instead
+        would mark every ring pixel invalid, because the merge writes no ID for
+        pixels the ring system wins.
+
+        Parameters:
+            arr: The backplane array to test.
+
+        Returns:
+            A boolean array, True where the pixel holds a measurement.
+        """
+        masked_value = float(self._config.backplanes.masked_value)
+        return np.asarray(np.isfinite(arr) & (arr != masked_value))
 
     def _composite_scalar_layer(
         self,
@@ -1245,9 +1259,7 @@ class NavBackplaneViewer(QDialog):
         if self._body_show.isChecked() and body_name in self._bp_body_map and body_name != 'None':
             arr, units = self._bp_body_map[body_name]
             if arr.shape == (h, w):
-                valid = np.isfinite(arr) & (
-                    (self._body_id_map != 0) if self._body_id_map is not None else True
-                )
+                valid = self._valid_pixels(arr)
                 rgba = self._composite_scalar_layer(
                     rgba,
                     arr,
@@ -1264,9 +1276,7 @@ class NavBackplaneViewer(QDialog):
         if self._ring_show.isChecked() and ring_name in self._bp_ring_map and ring_name != 'None':
             arr, units = self._bp_ring_map[ring_name]
             if arr.shape == (h, w):
-                valid = np.isfinite(arr) & (
-                    (self._body_id_map == 0) if self._body_id_map is not None else True
-                )
+                valid = self._valid_pixels(arr)
                 rgba = self._composite_scalar_layer(
                     rgba,
                     arr,

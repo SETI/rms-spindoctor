@@ -155,7 +155,7 @@ ranges are conventional, not enforced by the loader:
      - ``config_510_techniques``
    * - ``9xx``
      - Downstream-product settings
-     - ``config_900_backplanes``, ``config_950_pds4``,
+     - ``config_900_backplanes``, ``config_951_pds4_coiss_saturn``,
        ``config_960_results_tree``
 
 Per-file contents
@@ -189,8 +189,13 @@ Each shipping file and what it holds:
   arc lengths) plus the planet-specific ``feature_emission.ring_annulus`` block
   that decides RING_EDGE vs RING_ANNULUS emission.
 - ``config_900_backplanes`` — backplane-generation settings.
-- ``config_950_pds4`` — PDS4 metadata and export settings for generated products,
-  PDS4 label-template overrides, and the mapping of internal fields to PDS4 keys.
+- ``config_951_pds4_coiss_saturn`` — the ``coiss_saturn`` dataset's PDS4 bundle
+  settings, ``pds4.coiss_saturn``: its template directory, the bundle's name and
+  version (``bundle_name``, ``bundle_version``), and the information model version and
+  the dictionary schemas its labels are written against (``information_model_version``,
+  ``schemas``).  Each dataset that bundles has such a file, named for its mission and
+  target; like every ``9xx`` file, none is hashed as static data (see
+  :doc:`dev_guide_pds4`).
 - ``config_960_results_tree`` — how much of a pass over a navigation results
   tree runs at once; see :doc:`dev_guide_results_index`.
 

@@ -2,13 +2,64 @@ import argparse
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, ClassVar, cast
+from pathlib import Path, PurePosixPath
+from typing import Any, ClassVar, Literal, cast
 
 from filecache import FCPath
 
 from spindoctor.config import MAIN_LOGGER, Config, LogRole
 from spindoctor.support.nav_base import NavBase
+
+Pds4Pass = Literal['labels', 'summary']
+"""Which pass of PDS4 bundle generation a set of templates belongs to:
+``labels`` for the per-image pass, ``summary`` for the collection and index
+pass."""
+
+
+def pds4_label_name(file_name: str) -> str:
+    """Return the name of the PDS4 label that describes a file, which sits beside it.
+
+    A label takes the name of the file it describes with the suffix ``.lblx``: the
+    metakernel ``kernels.ker`` is described by ``kernels.lblx``, and a user guide
+    ``guide.pdf`` by ``guide.lblx``, the name its template has in the template directory
+    too.
+
+    Parameters:
+        file_name: The described file's name, with no directory part.
+
+    Returns:
+        The label's name.
+    """
+    return PurePosixPath(file_name).with_suffix('.lblx').name
+
+
+@dataclass(frozen=True)
+class Pds4Schema:
+    """The schema of one PDS4 dictionary a bundle's labels declare.
+
+    A dictionary is published as an XML schema and a Schematron at one location, the two
+    differing only in their extensions, and registered as a product of the PDS system
+    bundle, which the bundle's XML schema collection lists.
+
+    Attributes:
+        location: The URL of the dictionary's XML schema and Schematron less their
+            extension, as in ``https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0``.
+        lidvid: The LIDVID of the dictionary's schema product, as the XML schema
+            collection lists it.
+    """
+
+    location: str
+    lidvid: str
+
+    @property
+    def xsd(self) -> str:
+        """The URL of the dictionary's XML schema, its location ending in ``.xsd``."""
+        return f'{self.location}.xsd'
+
+    @property
+    def sch(self) -> str:
+        """The URL of the dictionary's Schematron, its location ending in ``.sch``."""
+        return f'{self.location}.sch'
 
 
 @dataclass
@@ -255,6 +306,86 @@ class DataSet(ABC, NavBase):
 
         Returns:
             Bundle name (e.g., "cassini_iss_saturn_backplanes_rsfrench2027").
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_bundle_version(self) -> str:
+        """Returns the bundle's version, which each of the bundle's own products carries.
+
+        The bundle, each of its collections and each product it writes states it as its
+        ``version_id``, and every LIDVID naming one of them carries it.  A reference to a
+        product outside the bundle keeps that product's own version.
+
+        Returns:
+            The version, in the PDS4 ``<major>.<minor>`` form (e.g., "1.0").
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_information_model_version(self) -> str:
+        """Returns the information model version the bundle's labels are written against.
+
+        Every label states it, and the common dictionary's Schematron requires the version
+        its own build is of, so it moves with the ``pds`` schema
+        :meth:`~spindoctor.dataset.dataset.DataSet.pds4_schemas` gives.
+
+        Returns:
+            The version, in the PDS4 four-part form (e.g., "1.24.0.0").
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_schemas(self) -> dict[str, Pds4Schema]:
+        """Returns the schema of each PDS4 dictionary the bundle's labels declare.
+
+        Each label declares the schema of every dictionary whose namespace it uses, and
+        the bundle's XML schema collection lists all of them.
+
+        Returns:
+            Each dictionary's schema, by the prefix its namespace takes in a label (e.g.,
+            "geom"), in the order the XML schema collection lists them.
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
+        """Returns the file names one bundle pass must find in the template directory.
+
+        These are the templates the pass renders and the files it copies from the
+        directory :meth:`pds4_bundle_template_dir` names.  Each pass checks them before
+        it processes anything and refuses to run when one of them is not there.  Every
+        product of a pass comes from the same directory, so a file that is missing is
+        missing for every image, and saying so once is the whole of the report.  The
+        user guide :meth:`pds4_user_guide_file_name` names is not among them: a bundle
+        is written without it when the directory does not hold it.
+
+        Parameters:
+            pds4_pass: Which pass's files to name: ``labels`` for the per-image pass,
+                ``summary`` for the pass writing the collections, the index and the
+                bundle's run-level products.
+
+        Returns:
+            The file names, relative to the template directory.
+        """
+        # We don't make PDS4 methods as @abstractmethod because it's possible to make
+        # a DataSet that doesn't support PDS4 bundle generation
+        raise NotImplementedError
+
+    def pds4_user_guide_file_name(self) -> str:
+        """Returns the file name of the bundle's user guide, a PDF, in the template directory.
+
+        The summary pass copies the guide into the bundle's ``document/user_guide/``
+        when the template directory holds it, and renders its label beside it from the
+        template :func:`pds4_label_name` names for it.  When the directory does not
+        hold it, the bundle holds no guide and the pass says so.
+
+        Returns:
+            The guide's file name, relative to the template directory.
         """
         # We don't make PDS4 methods as @abstractmethod because it's possible to make
         # a DataSet that doesn't support PDS4 bundle generation

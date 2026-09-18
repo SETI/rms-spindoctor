@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="$PDS4_PDS_SCHEMA$"
+    schematypens="http://purl.oclc.org/dsdl/schematron"?>
+
+<Product_Ancillary
+    xmlns="http://pds.nasa.gov/pds4/pds/v1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://pds.nasa.gov/pds4/pds/v1 $PDS4_PDS_SCHEMA_XSD$">
+    <Identification_Area>
+        <logical_identifier>$INDEX_LID$</logical_identifier>
+        <version_id>$BUNDLE_VERSION$</version_id>
+        <title>Global Bodies Index</title>
+        <information_model_version>$INFORMATION_MODEL_VERSION$</information_model_version>
+        <product_class>Product_Ancillary</product_class>
+        <Citation_Information>
+            <publication_year>2027</publication_year>
+            <keyword>backplanes</keyword>
+            <keyword>cassini iss</keyword>
+            <keyword>saturn</keyword>
+            <keyword>index</keyword>
+            <description>
+                A table indexing the backplanes for navigated images from Cassini ISS at
+                Saturn, with one row for each body seen in each image the data
+                collection holds.
+            </description>
+            <List_Author>
+                <Person>
+                    <display_full_name>Robert S. French</display_full_name>
+                    <given_name>Robert</given_name>
+                    <family_name>French</family_name>
+                    <person_orcid>https://orcid.org/0000-0002-9527-7920</person_orcid>
+                    <sequence_number>1</sequence_number>
+                    <Affiliation>
+                        <organization_name>SETI Institute</organization_name>
+                        <organization_rorid>https://ror.org/02dxgk712</organization_rorid>
+                        <sequence_number>1</sequence_number>
+                    </Affiliation>
+                </Person>
+            </List_Author>
+            <List_Contributor>
+                <Person>
+                    <contributor_type>DataCurator</contributor_type>
+                    <display_full_name>Mia J.T. Mace</display_full_name>
+                    <given_name>Mia</given_name>
+                    <family_name>Mace</family_name>
+                    <person_orcid>https://orcid.org/0000-0002-9905-816X</person_orcid>
+                    <sequence_number>1</sequence_number>
+                    <Affiliation>
+                        <organization_name>NASA's Planetary Data System (Ring-Moon Systems Node)</organization_name>
+                        <organization_rorid>https://ror.org/006ndaj41</organization_rorid>
+                        <sequence_number>1</sequence_number>
+                    </Affiliation>
+                    <Affiliation>
+                        <organization_name>SETI Institute</organization_name>
+                        <organization_rorid>https://ror.org/02dxgk712</organization_rorid>
+                        <sequence_number>2</sequence_number>
+                    </Affiliation>
+                </Person>
+                <Person>
+                    <contributor_type>DataCurator</contributor_type>
+                    <display_full_name>Matthew S. Tiscareno</display_full_name>
+                    <given_name>Matthew</given_name>
+                    <family_name>Tiscareno</family_name>
+                    <person_orcid>https://orcid.org/0000-0002-2736-3667</person_orcid>
+                    <sequence_number>2</sequence_number>
+                    <Affiliation>
+                        <organization_name>NASA's Planetary Data System (Ring-Moon Systems Node)</organization_name>
+                        <organization_rorid>https://ror.org/006ndaj41</organization_rorid>
+                        <sequence_number>1</sequence_number>
+                    </Affiliation>
+                    <Affiliation>
+                        <organization_name>SETI Institute</organization_name>
+                        <organization_rorid>https://ror.org/02dxgk712</organization_rorid>
+                        <sequence_number>2</sequence_number>
+                    </Affiliation>
+                </Person>
+            </List_Contributor>
+        </Citation_Information>
+        <Modification_History>
+            <Modification_Detail>
+                <modification_date>$CURRENT_ZULU(date_only=True)$</modification_date>
+                <version_id>$BUNDLE_VERSION$</version_id>
+                <description>Initial version</description>
+            </Modification_Detail>
+        </Modification_History>
+    </Identification_Area>
+    <File_Area_Ancillary>
+        <File>
+            <file_name>global_bodies_index.tab</file_name>
+            <creation_date_time>$FILE_ZULU(INDEX_TABLE_PATH)$</creation_date_time>
+            <file_size unit="byte">$FILE_BYTES(INDEX_TABLE_PATH)$</file_size>
+            <md5_checksum>$FILE_MD5(INDEX_TABLE_PATH)$</md5_checksum>
+        </File>
+        <Header>
+            <offset unit="byte">0</offset>
+            <object_length unit="byte">$HEADER_LENGTH$</object_length>
+            <parsing_standard_id>7-Bit ASCII Text</parsing_standard_id>
+            <description>
+                One line naming the table's fields, in order, separated by commas.
+            </description>
+        </Header>
+        <Table_Character>
+            <local_identifier>global_bodies_index</local_identifier>
+            <offset unit="byte">$HEADER_LENGTH$</offset>
+            <records>$FILE_RECORDS(INDEX_TABLE_PATH)-1$</records>
+            <description>
+                One row for each body seen in each image the data collection holds, giving the
+                image's data product, the start and stop of its exposure, and the least
+                and the greatest value each body backplane takes over the pixels where it
+                has a value for that body. Every field is padded with spaces to its length
+                and followed by a comma, the last by the line feed. Angles are in degrees,
+                although the backplane arrays are in radians. A field holding its missing
+                constant marks a backplane that has no value for the body in that image.
+            </description>
+            <record_delimiter>Line-Feed</record_delimiter>
+            <Record_Character>
+                <fields>$len(FIELDS)$</fields>
+                <groups>0</groups>
+                <record_length unit="byte">$RECORD_LENGTH$</record_length>
+                $FOR(field=FIELDS)
+                <Field_Character>
+                    <name>$field.column.name$</name>
+                    <field_number>$field.number$</field_number>
+                    <field_location unit="byte">$field.location$</field_location>
+                    <data_type>$field.column.data_type$</data_type>
+                    <field_length unit="byte">$field.length$</field_length>
+                    $IF(field.column.unit is not None)
+                    <unit>$field.column.unit$</unit>
+                    $END_IF
+                    <description>
+                        $WRAP(24,91,field.column.description,preserve_single_newlines=False)$
+                    </description>
+                    $IF(field.column.missing_constant is not None)
+                    <Special_Constants>
+                        <missing_constant>$field.column.missing_constant$</missing_constant>
+                    </Special_Constants>
+                    $END_IF
+                </Field_Character>
+                $END_FOR
+            </Record_Character>
+        </Table_Character>
+    </File_Area_Ancillary>
+</Product_Ancillary>

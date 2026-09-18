@@ -10,6 +10,13 @@ from spindoctor.config import Config
 from spindoctor.obs import ObsSnapshot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
+BODY_LONGITUDE = 'body_longitude'
+"""The configured body plane holding a body's longitude.
+
+Its statistic also records its range wrapped at zero, the arc of longitude the body's
+pixels cover.
+"""
+
 
 def _create_simulated_body_backplane(
     snapshot: ObsSnapshot,
@@ -37,7 +44,8 @@ def _create_simulated_body_backplane(
         corresponding boolean mask.
     """
 
-    full = np.zeros(snapshot.data.shape, dtype=np.float32)
+    masked_value = float(snapshot.config.backplanes.masked_value)
+    full = np.full(snapshot.data.shape, masked_value, dtype=np.float32)
     full_mask = np.zeros(snapshot.data.shape, dtype=bool)
     # hashlib, not hash(): str hashing is salted per interpreter run and the
     # simulated values must be deterministic
@@ -69,6 +77,23 @@ def _create_simulated_body_backplane(
     return full, full_mask
 
 
+def backplane_body_names(planet: str, config: Config) -> list[str]:
+    """Return the bodies the backplane stage looks for in an image of one planet's system.
+
+    An image gets body backplanes for each of these its inventory finds in the field of
+    view, and its backplane metadata names each by the name returned here.
+
+    Parameters:
+        planet: The image's closest planet, as the observation names it.
+        config: The configuration whose satellite list for the planet is read.
+
+    Returns:
+        The planet, then each satellite the configuration lists for it, in the
+        configuration's order.
+    """
+    return [planet, *config.satellites(planet)]
+
+
 def create_body_backplanes(
     snapshot: ObsSnapshot, config: Config, *, logger: PdsLogger
 ) -> dict[str, Any]:
@@ -86,8 +111,12 @@ def create_body_backplanes(
         - "arrays": The body backplane arrays.
         - "masks": The body backplane masks.
         - "distance": The body backplane distance.
-        - "statistics": The body backplane statistics.
+
+        No statistics: the writer takes them once the merge has decided which body
+        each pixel shows.
     """
+
+    masked_value = float(config.backplanes.masked_value)
 
     # maps body_name -> arrays/masks/distance
     # per_body is ordered by increasing distance
@@ -102,7 +131,7 @@ def create_body_backplanes(
         if closest_planet is None:
             # No planet, no bodies
             return result
-        body_list = [closest_planet, *config.satellites(closest_planet)]
+        body_list = backplane_body_names(closest_planet, config)
         inv = snapshot.inventory(body_list, return_type='full')
 
     candidate_names = list(inv.keys())
@@ -144,7 +173,6 @@ def create_body_backplanes(
 
         per_type_arrays: dict[str, np.ndarray] = {}
         per_type_masks: dict[str, np.ndarray] = {}
-        body_stats: dict[str, dict[str, float]] = {}
 
         for bp_cfg in bodies_cfg:
             bp_name = bp_cfg['name']
@@ -169,32 +197,21 @@ def create_body_backplanes(
                 # Convert to masked array via .mvals to preserve mask
                 mvals = vals.mvals  # masked numpy array
                 # Embed into full-frame arrays
-                full = np.zeros(snapshot.data.shape, dtype=np.float32)
+                full = np.full(snapshot.data.shape, masked_value, dtype=np.float32)
                 full_mask = np.zeros(snapshot.data.shape, dtype=bool)
-                full[v0 : v1 + 1, u0 : u1 + 1] = np.ma.filled(mvals, fill_value=0.0).astype(
-                    np.float32
-                )
+                full[v0 : v1 + 1, u0 : u1 + 1] = np.ma.filled(
+                    mvals, fill_value=masked_value
+                ).astype(np.float32)
                 mask = ~np.ma.getmaskarray(mvals)
                 full_mask[v0 : v1 + 1, u0 : u1 + 1] = mask  # True where valid
 
             per_type_arrays[bp_name] = full
             per_type_masks[bp_name] = full_mask
 
-            # Calculate min/max statistics
-            valid_values = full[full_mask]
-            if len(valid_values) > 0:
-                # Check if this backplane type is in radians and needs conversion
-                if units.lower() == 'rad':
-                    valid_values = np.degrees(valid_values)
-                min_val = float(np.nanmin(valid_values))
-                max_val = float(np.nanmax(valid_values))
-                body_stats[bp_name] = {'min': min_val, 'max': max_val}
-
         result[body_name] = {
             'arrays': per_type_arrays,
             'masks': per_type_masks,
             'distance': float(inv_info['range']),
-            'statistics': body_stats,
         }
 
     return result

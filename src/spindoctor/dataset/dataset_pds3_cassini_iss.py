@@ -9,9 +9,25 @@ from filecache import FCPath, FileCache
 
 from spindoctor.config import Config
 from spindoctor.support.misc import safe_lstrip_zero
+from spindoctor.support.time import (
+    PDS4_EXPOSURE_TIME_DIGITS,
+    et_to_pds4_utc,
+    pds4_utc_midpoint,
+)
 
-from .dataset import ImageFile, ImageFiles
+from .dataset import ImageFile, ImageFiles, Pds4Pass, Pds4Schema, pds4_label_name
 from .dataset_pds3 import DataSetPDS3
+
+_SOURCE_PRODUCT_REFERENCE_TYPE = 'data_to_calibrated_source_product'
+"""What a data label says of the product it was computed from: a calibrated product.
+
+The image the navigation read is the calibrated image, and this is the value of the five
+the ``PDS4_PDS_1O00`` Schematron allows for a ``Source_Product_External``'s
+``reference_type`` that names a calibrated source.
+"""
+
+_SOURCE_PRODUCT_CURATING_FACILITY = 'PDS Ring-Moon Systems Node'
+"""The facility that holds the calibrated image a data label cites as its source."""
 
 
 class DataSetPDS3CassiniISS(DataSetPDS3):
@@ -428,15 +444,105 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_bundle_name(self) -> str:
         """Returns bundle name for PDS4 bundle generation.
 
+        Reads ``config.pds4.<dataset>.bundle_name``, which has no default: the shipped
+        configuration sets it for the dataset that bundles.
+
         Returns:
             Bundle name.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no ``bundle_name``.
         """
-        # Check config first
-        dataset_config = self.config.pds4.get(self._dataset_name_for_pds4_config(), {})
-        if 'bundle_name' in dataset_config:
-            return str(dataset_config['bundle_name'])
-        # Default
-        return self._default_pds4_bundle_name()
+        return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_name'])
+
+    def pds4_bundle_version(self) -> str:
+        """Returns the bundle's version, which each of the bundle's own products carries.
+
+        Reads ``config.pds4.<dataset>.bundle_version``, which has no default: the shipped
+        configuration sets it for the dataset that bundles.
+
+        Returns:
+            The version, in the PDS4 ``<major>.<minor>`` form.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no ``bundle_version``.
+        """
+        return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_version'])
+
+    def pds4_information_model_version(self) -> str:
+        """Returns the information model version the bundle's labels are written against.
+
+        Reads ``config.pds4.<dataset>.information_model_version``, which has no default.
+
+        Returns:
+            The version, in the PDS4 four-part form.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no information model version.
+        """
+        dataset_config = self.config.pds4[self._dataset_name_for_pds4_config()]
+        return str(dataset_config['information_model_version'])
+
+    def pds4_schemas(self) -> dict[str, Pds4Schema]:
+        """Returns the schema of each PDS4 dictionary the bundle's labels declare.
+
+        Reads ``config.pds4.<dataset>.schemas``, which has no default: a mapping from each
+        dictionary's namespace prefix to its schema's ``location`` and ``lidvid``.
+
+        Returns:
+            Each dictionary's schema, by its namespace prefix, in the order the
+            configuration gives them.
+
+        Raises:
+            KeyError: If the configuration gives the dataset no schemas, or a schema no
+                location or LIDVID.
+        """
+        dataset_config = self.config.pds4[self._dataset_name_for_pds4_config()]
+        return {
+            str(prefix): Pds4Schema(location=str(entry['location']), lidvid=str(entry['lidvid']))
+            for prefix, entry in dataset_config['schemas'].items()
+        }
+
+    def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
+        """Returns the file names one bundle pass must find in the template directory.
+
+        The summary pass's are the templates of the data and browse collections, of the
+        global index and of the miscellaneous collection that holds it, and those of the
+        run-level products: the bundle label, the readme,
+        the context, document, SPICE kernel and XML schema collections' inventories and
+        labels, the metakernel and its label, and the user guide's label.
+
+        Parameters:
+            pds4_pass: Which pass's files to name: ``labels`` for the per-image pass,
+                ``summary`` for the pass writing the collections, the index and the
+                bundle's run-level products.
+
+        Returns:
+            The file names, relative to the template directory.
+        """
+        if pds4_pass == 'labels':
+            return ['data.lblx', 'browse.lblx']
+        user_guide_label = pds4_label_name(self.pds4_user_guide_file_name())
+        return [
+            'collection_data.lblx',
+            'collection_browse.lblx',
+            'global_bodies_index.lblx',
+            'global_rings_index.lblx',
+            'collection_miscellaneous.lblx',
+            'bundle.lblx',
+            'readme.txt',
+            'collection_context.csv',
+            'collection_context.lblx',
+            'collection_document.csv',
+            'collection_document.lblx',
+            'collection_spice_kernels.csv',
+            'collection_spice_kernels.lblx',
+            'kernels.ker',
+            'kernels.lblx',
+            'collection_xml_schema.csv',
+            'collection_xml_schema.lblx',
+            user_guide_label,
+        ]
 
     @staticmethod
     def pds4_bundle_path_for_image(image_name: str) -> str:
@@ -520,11 +626,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             image_name: The image name to convert to a browse LID.
 
         Returns:
-            The browse LIDVID.
+            The browse LID at the bundle's version, :meth:`pds4_bundle_version`.
         """
-        image_name = image_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        return f'urn:nasa:pds:{self.pds4_bundle_name()}:browse:{image_lid_part}::1.0'
+        return f'{self.pds4_image_name_to_browse_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_image_name_to_data_lid(self, image_name: str) -> str:
         """Returns the data LID for the given image name.
@@ -546,11 +650,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             image_name: The image name to convert to a data LID.
 
         Returns:
-            The data LIDVID.
+            The data LID at the bundle's version, :meth:`pds4_bundle_version`.
         """
-        image_name = image_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        return f'urn:nasa:pds:{self.pds4_bundle_name()}:data:{image_lid_part}::1.0'
+        return f'{self.pds4_image_name_to_data_lid(image_name)}::{self.pds4_bundle_version()}'
 
     def pds4_template_variables(
         self,
@@ -561,14 +663,46 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     ) -> dict[str, Any]:
         """Returns template variables for PDS4 label generation.
 
+        ``START_DATE_TIME`` and ``STOP_DATE_TIME`` are the exposure's start and stop,
+        read from the ``start_time_et`` and ``end_time_et`` the navigation document's
+        ``observation`` block records, which the host publishes for every image whose
+        navigation ran to a result, pointing or not, and written the way a PDS4 label
+        writes a UTC time, to the millisecond, with a trailing ``Z``, each rounded to
+        the nearest millisecond.  An image's start and
+        stop are recorded to the millisecond in its PDS3 label and index, and the
+        epochs are computed from those values, so each epoch lies within a few
+        nanoseconds of a millisecond, on one side of it or the other: the nearest
+        millisecond is the time recorded, where rounding a start down or a stop up
+        would move it a whole millisecond whenever the epoch lands on the far side.
+        ``IMAGE_MID_TIME`` is the midpoint of the two as written, a half millisecond
+        rounding up, which is PDS3's ``IMAGE_MID_TIME``: an exposure an odd number of
+        milliseconds long has its midtime on a half millisecond, where the recorded
+        midtime epoch lands a few nanoseconds to either side of it.
+
+        ``SOURCE_PRODUCT_IDENTIFIER``, ``SOURCE_PRODUCT_REFERENCE_TYPE`` and
+        ``SOURCE_PRODUCT_CURATING_FACILITY`` cite the calibrated image the navigation
+        read as an external source product, since no PDS4 bundle holds calibrated Cassini
+        ISS images yet: by its volume and the file specification of its label within that
+        volume, the volume and the label's directory taken from the image's results path
+        stub and the label's file name from its label's URL, as in
+        ``COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL``; as a calibrated
+        product; held by the PDS Ring-Moon Systems Node.
+
         Parameters:
             image_file: The image file being processed.
-            nav_metadata: Navigation metadata dictionary.
+            nav_metadata: Navigation metadata dictionary: a success document whose
+                ``observation`` block records the exposure's ``start_time_et`` and
+                ``end_time_et``.
             backplane_metadata: Backplane metadata dictionary.
 
         Returns:
             Dictionary mapping variable names to values for template
             substitution.
+
+        Raises:
+            KeyError: If ``nav_metadata`` has no ``observation`` block holding
+                ``start_time_et`` and ``end_time_et``, which a document the navigation
+                wrote for a result always has.
         """
         vars_dict: dict[str, Any] = {}
 
@@ -587,29 +721,46 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             vars_dict['CAMERA_WN_UC'] = ''
             vars_dict['CAMERA_WN_LC'] = ''
 
-        # Time information from navigation metadata
-        if 'observation' in nav_metadata:
-            obs = nav_metadata['observation']
-            vars_dict['START_DATE_TIME'] = obs.get('start_time', '')
-            vars_dict['STOP_DATE_TIME'] = obs.get('stop_time', '')
-            vars_dict['IMAGE_MID_TIME'] = obs.get('mid_time', '')
+        # The exposure's start and stop, from the observation block the navigation
+        # document holds for every image whose navigation ran to a result, pointing or
+        # not, each at the nearest millisecond: the epochs are computed from times
+        # recorded to the millisecond, so the nearest is the one recorded, where a floor
+        # or a ceiling would lose it whenever the float lands a few nanoseconds on its
+        # far side.  The midtime is their midpoint as written, a half rounding up as
+        # PDS3's does; the midtime epoch of an odd-millisecond exposure sits on the half,
+        # either side.
+        observation = nav_metadata['observation']
+        vars_dict['START_DATE_TIME'] = et_to_pds4_utc(
+            observation['start_time_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
+        )
+        vars_dict['STOP_DATE_TIME'] = et_to_pds4_utc(
+            observation['end_time_et'], digits=PDS4_EXPOSURE_TIME_DIGITS, rounding='nearest'
+        )
+        vars_dict['IMAGE_MID_TIME'] = pds4_utc_midpoint(
+            vars_dict['START_DATE_TIME'], vars_dict['STOP_DATE_TIME']
+        )
 
-        # Placeholder values for required template variables
-        pds4_bundle_name = self.pds4_bundle_name()
-        image_name = image_file.image_file_name.split('_', 1)[0].split('.', 1)[0]
-        image_lid_part = image_name[1:] + image_name[0].lower()
-        vars_dict['BUNDLE_LID'] = f'urn:nasa:pds:{pds4_bundle_name}'
-        vars_dict['BUNDLE_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}::1.0'
-        vars_dict['BROWSE_LID'] = f'urn:nasa:pds:{pds4_bundle_name}:browse:{image_lid_part}'
-        vars_dict['BROWSE_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}:browse:{image_lid_part}::1.0'
-        vars_dict['DATA_LID'] = f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}'
-        vars_dict['DATA_LIDVID'] = f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}::1.0'
+        # The product's own LIDs and LIDVIDs
+        image_name = image_file.image_file_name
+        vars_dict['BROWSE_LID'] = self.pds4_image_name_to_browse_lid(image_name)
+        vars_dict['BROWSE_LIDVID'] = self.pds4_image_name_to_browse_lidvid(image_name)
+        vars_dict['DATA_LID'] = self.pds4_image_name_to_data_lid(image_name)
+        vars_dict['DATA_LIDVID'] = self.pds4_image_name_to_data_lidvid(image_name)
         vars_dict['TITLE'] = f'Backplanes for {image_file.image_file_name}'
         vars_dict['DESCRIPTION'] = f'Backplanes for navigated image {image_file.image_file_name}'
         vars_dict['COMMENT'] = 'Generated from navigated image data'
-        vars_dict['SOURCE_IMAGE_LIDVID'] = (
-            f'urn:nasa:pds:{pds4_bundle_name}:data:{image_lid_part}::1.0'
-        )
+
+        # The calibrated image the navigation read, cited as an external source product
+        # until a PDS4 bundle holds calibrated Cassini ISS images: by the volume the
+        # Ring-Moon Systems Node holds it under and the file specification of its label
+        # within that volume.  The results path stub the dataset gave the image,
+        # '<volume>/<directory>/<image>', gives the volume and the directory, and the
+        # label's URL the file name, so that no label is opened for it.
+        volume_id, _, image_path = image_file.results_path_stub.partition('/')
+        label_filespec = FCPath(image_path).with_name(image_file.label_file_url.name)
+        vars_dict['SOURCE_PRODUCT_IDENTIFIER'] = f'{volume_id}:{label_filespec.as_posix()}'
+        vars_dict['SOURCE_PRODUCT_REFERENCE_TYPE'] = _SOURCE_PRODUCT_REFERENCE_TYPE
+        vars_dict['SOURCE_PRODUCT_CURATING_FACILITY'] = _SOURCE_PRODUCT_CURATING_FACILITY
 
         # Extract from index_file_row if available
         index_row = image_file.index_file_row
@@ -752,11 +903,13 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         """
         raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
 
-    def _default_pds4_bundle_name(self) -> str:
-        """Returns the default bundle name.
+    def pds4_user_guide_file_name(self) -> str:
+        """Returns the file name of the bundle's user guide in the template directory.
 
-        Returns:
-            Default bundle name.
+        Each registered subclass names its own bundle's guide; this class names none.
+
+        Raises:
+            NotImplementedError: Always, as for the class's other PDS4 defaults.
         """
         raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
 
@@ -774,8 +927,13 @@ class DataSetPDS3CassiniISSCruise(DataSetPDS3CassiniISS):
     def _default_pds4_template_dir(self) -> str:
         return 'cassini_iss_cruise_1.0'
 
-    def _default_pds4_bundle_name(self) -> str:
-        return 'cassini_iss_cruise_backplanes_rsfrench2027'
+    def pds4_user_guide_file_name(self) -> str:
+        """Returns the file name of the bundle's user guide in the template directory.
+
+        Returns:
+            ``cassini-iss-cruise-backplanes-user-guide.pdf``.
+        """
+        return 'cassini-iss-cruise-backplanes-user-guide.pdf'
 
 
 class DataSetPDS3CassiniISSSaturn(DataSetPDS3CassiniISS):
@@ -791,5 +949,10 @@ class DataSetPDS3CassiniISSSaturn(DataSetPDS3CassiniISS):
     def _default_pds4_template_dir(self) -> str:
         return 'cassini_iss_saturn_1.0'
 
-    def _default_pds4_bundle_name(self) -> str:
-        return 'cassini_iss_saturn_backplanes_rsfrench2027'
+    def pds4_user_guide_file_name(self) -> str:
+        """Returns the file name of the bundle's user guide in the template directory.
+
+        Returns:
+            ``cassini-iss-saturn-backplanes-user-guide.pdf``.
+        """
+        return 'cassini-iss-saturn-backplanes-user-guide.pdf'

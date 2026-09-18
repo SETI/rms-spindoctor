@@ -19,8 +19,8 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.obs.obs_inst_voyager_iss import _published_sclk
 from spindoctor.support.status_reason import NavStatusReason
 
+from .host_voyager import VGISS_KERNELS, VOYAGER_ISS, voyager_sclk_open
 from .shared import (
-    VGISS_KERNELS,
     classifier,
     holdings_path,
     navigated,
@@ -29,9 +29,11 @@ from .shared import (
     recorded_exposure,
     ring_edge,
     rotation,
-    voyager_sclk_open,
     with_pointing,
 )
+
+VGISS_SUBTREE = 'VGISS_5101/data/C13854XX'
+"""The Voyager volume and image directory the Voyager images sit under."""
 
 
 def voyager_ring_edges() -> dict[str, Any]:
@@ -47,6 +49,7 @@ def voyager_ring_edges() -> dict[str, Any]:
         ring_edge(
             'huygens_gap',
             'IEG',
+            planet='SATURN',
             reliability=0.64,
             gated=False,
             gate_reason=None,
@@ -55,6 +58,7 @@ def voyager_ring_edges() -> dict[str, Any]:
         ring_edge(
             'huygens_gap',
             'OEG',
+            planet='SATURN',
             reliability=0.19,
             gated=True,
             gate_reason='reliability_0.190_below_threshold_0.300',
@@ -101,8 +105,8 @@ def voyager_ring_edges() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=VOYAGER_ISS,
         camera='NAC',
-        instrument='vgiss',
         midtime_et=-660000000.0,
         sclk_open=voyager_sclk_open(13854, 55),
         corrected=rotation(112.447, 3.918, -64.220),
@@ -156,8 +160,8 @@ def voyager_no_features() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=VOYAGER_ISS,
         camera='WAC',
-        instrument='vgiss',
         midtime_et=-659999000.0,
         sclk_open=voyager_sclk_open(13854, 60),
         corrected=None,
@@ -229,4 +233,16 @@ def _public_metadata(
         'camera': camera,
         'exposure_time': exposure.exposure_s,
         'filters': [filter_name],
+    }
+
+
+def results_tree_documents() -> dict[str, dict[str, Any]]:
+    """Return the Voyager documents of the fixture tree, keyed by results path stub.
+
+    Returns:
+        Stub to document, in the order the tree is written.
+    """
+    return {
+        f'{VGISS_SUBTREE}/C1385455_GEOMED': voyager_ring_edges(),
+        f'{VGISS_SUBTREE}/C1385460_GEOMED': voyager_no_features(),
     }

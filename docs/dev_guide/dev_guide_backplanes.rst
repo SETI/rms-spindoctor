@@ -82,7 +82,7 @@ Per-image, the driver runs three phases:
    serializes the master arrays and the body-ID map to FITS, attaching
    the ``BUNIT`` header from the per-backplane config, and writes a
    companion ``_backplane_metadata.json`` with per-body inventory and
-   per-backplane min/max statistics.
+   per-backplane min/max statistics, taken from the merged master arrays.
 
 Phase 1 skips the image if the navigation step did not converge, writing no
 FITS for it; the downstream PDS4 driver also refuses to render a label for an
@@ -134,8 +134,8 @@ Restrictions and assumptions
 - **Per-body bounding-box evaluation.**  Body backplanes are evaluated
   on a meshgrid clipped to the body's predicted bounding box (no
   oversampling). Pixels outside any body's bounding box and outside
-  the ring system have no backplane contribution and stay zero in the
-  master arrays.
+  the ring system have no backplane contribution and carry the masked
+  value in the master arrays.
 
 Per-source backplane generation
 ===============================
@@ -187,6 +187,23 @@ the spacecraft to the ring intersection point along the line of sight)
 that the merge step compares to per-body distances to decide which source
 owns each pixel.
 
+The ring target is the one
+:func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` names for the image's
+closest planet: ``SATURN_MAIN_RINGS`` for Saturn, whose main rings the ring backplanes
+cover, and ``<PLANET>_RING_SYSTEM`` for any other.  The ring step also takes the
+incidence angle of sunlight on that target's plane, once for the image, through
+``oops``'s ``ring_center_incidence_angle`` on the same full-frame backplane: the angle
+at the ring system's center, for the light that reaches the camera at the observation's
+midtime, measured from the normal on the plane's sunlit side, converted to degrees as a
+:class:`~spindoctor.cli.backplanes.backplanes_rings.RingIncidenceAngle`.  Sunlight falls
+on a ring plane at one angle over an image -- on a real frame the angle at the center
+differs from every ring pixel's by a few thousandths of a degree -- so no backplane
+holds it.  The stage records the target and the angle for every image with a closest
+planet, whether or not any pixel is on the rings.  It also keeps the angle at each
+pixel, ``oops``'s ``ring_incidence_angle`` on the same target and measured the same
+way, which no plane holds either: the writer records its least, greatest and mean over
+the ring pixels the merged planes hold, beside the angle at the center.
+
 Distance-aware merge
 ====================
 
@@ -195,7 +212,15 @@ exactly once. For each pixel it iterates the per-source distances and
 picks the source with the smallest finite distance (closest along the
 line of sight); the per-backplane values from that source are copied
 into the master arrays. Pixels with no finite distance from any source
-stay zero.
+carry the masked value.
+
+The masked value is ``backplanes.masked_value`` in
+``config_900_backplanes.yaml``, ``-999.0`` as shipped. It sits outside the
+range of every plane written, so one comparison -- ``!= masked_value`` --
+identifies the measured pixels of any plane, and the PDS4 label declares it
+as the array's missing constant. ``BODY_ID_MAP`` is the exception: it is the
+body identity map rather than a measurement, and ``0`` is not a NAIF ID, so
+zero there already means no body claimed the pixel.
 
 The function also fills a sensor-shaped ``BODY_ID_MAP`` carrying the NAIF
 ID of the winning source per pixel. Bodies use their real NAIF IDs;
@@ -220,9 +245,9 @@ output FITS file structure:
   emitted only when at least one pixel has a non-zero ID.
 - **One HDU per backplane** — name from ``backplanes.bodies[i].name`` /
   ``backplanes.rings[i].name``, ``BUNIT`` header from the per-backplane
-  ``units`` field, ``float32`` data. Backplanes that are entirely zero
-  on this image are omitted (a body backplane on a no-body-in-FOV image
-  contributes no HDU).
+  ``units`` field, ``float32`` data. Backplanes that are entirely the
+  masked value on this image are omitted (a body backplane on a
+  no-body-in-FOV image contributes no HDU).
 
 Alongside the FITS file the writer drops a companion
 ``<image>_backplane_metadata.json`` with two top-level keys, ``bodies``
@@ -234,13 +259,81 @@ and ``rings``:
   pixel-corner position in the nominal frame (see
   :ref:`coordinate-systems`) — ``center_range``, the range to that center
   in km, and ``size_uv``, the body's ``[u, v]`` pixel diameters.
-- ``rings`` holds a ``backplanes`` sub-dict of the same statistics.
+- ``rings`` holds the ring target the ring backplanes were computed for
+  (``target``), the incidence angle of sunlight on its plane
+  (``incidence_angle``: its ``value`` at the ring system's center and, when
+  a ring plane has a value anywhere, its ``min``, ``max`` and ``mean`` over
+  the pixels where one does, in degrees with their unit), and a
+  ``backplanes`` sub-dict of the same per-backplane statistics.
 
 A ``backplanes`` sub-dict is keyed by backplane name, and each entry gives
-the min and the max over that backplane's valid pixels.
+the min and the max over that backplane's valid pixels.  The PDS4 bundle's
+rings index states the incidence angle's ``min``, ``max`` and ``mean`` and
+the ring longitude's wrapped range (below), and no data label states either.
+
+Each statistic states the unit its values are in, which for an angular plane
+is not the unit of the array it was taken from.
+
+Every statistic is taken from the master arrays the FITS holds, after the merge,
+over the pixels where the plane has a value, so that it summarizes exactly what a
+reader of the FITS finds: a body's over the pixels ``BODY_ID_MAP`` gives the body,
+and the rings' over every pixel.  A pixel of the rings or of a body that a nearer
+body covers holds the nearer body's value, so it counts for the nearer body alone,
+and a body a nearer body hides entirely is recorded with no statistic.  The body
+and ring steps compute none of their own.
+
+The ring longitude's statistic, the plane
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDE` names, also
+records its range wrapped at zero, ``wrapped_min`` and ``wrapped_max``, which
+:func:`~spindoctor.cli.backplanes.statistics.wrapped_range` finds over the same
+pixels.  The widest gap between the longitudes, the gap across zero among them, is
+the part of the circle the image does not cover, and the arc runs from the longitude
+after it to the one before it, so the arc's start is the greater where it crosses
+zero.  Longitudes that leave no gap wider than the coarsest value of the plane
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION`
+names cover the whole circle, recorded as 0 to 360.  With no value of that plane, as
+when the configuration declares none, the statistic records no wrapped range.
+
+Each body's longitude statistic, the plane
+:data:`~spindoctor.cli.backplanes.backplanes_bodies.BODY_LONGITUDE` names, records its
+range wrapped at zero too, over the pixels ``BODY_ID_MAP`` gives the body, by the same
+rule.  A body's resolutions are sizes on its surface, in km per pixel, so the widest gap
+that leaves the circle covered is instead the widest longitude step between two of the
+body's pixels that share an edge, taken the short way round the circle, as
+:func:`~spindoctor.cli.backplanes.statistics.longitude_step` finds it.  Longitude
+changes fastest from pixel to pixel near the limb and round a pole in view, where every
+longitude meets, so the step is as wide as any gap the body's sampling leaves: a body
+seen round a pole covers the whole circle, and one seen from its equator the arc its
+visible side spans.  The angle a pixel spans on the surface, from the body's coarsest
+resolution and its radius, is not the threshold: it grows without bound toward the
+limb, where the surface turns edge-on, and a small body's would be wider than the half
+of it out of view, reading every view of it as the whole circle.  A body whose
+longitude plane has no value records no statistic, and so no range.
 
 The PDS4 bundle generator (:doc:`dev_guide_pds4`) reads this sidecar
 when rendering the per-image data label.
+
+Units: radians in the arrays, degrees in the statistics
+=======================================================
+
+An angular backplane array is written in radians, and its ``BUNIT`` header
+says so. The statistics in the metadata document are in degrees, because they
+become columns of the bundle's index tables, which people read; each statistic
+records its unit.
+
+:func:`~spindoctor.cli.backplanes.statistics.statistics_units` holds the rule.
+If the part of a unit before any ``/`` is exactly ``rad``, it becomes ``deg``
+and the rest is kept, so ``rad/pixel`` becomes ``deg/pixel``. Every other unit
+is left alone. An angular unit other than ``rad`` (``mrad``, ``arcsec``) would
+need a change to that function, and every unit needs a format in
+:data:`~spindoctor.cli.pds4.index_columns.INDEX_VALUE_FORMATS`. Two tests over the
+shipped configuration fail on a unit that needs either change: one allows only
+the measures ``rad``, ``deg`` and ``km``, and the other looks every unit up in
+that table.
+
+``sd_backplane_viewer`` has its own rule: it shows in degrees a plane whose
+``BUNIT`` is ``rad`` in any letter case, or whose name contains ``longitude``,
+``latitude``, ``incidence``, ``emission`` or ``phase``.
 
 Configuration
 =============
@@ -301,9 +394,14 @@ Adding a backplane
    :class:`~oops.backplane.Backplane` method to call. Verify the
    method exists by reading the ``oops`` source — there is no
    compile-time check on the YAML name.
-2. Append a ``{name, method, units}`` entry to the matching list in
+2. Append a ``{name, method, units, index}`` entry to the matching list in
    ``config_900_backplanes.yaml``. Pick a ``name`` that scans well as
-   a FITS HDU name (uppercase or snake_case, no spaces).
+   a FITS HDU name (uppercase or snake_case, no spaces). ``units``
+   describes the array, which for an angular plane means radians; the
+   statistics are converted from it, per the units section above. The
+   ``index`` block names the two columns the PDS4 bundle's global index
+   tables give the plane's statistic, their data type and their
+   descriptions (see :doc:`dev_guide_pds4`).
 3. Rebuild a sample image with ``sd_backplanes`` and verify the new
    HDU appears in the FITS file with the expected ``BUNIT`` header and
    non-trivial pixel content (use ``sd_backplane_viewer`` for a quick
@@ -332,7 +430,7 @@ API reference
 =============
 
 The :mod:`backplanes` package has no autogenerated entry under
-:doc:`/api_reference`; the public surface is the five functions listed
+:doc:`/api_reference`; the public surface is the functions listed
 below:
 
 - :func:`~spindoctor.cli.backplanes.backplanes.generate_backplanes_image_files` —
@@ -341,6 +439,13 @@ below:
   source.
 - :func:`~spindoctor.cli.backplanes.backplanes_rings.create_ring_backplanes` — ring
   source.
+- :func:`~spindoctor.cli.backplanes.backplanes_bodies.backplane_body_names` and
+  :func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` — the bodies the stage
+  looks for in an image of one planet's system, and the ring target it computes that
+  image's ring backplanes for, which name them in the metadata document.
+- :func:`~spindoctor.cli.backplanes.statistics.plane_statistics` — per-plane
+  reduction to a minimum, a maximum and the unit they are in, over
+  :func:`~spindoctor.cli.backplanes.statistics.statistics_units`.
 - :func:`~spindoctor.cli.backplanes.merge.merge_sources_into_master` — distance-aware
   merge.
 - :func:`~spindoctor.cli.backplanes.writer.write_fits` — FITS + sidecar writer.

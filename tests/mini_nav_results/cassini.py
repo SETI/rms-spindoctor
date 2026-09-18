@@ -37,28 +37,23 @@ from spindoctor.nav_technique.diagnostics import (
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
-from spindoctor.obs.obs_inst_cassini_iss import _label_metadata, _published_sclk
-from spindoctor.support.cmatrix import AttitudeBaseline
 from spindoctor.support.status_reason import NavStatusReason
-from spindoctor.support.time import et_to_utc
 
+from .host_cassini import CASSINI_ISS, COISS_KERNELS, cassini_public_metadata, cassini_sclk_open
 from .shared import (
-    COISS_KERNELS,
-    COISS_SUBTREE,
-    cassini_sclk_open,
     classifier,
     faint_star,
-    holdings_path,
     navigated,
     pinned_timing,
     provenance,
-    published_times,
-    recorded_exposure,
     ring_edge,
     rotation,
     star,
     with_pointing,
 )
+
+COISS_SUBTREE = 'COISS_2001/data/1294561143_1295221348'
+"""The Cassini volume and observation directory the Cassini images sit under."""
 
 
 def cassini_star_and_limb() -> dict[str, Any]:
@@ -166,6 +161,7 @@ def cassini_star_and_limb() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=CASSINI_ISS,
         camera='NAC',
         midtime_et=170000000.0,
         sclk_open=cassini_sclk_open(1294561202, 77),
@@ -179,7 +175,7 @@ def cassini_star_and_limb() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='BOTSIM',
         image_shape=(1024, 1024),
-        public_metadata=_public_metadata(
+        public_metadata=cassini_public_metadata(
             result,
             image_name='N1294561202_1_CALIB.IMG',
             camera='NAC',
@@ -245,6 +241,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=CASSINI_ISS,
         camera='NAC',
         midtime_et=170000800.0,
         sclk_open=cassini_sclk_open(1294562000, 55),
@@ -258,7 +255,7 @@ def cassini_all_features_gated() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='NACONLY',
         image_shape=(1024, 1024),
-        public_metadata=_public_metadata(
+        public_metadata=cassini_public_metadata(
             result,
             image_name='N1294562000_1_CALIB.IMG',
             camera='NAC',
@@ -521,6 +518,7 @@ def cassini_suspect_offset() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=CASSINI_ISS,
         camera='NAC',
         midtime_et=170002800.0,
         sclk_open=cassini_sclk_open(1294564000, 11),
@@ -534,7 +532,7 @@ def cassini_suspect_offset() -> dict[str, Any]:
         camera='NAC',
         shutter_mode='NACONLY',
         image_shape=(1024, 1024),
-        public_metadata=_public_metadata(
+        public_metadata=cassini_public_metadata(
             result,
             image_name='N1294564000_1_CALIB.IMG',
             camera='NAC',
@@ -566,6 +564,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         ring_edge(
             'encke_gap',
             'IEG',
+            planet='SATURN',
             reliability=0.72,
             gated=False,
             gate_reason=None,
@@ -574,6 +573,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         ring_edge(
             'encke_gap',
             'OEG',
+            planet='SATURN',
             reliability=0.18,
             gated=True,
             gate_reason='reliability_0.180_below_threshold_0.300',
@@ -620,6 +620,7 @@ def cassini_ring_edges() -> dict[str, Any]:
     )
     result = with_pointing(
         result,
+        host=CASSINI_ISS,
         camera='WAC',
         midtime_et=170000000.0,
         sclk_open=cassini_sclk_open(1294561202, 77),
@@ -633,7 +634,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         camera='WAC',
         shutter_mode='BOTSIM',
         image_shape=(512, 512),
-        public_metadata=_public_metadata(
+        public_metadata=cassini_public_metadata(
             result,
             image_name='W1294561202_1_CALIB.IMG',
             camera='WAC',
@@ -651,258 +652,16 @@ def cassini_ring_edges() -> dict[str, Any]:
     )
 
 
-_GAIN_MODE_IDS = {
-    0: '215 ELECTRONS PER DN',
-    1: '95 ELECTRONS PER DN',
-    2: '29 ELECTRONS PER DN',
-    3: '12 ELECTRONS PER DN',
-}
-"""A label's gain text for each gain state oops reads out of it."""
-
-_SHARED_LABEL_ITEMS: dict[str, Any] = {
-    'DATA_SET_ID': 'CO-S-ISSNA/ISSWA-2-EDR-V1.0',
-    'INSTRUMENT_HOST_NAME': 'CASSINI ORBITER',
-    'MISSION_NAME': 'CASSINI-HUYGENS',
-    'MISSION_PHASE_NAME': 'TOUR',
-    'ANTIBLOOMING_STATE_FLAG': 'OFF',
-    'BIAS_STRIP_MEAN': 7.32844,
-    'COMMAND_FILE_NAME': 'trigger_24820_2.ioi',
-    'COMMAND_SEQUENCE_NUMBER': 24820,
-    'DARK_STRIP_MEAN': 0.300024,
-    'DATA_CONVERSION_TYPE': 'TABLE',
-    'DELAYED_READOUT_FLAG': 'NO',
-    'DETECTOR_TEMPERATURE': -89.3184,
-    'ELECTRONICS_BIAS': 112,
-    'EXPECTED_MAXIMUM': [50.6578, 55.8509],
-    'EXPECTED_PACKETS': 390,
-    'FILTER_TEMPERATURE': -0.468354,
-    'FLIGHT_SOFTWARE_VERSION_ID': '1.4',
-    'SOFTWARE_VERSION_ID': 'ISS 11.00 05-03-2005',
-    'IMAGE_OBSERVATION_TYPE': 'SCIENCE',
-    'INSTRUMENT_DATA_RATE': 182.784,
-    'INST_CMPRS_TYPE': 'LOSSLESS',
-    'INST_CMPRS_PARAM': ['N/A', 'N/A', 'N/A', 'N/A'],
-    'INST_CMPRS_RATE': [2.7, 1.56508],
-    'INST_CMPRS_RATIO': 5.11156,
-    'LIGHT_FLOOD_STATE_FLAG': 'ON',
-    'MISSING_LINES': 0,
-    'MISSING_PACKET_FLAG': 'NO',
-    'ORDER_NUMBER': 12,
-    'PARALLEL_CLOCK_VOLTAGE_INDEX': 9,
-    'PRODUCT_VERSION_TYPE': 'FINAL',
-    'TARGET_DESC': 'Iapetus',
-    'TARGET_LIST': 'N/A',
-    'TARGET_NAME': 'IAPETUS',
-    'PREPARE_CYCLE_INDEX': 0,
-    'READOUT_CYCLE_INDEX': 10,
-    'RECEIVED_PACKETS': 231,
-    'SENSOR_HEAD_ELEC_TEMPERATURE': 1.63302,
-    'SEQUENCE_ID': 'S11',
-    'SEQUENCE_NUMBER': 12,
-    'SEQUENCE_TITLE': 'IAPETUS',
-    'SHUTTER_STATE_ID': 'ENABLED',
-    'TELEMETRY_FORMAT_ID': 'S&ER3',
-    'VALID_MAXIMUM': [4095, 4095],
-}
-"""The label items every Cassini image of this tree shares.
-
-They are N1635282917_1_CALIB's, a narrow angle frame of 2009, except for six items a 2005
-image of Iapetus writes otherwise: ``MISSION_PHASE_NAME``, ``SOFTWARE_VERSION_ID``,
-``SEQUENCE_ID``, ``SEQUENCE_TITLE``, ``TARGET_DESC`` and ``TARGET_NAME``.
-``ANTIBLOOMING_STATE_FLAG`` is ``OFF`` rather than ``ON`` as well, so that it differs from
-``LIGHT_FLOOD_STATE_FLAG``, as it does on many real labels.  ``DATA_SET_ID``,
-``INSTRUMENT_HOST_NAME`` and ``MISSION_NAME`` are one value across the archive.
-"""
-
-_CAMERA_LABEL_ITEMS: dict[str, dict[str, Any]] = {
-    'NAC': {
-        'CALIBRATION_LAMP_STATE_FLAG': 'N/A',
-        'INSTRUMENT_ID': 'ISSNA',
-        'INSTRUMENT_NAME': 'IMAGING SCIENCE SUBSYSTEM NARROW ANGLE',
-        'OPTICS_TEMPERATURE': [0.712693, 1.90571],
-    },
-    'WAC': {
-        'CALIBRATION_LAMP_STATE_FLAG': 'OFF',
-        'INSTRUMENT_ID': 'ISSWA',
-        'INSTRUMENT_NAME': 'IMAGING SCIENCE SUBSYSTEM WIDE ANGLE',
-        'OPTICS_TEMPERATURE': [6.93953, -999.0],
-    },
-}
-"""The label items a camera decides.
-
-The narrow angle camera has no calibration lamp and the wide angle camera no rear optics
-temperature sensor, so their labels write ``N/A`` and ``-999.0`` there, and each camera
-states its own ``INSTRUMENT_ID`` and ``INSTRUMENT_NAME``.  The values are
-N1635282917_1_CALIB's and W1521598221_1_CALIB's.
-"""
-
-_EARTH_RECEIVED_AFTER_S = 48600.0
-"""How long after its shutter closed an image of this tree began to reach Earth."""
-
-_DOWNLINK_S = 17.5
-"""How long an image of this tree took to reach Earth."""
-
-_BUILT_AFTER_S = 62000.0
-"""How long after its shutter closed an image of this tree was built on the ground."""
-
-
-def _label_time(et: float) -> str:
-    """Spell an epoch the way a Cassini ISS VICAR label writes a time.
-
-    Parameters:
-        et: The epoch, in TDB seconds.
+def results_tree_documents() -> dict[str, dict[str, Any]]:
+    """Return the Cassini documents of the fixture tree, keyed by results path stub.
 
     Returns:
-        The UTC year, day of year and time of day to the millisecond, then ``Z``.
+        Stub to document, in the order the tree is written.
     """
-    utc = datetime.strptime(et_to_utc(et), '%Y-%m-%dT%H:%M:%S.%f')
-    return utc.strftime('%Y-%jT%H:%M:%S.%f')[:-3] + 'Z'
-
-
-def _build_time(et: float) -> str:
-    """Spell a build time the way a tour label writes its ``PRODUCT_CREATION_TIME``.
-
-    Parameters:
-        et: The epoch, in TDB seconds.
-
-    Returns:
-        The UTC year, day of year and time of day to the whole second, then ``.000``,
-        with no ``Z``.
-    """
-    return _label_time(et)[: -len('.000Z')] + '.000'
-
-
-def _label(
-    exposure: AttitudeBaseline,
-    *,
-    camera: str,
-    gain_mode: int,
-    observation_id: str,
-    description: str,
-    filters: tuple[str, str],
-    sampling: str,
-    shutter_mode: str,
-) -> dict[str, Any]:
-    """Return the VICAR label items one Cassini image of this tree carries.
-
-    What the document chooses for itself is written the way a Cassini ISS label writes
-    it: its clock counts are the recorded clock strings without their partition, its
-    image number is the whole seconds of its stop count, its product id is its camera
-    letter and its stop count behind the clock partition, its exposure is in
-    milliseconds, its gain is the text oops reads the gain state out of, and its shutter
-    open, midtime and shutter close are the recorded epochs in the label's day-of-year
-    text.  It reached Earth and was built on the ground after its shutter
-    closed, and the label writes its build time to the whole second, as a tour label
-    does (see :func:`_build_time`).
-    The rest is :data:`_SHARED_LABEL_ITEMS` and the camera's :data:`_CAMERA_LABEL_ITEMS`.
-
-    Parameters:
-        exposure: The recorded exposure.
-        camera: ``NAC`` or ``WAC``.
-        gain_mode: The gain state oops reads out of the label's gain mode.
-        observation_id: The label's observation id, which its method description names.
-        description: The label's free text about the image.
-        filters: The two filter wheel positions, in the label's order.
-        sampling: The label's instrument mode: ``FULL``, ``SUM2`` or ``SUM4``.
-        shutter_mode: The shutter mode the exposure was commanded in.
-
-    Returns:
-        The label items.
-    """
-    partition, _, start_count = exposure.sclk_start.partition('/')
-    stop_count = exposure.sclk_stop.partition('/')[2]
-    received = exposure.stop_et + _EARTH_RECEIVED_AFTER_S
     return {
-        **_SHARED_LABEL_ITEMS,
-        **_CAMERA_LABEL_ITEMS[camera],
-        'SPACECRAFT_CLOCK_CNT_PARTITION': int(partition),
-        'SPACECRAFT_CLOCK_START_COUNT': start_count,
-        'SPACECRAFT_CLOCK_STOP_COUNT': stop_count,
-        'IMAGE_NUMBER': int(stop_count.partition('.')[0]),
-        'PRODUCT_ID': f'{partition}_{camera[0]}{stop_count}',
-        'DESCRIPTION': description,
-        'FILTER_NAME': list(filters),
-        'INSTRUMENT_MODE_ID': sampling,
-        'OBSERVATION_ID': observation_id,
-        'SHUTTER_MODE_ID': shutter_mode,
-        'EXPOSURE_DURATION': round(exposure.exposure_s * 1000.0, 3),
-        'GAIN_MODE_ID': _GAIN_MODE_IDS[gain_mode],
-        'METHOD_DESC': f'ISSPT2.5.4;Iapetus;{observation_id}_1',
-        'START_TIME': _label_time(exposure.start_et),
-        'IMAGE_MID_TIME': _label_time(exposure.midtime_et),
-        'IMAGE_TIME': _label_time(exposure.stop_et),
-        'STOP_TIME': _label_time(exposure.stop_et),
-        'EARTH_RECEIVED_START_TIME': _label_time(received),
-        'EARTH_RECEIVED_STOP_TIME': _label_time(received + _DOWNLINK_S),
-        'PRODUCT_CREATION_TIME': _build_time(exposure.stop_et + _BUILT_AFTER_S),
-    }
-
-
-def _public_metadata(
-    result: NavResult,
-    *,
-    image_name: str,
-    camera: str,
-    image_shape: tuple[int, int],
-    filters: tuple[str, str],
-    sampling: str,
-    gain_mode: int,
-    observation_id: str,
-    description: str,
-    shutter_mode: str,
-) -> dict[str, Any]:
-    """Return what the Cassini ISS host publishes about one image of this run.
-
-    The host converts the label's start and stop clock counts to seconds of the
-    clock and publishes them with their exact mean, through its own conversion,
-    which is used here too.  This tree's clock strings are counted from each label's
-    reading at shutter open (see :func:`cassini_sclk_open`), so here the label's
-    counts are the recorded strings without their partition.  On a real image the
-    two can differ: the counts are the instrument's own, and the strings are SPICE's
-    conversion of the exposure epochs.
-
-    The metadata the host reads out of the image comes last, in a ``label_metadata``
-    block under the Cassini data dictionary's own attribute names, from the label
-    :func:`_label` writes for the image and from the image's file name.
-
-    Parameters:
-        result: The image's result, carrying its attitude solution.
-        image_name: Basename of the source image.
-        camera: ``NAC`` or ``WAC``.
-        image_shape: The loaded image's ``(v, u)`` pixel dimensions.
-        filters: The two filter wheel positions the label records.
-        sampling: The label's instrument mode: ``FULL``, ``SUM2`` or ``SUM4``.
-        gain_mode: The gain state oops reads out of the label's gain mode.
-        observation_id: The label's observation id.
-        description: The label's description.
-        shutter_mode: The shutter mode the exposure was commanded in.
-
-    Returns:
-        The published metadata, in the host's own key order.
-    """
-    exposure = recorded_exposure(result)
-    label = _label(
-        exposure,
-        camera=camera,
-        gain_mode=gain_mode,
-        observation_id=observation_id,
-        description=description,
-        filters=filters,
-        sampling=sampling,
-        shutter_mode=shutter_mode,
-    )
-    return {
-        'image_path': holdings_path(image_name).as_posix(),
-        'image_name': image_name,
-        'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.co',
-        'instrument_lid': f'urn:nasa:pds:context:instrument:iss{camera[0].lower()}a.co',
-        **published_times(exposure),
-        **_published_sclk(
-            exposure.sclk_start.partition('/')[2], exposure.sclk_stop.partition('/')[2]
-        ),
-        'image_shape_xy': (image_shape[1], image_shape[0]),
-        'camera': camera,
-        'exposure_time': exposure.exposure_s,
-        'filters': list(filters),
-        'label_metadata': _label_metadata(label, image_name),
+        f'{COISS_SUBTREE}/N1294561202_1_CALIB': cassini_star_and_limb(),
+        f'{COISS_SUBTREE}/N1294562000_1_CALIB': cassini_all_features_gated(),
+        LOAD_ERROR_STUB: cassini_load_error(),
+        f'{COISS_SUBTREE}/N1294564000_1_CALIB': cassini_suspect_offset(),
+        f'{COISS_SUBTREE}/W1294561202_1_CALIB': cassini_ring_edges(),
     }

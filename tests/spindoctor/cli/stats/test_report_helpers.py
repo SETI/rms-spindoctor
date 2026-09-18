@@ -32,6 +32,15 @@ def test_date_from_image_et_none() -> None:
     assert date_from_image_et(None) is None
 
 
+def test_date_from_image_et_dates_a_day_s_last_half_second_the_day_after() -> None:
+    """An instant 0.3 s before midnight is rounded into, and dated, the next day.
+
+    SPICE's ``et2utc`` writes the epoch at three decimals as
+    ``2004-06-30T23:59:59.700`` and at none as ``2004-07-01T00:00:00``.
+    """
+    assert date_from_image_et(141912063.883703) == '2004-07-01'
+
+
 def test_datetime_from_image_et_keeps_the_time() -> None:
     """The selection table shows a time; a bare date collapses a whole day."""
     assert datetime_from_image_et(0.0) == '2000-01-01T11:58:56'

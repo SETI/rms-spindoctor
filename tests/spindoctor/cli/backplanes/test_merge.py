@@ -19,7 +19,7 @@ import pytest
 
 from spindoctor.cli.backplanes.merge import fake_naif_id, merge_sources_into_master
 
-from .conftest import HermeticObs, make_snapshot
+from .conftest import MASKED_VALUE, HermeticObs, make_snapshot
 
 SHAPE_VU = (7, 9)
 
@@ -62,7 +62,6 @@ def _body_entry(
         'arrays': {bp_type: arr},
         'masks': {bp_type: mask},
         'distance': distance,
-        'statistics': {},
     }
 
 
@@ -84,7 +83,6 @@ def _rings_result(
         'arrays': arrays,
         'masks': masks,
         'distance': distance,
-        'statistics': {},
     }
 
 
@@ -165,8 +163,8 @@ def test_merge_single_body_id_map_carries_naif_id(snapshot: HermeticObs) -> None
     assert np.all(body_id_map[~mask] == 0)
 
 
-def test_merge_unclaimed_pixels_stay_zero(snapshot: HermeticObs) -> None:
-    """Pixels outside every source silhouette stay zero in the master arrays.
+def test_merge_unclaimed_pixels_carry_the_masked_value(snapshot: HermeticObs) -> None:
+    """Pixels outside every source silhouette carry the masked value.
 
     Parameters:
         snapshot: Hermetic observation fixture.
@@ -174,7 +172,7 @@ def test_merge_unclaimed_pixels_stay_zero(snapshot: HermeticObs) -> None:
     mask = _rect_mask(SHAPE_VU, 1, 3, 2, 5)
     bodies = {'SATURN': _body_entry(SHAPE_VU, mask, value=0.5, distance=1.0e6)}
     master, _ = merge_sources_into_master(snapshot, bodies_result=bodies, rings_result=None)
-    assert np.all(master['body_latitude'][~mask] == 0.0)
+    assert np.all(master['body_latitude'][~mask] == MASKED_VALUE)
 
 
 def test_merge_nearer_body_wins_overlap_values(snapshot: HermeticObs) -> None:
@@ -243,7 +241,6 @@ def test_merge_inconsistent_masks_within_body_raise(snapshot: HermeticObs) -> No
             'arrays': {'a': arr, 'b': arr},
             'masks': {'a': mask_a, 'b': mask_b},
             'distance': 1.0,
-            'statistics': {},
         }
     }
     with pytest.raises(ValueError, match='not all the same'):
@@ -317,7 +314,7 @@ def test_merge_rings_only_fill_valid_pixels(snapshot: HermeticObs) -> None:
     rings = _ring_only(SHAPE_VU, ring_mask, value=123456.0, distance_value=2.0e6)
     master, _ = merge_sources_into_master(snapshot, bodies_result={}, rings_result=rings)
     assert np.all(master['ring_radius'][ring_mask] == np.float32(123456.0))
-    assert np.all(master['ring_radius'][~ring_mask] == 0.0)
+    assert np.all(master['ring_radius'][~ring_mask] == MASKED_VALUE)
 
 
 @pytest.mark.xfail(
@@ -348,7 +345,7 @@ def test_merge_body_in_front_occludes_ring(snapshot: HermeticObs) -> None:
     bodies = {'MIMAS': _body_entry(SHAPE_VU, body_mask, value=1.5, distance=5.0)}
     rings = _ring_only(SHAPE_VU, ring_mask, value=99999.0, distance_value=10.0)
     master, _ = merge_sources_into_master(snapshot, bodies_result=bodies, rings_result=rings)
-    assert np.all(master['ring_radius'][body_mask] == 0.0)
+    assert np.all(master['ring_radius'][body_mask] == MASKED_VALUE)
     assert np.all(master['ring_radius'][ring_mask & ~body_mask] == np.float32(99999.0))
     assert np.all(master['body_latitude'][body_mask] == np.float32(1.5))
 

@@ -19,7 +19,7 @@ from filecache import FCPath, FileCache
 package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, package_source_path)
 
-from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.config import (
     DEFAULT_CONFIG,
     IMAGE_LOGGER,
@@ -35,7 +35,33 @@ from spindoctor.dataset.dataset import ImageFile, ImageFiles
 def process_task(
     _task_id: str, task_data: dict[str, Any], worker_data: WorkerData
 ) -> tuple[bool, Any]:
-    """Generate bundle files for a single batch of image files."""
+    """Generate bundle files for a single batch of image files.
+
+    Parameters:
+        _task_id: The queue's identifier for the task, unused.
+        task_data: The task: ``dataset_name`` and ``files``, each file carrying
+            ``image_file_url``, ``label_file_url`` and ``results_path_stub``, and
+            optionally ``index_file_row``.
+        worker_data: The worker's data, whose ``args`` is the parsed command line
+            the configuration and the results roots are read from.
+
+    Returns:
+        ``(retry, result)``, where ``retry`` is always False.  ``result`` is
+        ``{'status': 'success'}`` when the image's products were written or the
+        image was skipped as one the bundle has nothing to describe, and
+        otherwise ``{'status': 'error', 'status_error': ...}``:
+        ``label_not_written`` when a product could not be written; and
+        ``no_nav_root``,
+        ``no_backplane_root``, ``no_bundle_root``, ``no_dataset_name``,
+        ``unknown_dataset`` (with ``status_exception``), ``no_files``,
+        ``no_image_file_url``, ``no_label_file_url`` or ``no_results_path_stub``
+        when the task names too little to run.
+
+    Raises:
+        Exception: Whatever generation raises, for a document it cannot read, a
+            template it cannot find, or a backplane FITS it cannot read or copy; the
+            task does not catch it.
+    """
 
     arguments = cast(argparse.Namespace, worker_data.args)
     load_default_and_user_config(arguments, DEFAULT_CONFIG)
@@ -94,7 +120,7 @@ def process_task(
         )
         image_files.append(image_file)
 
-    generate_bundle_data_files(
+    outcome = generate_bundle_data_files(
         dataset=dataset,
         image_files=ImageFiles(image_files=image_files),
         nav_results_root=nav_results_root,
@@ -102,8 +128,13 @@ def process_task(
         bundle_results_root=bundle_results_root,
         logger=IMAGE_LOGGER,
     )
+    # Neither result asks for a retry, under any circumstances: a product whose
+    # labels are on disk has nothing left to do, and a label the template could
+    # not render will not render on a second attempt either.
+    if outcome is BundleDataOutcome.FAILED:
+        return False, {'status': 'error', 'status_error': 'label_not_written'}
 
-    return False, {'status': 'success'}  # No retry under any circumstances
+    return False, {'status': 'success'}
 
 
 async def async_main() -> None:

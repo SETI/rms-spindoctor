@@ -4,15 +4,19 @@
 #
 # Top-level driver for PDS4 bundle generation. Enumerates images via datasets
 # and, for each, generates PDS4 labels and metadata files. Also supports
-# generating collection files and global index files.
+# generating the global index files, the collection files and the bundle's
+# run-level products, and checking a bundle that has been written.
 ################################################################################
 
 import argparse
 import os
 import sys
+import traceback
+from pathlib import Path
+from typing import cast
 
 import pdstemplate
-from filecache import FileCache
+from filecache import FCPath, FileCache
 
 # Make CLI runnable from source tree with
 #    python src/package
@@ -20,11 +24,12 @@ package_source_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, package_source_path)
 
 from spindoctor.cli.logging_args import add_logging_arguments, reporting_configuration_errors
-from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
-from spindoctor.cli.pds4.collections import (
-    generate_collection_files,
-    generate_global_index_files,
-)
+from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
+from spindoctor.cli.pds4.bundle_products import generate_bundle_products
+from spindoctor.cli.pds4.check import Severity, check_bundle
+from spindoctor.cli.pds4.collections import generate_collection_files
+from spindoctor.cli.pds4.global_index import generate_global_index_files
+from spindoctor.cli.pds4.image_inputs import report_image_inputs
 from spindoctor.config import (
     DEFAULT_CONFIG,
     MAIN_LOGGER,
@@ -36,7 +41,7 @@ from spindoctor.config import (
 )
 from spindoctor.config.program_names import SD_CREATE_BUNDLE
 from spindoctor.dataset import dataset_name_to_class, dataset_names
-from spindoctor.dataset.dataset import DataSet
+from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 PROGRAM_NAME = SD_CREATE_BUNDLE
 """Program identity: names the main log directory and the
@@ -46,13 +51,20 @@ DATASET: DataSet | None = None
 DATASET_NAME: str | None = None
 
 
-def add_common_arguments(parser: argparse.ArgumentParser, *, for_labels: bool = False) -> None:
+def add_common_arguments(
+    parser: argparse.ArgumentParser, *, for_labels: bool = False, with_logging: bool = True
+) -> None:
     """Add common arguments to an argument parser.
 
     Parameters:
         parser: The argument parser to add arguments to.
+        for_labels: Whether to add the navigation and backplane results roots, which the
+            labels pass reads.
+        with_logging: Whether to add the logging arguments.  The check subcommand writes
+            no log, so it takes none.
     """
-    add_logging_arguments(parser, has_image_logger=False)
+    if with_logging:
+        add_logging_arguments(parser, has_image_logger=False)
     environment_group = parser.add_argument_group('Environment')
     environment_group.add_argument(
         '--config-file',
@@ -89,7 +101,27 @@ def add_common_arguments(parser: argparse.ArgumentParser, *, for_labels: bool = 
 
 
 def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
-    """Parse arguments for the labels subcommand."""
+    """Parse arguments for the labels subcommand.
+
+    The selection arguments are the dataset class's own, declared and read by
+    it, so the parser adds them without an instance and reads none of them
+    itself; the dataset is constructed once the command line is parsed.
+
+    Sets the module globals ``DATASET`` and ``DATASET_NAME`` as a side effect,
+    because every later stage of the subcommand reads the dataset from there.
+
+    Parameters:
+        command_list: The subcommand's arguments, the dataset name first.
+
+    Returns:
+        The parsed arguments.
+
+    Raises:
+        SystemExit: With status 1, and a usage line on stdout, when no dataset
+            name was given or when the name is not a known dataset.  These end
+            the program rather than raising to a caller because this is a
+            command line being read, and there is nothing above it to recover.
+    """
     global DATASET
     global DATASET_NAME
 
@@ -105,7 +137,7 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
         print('Usage: sd_create_bundle labels <dataset_name> [args]')
         sys.exit(1)
 
-    DATASET = dataset_name_to_class(DATASET_NAME)()
+    dataset_class = dataset_name_to_class(DATASET_NAME)
 
     cmdparser = argparse.ArgumentParser(
         description='PDS4 Bundle Generation - Labels',
@@ -117,17 +149,29 @@ def parse_args_labels(command_list: list[str]) -> argparse.Namespace:
 
     # Output
     output_group = cmdparser.add_argument_group('Output')
-    output_group.add_argument(
+    modes = output_group.add_mutually_exclusive_group()
+    modes.add_argument(
         '--dry-run',
         action='store_true',
         default=False,
         help="Don't process images, just print what would be done",
     )
+    modes.add_argument(
+        '--check-only',
+        action='store_true',
+        default=False,
+        help="""Write nothing: report, for each selected image, whether its navigation
+        document, summary PNG, backplane FITS and backplane metadata exist and whether
+        its navigation succeeded, and exit 1 if any selected image is incomplete""",
+    )
 
     # Dataset selection
-    DATASET.add_selection_arguments(cmdparser)
+    dataset_class.add_selection_arguments(cmdparser)
 
     arguments = cmdparser.parse_args(command_list[1:])
+
+    DATASET = dataset_class()
+
     return arguments
 
 
@@ -158,14 +202,160 @@ def parse_args_summary(command_list: list[str]) -> argparse.Namespace:
     return arguments
 
 
+def _exit_on_missing_templates(dataset: DataSet, pds4_pass: Pds4Pass) -> None:
+    """Report every template the pass needs and cannot find, and stop if any.
+
+    Every product of a pass renders from the same template directory, so a
+    template that is not there is not there for every image; the pass says so
+    once, before it has written anything, rather than failing identically for
+    thousands of images.
+
+    Parameters:
+        dataset: The dataset whose template directory the pass renders from.
+        pds4_pass: Which pass's declared templates to look for.
+
+    Raises:
+        SystemExit: If any declared template is not a file in the template
+            directory.  A directory at that name satisfies ``exists`` and is
+            not a template, so the check is that the path is a file: the point
+            of the preflight is that nothing is written before a render that
+            cannot happen.
+    """
+    template_dir = FCPath(dataset.pds4_bundle_template_dir())
+    missing = [
+        template_dir / name
+        for name in dataset.pds4_required_templates(pds4_pass)
+        if not (template_dir / name).is_file()
+    ]
+    if len(missing) == 0:
+        return
+    for template_path in missing:
+        MAIN_LOGGER.error('PDS4 template not found: %s', template_path)
+    MAIN_LOGGER.error(
+        'The %s pass needs %d template(s) that are not in %s; nothing was written',
+        pds4_pass,
+        len(missing),
+        template_dir,
+    )
+    sys.exit(1)
+
+
+def _bundle_root_holds_anything(bundle_root: FCPath) -> bool:
+    """Report whether the bundle's own directory already holds something.
+
+    Parameters:
+        bundle_root: The bundle's directory under the bundle results root.
+
+    Returns:
+        True if anything at all is in that directory, False if it is empty or
+        is not there at all.
+    """
+    try:
+        return next(iter(bundle_root.iterdir()), None) is not None
+    except FileNotFoundError:
+        return False
+
+
+def _batch_image(imagefiles: ImageFiles) -> ImageFile | None:
+    """Return the one image of a batch, or None for a batch the labels pass refuses.
+
+    The labels pass labels one image per batch.  A batch of any other size, an empty one
+    included, is images it writes no label for, and fails the run; ``--check-only``
+    reports such a batch as incomplete by the same rule.
+
+    Parameters:
+        imagefiles: The batch.
+
+    Returns:
+        The batch's image, or None when it holds none or several.
+    """
+    if len(imagefiles.image_files) != 1:
+        return None
+    return imagefiles.image_files[0]
+
+
+def _report_inputs(arguments: argparse.Namespace) -> None:
+    """Report what each selected image has of the files the labels pass reads.
+
+    Prints one line for each batch the selection enumerates: for a batch of one image,
+    whether its navigation document, summary PNG, backplane FITS and backplane metadata
+    exist and whether its navigation succeeded; for a batch the labels pass refuses, as
+    :func:`_batch_image` decides, that it is incomplete.  Then it prints a count.  It
+    writes no label, no log and no bundle file, and neither needs nor creates a bundle
+    root; the file cache the roots are read through makes a temporary directory, which it
+    removes.  A selection that cannot be enumerated ends the report with the traceback
+    the labels pass ends with.
+
+    Parameters:
+        arguments: The labels subcommand's parsed arguments.
+
+    Raises:
+        SystemExit: With status 1 when any selected image lacks one of the four files or
+            its navigation did not succeed, or when the labels pass would refuse a batch.
+    """
+    assert DATASET is not None
+    nav_results_root = FCPath(get_nav_results_root(arguments, DEFAULT_CONFIG))
+    backplane_results_root = FCPath(get_backplane_results_root(arguments, DEFAULT_CONFIG))
+    selected = 0
+    incomplete = 0
+    refused = 0
+    for imagefiles in DATASET.yield_image_files_from_arguments(arguments):
+        image_file = _batch_image(imagefiles)
+        if image_file is None:
+            count = len(imagefiles.image_files)
+            stubs = ', '.join(image.results_path_stub for image in imagefiles.image_files)
+            names = f': {stubs}' if count > 0 else ''
+            print(
+                f'A batch of {count} image(s){names}: incomplete, since the labels pass '
+                'labels one image per batch'
+            )
+            selected += count
+            incomplete += count
+            refused += 1
+            continue
+        report = report_image_inputs(
+            image_file,
+            nav_results_root=nav_results_root,
+            backplane_results_root=backplane_results_root,
+        )
+        print(report.line())
+        selected += 1
+        if not report.complete:
+            incomplete += 1
+    refusals = f', {refused} batch(es) the labels pass refuses' if refused > 0 else ''
+    print(
+        f'Input check: {selected} image(s) selected, {selected - incomplete} complete, '
+        f'{incomplete} incomplete{refusals}'
+    )
+    if incomplete > 0 or refused > 0:
+        sys.exit(1)
+
+
 def main_labels() -> None:
-    """Main function for labels subcommand."""
+    """Main function for labels subcommand.
+
+    Two preconditions are checked before any image is processed, and each ends
+    the run with exit status 1 having written nothing.  Every template the
+    dataset declares for this pass must be in its template directory, since one
+    that is not would otherwise fail identically for every image.  And the
+    bundle root must be empty or absent: a bundle is written into an empty
+    directory rather than assembled out of two runs.  A dry run is refused the
+    same way, because what it reports on is a run that would be.
+
+    With ``--check-only`` the run checks neither: it reports on each selected image's
+    inputs, as :func:`_report_inputs` describes, and writes no label, log or bundle file.
+    """
     command_list = sys.argv[2:]  # Skip 'labels'
     arguments = parse_args_labels(command_list)
 
     # Read configuration files
     with reporting_configuration_errors():
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
+
+    if arguments.check_only:
+        # A report on the inputs writes no log and no bundle file, and has no bundle root.
+        _report_inputs(arguments)
+        return
 
     with reporting_configuration_errors():
         build_run_logging(PROGRAM_NAME, arguments, DEFAULT_CONFIG)
@@ -184,32 +374,128 @@ def main_labels() -> None:
 
     assert DATASET is not None
 
+    _exit_on_missing_templates(DATASET, 'labels')
+
+    bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
+    if _bundle_root_holds_anything(bundle_root):
+        MAIN_LOGGER.error(
+            'The bundle root %s already holds files; a bundle is written into an empty '
+            'directory. Clear it, or name another bundle results root, and run again',
+            bundle_root,
+        )
+        sys.exit(1)
+
+    written_images = 0
+    skipped_images = 0
+    failed_images = 0
+    listed_images = 0
+    malformed_empty_batches = 0
+
     for imagefiles in DATASET.yield_image_files_from_arguments(arguments):
-        if len(imagefiles.image_files) != 1:
+        image_file = _batch_image(imagefiles)
+        if image_file is None:
+            # A batch of any other size is images the run did not write labels
+            # for, so they count against the run the same way a broken label
+            # does -- every one of them, since a batch of two is two images
+            # without labels.  An empty batch is no images and still a run that
+            # failed, so it is counted apart from them rather than passing for
+            # a run that wrote everything it meant to.  A dry run writes
+            # nothing, so it reports the batch it cannot process without
+            # counting a label it never set out to write.
             MAIN_LOGGER.error(
                 'Expected 1 image file, got %d for %s',
                 len(imagefiles.image_files),
                 imagefiles,
             )
+            if not arguments.dry_run:
+                failed_images += len(imagefiles.image_files)
+                malformed_empty_batches += len(imagefiles.image_files) == 0
             continue
         if arguments.dry_run:
-            MAIN_LOGGER.info(
-                'Would process: %s', imagefiles.image_files[0].label_file_url.as_posix()
-            )
+            MAIN_LOGGER.info('Would process: %s', image_file.label_file_url.as_posix())
+            listed_images += 1
             continue
 
-        generate_bundle_data_files(
-            dataset=DATASET,
-            image_files=imagefiles,
-            nav_results_root=nav_results_root,
-            backplane_results_root=backplane_results_root,
-            bundle_results_root=bundle_results_root,
-            logger=MAIN_LOGGER,
+        try:
+            outcome = generate_bundle_data_files(
+                dataset=DATASET,
+                image_files=imagefiles,
+                nav_results_root=nav_results_root,
+                backplane_results_root=backplane_results_root,
+                bundle_results_root=bundle_results_root,
+                logger=MAIN_LOGGER,
+            )
+        except Exception as exc:
+            # One image whose inputs cannot be read or whose template cannot be
+            # found is one image without a label, not a run without a report:
+            # the images after it are still processed and the run still says at
+            # the end how many labels it did not write.  The logger's
+            # exception() writes the frames but not the exception's own text,
+            # which is the reason, so the text is handed to it.
+            MAIN_LOGGER.exception(
+                'Failed to generate bundle data files for %s: %s',
+                image_file.image_file_url.as_posix(),
+                exc,
+            )
+            failed_images += 1
+            continue
+
+        if outcome is BundleDataOutcome.FAILED:
+            failed_images += 1
+        elif outcome is BundleDataOutcome.SKIPPED:
+            skipped_images += 1
+        else:
+            written_images += 1
+
+    if failed_images > 0 or malformed_empty_batches > 0:
+        MAIN_LOGGER.error(
+            'Label generation incomplete: %d image(s) labeled, %d skipped, '
+            '%d whose labels were not written, %d empty batch(es)',
+            written_images,
+            skipped_images,
+            failed_images,
+            malformed_empty_batches,
         )
+        sys.exit(1)
+
+    if arguments.dry_run:
+        # A dry run counts nothing against itself, so it never reaches the
+        # report above; what it has to say is what it would have processed.
+        MAIN_LOGGER.info('Dry run complete: %d image(s) would be processed', listed_images)
+        return
+
+    MAIN_LOGGER.info(
+        'Label generation complete: %d image(s) labeled, %d skipped',
+        written_images,
+        skipped_images,
+    )
 
 
 def main_summary() -> None:
-    """Main function for summary subcommand."""
+    """Main function for summary subcommand.
+
+    Every template the dataset declares for this pass must be in its template
+    directory; one that is not ends the run with exit status 1 before anything
+    is written.  The bundle root is not checked for emptiness here: this pass
+    reads the tree the labels pass wrote.
+
+    The global index is generated before the collection files.  Its read of the
+    supplemental files is the one the pass makes, and the data collection label
+    states the range of epochs taken in that read, so the collection files wait
+    for it.  The index generator clears every product of the pass before that
+    read, the collection files with its own, so a run it refuses over a
+    supplemental file leaves none of them, neither this run's nor an earlier run's.
+    A bundle with no data directory is refused before anything is cleared, since it
+    is not a tree a labels pass wrote.
+
+    The run-level products are written last: the readme, the static collections, the
+    user guide when the template directory holds it, and the bundle label, which states
+    the same range and declares every collection, so it waits for them all and is not
+    kept over a bundle missing one.
+
+    The run ends with exit status 1 when a collection, index or run-level label was not
+    written or an image's products disagree, and its closing error gives both counts.
+    """
     command_list = sys.argv[2:]  # Skip 'summary'
     arguments = parse_args_summary(command_list)
 
@@ -229,35 +515,186 @@ def main_summary() -> None:
     dataset_name = arguments.dataset_name
     dataset = dataset_name_to_class(dataset_name)()
 
-    # Generate collection files
+    _exit_on_missing_templates(dataset, 'summary')
+
+    # Generate global index files first: their scan of the supplemental files is
+    # the pass's one read of them, and takes the range of epochs the data
+    # collection label states.
     try:
-        generate_collection_files(
+        index = generate_global_index_files(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
         )
-    except Exception:
-        MAIN_LOGGER.exception('Failed to generate collection files')
+    except Exception as exc:
+        # The logger's exception() writes the message it is handed and the
+        # frames, not the exception's own text, and a supplemental file in
+        # another unit is refused with a message naming the file and both
+        # units that the frames alone do not carry.
+        MAIN_LOGGER.exception('Failed to generate global index files: %s', exc)
         sys.exit(1)
 
-    # Generate global index files
+    # Generate the collection files, checking as it goes that each image's products agree
     try:
-        generate_global_index_files(
+        collection_outcome = generate_collection_files(
             bundle_results_root=bundle_results_root,
             dataset=dataset,
             logger=MAIN_LOGGER,
+            epochs=index.epochs,
+            targets=index.targets,
         )
-    except Exception:
-        MAIN_LOGGER.exception('Failed to generate global index files')
+    except Exception as exc:
+        # The logger's exception() writes the frames but not the exception's
+        # own text, which is the reason, so the text is handed to it.
+        MAIN_LOGGER.exception('Failed to generate collection files: %s', exc)
+        sys.exit(1)
+
+    # The run-level products last: the bundle label declares every collection, so it is
+    # kept only once they are all on disk, and it states the range the index took and
+    # names the targets it found.
+    try:
+        bundle_outcome = generate_bundle_products(
+            bundle_results_root=bundle_results_root,
+            dataset=dataset,
+            logger=MAIN_LOGGER,
+            epochs=index.epochs,
+            targets=index.targets,
+        )
+    except Exception as exc:
+        # The logger's exception() writes the frames but not the exception's own
+        # text, which is the reason, so the text is handed to it.
+        MAIN_LOGGER.exception('Failed to generate the bundle products: %s', exc)
+        sys.exit(1)
+
+    failed_labels = (
+        index.failed_labels + collection_outcome.failed_labels + bundle_outcome.failed_labels
+    )
+    if failed_labels > 0 or collection_outcome.disagreeing_images > 0:
+        MAIN_LOGGER.error(
+            'Summary generation incomplete: %d label(s) were not written, '
+            '%d image(s) whose products disagree',
+            failed_labels,
+            collection_outcome.disagreeing_images,
+        )
         sys.exit(1)
 
     MAIN_LOGGER.info('Summary generation complete')
 
 
+def parse_args_check(command_list: list[str]) -> argparse.Namespace:
+    """Parse arguments for the check subcommand.
+
+    Parameters:
+        command_list: The subcommand's arguments, the dataset name first.
+
+    Returns:
+        The parsed arguments, with the dataset's name, in lower case, as
+        ``dataset_name``.
+
+    Raises:
+        SystemExit: With status 1, and a usage line on stdout, when no dataset name was
+            given or when the name is not a known dataset.
+    """
+    if len(command_list) < 1:
+        print('Usage: sd_create_bundle check <dataset_name> [args]')
+        sys.exit(1)
+
+    dataset_name = command_list[0].lower()
+
+    if dataset_name not in dataset_names():
+        print(f'Unknown dataset "{dataset_name}"')
+        print(f'Valid datasets are: {", ".join(dataset_names())}')
+        print('Usage: sd_create_bundle check <dataset_name> [args]')
+        sys.exit(1)
+
+    cmdparser = argparse.ArgumentParser(
+        description='PDS4 Bundle Generation - Check',
+        epilog="""Check a bundle the labels and summary passes wrote, reading the bundle
+        and the schemas its labels name, fetched by URL or read from --schema-dir.""",
+    )
+
+    add_common_arguments(cmdparser, with_logging=False)
+    cmdparser.add_argument(
+        '--schema-dir',
+        type=str,
+        default=None,
+        help='read each schema the labels name from the file of that name in this '
+        'directory, and fetch nothing; by default each schema is fetched by its URL',
+    )
+
+    arguments = cmdparser.parse_args(command_list[1:])
+    arguments.dataset_name = dataset_name
+    return arguments
+
+
+def main_check() -> None:
+    """Main function for the check subcommand.
+
+    Checks the bundle the labels and summary passes wrote into
+    ``<bundle_results_root>/<pds4_bundle_name()>/``, reading that tree and the schemas
+    its labels name, as :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`
+    describes: each schema is fetched by its URL through the schema cache, or, with
+    ``--schema-dir``, read from that directory, when nothing is fetched.  It writes
+    nothing but that cache, not even a log: it prints one line per finding, an error or
+    a warning, and then the number of each.
+
+    The check reads a local tree, so a bundle results root that is not local -- one
+    named ``gs://``, say -- is refused by its own name, before anything is read.
+
+    The run ends with exit status 1 when there is any error, when the bundle results
+    root is not local, when there is no bundle directory to check, or when the check
+    itself fails, whose traceback it prints.  Warnings alone leave it 0.
+    """
+    arguments = parse_args_check(sys.argv[2:])
+
+    with reporting_configuration_errors():
+        load_default_and_user_config(arguments, DEFAULT_CONFIG)
+
+    dataset = dataset_name_to_class(arguments.dataset_name)()
+    bundle_results_root = get_pds4_bundle_results_root(arguments, DEFAULT_CONFIG)
+    bundle_root = FCPath(bundle_results_root) / dataset.pds4_bundle_name()
+    if not bundle_root.is_local():
+        print(
+            f'The check reads a local tree, and {bundle_root} is not one: name a local '
+            'bundle results root'
+        )
+        sys.exit(1)
+    # The path itself, not its spelling: a local root named file:///tmp/x is local, and
+    # its POSIX form keeps the scheme, which Path would mangle into file:/tmp/x.  No
+    # parent is made, since the check writes nothing.
+    bundle_dir = cast(Path, bundle_root.get_local_path(create_parents=False))
+    if not bundle_dir.is_dir():
+        print(
+            f'No bundle directory at {bundle_dir}: run the labels and summary passes '
+            'first, or check --bundle-results-root'
+        )
+        sys.exit(1)
+
+    try:
+        findings = check_bundle(
+            bundle_dir,
+            config=dataset.config,
+            schema_dir=None if arguments.schema_dir is None else Path(arguments.schema_dir),
+        )
+    except Exception:
+        # A check that could not finish has no count to give, and a count of the findings
+        # it made before it stopped would read as one; its traceback is the report.
+        print(f'The check of {bundle_dir} stopped:')
+        traceback.print_exc(file=sys.stdout)
+        sys.exit(1)
+
+    for finding in findings:
+        print(finding.line())
+    errors = sum(finding.severity is Severity.ERROR for finding in findings)
+    print(f'Bundle check of {bundle_dir}: {errors} error(s), {len(findings) - errors} warning(s)')
+    if errors > 0:
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point with subparsers."""
     if len(sys.argv) < 2:
-        print('Usage: sd_create_bundle <labels|summary> [args]')
+        print('Usage: sd_create_bundle <labels|summary|check> [args]')
         sys.exit(1)
 
     subcommand = sys.argv[1].lower()
@@ -266,9 +703,11 @@ def main() -> None:
         main_labels()
     elif subcommand == 'summary':
         main_summary()
+    elif subcommand == 'check':
+        main_check()
     else:
         print(f'Unknown subcommand "{subcommand}"')
-        print('Usage: sd_create_bundle <labels|summary> [args]')
+        print('Usage: sd_create_bundle <labels|summary|check> [args]')
         sys.exit(1)
 
 

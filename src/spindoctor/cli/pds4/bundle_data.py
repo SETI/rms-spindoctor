@@ -1,5 +1,6 @@
 import json
 import shutil
+from enum import Enum
 from pathlib import Path
 from typing import Any, cast
 
@@ -7,8 +8,38 @@ import pdstemplate
 from filecache import FCPath
 from pdslogger import PdsLogger
 
+from spindoctor.cli.pds4.bundle_variables import bundle_variables
+from spindoctor.cli.pds4.data_objects import configured_methods, describe_backplane_fits
+from spindoctor.cli.pds4.image_inputs import image_inputs, navigation_record, navigation_succeeded
+from spindoctor.cli.pds4.labels import write_label
+from spindoctor.cli.pds4.statistic_checks import unindexable_statistic
+from spindoctor.cli.pds4.targets import covers_a_target, image_targets, target_table
 from spindoctor.dataset.dataset import DataSet, ImageFiles
 from spindoctor.support.file import json_as_string
+
+
+class BundleDataOutcome(Enum):
+    """What generating one image's bundle data products came to.
+
+    Attributes:
+        WRITTEN: Every label the image calls for is on disk.
+        SKIPPED: The image has no products for the bundle to describe, because
+            it was not navigated, because its backplanes were never generated,
+            or because its backplanes cover no body and no rings.  A skip is an
+            image the bundle has nothing to say about, not a failure of the run.
+        FAILED: At least one of the image's products is not in the bundle: a
+            label that could not be rendered, a browse product whose summary
+            PNG the navigation results do not hold, or, with nothing written
+            for the image at all, backplane metadata recording a statistic no
+            global index column can hold (one in a unit other than the one the
+            configuration gives its plane, or with a minimum or maximum that is
+            NaN or infinite), or a navigation document whose observation block
+            records no exposure times, as a navigation by an earlier version left.
+    """
+
+    WRITTEN = 'written'
+    SKIPPED = 'skipped'
+    FAILED = 'failed'
 
 
 def generate_bundle_data_files(
@@ -19,8 +50,76 @@ def generate_bundle_data_files(
     backplane_results_root: FCPath,
     bundle_results_root: FCPath,
     logger: PdsLogger,
-) -> None:
+) -> BundleDataOutcome:
     """Generate PDS4 bundle data files for a single image batch.
+
+    Both the data label and the browse label are attempted even when the first
+    of them fails, so one run reports every label it could not render rather
+    than one per run.  Whichever label did render stays on disk.
+
+    An image the bundle has nothing to describe is skipped rather than failed:
+    a navigation document that is not there, a navigation that did not succeed,
+    and backplane metadata that is not there are all cases of a selection
+    naming more images than the bundle covers, which is the ordinary state of a
+    selection made by volume.  So is backplane metadata that names no body with
+    geometry and holds no ring statistic, as a star field's does: its backplanes
+    hold no geometry for a data label to describe, and a data label has to name a
+    target.  A body has geometry when its backplanes hold a statistic, as
+    :func:`~spindoctor.cli.pds4.targets.has_geometry` decides, so a body the image's
+    inventory found that shows at no pixel does not count.
+    A document that is there but cannot be read is not one of them, and still
+    raises.
+
+    A navigated image whose summary PNG is not in the navigation results is not
+    one of them either.  The navigation stage writes that PNG before, and under
+    the same condition as, the document that records the success, so a success
+    document with no PNG beside it is a broken input rather than an image
+    without a browse product; the image is failed, and its data label stays on
+    disk.
+
+    A navigated image whose backplane metadata records a statistic no global
+    index column can hold is failed as well, before anything is written for it:
+    one in a unit other than the one the configuration gives its plane, or with
+    a minimum or maximum that is NaN or infinite, as
+    :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic` checks.
+    A plane the document holds that the configuration does not declare is not
+    checked.
+
+    A data label states when its exposure began and ended, from the ``observation``
+    block of the navigation document, which the navigation writes for every image whose
+    navigation ran to a result, so an image whose navigation recorded no pointing is
+    bundled like any other.  A navigation by an earlier version did not record the
+    exposure times in that block, so an image whose block holds no ``start_time_et`` is
+    failed before anything is written for it, the log naming the image, until it is
+    navigated again; the times are taken from nowhere else.
+
+    A data label names every target the image's backplanes cover, as
+    :func:`~spindoctor.cli.pds4.targets.image_targets` finds them in its backplane
+    metadata and the configuration's targets table identifies them: each body the
+    metadata names that has geometry, and the ring target when it holds a ring statistic,
+    handed to the template as ``TARGETS`` in the table's order.  An image whose metadata
+    names no body with geometry and holds no ring statistic is skipped before anything is
+    written for it, whatever
+    its navigation document records, since nothing would be written for it however that
+    document were read.
+
+    Of an image's rings, a data label names the ring target alone: the ranges of the ring
+    statistics are the global rings index's, as are the wrapped ring longitude range and
+    the incidence angle the backplane metadata also records, which this pass does not read.
+
+    The backplane FITS is copied into the bundle, beside its data label, which names
+    it with no directory part, and the label's size, checksum and time are the
+    copy's.
+
+    The data label describes every HDU of the FITS, through
+    :func:`~spindoctor.cli.pds4.data_objects.describe_backplane_fits`, which reads the
+    source before the copy is made; the copy is byte-identical, so the source's
+    description is the copy's.
+
+    Both labels are handed the variables the dataset's
+    :meth:`~spindoctor.dataset.dataset.DataSet.pds4_template_variables` gives, and those
+    :func:`~spindoctor.cli.pds4.bundle_variables.bundle_variables` gives every template of
+    the bundle.
 
     Parameters:
         dataset: The dataset instance to get bundle-specific methods from.
@@ -29,6 +128,22 @@ def generate_bundle_data_files(
         backplane_results_root: Root containing backplane FITS files and metadata JSONs.
         bundle_results_root: Destination root for bundle files.
         logger: Logger for diagnostic messages.
+
+    Returns:
+        WRITTEN when the image's labels are on disk, SKIPPED when the image has
+        nothing for the bundle to describe, and FAILED when a label could not be
+        rendered, the summary PNG is not there, a backplane statistic is in a
+        unit other than the one the configuration gives its plane or has a
+        minimum or maximum that is NaN or infinite, or the navigation document's
+        observation block records no exposure times.
+
+    Raises:
+        ValueError: If the batch does not hold exactly one image.
+        OSError: If the backplane FITS cannot be read or copied.
+        KeyError: If the configuration's targets table has no entry for a target the
+            backplane metadata names, the message naming it, or if the metadata holds
+            ring statistics and names no ring target, as backplanes an earlier version
+            generated do.  Nothing is written for the image.
     """
 
     if len(image_files.image_files) != 1:
@@ -40,9 +155,10 @@ def generate_bundle_data_files(
     image_path = image_file.image_file_path.absolute()
     results_path_stub = image_file.results_path_stub
 
-    metadata_file = nav_results_root / (results_path_stub + '_metadata.json')
-    backplane_metadata_file = backplane_results_root / (
-        results_path_stub + '_backplane_metadata.json'
+    inputs = image_inputs(
+        results_path_stub,
+        nav_results_root=nav_results_root,
+        backplane_results_root=backplane_results_root,
     )
 
     with logger.open(f'Generating PDS4 bundle data files for {image_path!s}'):
@@ -53,25 +169,99 @@ def generate_bundle_data_files(
         # caches of their own, so reading it again is a second download of the
         # same file on a cloud results root rather than a second look at one
         # already local.
-        nav_metadata = image_file.nav_record
+        nav_metadata = navigation_record(image_file, inputs)
         if nav_metadata is None:
-            metadata_text = metadata_file.read_text()
-            nav_metadata = cast(dict[str, Any], json.loads(metadata_text))
+            # An image with no navigation document was never navigated, which is
+            # what the status branch below reports in the other spelling: no
+            # record of a navigation, rather than a record of a navigation that
+            # did not succeed.
+            logger.warning(
+                'Skipping bundle generation for "%s": no navigation metadata at %s',
+                image_path,
+                inputs.navigation_document,
+            )
+            return BundleDataOutcome.SKIPPED
 
-        status = nav_metadata.get('status', None)
-        if status != 'success':
+        if not navigation_succeeded(nav_metadata):
             # TODO Figure out what to do with non-navigated images
             logger.warning(
                 'Skipping bundle generation for "%s": status=%s error=%s',
                 image_path,
-                status,
+                nav_metadata.get('status', None),
                 nav_metadata.get('status_error', 'unknown'),
             )
-            return
+            return BundleDataOutcome.SKIPPED
 
         # Read backplane metadata
-        backplane_metadata_text = backplane_metadata_file.read_text()
+        try:
+            backplane_metadata_text = inputs.backplane_metadata.read_text()
+        except FileNotFoundError:
+            # A navigated image whose backplanes were never generated has
+            # nothing a backplanes bundle can describe.
+            logger.warning(
+                'Skipping bundle generation for "%s": no backplane metadata at %s',
+                image_path,
+                inputs.backplane_metadata,
+            )
+            return BundleDataOutcome.SKIPPED
         bp_stats = cast(dict[str, Any], json.loads(backplane_metadata_text))
+
+        # Backplanes naming no body with geometry and holding no ring statistic, as a star
+        # field's do, hold no geometry for a data label to describe, and a data label has
+        # to name a target, so the image is skipped before anything is written for it, as
+        # one with no backplanes is: an absent input is a skip (#600).  It comes before
+        # the checks that fail an image, since nothing would be written for this one
+        # however they came out.
+        if not covers_a_target(bp_stats):
+            logger.warning(
+                'Skipping bundle generation for "%s": its backplanes hold no body and no '
+                'ring, so there is nothing for its data label to describe',
+                image_path,
+            )
+            return BundleDataOutcome.SKIPPED
+
+        # Every index column is in its plane's configured unit and holds only
+        # finite numbers, so an image with a statistic the index cannot hold is
+        # failed before anything is written for it.
+        unindexable = unindexable_statistic(bp_stats, dataset.config)
+        if unindexable is not None:
+            logger.error(
+                'Failing bundle generation for "%s": the backplane metadata %s; %s. '
+                'Nothing is written for the image until its backplanes are regenerated '
+                'with statistics an index column can hold',
+                image_path,
+                unindexable.description,
+                unindexable.reason,
+            )
+            return BundleDataOutcome.FAILED
+
+        # A data label takes the exposure's start and end from the navigation document's
+        # observation block, where a navigation by an earlier version recorded no times.
+        # That is a document of a real, earlier vintage rather than a malformed one, so
+        # the image is failed before anything is written for it, to be navigated again,
+        # and the times are not looked for elsewhere.  The host publishes the start, the
+        # midtime and the end together, so the start alone is checked.
+        if 'start_time_et' not in nav_metadata['observation']:
+            logger.error(
+                'Failing bundle generation for "%s": its navigation document records no '
+                'exposure times in its observation block, which a navigation by an earlier '
+                'version leaves. Nothing is written for the image until it is navigated again',
+                image_path,
+            )
+            return BundleDataOutcome.FAILED
+
+        # A data label names every target the image's backplanes cover, of which the
+        # skip above leaves at least one.
+        targets = image_targets(bp_stats, target_table(dataset.config))
+
+        fits_source_local = cast(Path, inputs.backplane_fits.retrieve())
+
+        # The copy made below is byte-identical, so the source's description is the copy's.
+        fits_objects = describe_backplane_fits(
+            fits_source_local,
+            masked_value=float(dataset.config.backplanes.masked_value),
+            methods=configured_methods(dataset.config),
+        )
 
         pds4_path_stub = dataset.pds4_path_stub(image_file)
         bundle_name = dataset.pds4_bundle_name()
@@ -97,31 +287,56 @@ def generate_bundle_data_files(
         data_dir = bundle_root / 'data'
         browse_dir = bundle_root / 'browse'
         label_file_path = data_dir / (pds4_path_stub + '_backplanes.lblx')
+        fits_file_path = data_dir / (pds4_path_stub + '_backplanes.fits')
         suppl_file_path = data_dir / (pds4_path_stub + '_supplemental.txt')
         browse_label_path = browse_dir / (pds4_path_stub + '_summary.lblx')
         browse_image_path = browse_dir / (pds4_path_stub + '_summary.png')
 
-        # Add file path variables to template_vars
-        fits_file_path = backplane_results_root / (results_path_stub + '_backplanes.fits')
-        summary_png_source = nav_results_root / (results_path_stub + '_summary.png')
-        template_vars['BACKPLANE_FILENAME'] = label_file_path.name.replace('.lblx', '.fits')
+        # The FITS goes into the bundle beside its label, which names it with no
+        # directory part, and BACKPLANE_PATH names the copy, so that the size,
+        # checksum and time the label states are the archived file's.  As with the
+        # summary PNG below, the copy is written to a local path and uploaded, and
+        # the label's FILE_* functions read BACKPLANE_PATH as a local file, so a
+        # bundle root in the cloud is not handled here (#67).
+        fits_file_local = cast(Path, fits_file_path.get_local_path())
+        shutil.copy2(fits_source_local, fits_file_local)
+        fits_file_path.upload()
+        logger.info('Copied backplane FITS: %s', fits_file_path)
+
+        # Add the bundle's own variables, which every template of it is handed, and the
+        # file path variables to template_vars
+        template_vars.update(bundle_variables(dataset))
+        summary_png_source = inputs.summary_png
+        template_vars['BACKPLANE_FILENAME'] = fits_file_path.name
         template_vars['BACKPLANE_PATH'] = str(fits_file_path)
+        template_vars['BACKPLANE_FITS'] = fits_objects
+        template_vars['TARGETS'] = targets
         template_vars['BACKPLANE_SUPPL_FILENAME'] = suppl_file_path.name
         template_vars['BACKPLANE_SUPPL_PATH'] = str(suppl_file_path)
         template_vars['BROWSE_FULL_FILENAME'] = browse_image_path.name
         template_vars['BROWSE_FULL_PATH'] = str(browse_image_path)
 
         # Generate supplemental file (JSON format) - must be written before template
-        suppl_file_path.write_text(json_as_string(combined_metadata))
+        # The label declares the file 7-Bit ASCII Text with Line-Feed records.
+        # json.dumps escapes every character outside ASCII and ends lines in a
+        # line feed, and writing its bytes keeps them line feeds on a platform
+        # whose text files end lines otherwise.
+        suppl_file_path.write_bytes(json_as_string(combined_metadata).encode('ascii'))
         logger.info('Generated supplemental file: %s', suppl_file_path)
 
         # Generate PDS4 label file
         template_path = Path(template_dir) / 'data.lblx'
         template = pdstemplate.PdsTemplate(str(template_path))
-        template.write(template_vars, label_file_path)
-        logger.info('Generated PDS4 label: %s', label_file_path)
+        data_written = write_label(template, template_vars, label_file_path, logger=logger)
+        if data_written:
+            logger.info('Generated PDS4 label: %s', label_file_path)
 
-        # Copy summary PNG to browse directory and generate browse label
+        # Copy summary PNG to browse directory and generate browse label.
+        # navigate_image_files writes the summary PNG before the navigation
+        # document and under the same condition, so a success document always
+        # has a PNG beside it.  One that does not is a broken input, not an
+        # image with no browse product, and is failed rather than passed over.
+        browse_written = False
         if summary_png_source.exists():
             # Copy the summary PNG file
             summary_png_local = cast(Path, summary_png_source.get_local_path())
@@ -135,8 +350,19 @@ def generate_bundle_data_files(
             # Generate browse label
             browse_template_path = Path(template_dir) / 'browse.lblx'
             browse_template = pdstemplate.PdsTemplate(str(browse_template_path))
-            browse_template.write(template_vars, browse_label_path)
-            browse_label_path.upload()
-            logger.info('Generated browse label: %s', browse_label_path)
+            browse_written = write_label(
+                browse_template, template_vars, browse_label_path, logger=logger
+            )
+            if browse_written:
+                logger.info('Generated browse label: %s', browse_label_path)
         else:
-            logger.warning('Summary PNG not found: %s', summary_png_source)
+            logger.error(
+                'No summary PNG at %s for "%s", whose navigation succeeded; the browse '
+                'products for this image were not written',
+                summary_png_source,
+                image_path,
+            )
+
+        if data_written and browse_written:
+            return BundleDataOutcome.WRITTEN
+        return BundleDataOutcome.FAILED

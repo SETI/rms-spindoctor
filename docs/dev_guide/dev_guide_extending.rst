@@ -123,6 +123,11 @@ cannot be packaged as a PDS4 bundle simply leaves them unimplemented.
   ``src/spindoctor/cli/pds4/templates/``.
 * :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_name`: returns the bundle
   name (e.g. ``"<instrument_name>_backplanes_rsfrench2027"``).
+* :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_version`: returns the bundle's
+  version (e.g. ``"1.0"``), which every product of the bundle carries.
+* :meth:`~spindoctor.dataset.dataset.DataSet.pds4_information_model_version` and
+  :meth:`~spindoctor.dataset.dataset.DataSet.pds4_schemas`: return the PDS4 information
+  model version and the schema of each dictionary the bundle's labels declare.
 * :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_path_for_image`: maps an
   image name to a bundle directory path (e.g.
   ``"1234xxxxxx/123456xxxx"``). This is a static method.

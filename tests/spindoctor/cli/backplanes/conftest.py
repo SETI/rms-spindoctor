@@ -20,6 +20,13 @@ from spindoctor.config import Config
 from spindoctor.obs import Obs, ObsSnapshotInst
 from spindoctor.support.types import PathLike
 
+MASKED_VALUE = -999.0
+"""The ``backplanes.masked_value`` the shipped configuration sets.
+
+Bound here so a test asserts against a name rather than a literal, and so a
+change to the shipped value is made in one place on the test side.
+"""
+
 
 class HermeticObs(ObsSnapshotInst):
     """Hermetic ``ObsSnapshotInst`` that needs no SPICE kernels or holdings.
@@ -212,7 +219,7 @@ def inventory_entry(
 
 
 class StubVals:
-    """Stand-in for an oops Scalar result exposing only the ``mvals`` masked array."""
+    """Stand-in for an oops Scalar result exposing its ``mvals`` and its ``vals``."""
 
     def __init__(self, mvals: Any) -> None:
         """Wrap a masked array.
@@ -221,6 +228,11 @@ class StubVals:
             mvals: The ``numpy.ma.MaskedArray`` to expose as ``mvals``.
         """
         self.mvals = mvals
+
+    @property
+    def vals(self) -> Any:
+        """The wrapped array's values, its mask set aside, as an oops Scalar's are."""
+        return np.ma.getdata(self.mvals)
 
 
 class FakeRingBackplane:
@@ -330,6 +342,7 @@ class FakeBackplanesConfig:
         bodies: list[dict[str, Any]] | None = None,
         rings: list[dict[str, Any]] | None = None,
         satellites: dict[str, list[str]] | None = None,
+        masked_value: float = MASKED_VALUE,
     ) -> None:
         """Build the fake config.
 
@@ -338,8 +351,10 @@ class FakeBackplanesConfig:
             rings: ``backplanes.rings`` entry list, or None to omit the attribute.
             satellites: Planet name to satellite-name-list map for
                 :meth:`satellites`.
+            masked_value: ``backplanes.masked_value``, the value a pixel carries
+                where the backplane has no valid measurement.
         """
-        self.backplanes = SimpleNamespace()
+        self.backplanes = SimpleNamespace(masked_value=masked_value)
         if bodies is not None:
             self.backplanes.bodies = bodies
         if rings is not None:

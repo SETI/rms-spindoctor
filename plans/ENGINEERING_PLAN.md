@@ -397,51 +397,64 @@ replaces the PDS3 source for that instrument.
 Output current state: nothing works end to end yet. The Cassini path is
 partially implemented — the per-dataset hook pattern (template dir,
 LID/LIDVID builders, template variables) exists on
-`DataSetPDS3CassiniISS` and the collection machinery runs — but it has
-no final templates, zero tests (#242), and no schema validation, so its
-output is unvalidated. The other three instruments additionally hit
+`DataSetPDS3CassiniISS`, the collection machinery runs, and its data
+labels state real exposure times and describe the backplane FITS beside
+them, tested over a synthetic cohort of navigation and backplane
+products, and `sd_create_bundle check` holds a bundle to the PDS4 schemas,
+the Schematron rules and its own tables, gated by a test over that cohort —
+but its templates are still drafts in places, so its output does not yet validate
+against the PDS4 standard. The other three instruments additionally hit
 `NotImplementedError` walls in their `pds4_*` DataSet hooks. The work
-is therefore: finish and validate Cassini first (final templates,
-tests, schema validation), then generalize — per-mission template trees
-plus hook implementations, mechanical but voluminous.
+is therefore: finish and validate Cassini first (final templates; the
+remaining phases of `PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, which finishes as
+a prototype over the synthetic cohort, the run over a real volume being
+#708), then generalize — per-mission
+template trees plus hook implementations, mechanical but voluminous.
 
 Work items, in dependency order:
 
-1. **#265 — swallowed label-write errors and the output-layout mismatch**
-   — every `template.write` ignores pdstemplate's error/warning counts
-   (an unresolved variable silently drops the label while the run reports
-   success), and the dev-guide "Output layout" section describes a layout
-   neither the code nor the user guide matches:
-   `src/spindoctor/cli/pds4/collections.py` and the surrounding writer
-   path. Fix the write path to fail loudly on a dropped label and
-   reconcile the layout documentation.
-2. **#519 — labels carry empty `START_DATE_TIME`, `STOP_DATE_TIME` and
-   `IMAGE_MID_TIME`.** An archive-quality label with empty time fields is
-   not archive-quality, and it is exactly the class of defect #265's
-   swallowed write errors let through, so fix #265 first and this becomes
-   visible rather than silent. Also worth knowing when picking this up:
-   `sd_create_bundle` crashes inelegantly on a missing metadata file, which
-   is the same area.
-3. **Template finalization acceptance list** — the items recorded
-   on #53: schema validation, the unreferenced `cassini:*` variables and
-   hardcoded placeholders, TITLE/DESCRIPTION wording, collection date
-   ranges, unrendered bundle-level products, variable-less global-index
-   labels, FITS placement (#69/#30), missing-value sentinels,
-   non-navigated-image handling, and the `.tab`/`.csv` + directory-layout
-   decision. These are the acceptance criteria for "final templates" in
-   the paragraph above.
-4. **#69, #30** — backplane FITS description in data labels; backplane
-   label design (couples to the #55 backplane-set decision).
-5. **#79** — scrape PDS4 context products for targets (feeds #73).
-6. **#71-#76, #47** — label/collection completeness items, each small:
-   parameterized bundle name/version, target handling, ring geometry
-   class fields, global-index labels, collection CSVs, ring incidence
-   angle.
-7. **#66** — integrity-checking pass over a generated bundle.
-8. **#67** — cloud-aware bundle generation (with the Track D cloud
+1. **The output-layout mismatch** — done: both guides describe the tree the
+   generator writes, section 3.1 of the PDS4 plan (Part A of its Phase 10,
+   closing #265, by hand when its PR merges). Its swallowed-label-write part
+   was fixed first: every label goes through one helper that reports what
+   `pdstemplate` returned and fails the run when a label was not written. So
+   was its inventory-filename part: the collection inventories are written as
+   the `.csv` files their labels name.
+2. **Template finalization acceptance list** — the items recorded
+   on #53: schema validation, which `sd_create_bundle check` does and a test
+   over the synthetic cohort gates, the unreferenced `cassini:*` variables (Part B of
+   the PDS4 plan's Phase 8, from the navigation document's `observation`
+   block, #684) and hardcoded placeholders, TITLE/DESCRIPTION wording,
+   the operator's acceptance of the index tables'
+   missing-value sentinel (#601), non-navigated-image
+   handling, and the directory layout. These are
+   the acceptance criteria for "final templates" in the paragraph above.
+3. **#30** — backplane label design (couples to the #55 backplane-set
+   decision).
+4. **#79** — scrape the PDS4 context products to maintain the targets
+   table, `backplanes.target_lids`, which Part A of the PDS4 plan's Phase 8
+   filled by hand from the PDS registry.
+5. **Label and collection completeness** — done: the bundle's name and
+   version and the schema locations, each set once in the configuration (the
+   PDS4 plan's Phase 9, closing #71), and the context collection's targets
+   (#72) and target handling (#73), which are Part A of its Phase 8; each is
+   closed by hand when its PR merges. The ring geometry class fields (#75) and
+   the ring incidence angle in the label (#47) are closed as not planned: by
+   the operator's decision of 2026-09-15 the data labels name the ring target
+   alone and leave every ring range to the global rings index, which also
+   states the incidence angle's least, greatest and mean and the wrapped
+   longitude arc.
+6. **The integrity pass** — done: `sd_create_bundle check` checks a written
+   bundle as a whole, and `sd_create_bundle labels --check-only` reports
+   whether each selected image has the pass's inputs (Part A of the PDS4
+   plan's Phase 10, closing #66, by hand when its PR merges).
+7. **#67** — cloud-aware bundle generation (with the Track D cloud
    audit).
-9. Schema-validate generated `.lblx` against the PDS4 schemas in CI for
-   all four instruments (acceptance for the whole family).
+8. Schema-validate generated `.lblx` against the PDS4 schemas in CI for
+   all four instruments (acceptance for the whole family). Cassini's is
+   done: the test gating `sd_create_bundle check` over its cohort. Each
+   other instrument's bundle is held to the same check over a cohort of its
+   own.
 
 ### Backplane family (decision: #28 scope)
 

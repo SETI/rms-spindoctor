@@ -1,9 +1,12 @@
 """Pytest configuration and shared fixtures."""
 
+from __future__ import annotations
+
 import os
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pdslogger
 import pytest
@@ -18,6 +21,9 @@ from spindoctor.config import (
     strict_scope_override,
 )
 from spindoctor.config.log_scope import _reset_reported_call_sites
+
+if TYPE_CHECKING:
+    from tests.mini_nav_results.cohort import WrittenCohorts
 
 
 @pytest.fixture(autouse=True)
@@ -279,3 +285,30 @@ def child_interpreter_environment() -> dict[str, str]:
         f'{source_root}{os.pathsep}{inherited}' if inherited else str(source_root)
     )
     return environment
+
+
+@pytest.fixture(scope='session')
+def mini_nav_cohorts(tmp_path_factory: pytest.TempPathFactory) -> WrittenCohorts:
+    """Return the session's cohorts, each written the first time a test asks for it.
+
+    The PDS4 phases assert against a navigation root and a backplane root that
+    hold real products -- a FITS an astropy reader reopens, a PNG with a size
+    and a checksum, and the documents beside them -- and building those per
+    test would rewrite a FITS for every label a test looks at.  A test calls
+    what this returns with the cohort class of the bundle it is about, and gets
+    that cohort, written into a temporary directory once for the session and
+    torn down with it, so nothing it produces reaches the working tree.
+
+    Parameters:
+        tmp_path_factory: Factory each cohort's root is made under.
+
+    Returns:
+        What every cohort a test asks for is written by.
+    """
+    # Imported here rather than at the top: the cohort package pulls the whole
+    # navigation stack in, and this file is loaded by every pytest process,
+    # so a top-level import would cost every test the stack whether or not it
+    # asks for a cohort.
+    from tests.mini_nav_results.cohort import WrittenCohorts
+
+    return WrittenCohorts(tmp_path_factory.mktemp)

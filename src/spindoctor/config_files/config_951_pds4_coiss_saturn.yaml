@@ -1,0 +1,35 @@
+# The coiss_saturn dataset's entry in the pds4 section: the Cassini ISS Saturn bundle's
+# PDS4 settings. Nothing mission-specific goes in a generically named file, so the entry
+# has this Cassini-named file of its own. It is a 95x file rather than part of
+# config_400_inst_coiss.yaml because every config_4* file's bytes are hashed into each
+# navigation document's static_data_hashes as the instrument's static data, where a new
+# bundle version or a moved schema would read as a change of Cassini instrument data; no
+# 9xx file is hashed that way.
+pds4:
+  coiss_saturn:
+    template_dir: cassini_iss_saturn_1.0
+    bundle_name: cassini_iss_saturn_backplanes_rsfrench2027
+    # The version the bundle, each of its collections and each of its products carry,
+    # and the version in every LIDVID naming one of them.  Quoted: a version is text,
+    # and 1.10 is not 1.1.
+    bundle_version: '1.0'
+    # The PDS4 information model the labels are written against, which every label
+    # states and the common dictionary's Schematron requires of its own build.
+    information_model_version: '1.24.0.0'
+    # The schema of each dictionary the labels declare, by the prefix its namespace
+    # takes in a label: the URL of its XML schema and its Schematron less the extension,
+    # and the LIDVID the XML schema collection lists it by, in the collection's order.
+    # Moving a dictionary to another version is an edit here and nowhere else.
+    schemas:
+      pds:
+        location: https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:pds-xml_schema::1.24
+      disp:
+        location: https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1O00_1510
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:disp-xml_schema::1.15
+      geom:
+        location: https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:geom-xml_schema::1.19
+      cassini:
+        location: https://pds.nasa.gov/pds4/mission/cassini/v1/PDS4_CASSINI_1O00_1800
+        lidvid: urn:nasa:pds:system_bundle:xml_schema:cassini-xml_schema::1.18

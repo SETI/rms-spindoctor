@@ -4,12 +4,11 @@ Contract under test (docs/dev_guide/dev_guide_backplanes.rst "Rings" and
 docs/user_guide/user_guide_backplanes.rst): the ring step evaluates the configured
 methods against the snapshot's full-frame Backplane for the closest planet's ring
 system (SATURN uses the SATURN_MAIN_RINGS target), produces per-pixel arrays plus
-a per-pixel distance array for the merge, computes min/max statistics (degrees for
-'rad' units), and treats the special 'distance' entry as merge-ordering data only,
-never as a written FITS HDU.
+a per-pixel distance array for the merge, and treats the special 'distance' entry as
+merge-ordering data only, never as a written FITS HDU.  The statistics are the
+writer's, taken after the merge.
 """
 
-import math
 from pathlib import Path
 from typing import Any, cast
 
@@ -24,12 +23,23 @@ from spindoctor.cli.backplanes.merge import merge_sources_into_master
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import IMAGE_LOGGER
 
-from .conftest import FakeBackplanesConfig, FakeRingBackplane, HermeticObs, make_snapshot
+from .conftest import (
+    MASKED_VALUE,
+    FakeBackplanesConfig,
+    FakeRingBackplane,
+    HermeticObs,
+    make_snapshot,
+)
 
 SHAPE_VU = (6, 8)
 
 RADIUS_CFG = {'name': 'ring_radius', 'method': 'ring_radius', 'units': 'km'}
-LON_CFG = {'name': 'ring_longitude', 'method': 'ring_longitude', 'units': 'rad'}
+
+RING_INCIDENCE_DEG = 37.5
+"""The incidence angle of sunlight on the ring plane the fake Backplane serves, in degrees.
+
+A stand-in: any angle from 0 to 90 degrees would do.
+"""
 
 
 def _rings_config(entries: list[dict[str, Any]] | None = None) -> FakeBackplanesConfig:
@@ -46,7 +56,9 @@ def _ring_arrays(
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """Build the ring validity mask and canned per-method masked arrays.
 
-    The ring is valid on rows 2..3 (all columns); everything else is masked.
+    The ring is valid on rows 2..3 (all columns); everything else is masked.  The ring
+    center's incidence angle is one value, :data:`RING_INCIDENCE_DEG` in radians, as oops
+    gives it.
 
     Parameters:
         value: Ring backplane value inside the valid region.
@@ -60,7 +72,15 @@ def _ring_arrays(
     radius = ma.MaskedArray(np.full(SHAPE_VU, value), mask=~valid)
     longitude = ma.MaskedArray(np.full(SHAPE_VU, 1.5), mask=~valid)
     dist = ma.MaskedArray(np.full(SHAPE_VU, distance), mask=~valid)
-    return valid, {'ring_radius': radius, 'ring_longitude': longitude, 'distance': dist}
+    incidence = ma.MaskedArray(np.radians(RING_INCIDENCE_DEG))
+    pixel_incidence = ma.MaskedArray(np.full(SHAPE_VU, np.radians(RING_INCIDENCE_DEG)), mask=~valid)
+    return valid, {
+        'ring_radius': radius,
+        'ring_longitude': longitude,
+        'distance': dist,
+        'ring_center_incidence_angle': incidence,
+        'ring_incidence_angle': pixel_incidence,
+    }
 
 
 def _snapshot_with_fake_bp(
@@ -139,6 +159,41 @@ def test_other_planet_uses_ring_system_target() -> None:
     assert all(call[1] == 'JUPITER_RING_SYSTEM' for call in fake.calls)
 
 
+def test_the_ring_incidence_angle_is_the_ring_center_s_in_degrees() -> None:
+    """Sunlight's incidence on the ring plane is taken once, at the ring center, in degrees.
+
+    It is one angle over the whole image, so it is evaluated once, on the ring target the
+    ring backplanes are computed for, and recorded converted from the radians oops gives
+    it, with its unit.
+    """
+    snap, fake = _snapshot_with_fake_bp(_ring_arrays()[1])
+    result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
+    assert result is not None
+    assert result['incidence_angle']['value'] == pytest.approx(RING_INCIDENCE_DEG)
+    assert result['incidence_angle']['units'] == 'deg'
+    assert ('ring_center_incidence_angle', 'SATURN_MAIN_RINGS', {}) in fake.calls
+
+
+def test_the_incidence_angle_at_each_pixel_is_kept_in_radians_for_the_writer() -> None:
+    """The angle at each pixel is kept as oops gives it, the masked value off the rings.
+
+    The writer summarizes it over the ring pixels the merge leaves; no backplane holds it.
+    """
+    valid, method_values = _ring_arrays()
+    snap, _ = _snapshot_with_fake_bp(method_values)
+    result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
+    assert result is not None
+    expected = np.where(valid, np.radians(RING_INCIDENCE_DEG), MASKED_VALUE)
+    np.testing.assert_allclose(result['pixel_incidence'], expected)
+
+
+def test_the_incidence_angle_at_each_pixel_is_the_ring_target_s_from_its_sunlit_side() -> None:
+    """The angle at each pixel is taken on the ring target, from the sunlit side's normal."""
+    snap, fake = _snapshot_with_fake_bp(_ring_arrays()[1])
+    create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
+    assert ('ring_incidence_angle', 'SATURN_MAIN_RINGS', {}) in fake.calls
+
+
 def test_result_records_planet() -> None:
     """The result carries the closest planet name."""
     snap, _ = _snapshot_with_fake_bp(_ring_arrays()[1])
@@ -147,15 +202,15 @@ def test_result_records_planet() -> None:
     assert result['planet'] == 'SATURN'
 
 
-def test_ring_arrays_nan_filled_outside_mask() -> None:
-    """Ring arrays carry values where valid and NaN where the ring is absent."""
+def test_ring_arrays_masked_outside_mask() -> None:
+    """Ring arrays carry values where valid and the masked value where absent."""
     valid, method_values = _ring_arrays(value=100000.0)
     snap, _ = _snapshot_with_fake_bp(method_values)
     result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
     assert result is not None
     arr = result['arrays']['ring_radius']
     assert np.all(arr[valid] == np.float32(100000.0))
-    assert np.all(np.isnan(arr[~valid]))
+    assert np.all(arr[~valid] == MASKED_VALUE)
 
 
 def test_ring_masks_true_where_valid() -> None:
@@ -169,7 +224,7 @@ def test_ring_masks_true_where_valid() -> None:
 
 
 def test_fully_masked_ring_plane_omitted() -> None:
-    """A ring plane with no valid pixel is dropped from arrays, masks, and stats."""
+    """A ring plane with no valid pixel is dropped from arrays and masks."""
     all_masked = ma.MaskedArray(np.full(SHAPE_VU, 1.0), mask=np.ones(SHAPE_VU, dtype=bool))
     _, method_values = _ring_arrays()
     method_values['ring_radius'] = all_masked
@@ -178,28 +233,6 @@ def test_fully_masked_ring_plane_omitted() -> None:
     assert result is not None
     assert 'ring_radius' not in result['arrays']
     assert 'ring_radius' not in result['masks']
-    assert 'ring_radius' not in result['statistics']
-
-
-def test_ring_stats_convert_radians_to_degrees() -> None:
-    """Statistics for a 'rad' ring plane are reported in degrees."""
-    _, method_values = _ring_arrays()
-    snap, _ = _snapshot_with_fake_bp(method_values)
-    config = _rings_config([LON_CFG])
-    result = create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-    assert result is not None
-    stats = result['statistics']['ring_longitude']
-    assert stats['min'] == pytest.approx(math.degrees(1.5))
-    assert stats['max'] == pytest.approx(math.degrees(1.5))
-
-
-def test_ring_stats_keep_km_units() -> None:
-    """Statistics for a km ring plane are not unit converted."""
-    _, method_values = _ring_arrays(value=100000.0)
-    snap, _ = _snapshot_with_fake_bp(method_values)
-    result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
-    assert result is not None
-    assert result['statistics']['ring_radius']['min'] == pytest.approx(100000.0)
 
 
 def test_configured_distance_entry_feeds_merge_distance() -> None:

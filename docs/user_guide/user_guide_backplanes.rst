@@ -50,7 +50,12 @@ Key properties:
 
 - The output FITS places ``BODY_ID_MAP`` as the first image HDU (after the
   primary HDU).
-- Backplanes that are entirely zero are omitted from the FITS file.
+- Pixels a backplane did not measure carry the masked value, ``-999.0`` as
+  shipped (``backplanes.masked_value``). It sits outside the range of every
+  plane, so ``!= -999.0`` selects the measured pixels of any plane.
+  ``BODY_ID_MAP`` is the exception: it holds ``0`` where no body claimed the
+  pixel, ``0`` not being a NAIF ID.
+- Backplanes that are entirely masked are omitted from the FITS file.
 - The list of backplanes to generate is configured under ``backplanes`` in
   ``src/spindoctor/config_files/config_900_backplanes.yaml``.
 - For simulated observations, synthetic backplanes are produced whose masks
@@ -201,10 +206,16 @@ Backplanes are configured under ``backplanes`` in
 
 - ``backplanes.bodies``: list of body backplane entries. Each entry has
   ``name`` (the FITS HDU name), ``method`` (the ``oops.Backplane`` method to
-  call), and optional ``units`` (written to the ``BUNIT`` FITS header).
+  call), and ``units`` (written to the ``BUNIT`` FITS header). All three are
+  required. Each entry also has an ``index`` block, which the PDS4 bundle's
+  index tables read: the ``data_type`` and, under ``minimum`` and ``maximum``,
+  the ``name`` and ``description`` of the two columns that give the backplane's
+  least and greatest value (see :doc:`user_guide_pds4_bundle`).
 - ``backplanes.rings``: list of ring backplane entries with the same
   structure. The special ``distance`` entry is used only for per-pixel
   merge ordering and is not written as an HDU.
+- ``backplanes.target_lids``: the PDS4 targets table a bundle's labels read, one
+  entry for each body and ring target (see :doc:`user_guide_pds4_bundle`).
 
 Outputs
 -------
@@ -216,12 +227,54 @@ For each processed image, ``sd_backplanes`` writes two files under
 
   - A primary HDU.
   - ``BODY_ID_MAP`` (int32) as the first image HDU.
-  - One ``ImageHDU`` per non-all-zero backplane array, with ``BUNIT`` set when
-    configured.
+  - One ``ImageHDU`` per backplane array that measured at least one pixel,
+    with ``BUNIT`` set to the configured ``units``.
 
 - ``<results_path_stub>_backplane_metadata.json`` containing per-body
-  inventory information and per-backplane ``min``/``max`` statistics
-  (consumed by ``sd_create_bundle`` when generating PDS4 labels).
+  inventory information and per-backplane ``min``/``max`` statistics with the
+  ``units`` they are in, and, for the rings, the ring target and the incidence
+  angle of sunlight on the ring plane (consumed by ``sd_create_bundle`` when
+  generating PDS4 labels).
+
+Angular backplane arrays are in radians, as their ``BUNIT`` headers say. In the
+metadata file an angular plane's minimum and maximum are in degrees (``rad``
+becomes ``deg``, ``rad/pixel`` becomes ``deg/pixel``), and each statistic records
+its unit.
+
+Each minimum and maximum is taken over the pixels where the FITS plane has a value.
+A body's are taken over the pixels ``BODY_ID_MAP`` gives that body, so a part of a
+body, or of the rings, that a nearer body covers does not count.
+
+The ring longitude's statistic, and each body's longitude statistic, also record
+``wrapped_min`` and ``wrapped_max``, in degrees: the arc of longitude the image's ring
+pixels, or the body's pixels, cover, from where it starts to where it ends. Where the
+arc crosses zero, ``wrapped_min`` is greater than ``wrapped_max``. An arc covering the
+whole circle, as a body's does when one of its poles is in view, records 0 and 360. The
+ring longitude's is recorded when the ring longitudinal resolution backplane has a value.
+
+The metadata file's ``rings`` block names the ring target the ring backplanes are
+computed for, as ``target``, and records ``incidence_angle``: the angle between the
+direction sunlight arrives from and the normal to the ring plane on its sunlit side,
+from 0 to 90 degrees, with its unit. Sunlight falls on the ring plane at one angle over
+the whole image, so no backplane holds it; it is taken once, at the center of the ring
+system, for the light that reached the camera at the observation's midtime. Both are
+recorded for every image that has a closest planet, whether or not any of its pixels is
+on the rings. Where the image's ring backplanes have values, ``incidence_angle`` also
+records the least, the greatest and the mean angle over those pixels, as ``min``,
+``max`` and ``mean``, which differ from the angle at the center by thousandths of a
+degree. The ring statistics are under ``backplanes``:
+
+.. code-block:: json
+
+   {
+     "rings": {
+       "target": "SATURN_MAIN_RINGS",
+       "incidence_angle": {
+         "value": 82.57158, "min": 82.57085, "max": 82.57104, "mean": 82.57096, "units": "deg"
+       },
+       "backplanes": {"ring_radius": {"min": 74659.8, "max": 136779.0, "units": "km"}}
+     }
+   }
 
 Logs are written under the log root rather than beside these products: the
 run's own log to ``{log_root}/sd_backplanes/main_{timestamp}.log`` and one per
@@ -269,7 +322,7 @@ Features
 
   - Lists all FITS image HDUs: ``BODY_ID_MAP`` (int32) plus each backplane (float32).
   - Each backplane can be toggled with a checkbox, assigned transparency 0-1, a colormap, and scaling mode (Absolute or Relative).
-  - Relative mode computes min/max using only pixels where ``BODY_ID_MAP != 0`` (numeric zeros are not treated specially).
+  - Relative mode computes min/max using only the pixels a plane measured, which are the finite ones that are not the masked value.
   - Absolute mode:
 
     - Longitudes: 0-360 deg; Latitudes: -90-90 deg.
@@ -282,5 +335,5 @@ Features
 Notes
 -----
 
-- Units: Angular FITS HDUs with ``BUNIT=rad`` are converted to degrees for display and absolute scaling. Heuristics are used for common angle names if units are missing.
-- Masking: Backplane visualizations use ``BODY_ID_MAP != 0`` to determine valid pixels for relative scaling; numeric zeros are not treated as masked unless indicated by the body map.
+- Units: a backplane whose ``BUNIT`` is ``rad``, or whose name contains ``longitude``, ``latitude``, ``incidence``, ``emission`` or ``phase``, is shown in degrees; every other backplane is shown in the unit it is stored in, so ``ring_longitudinal_resolution``, in ``rad/pixel``, is shown in radians per pixel.
+- Masking: Backplane visualizations treat a pixel as valid when it is finite and is not the masked value, which is the same rule for body and ring planes.

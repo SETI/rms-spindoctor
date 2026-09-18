@@ -25,8 +25,8 @@ Modules:
         Miscellaneous helpers, including sky-coordinate formatting and oops-backed
         utilities.
     ``time``
-        Wall-clock helpers: ISO strings, timezone-aware datetimes, and Julian
-        conversions.
+        Wall-clock helpers (ISO strings, timezone-aware datetimes), and the one
+        conversion of an ET into UTC, in the plain and the PDS4 spelling.
     ``file``
         YAML/JSON serialization helpers and ``clean_obj`` for stripping NumPy scalars
         from nested structures.

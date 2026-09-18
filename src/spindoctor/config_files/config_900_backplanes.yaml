@@ -1,46 +1,422 @@
 backplanes:
+  # Each plane names the oops backplane method it is evaluated with and the units its
+  # array carries. Its index block describes the two columns the PDS4 bundle's global
+  # index tables give its statistic, the least and the greatest value it takes: each
+  # column's field name, as the table's header line and its label give it, the PDS4
+  # data type of its values, and its description. A plane of longitudes, whose statistic
+  # also records its range wrapped at zero, gives two more columns, wrapped_minimum and
+  # wrapped_maximum, where that range starts and where it ends. A field takes a PDS4
+  # dictionary attribute's name, with the dictionary's prefix, where the column holds the
+  # quantity that attribute defines, and a name of its own otherwise. A column's unit is not
+  # given here: it is the unit the plane's statistic is in, which for an angular plane
+  # is degrees although the array is in radians.
   bodies:
     - name: body_longitude
       method: longitude
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: minimum_body_longitude
+          description: >-
+            The least planetocentric longitude, measured westward from the body's IAU
+            prime meridian from 0 to 360 degrees, over the pixels where the
+            body_longitude backplane has a value for the body. The range is not
+            wrapped: a body seen across its prime meridian spans from near 0 to near
+            360. minimum_wrapped_body_longitude gives the range wrapped at zero.
+        maximum:
+          name: maximum_body_longitude
+          description: >-
+            The greatest planetocentric longitude, measured westward from the body's
+            IAU prime meridian from 0 to 360 degrees, over the pixels where the
+            body_longitude backplane has a value for the body. The range is not
+            wrapped: a body seen across its prime meridian spans from near 0 to near
+            360. maximum_wrapped_body_longitude gives the range wrapped at zero.
+        wrapped_minimum:
+          name: minimum_wrapped_body_longitude
+          description: >-
+            Where the arc of planetocentric longitude, measured westward from the body's
+            IAU prime meridian from 0 to 360 degrees, covered by the pixels where the
+            body_longitude backplane has a value for the body begins. The range is
+            wrapped at zero: where the arc crosses the prime meridian, this is greater
+            than maximum_wrapped_body_longitude, and an arc covering the whole circle,
+            as round a pole in view, begins at 0. minimum_body_longitude gives the plain
+            least longitude instead.
+        wrapped_maximum:
+          name: maximum_wrapped_body_longitude
+          description: >-
+            Where the arc of planetocentric longitude, measured westward from the body's
+            IAU prime meridian from 0 to 360 degrees, covered by the pixels where the
+            body_longitude backplane has a value for the body ends. The range is wrapped
+            at zero: where the arc crosses the prime meridian, this is less than
+            minimum_wrapped_body_longitude, and an arc covering the whole circle, as
+            round a pole in view, ends at 360. maximum_body_longitude gives the plain
+            greatest longitude instead.
     - name: body_latitude
       method: latitude
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: geom:minimum_latitude
+          description: >-
+            The least planetocentric latitude over the pixels where the body_latitude
+            backplane has a value for the body.
+        maximum:
+          name: geom:maximum_latitude
+          description: >-
+            The greatest planetocentric latitude over the pixels where the
+            body_latitude backplane has a value for the body.
     - name: body_incidence_angle
       method: incidence_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: geom:minimum_incidence_angle
+          description: >-
+            The least incidence angle of the arriving light at the body's surface over
+            the pixels where the body_incidence_angle backplane has a value for the
+            body.
+        maximum:
+          name: geom:maximum_incidence_angle
+          description: >-
+            The greatest incidence angle of the arriving light at the body's surface
+            over the pixels where the body_incidence_angle backplane has a value for
+            the body.
     - name: body_emission_angle
       method: emission_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: geom:minimum_emission_angle
+          description: >-
+            The least emission angle of the departing light at the body's surface over
+            the pixels where the body_emission_angle backplane has a value for the
+            body.
+        maximum:
+          name: geom:maximum_emission_angle
+          description: >-
+            The greatest emission angle of the departing light at the body's surface
+            over the pixels where the body_emission_angle backplane has a value for
+            the body.
     - name: body_phase_angle
       method: phase_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: geom:minimum_phase_angle
+          description: >-
+            The least phase angle between the arriving and the departing light over the
+            pixels where the body_phase_angle backplane has a value for the body.
+        maximum:
+          name: geom:maximum_phase_angle
+          description: >-
+            The greatest phase angle between the arriving and the departing light over
+            the pixels where the body_phase_angle backplane has a value for the body.
     - name: body_finest_resolution
       method: finest_resolution
       units: km/pixel
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: minimum_body_finest_resolution
+          description: >-
+            The least projected size of a pixel on the body's surface, in the direction
+            in which that size is smallest, over the pixels where the
+            body_finest_resolution backplane has a value for the body.
+        maximum:
+          name: maximum_body_finest_resolution
+          description: >-
+            The greatest projected size of a pixel on the body's surface, in the
+            direction in which that size is smallest, over the pixels where the
+            body_finest_resolution backplane has a value for the body.
     - name: body_coarsest_resolution
       method: coarsest_resolution
       units: km/pixel
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: minimum_body_coarsest_resolution
+          description: >-
+            The least projected size of a pixel on the body's surface, in the direction
+            in which that size is largest, over the pixels where the
+            body_coarsest_resolution backplane has a value for the body.
+        maximum:
+          name: maximum_body_coarsest_resolution
+          description: >-
+            The greatest projected size of a pixel on the body's surface, in the
+            direction in which that size is largest, over the pixels where the
+            body_coarsest_resolution backplane has a value for the body.
 
   rings:
     - name: ring_radius
       method: ring_radius
       units: km
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_ring_radius
+          description: >-
+            The least ring radius over the pixels where the ring_radius backplane has a
+            value.
+        maximum:
+          name: rings:maximum_ring_radius
+          description: >-
+            The greatest ring radius over the pixels where the ring_radius backplane has
+            a value.
     - name: ring_longitude
       method: ring_longitude
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: minimum_ring_longitude
+          description: >-
+            The least ring longitude, measured from the J2000 ascending node from 0 to
+            360 degrees, over the pixels where the ring_longitude backplane has a value.
+            The range is not wrapped: rings seen across zero longitude span from near 0
+            to near 360. rings:minimum_inertial_ring_longitude gives the range wrapped at
+            zero.
+        maximum:
+          name: maximum_ring_longitude
+          description: >-
+            The greatest ring longitude, measured from the J2000 ascending node from 0
+            to 360 degrees, over the pixels where the ring_longitude backplane has a
+            value. The range is not wrapped: rings seen across zero longitude span from
+            near 0 to near 360. rings:maximum_inertial_ring_longitude gives the range
+            wrapped at zero.
+        wrapped_minimum:
+          name: rings:minimum_inertial_ring_longitude
+          description: >-
+            Where the arc of ring longitude covered by the pixels where the
+            ring_longitude backplane has a value begins, measured from the J2000
+            ascending node from 0 to 360 degrees. The range is wrapped at zero: where
+            the arc crosses zero longitude, this is greater than
+            rings:maximum_inertial_ring_longitude, and an arc covering the whole circle
+            begins at 0. minimum_ring_longitude gives the plain least longitude instead.
+        wrapped_maximum:
+          name: rings:maximum_inertial_ring_longitude
+          description: >-
+            Where the arc of ring longitude covered by the pixels where the
+            ring_longitude backplane has a value ends, measured from the J2000 ascending
+            node from 0 to 360 degrees. The range is wrapped at zero: where the arc
+            crosses zero longitude, this is less than
+            rings:minimum_inertial_ring_longitude, and an arc covering the whole circle
+            ends at 360. maximum_ring_longitude gives the plain greatest longitude
+            instead.
     - name: ring_emission_angle
       method: ring_emission_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_emission_angle
+          description: >-
+            The least emission angle, measured from the normal to the ring plane on its
+            sunlit side, over the pixels where the ring_emission_angle backplane has a
+            value.
+        maximum:
+          name: rings:maximum_emission_angle
+          description: >-
+            The greatest emission angle, measured from the normal to the ring plane on
+            its sunlit side, over the pixels where the ring_emission_angle backplane has
+            a value.
     - name: ring_phase_angle
       method: phase_angle
       units: rad
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_phase_angle
+          description: >-
+            The least phase angle between the arriving and the departing light over the
+            pixels where the ring_phase_angle backplane has a value.
+        maximum:
+          name: rings:maximum_phase_angle
+          description: >-
+            The greatest phase angle between the arriving and the departing light over
+            the pixels where the ring_phase_angle backplane has a value.
     - name: ring_radial_resolution
       method: ring_radial_resolution
       units: km/pixel
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_radial_resolution
+          description: >-
+            The least projected radial size of a pixel in the ring plane over the pixels
+            where the ring_radial_resolution backplane has a value.
+        maximum:
+          name: rings:maximum_radial_resolution
+          description: >-
+            The greatest projected radial size of a pixel in the ring plane over the
+            pixels where the ring_radial_resolution backplane has a value.
     - name: ring_longitudinal_resolution
       method: ring_angular_resolution
       units: rad/pixel
+      index:
+        data_type: ASCII_Real
+        minimum:
+          name: rings:minimum_longitudinal_resolution
+          description: >-
+            The least projected size of a pixel in ring longitude over the pixels where
+            the ring_longitudinal_resolution backplane has a value.
+        maximum:
+          name: rings:maximum_longitudinal_resolution
+          description: >-
+            The greatest projected size of a pixel in ring longitude over the pixels
+            where the ring_longitudinal_resolution backplane has a value.
 
-  # Optional mapping from NAIF ID to PDS4 LID (used for label target identification)
-  target_lids: {}
+  # The incidence angle of sunlight on the ring plane, which the backplane metadata's
+  # rings block records once for an image, as incidence_angle, rather than as a plane:
+  # its value at the ring system's center and its min, max and mean over the pixels where
+  # a ring backplane has a value. Its index block describes the three columns the rings
+  # table gives the last three, after the ring planes' columns, as a plane's index block
+  # describes its two; units is the unit the block records the angle in.
+  ring_incidence_angle:
+    units: deg
+    index:
+      data_type: ASCII_Real
+      minimum:
+        name: rings:minimum_incidence_angle
+        description: >-
+          The least incidence angle of sunlight on the ring plane, measured from the
+          normal on its sunlit side, over the pixels where a ring backplane has a value.
+      maximum:
+        name: rings:maximum_incidence_angle
+        description: >-
+          The greatest incidence angle of sunlight on the ring plane, measured from the
+          normal on its sunlit side, over the pixels where a ring backplane has a value.
+      mean:
+        name: rings:mean_incidence_angle
+        description: >-
+          The mean incidence angle of sunlight on the ring plane, measured from the
+          normal on its sunlit side, over the pixels where a ring backplane has a value.
+
+  # Value written wherever a backplane has no valid measurement. It sits outside
+  # the range of every plane written -- longitudes 0 to 360, latitudes -90 to 90,
+  # angles 0 to 180, resolutions and ring radii positive -- so a single comparison
+  # masks every plane, and the PDS4 label declares it as the array's missing
+  # constant. BODY_ID_MAP is exempt: it is the body identity map rather than a
+  # measurement, and 0 (not a NAIF ID) already means no body claimed the pixel.
+  masked_value: -999.0
+
+  # The PDS4 target a bundle's labels identify each body and ring system as, keyed by
+  # the name the backplane metadata gives it: a body by the name the backplane stage
+  # looks for it under, the rings by the ring target their backplanes are computed for.
+  # Each entry gives the logical identifier of the target's PDS4 context product, the
+  # version of that product the PDS registry holds, and the name and type the product
+  # gives the target. A label names a target by its logical identifier, and the context
+  # collection's inventory lists it at its version. The entries are the PDS registry's
+  # answers of 2026-09-14 to GET https://pds.nasa.gov/api/search/1/products/<lid>/latest;
+  # maintaining them from the context products is #79. Every body the backplane stage
+  # looks for in a Saturn image has an entry, as a test over this file holds.
+  target_lids:
+    SATURN:
+      lid: urn:nasa:pds:context:target:planet.saturn
+      version: '1.4'
+      name: Saturn
+      type: Planet
+    ATLAS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.atlas
+      version: '1.2'
+      name: Atlas
+      type: Satellite
+    CALYPSO:
+      lid: urn:nasa:pds:context:target:satellite.saturn.calypso
+      version: '1.2'
+      name: Calypso
+      type: Satellite
+    DAPHNIS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.daphnis
+      version: '1.2'
+      name: Daphnis
+      type: Satellite
+    DIONE:
+      lid: urn:nasa:pds:context:target:satellite.saturn.dione
+      version: '1.2'
+      name: Dione
+      type: Satellite
+    ENCELADUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.enceladus
+      version: '1.2'
+      name: Enceladus
+      type: Satellite
+    EPIMETHEUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.epimetheus
+      version: '1.2'
+      name: Epimetheus
+      type: Satellite
+    HELENE:
+      lid: urn:nasa:pds:context:target:satellite.saturn.helene
+      version: '1.3'
+      name: Helene
+      type: Satellite
+    HYPERION:
+      lid: urn:nasa:pds:context:target:satellite.saturn.hyperion
+      version: '1.2'
+      name: Hyperion
+      type: Satellite
+    IAPETUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.iapetus
+      version: '1.2'
+      name: Iapetus
+      type: Satellite
+    JANUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.janus
+      version: '1.2'
+      name: Janus
+      type: Satellite
+    MIMAS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.mimas
+      version: '1.2'
+      name: Mimas
+      type: Satellite
+    PAN:
+      lid: urn:nasa:pds:context:target:satellite.saturn.pan
+      version: '1.2'
+      name: Pan
+      type: Satellite
+    PANDORA:
+      lid: urn:nasa:pds:context:target:satellite.saturn.pandora
+      version: '1.2'
+      name: Pandora
+      type: Satellite
+    PHOEBE:
+      lid: urn:nasa:pds:context:target:satellite.saturn.phoebe
+      version: '1.2'
+      name: Phoebe
+      type: Satellite
+    PROMETHEUS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.prometheus
+      version: '1.2'
+      name: Prometheus
+      type: Satellite
+    RHEA:
+      lid: urn:nasa:pds:context:target:satellite.saturn.rhea
+      version: '1.2'
+      name: Rhea
+      type: Satellite
+    TELESTO:
+      lid: urn:nasa:pds:context:target:satellite.saturn.telesto
+      version: '1.2'
+      name: Telesto
+      type: Satellite
+    TETHYS:
+      lid: urn:nasa:pds:context:target:satellite.saturn.tethys
+      version: '1.2'
+      name: Tethys
+      type: Satellite
+    TITAN:
+      lid: urn:nasa:pds:context:target:satellite.saturn.titan
+      version: '1.1'
+      name: Titan
+      type: Satellite
+    SATURN_MAIN_RINGS:
+      lid: urn:nasa:pds:context:target:ring.saturn.rings
+      version: '1.1'
+      name: Saturn Rings
+      type: Ring

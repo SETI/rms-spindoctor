@@ -1,36 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?xml-model href="https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00.sch"
+<?xml-model href="$PDS4_PDS_SCHEMA$"
     schematypens="http://purl.oclc.org/dsdl/schematron"?>
-<?xml-model href="https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1E00.sch"
+<?xml-model href="$PDS4_DISP_SCHEMA$"
     schematypens="http://purl.oclc.org/dsdl/schematron"?>
-<?xml-model href="https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1O00_1510.sch"
+<?xml-model href="$PDS4_GEOM_SCHEMA$"
     schematypens="http://purl.oclc.org/dsdl/schematron"?>
-<?xml-model href="https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0.sch"
-    schematypens="http://purl.oclc.org/dsdl/schematron"?>
-<?xml-model href="https://pds.nasa.gov/pds4/mission/cassini/v1/PDS4_CASSINI_1O00_1800.sch"
+<?xml-model href="$PDS4_CASSINI_SCHEMA$"
     schematypens="http://purl.oclc.org/dsdl/schematron"?>
 
 <Product_Observational
     xmlns="http://pds.nasa.gov/pds4/pds/v1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xmlns:rings="http://pds.nasa.gov/pds4/rings/v1"
     xmlns:disp="http://pds.nasa.gov/pds4/disp/v1"
     xmlns:geom="http://pds.nasa.gov/pds4/geom/v1"
     xmlns:cassini="http://pds.nasa.gov/pds4/mission/cassini/v1"
     xsi:schemaLocation="
-    http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1O00.xsd
-    http://pds.nasa.gov/pds4/rings/v1 https://pds.nasa.gov/pds4/rings/v1/PDS4_RINGS_1O00_1E00.xsd
-    http://pds.nasa.gov/pds4/disp/v1 https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1O00_1510.xsd
-    http://pds.nasa.gov/pds4/geom/v1 https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0.xsd
-    http://pds.nasa.gov/pds4/mission/cassini/v1 https://pds.nasa.gov/pds4/mission/cassini/v1/PDS4_CASSINI_1O00_1800.xsd">
+    http://pds.nasa.gov/pds4/pds/v1 $PDS4_PDS_SCHEMA_XSD$
+    http://pds.nasa.gov/pds4/disp/v1 $PDS4_DISP_SCHEMA_XSD$
+    http://pds.nasa.gov/pds4/geom/v1 $PDS4_GEOM_SCHEMA_XSD$
+    http://pds.nasa.gov/pds4/mission/cassini/v1 $PDS4_CASSINI_SCHEMA_XSD$">
 
     <Identification_Area>
         <logical_identifier>$DATA_LID$</logical_identifier>
-        <version_id>1.0</version_id>
+        <version_id>$BUNDLE_VERSION$</version_id>
         <title>
             $WRAP(12,91,TITLE,preserve_single_newlines=False)$
         </title>
-        <information_model_version>1.24.0.0</information_model_version>
+        <information_model_version>$INFORMATION_MODEL_VERSION$</information_model_version>
         <product_class>Product_Observational</product_class>
         <Citation_Information>
             <publication_year>2027</publication_year>
@@ -44,8 +40,8 @@
         <Modification_History>
             <Modification_Detail>
                 <modification_date>$CURRENT_ZULU(date_only=True)$</modification_date>
-                <version_id>1.0</version_id>
-                <description>Initial version.</description>
+                <version_id>$BUNDLE_VERSION$</version_id>
+                <description>Initial version</description>
             </Modification_Detail>
         </Modification_History>
     </Identification_Area>
@@ -60,7 +56,10 @@
         <Primary_Result_Summary>
             <purpose>Science</purpose>
             <processing_level>Derived</processing_level>
-            <!-- TODO Do we need science facets? -->
+            <Science_Facets>
+                <wavelength_range>Visible</wavelength_range>
+                <discipline_name>Ring-Moon Systems</discipline_name>
+            </Science_Facets>
         </Primary_Result_Summary>
         <Investigation_Area>
             <name>Cassini-Huygens</name>
@@ -90,7 +89,16 @@
                 </Internal_Reference>
             </Observing_System_Component>
         </Observing_System>
-        <!-- TODO Need to add targets here -->
+        $FOR(target=TARGETS)
+        <Target_Identification>
+            <name>$target.name$</name>
+            <type>$target.target_type$</type>
+            <Internal_Reference>
+                <lid_reference>$target.lid$</lid_reference>
+                <reference_type>data_to_target</reference_type>
+            </Internal_Reference>
+        </Target_Identification>
+        $END_FOR
         <Mission_Area>
             <cassini:Cassini>
                 <cassini:ISS_Specific_Attributes>
@@ -99,9 +107,11 @@
             </cassini:Cassini>
         </Mission_Area>
         <Discipline_Area>
+            <!-- How each array of the backplane FITS is displayed -->
+            $FOR(array=BACKPLANE_FITS.arrays)
             <disp:Display_Settings>
                 <Local_Internal_Reference>
-                    <local_identifier_reference>image</local_identifier_reference>
+                    <local_identifier_reference>$array.local_identifier$</local_identifier_reference>
                     <local_reference_type>display_settings_to_array</local_reference_type>
                 </Local_Internal_Reference>
                 <disp:Display_Direction>
@@ -111,6 +121,7 @@
                     <disp:vertical_display_direction>Top to Bottom</disp:vertical_display_direction>
                 </disp:Display_Direction>
             </disp:Display_Settings>
+            $END_FOR
             <geom:Geometry>
                 <geom:SPICE_Kernel_Files>
                     <geom:SPICE_Kernel_Identification>
@@ -118,24 +129,17 @@
                         <geom:spice_kernel_file_name>kernels.ker</geom:spice_kernel_file_name>
                     </geom:SPICE_Kernel_Identification>
                     <geom:comment>
-                        TODO Have to figure out how to handle kernels in this dataset.
-                        This metakernel file lists all SPICE kernels used in the
-                        generation of the derived data products in the parent bundle. Some
-                        of them may not have been used directly in the generation of this
-                        product. The relevant C-kernel identified in the metakernel
-                        provided initial pointing information, which has been refined and
-                        is superseded by the pointing information in the C-matrix
-                        described in File_Area_Observational_Supplemental below. In all
-                        cases, the base coordinate frame is J2000.
+                        The metakernel kernels.ker, in the spice_kernels collection of this
+                        bundle, lists no SPICE kernels: which kernels it lists has not been
+                        decided.
                     </geom:comment>
                 </geom:SPICE_Kernel_Files>
             </geom:Geometry>
-            <!-- TODO Need to add rings geometry here -->
         </Discipline_Area>
     </Observation_Area>
     <Reference_List>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:backplanes-user-guide</lid_reference>
+            <lid_reference>$BUNDLE_LID$:document:backplanes-user-guide</lid_reference>
             <reference_type>data_to_document</reference_type>
             <comment>
                 This is the user guide for the backplanes for navigated images from Cassini ISS at Saturn.
@@ -147,7 +151,7 @@
             <comment>The Cassini ISS Data User's Guide (PDS3); DOI: 10.17189/1504135</comment>
         </Internal_Reference>
         <Internal_Reference>
-            <lid_reference>urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:browse</lid_reference>
+            <lid_reference>$BUNDLE_LID$:browse</lid_reference>
             <reference_type>data_to_browse</reference_type>
             <comment>
                 The browse images of the backplanes for navigated images from Cassini ISS at Saturn.
@@ -166,10 +170,20 @@
             </reference_text>
             <description>NAIF HTML documentation describing SPICE</description>
         </External_Reference>
-        <Source_Product_Internal>
-            <lidvid_reference>$SOURCE_IMAGE_LIDVID$</lidvid_reference>
-            <reference_type>data_to_calibrated_source_product</reference_type>  <!-- TODO Need to check this -->
-        </Source_Product_Internal>
+        $NOTE
+        No PDS4 bundle holds calibrated Cassini ISS images yet, so the calibrated image
+        the backplanes were computed from is cited as an external product; this becomes a
+        Source_Product_Internal once one does.
+        $END_NOTE
+        <Source_Product_External>
+            <external_source_product_identifier>$SOURCE_PRODUCT_IDENTIFIER$</external_source_product_identifier>
+            <reference_type>$SOURCE_PRODUCT_REFERENCE_TYPE$</reference_type>
+            <curating_facility>$SOURCE_PRODUCT_CURATING_FACILITY$</curating_facility>
+            <description>
+                The calibrated image the backplanes were computed from, named by its
+                volume and the file specification of its label within that volume.
+            </description>
+        </Source_Product_External>
     </Reference_List>
     <File_Area_Observational>
         <File>
@@ -178,8 +192,45 @@
             <file_size unit="byte">$FILE_BYTES(BACKPLANE_PATH)$</file_size>
             <md5_checksum>$FILE_MD5(BACKPLANE_PATH)$</md5_checksum>
         </File>
-        <!-- The backplane for the navigated image -->
-        <!-- TODO Need to add backplane FITS file here -->
+        <!-- Each HDU of the backplane FITS: its header and, past the primary, its array -->
+        $FOR(hdu=BACKPLANE_FITS.hdus)
+        <Header>
+            <name>$hdu.name$</name>
+            <offset unit="byte">$hdu.header_offset$</offset>
+            <object_length unit="byte">$hdu.header_length$</object_length>
+            <parsing_standard_id>FITS 3.0</parsing_standard_id>
+        </Header>
+        $IF(hdu.array is not None)
+        <Array_2D_Image>
+            <local_identifier>$hdu.array.local_identifier$</local_identifier>
+            <offset unit="byte">$hdu.array.offset$</offset>
+            <axes>2</axes>
+            <axis_index_order>Last Index Fastest</axis_index_order>
+            <description>$hdu.array.description$</description>
+            <Element_Array>
+                <data_type>$hdu.array.data_type$</data_type>
+                $IF(hdu.array.unit is not None)
+                <unit>$hdu.array.unit$</unit>
+                $END_IF
+            </Element_Array>
+            <Axis_Array>
+                <axis_name>Line</axis_name>
+                <elements>$hdu.array.lines$</elements>
+                <sequence_number>1</sequence_number>
+            </Axis_Array>
+            <Axis_Array>
+                <axis_name>Sample</axis_name>
+                <elements>$hdu.array.samples$</elements>
+                <sequence_number>2</sequence_number>
+            </Axis_Array>
+            $IF(hdu.array.missing_constant is not None)
+            <Special_Constants>
+                <missing_constant>$hdu.array.missing_constant$</missing_constant>
+            </Special_Constants>
+            $END_IF
+        </Array_2D_Image>
+        $END_IF
+        $END_FOR
     </File_Area_Observational>
     <File_Area_Observational_Supplemental>
         <!-- Supplemental file containing image navigation and SPICE kernel pointing parameters -->
@@ -192,7 +243,18 @@
             <comment>
                 This file contains image navigation and SPICE kernel pointing parameters.
             </comment>
-            <!-- TODO How do we describe this file? -->
         </File>
+        <Stream_Text>
+            <offset unit="byte">0</offset>
+            <object_length unit="byte">$FILE_BYTES(BACKPLANE_SUPPL_PATH)$</object_length>
+            <parsing_standard_id>7-Bit ASCII Text</parsing_standard_id>
+            <description>
+                One JSON object (RFC 8259) holding the image's navigation metadata
+                under "navigation" and its backplane metadata under "backplanes",
+                written with a two-space indent, every character outside ASCII
+                escaped, and a line feed between lines.
+            </description>
+            <record_delimiter>Line-Feed</record_delimiter>
+        </Stream_Text>
     </File_Area_Observational_Supplemental>
 </Product_Observational>

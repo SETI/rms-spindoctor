@@ -24,6 +24,30 @@ def fake_naif_id(body_name: str) -> int:
     return 10000 + (int.from_bytes(digest[:8], 'big') % 20000)
 
 
+def body_naif_id(snapshot: ObsSnapshot, body_name: str) -> int:
+    """Return the NAIF ID a body's pixels carry in the body identity map.
+
+    Parameters:
+        snapshot: The observation snapshot the body is in.
+        body_name: The body's name, as the backplane stage names it.
+
+    Returns:
+        The body's NAIF ID, or on a simulated snapshot the :func:`fake_naif_id` of a
+        name SPICE does not know.
+
+    Raises:
+        Exception: Whatever ``cspyce.bodn2c`` raises for a name SPICE does not know, on
+            a snapshot that is not simulated.
+    """
+    try:
+        return int(cspyce.bodn2c(body_name))
+    except Exception:
+        if snapshot.is_simulated:
+            # Unknown body name; create a deterministic fake NAIF ID in int32 range
+            return fake_naif_id(body_name)
+        raise  # This is a real problem
+
+
 def merge_sources_into_master(
     snapshot: ObsSnapshot,
     *,
@@ -42,7 +66,10 @@ def merge_sources_into_master(
     """
 
     height, width = snapshot.data.shape
+    masked_value = float(snapshot.config.backplanes.masked_value)
     master_by_type: dict[str, np.ndarray] = {}
+    # Not masked_value: this is the body identity map, and 0 is not a NAIF ID, so
+    # zero already says no body claimed the pixel.
     body_id_map = np.zeros((height, width), dtype=np.int32)
 
     # Build source list with per-pixel distance and NAIF IDs
@@ -62,18 +89,10 @@ def merge_sources_into_master(
         if any_mask is None:
             any_mask = np.zeros((height, width), dtype=bool)
         distance = np.where(any_mask, distance_scalar, np.inf).astype(np.float32)
-        try:
-            naif_id = int(cspyce.bodn2c(body_name))
-        except Exception:
-            if snapshot.is_simulated:
-                # Unknown body name; create a deterministic fake NAIF ID in int32 range
-                naif_id = fake_naif_id(body_name)
-            else:
-                raise  # This is a real problem
         body_sources.append(
             {
                 'name': body_name,
-                'naif_id': naif_id,
+                'naif_id': body_naif_id(snapshot, body_name),
                 'distance': distance,
                 'mask': any_mask,
                 'arrays': entry['arrays'],
@@ -104,9 +123,9 @@ def merge_sources_into_master(
             body_types.update(body_source['arrays'].keys())
 
         # 1) Body backplanes: use nearest body among bodies only; rings do not affect these.
-        # Unclaimed pixels stay zero (the writer omits all-zero planes).
+        # Unclaimed pixels carry the masked value (the writer omits all-masked planes).
         for bp_type in sorted(body_types):
-            master = np.zeros((height, width), dtype=np.float32)
+            master = np.full((height, width), masked_value, dtype=np.float32)
             for body_idx, body_source in enumerate(body_sources):
                 arrays = body_source['arrays']
                 masks = body_source['masks']
@@ -141,7 +160,7 @@ def merge_sources_into_master(
                 continue
             if bp_type not in ring_arrays or bp_type not in ring_masks:
                 raise ValueError(f'Backplane type {bp_type} array or mask not found for rings')
-            master = np.zeros((height, width), dtype=np.float32)
+            master = np.full((height, width), masked_value, dtype=np.float32)
             src_vals = ring_arrays[bp_type]
             src_mask = ring_masks[bp_type]
             # occlusion: if any body is present and nearer than ring, mask out ring
