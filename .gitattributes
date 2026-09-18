@@ -1,0 +1,7 @@
+# Normalize every text file to LF line endings in the repository, so a file
+# checked in with CRLF (as several PDS4 label templates were) does not turn
+# every line into a diff wherever it is next touched.
+* text=auto eol=lf
+
+# Genuinely binary; never let git attempt to normalize or diff these as text.
+*.png binary
