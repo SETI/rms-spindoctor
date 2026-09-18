@@ -236,7 +236,7 @@ def limb_radii_from_profiles(
     window given by intersecting ``[window_px_lo, window_px_hi]`` with the
     sampled range shrunk by half the filter width at each end.  The most
     negative gradient in that window is the limb, refined by a parabola
-    through its two neighbours.
+    through its two neighbors.
 
     A ray is dropped when any of the following holds:
 

@@ -40,13 +40,12 @@ navigation that finished, which no selection flag can tell from one that ran on
 all its evidence.
 
 Coordinate conventions.  Positions -- the predicted center and the sunward
-pixel that sets the symmetry axis -- are pixel-centric plus the extfov
-margin, the same convention every predicted position in the pipeline uses.
-A catalog star record is the one thing that arrives in another convention:
-it carries pixel corner coordinates, so its extfov position is
-``star.v - PIXEL_CENTER_TO_CORNER_PX + extfov_margin_v``.  Bounding boxes are a
-separate matter: they are whole-numbered and they only bound where
-backplanes are evaluated.
+pixel that sets the symmetry axis -- are pixel centric plus the extfov margin,
+which is what the fit measures its arrays in.  Both arrive from the geometry
+layer in pixel corner coordinates, as does a catalog star record, so each
+converts once where it crosses: ``value - PIXEL_CENTER_TO_CORNER_PX +
+extfov_margin``.  Bounding boxes are a separate matter: they are whole-numbered
+and they only bound where backplanes are evaluated.
 
 A box grows with the body's apparent size, which is unbounded: Titan at
 0.754 km/pixel has an envelope 4343 pixels in radius inside a 1024-pixel
@@ -68,9 +67,9 @@ samples are grouped, and seventy times the frame's area is seventy frames'
 work.  Undersampling is the bound that reaches the cost itself, and what it
 spends is angular resolution.
 
-The axis is one angle, ``atan2`` of the offset from the disc centre to the
+The axis is one angle, ``atan2`` of the offset from the disc center to the
 minimum-incidence pixel, which is the sub-solar point on the SOLID body and
-projects ``r_solid * sin(phase)`` from the centre (``r_solid`` itself, at
+projects ``r_solid * sin(phase)`` from the center (``r_solid`` itself, at
 the limb, above 90 degrees of phase).  Sampling every k-th pixel locates
 that pixel to within the stride, so the angle moves by about
 ``k / (r_solid * sin(phase))`` radians.  The stride is the smallest INTEGER
@@ -159,12 +158,12 @@ pass and a whole-frame one.
 """
 
 _MASK_BOX_SLOP_PX: float = 0.5
-"""Slop added when converting a field-of-view centre to a bounding-box index.
+"""Slop added when converting a field-of-view center to a bounding-box index.
 
 Field-of-view coordinates run half a pixel ahead of the pixel-centric coordinates a
-bounding box is expressed in, so a box derived from a centre plus a radius
+bounding box is expressed in, so a box derived from a center plus a radius
 is widened by this much to compensate that frame shift. The inventory
-midpoint feeding the centre may itself be quantized by up to half a pixel,
+midpoint feeding the center may itself be quantized by up to half a pixel,
 so the low edge of the box can still fall one pixel short; every consumer
 carries pad far in excess of that residual.
 """
@@ -180,8 +179,8 @@ class TitanGeometryInputs:
     an observation or a SPICE kernel.
 
     Parameters:
-        predicted_center_vu: Geometric disc center in extfov coordinates --
-            the body's field-of-view center plus the extfov margin.
+        predicted_center_vu: Geometric disc center in extfov pixel centric
+            coordinates, which is what the fit measures the image array in.
         r_solid_px: Apparent solid-body radius in pixels; ``0.0`` when the
             image scale or body radius is not finite and positive.
         r_env_px: Apparent haze-envelope radius in pixels; ``0.0`` under the
@@ -533,10 +532,12 @@ def _restricted_backplane(
         The backplane and the meshgrid it was built over.
     """
     u_min, u_max, v_min, v_max = bbox_nominal
+    # The box is stated in array bounds; the meshgrid reads the geometry
+    # layer's pixel corner coordinates, so the half pixel goes on here.
     meshgrid = Meshgrid.for_fov(
         obs.fov,
-        origin=(u_min + 0.5, v_min + 0.5),
-        limit=(u_max + 0.5, v_max + 0.5),
+        origin=(u_min + PIXEL_CENTER_TO_CORNER_PX, v_min + PIXEL_CENTER_TO_CORNER_PX),
+        limit=(u_max + PIXEL_CENTER_TO_CORNER_PX, v_max + PIXEL_CENTER_TO_CORNER_PX),
         undersample=max(1, undersample),
         swap=True,
     )
@@ -564,12 +565,11 @@ def _symmetry_axis(
     near-zero-phase disc that is rotationally symmetric, where any axis is
     equally valid.
 
-    Both ends of that difference are expressed in the same frame -- the
-    field-of-view coordinate plus the extfov margin, which is what the
-    meshgrid reports and what :func:`geometry_from_obs` builds the predicted
-    center in.  Only consistency matters here, because the angle is a
-    difference; converting one end and not the other would
-    tilt the axis by a half pixel over the disc radius.
+    The meshgrid reports a pixel corner coordinate, so the sunward pixel
+    converts here the way :func:`geometry_from_obs` converts the predicted
+    center, and the difference is taken between two positions in one
+    coordinate system.  Converting one end and not the other would tilt the
+    axis by half a pixel over the disc radius.
 
     Parameters:
         obs: Observation snapshot.
@@ -600,7 +600,7 @@ def _symmetry_axis(
             ``2 * r_env / sqrt(max_samples)``, up to twice that estimate
             just above a threshold.  The pixel it locates is the sub-solar
             point on the solid body, ``r_solid * sin(phase)`` from the
-            centre (``r_solid``, at the limb, above 90 degrees of phase), so
+            center (``r_solid``, at the limb, above 90 degrees of phase), so
             the angle quantizes by about ``2 * (r_env / r_solid) /
             (sqrt(max_samples) * sin(phase))`` radians and up to twice that:
             for a million samples under the shipped 700 km atmosphere, 0.15
@@ -677,8 +677,8 @@ def _symmetry_axis(
         )
         return 0.0, True
     index = np.unravel_index(int(np.argmin(np.where(valid, values, np.inf))), values.shape)
-    sun_u = float(uv[index][0]) + margin_vu[1]
-    sun_v = float(uv[index][1]) + margin_vu[0]
+    sun_u = float(uv[index][0]) - PIXEL_CENTER_TO_CORNER_PX + margin_vu[1]
+    sun_v = float(uv[index][1]) - PIXEL_CENTER_TO_CORNER_PX + margin_vu[0]
     d_v = sun_v - center_vu[0]
     d_u = sun_u - center_vu[1]
     # The floor was set for a one-pixel sampling quantum; a strided box
@@ -737,7 +737,7 @@ def paint_disc(mask: NDArrayBoolType, center_vu: tuple[float, float], radius_px:
 
     Parameters:
         mask: Extfov-shaped boolean mask, modified in place.
-        center_vu: ``(v, u)`` disc centre in extfov coordinates.
+        center_vu: ``(v, u)`` disc center in extfov coordinates.
         radius_px: Disc radius in pixels.
     """
     rows, cols = mask.shape
@@ -840,7 +840,7 @@ def occluded_disc_fraction(
 
     Parameters:
         occluder_ext: Extfov-shaped boolean mask of occluding pixels.
-        center_vu: ``(v, u)`` envelope centre in extfov coordinates.
+        center_vu: ``(v, u)`` envelope center in extfov coordinates.
         r_env_px: Envelope radius in pixels.
 
     Returns:
@@ -1147,17 +1147,15 @@ def geometry_from_obs(
         v_min_unc = _finite(inventory['v_min_unclipped'], 'v_min_unclipped')
         v_max_unc = _finite(inventory['v_max_unclipped'], 'v_max_unclipped')
         center_uv = inventory['center_uv']
-        # The predicted center is the body's exact field-of-view position,
-        # not the midpoint of the integer bounding box: that midpoint is
-        # quantized by up to half a pixel per axis, a third of the method's
-        # whole cross-track budget on a real frame.  It is converted the way
-        # every other predicted position in the pipeline is -- field-of-view
-        # coordinate plus the extfov margin -- so the uniform half-pixel
-        # convention cancels between this technique and the star techniques
-        # it is cross-checked against.
+        # The predicted center is the body's exact field-of-view position, not
+        # the midpoint of the integer bounding box: that midpoint is quantized
+        # by up to half a pixel per axis, a third of the method's whole
+        # cross-track budget on a real frame.  The inventory states it in pixel
+        # corner coordinates, and the fit measures the image array, so the half
+        # pixel comes off here and the whole-pixel extfov margin goes on.
         center_vu = (
-            _finite(center_uv[1], 'center_uv[v]') + margin_vu[0],
-            _finite(center_uv[0], 'center_uv[u]') + margin_vu[1],
+            _finite(center_uv[1], 'center_uv[v]') - PIXEL_CENTER_TO_CORNER_PX + margin_vu[0],
+            _finite(center_uv[0], 'center_uv[u]') - PIXEL_CENTER_TO_CORNER_PX + margin_vu[1],
         )
         # An absent range is an unknown distance, which is infinite.  A
         # present one is converted like every other inventory field, so NaN

@@ -567,7 +567,7 @@ def test_a_reason_says_the_file_was_never_a_navigation_result(
 def test_a_reason_carries_one_example_file(
     tmp_path: Path, quiet_logger: pdslogger.PdsLogger
 ) -> None:
-    """A field-level diagnosis is only a judgement once one real file is named."""
+    """A field-level diagnosis is only a judgment once one real file is named."""
     root = tmp_path / 'results'
     root.mkdir()
     path = root / 'edges_metadata.json'

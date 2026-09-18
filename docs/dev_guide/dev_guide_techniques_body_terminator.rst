@@ -13,7 +13,7 @@ orchestrator, weights every vertex of a given body uniformly by an inverse-varia
 from that body's mean per-vertex normal sigma, and runs the same polarity-weighted coarse
 acquisition plus Tukey-reweighted Levenberg-Marquardt refinement that
 :doc:`dev_guide_techniques_dt_fitting` describes for the limb fit. The output is the joint
-translation that minimises the summed weighted squared distance from the model polylines to
+translation that minimizes the summed weighted squared distance from the model polylines to
 the image edges, plus a covariance derived from the M-estimator information matrix at
 convergence.
 
@@ -34,7 +34,7 @@ section describes the cost function and conventions specific to the terminator f
 Cost function
 -------------
 
-The technique minimises
+The technique minimizes
 
 .. math::
 
@@ -77,7 +77,7 @@ image gradient direction — is enabled with the model normals oriented so the g
 point from the dark side toward the lit side at the terminator. Polarity-rejected vertices
 contribute a synthetic near-infinite residual on every iteration so the Tukey biweight zeroes
 their weight on the first reweighting; this keeps the terminator fit from latching onto the
-opposite-polarity edge of a neighbouring body's limb.
+opposite-polarity edge of a neighboring body's limb.
 
 Restrictions and assumptions
 ----------------------------
@@ -97,7 +97,7 @@ Restrictions and assumptions
   (:attr:`~spindoctor.feature.feature.NavFeature.reliability_reasons`'s ``albedo_penalty``,
   not the feature flags) and does not re-derive it.
 - Multi-body inputs are fused into a single translation by concatenating their per-vertex
-  arrays. The joint-translation parameterisation cannot represent disagreement between
+  arrays. The joint-translation parameterization cannot represent disagreement between
   bodies about the offset; if SPICE relative geometry is wrong the joint fit walks toward the
   higher-vertex-count body and the lower-vertex body's residuals appear as outliers the
   Tukey weight zeroes out.
@@ -109,7 +109,7 @@ The reported covariance is the Moore-Penrose pseudoinverse of the M-estimator in
 matrix at convergence, scaled by the per-vertex Tukey weights, with the calibrated
 ``model_error_floor_px`` (4.32 px) added in quadrature to the translation diagonal.
 It does not capture
-systematic biases (an under-modelled per-body albedo gradient propagates straight into the
+systematic biases (an under-modeled per-body albedo gradient propagates straight into the
 covariance) and it does not capture model-side uncertainty in the SPICE prediction itself.
 When the converged offset sits within a small tolerance of any axis bound of the search
 window, or when the rotation parameter is at the configured fraction of its cap, the result
@@ -230,7 +230,7 @@ wired for a future real-anchored calibration.
   after LM convergence; smaller is sharper.
 - :attr:`~spindoctor.nav_technique.diagnostics.BodyTerminatorDiagnostics.visible_arc_px` —
   alpha = 0.0, offset = 0.0, divisor = 100.0, cap at 1.0. Total surviving polyline length in
-  pixels, capped after normalisation.
+  pixels, capped after normalization.
 - ``mean_phase_angle_factor`` — alpha = 0.0, offset = 0.0, divisor = 1.0, no cap. Mean of
   :math:`\sin(\phi)` across consumed terminators (read off the per-feature
   :class:`~spindoctor.feature.flags.TerminatorArcFlags`).
@@ -341,12 +341,12 @@ Call path traced through
    observation via :func:`~spindoctor.nav_technique.nav_technique.search_window_for_obs`. Run
    :func:`~spindoctor.nav_technique.dt_fitting.coarse_polarity_search_scored` on the edge mask,
    the gradient image, and the polyline vertices / polarity normals to obtain an integer seed
-   offset. The polarity weighting keeps the lit disc's limb, rings, or a neighbouring body from
+   offset. The polarity weighting keeps the lit disc's limb, rings, or a neighboring body from
    out-scoring the true terminator arc and mis-seeding the LM.
 4. Decide whether to fit camera rotation by reading
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`. When rotation
    is fit, the rotation pivot is set to the centroid of the concatenated vertices and the
-   pivot-to-image-centre distance is computed via
+   pivot-to-image-center distance is computed via
    :func:`~spindoctor.nav_technique.nav_technique.rotation_pivot_distance_px`.
 5. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine` with the polyline,
    per-vertex sigmas, the edge DT, the gradient image, the integer seed, and the rotation
@@ -416,6 +416,6 @@ Examples
     seed and reports sub-pixel RMS with most vertices as inliers — a clean-looking
     mis-convergence that no residual metric flags, exactly the failure mode the calibration
     campaign measured. The calibrated formula holds the result to its low plateau, and the
-    ensemble's fallback-tier supersession drops it in favour of the limb and disc fits,
+    ensemble's fallback-tier supersession drops it in favor of the limb and disc fits,
     which agree around the operator-verified offset
     :math:`(\Delta v, \Delta u) = (7.03, -18.42)` px.

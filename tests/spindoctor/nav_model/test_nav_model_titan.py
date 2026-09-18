@@ -169,7 +169,7 @@ def test_visibility_dilation_uses_each_axis_own_margin(config: Config) -> None:
     """An envelope clearing the detector on both axes scores normally.
 
     The margins here are deliberately unequal (5 rows against 40 columns,
-    the shape a Cassini NAC has).  The body centre sits at row 60 of the
+    the shape a Cassini NAC has).  The body center sits at row 60 of the
     EXTENDED frame, so it is 55 px inside the detector's top edge, and its
     52 px envelope clears that edge by 3 px.  Dilating the row axis by the
     40 px column margin instead would demand 92 px and fail the frame for
@@ -185,7 +185,7 @@ def test_visibility_dilation_uses_each_axis_own_margin(config: Config) -> None:
 def test_visibility_still_hard_zeroes_when_an_axis_is_clipped(config: Config) -> None:
     """The same body four pixels nearer the top edge fails the row test.
 
-    At row 56 of the extended frame the centre is 51 px inside the
+    At row 56 of the extended frame the center is 51 px inside the
     detector's top edge, one pixel less than the envelope radius, so the
     envelope genuinely crosses it.
     """
@@ -317,7 +317,7 @@ def _titan_only_config(tmp_path: Path) -> Config:
 def _inventory_entry(
     center_vu: tuple[float, float], half_size_px: float, range_km: float
 ) -> dict[str, Any]:
-    """Build an inventory record for a body of the given centre and size."""
+    """Build an inventory record for a body of the given center and size."""
     return {
         'u_min_unclipped': center_vu[1] - half_size_px,
         'u_max_unclipped': center_vu[1] + half_size_px,
@@ -380,7 +380,7 @@ class _BoxMeshgrid:
     """Meshgrid stand-in materializing the ``(u, v)`` of every box sample.
 
     Mirrors ``oops.Meshgrid.for_fov`` closely enough for the model's
-    coordinate arithmetic: one sample per pixel centre over the requested
+    coordinate arithmetic: one sample per pixel center over the requested
     nominal-frame box, indexed ``(v, u)``.
     """
 
@@ -469,10 +469,10 @@ class _SceneBackplane:
         one in would hide a frame mismatch between the two ends of the
         angle the model computes.
         """
-        centre_v, centre_u = self.titan_center_vu
-        off_body = np.hypot(self._mg.vv - centre_v, self._mg.uu - centre_u) > self.titan_radius_px
-        sun_v = centre_v + self.sub_solar_offset_vu[0]
-        sun_u = centre_u + self.sub_solar_offset_vu[1]
+        center_v, center_u = self.titan_center_vu
+        off_body = np.hypot(self._mg.vv - center_v, self._mg.uu - center_u) > self.titan_radius_px
+        sun_v = center_v + self.sub_solar_offset_vu[0]
+        sun_u = center_u + self.sub_solar_offset_vu[1]
         values = np.hypot(self._mg.vv - sun_v, self._mg.uu - sun_u)
         return _Scalar(values, off_body)
 
@@ -685,6 +685,99 @@ def test_every_stage_propagates_its_leaf_failure(
             cast(Any, obs), _titan_only_config(tmp_path), inventory=entry, siblings=[]
         )
     assert f'{log_line}: {exc_info.value}' in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# The predicted center's coordinate system
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize('margin', [0, 7])
+def test_predicted_center_of_a_centered_body_is_the_array_center(
+    scene: type[_SceneBackplane], tmp_path: Path, margin: int
+) -> None:
+    """A body on the frame's center predicts the center of the array.
+
+    The two ends of this are stated independently of the code under test.  A
+    field of view puts the center of a ``size``-wide frame at ``size / 2``: a
+    whole number there falls on the boundary between two pixels, so the center
+    of a 120-wide axis is 60.0, and that is what the inventory reports.  The
+    array puts its own center at ``(size - 1) / 2``, because a whole number
+    there falls at a pixel's center, so the same point is 59.5.  The haze fit
+    samples the array, so the predicted center has to be the second of those.
+
+    The margin is whole pixels of padding, so it shifts the answer and does
+    not change which system it is in; running with and without it catches a
+    conversion applied to the padded position rather than to the raw one.
+
+    Parameters:
+        margin: Extended-FOV padding to place the frame inside.
+    """
+    rows = 120
+    entry = _inventory_entry((rows / 2.0, rows / 2.0), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={})
+    obs.extfov_margin_vu = (margin, margin)
+    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    expected = (rows - 1) / 2.0 + margin
+    assert geometry.predicted_center_vu[0] == pytest.approx(expected, abs=1e-9)
+    assert geometry.predicted_center_vu[1] == pytest.approx(expected, abs=1e-9)
+
+
+def test_predicted_center_of_an_offset_body_keeps_the_same_half_pixel(
+    scene: type[_SceneBackplane], tmp_path: Path
+) -> None:
+    """The conversion is the same half pixel away from the frame's center.
+
+    A body placed on a pixel's center in the field of view's terms -- a whole
+    number plus a half -- lands on a whole-numbered array position, which is
+    the clearest case for reading the answer off by eye.
+    """
+    entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={})
+    obs.extfov_margin_vu = (0, 0)
+    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    assert geometry.predicted_center_vu[0] == pytest.approx(44.0, abs=1e-9)
+    assert geometry.predicted_center_vu[1] == pytest.approx(71.0, abs=1e-9)
+
+
+@pytest.mark.parametrize('margin', [0, 7])
+def test_the_recorded_center_is_the_inventory_position(
+    scene: type[_SceneBackplane], tmp_path: Path, margin: int
+) -> None:
+    """What the model records is the inventory's own number for the body.
+
+    The geometry works in the padded array's coordinates because that is what
+    the fit measures.  A reader comparing the recorded center against a scene
+    file, an image viewer or the field of view needs the position in the image
+    itself, so the half pixel goes back on and the padding comes off.  Running
+    the same assertion under padding is what catches a margin left on.
+
+    Parameters:
+        margin: Extended-FOV padding to place the frame inside.
+    """
+    entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={})
+    obs.extfov_margin_vu = (margin, margin)
+    model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
+    model.create_model()
+    assert model.metadata['predicted_center_vu'] == pytest.approx([44.5, 71.5], abs=1e-9)
+
+
+def test_the_logged_center_is_the_inventory_position(
+    scene: type[_SceneBackplane], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The per-image log states the center where the document does.
+
+    An operator reads the log line and the document interchangeably, so the
+    line carries the inventory's own position in the image, with the padding
+    the geometry works in taken back off.
+    """
+    entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
+    obs = _scene_obs(titan_entry=entry, extra={})
+    obs.extfov_margin_vu = (7, 7)
+    model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
+    model.create_model()
+    assert 'Predicted center (v, u) = (44.50, 71.50)' in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
@@ -935,7 +1028,7 @@ def test_degenerate_axis_guard_scales_with_the_stride(
     A strided box locates the sunward pixel only to within the stride, so the
     floor on the arm is applied in strides.  The stride is read off a first
     pass over the scene; the sub-solar point is then planted two strides from
-    the centre, above the 3 px floor and under three strides.
+    the center, above the 3 px floor and under three strides.
     """
     scene.titan_center_vu = (60.5, 60.5)
     scene.titan_radius_px = 2000.0
@@ -968,7 +1061,7 @@ def test_symmetry_axis_points_at_the_sub_solar_pixel(
 
 
 def test_near_zero_phase_axis_is_degenerate(scene: type[_SceneBackplane], tmp_path: Path) -> None:
-    """A sub-solar point at the disc centre marks the axis degenerate."""
+    """A sub-solar point at the disc center marks the axis degenerate."""
     scene.sub_solar_offset_vu = (0.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None

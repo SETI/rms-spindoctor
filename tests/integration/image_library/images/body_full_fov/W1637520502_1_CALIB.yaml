@@ -19,9 +19,9 @@ ground_truth:
     body_full_fov exemplar from cohort-curation review batch 002 (seq 016).
     Selection: RHEA | <30; {"apparent_diameter_px": 868.1, "center_phase_deg": 26.787, "filter": "CL1", "lat_coverage_deg": 169.1, "target": "RHEA", "year": "2009"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.395, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [2.0156, 0.5], "BodyLimbNav": [2.1392, 0.0022]}.
+    Pipeline at curation: status=success, confidence=0.395, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [2.0156, 0.5], "BodyLimbNav": [2.1392, 0.0022]}.
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/BodyDiscCorrelateNav -> measured success/low/BodyLimbNav. Tier medium->low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. Offset unchanged and within slack. Primary also moves to BodyLimbNav with the recalibrated confidences.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. The primary is BodyLimbNav, the highest-confidence contributor.
 expected:
   status: success
   confidence_tier: low

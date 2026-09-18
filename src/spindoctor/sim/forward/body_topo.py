@@ -56,6 +56,7 @@ from spindoctor.sim.forward.photometry import (
     shade_surface,
 )
 from spindoctor.sim.forward.relief import ReliefField, march_shadows, synthesize_relief_field
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['TopoBodySpec', 'create_topographic_body']
@@ -179,8 +180,8 @@ def _body_grid(
 ) -> _Grid:
     """Build the rotated-frame coordinates and radial function for one grid.
 
-    The conventions (pixel centers at index + 0.5, rotation then tilt
-    compression) match the classic renderer exactly.
+    The conventions (the grid built in pixel corner coordinates, rotation then
+    tilt compression) match the classic renderer exactly.
 
     Parameters:
         dims: Grid dimensions (rows, columns).
@@ -195,9 +196,12 @@ def _body_grid(
     """
     size_v, size_u = dims
     semi_a, semi_b, semi_c = semi_axes
+    # The grid starts as array rows and columns and the body center is stated
+    # in pixel corner coordinates, so the half pixel goes on before the center
+    # comes off.
     v_coords, u_coords = np.mgrid[0:size_v, 0:size_u].astype(float)
-    v_coords += 0.5 - center[0]
-    u_coords += 0.5 - center[1]
+    v_coords += PIXEL_CENTER_TO_CORNER_PX - center[0]
+    u_coords += PIXEL_CENTER_TO_CORNER_PX - center[1]
     v_rot1 = v_coords * cos_rz - u_coords * sin_rz
     u_rot1 = v_coords * sin_rz + u_coords * cos_rz
     v_rot = v_rot1 * cos_rt
@@ -218,8 +222,11 @@ def _body_grid(
 def _bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
     """Bilinearly upsample a field by an integer factor (pixel-center aligned).
 
-    Output sample centers map to ``(i + 0.5) / factor - 0.5`` in input index
-    space; borders clamp to the nearest input sample.
+    Output sample ``i`` lands at ``(i + PIXEL_CENTER_TO_CORNER_PX) / factor -
+    PIXEL_CENTER_TO_CORNER_PX`` in the input field's pixel centric coordinates:
+    the output row is lifted to pixel corner coordinates, rescaled to the input
+    grid, and lowered again for the array lookup.  Borders clamp to the nearest
+    input sample.
 
     Parameters:
         field: The 2-D input field.
@@ -233,7 +240,9 @@ def _bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType
     n_v, n_u = field.shape
 
     def _axis(n: int) -> tuple[NDArrayIntType, NDArrayIntType, NDArrayFloatType]:
-        centers = (np.arange(n * factor, dtype=np.float64) + 0.5) / factor - 0.5
+        centers = (
+            np.arange(n * factor, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+        ) / factor - PIXEL_CENTER_TO_CORNER_PX
         low = np.clip(np.floor(centers).astype(np.intp), 0, n - 1)
         high = np.minimum(low + 1, n - 1)
         weight = np.clip(centers - low, 0.0, 1.0)
@@ -703,9 +712,11 @@ def _apply_terminator_shadows(
     if not marchable.any():
         return
 
+    # The candidates are array rows and columns and the march reads pixel
+    # corner coordinates, so the half pixel goes on here.
     shadow, _stats = march_shadows(
-        cand_v[marchable] + 0.5,
-        cand_u[marchable] + 0.5,
+        cand_v[marchable] + PIXEL_CENTER_TO_CORNER_PX,
+        cand_u[marchable] + PIXEL_CENTER_TO_CORNER_PX,
         h_point=h_frac_c[marchable],
         tan_incidence=tan_i[marchable],
         radius_px=r_local_c[marchable],

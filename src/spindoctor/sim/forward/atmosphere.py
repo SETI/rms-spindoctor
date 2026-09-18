@@ -23,7 +23,7 @@ optical depth
     ``tau(h) = tau_ref * exp(-(h - ref_altitude_px) / scale_height_px)``
 
 so ``tau_ref`` is the tangent optical depth at ``ref_altitude_px``.  An
-optional detached haze shell adds a Gaussian bump in ``tau`` centred at
+optional detached haze shell adds a Gaussian bump in ``tau`` centered at
 ``detached_px`` above the surface.  The shell exists only in this above-limb
 tangent depth: the on-disc excess column is shell-blind (a geometrically
 thin shell projected against the disc adds negligible slant contrast), so
@@ -43,7 +43,7 @@ opacity is ``1 - exp(-tau)``: above the limb ``tau`` is the tangent optical
 depth, so the limb becomes a soft exponential ramp whose apparent radius
 grows with the haze brightness (hence with phase); on the disc the slant
 optical depth grows toward the limb as ``1 / cos(emission)``, so the haze
-concentrates at the limb and stays faint at disc centre.  The disc-side
+concentrates at the limb and stays faint at disc center.  The disc-side
 column scales from the physical vertical depth
 
     ``tau_vert = tau_ref * exp(ref_altitude_px / H) / sqrt(2 * pi * R / H)``
@@ -81,6 +81,7 @@ from spindoctor.sim.forward.haze_structure import (
     scale_height_field,
     tilted_illumination_2d,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -268,7 +269,7 @@ def tangent_optical_depth(
     """Tangent (slant) optical depth of the haze at tangent altitude ``h_px``.
 
     The exponential column plus, when the spec carries one, a Gaussian
-    detached-shell bump one scale height wide centred at ``detached_px``.
+    detached-shell bump one scale height wide centered at ``detached_px``.
 
     Parameters:
         h_px: Tangent altitude above the reference radius, in pixels.
@@ -323,7 +324,7 @@ def _outer_altitude(spec: AtmosphereSpec) -> float:
     """The tangent altitude beyond which the above-limb glow is negligible.
 
     Where the smooth column has fallen to :data:`_TAU_EPS`, plus a detached
-    shell's reach (its centre and three scale heights).  Evaluated at the
+    shell's reach (its center and three scale heights).  Evaluated at the
     longest falloff length the spec produces, so a structured haze's
     extended hemisphere is bounded rather than clipped at an artificial
     edge.
@@ -380,18 +381,19 @@ def _band_bbox(
 ) -> tuple[slice, slice] | None:
     """Grid slices bounding the outer band ellipse of the haze.
 
-    The band's outer boundary in centred pixel coordinates satisfies
+    The band's outer boundary in centered pixel coordinates satisfies
     ``|v*cos_rz - u*sin_rz| <= reach_a`` and ``|v*sin_rz + u*cos_rz| <=
     reach_b`` (the rotated-frame extents of the ellipse, with the tilt's
     foreshortening already divided out of ``reach_a``), so its axis-aligned
     bounding box follows by rotating those extents back.  One pixel of slack
-    absorbs the pixel-centre convention; every pixel outside the returned
-    slices lies strictly outside the band.
+    absorbs the half pixel between the coordinates the extents are stated in
+    and the cells the slices name; every pixel outside the returned slices lies
+    strictly outside the band.
 
     Parameters:
         shape: The render-grid shape ``(V, U)``.
-        center_v: Body centre v in grid pixels.
-        center_u: Body centre u in grid pixels.
+        center_v: Body center v in grid pixels.
+        center_u: Body center u in grid pixels.
         reach_a: Rotated-frame half-extent along semi-axis a, in pixels.
         reach_b: Rotated-frame half-extent along semi-axis b, in pixels.
         cos_rz: Cosine of the in-plane rotation.
@@ -427,7 +429,7 @@ def apply_atmosphere(
     illumination_angle: float,
     phase_angle: float,
 ) -> AtmosphereLayers:
-    """Evaluate the haze layer over a reference-centred body radiance.
+    """Evaluate the haze layer over a reference-centered body radiance.
 
     The haze is evaluated over a limb band a few scale heights deep and split
     by compositing role: the on-disc haze (every band pixel the disc render
@@ -440,11 +442,11 @@ def apply_atmosphere(
     is never mutated (it may be a shared render cache entry).
 
     Parameters:
-        body_shape: The shaded body radiance at the reference centre, in
+        body_shape: The shaded body radiance at the reference center, in
             [0, 1], 0 outside the body.
         spec: The haze spec (pixel lengths already on this grid).
-        center_v: Body centre v the shape was rendered at, in grid pixels.
-        center_u: Body centre u the shape was rendered at, in grid pixels.
+        center_v: Body center v the shape was rendered at, in grid pixels.
+        center_u: Body center u the shape was rendered at, in grid pixels.
         semi_a: Semi-axis a in grid pixels.
         semi_b: Semi-axis b in grid pixels.
         semi_c: Depth semi-axis c in grid pixels.
@@ -483,7 +485,7 @@ def apply_atmosphere(
     # glow vanishes, and, on the disc, an annulus in from the limb to where the
     # grazing-excess column drops below _TAU_EPS.  Deep disc interior carries
     # no haze (the on-disc opacity is the excess of the slant path over the
-    # nadir path, zero at disc centre), though for a thick haze the annulus
+    # nadir path, zero at disc center), though for a thick haze the annulus
     # can span most of the disc; the guaranteed cost bound is the bounding
     # box computed below.
     #
@@ -522,8 +524,17 @@ def apply_atmosphere(
     if box is None:
         return empty
     box_v, box_u = box
-    v_ctr = (np.arange(box_v.start, box_v.stop, dtype=np.float64) + (0.5 - center_v))[:, None]
-    u_ctr = (np.arange(box_u.start, box_u.stop, dtype=np.float64) + (0.5 - center_u))[None, :]
+    # The box is named by array rows and columns and the body center is stated
+    # in the geometry layer's pixel corner coordinates, so the half pixel goes
+    # on before the center comes off.
+    v_ctr = (
+        np.arange(box_v.start, box_v.stop, dtype=np.float64)
+        + (PIXEL_CENTER_TO_CORNER_PX - center_v)
+    )[:, None]
+    u_ctr = (
+        np.arange(box_u.start, box_u.stop, dtype=np.float64)
+        + (PIXEL_CENTER_TO_CORNER_PX - center_u)
+    )[None, :]
 
     v_rot = (v_ctr * cos_rz - u_ctr * sin_rz) * cos_rt
     u_rot = v_ctr * sin_rz + u_ctr * cos_rz
@@ -571,7 +582,7 @@ def apply_atmosphere(
 
     # On-disc annulus: the solar elevation comes from the surface incidence,
     # and the opacity is the grazing EXCESS over the nadir column:
-    # tau_vert * (1 / mu - 1), zero at disc centre and diverging toward the
+    # tau_vert * (1 / mu - 1), zero at disc center and diverging toward the
     # limb, so the haze concentrates in a limb band.  The haze joins the
     # opaque paint (the disc is opaque anyway).
     if band_in.any():

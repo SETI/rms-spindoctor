@@ -111,24 +111,11 @@ class SchemaSource:
 
     Attributes:
         directory: A directory holding each schema under the name its URL ends in, from
-            which every URL is read and nothing is fetched, made absolute when the
-            source is built; or None, when every URL is fetched through
-            :func:`schema_cache`.
+            which every URL is read and nothing is fetched; or None, when every URL is
+            fetched through :func:`schema_cache`.
     """
 
     directory: Path | None = None
-
-    def __post_init__(self) -> None:
-        """Make the directory absolute, so that the source names one directory.
-
-        Two sources of one relative spelling in different working directories would
-        otherwise be one source: the set of schemas built from a source is kept under
-        the source itself, and both would then share whichever was built first.  An
-        absolute path is what xmlschema needs besides, since it reads a relative one
-        against the schema that imports it.
-        """
-        if self.directory is not None:
-            object.__setattr__(self, 'directory', self.directory.resolve())
 
     def locate(self, url: str) -> Path:
         """Return the local file a schema's URL resolves to.
@@ -137,8 +124,9 @@ class SchemaSource:
             url: The URL of an XML schema or a Schematron.
 
         Returns:
-            The file of the URL's name in :attr:`directory`, which is absolute, or, with
-            no directory, the file the schema cache holds the URL's download in.
+            The file of the URL's name in :attr:`directory`, as an absolute path whether
+            or not the directory is given as one, or, with no directory, the file the
+            schema cache holds the URL's download in.
 
         Raises:
             FileNotFoundError: If the directory holds no file of the URL's name, or the
@@ -147,7 +135,8 @@ class SchemaSource:
         if self.directory is None:
             return _fetch(url)
         name = url.rsplit('/', 1)[-1]
-        path = self.directory / name
+        # Absolute, since xmlschema reads a relative path against the schema importing it.
+        path = (self.directory / name).resolve()
         if name == '' or not path.is_file():
             raise FileNotFoundError(f'no file of its name is in {self.directory}')
         return path

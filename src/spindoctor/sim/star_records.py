@@ -16,7 +16,7 @@ the catalog magnitude, matching the real catalog reduction
 (``spindoctor.nav_model.stars.catalog``) -- not a rendered pixel value.
 
 A scene states every position as a pixel corner -- integer ``N`` is the
-boundary between pixel ``N - 1`` and pixel ``N``, so the centre of pixel
+boundary between pixel ``N - 1`` and pixel ``N``, so the center of pixel
 ``N`` is ``N + 0.5`` -- which is the pixel corner coordinate a star record declares.  The
 scene value therefore IS the record value and this builder copies it
 through.  The half pixel that separates it from a pixel-centric position comes off
@@ -58,9 +58,9 @@ def star_record_from_params(
         index: Zero-based position in the scene's star list; drives the
             record's unique number and default name.
         default_v: V position in pixel corner coordinates used when the entry has no ``v``
-            (frame centre).
+            (frame center).
         default_u: U position in pixel corner coordinates used when the entry has no ``u``
-            (frame centre).
+            (frame center).
 
     Returns:
         A fully populated star record at the unshifted catalog position, in

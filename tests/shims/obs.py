@@ -60,8 +60,20 @@ class FakeFOV:
 class FakeMeshgrid:
     """Stand-in for ``oops.Meshgrid``.
 
-    The pipeline only passes meshgrids back into ``Backplane(...)`` and
-    never inspects them, so the fake is opaque.
+    The pipeline only passes meshgrids back into ``Backplane(...)``, so the
+    fake computes nothing.  It does keep the ``origin``, ``limit`` and
+    ``oversample`` it was built with, which is where a model states the
+    sample positions it wants: a stand-in backplane rebuilds the sample
+    centers from them, and that is what lets a test pin the coordinate system
+    a model hands the geometry layer rather than only the shape of what comes
+    back.
+
+    Parameters:
+        origin: ``(u, v)`` low corner of the grid, in the pixel corner
+            coordinates the geometry layer reads.
+        limit: ``(u, v)`` high corner, in the same coordinates.
+        oversample: Per-axis sample counts per pixel.
+        swap: Whether arrays are (v, u)-indexed.
     """
 
     def __init__(
@@ -96,8 +108,9 @@ class FakeUV:
     """Stand-in for the result of ``Observation.uv_from_ra_and_dec``.
 
     Parameters:
-        u_vals: Array (or scalar) of U-pixel coordinates.
-        v_vals: Array (or scalar) of V-pixel coordinates.
+        u_vals: Array (or scalar) of U, in the pixel corner coordinates the
+            geometry layer reports.
+        v_vals: Array (or scalar) of V, in the same coordinates.
     """
 
     u_vals: np.ndarray
@@ -134,7 +147,7 @@ class FakeObs:
             tuple returned by ``ra_dec_limits_ext()``.
         radec_to_uv: Optional callable mapping ``(ra, dec, tfrac)`` to
             ``(u, v)`` for ``uv_from_ra_and_dec``.  When unset every
-            star projects onto the FOV centre.
+            star projects onto the FOV center.
         center_ra_rad: Right ascension of the frame center, in radians.
         center_dec_rad: Declination of the frame center, in radians.
     """
@@ -377,7 +390,7 @@ class FakeObs:
     # ------------------------------------------------------------------
 
     def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
-        """Return the configured frame-centre RA and DEC.
+        """Return the configured frame-center RA and DEC.
 
         Parameters:
             apparent: Whether to correct for aberration, as the real
@@ -397,12 +410,12 @@ class FakeObs:
         tfrac: float = 0.5,
         apparent: bool = True,
     ) -> FakeUV:
-        """Project RA/DEC into pixel coordinates.
+        """Project RA/DEC into the pixel corner coordinates ``oops`` reports.
 
         When ``self.radec_to_uv`` is set, the callable is invoked once per
         ``(ra, dec)`` point with ``(ra, dec, tfrac)`` and must return
         ``(u, v)``.  Otherwise the shim places every requested point at
-        the FOV centre with a small ``tfrac``-driven shift so the
+        the FOV center with a small ``tfrac``-driven shift so the
         smear-bracket calculation produces a deterministic non-zero
         displacement when desired.
 
@@ -411,6 +424,20 @@ class FakeObs:
             dec: Scalar or polymath-Scalar DEC.
             tfrac: Fraction along the exposure window.
             apparent: Accepted for API parity; ignored by the shim.
+
+        Returns:
+            A :class:`FakeUV` carrying one ``(u, v)`` per input point, in the
+            pixel corner coordinates the real call answers in.  An input of
+            length one is broadcast against the other, so the result is as long
+            as the longer input.  A scalar and a one-element array are the same
+            input here: ``np.atleast_1d`` normalizes them to each other before
+            anything else looks at them.
+
+        Raises:
+            ValueError: If the inputs are arrays of different lengths and
+                neither has length one.  Broadcasting reconciles a length-one
+                input with any length; for any other unequal pair the shim
+                makes no attempt to reconcile them.
         """
         ra_arr = np.atleast_1d(np.asarray(_extract_vals(ra), dtype=np.float64))
         dec_arr = np.atleast_1d(np.asarray(_extract_vals(dec), dtype=np.float64))
@@ -425,10 +452,10 @@ class FakeObs:
             u = np.asarray([p[0] for p in uv], dtype=np.float64)
             v = np.asarray([p[1] for p in uv], dtype=np.float64)
             return FakeUV(u_vals=u, v_vals=v)
-        v_centre = self.data.shape[0] / 2.0 + self.extfov_margin_vu[0]
-        u_centre = self.data.shape[1] / 2.0 + self.extfov_margin_vu[1]
-        u = np.full(n, u_centre)
-        v = np.full(n, v_centre)
+        v_center = self.data.shape[0] / 2.0 + self.extfov_margin_vu[0]
+        u_center = self.data.shape[1] / 2.0 + self.extfov_margin_vu[1]
+        u = np.full(n, u_center)
+        v = np.full(n, v_center)
         # Apply a per-point shift driven by tfrac so the bracket
         # difference is non-zero when the test wants smear.
         u = u + (tfrac - 0.5) * 2.0  # -1 at tfrac=0, +1 at tfrac=1

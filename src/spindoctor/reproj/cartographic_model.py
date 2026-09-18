@@ -57,9 +57,20 @@ def create_cartographic_model(
     involves shared state. Do not call from multiple threads with the same
     observation.
 
+    Precondition: the mosaic's grid must be anchored at its first row and
+    column, so that ``mosaic_data.lat_range[0]`` is the latitude of row 0 and
+    ``mosaic_data.lon_range[0]`` is the longitude of column 0, with row r at
+    ``lat_range[0] + r * lat_resolution`` and column c at
+    ``lon_range[0] + c * lon_resolution``. The sampling below inverts exactly
+    that relation, so a mosaic whose ranges describe the outer edges of the
+    grid, or any other origin, is sampled off by the difference between that
+    origin and this one. BodyMosaic.to_bounded() and BodyMosaic.to_full() both
+    satisfy the precondition.
+
     Parameters:
         mosaic_data: Body mosaic in lat/lon coordinates, typically obtained
-            from BodyMosaic.to_bounded() or BodyMosaic.to_full().
+            from BodyMosaic.to_bounded() or BodyMosaic.to_full(). Must satisfy
+            the grid-anchoring precondition above.
         obs: The oops Observation for which the model is being created.
         body_name: Name of the planetary body (e.g. 'MIMAS').
         latlon_type: Coordinate system for latitude/longitude. One of
@@ -107,7 +118,9 @@ def create_cartographic_model(
     lat_res = mosaic_data.lat_resolution
     lon_res = mosaic_data.lon_resolution
 
-    # Map each image pixel to fractional row/col in the mosaic.
+    # Map each image pixel to fractional row/col in the mosaic. This inverts
+    # the mosaic's rule that row r holds latitude lat_min + r * lat_res, which
+    # holds only under the grid-anchoring precondition documented above.
     # All values are in radians: bp_latitude, bp_longitude, lat_min, lon_min,
     # lat_res, and lon_res. Longitude uses modular arithmetic for wraparound.
     row_coords = (bp_latitude - lat_min) / lat_res

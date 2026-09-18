@@ -185,7 +185,7 @@ def test_from_config_perturbation_missing_field_raises() -> None:
 
 
 def test_from_config_invalid_feature_type_raises() -> None:
-    """from_config raises ValueError for unrecognised feature_type."""
+    """from_config raises ValueError for unrecognized feature_type."""
     data: dict[str, Any] = {
         'feature_type': 'BAND',
         'inner_data': _make_edge_data(),

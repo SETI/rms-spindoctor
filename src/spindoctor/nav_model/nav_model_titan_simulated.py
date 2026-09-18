@@ -12,7 +12,7 @@ than a parallel implementation of them, which is the whole point of grading a
 navigator against the simulator.
 
 Information boundary.  Every quantity below comes from the filtered
-``nav_params`` view: the body's centre, its axes, its pixel scale, its phase,
+``nav_params`` view: the body's center, its axes, its pixel scale, its phase,
 and its illumination direction -- catalog geometry a real pipeline reads from
 SPICE.  The ``atmosphere`` block that gives the rendered body its soft haze
 limb is truth and is never read here; the envelope radius comes from the same
@@ -22,7 +22,7 @@ frame.  Sim inventory contract: this model reads operator parameters
 directly, so the simulated inventory needs no ``center_uv`` key.
 
 Unconfigured scenes.  A body named TITAN that does not carry the parameters
-this model needs (its centre, its axes, and the pixel scale that turns the
+this model needs (its center, its axes, and the pixel scale that turns the
 configured atmosphere height into an envelope radius) yields NO model at all,
 and, because the simulated body model excludes TITAN unconditionally, no body
 model either.  The frame then resolves through the standard generic status
@@ -57,8 +57,8 @@ __all__ = ['REQUIRED_SIM_PARAMS', 'NavModelTitanSimulated']
 REQUIRED_SIM_PARAMS: tuple[str, ...] = ('center_v', 'center_u', 'axis1', 'axis2', 'km_per_pixel')
 """Body parameters a simulated Titan scene must supply for a model to build.
 
-The centre and the two image-plane axes give the predicted disc; the pixel
-scale is what turns the configured atmosphere height (kilometres) into an
+The center and the two image-plane axes give the predicted disc; the pixel
+scale is what turns the configured atmosphere height (kilometers) into an
 envelope radius (pixels), and without it the envelope -- the outer bound of
 everything the fit samples -- would have to be invented.  A scene missing any
 of them gets no haze model, which is a legible absence rather than a
@@ -221,7 +221,7 @@ class NavModelTitanSimulated(NavModelTitan):
         """Build the geometry dataclass from this scene's idealized parameters.
 
         The mapping is deliberately the sim analog of each real-frame
-        quantity: the disc centre is the operator's centre shifted into
+        quantity: the disc center is the operator's center shifted into
         extfov coordinates (the pipeline-wide convention for a predicted
         position), the solid radius is the mean image-plane semi-axis, the
         envelope adds the configured atmosphere height through the scene's
@@ -300,7 +300,7 @@ class NavModelTitanSimulated(NavModelTitan):
 
         Degeneracy mirrors the real model's test rather than restating it:
         the sub-solar point of a sphere at phase ``p`` projects
-        ``R sin(p)`` from the disc centre, so a phase near zero puts it
+        ``R sin(p)`` from the disc center, so a phase near zero puts it
         inside the same ``axis_min_offset_px`` the backplane search uses,
         on a disc that is rotationally symmetric anyway.
 
@@ -341,7 +341,7 @@ class NavModelTitanSimulated(NavModelTitan):
         Parameters:
             extfov_shape_vu: ``(rows, columns)`` of the extended frame.
             margin_vu: ``(margin_v, margin_u)`` extfov margins.
-            center_vu: Envelope centre in extfov coordinates.
+            center_vu: Envelope center in extfov coordinates.
             r_env_px: Envelope radius in pixels.
 
         Returns:
@@ -371,9 +371,16 @@ class NavModelTitanSimulated(NavModelTitan):
         for star in self._star_records:
             if float(star.get('vmag', 99.0)) > vmag_limit:
                 continue
+            # A scene states a star's position as a pixel corner and the disc is
+            # painted against pixel centric grids, so the half pixel comes off
+            # before the extfov margins go on -- the same conversion the
+            # catalog-driven model makes for its own star discs.
             paint_disc(
                 contaminant_ext,
-                (float(star['v']) + margin_vu[0], float(star['u']) + margin_vu[1]),
+                (
+                    float(star['v']) - PIXEL_CENTER_TO_CORNER_PX + margin_vu[0],
+                    float(star['u']) - PIXEL_CENTER_TO_CORNER_PX + margin_vu[1],
+                ),
                 radius_px,
             )
         fraction = occluded_disc_fraction(occluder_ext, center_vu, r_env_px)

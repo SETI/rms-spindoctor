@@ -2,7 +2,7 @@
 
 :func:`render_to_image` converts a (lon_deg, lat_deg, valid) coordinate grid
 -- produced by :mod:`~spindoctor.ui.mosaic_viewer.projections` -- into a
-``QImage`` (Format_RGB888) using nearest-neighbour texture lookup, the same
+``QImage`` (Format_RGB888) using nearest-neighbor texture lookup, the same
 contrast-stretch pipeline as the existing rectangular render path, and optional
 per-pixel metadata tinting.
 
@@ -47,20 +47,22 @@ def render_to_image(
         image_ma: 2-D masked array (n_data_rows, n_data_cols) with the
             photometrically-corrected mosaic data.
         lon_deg: 2-D float64 array of longitudes (deg) for every output pixel,
-            in [0, 360).  After binning to ``k``, any pixel with ``lon_bin_to_dc[k] == -1``
-            has no data column and is off-grid (no-data when ``valid`` is True).
-        lat_deg: 2-D float64 array of latitudes (deg), in [-90, 90].  Latitudes outside
-            ``[lat_min_deg, lat_min_deg + n_data_rows * d_lat_deg)`` map to ``dr`` outside
-            ``[0, n_data_rows)`` and are off-grid (no-data when ``valid`` is True).
+            in [0, 360).  Each goes to the bin whose sample is nearest it; a pixel
+            whose bin has ``lon_bin_to_dc[k] == -1`` has no data column and is
+            off-grid (no-data when ``valid`` is True).
+        lat_deg: 2-D float64 array of latitudes (deg), in [-90, 90].  Each goes to
+            the row whose sample is nearest it, so a latitude more than half a row
+            below ``lat_min_deg`` or above the last row's own latitude maps outside
+            ``[0, n_data_rows)`` and is off-grid (no-data when ``valid`` is True).
         valid: 2-D bool array; False pixels are painted black (off-projection
             background).  True pixels with no usable data (outside the file's
             lat/lon extent or explicitly masked) are painted dark red.
-        lon_min_deg: Geographic minimum longitude of the data grid (deg).
-        lat_min_deg: Geographic minimum latitude of the data grid (deg).
+        lon_min_deg: Longitude the data grid's first column samples (deg).
+        lat_min_deg: Latitude the data grid's first row samples (deg).
         d_lon_deg: Longitude resolution of the data grid (deg/column).
         d_lat_deg: Latitude resolution of the data grid (deg/row).
-        lon_bin_to_dc: 1-D int32 array mapping full-circle longitude bin index
-            to data column index (-1 = absent).
+        lon_bin_to_dc: 1-D int32 array mapping full-circle longitude bin number
+            to data column number (-1 = absent).
         n_full_lon: Length of ``lon_bin_to_dc``.
         n_data_rows: Number of rows in ``image_ma``.
         n_data_cols: Number of columns in ``image_ma``.
@@ -68,7 +70,7 @@ def render_to_image(
         white: Stretch white point.
         gamma: Stretch gamma (applied as power).
         color_tint: Optional per-pixel RGB tint, shape
-            (n_data_rows, n_data_cols, 3), float32 in [0, 1].  None = greyscale.
+            (n_data_rows, n_data_cols, 3), float32 in [0, 1].  None = grayscale.
 
     Returns:
         A QImage in Format_RGB888 matching the shape of ``lon_deg`` / ``lat_deg``.
@@ -105,12 +107,20 @@ def render_to_image(
     lon_res_rad = math.radians(d_lon_deg)
     twopi = 2.0 * math.pi
 
+    # Grid bin ``k`` is the point sample taken at ``k * resolution``, so the
+    # nearest-neighbor lookup this renderer promises is a round, not a floor:
+    # a floor picks the bin below whenever the ray falls in the upper half of a
+    # bin, which is half the sphere.
+    # The longitude axis is circular, so the reduction is a modulo and not a
+    # clamp: a ray in the upper half of the last bin rounds up to ``n_full_lon``,
+    # which is bin 0 once round again.  Clamping it to the last bin would show
+    # that bin's column, or no data at all where it is absent, in a seam at the
+    # prime meridian.
     lon_r_mod = np.mod(lon_r, twopi)
-    k = np.floor(np.minimum(lon_r_mod / lon_res_rad, float(n_full_lon) - 1e-9)).astype(np.int64)
-    k = np.clip(k, 0, n_full_lon - 1)
+    k = np.mod(np.round(lon_r_mod / lon_res_rad).astype(np.int64), n_full_lon)
     dc = lon_bin_to_dc[k]  # data column, -1 if absent
 
-    dr = np.floor((lat_deg - lat_min_deg) / d_lat_deg).astype(np.int64)
+    dr = np.round((lat_deg - lat_min_deg) / d_lat_deg).astype(np.int64)
 
     inside = valid & (dc >= 0) & (dc < n_data_cols) & (dr >= 0) & (dr < n_data_rows)
 

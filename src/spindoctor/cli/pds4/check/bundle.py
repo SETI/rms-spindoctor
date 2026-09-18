@@ -1,4 +1,5 @@
-"""A bundle tree held to PDS4, reading the tree and the schemas its labels name.
+"""A bundle tree held to the PDS4 standard, reading the tree and the schemas its
+labels name.
 
 :func:`check_bundle` holds every label of a tree to the XML schemas and the Schematron
 it declares, reads every table through its label, holds the global index tables to the

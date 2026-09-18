@@ -1,9 +1,9 @@
-"""Shared behaviour tests across the three star-accepting NavTechniques.
+"""Shared behavior tests across the three star-accepting NavTechniques.
 
 The per-technique test files cover technique-specific paths
 (``StarUniqueMatchNav`` 1- vs 2-star, ``StarRefineNav`` outlier drop,
 ``StarFieldFromCatalogNav`` triplet matching).  Tests in this file
-parameterize behaviour that is identical across all three star
+parameterize behavior that is identical across all three star
 techniques — currently the "blank-image input yields a spurious
 result with confidence zero" contract.
 """

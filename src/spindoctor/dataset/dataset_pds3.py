@@ -59,7 +59,7 @@ class DataSetPDS3(DataSet):
     This class provides functionality common to all PDS3 datasets.
     """
 
-    # Data definitions overriden by subclasses
+    # Data definitions overridden by subclasses
     _ALL_VOLUME_NAMES: tuple[str, ...] = ()
     _INDEX_COLUMNS: tuple[str, ...] = ()
     # Index columns naming the camera that took the image, in preference order;
@@ -929,7 +929,7 @@ class DataSetPDS3(DataSet):
                 # TODO Implement actual error handling
                 # We have to convert the FCPaths to Posix strings here so that
                 # FileCache.retrieve() can use them. Note that if for some reason there was a
-                # specific FileCache given for pds3_holdings_root, it will be overriden by
+                # specific FileCache given for pds3_holdings_root, it will be overridden by
                 # self._index_filecache.
                 # TODO Needs to return exceptions instead of a single FileNotFoundError
                 # so we can tell the user what's actually going on.

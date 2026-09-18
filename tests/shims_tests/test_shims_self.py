@@ -28,12 +28,12 @@ from tests.shims import (
 
 
 def test_plant_circular_body_paints_disc_of_correct_radius() -> None:
-    """A 5-px-radius circle paints exactly the pixels with centre distance <= radius."""
+    """A 5-px-radius circle paints exactly the pixels with center distance <= radius."""
     shape = (40, 40)
-    centre_vu = (20.0, 20.0)
+    center_vu = (20.0, 20.0)
     radius_px = 5.0
     data = plant_circular_body(
-        shape=shape, centre_vu=centre_vu, radius_px=radius_px, resolution_km_px=2.0
+        shape=shape, center_vu=center_vu, radius_px=radius_px, resolution_km_px=2.0
     )
     vv, uu = np.meshgrid(
         np.arange(shape[0], dtype=np.float64),
@@ -41,25 +41,25 @@ def test_plant_circular_body_paints_disc_of_correct_radius() -> None:
         indexing='ij',
     )
     expected_pixels = int(
-        np.count_nonzero((vv - centre_vu[0]) ** 2 + (uu - centre_vu[1]) ** 2 <= radius_px**2)
+        np.count_nonzero((vv - center_vu[0]) ** 2 + (uu - center_vu[1]) ** 2 <= radius_px**2)
     )
     assert int(np.count_nonzero(data.body_mask)) == expected_pixels
 
 
 def test_plant_circular_body_incidence_increases_with_radius() -> None:
-    """The synthetic incidence ramps from 0 at centre to pi/2 at limb."""
+    """The synthetic incidence ramps from 0 at center to pi/2 at limb."""
     data = plant_circular_body(
-        shape=(40, 40), centre_vu=(20.0, 20.0), radius_px=10.0, resolution_km_px=1.0
+        shape=(40, 40), center_vu=(20.0, 20.0), radius_px=10.0, resolution_km_px=1.0
     )
-    centre_inc = float(data.incidence_rad[20, 20])
+    center_inc = float(data.incidence_rad[20, 20])
     near_limb = float(data.incidence_rad[20, 30])
-    assert centre_inc == pytest.approx(0.0, abs=0.05)
+    assert center_inc == pytest.approx(0.0, abs=0.05)
     assert near_limb == pytest.approx(math.pi / 2.0, abs=0.05)
 
 
 def test_fake_backplane_returns_real_polymath_scalar() -> None:
     """Backplane methods return real ``polymath.Scalar`` instances."""
-    body = plant_circular_body(shape=(20, 20), centre_vu=(10.0, 10.0), radius_px=5.0)
+    body = plant_circular_body(shape=(20, 20), center_vu=(10.0, 10.0), radius_px=5.0)
     bp = FakeBackplane(per_body={'MIMAS': body})
     incidence = bp.incidence_angle('MIMAS')
     assert isinstance(incidence, polymath.Scalar)
@@ -69,7 +69,7 @@ def test_fake_backplane_body_methods_round_trip() -> None:
     """Body backplane methods return the configured per-pixel arrays."""
     body = plant_circular_body(
         shape=(20, 20),
-        centre_vu=(10.0, 10.0),
+        center_vu=(10.0, 10.0),
         radius_px=5.0,
         sub_solar_lon_deg=30.0,
         phase_angle_deg=45.0,
@@ -89,7 +89,7 @@ def test_fake_backplane_body_lambert_default_is_cosine_of_incidence() -> None:
     On-body pixels carry ``cos(incidence)`` clipped to ``[0, inf)``; off-body
     pixels are zero.
     """
-    body = plant_circular_body(shape=(10, 10), centre_vu=(5.0, 5.0), radius_px=3.0)
+    body = plant_circular_body(shape=(10, 10), center_vu=(5.0, 5.0), radius_px=3.0)
     bp = FakeBackplane(per_body={'MIMAS': body})
     lambert = bp.lambert_law('MIMAS')
     incidence = bp.incidence_angle('MIMAS')
@@ -116,7 +116,7 @@ def test_fake_backplane_unknown_ring_raises_lookup_error() -> None:
 
 def test_fake_backplane_where_in_front_answers_for_a_hidden_body() -> None:
     """An unplanted occluder hides none of a far body found among the bodies."""
-    body = plant_circular_body(shape=(12, 9), centre_vu=(6.0, 4.0), radius_px=3.0)
+    body = plant_circular_body(shape=(12, 9), center_vu=(6.0, 4.0), radius_px=3.0)
     bp = FakeBackplane(per_body={'MIMAS': body})
     hidden = np.asarray(bp.where_in_front('ENCELADUS', 'MIMAS').vals)
     assert hidden.shape == (12, 9)
@@ -137,8 +137,8 @@ def test_fake_backplane_where_in_front_answers_for_a_hidden_ring() -> None:
 
 def test_fake_backplane_where_in_front_is_the_near_silhouette_off_the_far_one() -> None:
     """Two disjoint silhouettes: the near one is in front exactly where it is planted."""
-    near = plant_circular_body(shape=(12, 20), centre_vu=(6.0, 4.0), radius_px=2.0)
-    far = plant_circular_body(shape=(12, 20), centre_vu=(6.0, 15.0), radius_px=2.0)
+    near = plant_circular_body(shape=(12, 20), center_vu=(6.0, 4.0), radius_px=2.0)
+    far = plant_circular_body(shape=(12, 20), center_vu=(6.0, 15.0), radius_px=2.0)
     bp = FakeBackplane(per_body={'ENCELADUS': near, 'MIMAS': far})
     in_front = np.asarray(bp.where_in_front('ENCELADUS', 'MIMAS').vals, dtype=bool)
     assert np.array_equal(in_front, near.body_mask)
@@ -146,8 +146,8 @@ def test_fake_backplane_where_in_front_is_the_near_silhouette_off_the_far_one() 
 
 def test_fake_backplane_where_in_front_refuses_overlapping_silhouettes() -> None:
     """Without distances the stand-in cannot rank overlapping surfaces, and says so."""
-    near = plant_circular_body(shape=(12, 9), centre_vu=(6.0, 4.0), radius_px=3.0)
-    far = plant_circular_body(shape=(12, 9), centre_vu=(7.0, 5.0), radius_px=3.0)
+    near = plant_circular_body(shape=(12, 9), center_vu=(6.0, 4.0), radius_px=3.0)
+    far = plant_circular_body(shape=(12, 9), center_vu=(7.0, 5.0), radius_px=3.0)
     bp = FakeBackplane(per_body={'ENCELADUS': near, 'MIMAS': far})
     with pytest.raises(ValueError, match="cannot say whether 'ENCELADUS' or 'MIMAS' is nearer"):
         bp.where_in_front('ENCELADUS', 'MIMAS')

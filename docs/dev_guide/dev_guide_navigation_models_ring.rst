@@ -93,7 +93,7 @@ turn of arc now returns the ring radius (geometrically right) where scan-order s
 returned a larger value set by the rasterizer's quadrant bias, and short curved edges
 measure roughly half what they used to.  An edge near the ``max_radial_px`` threshold can
 therefore emit as a ``RING_ANNULUS`` where it previously emitted as a ``RING_EDGE``,
-changing which technique navigates it.  The mask-neighbour test that finds the normal AXIS cannot
+changing which technique navigates it.  The mask-neighbor test that finds the normal AXIS cannot
 distinguish the high-radius side from the low-radius side on its own -- it would emit signs
 that follow scan order and rasterization -- and the orbit-uncertainty channel sums the
 normals, so a random sign per vertex would fabricate coherence on geometry that should
@@ -112,13 +112,13 @@ projected to pixels at the ring's radial scale:
         \frac{\sigma_{\mathrm{rms,\,km}}}{\mathrm{km/px}_{\mathrm{radial}}}.
 
 The numerator is the maximum of the inner-edge and outer-edge ``rms`` values supplied by
-the per-planet ring catalogue (``config_3N0_<planet>_rings.yaml``); taking the maximum
+the per-planet ring catalog (``config_3N0_<planet>_rings.yaml``); taking the maximum
 rather than the average is conservative — a feature's overall radial uncertainty is
-dominated by its least well-characterised edge. The denominator is the per-image radial
+dominated by its least well-characterized edge. The denominator is the per-image radial
 km/px scale at the ring (the mean of the per-pixel ring-radial-resolution backplane). A
 single :math:`\sigma_{\mathrm{radial,\,px}}` value is broadcast across every vertex of
 the polyline; spatial variation of the catalog ``rms`` along the ring's longitude is not
-modelled.
+modeled.
 
 The along-edge sigma is the project-wide constant
 :data:`~spindoctor.nav_model.nav_model_rings.RING_EDGE_SIGMA_ALONG_PX` (``0.5`` px), reflecting
@@ -203,7 +203,7 @@ Configuration
 
 The model's runtime knobs are split across three locations: the ``rings`` block in
 ``src/spindoctor/config_files/config_050_rings.yaml`` (general per-model knobs and label
-rendering), the per-planet ring catalogues in
+rendering), the per-planet ring catalogs in
 ``src/spindoctor/config_files/config_3N0_*_rings.yaml`` (one file per planet, each carrying a
 ``rings.ring_features`` mapping), and the per-planet annulus-emission thresholds under
 ``feature_emission.ring_annulus`` in ``src/spindoctor/config_files/config_510_techniques.yaml``
@@ -260,7 +260,7 @@ bullet names the consumer (or "reserved" when no consumer is wired).
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 - ``remove_body_shadows`` — bool, default ``false``. Reserved for masking the projected
   shadow of every body in the FOV. Not consumed by the active extractor.
-- ``ring_features`` — dict[str, dict]. Per-planet ring catalogue overlaid from the
+- ``ring_features`` — dict[str, dict]. Per-planet ring catalog overlaid from the
   per-planet ``config_3N0_*_rings.yaml`` files (see below). Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 - ``label_font`` — str, default ``liberation2/LiberationMono-Bold.ttf``. Font used for
@@ -283,7 +283,7 @@ bullet names the consumer (or "reserved" when no consumer is wired).
   of the label arrow. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
 
-Per-planet ring catalogue
+Per-planet ring catalog
 -------------------------
 
 Each ``config_3N0_<planet>_rings.yaml`` file carries a single
@@ -333,7 +333,7 @@ Per-instrument overrides
 ------------------------
 
 The ``rings`` block is global: per-instrument YAML (``config_4N0_inst_*.yaml``) does not
-override any of the keys above. Instrument-specific behaviour enters through the
+override any of the keys above. Instrument-specific behavior enters through the
 observation snapshot — the optical PSF sigma read from
 :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf` and the extended-FOV margin set by
 :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings` — rather than through
@@ -427,7 +427,7 @@ Call path
 Call path traced through
 :meth:`~spindoctor.nav_model.nav_model_rings.NavModelRings.create_model`:
 
-1. Open a logged section. Look up the per-planet ring catalogue from the configured
+1. Open a logged section. Look up the per-planet ring catalog from the configured
    ``ring_features`` mapping. Each entry carries a name, a radius, an RMS, and a per-edge
    surface-brightness profile.
 2. Build an oversampled meshgrid around the predicted ring's projected bounding box and

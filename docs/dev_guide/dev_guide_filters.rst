@@ -66,7 +66,7 @@ the same change.
      - Gaussian smooth followed by Sobel gradient magnitude.
      - ``sigma_xy``
    * - ``MORPH_DILATE``
-     - Grey dilation by a rectangular structuring element whose per-axis
+     - Gray dilation by a rectangular structuring element whose per-axis
        half-width is that axis's sigma rounded up; used when building
        search margins for edge-based matching.
      - ``sigma_xy``

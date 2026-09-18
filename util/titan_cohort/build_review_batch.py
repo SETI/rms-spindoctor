@@ -8,7 +8,7 @@ and gate outcome burned into a margin, plus a manifest CSV and a pre-filled
 ``votes.yaml``.
 
 The operator's job per frame: look at whether the drawn envelope circle,
-symmetry axis, and centre cross land on the haze limb, and vote.  Nothing in
+symmetry axis, and center cross land on the haze limb, and vote.  Nothing in
 this repo fabricates those votes.
 
 Run after a cohort collection pass::
@@ -60,7 +60,7 @@ PHASE_BINS: tuple[tuple[float, float], ...] = (
 
 VOTE_INSTRUCTIONS = (
     'One vote per frame. y = the drawn envelope circle, symmetry axis, and '
-    'centre cross sit on the haze limb at the stated offset. '
+    'center cross sit on the haze limb at the stated offset. '
     'm = Titan is navigable in this frame but the overlay is misaligned; '
     'the frame is kept and routed to manual navigation. '
     'n = the frame should not have navigated at all (occulted, clipped, or '

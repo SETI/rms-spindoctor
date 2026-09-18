@@ -4,11 +4,16 @@ The model's whole job is to build the same
 :class:`~spindoctor.nav_model.titan_geometry.TitanGeometryInputs` the
 catalog-driven model builds, from a simulated scene's idealized body
 parameters instead of from ``oops``.  These tests pin that translation --
-the pixel-index convention, the radii, the symmetry axis and its degenerate
-branch, and the three contaminant-mask components -- plus the fact that
-everything downstream (the emitted feature, its reliability, the overlay) is
-inherited rather than reimplemented, so a simulated haze frame cannot mean
-something different from a real one.
+the crossing between the two pixel coordinate systems, the radii, the
+symmetry axis and its degenerate branch, and the three contaminant-mask
+components -- plus the fact that everything downstream (the emitted feature,
+its reliability, the overlay) is inherited rather than reimplemented, so a
+simulated haze frame cannot mean something different from a real one.
+
+The two places where the pixel coordinate systems cross -- the predicted disc
+center and the masked star disc -- are held against the frame the simulator
+drew rather than against the arithmetic that produced them.  The rest pin the
+model's own arithmetic and measure nothing rendered.
 """
 
 import math
@@ -24,7 +29,7 @@ from spindoctor.nav_model.nav_model_titan_simulated import (
     NavModelTitanSimulated,
 )
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 300
 _CENTER = 150.0
@@ -32,6 +37,22 @@ _SOLID_RADIUS_PX = 60.0
 # Titan's published mean radius over the apparent radius above: the scene's
 # pixel scale, and therefore the one the envelope radius is derived through.
 _KM_PER_PIXEL = 2575.0 / _SOLID_RADIUS_PX
+
+# A body placed away from the frame center, and at different v and u, so a
+# prediction that had reached for either instead of the body's own center
+# could not pass.  Stated half past a whole number in the pixel corner
+# coordinates a scene is written in, the rendered center falls on a pixel
+# center, where the frame's mirror symmetry is exact whole array rows.
+_DISC_V = 100.5
+_DISC_U = 130.5
+# Half-width of the box reflected around the disc: wide enough to hold the
+# whole body and its haze, narrow enough to keep the frame edges out.
+_DISC_REACH_PX = 80
+
+# A star placed the same way, clear of the body's light.
+_STAR_V = 40.5
+_STAR_U = 60.5
+_STAR_REACH_PX = 8
 
 
 def _titan(**overrides: Any) -> dict[str, Any]:
@@ -68,11 +89,117 @@ def _obs(bodies: list[dict[str, Any]], stars: list[dict[str, Any]] | None = None
     return ObsSim.from_file('/tmp/titan_sim.json', sim_params=scene)
 
 
-def _model(bodies: list[dict[str, Any]], stars: list[dict[str, Any]] | None = None) -> Any:
-    """Build the simulated haze model for a scene, asserting exactly one."""
-    instances = NavModelTitanSimulated.instances_for_obs(_obs(bodies, stars))
+def _model_for(obs: ObsSim) -> Any:
+    """Build the simulated haze model for an observation, asserting exactly one.
+
+    Parameters:
+        obs: Simulated observation to build the model against.
+
+    Returns:
+        The one simulated haze model the observation yields.
+    """
+    instances = NavModelTitanSimulated.instances_for_obs(obs)
     assert len(instances) == 1
     return instances[0]
+
+
+def _model(bodies: list[dict[str, Any]], stars: list[dict[str, Any]] | None = None) -> Any:
+    """Build the simulated haze model for a scene, asserting exactly one.
+
+    Parameters:
+        bodies: Body entries for the scene.
+        stars: Star entries for the scene, or None for a starless scene.
+
+    Returns:
+        The one simulated haze model the scene yields.
+    """
+    return _model_for(_obs(bodies, stars))
+
+
+def _rendered_image(obs: ObsSim) -> NDArrayFloatType:
+    """The frame the simulator drew for an observation.
+
+    Parameters:
+        obs: Simulated observation carrying the rendered frame.
+
+    Returns:
+        The rendered frame, as the simulator drew it.
+    """
+    return np.asarray(obs.data, dtype=np.float64)
+
+
+def _rendered_disc_center_vu(image: NDArrayFloatType) -> tuple[float, float]:
+    """Measure a rendered body's center from the extent of its own light.
+
+    A fully lit sphere renders radially symmetric, so the first and the last
+    row its bright half reaches sit the same distance either side of its
+    center and their midpoint is that center, in the pixel centric
+    coordinates an array index is read in.
+
+    Parameters:
+        image: A rendered frame holding one body and nothing else.
+
+    Returns:
+        The measured ``(v, u)`` center in data coordinates.
+    """
+    floor = float(image.min())
+    lit = image > floor + 0.5 * (float(image.max()) - floor)
+    vs, us = np.nonzero(lit)
+    return (0.5 * float(vs.min() + vs.max()), 0.5 * float(us.min() + us.max()))
+
+
+def _rendered_star_center_vu(
+    image: NDArrayFloatType, near_vu: tuple[int, int]
+) -> tuple[float, float]:
+    """Measure a rendered star's center of light within a box around it.
+
+    The frame carries a constant pedestal, so the box is weighted by its
+    brightness above the frame's own floor before the centroid is taken.
+
+    Parameters:
+        image: A rendered frame.
+        near_vu: Whole-pixel ``(v, u)`` the box is cut around, close enough
+            to the star that the box holds all of its light.
+
+    Returns:
+        The measured ``(v, u)`` center in data coordinates.
+    """
+    v_lo = near_vu[0] - _STAR_REACH_PX
+    u_lo = near_vu[1] - _STAR_REACH_PX
+    box = image[v_lo : near_vu[0] + _STAR_REACH_PX + 1, u_lo : near_vu[1] + _STAR_REACH_PX + 1]
+    weights = box - float(image.min())
+    vs, us = np.mgrid[v_lo : v_lo + box.shape[0], u_lo : u_lo + box.shape[1]].astype(np.float64)
+    total = float(weights.sum())
+    return (float((vs * weights).sum() / total), float((us * weights).sum() / total))
+
+
+def _mirror_residual(
+    image: NDArrayFloatType, center_vu: tuple[float, float], *, reach_px: int, axis: int
+) -> float:
+    """Largest disagreement between a box of a frame and its own reflection.
+
+    Cuts the square box of half-width ``reach_px`` around ``center_vu`` and
+    reflects it across one axis.  Zero means the light in the box really is
+    symmetric about that row or column, which is a property of the rendered
+    frame and of nothing the model computed.
+
+    Parameters:
+        image: A rendered frame.
+        center_vu: The pixel centric center to reflect about; the scenes
+            here place their light on a pixel center, so a measurement that
+            came out half a pixel away cuts the box off center and the
+            residual stops being zero.
+        reach_px: Half-width of the box in pixels.
+        axis: 0 to reflect rows, 1 to reflect columns.
+
+    Returns:
+        The largest absolute difference between the box and its mirror.
+    """
+    v0 = int(center_vu[0])
+    u0 = int(center_vu[1])
+    box = image[v0 - reach_px : v0 + reach_px + 1, u0 - reach_px : u0 + reach_px + 1]
+    mirrored = box[::-1, :] if axis == 0 else box[:, ::-1]
+    return float(np.abs(box - mirrored).max())
 
 
 # ---------------------------------------------------------------------------
@@ -80,19 +207,25 @@ def _model(bodies: list[dict[str, Any]], stars: list[dict[str, Any]] | None = No
 # ---------------------------------------------------------------------------
 
 
-def test_predicted_center_is_the_rendered_disc_centre() -> None:
-    """The predicted centre is the rendered silhouette's pixel-index centre.
+def test_predicted_center_is_the_rendered_disc_center() -> None:
+    """The predicted center lands on the center of the disc the renderer drew.
 
-    The body renderer treats a stated centre as a corner coordinate, so a
-    body at ``center_v`` paints about index ``center_v - 0.5``.  Predicting
-    the stated value instead would plant a flat half-pixel cross-track error
-    in every simulated haze frame.
+    The body is rendered fully lit, so it is radially symmetric and the frame
+    is its own witness: reflected about the row and the column its light
+    centroids to, it reproduces itself exactly.  The prediction is then held
+    against that measured center rather than against the arithmetic that
+    produced it, so a model that read the scene's pixel corner center as a
+    pixel centric one misses the light by the half pixel that separates the
+    two systems.
     """
-    geometry = _model([_titan()]).geometry_inputs
-    margin_v = int(_obs([_titan()]).extfov_margin_v)
-    expected = _CENTER - PIXEL_CENTER_TO_CORNER_PX + margin_v
-    assert geometry.predicted_center_vu[0] == pytest.approx(expected)
-    assert geometry.predicted_center_vu[1] == pytest.approx(expected)
+    obs = _obs([_titan(center_v=_DISC_V, center_u=_DISC_U, phase_angle=0.0)])
+    image = _rendered_image(obs)
+    measured = _rendered_disc_center_vu(image)
+    predicted = _model_for(obs).geometry_inputs.predicted_center_vu
+    assert _mirror_residual(image, measured, reach_px=_DISC_REACH_PX, axis=0) == 0.0
+    assert _mirror_residual(image, measured, reach_px=_DISC_REACH_PX, axis=1) == 0.0
+    assert predicted[0] - float(obs.extfov_margin_v) == pytest.approx(measured[0])
+    assert predicted[1] - float(obs.extfov_margin_u) == pytest.approx(measured[1])
 
 
 def test_solid_radius_is_the_mean_image_plane_semi_axis() -> None:
@@ -136,7 +269,7 @@ def test_axis_is_degenerate_near_zero_phase() -> None:
     """Near zero phase the disc is rotationally symmetric and any axis serves.
 
     The sub-solar point of a sphere at phase ``p`` projects ``R sin(p)`` from
-    the disc centre, so a small enough phase puts it inside the configured
+    the disc center, so a small enough phase puts it inside the configured
     minimum axis offset -- the same condition the catalog model tests on its
     incidence backplane.
     """
@@ -228,6 +361,29 @@ def test_bright_star_contributes_a_masked_disc() -> None:
     assert geometry.contaminant_mask is not None
     margin_v = 50
     assert bool(geometry.contaminant_mask[int(40.0) + margin_v, int(40.0) + margin_v])
+
+
+def test_star_disc_covers_the_pixels_the_star_lit() -> None:
+    """The masked disc is centered on the light the renderer gave the star.
+
+    The rendered star is the anchor: its light is symmetric about the row and
+    the column it centroids to, and the disc that hides it has to be centered
+    on the same place.  A scene states a star's position as a pixel corner
+    and the disc is painted against pixel centric grids, so a mask painted at
+    the stated number sits half a pixel off the light it is there to cover,
+    and that shows up here as a disagreement with the measurement.
+    """
+    star = {'name': 'BRIGHT', 'v': _STAR_V, 'u': _STAR_U, 'vmag': 5.0}
+    obs = _obs([_titan()], [star])
+    image = _rendered_image(obs)
+    measured = _rendered_star_center_vu(image, (int(_STAR_V), int(_STAR_U)))
+    mask = _model_for(obs).geometry_inputs.contaminant_mask
+    assert mask is not None
+    vs, us = np.nonzero(mask)
+    assert _mirror_residual(image, measured, reach_px=_STAR_REACH_PX, axis=0) == 0.0
+    assert _mirror_residual(image, measured, reach_px=_STAR_REACH_PX, axis=1) == 0.0
+    assert float(vs.mean()) - float(obs.extfov_margin_v) == pytest.approx(measured[0])
+    assert float(us.mean()) - float(obs.extfov_margin_u) == pytest.approx(measured[1])
 
 
 def test_faint_star_is_left_unmasked() -> None:
@@ -359,8 +515,12 @@ def test_extfov_shape_matches_the_observation() -> None:
     )
 
 
-def test_contaminant_mask_has_no_true_pixels_outside_the_frame_shape() -> None:
-    """The mask never claims pixels the extended frame does not have."""
+def test_a_sibling_near_the_frame_origin_enters_the_mask() -> None:
+    """A moon in the corner of the data frame still masks pixels.
+
+    This asserts the mask the model built is non-empty and measures nothing
+    rendered.
+    """
     geometry = _model([_titan(), _sibling(10.0, range_km=2.0e6)]).geometry_inputs
     assert geometry.contaminant_mask is not None
     assert np.count_nonzero(geometry.contaminant_mask) > 0

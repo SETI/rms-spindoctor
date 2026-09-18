@@ -104,7 +104,7 @@ def test_infer_obs_metadata_missing_midtime_attribute(tmp_path: Path) -> None:
 
 
 def test_infer_obs_metadata_returns_blanks_for_unknown_obs() -> None:
-    """An unrecognised obs class defaults to empty mission / camera fields."""
+    """An unrecognized obs class defaults to empty mission / camera fields."""
     obs = _fake_obs(cls_name='ObsMystery', detector=None, filter1=None, filter2=None)
     draft = infer_obs_metadata(obs)
     assert draft.mission == ''

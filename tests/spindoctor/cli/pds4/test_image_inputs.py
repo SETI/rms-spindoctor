@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from filecache import FCPath
 
-from spindoctor.cli.pds4.image_inputs import image_inputs, report_image_inputs
+from spindoctor.cli.pds4.image_inputs import report_image_inputs
 
 from .conftest import make_image_file
 
@@ -92,31 +92,3 @@ def test_an_image_whose_navigation_did_not_succeed_is_incomplete(tmp_path: Path)
         f'{STUB}: navigation document present, summary PNG present, backplane FITS present, '
         'backplane metadata present, navigation did not succeed (status error): incomplete'
     )
-
-
-def test_a_root_given_as_a_string_or_a_path_names_the_files_an_fcpath_names(
-    tmp_path: Path,
-) -> None:
-    """The two roots are taken as a string and as a Path, as well as as an FCPath."""
-    nav = tmp_path / 'nav'
-    backplanes = tmp_path / 'backplanes'
-    expected = image_inputs(
-        STUB, nav_results_root=FCPath(nav), backplane_results_root=FCPath(backplanes)
-    )
-    as_strings = image_inputs(
-        STUB, nav_results_root=str(nav), backplane_results_root=str(backplanes)
-    )
-    as_paths = image_inputs(STUB, nav_results_root=nav, backplane_results_root=backplanes)
-    assert as_strings == expected
-    assert as_paths == expected
-
-
-def test_a_report_built_from_string_roots_names_the_same_files(tmp_path: Path) -> None:
-    """The report over roots given as strings is the report over the same FCPaths."""
-    _write_inputs(tmp_path)
-    report = report_image_inputs(
-        make_image_file(results_path_stub=STUB),
-        nav_results_root=str(tmp_path / 'nav'),
-        backplane_results_root=str(tmp_path / 'backplanes'),
-    )
-    assert report.line() == _line(tmp_path)

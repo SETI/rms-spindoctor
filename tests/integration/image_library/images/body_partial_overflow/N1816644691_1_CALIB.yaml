@@ -19,10 +19,9 @@ ground_truth:
     body_partial_overflow exemplar from cohort-curation review batch 002 (seq 027).
     Selection: DIONE | 60-90; {"apparent_diameter_px": 1264.2, "center_phase_deg": 88.576, "filter": "CL1", "lat_coverage_deg": 58.2, "target": "DIONE", "year": "2015"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.375, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [4.5, 11.5], "BodyLimbNav": [3.9629, 11.7921]}.
-    Primary ratchet 2026-07-16: after the 2026-07-14 NCC-covariance rederivation BodyLimbNav is the highest-confidence technique; disc and limb still agree at the operator-verified offset and the navigation is unchanged. Ratcheted BodyDiscCorrelateNav -> BodyLimbNav.
+    Pipeline at curation: status=success, confidence=0.375, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav'], per-technique offsets={"BodyDiscCorrelateNav": [4.5, 11.5], "BodyLimbNav": [3.9629, 11.7921]}.
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/BodyLimbNav -> measured success/low/BodyDiscCorrelateNav. Tier medium->low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. Offset unchanged and within slack. Primary also moves to BodyDiscCorrelateNav with the recalibrated confidences.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. The primary is BodyDiscCorrelateNav, the highest-confidence contributor.
 expected:
   status: success
   confidence_tier: low

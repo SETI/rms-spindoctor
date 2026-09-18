@@ -35,7 +35,7 @@ sampled DT values at the transformed vertex positions.
 Stage 1 — coarse integer cross-correlation
 ------------------------------------------
 
-The first stage rasterises the polyline into a binary mask aligned with the image, thresholds
+The first stage rasterizes the polyline into a binary mask aligned with the image, thresholds
 the truncated DT into an edge mask, and evaluates the per-vertex match fraction
 
 .. math::
@@ -51,7 +51,7 @@ over every integer offset in :math:`[-m_{v}, m_{v}] \times [-m_{u}, m_{u}]`, whe
 image after the shift. Both inputs are binary; dividing the raw overlap count by the
 in-bounds vertex count removes the bias of a raw overlap count toward shifts that simply
 keep more vertices in bounds. This per-vertex match fraction is deliberately *not* the
-binary normalised cross-correlation (a binary NCC normalises by
+binary normalized cross-correlation (a binary NCC normalizes by
 :math:`\sqrt{N_{\mathrm{in\,bounds}}}`, not :math:`N_{\mathrm{in\,bounds}}`, so its argmax
 can differ): the plain fraction fully cancels the in-bounds-count advantage, at the cost of
 over-rewarding shifts with very few surviving vertices. That failure mode is closed by a
@@ -94,7 +94,7 @@ image gradient vector sampled at the shifted vertex:
             \max\!\left(0, \hat{n}_{i} \cdot \hat{g}[x_{i} + \Delta x]\right)}
              {N_{\mathrm{in\,bounds}}(\Delta v, \Delta u)}
 
-Both vectors are unit-normalised before the dot product, so only gradient *direction* enters:
+Both vectors are unit-normalized before the dot product, so only gradient *direction* enters:
 a faint-but-correctly-oriented true edge is never out-weighted by a bright high-contrast
 clutter edge. A vertex whose local edge runs the wrong way (gradient anti-parallel to the
 model normal — a terminator, a far-side ring edge, a crater rim) contributes nothing; an
@@ -119,7 +119,7 @@ polarity-blind Stage 1 search; making its coarse seed robust is separate work.
 Stage 2 — sub-pixel Levenberg-Marquardt refinement
 --------------------------------------------------
 
-Starting from the integer seed, the refiner minimises
+Starting from the integer seed, the refiner minimizes
 
 .. math::
 
@@ -152,7 +152,7 @@ Each LM iteration:
    so the cached state used by the final-iteration covariance reflects the committed
    parameters. The convergence test uses the step-norm in pixel-equivalent units —
    translation magnitudes contribute directly; the rotation step is multiplied by the
-   pivot-to-image-centre distance so the same threshold applies to translation-only and
+   pivot-to-image-center distance so the same threshold applies to translation-only and
    translation-plus-rotation fits.
 
 The iteration terminates when the step-norm drops below the configured tolerance, when the
@@ -179,11 +179,11 @@ The per-technique ``gradient_ridge_refine`` tuning flag is **on (1) for
 RingEdgeNav and off (0) for the limb and terminator fits**. It is correct for *symmetric*
 edges only:
 
-- The ring edge benefits on dense real ring scenes: the binary edge mask quantises detected
+- The ring edge benefits on dense real ring scenes: the binary edge mask quantizes detected
   edges to the integer pixel grid, so a large fraction of model vertices land exactly on
   edge pixels (a DT of zero and zero gradient) and the DT-LM step stalls at the integer
   coarse-NCC seed. The continuous pass refines against the un-thresholded gradient
-  magnitude, recovering the sub-pixel offset the quantised DT discards. A ring edge is a
+  magnitude, recovering the sub-pixel offset the quantized DT discards. A ring edge is a
   symmetric transition whose gradient peak coincides with the geometric edge, so refining
   onto the peak is unbiased. (On clean sim scenes the DT-LM already reaches its ~0.016 px
   floor, so the refine is a no-op there.)
@@ -209,7 +209,7 @@ residual array only to keep it numerically well-defined; with a zero weight it c
 nothing to the cost or the normal equations.) This keeps a body-limb fit from latching onto
 the body's interior crater rims
 (whose gradient direction is opposite the limb's), and a ring-edge fit from latching onto a
-neighbouring ring's edge (whose gradient sign reverses).
+neighboring ring's edge (whose gradient sign reverses).
 
 Robustness via Tukey biweight
 -----------------------------
@@ -304,7 +304,7 @@ form*: invert each covariance, sum, invert again. :func:`scipy.linalg.pinvh` is 
 inversion and the same ``rtol`` propagates throughout, so a single rank-1 ring constraint plus
 any other rank-2 result yields a fully-resolved 2-D answer; a single rank-1 ring constraint
 alone yields a rank-1 final covariance with the unobservable axis honestly flagged. This is
-why the per-technique result must report :math:`I^{+}` rather than a regularised dense
+why the per-technique result must report :math:`I^{+}` rather than a regularized dense
 inverse: the ensemble's rank-deficiency-aware fusion depends on the unobservable directions
 being explicit zeros in the per-technique information matrix, not finite values driven by an
 arbitrary regulariser.
@@ -330,7 +330,7 @@ Restrictions and assumptions
   ``use_polarity=False``.
 - The convergence test uses a single step-norm tolerance for both translation-only and
   translation-plus-rotation fits. Callers that fit rotation must provide a positive
-  pivot-to-image-centre distance so the rotation step can be converted to pixel-equivalent
+  pivot-to-image-center distance so the rotation step can be converted to pixel-equivalent
   units; missing or zero distance raises :exc:`ValueError`.
 
 Sources of uncertainty
@@ -447,7 +447,7 @@ example documented at :doc:`dev_guide_techniques_body_limb`):
    techniques (``BodyLimbNav``, ``BodyTerminatorNav``), or
    :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored` for ``RingEdgeNav``.
 5. Decide whether to fit camera rotation; when rotation is fit, set the rotation pivot to the
-   vertex centroid and read the pivot-to-image-centre distance via
+   vertex centroid and read the pivot-to-image-center distance via
    :func:`~spindoctor.nav_technique.nav_technique.rotation_pivot_distance_px`.
 6. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine` with the polyline, the
    per-vertex sigmas, the integer seed, and the rotation options.
@@ -561,7 +561,7 @@ eigenvalue to a *zero* covariance eigenvalue: the unobservable direction lies in
 space of both the information matrix and its pseudoinverse, so the marginal variance along
 the tangent is exactly zero (the same zero-variance / null-space convention the ring-edge
 rank-1 projection relies on). The orchestrator's ensemble combine, which uses the
-Moore-Penrose pseudoinverse to fuse covariances, recognises the null direction as a
+Moore-Penrose pseudoinverse to fuse covariances, recognizes the null direction as a
 zero-information contribution rather than a perfectly measured axis, treats the technique's
 result as a one-dimensional radial constraint in the joint solve, and — when no other
 technique constrains the tangent — surfaces the unobservable axis through the

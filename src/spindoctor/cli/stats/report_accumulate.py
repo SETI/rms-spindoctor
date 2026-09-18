@@ -126,7 +126,7 @@ def accumulate_statistics(
             CSV was asked for.
 
     Raises:
-        ValueError: If the source cannot honour the selection, or cannot be
+        ValueError: If the source cannot honor the selection, or cannot be
             read; raised as the stream is consumed, which is where a storage
             discovers it.
         UnlistableRootError: If a selected root could not be listed, or

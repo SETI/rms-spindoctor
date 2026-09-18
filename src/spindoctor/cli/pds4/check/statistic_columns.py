@@ -5,7 +5,7 @@ configuration, through :func:`~spindoctor.cli.pds4.index_columns.statistic_index
 each configured plane's least and greatest value, the range wrapped at zero of a plane
 whose index block gives it columns, and the ring incidence angle's least, greatest and
 mean.  A label describing such a column -- a ``Field_Character`` of that name -- has to
-state the unit the column's values are in, and has to declare as its missing constant
+state the unit its plane's statistic is in, and has to declare as its missing constant
 the configured masked value written in the column's format.
 
 The columns are the summary pass's own, taken from the same function, so that each rule
@@ -50,7 +50,7 @@ def statistic_columns(config: Config) -> dict[str, StatisticColumn]:
         incidence angle's three.
 
     Raises:
-        KeyError: If a column's values are in a unit the index tables have no format for.
+        KeyError: If a plane's statistic is in a unit the index tables have no format for.
     """
     return {
         column.name: StatisticColumn(unit=column.unit, missing_constant=column.missing_constant)
@@ -70,7 +70,7 @@ def statistic_column_findings(
         columns: The configured statistic columns, which :func:`statistic_columns` gives.
 
     Returns:
-        One finding for each column stating a unit other than the one its values are in,
+        One finding for each column stating a unit other than its plane's statistic's,
         and one for each declaring a missing constant other than the masked value in the
         column's format.
     """
@@ -88,7 +88,7 @@ def statistic_column_findings(
                     file,
                     CheckName.TABLE,
                     element_path(field),
-                    f'{name} states {stated}, but its values are in {expected.unit}',
+                    f"{name} states {stated}, but its plane's statistic is in {expected.unit}",
                 )
             )
         missing = child_text(field, 'Special_Constants', 'missing_constant')

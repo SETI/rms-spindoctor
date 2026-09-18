@@ -46,7 +46,7 @@ star collapses to ``sqrt(signal_dn)`` on calibrated images and the
 reliability gate drops them all.
 
 ``SCLASS_TO_B_MINUS_V`` is re-exported here so callers that need the
-spectral-class colour mapping can pull it from the same module that
+spectral-class color mapping can pull it from the same module that
 owns the predicted-SNR formula.
 """
 

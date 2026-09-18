@@ -9,7 +9,7 @@ Per-technique diagnostics are the typed dataclasses every navigation technique r
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.diagnostics` field. Each
 technique declares its own diagnostics dataclass — a frozen, narrow record of the per-fit
 quantities that the confidence formula consumes and the curator surfaces in the JSON sidecar.
-Centralising every diagnostics dataclass in one module lets the curator's allow-list
+Centralizing every diagnostics dataclass in one module lets the curator's allow-list
 discipline catch a programmer who adds a new diagnostic field without updating its JSON
 schema, and lets the
 :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walk verify at
@@ -27,7 +27,7 @@ The confidence formula
 
 Each :class:`~spindoctor.nav_technique.confidence.ConfidenceTerm` references a diagnostic-attribute
 name; the shared evaluator reads that attribute off the diagnostics object and feeds it
-through the offset / divisor / cap normalisation before applying the linear coefficient. See
+through the offset / divisor / cap normalization before applying the linear coefficient. See
 :doc:`dev_guide_techniques_confidence` for the sigmoid math. The technique's
 :attr:`~spindoctor.nav_technique.nav_technique.NavTechnique.confidence_attributes` allow-list spans
 both the diagnostic-attribute names *and* any side-channel flags the spec is allowed to read
@@ -222,14 +222,24 @@ raises :exc:`AssertionError` and fails the build before any image is processed.
 
     techniques:
       BodyLimbNav:
+        alpha0: 0.132
         terms:
           - feature: visible_limb_arc_fraction
-            alpha: 3.0
+            alpha: 1.068
           - feature: dt_fit_rms_px
-            alpha: -0.41
+            alpha: -1.303
+          - feature: visible_arc_px
+            alpha: 0.776
+            divisor: 440.0
+            cap_at: 1.0
+        hard_zero_if:
+          at_edge: true
+          spurious: true
 
-Each ``feature`` value names an attribute on
-:class:`~spindoctor.nav_technique.diagnostics.BodyLimbDiagnostics`. At config-load time
+Each ``feature`` value, and each ``hard_zero_if`` key, names an attribute the
+technique's confidence context exposes. Most come from
+:class:`~spindoctor.nav_technique.diagnostics.BodyLimbDiagnostics`; ``at_edge`` and
+``spurious`` are result-level flags the context supplies alongside it. At config-load time
 :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walks the spec
 and confirms every name appears in
 :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`'s
@@ -243,7 +253,7 @@ produces a per-technique block in the per-image JSON sidecar of the form::
       "feature_ids": ["limb_arc:DIONE"],
       "offset_px": [11.0, 29.5],
       "covariance_px2": [[0.0156, 0.0017], [0.0017, 0.0148]],
-      "confidence": 0.585,
+      "confidence": 0.675,
       "spurious": false,
       "at_edge": false,
       "diagnostics": {

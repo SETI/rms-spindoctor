@@ -24,7 +24,7 @@ Theory
 
 The technique solves the global star-pattern-matching problem from scratch — without a prior
 offset — by reducing translation- and rotation-invariant pattern matching to a high-dimensional
-nearest-neighbour search.
+nearest-neighbor search.
 
 Triplet hashing
 ---------------
@@ -33,7 +33,7 @@ For every triplet of three predictable catalog stars the matcher computes a tran
 rotation-invariant hash ``(d_AB / d_AC, d_BC / d_AC, angle BAC)``. The three vertices are put
 in a canonical order by triangle geometry: ``A`` sits opposite the longest side, ``B`` opposite
 the next-longest, and ``C`` opposite the shortest. Side lengths scale uniformly under a
-similarity transform, so this order is the same physical vertex labelling for a triangle and any
+similarity transform, so this order is the same physical vertex labeling for a triangle and any
 translated, rotated, or uniformly scaled copy of it, and the detection triplet and its catalog
 counterpart canonicalise identically. The same hash is computed for every triplet of three
 detected sources in the image. Triplets with matching hashes (within a small tolerance) are
@@ -42,9 +42,9 @@ candidate correspondences.
 The order is geometric rather than brightness-keyed on purpose. Ordering the vertices by
 brightness ties on an equal-magnitude field, and the pipeline's predicted magnitudes carry error
 that can manufacture ties that are not physically present, so a brightness-keyed apex would be
-decided by an arbitrary tie-break that flips the labelling between the detection and catalog
+decided by an arbitrary tie-break that flips the labeling between the detection and catalog
 sides from run to run and under image rotation. On a field near the inlier floor that flipped
-labelling flips the navigation outcome, giving non-deterministic output on unchanged input. The
+labeling flips the navigation outcome, giving non-deterministic output on unchanged input. The
 geometric order is total and rotation-stable: for the ordinary scalene triangle the side lengths
 fix the vertex assignment outright, and only a near-isosceles triangle (two opposite sides of
 equal length) falls through to the secondary tie-break of brightness rank and then original
@@ -180,7 +180,7 @@ scatter down. Two estimators are available per star and they trade off with brig
 - The **brightness-weighted moment** is unbiased; its error falls roughly as
   :math:`1/\mathrm{SNR}` as the star brightens.
 - A **maximum-likelihood PSF fit** (``obs.star_psf().find_position`` against the instrument's
-  modelled point-spread function) reaches the minimum variance and so wins decisively when
+  modeled point-spread function) reaches the minimum variance and so wins decisively when
   the star is faint. An undersampled PSF, however, carries a fixed sub-pixel-phase bias floor
   (~0.08 px for the COISS NAC star PSF, sigma ~0.54 px) that does not improve with brightness.
 
@@ -190,9 +190,9 @@ than the PSF fit's partly-correlated bias). The technique therefore refines a ma
 with the PSF fit only while its box SNR is below the configurable ceiling
 ``psf_refine_snr_max`` (default 30), and keeps the moment above it. The box SNR is
 :math:`\sum (\text{box} - \text{median}) / \sqrt{\text{signal} + n_{\text{pix}}\,\sigma^{2}}`
-over the fit box. The PSF fit reports its position in the ``eval_rect`` convention (offset
-measured from a pixel's lower edge), so the technique subtracts the half-pixel to land in the
-pixel-centre convention shared by the detection moment and the catalog prediction. Any inlier
+over the fit box. ``psfmodel`` measures its evaluation offset from a pixel's lower edge, so
+the PSF fit reports a pixel-corner position; the technique subtracts the half pixel to reach
+the pixel-centric coordinates it measures the array in (see :ref:`coordinate-systems`). Any inlier
 whose fit fails (too close to the image edge, too few good pixels, no convergence) silently
 falls back to its moment centroid. The whole step is gated by ``psf_refine_enabled`` and the
 obs supplying a ``star_psf()``; without either it is a no-op and the moment centroids stand.

@@ -79,7 +79,7 @@ from spindoctor.nav_model.nav_model_body_base import (
     _sigmoid,
 )
 from spindoctor.nav_model.stars.predicted_snr import psf_sigma_px
-from spindoctor.support.constants import HALFPI
+from spindoctor.support.constants import HALFPI, PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.image import filter_downsample, shift_array
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.time import now_dt
@@ -291,7 +291,7 @@ def _strip_bounds(rows: int, oversample_v: int) -> Iterator[tuple[int, int]]:
 
 
 def _sample_count(lo: float, hi: float, oversample: int) -> int:
-    """Samples of an oversampled grid between two inclusive pixel-centre bounds.
+    """Samples of an oversampled grid between two inclusive pixel-center bounds.
 
     Parameters:
         lo: Coordinate of the first sample.
@@ -313,7 +313,7 @@ class _BodyStripArrays:
         incidence: Incidence angle in radians, masked off the silhouette.
         lambert: Lambert reflectance, zero off the silhouette; None when the
             configuration does not ask for it.
-        resolution: Kilometres per pixel, zero off the silhouette.
+        resolution: Kilometers per pixel, zero off the silhouette.
         occluder: Downsampled mask of the pixels a nearer sibling hides; None
             when no sibling hides any.
     """
@@ -363,12 +363,12 @@ def _striped_body_quantities(
     Parameters:
         obs: Observation snapshot.
         body_name: SPICE name of the body.
-        u_range: ``(min, max)`` pixel-centre coordinates of the grid's
+        u_range: ``(min, max)`` pixel-center coordinates of the grid's
             horizontal extent.
         v_range: ``(min, max)`` of its vertical extent.
         oversample: ``(u, v)`` oversample factors of the grid.
         siblings: ``(body_name, range_km)`` for the other bodies in the FOV.
-        subject_range_km: Centre range of the body, against which a sibling
+        subject_range_km: Center range of the body, against which a sibling
             counts as nearer.
         want_lambert: Whether to evaluate the Lambert reflectance at all.
 
@@ -443,7 +443,7 @@ def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
 
     Parameters:
         obs: Observation snapshot, for the extended frame's bounds.
-        inventory: The body's inventory record, as oops builds it: the centre
+        inventory: The body's inventory record, as oops builds it: the center
             and both pixel sizes are always present and finite.
 
     Returns:
@@ -451,9 +451,9 @@ def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
         False for a disc of no extent, which covers nothing and is looked at
         rather than dismissed.
     """
-    centre = inventory['center_uv']
-    u_c = float(centre[0])
-    v_c = float(centre[1])
+    center = inventory['center_uv']
+    u_c = float(center[0])
+    v_c = float(center[1])
     semi_u = float(inventory['u_pixel_size']) / 2.0
     semi_v = float(inventory['v_pixel_size']) / 2.0
     if not (semi_u > 0.0 and semi_v > 0.0):
@@ -487,8 +487,12 @@ def body_edge_in_frame(obs: Observation, body_name: str) -> bool:
     Returns:
         True when the boundary shows sky or both sides of the terminator.
     """
-    u_min, u_max = obs.extfov_u_min + 0.5, obs.extfov_u_max + 0.5
-    v_min, v_max = obs.extfov_v_min + 0.5, obs.extfov_v_max + 0.5
+    # The extended-frame bounds are array bounds; the meshgrid reads the
+    # geometry layer's pixel corner coordinates, so the half pixel goes on here.
+    u_min = obs.extfov_u_min + PIXEL_CENTER_TO_CORNER_PX
+    u_max = obs.extfov_u_max + PIXEL_CENTER_TO_CORNER_PX
+    v_min = obs.extfov_v_min + PIXEL_CENTER_TO_CORNER_PX
+    v_max = obs.extfov_v_max + PIXEL_CENTER_TO_CORNER_PX
     edges = (
         ((u_min, v_min), (u_max, v_min)),
         ((u_min, v_max), (u_max, v_max)),
@@ -851,11 +855,17 @@ class NavModelBody(NavModelBodyBase):
         self._limb_mask = limb_mask
         self._terminator_mask = terminator_mask
 
-        u_center_data = (u_min_unc + u_max_unc) / 2.0
-        v_center_data = (v_min_unc + v_max_unc) / 2.0
+        # The inventory states the body's projected position exactly, in the
+        # pixel corner coordinates the geometry layer works in and ordered
+        # (u, v).  The payload is pixel centric, so the half pixel comes off
+        # next to the margin that goes on.  The bounding box is not a stand-in
+        # for the position: its bounds are floor(u - r) and ceil(u + r), whose
+        # midpoint lands on the center only when the two fractional parts
+        # happen to be complementary.
+        center_uv = inventory['center_uv']
         self._predicted_center_vu = (
-            float(v_center_data + obs.extfov_margin_v),
-            float(u_center_data + obs.extfov_margin_u),
+            float(center_uv[1]) - PIXEL_CENTER_TO_CORNER_PX + obs.extfov_margin_v,
+            float(center_uv[0]) - PIXEL_CENTER_TO_CORNER_PX + obs.extfov_margin_u,
         )
         diameter = max(
             float(inventory['u_pixel_size']),
@@ -942,10 +952,14 @@ class NavModelBody(NavModelBodyBase):
             body_config.oversample_edge_limit,
             body_config.oversample_maximum,
         )
-        restr_u_min = u_min + 1.0 / (2 * oversample_u)
-        restr_u_max = u_max + 1 - 1.0 / (2 * oversample_u)
-        restr_v_min = v_min + 1.0 / (2 * oversample_v)
-        restr_v_max = v_max + 1 - 1.0 / (2 * oversample_v)
+        # The box bounds are array bounds and the meshgrid reads the geometry
+        # layer's pixel corner coordinates, so the half pixel goes on here.  It
+        # is half of a SUBSAMPLE on this oversampled grid, which is the same
+        # crossing divided by the oversample factor.
+        restr_u_min = u_min + PIXEL_CENTER_TO_CORNER_PX / oversample_u
+        restr_u_max = u_max + 1 - PIXEL_CENTER_TO_CORNER_PX / oversample_u
+        restr_v_min = v_min + PIXEL_CENTER_TO_CORNER_PX / oversample_v
+        restr_v_max = v_max + 1 - PIXEL_CENTER_TO_CORNER_PX / oversample_v
         want_lambert = bool(body_config.use_lambert)
         strips = _striped_body_quantities(
             obs,
@@ -992,7 +1006,7 @@ class NavModelBody(NavModelBodyBase):
         # calibration case.
         geometric_limb_mask: NDArrayBoolType = body_mask_valid & limb_mask_neighbor
         limb_mask_local: NDArrayBoolType = geometric_limb_mask & is_lit
-        # A pixel is on the terminator if it is lit and any neighbour is dark.
+        # A pixel is on the terminator if it is lit and any neighbor is dark.
         terminator_local: NDArrayBoolType = is_lit & (
             shift_array(is_dark, (-1, 0))
             | shift_array(is_dark, (1, 0))
@@ -1095,7 +1109,7 @@ class NavModelBody(NavModelBodyBase):
         # high-phase crescent scores low even when fully framed) as well as
         # with partial framing.  Both regimes make the disc-correlation
         # template poor, which is exactly what the 0.4 gate screens out;
-        # the phase coupling is intentional, not a normalisation bug.
+        # the phase coupling is intentional, not a normalization bug.
         # A lit pixel a nearer sibling hides is not usable disc-template
         # support, so it leaves the numerator while the denominator stays the
         # whole predicted disc: at deep overlap ``visible_lit_fraction`` falls
@@ -1446,7 +1460,7 @@ def _build_polyline_sampler(
     body interior.  With the body-side True / space-side False
     convention, ``n_v = region[v-1, u] - region[v+1, u]`` and
     ``n_u = region[v, u-1] - region[v, u+1]`` point from inside to
-    outside.  Out-of-image neighbours are treated as space (False).
+    outside.  Out-of-image neighbors are treated as space (False).
 
     Parameters:
         local_mask: 1-pixel-wide ridge whose True pixels become vertices.
@@ -1497,7 +1511,7 @@ def _build_polyline_sampler(
     for i, (v, u) in enumerate(zip(vs, us, strict=True)):
         # Outward normal: discrete gradient of the body-side / lit-side
         # mask, pointing from inside (True) to outside (False).  Out-of-
-        # image neighbours count as space (0.0).
+        # image neighbors count as space (0.0).
         up = region[v - 1, u] if v > 0 else 0.0
         down = region[v + 1, u] if v < rows - 1 else 0.0
         left = region[v, u - 1] if u > 0 else 0.0

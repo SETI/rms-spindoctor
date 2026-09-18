@@ -1,4 +1,5 @@
-"""What the bundle check reports: a finding for each way a bundle tree departs from PDS4.
+"""What the bundle check reports: a finding for each way a bundle tree departs from the
+PDS4 standard.
 
 Every check of the package returns :class:`Finding` objects, and ``sd_create_bundle
 check`` prints each as one line, naming the file, whether it is an error or a warning,
@@ -41,7 +42,8 @@ class Severity(StrEnum):
     """Whether a finding fails the check.
 
     Attributes:
-        ERROR: The tree is not what PDS4 requires of it; any error fails the check.
+        ERROR: The tree is not what the PDS4 standard requires of it; any error fails
+            the check.
         WARNING: A finding the PDS ``validate`` tool also reports as a warning: an
             unresolved reference to a product of the bundle, a product no inventory
             lists, and a Schematron rule whose ``role`` marks it a warning.  It is

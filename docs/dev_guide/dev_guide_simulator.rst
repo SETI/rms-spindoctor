@@ -228,8 +228,8 @@ Both sides deliberately call the same geometry helpers --
 :mod:`spindoctor.sim.ellipsoid_geometry`, :mod:`spindoctor.sim.mesh_geometry`,
 :mod:`spindoctor.sim.ring_geometry`, and :mod:`spindoctor.sim.star_records`.
 This is not a boundary leak; it is what makes the measurement clean. With
-shared conventions (pixel centers, the sign of ``dv``, edge rasterization,
-record defaults) the planted error is the *only* error in a recovery
+shared conventions (the coordinate systems, the sign of ``dv``, edge
+rasterization, record defaults) the planted error is the *only* error in a recovery
 measurement. Independent implementations would each carry their own
 conventions, and any delta between them would land as an unknown systematic
 inside the measured error -- contaminating the truth reference every simulator
@@ -280,7 +280,7 @@ the navigation algorithms -- if a change breaks a baseline, the algorithms
 changed behavior, full stop. This is the axis on which the simulator's word is
 final.
 
-**Precision is unconditional too, and is labelled as such.** The sweep curves
+**Precision is unconditional too, and is labeled as such.** The sweep curves
 and the self-consistency floor (:ref:`sim-floor`) measure repeatability: how
 tightly the pipeline reconverges when the rendered scene equals the
 navigator's own model plus one controlled departure. The floor point on every
@@ -534,10 +534,10 @@ exactly the optical effects it wants and leaves the rest at the floor.
    differential smear, where each class carries its own drift vector.
 2. **Residual distortion** (:mod:`~spindoctor.sim.forward.distortion`) warps
    the geometric image by the low-order radial polynomial (``k1``, ``k2`` about
-   the optical centre) plus an optional seeded non-radial wander -- the field
+   the optical center) plus an optional seeded non-radial wander -- the field
    error left after the navigator applies each camera's known distortion model.
    A limb fitted at the frame edge then disagrees with a ring fitted through the
-   centre by the differential residual, which the navigator gets no model to
+   center by the differential residual, which the navigator gets no model to
    remove.
 3. **Whole-scene PSF** (:mod:`~spindoctor.sim.forward.psf`) convolves the image
    by a core-Gaussian-plus-Moffat-wing kernel, so the limb gradient, the
@@ -651,7 +651,7 @@ reads. Resolution precedence, highest first: an explicit scene key (``detector``
 block, then ``noise`` block), then the catalog value when ``instrument_defaults``
 is on, then the disabled floor -- the physical-chain artifacts default to zero,
 so an unconfigured scene renders a clean DN frame. A scene that selects a gain
-state the instrument does not catalogue is a validation error, not a silent
+state the instrument does not catalog is a validation error, not a silent
 guess.
 
 .. _sim-artifacts-catalog:
@@ -681,7 +681,7 @@ banding amplitudes and periods, frame-transfer scrub/transfer times, fixed-
 pattern components, and the rest). A scene that names an artifact mode with only
 its incidence inherits these shapes (``resolve_mode_with_catalog`` resolves scene
 value over catalog default over registry default); ``incidence`` itself is never
-catalogued, so naming an instrument never plants a defect on its own. Every value
+cataloged, so naming an instrument never plants a defect on its own. Every value
 is provenance-tagged in a comment beside it, and every value is interim -- sized
 from published FWHMs, gain tables, and documented residual-error bounds, pending
 the per-instrument measurement passes -- so the wing parameters and noise
@@ -761,7 +761,7 @@ calibrated path); garble and spikes write *wrong* values instead.
      - nac, wac, gossi
      - probability
    * - ``edited_frame``
-     - only a centred column band (440 px by default), or one half-height, kept
+     - only a centered column band (440 px by default), or one half-height, kept
      - gossi, vgiss
      - probability
    * - ``truncated_frame``
@@ -907,7 +907,7 @@ Precedence
 A mode's parameter value is resolved scene value over catalog default over
 registry default (:func:`~spindoctor.sim.forward.artifacts_catalog.resolve_mode_with_catalog`),
 so a scene that names a mode with only its incidence inherits the instrument's
-catalogued shape. ``incidence`` itself is never catalogued. Where a mode shares a
+cataloged shape. ``incidence`` itself is never cataloged. Where a mode shares a
 mechanic with a generic ``noise``-block knob (``hot_pixels`` versus
 ``noise.hot_pixel_fraction``, for instance), the explicit artifact mode wins.
 
@@ -1363,7 +1363,7 @@ an opacity ``1 - exp(-tau)``. Three consequences follow:
   the tangent glow.
 
 **Symmetry-breaking structure.** The layer above is exactly mirror-symmetric
-about the image-plane line through the body centre and the sub-solar direction:
+about the image-plane line through the body center and the sub-solar direction:
 one exponential column, one illumination weight, no azimuthal or hemispheric
 structure. That is a problem for grading
 :doc:`the haze solar-symmetry fit <dev_guide_techniques_titan_haze>`, which
@@ -1902,37 +1902,38 @@ The two coordinate systems and the half pixel between them are described in
 :ref:`coordinate-systems`. A scene states every position that places something
 in it in **pixel-corner coordinates**: a star's ``v`` / ``u``, a body's
 ``center_v`` / ``center_u``, and the ring system's ``geometry.center_v`` /
-``center_u``. So the center of pixel ``N`` is ``N + 0.5``, and the center of a
-``size_v`` by ``size_u`` frame is ``(size_v / 2, size_u / 2)``.
+``center_u``. The conversion happens where the renderer deposits into an array
+cell, and a scene author never applies it.
 
-This is what the geometry layer underneath uses, so a position written in a
-scene, a position handed to that layer, and the ``v`` / ``u`` a star record
-carries are one number. The conversion happens where the renderer deposits into
-an array cell, and a scene author never applies it.
+The scene's displacements need no conversion: the planted ``offset_v`` /
+``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
+``catalog_error_v`` / ``catalog_error_u``, and a companion's ``sep_px``.
 
-Displacements need no conversion, since they are differences between two
-positions: the planted ``offset_v`` / ``offset_u``, a star's ``move_v`` /
-``move_u`` smear vector, a planted ``catalog_error_v`` / ``catalog_error_u``,
-and a companion's ``sep_px``.
+The planted roll turns **positions** about **one** point in that same
+convention: the frame's center ``(size_v / 2, size_u / 2)``. Catalog star
+positions, body centers, and the ring system's center all pivot there, so a
+rolled scene plants a truth its three families of content agree on. The two
+orientations that describe a whole projected pattern take the roll as well: a
+body's ``rotation_z`` and the ring system's ``node_deg``. Moving the pivot
+displaces every rendered position by ``(I - R) d`` for a pivot moved by ``d`` --
+a rigid shift of the whole field of magnitude ``2 |d| sin(theta / 2)``, the same
+near the center as far from it -- so pivoting the star field half a pixel from
+the bodies would tilt the star solution against the body solution by that amount
+at every star.
+
+What the roll does not turn are the per-object quantities already stated in the
+detector frame: a star's ``move_v`` / ``move_u`` smear vector and a companion's
+``angle_deg`` render at the angle the scene wrote, whatever the roll. A scene
+author states them as they are to appear on the detector, so a roll that also
+turned them would apply the rotation twice. The background star field the
+``sky_counts`` block draws is not rotated either, and cannot be: its positions
+are drawn uniformly at random over the frame, so it carries no orientation to
+turn.
 
 The two centers inside the ``optics`` block -- ``distortion.center_v`` /
-``center_u`` and ``stray_light.center_v`` / ``center_u`` -- do not follow the
-rule above, and they do not agree with each other either. They name where a
-whole-frame field is centered rather than where an object sits.
-
-``stray_light`` takes its center as pixel-centric and converts it to the
-oversampled grid correctly. ``distortion`` scales its center by the oversample
-factor alone, which is the conversion a pixel-corner value needs, and then uses
-the result against a grid laid out in pixel-centric coordinates; its default
-center, taken when the key is absent, is half an oversampled pixel off for the
-same reason. The size of the disagreement grows with the oversample factor, so
-it is nothing at an oversample of 1 and about a third of a detector pixel at
-the default of 4.
-
-Both fields are smooth on the scale of a pixel, so nothing observable rides on
-this today, and no shipped scene sets a distortion center. It is recorded as an
-open defect rather than as a convention, and an author setting either key
-should expect the two to move relative to one another until it is fixed.
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the rule too,
+though what they name is where a whole-frame field is centered rather than where
+an object sits. Both are stated as pixel corners and both convert the same way.
 
 Scene parameter reference
 =========================
@@ -1979,7 +1980,13 @@ Top-level fields
      - float
      - 0.0
      - truth
-     - Planted boresight roll (deg) applied about the image center.
+     - Planted boresight roll (deg), turning catalog star positions, body
+       centers, and the ring center alike about the frame's uv center
+       ``(size_v / 2, size_u / 2)`` (see :ref:`sim-pixel-convention`), and added
+       to ``rotation_z`` and ``node_deg``.  Smear vectors, a companion's
+       ``angle_deg``, and the ``distortion`` and ``stray_light`` centers in the
+       ``optics`` block are stated in the detector frame and do not turn with
+       it.
    * - ``midtime_utc``
      - str
      - none
@@ -2572,11 +2579,11 @@ smears the whole scene; several give differential smear.
    * - ``k1`` / ``k2``
      - float
      - 0.0
-     - Radial polynomial coefficients about the optical centre.
+     - Radial polynomial coefficients about the optical center.
    * - ``center_v`` / ``center_u``
      - float
-     - frame centre
-     - Optical-centre position in pixels.
+     - frame center
+     - Optical-center position in pixels.
    * - ``nonradial_rms_px``
      - float
      - 0.0
@@ -2592,7 +2599,7 @@ and ``defocus_sigma`` (blur sigma in pixels).
 the detector stage: ``amplitude`` (peak fraction of full scale; 0 disables it),
 ``direction_deg`` (ramp direction for the ``linear`` model), ``model``
 (``linear`` ramp or ``radial`` bump), and ``center_v`` / ``center_u`` (the
-radial-model bump centre; omit for the frame centre). It exercises the
+radial-model bump center; omit for the frame center). It exercises the
 navigator's source-image background filter.
 
 .. _sim-spk-error:
@@ -2613,7 +2620,7 @@ Detector block
 --------------
 
 The optional ``detector`` dict (truth-side) overrides the resolved detector
-chain: ``gain_state`` (the electron-chain gain state, which must be catalogued
+chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
 for the instrument), ``detector_model`` (``ccd`` electron chain or ``vidicon``
 DN chain), ``exposure_ref_sec`` (the exposure the signal full-scale fraction
 references), and ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``,

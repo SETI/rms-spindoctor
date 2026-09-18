@@ -139,7 +139,7 @@ def test_scene_scatter_survives_differential_star_smear() -> None:
     # The unsmeared render sits at the scattered position...
     assert abs(cv_plain - (64.0 + err_v)) < 0.1
     assert abs(cu_plain - (64.0 + err_u)) < 0.1
-    # ...and the centred smear kernel preserves that centroid, so the smeared
+    # ...and the centered smear kernel preserves that centroid, so the smeared
     # render differs from the catalog position by the same realized draw.
     assert abs(cv_smeared - cv_plain) < 0.1
     assert abs(cu_smeared - cu_plain) < 0.1

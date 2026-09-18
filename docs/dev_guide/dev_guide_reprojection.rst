@@ -101,7 +101,7 @@ was constructed with an ``orbit_model``:
   radii are **signed offsets in km from the orbital radius at each
   (longitude, time)** — i.e. from
   ``orbit_model.radius_at_longitude(inertial_lon, et)``. With this
-  parameterisation an eccentric ring appears as a straight line in the
+  parameterization an eccentric ring appears as a straight line in the
   reprojection.
 
 Implementation notes:
@@ -499,7 +499,7 @@ Display layer
    - ``common.py`` — :func:`~spindoctor.ui.mosaic_viewer.common.load_ring_file` /
      :func:`~spindoctor.ui.mosaic_viewer.common.load_body_file`. Peeks at the
      ``__kind__`` header in an npz or FITS file, then delegates to the
-     appropriate ``*.load()`` classmethod and normalises the result into a
+     appropriate ``*.load()`` classmethod and normalizes the result into a
      :class:`~spindoctor.ui.mosaic_viewer.common.RingDisplayData` /
      :class:`~spindoctor.ui.mosaic_viewer.common.BodyDisplayData` dataclass ready
      for the window.

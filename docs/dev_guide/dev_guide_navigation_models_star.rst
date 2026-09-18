@@ -42,16 +42,16 @@ them, are described once in :ref:`coordinate-systems`. Two things are specific
 to stars.
 
 A star record stores the catalog projection as the geometry layer returns it,
-in pixel-corner coordinates, and the record then travels to the techniques. So
-unlike the body, ring and Titan models, which convert while building their
-sampling grids, this model converts at each point of use:
-``NavModelStars._extfov_indices`` before a predicted position reaches a
-feature, the Titan contaminant mask before a star disc is painted, and the log
-line and metadata entry so that what a navigation document records matches
-every other position it records. Two consumers take the record unconverted
-because they want pixel-corner coordinates: the conflict-check meshgrid, which
-is laid out in them, and the smeared-PSF stamp, whose ``eval_rect`` offset is
-measured from a pixel's lower edge.
+in pixel-corner coordinates, and the record then travels to the techniques. It
+outlives the model that produced it, so it keeps those coordinates and each
+point of use converts: ``NavModelStars._extfov_position_vu`` before a predicted
+position reaches a feature and before the rectangle drawer marks a star, and
+the Titan contaminant mask before a star disc is painted. Three consumers take
+the record unconverted because they want pixel-corner coordinates: the
+conflict-check meshgrid, which is laid out in them; the smeared-PSF stamp,
+whose ``eval_rect`` offset is measured from a pixel's lower edge; and the log
+line and metadata entry, which state the nominal-frame position the record
+already holds.
 
 The extended-FOV edge cull converts the other way. It drops a star whose PSF
 window would spill off the padded array, and holds six freshly projected
@@ -78,7 +78,7 @@ there. In the Pleiades, UCAC4 reports Eta Tau (true :math:`V \approx 2.9`) and 2
 
 After the catalog merge, :func:`~spindoctor.nav_model.stars.saturation.correct_star_photometry`
 cross-references the merged list against a trusted-photometry reference built from the full
-in-field YBSC and Tycho-2 sets. YBSC (the Yale Bright Star Catalogue) carries real Johnson V
+in-field YBSC and Tycho-2 sets. YBSC (the Yale Bright Star Catalog) carries real Johnson V
 and B photometry but is complete only to about :math:`V \approx 6.5`. Tycho-2's star-mapper
 photometry does not saturate at the bright end and is complete to about :math:`V \approx 11`,
 so it reaches the :math:`V \approx 6.5` to :math:`8` stars YBSC misses. The reference is the
@@ -96,8 +96,8 @@ For each candidate record brighter than
   :data:`~spindoctor.nav_model.stars.saturation.SATURATION_CORRECTION_MIN_MAG` (0.5 mag),
   it adopts the reference magnitude and a recomputed ``dn`` while keeping its own astrometry,
   and is flagged ``photometry_corrected``. A match against YBSC propagates YBSC's Johnson
-  pair; a match against Tycho-2 adopts Tycho-2's V and fakes the colour from the candidate's
-  spectral class (this pipeline discards Tycho-2's own colour), setting ``johnson_mag_faked``.
+  pair; a match against Tycho-2 adopts Tycho-2's V and fakes the color from the candidate's
+  spectral class (this pipeline discards Tycho-2's own color), setting ``johnson_mag_faked``.
 - If it matches a reference star but already agrees to within the tolerance, it is not
   saturated and is left untouched and unflagged. This is what keeps the flag honest: a
   genuine :math:`V \approx 7` to :math:`8` star beyond YBSC completeness matches its Tycho-2
@@ -135,7 +135,7 @@ absorb two distinct saturated records.
 Among the references that fall inside their own widened reach the match takes the brightest,
 not the merely nearest, breaking a brightness tie on separation. A bright unrelated reference
 earns a wide reach of its own from its large magnitude gap to the saturated candidate, so a
-pure nearest-neighbour rule could let it capture the candidate when it happens to sit closer
+pure nearest-neighbor rule could let it capture the candidate when it happens to sit closer
 than the true twin. Preferring the brightest qualifying reference blocks that: UCAC4
 saturation drives a bright star's reading systematically faint, so a faint reading is best
 explained by the brightest reference that can account for it. The failure mode this guards
@@ -169,9 +169,10 @@ the mask there would suppress good stars. The ``saturated`` and
 ``in_saturation_or_cosmic_mask`` flags therefore stay clear. Star usability is an
 occlusion-only gate.
 
-Conflict-flagged stars stay in the model's list (so the curator surfaces them in the
-sidecar) but are excluded from the autonomous matching path by the upstream
-``usable_stars`` filter consulted by every star technique.
+Conflict-flagged stars stay in the model's list, so the conflict entries the model
+records in ``model_metadata`` and the per-image log's star list still name them, but
+they are excluded from the autonomous matching path by the upstream ``usable_stars``
+filter consulted by every star technique.
 
 Magnitude detectability gate
 ----------------------------
@@ -200,7 +201,7 @@ Magnitude-margin effective SNR
 ------------------------------
 
 The CRLB covariance and the reliability sigmoid still want an SNR-like quantity, so the
-model synthesises one from how far below the limiting magnitude the star sits rather than
+model synthesizes one from how far below the limiting magnitude the star sits rather than
 from any photometric DN measurement:
 
 .. math::
@@ -209,7 +210,7 @@ from any photometric DN measurement:
         \mathrm{SNR}_{\mathrm{REF}} \cdot 2.512^{\,(m_{\mathrm{limit}} - V_{\mathrm{mag}})},
 
 floored at the module constant ``SNR_FLOOR`` so it stays strictly positive. A star exactly
-at the limit gets ``SNR_REF`` (``8.0``, just below the reliability sigmoid centre); each
+at the limit gets ``SNR_REF`` (``8.0``, just below the reliability sigmoid center); each
 magnitude of headroom multiplies the effective SNR by one Pogson ratio (``2.512``),
 matching the flux ratio per magnitude. ``SNR_FLOOR`` (``0.1``) keeps the covariance away
 from the zero-SNR huge-variance branch.
@@ -421,7 +422,7 @@ Source files:
   :mod:`spindoctor.nav_model.stars.conflicts` body / ring conflict marking.
 - ``src/spindoctor/nav_model/stars/predicted_snr.py`` —
   :func:`~spindoctor.nav_model.stars.predicted_snr.psf_sigma_px` (used by the model and the
-  detection helpers) and the ``SCLASS_TO_B_MINUS_V`` spectral-class-to-colour table.
+  detection helpers) and the ``SCLASS_TO_B_MINUS_V`` spectral-class-to-color table.
   :func:`~spindoctor.nav_model.stars.predicted_snr.predicted_snr` is a raw-DN photometry
   diagnostic and is not the model's detectability gate.
 - ``src/spindoctor/nav_model/stars/smeared_psf.py`` —
@@ -472,7 +473,7 @@ Annotation helpers
   catalog name and visual magnitude. Stars flagged with a body / ring conflict are
   skipped (they are surfaced in the per-image metadata for reviewer awareness but not
   drawn). Consumes the ``label_*`` and ``label_star_color`` keys documented above.
-- ``_extfov_indices`` — converts a star's recorded pixel-corner position to an
+- ``_extfov_position_vu`` — converts a star's recorded pixel-corner position to an
   extfov-frame pixel-centric position (see :ref:`coordinate-systems`), for the
   rectangle drawer and for the emitted feature.
 - The per-star label string is built by the module-level ``_star_label`` helper, which
@@ -487,8 +488,10 @@ Per-image metadata
 ------------------
 
 :meth:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars.create_model` populates
-:attr:`~spindoctor.nav_model.nav_model.NavModel.metadata` with the following entries for the
-curator to surface in the per-image JSON sidecar:
+:attr:`~spindoctor.nav_model.nav_model.NavModel.metadata` with the following entries.
+They ride on the navigation result as ``model_metadata``, which the
+manual-navigation path carries through; the form a person reads them in is the
+per-image log, whose final star list prints one line per surviving star:
 
 - ``start_time`` / ``end_time`` / ``elapsed_time_sec`` — wall-clock timing for the model
   build.
@@ -499,11 +502,11 @@ curator to surface in the per-image JSON sidecar:
   ``vmag``, ``photometry_corrected``, ``photometry_saturated``, ``u``, ``v``, ``move_u``,
   ``move_v``, ``spectral_class``, and ``conflicts`` (the comma-separated body- /
   ring-occlusion flag string built from the per-star conflict marking step). ``u`` and
-  ``v`` are pixel-centric coordinates in the nominal (unpadded) frame, the
-  same coordinate system every other recorded position uses; the matching STAR
-  feature's ``predicted_vu`` is that position plus the extended-FOV margin, and the
-  record the entry is built from states the same point in pixel-corner
-  coordinates, half a pixel higher on each axis (see :ref:`coordinate-systems`).
+  ``v`` are pixel-corner coordinates in the nominal (unpadded) frame, straight off the
+  record (see :ref:`coordinate-systems`); the matching STAR feature's
+  :attr:`~spindoctor.feature.geometry.StarGeometry.predicted_vu` is the same point
+  converted to pixel-centric and shifted by the
+  extended-FOV margin, for the techniques that measure the array.
   The two
   ``photometry_*`` booleans are the bright-end saturation provenance:
   ``photometry_corrected`` marks a record whose magnitude was replaced by a YBSC or Tycho-2
@@ -535,7 +538,7 @@ Call path traced through
    records each star's conflict; at feature-emission time both body and ring conflicts
    set the ``in_body_silhouette`` flag (a ring conflict occludes the star the same way).
 5. Resolve the per-observation limiting magnitude from :meth:`obs.star_max_usable_vmag()
-   <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>` and synthesise the
+   <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>` and synthesize the
    magnitude-margin effective SNR for each star (used by the CRLB covariance and the
    reliability sigmoid).
 6. Drop stars fainter than the limiting magnitude (or with no catalog magnitude) and

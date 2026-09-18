@@ -58,47 +58,11 @@
                 </Person>
                 <Person>
                     <contributor_type>DataCurator</contributor_type>
-                    <display_full_name>Mitchell K. Gordon</display_full_name>
-                    <given_name>Mitchell</given_name>
-                    <family_name>Gordon</family_name>
-                    <person_orcid>https://orcid.org/0000-0003-0985-2800</person_orcid>
-                    <sequence_number>2</sequence_number>
-                    <Affiliation>
-                        <organization_name>NASA's Planetary Data System (Ring-Moon Systems Node)</organization_name>
-                        <organization_rorid>https://ror.org/006ndaj41</organization_rorid>
-                        <sequence_number>1</sequence_number>
-                    </Affiliation>
-                    <Affiliation>
-                        <organization_name>SETI Institute</organization_name>
-                        <organization_rorid>https://ror.org/02dxgk712</organization_rorid>
-                        <sequence_number>2</sequence_number>
-                    </Affiliation>
-                </Person>
-                <Person>
-                    <contributor_type>DataCurator</contributor_type>
                     <display_full_name>Matthew S. Tiscareno</display_full_name>
                     <given_name>Matthew</given_name>
                     <family_name>Tiscareno</family_name>
                     <person_orcid>https://orcid.org/0000-0002-2736-3667</person_orcid>
-                    <sequence_number>3</sequence_number>
-                    <Affiliation>
-                        <organization_name>NASA's Planetary Data System (Ring-Moon Systems Node)</organization_name>
-                        <organization_rorid>https://ror.org/006ndaj41</organization_rorid>
-                        <sequence_number>1</sequence_number>
-                    </Affiliation>
-                    <Affiliation>
-                        <organization_name>SETI Institute</organization_name>
-                        <organization_rorid>https://ror.org/02dxgk712</organization_rorid>
-                        <sequence_number>2</sequence_number>
-                    </Affiliation>
-                </Person>
-                <Person>
-                    <contributor_type>DataCurator</contributor_type>
-                    <display_full_name>Emilie R. Simpson</display_full_name>
-                    <given_name>Emilie</given_name>
-                    <family_name>Simpson</family_name>
-                    <person_orcid>https://orcid.org/0000-0003-0447-9867</person_orcid>
-                    <sequence_number>4</sequence_number>
+                    <sequence_number>2</sequence_number>
                     <Affiliation>
                         <organization_name>NASA's Planetary Data System (Ring-Moon Systems Node)</organization_name>
                         <organization_rorid>https://ror.org/006ndaj41</organization_rorid>

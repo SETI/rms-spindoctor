@@ -92,7 +92,7 @@ mutually reinforcing sources of evidence:
    correct answer is known by construction, and measure recovery error.
    Trustworthy only if the simulator is (a) independent of the navigator's
    own models and (b) demonstrably realistic compared to real images.
-   Proving the realism at campaign scale, and closing the catalogued
+   Proving the realism at campaign scale, and closing the cataloged
    fidelity gaps, is the remaining sim work in Track A.
 2. **Agreement between independent methods on real images** — when a star
    field and a moon's edge independently yield the same pointing
@@ -142,7 +142,7 @@ its section names):
    available); the terminator deliverable is degenerate with no realism
    verdict (#223); and realism is Cassini-only with the authored scene
    mixture unvalidated (#309, #341). Closing #227 is the operator's
-   realism-verdict gate, itself gated on #309. The catalogued
+   realism-verdict gate, itself gated on #309. The cataloged
    simulator-fidelity gaps feed #309: stars shining through dark limbs
    (#325), the 1-LSB calibrated-product floor (#329), zero cosmic-ray
    transients (#330), per-scene rather than per-detector hot pixels (#331),
@@ -271,8 +271,8 @@ The known open defects:
 - **#282** — a ~0.05 px, one-pixel-period sub-pixel ripple rides on top of
   the directional bias; a higher-order / matched-filter sub-pixel edge
   estimator would remove it. Precision refinement, secondary to #150.
-- **#283** — pixel-centre convention mismatch (simulated `BODY_DISC`
-  predicted-centre metadata at `center` vs renderer at `center - 0.5`);
+- **#283** — pixel-center convention mismatch (simulated `BODY_DISC`
+  predicted-center metadata at `center` vs renderer at `center - 0.5`);
   latent, does not affect the limb path today, fold into #128.
 - **#25** — model blurring for very-high-resolution bodies (investigation).
 - **#239** — sub-5 px body policy: decided as expected-failure curation;

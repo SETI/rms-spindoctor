@@ -313,7 +313,7 @@ class FakeBackplane:
         return _scalar(self._body(body_name).center_phase_rad)
 
     def center_resolution(self, body_name: str, axis: str = 'u') -> polymath.Scalar:
-        """Return the scalar km/px scale at the body centre.
+        """Return the scalar km/px scale at the body center.
 
         The shim reports the same scale on both axes; ``axis`` is accepted
         for API parity with ``oops.Backplane.center_resolution``.
@@ -438,7 +438,7 @@ class FakeBackplane:
 def plant_circular_body(
     *,
     shape: tuple[int, int],
-    centre_vu: tuple[float, float],
+    center_vu: tuple[float, float],
     radius_px: float,
     sub_solar_lon_deg: float = 0.0,
     sub_solar_lat_deg: float = 0.0,
@@ -450,15 +450,16 @@ def plant_circular_body(
     """Build :class:`BodyBackplaneData` for a circular body silhouette.
 
     Convenience factory that paints a circle of radius ``radius_px``
-    centred at ``centre_vu`` and assigns each silhouette pixel an
+    centered at ``center_vu`` and assigns each silhouette pixel an
     incidence angle that varies smoothly across the disc (zero at the
-    centre, increasing outward to the limb).  Suitable for end-to-end
+    center, increasing outward to the limb).  Suitable for end-to-end
     body-NavModel tests where the exact incidence pattern is not the
     focus.
 
     Parameters:
         shape: ``(rows, cols)`` of the output arrays.
-        centre_vu: Body centre in pixel coordinates.
+        center_vu: Body center, pixel centric: it is measured against the
+            array's own rows and columns below.
         radius_px: Body radius in pixels.
         sub_solar_lon_deg: Scalar sub-solar longitude in degrees.
         sub_solar_lat_deg: Scalar sub-solar latitude in degrees.
@@ -482,11 +483,11 @@ def plant_circular_body(
         np.arange(cols, dtype=np.float64),
         indexing='ij',
     )
-    dv = vv - centre_vu[0]
-    du = uu - centre_vu[1]
+    dv = vv - center_vu[0]
+    du = uu - center_vu[1]
     radius = np.sqrt(dv * dv + du * du)
     body_mask = radius <= radius_px
-    # Linear ramp from 0 at centre to pi/2 at limb; outside the limb the
+    # Linear ramp from 0 at center to pi/2 at limb; outside the limb the
     # value is irrelevant because ``body_mask`` is False.
     incidence = np.where(
         body_mask,

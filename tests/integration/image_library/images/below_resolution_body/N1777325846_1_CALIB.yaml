@@ -23,7 +23,7 @@ ground_truth:
     Small Mimas ~20 px diameter in lower left corner.
     Slightly overexposed, 72 degree phase angle.
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/BodyBlobNav -> measured success/low/BodyLimbNav. Tier medium->low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. Offset unchanged and within slack. Primary also moves to BodyLimbNav with the recalibrated confidences. BodyBlobNav no longer emits a result; techniques_must_run updated to BodyLimbNav.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix is honestly low-tier. The primary is BodyLimbNav, the highest-confidence contributor. BodyBlobNav emits no result on this frame.
 
 expected:
   status: success                           # success | failed | conflicted

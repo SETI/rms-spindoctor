@@ -80,7 +80,7 @@ def _polyline_from_edge_mask(
     """Extract a polyline + per-vertex normal from a 1-pixel-wide edge mask.
 
     Each True pixel becomes one polyline vertex.  The normal AXIS at each
-    vertex comes from the local mask-neighbour test: whichever side has no
+    vertex comes from the local mask-neighbor test: whichever side has no
     mask pixel is the off-edge side.  That test alone fixes only the axis,
     never a consistent sense -- it scans ``v - 1`` before ``v + 1`` and
     ``u - 1`` before ``u + 1``, so on a closed ring the emitted signs follow
@@ -224,15 +224,15 @@ def _is_straight_line(vertices_vu: NDArrayFloatType) -> bool:
 
     The polyline is straight when its maximum perpendicular deviation
     from the best-fit straight line is below
-    ``FLAT_CURVATURE_THRESHOLD_PX``.  Computed by SVD of the centred
+    ``FLAT_CURVATURE_THRESHOLD_PX``.  Computed by SVD of the centered
     point cloud (the smallest singular vector is the normal direction).
     """
     if vertices_vu.shape[0] < 3:
         return True
-    centred = vertices_vu - vertices_vu.mean(axis=0)
-    _, _, vh = np.linalg.svd(centred, full_matrices=False)
+    centered = vertices_vu - vertices_vu.mean(axis=0)
+    _, _, vh = np.linalg.svd(centered, full_matrices=False)
     normal = vh[-1]
-    deviations = centred @ normal
+    deviations = centered @ normal
     return bool(float(np.max(np.abs(deviations))) <= FLAT_CURVATURE_THRESHOLD_PX)
 
 

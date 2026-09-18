@@ -97,8 +97,8 @@ def render_smeared_psf(
     psf_half_u = int(star.psf_size[1] + np.round(abs(star.move_u))) // 2
     psf_half_v = int(star.psf_size[0] + np.round(abs(star.move_v))) // 2
     move_gran = movement_granularity_px(star.move_v, star.move_u, max_steps=max_movement_steps)
-    # ``eval_rect`` measures its offset from the centre pixel's lower edge --
-    # 0.0 is the corner, 0.5 the centre -- so the fraction it wants is the
+    # ``eval_rect`` measures its offset from the center pixel's lower edge --
+    # 0.0 is the corner, 0.5 the center -- so the fraction it wants is the
     # fractional part of a uv coordinate, which is what the record carries.
     # ``math.floor`` and not ``int``: a star in the extended-FOV margin has a
     # negative uv, and truncation toward zero would hand ``eval_rect`` a

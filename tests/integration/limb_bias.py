@@ -11,24 +11,28 @@ Two independent ground-truth channels are supported:
 * Simulator planted truth.  A sim scene renders a body at
   ``center + planted_offset``; the simulated body NavModel predicts the
   unshifted geometry, so the navigator should recover ``planted_offset``
-  exactly.  Because the simulator sets the spacecraft position, the body
-  ephemeris, and the pointing by construction, any residual limb-fit error
-  on a sim scene is a genuine algorithmic / optical-model bias with no
-  geometry-error component.  :func:`measure_sim_limb_bias` returns the
-  signed per-axis error against that planted truth.
+  exactly.  The simulator sets the spacecraft position, the body ephemeris,
+  and the pointing by construction, so a residual limb-fit error on a sim
+  scene carries no spacecraft-position and no body-ephemeris component.
+  What it does carry is the limb fit read against the scene description the
+  renderer and the model both work from: it is a difference between two
+  sides of one description, so a coordinate convention the two apply alike
+  cancels exactly and cannot show up here.
+  :func:`measure_sim_limb_bias` returns the signed per-axis error against
+  that planted truth.
 
 * Real-frame star navigation.  On a real frame that also carries several
   navigable stars, the star techniques provide an independent, usually more
   precise, offset.  The limb-minus-star gap on a real frame mixes the
-  algorithmic limb bias with any spacecraft-position or body-ephemeris
-  error, so it must be read together with the sim-isolated algorithmic
-  component.  :func:`measure_real_limb_vs_star` returns both offsets and
-  their signed gap.
+  limb-fit residual with any spacecraft-position or body-ephemeris error,
+  so it must be read together with the sim measurement above.
+  :func:`measure_real_limb_vs_star` returns both offsets and their signed
+  gap.
 
-A third function, :func:`renderer_centroid_offset`, validates that the
-simulator's own body renderer does not embed a positional bias, so the sim
-can be trusted as ground truth.  It calls the renderer directly and never
-touches the navigation code path.
+A third function, :func:`renderer_centroid_offset`, measures the simulator's
+own body renderer against the center it was asked for, which anchors the
+renderer side on its own and needs no agreement from the model side.  It
+calls the renderer directly and never touches the navigation code path.
 
 Offset convention (matches the rest of the pipeline): a predicted position
 ``(v, u)`` means the actual position is ``(v + dv, u + du)``, so the signed
@@ -129,17 +133,17 @@ class RendererCentroidCheck:
     """Result of the simulator body-renderer geometry validation.
 
     Attributes:
-        requested_center_vu: Sub-pixel body centre requested from the
-            renderer, in the renderer's corner-origin convention.
-        geometric_center_index_vu: The geometric centre in the navigator's
-            pixel-index convention (``requested - 0.5`` on each axis).
+        requested_center_vu: Sub-pixel body center requested from the
+            renderer, in the renderer's pixel corner coordinates.
+        geometric_center_vu: The same center in the pixel centric coordinates
+            the navigator measures in (``requested - 0.5`` on each axis).
         measured_centroid_vu: The intensity-weighted centroid of the
-            rendered body, in pixel-index coordinates.
+            rendered body, pixel centric.
         centroid_error_vu: Signed ``measured - geometric`` per axis.
     """
 
     requested_center_vu: tuple[float, float]
-    geometric_center_index_vu: tuple[float, float]
+    geometric_center_vu: tuple[float, float]
     measured_centroid_vu: tuple[float, float]
     centroid_error_vu: tuple[float, float]
 
@@ -160,10 +164,10 @@ def build_body_scene(
 ) -> dict[str, Any]:
     """Build a single-sphere sim scene as a flat ``sim_params`` mapping.
 
-    The scene is a well-resolved, centred sphere on black sky with a planted
+    The scene is a well-resolved, centered sphere on black sky with a planted
     offset, sized with room to spare so the whole limb stays on the frame
     under the offset.  Noise is off by default so the measured limb-fit error
-    is the deterministic algorithmic bias rather than a per-frame noise draw.
+    is deterministic rather than a per-frame noise draw.
 
     Parameters:
         diameter_px: Full body diameter in pixels (all three axes equal, so
@@ -318,23 +322,24 @@ def renderer_centroid_offset(
     """Validate the sim body renderer's sub-pixel placement, nav-code-free.
 
     Renders a fully-lit (phase 0) sphere directly through
-    :func:`create_simulated_body` at a requested sub-pixel centre and measures
+    :func:`create_simulated_body` at a requested sub-pixel center and measures
     the intensity-weighted centroid of the result.  A phase-0 sphere is
     radially symmetric, so its brightness centroid must coincide with its
-    geometric centre; any offset would be a positional bias baked into the
-    renderer itself.  The renderer places pixel index ``i`` at coordinate
-    ``i + 0.5``, so a requested centre ``c`` lands the geometric centre at
-    pixel index ``c - 0.5``; the check compares against that.
+    geometric center; any offset would be a positional bias baked into the
+    renderer itself.  The renderer works in pixel corner coordinates, where a
+    pixel's center sits half a pixel past its array row, so a requested center
+    ``c`` puts the geometric center at ``c - 0.5`` pixel centric; the check
+    compares against that.
 
     Parameters:
-        center_vu: Requested body centre in the renderer's corner-origin
-            convention.
+        center_vu: Requested body center in the renderer's pixel corner
+            coordinates.
         diameter_px: Body diameter in pixels.
         size_px: Square image side in pixels.
 
     Returns:
         A :class:`RendererCentroidCheck` with the signed centroid error in
-        pixel-index coordinates.
+        pixel centric coordinates.
     """
     img = create_simulated_body(
         size=(size_px, size_px),
@@ -354,7 +359,7 @@ def renderer_centroid_offset(
     error = (centroid_v - geometric[0], centroid_u - geometric[1])
     return RendererCentroidCheck(
         requested_center_vu=center_vu,
-        geometric_center_index_vu=geometric,
+        geometric_center_vu=geometric,
         measured_centroid_vu=(centroid_v, centroid_u),
         centroid_error_vu=error,
     )
@@ -364,9 +369,9 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
     """Measure how far the brightness gradient ridge sits inside the limb.
 
     Renders a fully-lit sphere and, along a horizontal scan through the
-    centre, finds the radius of the peak brightness gradient magnitude and
+    center, finds the radius of the peak brightness gradient magnitude and
     compares it to the geometric limb radius.  A positive return value means
-    the steepest-slope point (which the edge distance transform localises)
+    the steepest-slope point (which the edge distance transform localizes)
     lies inside the true silhouette boundary -- the photometric roll-off
     signature that biases the limb fit.  This is a diagnostic measurement, not
     a navigation call.
@@ -392,10 +397,10 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
     )
     row = img[round(center - 0.5)].astype(np.float64)
     grad = np.abs(np.gradient(row))
-    center_idx = center - 0.5
-    right = np.arange(row.shape[0]) > center_idx
+    center_centric = center - 0.5
+    right = np.arange(row.shape[0]) > center_centric
     ridge_idx = int(np.argmax(np.where(right, grad, 0.0)))
-    ridge_radius = float(ridge_idx) - center_idx
+    ridge_radius = float(ridge_idx) - center_centric
     geometric_radius = diameter_px / 2.0
     return geometric_radius - ridge_radius
 
@@ -418,7 +423,7 @@ def sweep_scenes(
         One ``(value, sim_params)`` pair per value.
 
     Raises:
-        ValueError: If ``axis`` is not a recognised sweep axis.
+        ValueError: If ``axis`` is not a recognized sweep axis.
     """
     out: list[tuple[float, dict[str, Any]]] = []
     for value in values:

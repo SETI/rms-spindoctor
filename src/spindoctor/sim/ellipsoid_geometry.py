@@ -19,6 +19,7 @@ from typing import cast
 
 import numpy as np
 
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -143,12 +144,14 @@ def project_ellipsoid(
     work_semi_minor = semi_minor_axis * aa_scale
     work_semi_c = semi_c_axis * aa_scale
 
-    # Create coordinate grids at pixel centers
-    # This preserves subpixel alignment such that (0.5, 0.5) refers to the center
-    # of pixel (0,0) regardless of supersampling scale.
+    # Create coordinate grids at pixel centers.  The grid starts as array rows
+    # and columns and the projection works in the geometry layer's pixel corner
+    # coordinates, where the caller states the center, so the half pixel goes
+    # on here; that alignment holds at every supersampling scale because the
+    # center is scaled with the grid.
     v_coords, u_coords = np.mgrid[0:work_v, 0:work_u].astype(float)
-    v_coords += 0.5
-    u_coords += 0.5
+    v_coords += PIXEL_CENTER_TO_CORNER_PX
+    u_coords += PIXEL_CENTER_TO_CORNER_PX
     v_coords -= work_center_v
     u_coords -= work_center_u
 

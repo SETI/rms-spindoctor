@@ -167,10 +167,10 @@ Call path traced through
    :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` ``False``, and a
    :class:`~spindoctor.nav_technique.diagnostics.ManualNavDiagnostics` with
    ``operator_accepted=True`` (the diagnostics type is always ``ManualNavDiagnostics``
-   regardless of whether the auto-pick was used). Cancelling the dialog instead yields a
+   regardless of whether the auto-pick was used). Canceling the dialog instead yields a
    spurious zero-confidence result carrying ``ManualNavDiagnostics`` with
    ``operator_accepted=False``.
-7. When the operator saves a sidecar, the merged annotations populate a labelled summary
+7. When the operator saves a sidecar, the merged annotations populate a labeled summary
    PNG alongside the JSON.
 
 Examples

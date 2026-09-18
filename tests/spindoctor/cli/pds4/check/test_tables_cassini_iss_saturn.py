@@ -200,7 +200,7 @@ def test_a_missing_constant_respelled_is_found(plain_bundle: Path, tmp_path: Pat
 def test_an_angle_column_in_radians_is_found(
     plain_bundle: Path, tmp_path: Path, column: str
 ) -> None:
-    """A ``unit`` of ``rad`` on an angle column is not the degrees its values are in.
+    """A ``unit`` of ``rad`` on an angle column is not the degrees its statistic is in.
 
     A plane's column, a wrapped arc's and the incidence angle's are held alike.
 
@@ -213,7 +213,10 @@ def test_an_angle_column_in_radians_is_found(
     substitute_once(bundle / RINGS, r'<unit>deg</unit>', '<unit>rad</unit>', within=column)
     location, _, _ = table_field(bundle, RINGS, column)
     expected = Finding(
-        RINGS, CheckName.TABLE, location, f'{column} states rad, but its values are in deg'
+        RINGS,
+        CheckName.TABLE,
+        location,
+        f"{column} states rad, but its plane's statistic is in deg",
     )
     assert expected in _read(bundle, RINGS)
 

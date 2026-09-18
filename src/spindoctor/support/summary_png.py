@@ -1,7 +1,7 @@
 """Annotated-summary-PNG rendering shared by the autonomous and manual paths.
 
 The autonomous pipeline (``spindoctor.navigate_image_files.write_summary_png``)
-and the manual-navigation dialog both produce a labelled overlay PNG of
+and the manual-navigation dialog both produce a labeled overlay PNG of
 the source image with each NavModel's annotation drawn on top.  The
 rendering logic lives here so both code paths produce visually
 identical PNGs from the same ``(obs, annotations, offset_px)`` triple.

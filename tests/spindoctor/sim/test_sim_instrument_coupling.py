@@ -52,7 +52,7 @@ def test_resolver_generic_returns_sim_block() -> None:
 
 
 def test_resolver_rejects_unknown_instrument() -> None:
-    """An unrecognised instrument name raises with a clear message."""
+    """An unrecognized instrument name raises with a clear message."""
     with pytest.raises(ValueError, match='unknown sim instrument'):
         resolve_sim_inst_config(DEFAULT_CONFIG, 'hubble_wfc3')
 

@@ -16,12 +16,12 @@ ground_truth:
   ui_version: spindoctor 0.1.dev63 (cohort review batch 006)
   notes: |
     star_dominated exemplar from cohort-curation review batch 006 (seq 003).
-    Selection: VG2 | NA | Neptune; {"role": "star-field frame from the #228 FOV-twist residual analysis", "source": "experiments/fov_twist/config/vg2iss_nac.config"}.
+    Selection: VG2 | NA | Neptune; {"role": "star-field frame from the FOV-twist residual analysis", "source": "experiments/fov_twist/config/vg2iss_nac.config"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.936, rank=high, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [-49.0337, -1.8331], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [-49.2965, -1.7568]}.
+    Pipeline at curation: status=success, confidence=0.936, rank=high, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [-49.0337, -1.8331], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [-49.2965, -1.7568]}.
     Operator comment: many stars
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/medium/StarFieldFromCatalogNav -> measured success/high/StarRefineNav. Tier medium->high adjudicated per provenance: the cautious operator medium pin contradicted this frame's own recorded rank=high from the batch-006 curation run; the recalibrated star-field lock scores high. Offset unchanged and within slack. Primary also moves to StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor; this retires the Track-B marker that withheld refine-as-primary, whose fix shipped as the single-inlier 0.50 cap and does not apply to multi-star refines.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is high: the star-field lock scores high, matching this frame's recorded rank=high from the batch-006 curation run. The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.
 expected:
   status: success
   confidence_tier: high

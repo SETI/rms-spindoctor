@@ -7,7 +7,7 @@ Overview
 
 :class:`~spindoctor.nav_model.nav_model_titan.NavModelTitan` is the navigation model for a body
 whose atmosphere hides its surface. Titan's thick haze means its visible edge is the haze top:
-wavelength-dependent, hundreds of kilometres above the solid body, and not even circular at
+wavelength-dependent, hundreds of kilometers above the solid body, and not even circular at
 high phase. Ellipsoid limb, terminator, and disc navigation are therefore systematically wrong
 on Titan rather than merely noisy, so the shape-based
 :class:`~spindoctor.nav_model.nav_model_body.NavModelBody` skips it and this model takes the
@@ -196,7 +196,7 @@ with the technique that reads them, at :doc:`dev_guide_techniques_titan_haze`.
      - Effect
    * - ``titan.atmosphere_height``
      - ``700``
-     - Haze envelope above the solid radius, in kilometres. Sets the envelope radius that bounds
+     - Haze envelope above the solid radius, in kilometers. Sets the envelope radius that bounds
        the search annulus and the ray windows.
    * - ``titan.navigation.min_envelope_diameter_px``
      - ``40.0``

@@ -223,12 +223,12 @@ class RingEdgeDiagnostics:
             (``per_edge_dt_rms_summed / edge_count``).  Edge-count independent,
             so it -- not the raw sum -- is the scale the confidence formula
             uses; the sum grows with the number of fused edges and a fixed
-            divisor cannot normalise it.
+            divisor cannot normalize it.
         per_edge_dt_median_max: Largest per-edge median absolute DT residual
             (px).  The mis-convergence gate statistic: a wholly misaligned
             edge (the wrong-ringlet failure mode) drives its own median to
             the ringlet spacing, while a minority of vertices snapping to a
-            neighbouring parallel edge (routine on flat multi-edge scenes)
+            neighboring parallel edge (routine on flat multi-edge scenes)
             leaves every median near the fit residual.
         edge_count: Number of RING_EDGE features fused.
         is_rank_1: True if every ring-edge feature was straight-line and the
@@ -407,7 +407,7 @@ class ManualNavDiagnostics:
     Parameters:
         operator_accepted: ``True`` when the operator confirmed the
             dialog's chosen offset.  Always ``True`` on results that
-            reach the curator (cancelled picks short-circuit before the
+            reach the curator (canceled picks short-circuit before the
             ``NavResult`` is built), but kept explicit so the JSON
             metadata records the fact that a human, not an autonomous
             technique, set the offset.

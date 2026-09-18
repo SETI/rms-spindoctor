@@ -15,7 +15,6 @@ written.
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from filecache import FCPath
@@ -50,10 +49,7 @@ class ImageInputs:
 
 
 def image_inputs(
-    results_path_stub: str,
-    *,
-    nav_results_root: str | Path | FCPath,
-    backplane_results_root: str | Path | FCPath,
+    results_path_stub: str, *, nav_results_root: FCPath, backplane_results_root: FCPath
 ) -> ImageInputs:
     """Return where the four files the labels pass reads for one image are.
 
@@ -65,13 +61,11 @@ def image_inputs(
     Returns:
         The four paths.
     """
-    nav_root = FCPath(nav_results_root)
-    backplane_root = FCPath(backplane_results_root)
     return ImageInputs(
-        navigation_document=document_path(nav_root, results_path_stub),
-        summary_png=nav_root / f'{results_path_stub}_summary.png',
-        backplane_fits=backplane_root / f'{results_path_stub}_backplanes.fits',
-        backplane_metadata=backplane_root / f'{results_path_stub}_backplane_metadata.json',
+        navigation_document=document_path(nav_results_root, results_path_stub),
+        summary_png=nav_results_root / f'{results_path_stub}_summary.png',
+        backplane_fits=backplane_results_root / f'{results_path_stub}_backplanes.fits',
+        backplane_metadata=backplane_results_root / f'{results_path_stub}_backplane_metadata.json',
     )
 
 
@@ -193,16 +187,12 @@ def _exists(path: FCPath) -> bool:
 
 
 def report_image_inputs(
-    image_file: ImageFile,
-    *,
-    nav_results_root: str | Path | FCPath,
-    backplane_results_root: str | Path | FCPath,
+    image_file: ImageFile, *, nav_results_root: FCPath, backplane_results_root: FCPath
 ) -> InputsReport:
     """Report what one selected image has of the files the labels pass reads.
 
     Reads the image's navigation record, as the labels pass does, and looks for each
-    file; it writes no file.  The two roots are normalized where they are used, by
-    :func:`image_inputs`.
+    file; it writes no file.
 
     Parameters:
         image_file: The image.

@@ -34,6 +34,7 @@ from spindoctor.feature.geometry import RingAnnulusGeometry, RingEdgePolyline
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_rings_base import NavModelRingsBase
 from spindoctor.nav_model.sim_ring import PredictedRingFeature, predict_ring_feature
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.time import now_dt
 from spindoctor.support.types import NDArrayFloatType
@@ -59,14 +60,14 @@ _RING_EDGE_FLAT_CURVATURE_PX: float = 1.0
 def _ring_edge_is_straight(vertices_vu: NDArrayFloatType) -> bool:
     """Return True when the polyline's deviation from a line is below threshold.
 
-    Computed by SVD of the centred vertices: the smaller singular direction's
+    Computed by SVD of the centered vertices: the smaller singular direction's
     spread is the max perpendicular deviation from the best-fit line.
     """
     if vertices_vu.shape[0] < 3:
         return True
-    centred = vertices_vu - vertices_vu.mean(axis=0, keepdims=True)
-    _u, _s, vt = np.linalg.svd(centred, full_matrices=False)
-    deviations = centred @ vt[1]
+    centered = vertices_vu - vertices_vu.mean(axis=0, keepdims=True)
+    _u, _s, vt = np.linalg.svd(centered, full_matrices=False)
+    deviations = centered @ vt[1]
     return bool(float(np.max(np.abs(deviations))) <= _RING_EDGE_FLAT_CURVATURE_PX)
 
 
@@ -220,7 +221,14 @@ class NavModelRingsSimulated(NavModelRingsBase):
             len(prediction.edges),
         )
         self._prediction = prediction
-        self._predicted_center_vu = (center_v, center_u)
+        # The scene states the ring system's center in pixel corner
+        # coordinates, which is what ``predict_ring_feature`` renders against
+        # (it puts the center of pixel i at i + 0.5).  The payload is pixel
+        # centric, so the half pixel comes off here.
+        self._predicted_center_vu = (
+            center_v - PIXEL_CENTER_TO_CORNER_PX,
+            center_u - PIXEL_CENTER_TO_CORNER_PX,
+        )
         self._bbox_extfov_vu = (
             ext_margin_v,
             ext_margin_u,

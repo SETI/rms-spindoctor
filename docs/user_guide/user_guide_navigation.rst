@@ -757,15 +757,15 @@ each prediction sits where the fit says the real feature is.
 
 The overlay carries one set of annotations per contributing model:
 
-* **Stars** -- each predicted catalog star is boxed and labelled with its name,
+* **Stars** -- each predicted catalog star is boxed and labeled with its name,
   magnitude, and (when known) spectral class. Every star box is additionally
   contrast-stretched against its own local minimum and maximum, so a faint star
   only a few DN above a bright background stays visible inside its box even where
   the whole-frame stretch would bury it.
 * **Bodies** -- each body in the field of view contributes its lit-limb outline,
-  with the body name labelled by an arrow pointing to the limb.
+  with the body name labeled by an arrow pointing to the limb.
 * **Rings** -- each catalog ring edge is drawn as a polyline following the edge
-  across the frame and labelled with the edge name. Ring points hidden behind
+  across the frame and labeled with the edge name. Ring points hidden behind
   the planet globe are dropped, so an edge stops at the planet limb rather than
   being painted across the disc.
 
@@ -786,8 +786,8 @@ and the backplanes.
    Summary PNG for the real navigated Cassini ISS frame ``N1484688342``, showing
    every annotation family at once. A crescent Mimas carries its lit-limb outline
    and a ``MIMAS`` label; catalog ring edges (Encke and Keeler) are drawn as
-   labelled polylines across the bright ring band; roughly a dozen predicted
-   stars are boxed and labelled with catalog name, magnitude, and spectral class,
+   labeled polylines across the bright ring band; roughly a dozen predicted
+   stars are boxed and labeled with catalog name, magnitude, and spectral class,
    each box locally contrast-stretched so the faint stars stay visible; and the
    lower-left metadata block reports a successful fit at confidence 0.660.
 
@@ -800,7 +800,7 @@ Interpreting Results
 
 The key information in the results is:
 
-1. **Offset Values**: The u,v pixel offsets that should be applied to the nominal pointing to match the observed features
+1. **Offset Values**: The ``(dv, du)`` pixel offset -- v first, then u -- that should be applied to the nominal pointing to match the observed features
 2. **Correlation Quality**: How well the models matched the observed features
 3. **Annotations**: Identifications of specific features in the image
 4. **Status**: Whether the navigation was successful, and if not, why
@@ -833,7 +833,7 @@ default ``*`` runs all of them.
 The algorithmic detail (DT pipeline, Levenberg-Marquardt refinement,
 information-matrix covariance) lives in
 :doc:`/dev_guide/dev_guide_techniques` and
-:doc:`/dev_guide/dev_guide_techniques_dt_fitting`; this page summarises
+:doc:`/dev_guide/dev_guide_techniques_dt_fitting`; this page summarizes
 what each technique does and which scenes it applies to.
 
 Implemented techniques
@@ -937,7 +937,7 @@ selection to resolve to exactly one image:
 The driver loads the image, runs the orchestrator's ``prepare`` step
 (image classifier + NavModels + features + reliability gate), opens the
 dialog, and prints the chosen ``offset_dv_px`` / ``offset_du_px`` to
-stdout.  Exit code is ``2`` if the dialog is cancelled or no
+stdout.  Exit code is ``2`` if the dialog is canceled or no
 template-bearing features are available.  The dialog's **Save as
 Library Entry...** button is the recommended path for adding a sidecar
 to the operator-curated test image library; see
@@ -1190,21 +1190,21 @@ Titan Navigation Model
 ----------------------
 
 Titan's atmospheric haze is opaque at most wavelengths, so what a camera
-sees is not the solid surface but the haze top: hundreds of kilometres
+sees is not the solid surface but the haze top: hundreds of kilometers
 up, at an altitude that varies with wavelength, latitude, season, and
 phase.  Fitting an ellipsoid limb to that edge is systematically wrong
 rather than merely noisy, so Titan is navigated from a property of the
 haze itself.
 
 Absent clouds or visible surface features, a hazy atmosphere is
-mirror-symmetric about the image-plane line through the body centre and
+mirror-symmetric about the image-plane line through the body center and
 the sub-solar point.  The image shift perpendicular to that line
-("cross-track") is the shift that maximises mirror symmetry; and because
+("cross-track") is the shift that maximizes mirror symmetry; and because
 the limb arc facing the Sun is close to circular, a circle fit with a
 *free* radius to that arc gives the shift along the line
 ("along-track") without assuming any haze altitude.  The free radius is
 what makes the method filter-independent: a haze top that sits higher in
-blue than in red changes the fitted radius, not the fitted centre.  The
+blue than in red changes the fitted radius, not the fitted center.  The
 method is published as Hanson, French, Waugh, Barth and Anderson (2025),
 *Geophysical Research Letters*, doi:10.1029/2024GL113415.
 
@@ -1214,14 +1214,14 @@ view the model emits a single ``TITAN_LIMB`` feature and
 measures the offset from it, on any instrument and any filter, with no
 per-filter or per-phase training data.  The reported
 uncertainty is deliberately *anisotropic*: the mirror-symmetry scan
-localises the cross-track direction far more tightly than the circle fit
-localises the along-track one, and the ensemble consumes that ellipse
+localizes the cross-track direction far more tightly than the circle fit
+localizes the along-track one, and the ensemble consumes that ellipse
 rather than an averaged circle.
 
 **Accuracy.**  Single-frame accuracy is **1 px or better cross-track and
 3 px or better along-track**.  That bound comes from planted-truth
 simulation (the 95th percentile of recovery error on the clean-scene
-family of a 700-scene randomised campaign is 0.17 px cross-track and
+family of a 700-scene randomized campaign is 0.17 px cross-track and
 0.82 px along-track; families with injected artifacts run wider) and is
 confirmed
 on real frames by an independent witness: over the Cassini validation
@@ -1300,11 +1300,11 @@ named fit gate, or a gated feature whose reliability breakdown says why.
 Nothing produces a silent empty failure.
 
 **Overlay.**  The summary PNG draws the predicted haze envelope circle,
-the symmetry axis, the sunward arc sector, and a centre cross.  Because
+the symmetry axis, the sunward arc sector, and a center cross.  Because
 annotations are composited at the navigated offset, the drawn circle
 lands on the fitted position on a committed frame and stays at the SPICE
 prediction when nothing was committed.  A feature below the reliability
-gate is drawn dotted and labelled ``TITAN (low reliability)``.
+gate is drawn dotted and labeled ``TITAN (low reliability)``.
 
 **Configuration.**  ``config_060_titan.yaml`` exposes:
 
@@ -1326,7 +1326,7 @@ gate is drawn dotted and labelled ``TITAN (low reliability)``.
    * - ``titan.navigation.ring_occlusion_radii_km``
      - ``[inner_km, outer_km]`` ring-plane range treated as opaque.
    * - ``titan.navigation.axis_min_offset_px``
-     - Below this predicted-centre-to-sub-solar distance the disc is
+     - Below this predicted-center-to-sub-solar distance the disc is
        treated as rotationally symmetric and the axis search is skipped.
        Scales with the sampling stride of the incidence backplane.
    * - ``titan.navigation.backplane_max_samples``

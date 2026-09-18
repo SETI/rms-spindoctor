@@ -89,7 +89,7 @@ audience and the consequence of the line, not the call site's depth:
 
 * **DEBUG** — pixel-level intermediate values, per-iteration LM diagnostics, per-vertex
   Tukey weights, and any other quantity an operator only consults while reproducing a
-  single image's behaviour. DEBUG output is not routed to the per-image log file by
+  single image's behavior. DEBUG output is not routed to the per-image log file by
   default; enable it through the per-driver ``--log-level`` flag when needed.
 * **INFO** — the per-image narrative every operator should see by default: phase
   headers (extraction begin / end, pass-1 ensemble verdict, pass-2 ensemble verdict),

@@ -84,7 +84,7 @@ class NavTechniqueManual(NavTechnique):
     ) -> None:
         super().__init__(config=config)
         # ``annotations`` is the merged-per-NavModel ``Annotations`` the
-        # dialog uses when it writes a labelled summary PNG next to a
+        # dialog uses when it writes a labeled summary PNG next to a
         # saved sidecar.  It is optional only because tests that exercise
         # the offset-pick path alone do not need it; ``run_manual_nav``
         # always populates it in normal use.
@@ -141,7 +141,7 @@ class NavTechniqueManual(NavTechnique):
     def navigate(self, features: list[NavFeature], context: NavContext) -> NavTechniqueResult:
         """Run the dialog and convert the operator's choice to a result.
 
-        Cancelling the dialog yields a spurious result with zero
+        Canceling the dialog yields a spurious result with zero
         confidence so the ensemble drops it; accepting the dialog yields
         a result with ``_MANUAL_OFFSET_SIGMA_PX`` per-axis covariance.
         """

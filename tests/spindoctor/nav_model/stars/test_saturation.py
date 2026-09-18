@@ -60,7 +60,7 @@ def _ybsc(ra: float, dec: float, vmag: float, *, b_v: float = 0.0) -> MutableSta
 
 
 def _tycho2(ra: float, dec: float, vmag: float, *, spectral_class: str = 'G0') -> MutableStar:
-    """A Tycho-2 reference record: real V, no Johnson colour (as reduced)."""
+    """A Tycho-2 reference record: real V, no Johnson color (as reduced)."""
     return _star(
         catalog_name='tycho2',
         ra_pm=ra,
@@ -114,7 +114,7 @@ def test_correct_star_photometry_recomputes_dn() -> None:
 
 
 def test_correct_star_photometry_copies_johnson_mags() -> None:
-    """Johnson B follows the YBSC colour once corrected."""
+    """Johnson B follows the YBSC color once corrected."""
     star = _ucac4(*_ETA_TAU, 6.68)
     ref = _ybsc(*_ETA_TAU, 2.87, b_v=0.5)
     correct_star_photometry(
@@ -324,7 +324,7 @@ def test_correct_star_photometry_both_corrected_prefers_precedence_regardless_of
     assert out == [ucac4]
 
 
-def test_correct_star_photometry_ignores_none_vmag_neighbour() -> None:
+def test_correct_star_photometry_ignores_none_vmag_neighbor() -> None:
     """A co-located record with no magnitude is never treated as a duplicate."""
     star = _ucac4(*_ETA_TAU, 6.68)
     ref = _ybsc(*_ETA_TAU, 2.87)
@@ -339,8 +339,8 @@ def test_correct_star_photometry_ignores_none_vmag_neighbour() -> None:
     assert ghost in out
 
 
-def test_correct_star_photometry_keeps_corrected_star_with_distant_neighbour() -> None:
-    """A corrected star with only a distant neighbour is kept as-is."""
+def test_correct_star_photometry_keeps_corrected_star_with_distant_neighbor() -> None:
+    """A corrected star with only a distant neighbor is kept as-is."""
     star = _ucac4(*_ETA_TAU, 6.68)
     ref = _ybsc(*_ETA_TAU, 2.87)
     far = _star(catalog_name='ucac4', ra_pm=_MEROPE[0], dec_pm=_MEROPE[1], vmag=9.0)
@@ -513,8 +513,8 @@ def test_correct_star_photometry_corrects_against_tycho2_reference() -> None:
     assert star.vmag == pytest.approx(6.9)
 
 
-def test_correct_star_photometry_tycho2_correction_fakes_colour() -> None:
-    """A Tycho-2 correction fakes the colour from spectral class (faked flag set)."""
+def test_correct_star_photometry_tycho2_correction_fakes_color() -> None:
+    """A Tycho-2 correction fakes the color from spectral class (faked flag set)."""
     star = _ucac4(*_ETA_TAU, 7.7)
     star.spectral_class = 'G0'
     ref = _tycho2(*_ETA_TAU, 6.9)
@@ -611,8 +611,8 @@ def test_correct_star_photometry_no_widening_for_small_gap() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_correct_star_photometry_keeps_neighbour_beyond_vmag_tolerance() -> None:
-    """A co-located neighbour outside the magnitude tolerance is not collapsed.
+def test_correct_star_photometry_keeps_neighbor_beyond_vmag_tolerance() -> None:
+    """A co-located neighbor outside the magnitude tolerance is not collapsed.
 
     After correction the saturated record reads V2.87; a genuinely different
     star at the same position but far in magnitude is not its duplicate, so
@@ -718,7 +718,7 @@ def test_best_mag_aware_match_prefers_brighter_true_twin_over_nearer_unrelated()
     The candidate reads V6.7 (a saturated bright star).  A V4.0 reference
     sits 4 arcsec away and the candidate's true V2.8 twin sits 8 arcsec
     away; both fall inside their own magnitude-widened reach.  A pure
-    nearest-neighbour rule would correct the candidate to the nearer,
+    nearest-neighbor rule would correct the candidate to the nearer,
     unrelated V4.0 star; the brightness preference returns the V2.8 twin
     instead.
     """

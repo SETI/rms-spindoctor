@@ -528,9 +528,9 @@ techniques:
         alpha: 0.976
         divisor: 1500.0
         cap_at: 1.0
-      # Penalise the MEAN per-edge DT residual (px), not the raw sum.  The sum
+      # Penalize the MEAN per-edge DT residual (px), not the raw sum.  The sum
       # scales with the number of fused edges, so with a fixed divisor a frame
-      # with more rings was penalised purely for having more rings, driving
+      # with more rings was penalized purely for having more rings, driving
       # confidence to zero on real multi-edge scenes.  The mean is
       # edge-count independent.  On the ring-vocabulary family the
       # weight deepens (-0.023 -> -0.069): edge-wave and m-mode shapes
@@ -637,12 +637,12 @@ techniques:
       lm_tikhonov_alpha: 0.0
       # Final continuous gradient-ridge sub-pixel refinement; see
       # ``BodyLimbNav.gradient_ridge_refine``.  1 enables, 0 disables.
-      # ON: the binary edge mask quantises detected edges to the integer
+      # ON: the binary edge mask quantizes detected edges to the integer
       # pixel grid, so on dense real ring scenes a large fraction of model
       # vertices land exactly on edge pixels (DT == 0, zero gradient) and the
       # DT-LM step stalls at the integer coarse-NCC seed.  The continuous
       # gradient-ridge pass refines against the un-thresholded gradient
-      # magnitude, recovering the sub-pixel offset the quantised DT discards.
+      # magnitude, recovering the sub-pixel offset the quantized DT discards.
       # (On clean sim scenes the DT-LM already reaches its ~0.016 px floor, so
       # the refine is a no-op there.)
       gradient_ridge_refine: 1
@@ -933,7 +933,7 @@ techniques:
       # when its computed expectation falls at or below this.  0.01 keeps the
       # per-frame chance-lock rate at one percent; a genuine three-inlier
       # anchor lock on a sparse field sits several orders of magnitude below
-      # it, while a two-inlier lock (anchor pair plus one chance neighbour)
+      # it, while a two-inlier lock (anchor pair plus one chance neighbor)
       # sits above it and is rejected.
       wide_offset_false_lock_budget: 0.01
       # Maximum inlier residual RMS (px) for a wide-offset lock.  A lock
@@ -1008,7 +1008,7 @@ techniques:
       # offset.  After the matcher fixes the correspondences, each inlier
       # detection is re-centroided by a true PSF fit
       # (``obs.star_psf().find_position``) against the instrument's
-      # modelled point-spread function, which is the minimum-variance
+      # modeled point-spread function, which is the minimum-variance
       # estimator and roughly halves-to-quarters the per-star error in
       # the photon-noise-limited regime.  An undersampled PSF fit carries
       # a small sub-pixel-phase bias floor (~0.08 px) that only matters

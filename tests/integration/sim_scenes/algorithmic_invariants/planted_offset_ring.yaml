@@ -5,7 +5,7 @@ size_v: 220
 size_u: 220
 random_seed: 7
 exposure_sec: 1.0
-# A centred, face-on (B = 90) ring_system ringlet whose inner and outer
+# A centered, face-on (B = 90) ring_system ringlet whose inner and outer
 # edges are well-curved circular arcs.  The navigable feature's catalog
 # orbit reaches the navigator through nav_params; the simulated ring model
 # emits one RING_EDGE per edge -- a per-vertex polyline with outward radial

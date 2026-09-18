@@ -18,9 +18,9 @@ ground_truth:
     multi_body exemplar from cohort-curation review batch 002 (seq 045).
     Selection: DIONE+MIMAS+RHEA; {"filter": "BL1", "largest_px": 87.5, "targets_px": {"DIONE": 67.9, "MIMAS": 27.0, "RHEA": 87.5}, "year": "2005"}.
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
-    Pipeline: status=success, confidence=0.402, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingAnnulusNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyDiscCorrelateNav": [6.7891, -45.4375], "BodyLimbNav": [7.0108, -45.1008], "RingAnnulusNav": [-24.5, -101.5], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [6.5631, -45.5973]}.
+    Pipeline at curation: status=success, confidence=0.402, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingAnnulusNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyDiscCorrelateNav": [6.7891, -45.4375], "BodyLimbNav": [7.0108, -45.1008], "RingAnnulusNav": [-24.5, -101.5], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [6.5631, -45.5973]}.
 
-    Re-ratchet 2026-07-20 (sidecar reconciled to the seed-20260718 recalibration; attribution basis util/calibration/CAMPAIGN_20260718.md). Expected success/high/BodyLimbNav -> measured success/high/StarRefineNav. Primary also moves to StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor; this retires the Track-B marker that withheld refine-as-primary, whose fix shipped as the single-inlier 0.50 cap and does not apply to multi-star refines.
+    The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.
 expected:
   status: success
   confidence_tier: high

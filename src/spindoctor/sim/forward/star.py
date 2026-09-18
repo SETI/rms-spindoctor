@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 # The brightest magnitude the sky-count inverse-CDF samples down from.  A star
-# this bright is astronomically rare at the modelled counts (b > 0 weights the
+# this bright is astronomically rare at the modeled counts (b > 0 weights the
 # distribution toward faint stars), so the exact value only bounds the sampler.
 _SKY_BRIGHT_CUTOFF_MAG = -2.0
 
@@ -108,9 +108,10 @@ def _deposit_point_mass(
     """Bilinearly deposit a point source's total flux at a sub-pixel position.
 
     The splat conserves the total and places the deposited centroid exactly at
-    ``(v, u)`` (pixel-centre convention: integer index ``i`` is coordinate
-    ``i``).  A non-zero motion vector distributes the mass evenly along the
-    centred drift track (a per-star smear the whole-scene optics stage does not
+    ``(v, u)``, which it reads pixel centric because it writes into the array:
+    a whole number falls on a pixel's center.  A non-zero motion vector
+    distributes the mass evenly along the
+    centered drift track (a per-star smear the whole-scene optics stage does not
     apply).
 
     Parameters:
@@ -167,19 +168,29 @@ def _render_stars_cached(
     sim_star_list: list[MutableStar] = []
     star_info: list[dict[str, Any]] = []
 
-    # A camera roll rotates the whole frame about the boresight (image centre).
-    # The rendered star position is the catalog position rotated by
-    # ``rotation_deg`` about the centre, then translated by the planted offset.
-    # The star record keeps its unrotated catalog (v, u) so the NavModel predicts
-    # the unshifted geometry and a star technique recovers BOTH the rotation and
-    # the translation.  The rotation matrix matches the navigator's
+    # A camera roll rotates the whole frame about the boresight, the uv center
+    # of the frame.  The rendered star position is the catalog position rotated
+    # by ``rotation_deg`` about that center, then translated by the planted
+    # offset.  The star record keeps its unrotated catalog (v, u) so the NavModel
+    # predicts the unshifted geometry and a star technique recovers BOTH the
+    # rotation and the translation.  The rotation matrix matches the navigator's
     # ``similarity_transform_fit`` convention (maps catalog -> detection in
     # ``(v, u)`` order), so the fitted angle equals ``rotation_deg``.
     theta = np.radians(rotation_deg)
     cos_t = float(np.cos(theta))
     sin_t = float(np.sin(theta))
-    roll_center_v = size_v / 2.0
-    roll_center_u = size_u / 2.0
+    # A star's catalog position arrives in pixel corner coordinates and is placed
+    # below in pixel centric ones; on this oversampled grid the half pixel
+    # between the two is scaled by ``os`` alongside every other pixel quantity.
+    half_px = PIXEL_CENTER_TO_CORNER_PX * oversample
+    # The pivot is the frame's center, ``size / 2`` in pixel corner coordinates,
+    # written here pixel centric -- the same point the body and ring paths turn
+    # their geometry about.  Pivoting on ``size / 2`` read pixel centric instead
+    # would put the star field's center of rotation half a detector pixel from
+    # theirs, and a rolled scene would plant a truth its own bodies and rings
+    # disagreed with (#642).
+    roll_center_v = size_v / 2.0 - half_px
+    roll_center_u = size_u / 2.0 - half_px
     # A point mass deposited at a detector coordinate scaled by ``os`` lands its
     # box-downsample centroid half a subsample low; the (os - 1) / 2 shift maps
     # it back so the deposited star centroids exactly at its catalog position.
@@ -207,14 +218,13 @@ def _render_stars_cached(
         )
         sim_star_list.append(star)
 
-        # The record states the catalog position in pixel corner coordinates on this
-        # oversampled grid, so it is the scene's detector uv times ``os``.
-        # The placement below -- the roll centre, the planted offset, the
-        # catalog error, the hit-test entries -- works in detector pixel
-        # indices times ``os``, and ``uv * os - PIXEL_CENTER_TO_CORNER_PX * os`` is
-        # ``(uv - PIXEL_CENTER_TO_CORNER_PX) * os``, which is that index.
+        # The record states the catalog position in pixel corner coordinates on
+        # this oversampled grid, so it is the scene's detector position times
+        # ``os``.  The placement below -- the roll center, the planted offset,
+        # the catalog error, the hit-test entries -- is pixel centric on that
+        # grid, and ``corner * os - PIXEL_CENTER_TO_CORNER_PX * os`` is
+        # ``(corner - PIXEL_CENTER_TO_CORNER_PX) * os``, which is that position.
         # ``grid_shift`` below lands it on the oversampled grid itself.
-        half_px = PIXEL_CENTER_TO_CORNER_PX * oversample
         rel_v = star.v - half_px - roll_center_v
         rel_u = star.u - half_px - roll_center_u
         rot_v = cos_t * rel_v - sin_t * rel_u
@@ -331,9 +341,11 @@ def render_stars(
         exposure_sec: The scene exposure in seconds.
         rendered_sigma: The scene PSF core sigma the stars render at (oversampled
             units), recorded in the hit-test metadata.
-        rotation_deg: Camera-roll angle (degrees) applied about the image centre
-            before the translation offset, modelling a pointing rotation the star
-            techniques recover.
+        rotation_deg: Camera-roll angle (degrees) applied before the translation
+            offset, modeling a pointing rotation the star techniques recover.
+            The pivot is the frame's center, ``(size_v / 2, size_u / 2)`` in
+            pixel corner coordinates, which is the point the body and ring
+            geometry turns about.
         oversample: The render-grid oversampling factor.
         catalog_scatter_px: Scene-level per-star position-scatter sigma
             (oversampled units); 0 disables it.
@@ -401,8 +413,16 @@ def _render_sky_counts_cached(
     hi = 10.0 ** (b * faint_cutoff_mag)
     u_draw = rng.uniform(lo, hi, size=n_stars)
     mags = np.log10(u_draw) / b if b != 0.0 else np.full(n_stars, faint_cutoff_mag)
-    vs = rng.uniform(0.0, float(size_v), size=n_stars)
-    us = rng.uniform(0.0, float(size_u), size=n_stars)
+    # The draw is a uniform pixel corner position over the frame of this grid,
+    # which spans ``[0, size]`` there; the deposit reads a pixel centric
+    # position, where the same frame spans ``[-half, size - half]``, so half a
+    # pixel of this grid comes off every draw.  Without it the outer half of the
+    # first row and column can never receive a star and the draws past the last
+    # row deposit only their in-bounds share.  Taking it off after the draw
+    # rather than shifting the sampler's bounds leaves the random stream
+    # untouched, so a seed keeps the star field it had.
+    vs = rng.uniform(0.0, float(size_v), size=n_stars) - PIXEL_CENTER_TO_CORNER_PX
+    us = rng.uniform(0.0, float(size_u), size=n_stars) - PIXEL_CENTER_TO_CORNER_PX
     for mag, v, u in zip(mags.tolist(), vs.tolist(), us.tolist(), strict=True):
         total = total_flux_for_vmag(float(mag), zero_point=zero_point, exposure_sec=exposure_sec)
         _deposit_point_mass(plane, v, u, total=total * oversample**2)

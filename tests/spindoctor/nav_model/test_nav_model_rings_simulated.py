@@ -22,7 +22,7 @@ _SIZE = 220
 
 
 def _feature_params() -> dict[str, Any]:
-    """A centred navigable ringlet with curved inner and outer edges."""
+    """A centered navigable ringlet with curved inner and outer edges."""
     return {
         'name': 'SATURN',
         'kind': 'ringlet',
@@ -136,6 +136,15 @@ def test_ring_annulus_template_paints_at_ring_radius() -> None:
     RingAnnulusNav uses) and checks every painted pixel sits between the
     ringlet's inner and outer radii from the predicted center -- the
     placement invariant the displaced-template defect broke.
+
+    The bound is exact rather than slack.  A pixel is painted when its
+    anti-aliasing shade exceeds zero, and that shade ramps over one pixel
+    centered on the edge, so a painted pixel's center lies at most half a pixel
+    outside the 60-to-85 px band.  Measuring that from array indices only
+    gives the same number the renderer used because the predicted center is
+    pixel centric too, the system those indices are in; a center carried in
+    pixel corner coordinates would put the whole measurement half a pixel off
+    on each axis and paint pixels 1.2 px outside the band.
     """
     obs = _obs()
     annuli = [f for f in _features() if f.feature_type.name == 'RING_ANNULUS']
@@ -149,9 +158,10 @@ def test_ring_annulus_template_paints_at_ring_radius() -> None:
     center_v, center_u = annulus.geometry.predicted_center_vu
     vs, us = np.where(mask)
     radii = np.hypot(vs - center_v, us - center_u)
-    # Inner edge at 60 px, outer at 85 px; 1.5 px of rasterization slack.
-    assert radii.min() >= 60.0 - 1.5
-    assert radii.max() <= 85.0 + 1.5
+    # Inner edge at 60 px, outer at 85 px, plus the half pixel the
+    # anti-aliasing ramp reaches past each of them.
+    assert radii.min() >= 60.0 - 0.5
+    assert radii.max() <= 85.0 + 0.5
 
 
 def test_ring_edge_carries_declared_orbit_sigma() -> None:

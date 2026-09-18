@@ -345,6 +345,7 @@ def _public_metadata(
         gain_mode=_GAIN_STATE[row['GAIN_MODE_ID']],
         observation_id=row['OBSERVATION_ID'],
         description=row['DESCRIPTION'],
+        shutter_mode=shutter_mode,
     )
 
 

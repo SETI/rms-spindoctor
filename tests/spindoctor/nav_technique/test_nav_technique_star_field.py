@@ -85,7 +85,17 @@ def _make_star_field_features(
 def test_detect_image_sources_finds_planted_stars(
     draw_gaussian_star: DrawGaussianStarFactory,
 ) -> None:
-    """The matched-filter detector recovers planted Gaussian peaks."""
+    """The matched-filter detector recovers planted Gaussian peaks.
+
+    The stars are planted at whole pixel centric positions on a noise-free
+    frame, so each one is symmetric about the pixel it sits on and the moment
+    centroid returns that position exactly.  The bound is what the finite
+    centroid box leaves, and is far below the half pixel that separates the
+    two coordinate systems.
+
+    Parameters:
+        draw_gaussian_star: Stamps a Gaussian source onto a frame in place.
+    """
     centers = [(50.0, 60.0), (120.0, 80.0), (200.0, 220.0)]
     image = _star_field_image(centers, draw=draw_gaussian_star)
     detected = _detect_image_sources(
@@ -100,8 +110,8 @@ def test_detect_image_sources_finds_planted_stars(
     detected_centers = sorted((s.v, s.u) for s in detected)
     expected = sorted(centers)
     for got, want in zip(detected_centers, expected, strict=True):
-        assert got[0] == pytest.approx(want[0], abs=0.5)
-        assert got[1] == pytest.approx(want[1], abs=0.5)
+        assert got[0] == pytest.approx(want[0], abs=0.01)
+        assert got[1] == pytest.approx(want[1], abs=0.01)
 
 
 def test_detect_image_sources_caps_at_max_sources(
@@ -218,7 +228,7 @@ def test_enumerate_triplets_order_is_rotation_stable_on_equal_brightness() -> No
     """Equal-brightness triplet canonicalisation is stable under rotation.
 
     A brightness-keyed apex would break the tie arbitrarily and flip the
-    labelling when the field rotates; the geometric order canonicalises to
+    labeling when the field rotates; the geometric order canonicalises to
     the same physical vertex assignment for a triangle and any rotated copy.
     """
     points = [(0.0, 0.0), (30.0, 4.0), (10.0, 25.0)]
@@ -602,7 +612,7 @@ class _PSFProviderObs:
 def _render_eval_rect_star(
     image: np.ndarray, center_vu: tuple[float, float], *, peak_dn: float, sigma: float
 ) -> None:
-    """Stamp a pixel-integrated Gaussian whose centroid lands at pixel-centre ``center``.
+    """Stamp a pixel-integrated Gaussian whose centroid lands at pixel-center ``center``.
 
     Uses the same ``eval_rect(offset + 0.5)`` convention as the production
     renderer, so a ``find_position`` fit (which reports the ``eval_rect``
@@ -646,9 +656,9 @@ def test_psf_refine_corrects_seeded_centroid_error(
     """PSF refinement pulls a deliberately-offset centroid back onto the star.
 
     Exercises the ``find_position`` path and the half-pixel ``eval_rect``
-    convention: a noiseless star is planted at a sub-pixel centre, the input
+    convention: a noiseless star is planted at a sub-pixel center, the input
     centroid is seeded 0.3-0.4 px away, and the refined position must land back
-    on the true centre.
+    on the true center.
     """
     true_center = (30.37, 30.62)
     image = np.full((60, 60), 20.0, dtype=np.float64)
@@ -741,7 +751,7 @@ def _rotated_star_field_fixture(
 ) -> tuple[np.ndarray, list[NavFeature]]:
     """Build an image + catalog features for a planted rotation + translation.
 
-    The detection-frame star centres are rotated back into the catalog frame
+    The detection-frame star centers are rotated back into the catalog frame
     about the (shifted) field centroid, so the technique should report
     ``(planted_offset, planted_theta)`` as the similarity transform that maps
     catalog to detection.
@@ -1120,7 +1130,7 @@ def test_wide_offset_expectation_three_inliers_is_significant() -> None:
 
 
 def test_wide_offset_expectation_two_inliers_exceeds_budget() -> None:
-    """A two-inlier lock (anchor plus one chance neighbour) is not significant."""
+    """A two-inlier lock (anchor plus one chance neighbor) is not significant."""
     expectation = _wide_offset_false_lock_expectation(
         n_inliers=2,
         n_seeds=15,

@@ -90,7 +90,7 @@ def coarse_ncc_search(
     *,
     min_support_fraction: float = DEFAULT_COARSE_MIN_SUPPORT_FRACTION,
 ) -> tuple[int, int]:
-    """Return the integer offset that maximises the normalised overlap of two masks.
+    """Return the integer offset that maximizes the normalized overlap of two masks.
 
     For each integer shift ``(dv, du)`` in
     ``[-margin_v, +margin_v] x [-margin_u, +margin_u]`` the score is the
@@ -100,8 +100,8 @@ def coarse_ncc_search(
     vertices that remain inside the image after the shift.  Dividing the raw
     overlap count by the in-bounds vertex count removes the bias of a raw
     overlap count toward shifts that simply keep more vertices in bounds.
-    Note this per-vertex match fraction is NOT the binary normalised
-    cross-correlation (a binary NCC normalises by ``sqrt(N_in_bounds)``, not
+    Note this per-vertex match fraction is NOT the binary normalized
+    cross-correlation (a binary NCC normalizes by ``sqrt(N_in_bounds)``, not
     ``N_in_bounds``, so its argmax can differ); the plain fraction is used
     because it fully cancels the in-bounds-count advantage, at the cost of
     over-rewarding shifts with very few surviving vertices.  That failure
@@ -226,7 +226,7 @@ def coarse_ncc_search_scored(
                 continue
             # Score is the fraction of in-bounds polyline points (after the
             # shift) that fall on edge pixels: the raw overlap count divided
-            # by the in-bounds vertex count.  Normalising by ``sv.size``
+            # by the in-bounds vertex count.  Normalizing by ``sv.size``
             # (== valid.sum(), guaranteed >= 1 by the ``valid.any()`` check
             # above) removes the raw count's bias toward shifts that keep
             # more vertices in bounds.  This is not the binary NCC (which
@@ -272,7 +272,7 @@ def coarse_polarity_search_scored(
     orientation contributes on average only ``1 / pi ~ 0.32`` of its overlap.
     The true limb, whose edges run along the predicted normals by
     construction, keeps nearly full weight.  Only the gradient *direction*
-    enters (both vectors are unit-normalised before the dot product), so a
+    enters (both vectors are unit-normalized before the dot product), so a
     faint-but-correctly-oriented true edge is never out-weighted by a bright
     high-contrast clutter edge -- decoupling the score from edge magnitude is
     what keeps a high-contrast distractor from dominating.
@@ -309,7 +309,7 @@ def coarse_polarity_search_scored(
         normals_vu: ``(N, 2)`` model outward normal at each vertex, in the
             same polarity convention as :func:`polarity_filter` (the
             direction the image gradient is expected to point at a matching
-            edge).  Need not be unit length; each normal is normalised
+            edge).  Need not be unit length; each normal is normalized
             internally.
         search_window_vu: ``(margin_v, margin_u)`` non-negative integers
             bounding the search range in v and u.
@@ -355,7 +355,7 @@ def coarse_polarity_search_scored(
     # sampled pixel for shift (dv, du) is (round(v) + dv, round(u) + du).
     base_v = np.rint(verts[:, 0]).astype(np.int64)
     base_u = np.rint(verts[:, 1]).astype(np.int64)
-    # Unit-normalise the model normals up front; a degenerate zero normal
+    # Unit-normalize the model normals up front; a degenerate zero normal
     # gets a zero unit vector so it can never contribute a match.
     norm_len = np.hypot(norms[:, 0], norms[:, 1])
     safe_len = np.where(norm_len > 0.0, norm_len, 1.0)

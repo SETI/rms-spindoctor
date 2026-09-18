@@ -48,7 +48,7 @@ def _render_haze_body(
     phase_deg: float = 30.0,
     illumination_deg: float = 90.0,
 ) -> NDArrayFloatType:
-    """Render a centred spherical body, optionally with a haze layer.
+    """Render a centered spherical body, optionally with a haze layer.
 
     The solid disc paints opaquely and the translucent halo screen (returned
     on the body info) is composited over the empty background, mirroring the
@@ -92,10 +92,10 @@ def _render_haze_body(
 
 
 def _sunward_radial_profile(img: NDArrayFloatType) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-    """The intensity along the +u radial from the centre (the sunward limb).
+    """The intensity along the +u radial from the center (the sunward limb).
 
     Parameters:
-        img: A rendered image with the body centred at ``_CENTER``.
+        img: A rendered image with the body centered at ``_CENTER``.
 
     Returns:
         ``(altitude_px, intensity)``: tangent altitude above the reference
@@ -238,7 +238,7 @@ def _half_light_radius(img: NDArrayFloatType, *, threshold: float = 0.05) -> flo
     """The outermost sunward radius whose intensity clears a fixed threshold.
 
     Parameters:
-        img: A rendered image with the body centred at ``_CENTER``.
+        img: A rendered image with the body centered at ``_CENTER``.
         threshold: The fixed absolute intensity level the apparent limb is
             measured at.
 
@@ -344,8 +344,15 @@ def test_apply_atmosphere_does_not_mutate_input() -> None:
     assert np.array_equal(body, original)
 
 
-def _centred_layers(spec: AtmosphereSpec) -> Any:
-    """Evaluate the haze layers of a centred dark sphere of radius ``_RADIUS``."""
+def _centered_layers(spec: AtmosphereSpec) -> Any:
+    """Evaluate the haze layers of a centered dark sphere of radius ``_RADIUS``.
+
+    Parameters:
+        spec: Atmosphere specification to evaluate over the sphere.
+
+    Returns:
+        The ``AtmosphereLayers`` ``apply_atmosphere`` produces for it.
+    """
     body = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     return apply_atmosphere(
         body,
@@ -365,8 +372,8 @@ def _centred_layers(spec: AtmosphereSpec) -> Any:
 def test_apply_atmosphere_adds_glow_above_the_limb() -> None:
     """The halo screen carries a soft glow just outside the geometric limb."""
     spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6)
-    layers = _centred_layers(spec)
-    # Just outside the sunward limb (+u from centre): the glow lives on the
+    layers = _centered_layers(spec)
+    # Just outside the sunward limb (+u from center): the glow lives on the
     # translucent halo, not the opaque disc.
     probe = (int(_CENTER), int(_CENTER + _RADIUS + 3))
     assert layers.halo.emission[probe] > 0.0
@@ -376,7 +383,7 @@ def test_apply_atmosphere_adds_glow_above_the_limb() -> None:
 def test_halo_transmission_is_the_tangent_extinction() -> None:
     """The halo screen transmits exp(-tau) of the background at each altitude."""
     spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6)
-    layers = _centred_layers(spec)
+    layers = _centered_layers(spec)
     probe_v = int(_CENTER)
     probe_u = int(_CENTER + _RADIUS + 6)
     altitude = math.hypot(probe_v + 0.5 - _CENTER, probe_u + 0.5 - _CENTER) - _RADIUS
@@ -410,8 +417,8 @@ def test_haze_layers_invariant_under_reference_altitude_shift() -> None:
         tau_ref=tau_ref * math.exp(ref_altitude / scale_height),
         ref_altitude_px=0.0,
     )
-    layers_referenced = _centred_layers(referenced)
-    layers_surface = _centred_layers(surface)
+    layers_referenced = _centered_layers(referenced)
+    layers_surface = _centered_layers(surface)
     np.testing.assert_allclose(layers_referenced.disc, layers_surface.disc, rtol=1e-9, atol=1e-12)
     np.testing.assert_allclose(
         layers_referenced.halo.emission, layers_surface.halo.emission, rtol=1e-9, atol=1e-12
@@ -431,7 +438,7 @@ def test_on_disc_haze_is_continuous_across_the_limb() -> None:
     ~400x below the glow).
     """
     spec = AtmosphereSpec(scale_height_px=5.0, tau_ref=0.005, ref_altitude_px=30.0)
-    layers = _centred_layers(spec)
+    layers = _centered_layers(spec)
     row = int(_CENTER)
     inside = float(layers.disc[row, int(_CENTER + _RADIUS - 2)])
     outside = float(layers.halo.emission[row, int(_CENTER + _RADIUS + 1)])
@@ -444,7 +451,7 @@ def test_on_disc_haze_is_continuous_across_the_limb() -> None:
 # Halo compositing: solid-silhouette truth, star extinction, ring interleave.
 # ---------------------------------------------------------------------------
 
-# A fully lit sphere of radius 15 at the frame centre whose haze (H = 5,
+# A fully lit sphere of radius 15 at the frame center whose haze (H = 5,
 # tau_ref = 2) glows over a halo out to ~38 px above the limb.
 _C_SIZE = 96
 _C_CENTER = 48.0
@@ -453,7 +460,7 @@ _C_SPEC = AtmosphereSpec(scale_height_px=5.0, tau_ref=2.0, g=0.6)
 
 
 def _compose_body(*, atmosphere: bool = True, **extra: Any) -> dict[str, Any]:
-    """The compositing scenes' centred atmospheric body entry."""
+    """The compositing scenes' centered atmospheric body entry."""
     body: dict[str, Any] = {
         'name': 'TITAN',
         'center_v': _C_CENTER,
@@ -491,7 +498,7 @@ def _compose_scene(**extra: Any) -> Any:
 
 
 def _halo_transmission_at(pixel: tuple[int, int]) -> float:
-    """The centred test body's tangent transmission at a pixel centre."""
+    """The centered test body's tangent transmission at a pixel center."""
     altitude = math.hypot(pixel[0] + 0.5 - _C_CENTER, pixel[1] + 0.5 - _C_CENTER) - _C_RADIUS
     tau = float(tangent_optical_depth(np.array([altitude]), _C_SPEC)[0])
     return math.exp(-tau)
@@ -618,7 +625,7 @@ def test_overlapping_halos_without_ranges_are_ambiguous() -> None:
 
 
 def _compose_ring_system(range_km: float | None) -> dict[str, Any]:
-    """A tau = 1 ringlet (radii 22-26) around the centred test body."""
+    """A tau = 1 ringlet (radii 22-26) around the centered test body."""
     system: dict[str, Any] = {
         'geometry': {'opening_deg_obs': 30.0, 'opening_deg_sun': 30.0},
         'phase_deg': 0.0,

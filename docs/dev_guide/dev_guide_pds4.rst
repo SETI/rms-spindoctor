@@ -63,7 +63,8 @@ The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
 label in place before it can build the inventory).
 
-``sd_create_bundle check`` then holds the bundle the two phases wrote to PDS4, reading
+``sd_create_bundle check`` then holds the bundle the two phases wrote to the PDS4
+standard, reading
 its tree and the schemas its labels name, and writes nothing in the tree (see `Checking
 a bundle`_).  Before phase 1, ``sd_create_bundle labels --check-only`` reports whether
 each selected image has the files phase 1 reads, and writes no label, log or bundle
@@ -206,7 +207,7 @@ global index step, so a document inventory that cannot be rendered stops the sum
 pass there, with exit status 1, the index tables and their labels on disk and nothing
 the pass writes after them.  A readme that fails to render counts too, and so does the
 bundle label, which the package's template gives the readme's creation time.  A user-guide
-PDF the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what PDS4 requires of it is not
+PDF the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what the PDS4 standard requires of it is not
 written at all -- neither its inventory nor its label, and whatever an earlier run
 left at either path is removed -- and counts once among the labels not written,
 with an error naming the collection and each reason.  A collection label states at
@@ -223,11 +224,10 @@ the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
 file and the plane and saying what the file records there.  The index tables and
 labels and the miscellaneous collection an earlier run wrote, its collection
-inventories and labels, and its run-level products are cleared once the index
-generator has found the ``data/`` directory and before the first supplemental
-file is read, all of them by the index generator since it runs first, so a run
-refused for want of ``data/`` leaves them as they were.  Every supplemental file
-is read, and every value in
+inventories and labels, and its run-level products are cleared once the index generator
+has found the ``data/`` directory and before the first supplemental file is read, all of
+them by the index generator since it runs first, so a run refused for want of ``data/``
+leaves them as they were.  Every supplemental file is read, and every value in
 both index tables rendered, before either table is opened, so a run refused over a
 supplemental file leaves no product of the pass, neither this run's nor an earlier
 run's.  The pass reads each
@@ -737,8 +737,8 @@ a run starts; a test over the shipped configuration holds it to the stage's own 
 list and ring target.
 
 ``data.lblx`` names an image's targets, handed to it as ``TARGETS``, one
-``Target_Identification`` each, with a ``data_to_target`` reference.  PDS4 requires a
-data label to name one at least.  An image whose backplane metadata names none -- no
+``Target_Identification`` each, with a ``data_to_target`` reference.  The PDS4 standard
+requires a data label to name one at least.  An image whose backplane metadata names none -- no
 body, and no ring statistic -- has no geometry for a data label to describe, so the
 labels pass skips it before anything is written for it, logging why, and
 :func:`~spindoctor.cli.pds4.targets.covers_a_target` decides it without reading a
@@ -1014,11 +1014,13 @@ pass that got past that check is one that pass wrote.
 Checking a bundle
 =================
 
-``sd_create_bundle check`` holds a bundle the two passes wrote to PDS4, through
+``sd_create_bundle check`` holds a bundle the two passes wrote to the PDS4 standard,
+through
 :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`.  It reads the bundle's tree
 and the schemas its labels name, fetched by URL or read from a directory, and writes
 nothing in the tree.  Each way the tree departs
-from PDS4 is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which names the
+from the PDS4 standard is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which
+names the
 file, whether it is an error or a warning, the check that found it, where in the file,
 and what is wrong; an XML schema error also names its kind, the class of the xmlschema
 validator that failed, which does not change with xmlschema's wording.  The program

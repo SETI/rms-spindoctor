@@ -72,8 +72,8 @@ bodies:
   # label_font_color: [255, 255, 0]  # Yellow
   label_horiz_gap: 7  # Horizontal gap between limb and head of arrow (left/right)
   label_vert_gap: 5   # Vertical gap between limb and head of arrow (top/bottom)
-  label_scan_v: 1     # Granularity in V when scanning a limb to find places to put labels
-  label_grid_v: 10    # Coarse grid for labeling a body if everything else fails
-  label_grid_u: 10
+  label_scan_v: 1     # (px) granularity in V when scanning a limb for label places
+  label_grid_v: 10    # (px) coarse V grid for labeling a body if everything else fails
+  label_grid_u: 10    # (px) coarse U grid for the same fallback
   # Details of outline around bodies
-  outline_thicken: 0
+  outline_thicken: 0  # (px) half-width the body outline overlay is thickened by

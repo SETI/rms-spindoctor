@@ -62,7 +62,7 @@ fully inside the sensor area minus the per-instrument margin. The flag is record
 Anti-aliased silhouette extraction
 ----------------------------------
 
-The model lays an oversampled grid of pixel centres inside the clipped bounding box. The
+The model lays an oversampled grid of pixel centers inside the clipped bounding box. The
 per-axis oversample factor is
 
 .. math::
@@ -94,8 +94,8 @@ boundary remain represented as fractional values rather than being lost to round
 
 From the discrete silhouette mask the model derives:
 
-- a **limb mask** of valid silhouette pixels with at least one off-body neighbour;
-- a **terminator mask** of lit silhouette pixels with at least one neighbouring dark pixel
+- a **limb mask** of valid silhouette pixels with at least one off-body neighbor;
+- a **terminator mask** of lit silhouette pixels with at least one neighboring dark pixel
   (incidence at or above 90 degrees);
 - a **lit-and-in-FOV count** used by the body-disc gates;
 - a **predicted brightness image** that is either the binary silhouette or the per-pixel
@@ -111,11 +111,11 @@ Each polyline vertex is a pixel that survived the discrete-mask construction. At
 the model records:
 
 - The vertex position in the extended-FOV pixel frame.
-- The outward-pointing unit normal, estimated from the mask gradient: a body-side neighbour
-  contributes a +1 in the outward direction, an off-body neighbour contributes a -1, and the
-  resulting two-component vector is normalised.
+- The outward-pointing unit normal, estimated from the mask gradient: a body-side neighbor
+  contributes a +1 in the outward direction, an off-body neighbor contributes a -1, and the
+  resulting two-component vector is normalized.
 - The local incidence angle at the vertex (radians).
-- The local kilometres-per-pixel scale at the vertex, queried from the SPICE backplane.
+- The local kilometers-per-pixel scale at the vertex, queried from the SPICE backplane.
 
 The km/px scale at the limb sets the sensitivity that converts physical km uncertainties into
 pixel sigmas. An empty mask collapses the sampler to zero-length arrays so the downstream
@@ -137,7 +137,7 @@ uncertainties for the lit limb:
 
 The first two terms are intrinsic to the body shape (RMS deviation from the best-fit ellipsoid;
 characteristic crater scale). The third term is the photometric softness of the limb at this
-vertex; :math:`\sigma_{\mathrm{soft}}(i)` is the optical PSF sigma converted to kilometres at the
+vertex; :math:`\sigma_{\mathrm{soft}}(i)` is the optical PSF sigma converted to kilometers at the
 vertex (PSF-sigma-px times km-per-pixel-at-vertex), and :math:`f_{\mathrm{inc}}(i)` is a
 dimensionless incidence-angle penalty that grows as the local incidence approaches 90 degrees
 and the limb fades photometrically. The penalty is
@@ -203,12 +203,12 @@ inside the body silhouette:
 Predicting the lit-weighted centroid up front means the navigation offset the technique
 recovers is just the spacecraft pointing error, not pointing error plus the systematic phase
 bias. At zero phase the rendered model is uniform and the formula collapses to the geometric
-centre.
+center.
 
 Sub-solar direction
 -------------------
 
-The vector from the geometric centre to the lit-weighted centroid points along the projected
+The vector from the geometric center to the lit-weighted centroid points along the projected
 body-to-Sun direction, so the blob feature also carries its unit form as
 ``sub_solar_dir_vu``. :doc:`dev_guide_techniques_body_blob` orients its high-phase
 crescent coarse-acquisition template along this direction (a filled disc cannot match a
@@ -351,11 +351,11 @@ errors that bias the entire silhouette uniformly (those manifest as a global tra
 the DT fit recovers); they do not account for unmodelled atmospheric haze or lens flare; and
 they do not propagate the SPICE pointing uncertainty itself (that is handled separately by
 the search-window margin). The predicted lit-weighted centroid attached to the blob feature
-collapses to the geometric centre at zero phase but carries a phase-and-irregularity factor
+collapses to the geometric center at zero phase but carries a phase-and-irregularity factor
 on its flags that grows for high-phase, non-ellipsoidal bodies; the enclosing
 :class:`~spindoctor.feature.feature.NavFeature` adds a corresponding photon-noise-limited centroid
 sigma in quadrature to a shape-irregularity sigma so the blob covariance reflects both noise
-and shape modelling error.
+and shape modeling error.
 
 Configuration
 =============
@@ -473,7 +473,7 @@ matches the 30 bullets here.
   outline before drawing. Consumed by
   :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`.
 
-Body-shape catalogue
+Body-shape catalog
 --------------------
 
 ``src/spindoctor/config_files/config_220_body_shape.yaml`` carries the per-body
@@ -533,7 +533,7 @@ Per-instrument overrides
 ------------------------
 
 The ``bodies`` block is global: per-instrument YAML (``config_4N0_inst_*.yaml``) does not
-override any of the keys above. Instrument-specific behaviour enters through the
+override any of the keys above. Instrument-specific behavior enters through the
 observation snapshot — the optical PSF sigma read from
 :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf` and the extended-FOV margin set by
 :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings` — rather than through
@@ -622,7 +622,7 @@ Annotation helpers
 Two helpers live there:
 
 - ``_compute_limb_mask_from_body_mask`` — computes the limb mask from the body mask via
-  discrete neighbour shifts. Used by the simulated body model.
+  discrete neighbor shifts. Used by the simulated body model.
 - ``_create_annotations`` — builds the body-label
   :class:`~spindoctor.annotation.annotations.Annotations` collection for the summary PNG. Consumes
   the ``label_*``, ``min_text_area``, and ``outline_thicken`` keys documented above.
@@ -640,7 +640,7 @@ to surface in the per-image JSON sidecar:
 - ``sub_solar_lon_deg`` / ``sub_solar_lat_deg`` — sub-solar coordinates of the body at
   midtime.
 - ``sub_observer_lon_deg`` / ``sub_observer_lat_deg`` — sub-observer coordinates.
-- ``phase_angle_deg`` — centre-pixel phase angle.
+- ``phase_angle_deg`` — center-pixel phase angle.
 - ``bbox_area_px`` / ``size_ok`` — predicted bounding-box area and the
   ``min_bounding_box_area`` test result.
 - ``guaranteed_visible_in_fov`` — bool; True iff the inflated bounding box lies fully inside
@@ -679,7 +679,7 @@ Call path traced through
    backplanes over the clipped bounding box a strip of rows at a time, at most
    :data:`~spindoctor.nav_model.nav_model_body.BODY_STRIP_ROWS` per strip, assembling each
    into a whole-box array, then downsamples the mask to extfov resolution and derives the
-   limb / terminator / body / lit masks via discrete neighbour shifts.
+   limb / terminator / body / lit masks via discrete neighbor shifts.
 4. A predicted brightness image is built from the Lambert cosine when ``use_lambert`` is true
    and the body is at least partly lit; otherwise the silhouette is rendered as a binary
    mask with a small offset so empty body pixels remain non-zero. When ``use_albedo`` is

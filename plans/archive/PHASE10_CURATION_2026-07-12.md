@@ -38,7 +38,7 @@ be deleted.
 
 ## What you are producing
 
-For each library image, three artefacts are required, in this order:
+For each library image, three artifacts are required, in this order:
 
 1. **Sidecar** at:
 
@@ -174,7 +174,7 @@ Per `plans/archive/AUTONAV_PLAN_2026-06-19.md` Part 1 §"Star-poor missions":
   bright stars that this is a non-issue for the library.
 
 Aim for *all four missions* across the full library so the calibration
-sweep does not silently overfit one camera's behaviour.
+sweep does not silently overfit one camera's behavior.
 
 ---
 
@@ -244,7 +244,7 @@ Open the saved YAML and replace every `TODO_REPLACE_*` placeholder.
 > anchors, and a calibrated pipeline whose tiers disagree wholesale
 > with the operator labels means either the labels or the calibration
 > needs a second look.  If you fudge a label to match uncalibrated
-> behaviour, you destroy exactly that cross-check.  Initial-library
+> behavior, you destroy exactly that cross-check.  Initial-library
 > `test_autonomous_nav.py` failures on the tier check are *expected*
 > and informational until calibration lands.
 
@@ -425,7 +425,7 @@ gets violated for the majority of images: the *uncalibrated default*
 α coefficients live in `config_510_techniques.yaml` and assign
 arbitrary tiers.  The expectation is therefore that during library
 expansion, `test_autonomous_nav.py` tier checks are *informational* —
-add the sidecar with your best-judgement tier, expect failures, and
+add the sidecar with your best-judgment tier, expect failures, and
 collect them all.  After the library is full and the validation
 program's error anchors exist, run the WS-5 calibration and the tiers
 should align.

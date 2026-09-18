@@ -39,7 +39,7 @@ class FeatureLoci:
         rows: Sorted unique detector rows a body / ring feature or a star
             crosses (the candidate lines for adversarial line-loss placement).
         pixel_v: Row coordinates of feature pixels (limb / ring-edge arcs and
-            star centres) for adversarial per-pixel placement.
+            star centers) for adversarial per-pixel placement.
         pixel_u: Column coordinates of those feature pixels.
     """
 
@@ -73,7 +73,7 @@ def extract_feature_loci(truth: Mapping[str, Any], shape: tuple[int, int]) -> Fe
     """Extract the navigation-feature loci from a frame's truth metadata.
 
     Bodies and rings contribute the rows their disc / annulus spans and the
-    pixels on their limb / edge arc; stars contribute their centre row and
+    pixels on their limb / edge arc; stars contribute their center row and
     pixel.  A frame with no features (an empty truth dict) yields empty loci,
     and the samplers then fall back to uniform placement.
 

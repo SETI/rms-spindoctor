@@ -43,15 +43,17 @@ a real navigation has, which is why the recovery transfers.
 
 Two rendering details make the simulated field faithful to a real one:
 
-- **Pixel-centre convention.** ``psfmodel.eval_rect`` measures its sub-pixel offset
-  from the pixel's lower edge (``offset=0`` centres the PSF half a pixel low), whereas
-  the navigator's detection centroid and this model's predicted position both treat
-  integer index ``i`` as the pixel centre. The star renderer adds
-  0.5 to the eval offset so a star the model predicts at ``(v, u)`` lands there in the
-  image, with no half-pixel bias in the recovered offset.
+- **Where the half pixel goes.** A star record states its position in pixel-corner
+  coordinates and the render grid is pixel-centric (see :ref:`coordinate-systems`), so
+  the renderer subtracts the half pixel -- scaled by the oversample factor alongside
+  every other pixel quantity -- before it deposits the star's total flux as a bilinear
+  point mass. A further ``(oversample - 1) / 2`` shift lands the deposit on the
+  oversampled grid, so a star the model predicts at ``(v, u)`` centroids there after
+  the box downsample, with no half-pixel bias in the recovered offset.
 - **Camera roll about the boresight.** A planted ``offset_rotation_deg`` rotates each
-  star about the image centre before the translation offset, while the star record
-  keeps its unrolled ``(v, u)``; the similarity fit in
+  star about the frame's center ``(size_v / 2, size_u / 2)`` -- the same point the
+  bodies and the ring system turn about -- before the translation offset, while the
+  star record keeps its unrolled ``(v, u)``; the similarity fit in
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` then
   recovers the roll. See :doc:`dev_guide_rotation`.
 
@@ -63,7 +65,7 @@ Restrictions and assumptions
   rate). The reliability gate's occlusion term still applies the same way the parent
   computes it; the saturation / cosmic-ray mask is not consulted to gate stars in either
   the parent or the simulated model.
-- The synthesised effective SNR follows the parent's magnitude-margin formula against
+- The synthesized effective SNR follows the parent's magnitude-margin formula against
   ``obs.star_max_usable_vmag()``; on a simulated observation that limit is generous, so
   reliability saturates toward 1.0 and the recovered *offset* -- not the calibrated
   confidence -- is the quantity the simulated star tests assert.

@@ -1,14 +1,36 @@
 import numpy as np
-from numpy.fft import fft2
+from numpy.fft import fft2, ifft2
 
-from spindoctor.support.correlate import upsampled_dft
+from spindoctor.support.correlate import int_to_signed, upsampled_dft
 
 
-def gaussian_patch(shape, sigma, offset):
+def gaussian_patch(
+    shape: tuple[int, int], sigma: float, offset: tuple[float, float]
+) -> np.ndarray:
+    """Return a Gaussian patch whose peak sits at ``offset`` from the center.
+
+    Parameters:
+        shape: The ``(v, u)`` patch size in pixels.
+        sigma: The Gaussian standard deviation in pixels.
+        offset: The ``(v, u)`` peak displacement from the patch center, in
+            pixel corner coordinates -- the convention psfmodel's ``eval_rect``
+            uses, measured from the upper left corner of the center pixel, so
+            ``(0.5, 0.5)`` puts the peak on that pixel's center and a whole
+            number puts it on a pixel boundary.  All three scripts in this
+            directory name their shifts this way.
+
+    Returns:
+        The sampled Gaussian, unnormalized.  The continuous function peaks at
+        1.0, but this samples it on the integer grid, so the array's largest
+        value reaches 1.0 only when ``offset`` puts the peak on a sample.  At
+        ``sigma=2`` it is 0.969 for ``(0.5, 0.0)`` and 0.939 for ``(0.5,
+        0.5)``.  Nothing here reads the peak value: the patch goes straight
+        into a correlation, which the scale does not affect.
+    """
     v_size, u_size = shape
     ov, ou = offset
-    cv = (v_size - 1) / 2.0
-    cu = (u_size - 1) / 2.0
+    cv = (v_size - 1) / 2.0 - 0.5
+    cu = (u_size - 1) / 2.0 - 0.5
     vv, uu = np.meshgrid(np.arange(v_size), np.arange(u_size), indexing='ij')
     dv = vv - (cv + ov)
     du = uu - (cu + ou)
@@ -23,10 +45,17 @@ def estimate_subpixel_shift(usfac: int, frac: float) -> float:
     B = gaussian_patch(shape, sigma=2.0, offset=(0.0, 0.0))
     X = fft2(A) * np.conj(fft2(B))
 
-    # Integer peak index nearest the signed shift: 0 if frac<=0.5 else -1
+    # For X = fft2(A) * conj(fft2(B)) with A displaced by +frac, the correlation
+    # peak is at lag +frac, so the nearest integer lag is +1 once frac passes a
+    # half, not -1.  Take it from the real argmax through int_to_signed, which is
+    # what support.correlate does, rather than hardcoding a lag here: with the
+    # window centered on the wrong lag the argmax pins to the window edge and the
+    # table reads as a ~1 px error in the refinement itself.
     # Use region that scales with upsample factor
     region = usfac + 1
-    dy_i = 0 if frac <= 0.5 else -1
+    corr = np.real(ifft2(X))
+    peak_v, _peak_u = np.unravel_index(np.argmax(corr), corr.shape)
+    dy_i = int_to_signed(int(peak_v), X.shape[0])
     oy = region // 2
     Up = upsampled_dft(X, usfac, (region, region), (oy - dy_i * usfac, oy))
     upy, _ = np.unravel_index(np.argmax(np.abs(Up)), Up.shape)
@@ -58,10 +87,13 @@ if __name__ == '__main__':
         0.86,
         0.99,
     ]
+    # The true displacement is +frac for every frac in [0, 1): a shift of +0.75
+    # is a lag of +0.75, not -0.25.  Wrapping only folds at half the transform
+    # length (32 px here), which no entry in this table reaches.
     print('usfac, frac, est_dy, gt_signed, abs_err')
     for usfac in usfacs:
         for frac in fracs:
-            gt_signed = frac if frac <= 0.5 else frac - 1.0
+            gt_signed = frac
             dy = estimate_subpixel_shift(usfac, frac)
             err = abs(dy - gt_signed)
             print(f'{usfac:>5d}, {frac:5.3f}, {dy:8.4f}, {gt_signed:8.4f}, {err:8.5f}')

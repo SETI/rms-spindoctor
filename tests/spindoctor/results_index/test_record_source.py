@@ -719,7 +719,7 @@ def test_a_named_stub_only_the_other_root_refused_yields_nothing(two_roots: TwoR
     assert found == []
 
 
-def test_named_stubs_still_honour_the_mission(two_roots: TwoRoots) -> None:
+def test_named_stubs_still_honor_the_mission(two_roots: TwoRoots) -> None:
     """A selection is a narrowing whatever else it names.
 
     Parameters:
@@ -1011,7 +1011,7 @@ def test_a_listing_refuses_what_it_cannot_answer(
 
     Parameters:
         two_roots: The two ingested roots and their index.
-        selection: The selection carrying one restriction a listing cannot honour.
+        selection: The selection carrying one restriction a listing cannot honor.
         named: The restriction the refusal has to name.
     """
     with _index_over(two_roots, two_roots.first) as source, pytest.raises(ValueError, match=named):

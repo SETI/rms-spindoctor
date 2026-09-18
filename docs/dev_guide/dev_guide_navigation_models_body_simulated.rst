@@ -7,7 +7,7 @@ Overview
 
 :class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated` is the
 simulated-image variant of the body navigation model. It renders a body from
-operator-supplied ellipsoid (or polyhedral-mesh) parameters -- centre, axes, rotation,
+operator-supplied ellipsoid (or polyhedral-mesh) parameters -- center, axes, rotation,
 lighting -- instead of from SPICE prediction, then emits the body features the navigation
 techniques consume:
 
@@ -37,7 +37,7 @@ than that floor; the terminator polyline is the lit pixels adjacent to the inter
 disc, with the limb ring excluded so the polyline stays interior to the disc -- except at
 the cusp-adjacent vertices of a very thin crescent, where terminator and limb meet within
 a pixel and a handful of vertices land on the silhouette (the SPICE-backed model's
-sampler shares the behaviour). The
+sampler shares the behavior). The
 gates mirror the SPICE-backed :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`
 (a ``sin(phase)`` floor, a minimum vertex count, and the shared
 :func:`~spindoctor.nav_model.nav_model_body.shape_features_suppressed` policy that
@@ -58,7 +58,7 @@ Theory
 
 Simulated body rendering is a controlled-input version of the same silhouette-extraction
 pipeline that drives :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`. The operator
-specifies a body in image-plane coordinates (centre and per-axis radii) plus a phase /
+specifies a body in image-plane coordinates (center and per-axis full widths) plus a phase /
 lighting geometry, and the renderer paints the corresponding ellipsoidal body onto an
 extended-FOV image plus matching mask.
 
@@ -115,10 +115,11 @@ in via the per-body entry of the observation's filtered scene view
 (``obs.nav_params['bodies']``, see :doc:`dev_guide_simulator`). Expected keys:
 
 - ``name`` — body label used in metadata and the summary PNG.
-- ``center_v``, ``center_u`` — pixel coordinates of the body centre.
+- ``center_v``, ``center_u`` — the body center, in pixel-corner coordinates (see
+  :ref:`coordinate-systems`).
 - ``range_km`` — subject distance in km (defaults to ``+inf``).
-- ``axis1``, ``axis2``, ``axis3`` — ellipsoid semi-axes in km. ``axis3`` defaults to
-  ``min(axis1, axis2)``.
+- ``axis1``, ``axis2``, ``axis3`` — full widths of the three ellipsoid axes, in
+  pixels. ``axis3`` defaults to ``min(axis1, axis2)``.
 - ``rotation_z`` — rotation about the line of sight (degrees).
 - ``rotation_tilt`` — tilt of the body (degrees).
 - ``illumination_angle`` — degrees.
@@ -164,16 +165,16 @@ irregular-body scenarios exercise:
   (ellipsoidal) limit by overriding ``mesh_lumpiness`` to ``0.0`` at the same
   pose. The only residual is shape; the disc correlation still aligns the two
   filled silhouettes and the recovered centroid bias grows with the rendered
-  relief. Realising the ellipsoidal prediction as the smooth limit of the mesh
+  relief. Realizing the ellipsoidal prediction as the smooth limit of the mesh
   keeps both silhouettes on one renderer, so the residual is purely the shape
   mismatch under test.
 - **Pose disagreement** -- render the mesh at the true pose, predict the same
   mesh at a different ``pose_euler_deg``. The wrong-pose silhouette boundary
   drives the limb distance-transform fit to a confidently-wrong offset, while the
   lit-weighted blob centroid -- which a centrally-symmetric (low-relief triaxial)
-  body keeps near the body centre under rotation -- stays accurate.
+  body keeps near the body center under rotation -- stays accurate.
 
-The override never changes the centre, so the predicted body stays at the
+The override never changes the center, so the predicted body stays at the
 unshifted position the planted offset is measured from.
 
 Implementation
@@ -221,15 +222,15 @@ Call path traced through
 1. Open a logged section. Read the operator-supplied sim parameters off the per-instance
    dict.
 2. Convert per-axis rotations and angle parameters from degrees to radians.
-3. Call :func:`~spindoctor.nav_model.sim_body.create_simulated_body` with the per-axis radii and
+3. Call :func:`~spindoctor.nav_model.sim_body.create_simulated_body` with the per-axis full widths and
    geometry; the helper returns the rendered simulated body image.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask
-   neighbour-shift helper.
+   neighbor-shift helper.
 6. Promote the rendered image and the masks from sensor-shaped arrays to extfov-shaped
    arrays (zero-padded for the extfov margin).
-7. Record the predicted centre, the subject range, and the bounding box on the model's
+7. Record the predicted center, the subject range, and the bounding box on the model's
    internal state for downstream feature emission.
 
 Call path traced through
@@ -241,7 +242,7 @@ Call path traced through
 2. Construct one
    :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_DISC`
    :class:`~spindoctor.feature.feature.NavFeature` carrying the cropped template image, the
-   cropped mask, the predicted centre, the subject range, and a
+   cropped mask, the predicted center, the subject range, and a
    :class:`~spindoctor.feature.flags.BodyDiscFlags` with the operator-supplied body name plus
    ``overflow_fov_fraction = 0.0``.
 3. When the predicted diameter clears the blob floor, append a BODY_BLOB built by the
@@ -280,7 +281,7 @@ Examples
 
 The simulated body model is consumed by the simulated-image GUI driver
 (``sd_create_simulated_image``). An operator specifies a body — say a Mimas-like
-ellipsoid centred at ``(512, 512)`` with semi-axes ``200`` km, illumination angle ``60``
+ellipsoid centered at ``(512, 512)`` with axes ``200`` pixels across, illumination angle ``60``
 degrees, phase angle ``30`` degrees — and the simulator renders the corresponding
 extended-FOV image plus mask. The downstream
 :class:`~spindoctor.nav_technique.nav_technique_body_disc.BodyDiscCorrelateNav` correlates the

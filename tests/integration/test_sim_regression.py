@@ -1,7 +1,7 @@
 """Fast regression tests for specific navigation defects surfaced by the sweeps.
 
 Each test pins the affected technique on one dedicated scene under
-``sim_scenes/regression/`` and asserts the correct behaviour, so the defect is
+``sim_scenes/regression/`` and asserts the correct behavior, so the defect is
 guarded in the normal pytest run without executing the full (slow,
 runner-only) sweep suite. These tests are in-process and unmarked, so they run in
 the default suite.
@@ -20,7 +20,7 @@ _REGRESSION_DIR = Path(__file__).parent / 'sim_scenes' / 'regression'
 
 # A well-resolved disc must recover a whole-pixel offset to a small fraction of a
 # pixel.  The correlator upsamples to 1/128 px and reaches that on raw intensity,
-# so 0.1 px is a generous bound that the correct behaviour clears comfortably.
+# so 0.1 px is a generous bound that the correct behavior clears comfortably.
 _DISC_SUBPIXEL_TOLERANCE_PX = 0.1
 # A star field must recover a zero offset; the moment centroid clears 0.1 px today
 # and the PSF-fit refinement tightens it further.

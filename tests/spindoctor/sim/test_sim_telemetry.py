@@ -250,8 +250,8 @@ def test_gossi_catalog_defaults_alternating_lines_to_keep() -> None:
     assert len(record['alternating_lines']['lines']) == _SIZE * 3 // 4
 
 
-def test_edited_frame_keeps_only_a_centred_band() -> None:
-    """An edited frame keeps a centred vertical band and blanks the rest."""
+def test_edited_frame_keeps_only_a_centered_band() -> None:
+    """An edited frame keeps a centered vertical band and blanks the rest."""
     frame = _frame()
     record = _render(
         frame, {'edited_frame': {'incidence': 1.0, 'band_width_px': 20}}, instrument='vgiss'
@@ -263,7 +263,7 @@ def test_edited_frame_keeps_only_a_centred_band() -> None:
 
 
 def test_edited_frame_bare_incidence_keeps_the_default_band() -> None:
-    """A bare incidence renders the default 440-px Voyager IM centred band."""
+    """A bare incidence renders the default 440-px Voyager IM centered band."""
     frame = _frame(size=512)
     record = _render(frame, {'edited_frame': {'incidence': 1.0}}, instrument='vgiss')
     u0, u1 = record['edited_frame']['kept_band']

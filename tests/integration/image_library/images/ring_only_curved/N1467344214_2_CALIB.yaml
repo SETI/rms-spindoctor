@@ -38,7 +38,7 @@ ground_truth:
     of the three edges fits poorly while the good edges pin the correct
     offset), so the default pipeline reports failed. The offset is
     correct; the spurious flag is a false positive - the gate gap this
-    entry marks (issue #261).
+    entry marks.
 
 expected:
   # success | failed | conflicted

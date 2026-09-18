@@ -1,8 +1,9 @@
-"""The bundle check: a PDS4 bundle tree that has been written, held to PDS4.
+"""The bundle check: a PDS4 bundle tree that has been written, held to the PDS4
+standard.
 
 ``sd_create_bundle check`` runs :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`
 over a bundle's directory.  It reads only the tree and the schemas the package ships, and
-reports each way the tree departs from PDS4 as a
+reports each way the tree departs from the PDS4 standard as a
 :class:`~spindoctor.cli.pds4.check.findings.Finding`, an error or a warning:
 
 - each label against the XML schemas it declares

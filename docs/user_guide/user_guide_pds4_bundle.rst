@@ -907,7 +907,7 @@ Typical workflow for generating a complete PDS4 bundle:
       sd_create_bundle summary coiss_saturn \
         --bundle-results-root /data/nav/bundle
 
-5. **Check the Bundle**: Report every way the bundle departs from PDS4
+5. **Check the Bundle**: Report every way the bundle departs from the PDS4 standard
 
    .. code-block:: bash
 
