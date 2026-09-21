@@ -1,4 +1,4 @@
-# RMS-NAV Validation and Calibration Plan
+# SpinDoctor Validation and Calibration Plan
 
 *A concrete, sequenced plan to close every issue raised in
 `critiques/archive/SCIENTIST_REVIEW_CRITICAL_2026-06-19.md`. Each workstream states the problem, the
@@ -66,15 +66,62 @@ on that baseline; each has a tracking issue (cross-map below).
 rather than methodology, and it silently corrupts what every workstream below
 reads:
 
-- **#288** — 10 of 75 curated library sidecars disagree in the local
-  integration environment, so the regression instrument that is supposed to
-  detect a navigation change cannot currently do so. Until it is reconciled,
+- **#288** — 8 of the 75 curated library sidecars disagree with `main` in the
+  local integration environment, so the regression instrument that is supposed
+  to detect a navigation change cannot currently do so. Until it is reconciled,
   a navigation-affecting change can only be gated on *no new failures against
   `main`*, and the library's own tiers cannot be read as verified
-  expectations.
+  expectations. The eight are attributed rather than mysterious: three are the
+  confidently-wrong ring locks (#346), two pin `primary_technique` to a
+  technique the code correctly declines to prefer and await an operator call
+  (#483), one is the ~2.7 px `dv` limb bias on a partially overflowing limb arc
+  that WS-10 owns, one is the standing highly-irregular exclusion of #338, and
+  one is a tier move the operator has ruled is not to be re-ratcheted, routed
+  to #476 and #504 as an acceptance test. That
+  count predates the pixel-convention corrections, so it wants re-measuring
+  before it is quoted again.
 
 It does not block writing methodology or building tooling. It blocks
 collecting the numbers.
+
+**A second prerequisite: a class of defect this plan's instruments cannot
+detect.** oops names a pixel by its corner and an array names it by its index,
+half a pixel apart, and a producer and a consumer that disagree about which one
+they are speaking put a constant into everything between them. A navigated
+offset is a *difference*, so a constant shared by both sides of it cancels in
+the overlays, the residuals and the confidence, and a simulator that is
+self-consistent in either convention recovers planted offsets exactly whichever
+one it holds. The datum is therefore reachable only by an absolute measurement
+made outside the pipeline, and a sweep on that basis found instances across the
+star path, the simulator, the mosaic viewer, the scene editor, the
+operator-facing readouts, the feature-geometry payloads and the documentation.
+`PIXEL_CENTER_TO_CORNER_PX` now names the half pixel and `feature/geometry.py`
+states which direction a crossing converts in, and the standing open instances
+are listed under the workstreams that own them (#641, #644, #646, #634).
+
+The bearing on this plan is direct and applies to every workstream in it:
+
+- **A self-consistent instrument cannot see a datum error.** WS-1's
+  disagreements, WS-2's planted-truth recovery, WS-1b's reprojection scatter and
+  WS-18's backplane checks are all differences, so each is structurally blind to
+  an error common to both sides. Only an absolute comparison against something
+  the pipeline had no hand in -- the independently navigated archive answers
+  below, or a conversion written independently of the one under test -- can
+  reach it. Every workstream that reports a difference must name what absolute
+  check backs it.
+- **The library gate is not evidence against one.** `test_autonomous_nav.py`
+  compares against `offset_uncertainty_px + 0.5`, a pad numerically equal to
+  `PIXEL_CENTER_TO_CORNER_PX`, and the shipped sidecars declare 0.4 to 1.5 px of
+  uncertainty. A bias uniform across the library therefore leaves every frame's
+  verdict unchanged up to half a pixel. Part of the ground truth also derives
+  from this pipeline's own star answers, so on those entries the gate compares
+  the pipeline against itself through a tolerance wider than the effect it
+  would need to see.
+- **Where a harness and the thing it measures differ silently, the number is
+  about something else.** #646 is the standing instance: the limb-bias harness
+  measures a simulated limb ridge about 0.5 px from the one the deployed
+  catalog model carries, so the bias figures WS-10 quotes are measurements of a
+  different limb.
 
 **Two shared decisions, declared once:**
 
@@ -99,22 +146,22 @@ carry the methodology and acceptance criteria):
 | Workstream | GitHub issue(s) | Note |
 |---|---|---|
 | WS-0 | #358, #359, #360, #361 | Estimator proven on sims (identifiability + bias-independence); residual is the real-frame reliability-vs-error coupling and PSF-coupling probes feeding WS-1. |
-| WS-1 | #225 | The agreement study. The statistics system reports metadata statistics and consumes WS-1's per-frame disagreement metric; it is not the agreement study. |
+| WS-1 | #225 (+ #558, #346, #476, #621, #622, #623, #639) | The agreement study. The statistics system reports metadata statistics and consumes WS-1's per-frame disagreement metric; it is not the agreement study. The trailing issues are confidently-wrong contributors that move the anchor before it is measured. |
 | WS-1b | #226 | Reprojection consistency. |
-| WS-2 | #227 (+ #223, #309, #341, #377, #409) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, and the scene-coordinate convention split #409 where stars are the outlier). |
-| WS-17 | #355 | Distortion measured from star fields; residual is the per-camera Voyager sim split. |
-| WS-3 | #172, #174, #235, #288 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 10 of 75 sidecars disagree locally, so the library's tiers are not currently verified expectations. |
-| WS-4 | #229, #426, #324, #336, #335, #340 | CI integration tiers, plus what does not run in Actions today: the agreement-estimator tests (#324), the data-independent simulator suites (#336), the committed sim baselines that have no canonical environment (#335), and the cross-check's yes/no primary-technique flag (#340). |
-| WS-5 | #230, #176 | Real-anchored recalibration once WS-1 anchors exist. |
+| WS-2 | #227 (+ #223, #309, #341, #377, #409, #625, #626, #627, #629, #630, #631, #632, #633, #641, #644) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, the scene-coordinate convention split #409 where stars are the outlier, and the scene-authoring defects that make a rendered scene not the scene its keys describe). |
+| WS-17 | #355, #561 | Distortion measured from star fields; the residuals are the per-camera Voyager sim split and the single-sequence cohorts behind the twist verdicts (#561). |
+| WS-3 | #172, #174, #235, #288, #483 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 8 of the 75 sidecars disagree with `main` locally, so the library's tiers are not currently verified expectations, and two of the eight are pins awaiting the operator call in #483. |
+| WS-4 | #229, #426, #324, #336, #335, #340, #548 | CI integration tiers, plus what does not run in Actions today: the agreement-estimator tests (#324), the data-independent simulator suites (#336), the committed sim baselines that have no canonical environment (#335), the cross-check's yes/no primary-technique flag (#340), and the measured 79% line coverage that nothing enforces (#548). |
+| WS-5 | #230, #176, #557, #558 | Real-anchored recalibration once WS-1 anchors exist; the confidence axis is censored from above (#557) and the anchor is contaminated until #558 is closed. |
 | WS-6 | #231 | Capability matrix. |
-| WS-7 | #397, #398, #399, #400, #401, #402, #403, #404, #405, #407 | Titan haze navigation delivered and validated; open items are the deferred refinements and the operator ratification bundle (#407). |
-| WS-8 | #53, #67 | Output bundles for all four instruments (required). PDS4 input (#34) is availability-contingent and not required for completion. |
-| WS-9 | #233, #130, #176 | Measured star SNR + sensitivity tests (#233); constants inventory (#176); limiting magnitudes (#130). |
-| WS-10 | #150, #128 | Limb bias root cause and redesign. |
+| WS-7 | #397, #398, #399, #400, #401, #402, #403, #404, #405, #407 | Titan haze navigation delivered and validated (#60 closed); open items are the deferred refinements and the operator ratification bundle (#407). |
+| WS-8 | #53, #67, #677, #687 | Output bundles for all four instruments (required). The Cassini ISS Saturn path is complete and schema-validated; Voyager, Galileo and NH remain. PDS4 input (#34) is availability-contingent and not required for completion. |
+| WS-9 | #233, #130, #176, #557, #675 | Measured star SNR + sensitivity tests (#233); constants inventory (#176); limiting magnitudes (#130); where the confidence scale saturates (#557); the agreement gap and the terminator coarse search (#675). |
+| WS-10 | #150, #128, #282, #283, #321, #646 | Limb bias root cause and redesign, plus the harness defect (#646) that displaces the measured bias and the undiagnosed partial-arc radial bias (#321). |
 | WS-12 | -- | Per-instrument guide chapters. Delivered; each instrument's workstream now updates its own pair. |
-| WS-13 | #234 (+ #153) | Detector-noise model for the I/F render path. |
+| WS-13 | #234 (+ #153, #631) | Detector-noise model for the I/F render path; #631 is a scene rendering in I/F with a raw-DN marker. |
 | WS-15 | #236, #103, #134, #126 | Thread safety, profiling, batch-parallel throughput. |
-| WS-18 | #232 (+ #28) | End-product accuracy checks. |
+| WS-18 | #232 (+ #28, #634, #638) | End-product accuracy checks, plus the reprojection products' east/west longitude disagreement (#634) and remote reads that never fetch (#638). |
 
 ---
 
@@ -149,11 +196,16 @@ carry the methodology and acceptance criteria):
 > it covers a handful of observations rather than a cohort. What it does supply
 > is a per-frame check that a run's own confidence cannot give, which is why it
 > is worth running where it reaches: `util/nav_verification/` holds the
-> comparison. Any comparison against it has to separate the constant from the
-> per-frame part before quoting a number, because the two pipelines disagree by
-> a fixed half pixel in both camera axes on every frame of every observation
-> checked -- a difference of pixel datum rather than of pointing, which left in
-> makes the per-frame disagreement look ten times larger than it is.
+> comparison, and a second such answer -- the B ring spokes bundle -- is #637.
+> Any comparison against it separates the constant from the per-frame part
+> before quoting a number, because a pipeline-wide datum error appears there as
+> a constant common to every frame of every observation, a difference of pixel
+> datum rather than of pointing. On this comparison the constant is the
+> quantity to read and not the residual left after it is removed, which is why
+> `compare_pointing.py` gates it at `COMMON_OFFSET_TOLERANCE_PX` and names a
+> breach a coordinate defect rather than merely printing it. A run of fewer
+> than `MIN_FRAMES_FOR_COMMON_OFFSET` agreeing frames measures no constant at
+> all and folds it silently into every residual, so a small run is not a check.
 >
 > Therefore the strategy is: **measure absolute accuracy only in a simulation that
 > is (a) independent of the navigator and (b) proven realistic against real
@@ -500,7 +552,7 @@ need.
 workstream's product is cross-technique *disagreement*, and a technique that
 reports a confidently wrong answer contributes a disagreement that is a property of
 the defect rather than of the scene. The confidently-wrong ring locks
-(#346, #476) are the known case: on `N1633925572_1_CALIB`, measured 2026-08-26, a body fit
+(#346, #476) are the measured case: on `N1633925572_1_CALIB`, measured 2026-08-26, a body fit
 and a star fit agree to 0.08 px while `RingEdgeNav` converges 39 px away on 452 of
 6786 inliers, is not flagged spurious, and enters the combine. Feeding that frame to
 this workstream does not merely add noise -- it moves the anchor WS-5 then
@@ -509,6 +561,19 @@ to distrust ring evidence everywhere and has to be redone once they are. Either 
 that family first, or exclude from the agreement product any frame whose
 contributing technique self-reports an inlier fraction below a stated floor, and say
 which was chosen.
+
+The ring locks are not the only contributor of that shape, and the star side
+matters more here than the ring side because Route 3 spends stars as the
+inertial anchor. A two-star or one-star solution is accepted as success and
+lands up to 23 px wrong (#622); the gates refuse about half the F ring frames
+that carry enough stars to solve (#621), which selects the star cohort on
+something other than the scene; a star centroid takes the brightest pixel in
+its window, so a neighbor can win it (#639); and the ensemble counts two
+techniques sharing one feature as independent corroboration (#623), which is
+exactly the agreement-masking-bias this workstream exists to measure, wired
+into the product it measures. Each is a reason a frame's disagreement describes
+the defect rather than the scene, and the cohort's admission rule must name
+which of them it excludes.
 
 ### WS-1b: Reprojection consistency across overlapping frames (secondary corroboration)
 **Closes:** the one regime WS-1 cannot reach — a body imaged repeatedly with **no
@@ -564,6 +629,22 @@ verdict (#223), realism is Cassini-only with the authored scene mixture
 unvalidated (#309, #341), and the cataloged sim-fidelity gaps (#325-#345) and
 single-annulus rings vs realistic nested ringlets (#377) remain. Closing #227 is
 the operator's realism-verdict gate, gated on #309.
+
+**A scene must also be the scene its keys describe.** Realism is unreachable
+while an authored parameter renders something other than what it names, and
+several do: `limb_relief_rms` carves radial wedges out of the disc rather than
+roughening the limb (#625), a `polyhedral_mesh` body renders as a banded shell
+and the shipped Hyperion scene as a torus (#626), the two haze terms seam the
+halo at the equator instead of blending across it (#627), the artifact key
+`incidence` names three different quantities (#629), `cosmic_ray_rate_per_sec`
+is a fluence per cm^2 documented per pixel in two places (#630), a vgiss scene
+renders in I/F with a raw-DN marker (#631), ring scene keys do not carry their
+units (#632), the editor authors mesh scenes its own validator refuses (#633),
+a scene places stars on pixel indices and bodies on pixel corners (#641), and a
+planted roll turns positions but not smear, companions or sky field (#644).
+Each is a way the model-mismatch sweep axes sweep something other than the
+quantity they are labeled with, so the mismatch curves cannot be read as
+accuracy until they are settled.
 
 **Approach for the residual.** The navigator uses its *best available* model — do
 **not** preserve a known-worse model just to manufacture a gap. The image side is
@@ -662,10 +743,24 @@ anything.
 - NH LORRI: low-distortion optics, so even absent star frames the distortion risk
  is small; document the adopted model and move on.
 
+**The measurement exists; its cohorts do not yet support its verdicts (#561).**
+`util/fov_distortion/` measures twist and radial distortion from star fields and
+`docs/fov_distortion_report/fov_distortion_report.rst` states a verdict per
+camera. Those cohorts vary enormously in how much of a mission they sample:
+Cassini NAC draws 225 images from 10 sequence prefixes and Cassini WAC 183 from
+22, while Galileo SSI draws 18 images from 2 prefixes in one volume and Voyager 1
+NAC is a single frame. Running the same tool unmodified on a second Galileo
+sequence returns the opposite verdict, so the recommendation of a static kernel
+correction over per-frame fitting is a property of the sequence rather than of
+the camera. No per-camera verdict is usable by WS-1 until each rests on several
+sequences, and the report must scope each to the cohort behind it.
+
 **Acceptance criteria.** Cassini (and LORRI if possible) distortion is quantified
 from star residuals (with catalog error separated out and the edge-dependent
 centroiding error modeled, not assumed flat) and applied **per feature-position**
-in WS-1, leaving only its residual uncertainty in the budget. Voyager/Galileo
+in WS-1, leaving only its residual uncertainty in the budget. Every per-camera
+verdict rests on a cohort spanning more than one observation sequence, and states
+the cohort it rests on. Voyager/Galileo
 document the adopted literature distortion model with a field-position agreement
 sanity check, and their agreement/accuracy claims are scoped to "literature
 distortion assumed, unvalidated in-house."
@@ -701,15 +796,26 @@ the growth beyond that stage is #235.
 - Cohort size and per-category coverage meet the documented targets (47-image
  stage first, then ≥20 per instrument / ≥120 total).
 - `README.md` documents schema + curation + blessing + provenance; every sidecar
- records its ground-truth source.
+ records its ground-truth source, and a sidecar whose ground truth derives from
+ this pipeline's own answer says so, because such an entry cannot test the
+ pipeline against anything but itself.
+- The gate's tolerance is a stated quantity rather than an inherited pad. The
+ current `offset_uncertainty_px + 0.5` admits any error up to a half pixel wider
+ than the declared uncertainty, which is the width of the datum defect the
+ library could not see; either the pad is derived and justified where it is
+ defined, or it goes.
 
 **Dependencies:** feeds WS-1, WS-7. **Risk:** low.
 
 ### WS-4: Run real-image tests in CI
 **Closes:** "CI never runs integration tests."
 
-**Problem.** `.github/workflows/run-tests.yml:94` runs `-m "not integration"`;
-nothing real is exercised automatically.
+**Problem.** `.github/workflows/run-tests.yml` runs
+`-m "not integration and not postgres"`; nothing real is exercised
+automatically. The workflow does carry a weekly `schedule` cron, so the
+scheduled tier below has somewhere to attach. Measured line coverage of the
+suite that does run is 79%, and nothing enforces a figure (#548), so no
+criterion anywhere in this plan may cite a coverage target as met.
 
 **Tasks.**
 - **Fast integration tier:** cache a small set of real images + the minimal SPICE
@@ -926,8 +1032,9 @@ the hardest part of it by never assuming a haze altitude.
 ### WS-8: PDS4 — generalize output bundle generation (input is separate and external-dependent)
 **Closes:** "PDS4 is largely fictional."
 **Tracked by:** #53 (bundle generator parent — output bundles, required for all
-four instruments), #67 (cloud-aware bundles), #34 (PDS4 input — availability-
-contingent, not required for completion).
+four instruments), #67 (cloud-aware bundles), #677 and #687 (open questions on
+the completed Cassini path), #34 (PDS4 input — availability-contingent, not
+required for completion).
 
 **Scope split (binding).** PDS4 *output* (bundle generation) and PDS4 *input*
 (reading PDS4-archived data as a dataset source) are different deliverables.
@@ -938,20 +1045,21 @@ and input support is **not required for project completion** — when an
 archive becomes available, implementing its `DataSetPDS4` replaces the PDS3
 source for that instrument.
 
-**Problem.** No instrument's bundle output works today: the Cassini path is
-partially implemented (hook pattern and collection machinery exist) but has
-no final templates, no tests, and no schema validation; the `pds4_*` bundle
-hooks raise `NotImplementedError` for Voyager, Galileo, NH.
+**State.** The Cassini ISS Saturn path is complete and is the reference
+implementation: a template tree under `src/spindoctor/cli/pds4/templates/`,
+data, browse, document, SPICE and global-index collections, and a test suite
+under `tests/spindoctor/cli/pds4/` that schema-validates generated labels
+against the shipped PDS4 schemas. Its remaining questions are which kernels the
+metakernel lists (#677) and citing the calibrated PDS4 product once its bundle
+exists (#687). The `pds4_*` bundle hooks raise `NotImplementedError` for
+Voyager, Galileo and NH, so no bundle can be written for those three.
 `dataset_pds4.py` (input) raises "not yet implemented" for all methods,
 correctly, since no input archive exists to read.
 
 **Tasks:**
-- **Finish and validate the Cassini path (required):** final templates,
- tests, and schema validation for the partially implemented reference
- implementation.
 - **Bundle generalization (required):** implement `pds4_*` hooks (template
  dir, LID/LIDVID, template variables) for Voyager/Galileo/NH using the
- completed Cassini path as the reference, with per-mission template trees.
+ Cassini path as the reference, with per-mission template trees.
 - Add bundle-validation tests (schema-validate generated `.lblx` against PDS4
  schemas) for all four instruments.
 - **PDS4 input (deferred until archives exist):** implement `DataSetPDS4`
@@ -998,7 +1106,7 @@ calibration).
 **Tasks.**
 - Inventory the load-bearing constants: `ROTATION_UNOBSERVABLE_VARIANCE = 1e15`
  (`nav_technique.py`), `DEFAULT_PINVH_RCOND = 1e-9` (`ensemble.py`),
- `SNR_REF = 8.0` / `SNR_FLOOR = 0.1` (`nav_model/stars/nav_model_stars.py:77-78`),
+ `SNR_REF = 8.0` / `SNR_FLOOR = 0.1` (`nav_model/stars/nav_model_stars.py:78-79`),
  `COMBINED_CONFIDENCE_CAP = 0.99` and `AGREEMENT_FACTOR_CAP = 1.5`
  (`feature/constants.py`), blob noise thresholds, MAD factor, edge thresholds. For
  each: document its derivation, sensitivity, and the regime where it holds, next to
@@ -1084,7 +1192,29 @@ an unconverged-at-trust-boundary gate); (4) a minor
 pixel-center-convention audit (#283). Harness and full report:
 `util/calibration/limb_bias/limb_navigation_bias_diagnosis.md`.
 
+**The harness measures a different limb from the deployed one (#646), so every
+figure above is provisional.** `NavModelBody` builds its limb ridge from the
+outermost pixel whose *center* lies inside the body, which over 11 real frames
+sits 0.42 to 0.52 px inside the mask's area-equivalent radius, while
+`NavModelBodySimulated` builds its mask from any coverage at all, putting its
+ridge at about `R - 0.05`. On a lit limb a radial inset `d` converts to `1.27 d`
+along the arc normal, so `tests/integration/limb_bias.py` is measuring a bias
+about half a pixel displaced from the one the catalog model carries -- of the
+same order as the 0.05-0.14 px it reports. The simulated model also gates
+`LIMB_ARC` off above 60 degrees phase while the catalog model has no such gate
+and navigates library frames at 135 degrees, so the short-arc regime where the
+radial-to-translation amplification is worst is the regime the simulator refuses
+to render. Reconcile the two ridge definitions and have the harness assert they
+agree before it reports a bias; until then the ranked fixes below are ranked on
+numbers about a different object. A second, larger limb effect is undiagnosed:
+partial-arc limb fits carry an inward radial bias of about 2 px (#321), which is
+the size of the library's standing `N1484593951_2_CALIB` failure rather than the
+0.1 px this diagnosis explains.
+
 **Tasks.**
+- Reconcile the harness's limb ridge with the deployed model's and remove or
+ justify the simulated 60-degree phase gate (#646), then re-measure, since the
+ ranking below rests on those numbers.
 - Implement the diagnosis's remaining ranked fixes, in order: the
  photometric-limb fit
  (#150 — the dominant, illumination-tracking term), the matched-filter
@@ -1111,7 +1241,10 @@ genuine algorithmic problem the team has already struggled with.
 (Poisson shot noise in electrons before conversion, read noise, full-well
 saturation, bias pedestal, missing-data/CR markers), so I/F scenes exercise a
 realistic noise regime. Add I/F frames to the WS-2 sweeps and the WS-1
-consistency study (real calibrated products).
+consistency study (real calibrated products). Settle which unit class each
+shipped scene renders in first: a vgiss scene renders in I/F while carrying a
+raw-DN marker and a full well, matching neither documented class (#631), so a
+noise model attached to it would be attached to an undeclared unit.
 
 **Acceptance criteria.** I/F scenes carry a realistic detector model; the
 accuracy and sweep reports include calibrated-path results comparable to the
@@ -1180,7 +1313,12 @@ seam through a downstream bug; none of that is tested for accuracy today.
  differently from each other, with the step's longitude naming the frame. It
  needs nothing outside the mosaic, so it reaches observations no other project
  has navigated, but it reads one known feature rather than matching surface
- features across a seam, which is what the task above asks for.
+ features across a seam, which is what the task above asks for. Two defects sit
+ under this task: reprojection and mosaic products record sub-solar and
+ sub-observer longitude west while their grid is east (#634), so a product's own
+ metadata disagrees with its axis, and reading a product from remote storage
+ never fetches it (#638), so a check run against remote holdings measures
+ nothing.
 - **PDS4:** beyond schema validation (WS-8), spot-check that label geometry values
  match the backplane metadata they are derived from.
 
@@ -1210,9 +1348,10 @@ survives reflow.
 - **WS-4** (CI) — WS-3 (+ WS-1 for the accuracy-regression gate).
 - **WS-5** (confidence) — WS-0, WS-1, WS-2.
 - **WS-6** (capability matrix) — light coupling to WS-8.
-- **WS-8** (PDS4) — decision gates first. **WS-7** (Titan) and **WS-12**
-  (per-instrument chapters) are delivered; their remaining issues are
-  independent.
+- **WS-8** (PDS4) — the Cassini path is the reference and is complete; the other
+  three instruments' hooks follow it and gate on nothing here. **WS-7** (Titan)
+  and **WS-12** (per-instrument chapters) are delivered; their remaining issues
+  are independent.
 - **WS-9 / WS-10 / WS-13** (constants / limb bias / I/F) — WS-1 and/or WS-2.
 - **WS-15** (performance) — independent; start anytime.
 - **WS-18** (end-product accuracy) — WS-1b + WS-2 + WS-8.
@@ -1373,4 +1512,17 @@ report, none silently assumed):**
  algorithm workstreams (WS-10 for the limb; WS-9 for covariance scaling; new work
  if a technique is structurally weak). The plan does not assume validation merely
  confirms.
-- Nothing here changes code or docs yet; this is the plan of record.
+- **Every product of this plan is a difference, and a difference cannot see an
+ error shared by both of its sides.** Agreement, recovery error, reprojection
+ scatter and backplane-versus-truth all cancel a common datum, convention or
+ origin error exactly. So each reported number states the absolute check that
+ backs it -- a comparison against an independently navigated archive answer, or
+ a conversion written independently of the one under test -- or states that it
+ has none. A tolerance wider than the effect, a harness sharing an assumption
+ with its subject, and ground truth derived from the pipeline's own answers are
+ the three ways such a check returns a confident number about something else,
+ and each is something a criterion above names rather than something a reader
+ is expected to notice.
+- This is the plan of record. The workstreams marked delivered name the code and
+ tests that carry them; the rest are methodology and acceptance criteria against
+ which the tracking issues are worked.

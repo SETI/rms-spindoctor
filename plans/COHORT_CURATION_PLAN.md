@@ -20,6 +20,44 @@ narrow cohort silently invalidates it.
 
 ---
 
+## Status board (2026-09-21)
+
+The five-stage workflow of section 4 is built and has been run end to end
+for review batches 001 through 006. What is unfinished is the curation
+itself: the library covers 16 of the 17 declared scene classes but has
+not reached the first-stage per-class minima, and the WS-3 growth target
+is untouched for three of the four instruments.
+
+| Stage | State | What is left |
+|---|---|---|
+| **A — query** | Done, reusable | Nothing; `scan_stage_a.py` covers every class, `scatter_prescan.py` covers the pixel-level `scattered_light` gate, and `spice_coverage.json` filters out-of-coverage epochs |
+| **B — triage** | Done, reusable | Nothing structural; the ten-glob-per-frame results-tree scan is the pain the results index does not yet serve (#465) |
+| **C — review** | Done, reusable | Batch 006's seven manual-nav follow-ups are still queued (`_work/cohort_curation/batch_006_followups.yaml`), with three class reassignments to apply during that pass |
+| **D — sidecars** | Partly done | 75 sidecars committed; `faint_stars` is empty and `body_mostly_offscreen` holds 1 of its 4 (#172), and the per-class minima are not enforced by any test (#240) |
+| **E — baselines and consumption** | Partly done | Baselines exist and are re-ratcheted per change, but eight of the 75 frames disagree with their sidecars locally (#288); no consumer study has been run (#230, #225, #355) |
+
+**Library state.** `tests/integration/image_library/images/` holds 75
+sidecars. Per class against the first-stage budget in the appendix:
+`star_dominated` 8, `body_irregular` 8, `negative_cases` 7,
+`stars_plus_body` 6, `body_full_fov` 5, `ring_only_flat` 5,
+`ring_plus_body` 12, `scattered_light` 4, `high_phase_terminator` 3,
+`multi_body` 3, `ring_only_curved` 3, `body_partial_overflow` 3,
+`two_bright_stars_no_body` 3, `below_resolution_body` 2,
+`one_bright_star_no_body` 2, `body_mostly_offscreen` 1, `faint_stars` 0.
+Two classes are therefore below their minima and the first-stage budget
+(#172) is not met, even though the total exceeds 47.
+
+**Mission spread.** COISS 62 frames (58 Saturn, 4 Jupiter), GOSSI 8,
+VGISS 3, NHLORRI 2. The WS-3 target of >=20 per instrument and >=120
+total (#235) is met by no instrument but Cassini.
+
+**Staging areas outside the library.**
+`tests/integration/image_library/_uncurated/` holds two `body_irregular`
+frames held back from the tree, and `util/titan_cohort/nominations/`
+holds the six Titan frames awaiting the class decision (#407).
+
+---
+
 ## 1. Data sources (all local, no network needed)
 
 **Canonical environment: `source /seti/newnav/setup.sh`.** It activates the
@@ -37,9 +75,16 @@ exports every variable below. Do not use the `/mnt/ganymede/SPICE` or
 | YBSC star catalog | `/data/external-data/star-catalogs/YBSC` (`YBSC_PATH`) |
 | Nav results (default root) | `/data/nav-offset-results` (`NAV_RESULTS_ROOT`) |
 
-**Tooling:** the Stage A/B/C automation lives in `util/cohort_curation/`
-(scan, triage, review-batch scripts plus `body_radii.json`; see its README
-for usage and the metadata-format gotchas discovered while building it).
+**Tooling:** the Stage A through D automation lives in
+`util/cohort_curation/`: `scan_stage_a.py` (query), `scatter_prescan.py`
+(the pixel-level gradient score for `scattered_light`),
+`triage_stage_b.py` (autonomous-pipeline triage, with
+`rescue_config.yaml` relaxing the uncalibrated gates so a navigable
+scene yields an offset to look at), `build_review_batch.py` and
+`star_check_pngs.py` (review PNGs and `votes.yaml`), and
+`build_sidecars.py` (sidecars from the voted file), plus the support
+files `pdsmeta.py`, `body_radii.json` and `spice_coverage.json`. See its
+README for usage and the metadata-format gotchas.
 Generated artifacts — candidate manifests, triage results, review batches,
 votes — go under `_work/`, which is gitignored; only the tooling is
 tracked.
@@ -193,23 +238,28 @@ overlays, or fill schemas; that is the AI's job. Reserve `sd_offset --manual`
 for the scarce-cohort frames flagged in Stage B, and queue them so the
 operator does all manual work in one sitting.
 
-**Stage D — sidecar generation (no operator).** For each `y`: write the
+**Stage D — sidecar generation (no operator).** `build_sidecars.py`
+consumes the voted `votes.yaml` plus the Stage B triage report. For each
+`y`: write the
 sidecar into the right scene-class directory with `ground_truth` from the
 reviewed offset (`source: operator_verified`, the vote date, the reviewed
 PNG kept beside the YAML), auto-filled `expected.*` per the sidecar rubric in
 `docs/dev_guide/dev_guide_image_library.rst` (conservative tier — `medium`
 when unsure; tier labels are plausibility cross-checks, never calibration fit
-targets), and the selection provenance in `notes`. Run the structural
-suite unfiltered — `pytest tests/integration/test_image_library.py -m ""`
-— until clean (the cross-image invariants, per-class minima and duplicate
-ids, only run unfiltered); then, with `PDS3_HOLDINGS_DIR` set, spot-run
-the new frames with
-`pytest tests/integration/test_autonomous_nav.py -m "" -k <id>`. Submit one PR per review batch (operator preference,
+targets), and the selection provenance in `notes`. Run the structural suite —
+`pytest tests/integration/test_image_library.py`, which needs no holdings
+access and no marker filter — until clean; then, with `PDS3_HOLDINGS_DIR`
+set, spot-run each added frame with
+`pytest tests/integration/test_autonomous_nav.py -m "" -k <id>`. A frame
+whose class or ground truth is unsettled goes to
+`tests/integration/image_library/_uncurated/<class>/` instead, where it
+carries no regression weight. Submit one PR per review batch (operator preference,
 2026-07: reviewer cost is dominated by `ground_truth` spot-checks, and one
 batch per PR keeps the vote-to-merge mapping clean).
 
 **Stage E — baselines and consumption.** After sidecar PRs merge, seed
-regression baselines (`python -m tests.integration.update_baselines`), then
+regression baselines (`python -m tests.integration.update_baselines
+--image-id <id>`, or `--all` for a whole re-ratchet), then
 hand off per consumer: calibration diagnostics collection for the
 real-anchored confidence recalibration (#230 — reliability diagrams
 against measured error anchors, never tier-midpoint fitting),
@@ -221,18 +271,33 @@ analyses never run per-PR.
 
 ## 5. Order of work
 
-1. Fill the empty scene classes of the first-stage budget first (per-class
-   state: compare the appendix budget table against
-   `tests/integration/image_library/images/*/`), one review batch.
-2. Top up all classes to the per-class minima; verify mission spread
-   (>=1 image from each of the four missions; >=1 Cassini `_CALIB`).
-3. Sweep for the scarce cohorts (Route 3 star tie-points, over-determined
-   frames) across ALL volumes — these are kept whenever found, and they gate
-   the most valuable science (absolute attitude, closure test).
-4. Build Route 1 / Route 2 / multi-body / WS-1b cohorts to the WS-3 target
-   (>=20/instrument, >=120 total), stratified per section 3.
-5. WS-17 star fields and the WS-2 realism set (no ground-truth votes needed
-   for WS-2 — it is a distributional match, so it can be fully automated).
+1. **In progress.** Fill the empty scene classes of the first-stage budget
+   first (per-class state: compare the appendix budget table against
+   `tests/integration/image_library/images/*/`), one review batch. Two
+   classes remain: `faint_stars` (0 of 2) and `body_mostly_offscreen`
+   (1 of 4). Clear the batch-006 manual-nav queue in the same sitting —
+   seven frames, three of which change class on the way in.
+2. **Not started.** Top up all classes to the per-class minima; verify
+   mission spread (>=1 image from each of the four missions; >=1 Cassini
+   `_CALIB`). All four missions and a `_CALIB` frame are present, so this
+   step is now only the per-class top-up.
+3. **Not started.** Sweep for the scarce cohorts (Route 3 star tie-points,
+   over-determined frames) across ALL volumes — these are kept whenever
+   found, and they gate the most valuable science (absolute attitude,
+   closure test).
+4. **Not started.** Build Route 1 / Route 2 / multi-body / WS-1b cohorts to
+   the WS-3 target (>=20/instrument, >=120 total), stratified per section 3.
+   Voyager, Galileo and LORRI carry the whole gap.
+5. **Not started.** WS-17 star fields and the WS-2 realism set (no
+   ground-truth votes needed for WS-2 — it is a distributional match, so it
+   can be fully automated).
+
+A sixth stream runs alongside rather than after: the library that exists is
+red. Ten of the 75 frames disagree with their sidecars in the local
+integration environment (#288), which makes "no new failures against `main`"
+the only gate a navigation-affecting branch can clear, and several of the
+reds are curation decisions rather than code defects (#346, #350, #483,
+#563). Reconciling them is curation work and belongs to this plan.
 
 Checkpoint with the operator between numbered steps, not within them.
 
@@ -255,6 +320,32 @@ Checkpoint with the operator between numbered steps, not within them.
   default, 2.0 px for soft features), never 0.1 px.
 - Voyager: only geometrically corrected products; Galileo/Voyager carry
   camera-rotation fitting (slow) — budget triage time accordingly.
+
+## 7. Open issues this plan carries
+
+| Issue | What it is | Where it lands |
+|---|---|---|
+| #172 | First-stage budget of 47 images across 17 scene classes | Order of work step 1 |
+| #235 | Growth to >=20 per instrument / >=120 total | Order of work steps 3-4 |
+| #240 | Coverage-matrix and per-class-minimum invariants in the structural test | Appendix budget table |
+| #288 | Ten of the 75 frames disagree with their sidecars locally | Order of work, the sixth stream |
+| #346 | Three library frames lock confidently onto the wrong ring feature | Same |
+| #350 | Two resolved-body frames miss offset tolerance by ~2 px | Same |
+| #483 | Re-ratchet library pins moved by the shift-equivariance fix | Same |
+| #563 | A Galileo frame's offset moved 5.6 px, with two reader tests | Same |
+| #239 | Decision: sub-5 px bodies — relaxed disc or expected-failure curation | Class assignment for `below_resolution_body` / `negative_cases` |
+| #319 | Opposed-ansae ring geometry has no library coverage | A wide-field Cassini WAC both-ansae sweep, Stage A |
+| #399 | Voyager ISS validation cohort for the haze-symmetry fit | Titan curation |
+| #405 | Titan library growth through this pipeline | Titan curation, after #407 |
+| #407 | Operator ratification of the Titan decisions and the staged nominations | The `titan_haze` class decision |
+| #340 | `library_crosscheck` records a yes/no primary-technique flag, not the winner | Stage E diagnostics |
+| #465 | Widen the results-index schema far enough to serve Stage B triage | Stage B |
+| #612 | `library_entry` resolves the PDS3 holdings root in its own order | Stage C/D save path |
+| #229 | Fast per-PR real-image tier plus a scheduled full-library run | Stage E, CI tiers |
+
+Consumers waiting on the cohorts: #230 (confidence recalibration), #174
+(autonomous-nav tests and baselines), #225 and #358 (the agreement study),
+#355 (Voyager distortion defaults).
 
 ---
 
@@ -288,10 +379,13 @@ rubric, tier semantics, and baseline workflow live in
 | `negative_cases`               |          3 | Expected `status='failed'`: unnavigable scenes                 |
 
 The per-class minima above sum to 47 and are the authoritative first-stage
-budget (enforced by the structural-invariants test).
-The WS-3 growth target (>=20 per instrument, >=120 total; #235) continues the
-same classes; the structural-invariants test asserts per-class minima on
-non-empty classes.
+budget (#172). They are a budget only: `tests/integration/test_image_library.py`
+enforces the tree's shape — every directory is a declared scene class, every
+sidecar validates, the primary scene tag matches its directory, `image_id` is
+unique, and the filename matches the `image_id` — and asserts no per-class
+count. The coverage-matrix and per-class-minimum invariants are #240. The
+WS-3 growth target (>=20 per instrument, >=120 total; #235) continues the
+same classes.
 
 **Pending operator recommendation: an eighteenth class, `titan_haze`**
 (`TitanHazeNav` primary; a hazy body whose navigable feature is a haze
