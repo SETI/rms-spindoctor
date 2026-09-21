@@ -71,3 +71,24 @@ that remains open is tracked there or in an issue.
   finding was folded into the plan before coding, which its section 0
   enumerates; this document is the record of what the review caught that the
   plan as first written would have shipped wrong.
+- `NAV_MEMORY_SWEEP_2026-09-05.md` — the measurement that asked what per-task
+  memory limit navigation needs: 1,613 clean peak-RSS measurements over 1,800
+  images across the four instruments, each navigated in its own process. Its
+  finding is that peak memory follows extended field-of-view area, so the four
+  instruments span a factor of six, and that a scene rather than a volume or
+  an encounter is what costs the memory. Its final section is a record of the
+  ways the measurement itself went wrong, including a probe that inflated the
+  process it measured by 2.6 GB.
+- `NAV_MEMORY_AFTER_THE_FIXES_2026-09-05.md` — the same method over the 244
+  heaviest frames the sweep found, measured after the strip-level release, the
+  correlation spectra reordering and the frame-covering-body decline (PRs
+  #581, #582 and #583). 8 GB holds for 238 of the 244 and for every Cassini,
+  Galileo and New Horizons frame; the six that exceed it are all Voyager.
+- `NAV_MEMORY_WHAT_HELD_IT_2026-09-06.md` — the third round, over those six
+  Voyager frames. It overturns its predecessor's fragmentation floor: the
+  residue a ring render leaves is held by the observation's own backplane
+  caches, and dropping it brings all six under the limit at about half the
+  runtime, with every offset and status unchanged. That change shipped as PR
+  #586 and closed #573. Its two open questions are filed as #584 (holding the
+  model stage's backplane cache to one model's worth) and #585 (the
+  correlation quality metric's background).
