@@ -1347,7 +1347,8 @@ survives reflow.
 - **WS-1b** — WS-3; shares its implementation with WS-18.
 - **WS-4** (CI) — WS-3 (+ WS-1 for the accuracy-regression gate).
 - **WS-5** (confidence) — WS-0, WS-1, WS-2.
-- **WS-6** (capability matrix) — light coupling to WS-8.
+- **WS-6** (capability matrix) — waits on WS-8 only for the row it states
+  about bundle output; nothing in WS-8 waits on WS-6.
 - **WS-8** (PDS4) — the Cassini path is the reference and is complete; the other
   three instruments' hooks follow it and gate on nothing here. **WS-7** (Titan)
   and **WS-12** (per-instrument chapters) are delivered; their remaining issues
@@ -1513,9 +1514,12 @@ report, none silently assumed):**
  if a technique is structurally weak). The plan does not assume validation merely
  confirms.
 - **Every product of this plan is a difference, and a difference cannot see an
- error shared by both of its sides.** Agreement, recovery error, reprojection
- scatter and backplane-versus-truth all cancel a common datum, convention or
- origin error exactly. So each reported number states the absolute check that
+ error shared by both of its sides.** Agreement, recovery error and
+ reprojection scatter cancel a datum, convention or origin error exactly when
+ both sides carry it. The cancellation is therefore as wide as what the two
+ sides share and no wider: backplane-versus-truth is blind only to what the
+ simulator's geometry and the backplane generator compute the same way, and an
+ error the generator makes alone does show up there. So each reported number states the absolute check that
  backs it -- a comparison against an independently navigated archive answer, or
  a conversion written independently of the one under test -- or states that it
  has none. A tolerance wider than the effect, a harness sharing an assumption

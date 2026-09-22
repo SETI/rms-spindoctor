@@ -279,8 +279,9 @@ The known open defects:
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. The residual left after the shift-equivariance
   fix (#447) closes the coarse-grid and boundary-pinning halves.
-- **#350** — two resolved-body frames (N1484593951, N1686349893) miss the
-  offset tolerance by ~2 px after the recalibration.
+- **#350** — N1484593951 misses the offset tolerance by ~2 px after the
+  recalibration. The issue names a second frame, N1686349893, whose
+  disagreement the measurement attributes to a stale pin on #483 instead.
 - **#373** — the RingEdgeNav coarse seed is not robust against competing
   edge populations (polarity-blind); the coarse-lock family that a
   calibration pass against the library must close.

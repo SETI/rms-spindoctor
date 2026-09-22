@@ -293,7 +293,7 @@ analyses never run per-PR.
    can be fully automated).
 
 A sixth stream runs alongside rather than after: the library that exists is
-red. Ten of the 75 frames disagree with their sidecars in the local
+red. Eight of the 75 frames disagree with their sidecars in the local
 integration environment (#288), which makes "no new failures against `main`"
 the only gate a navigation-affecting branch can clear, and several of the
 reds are curation decisions rather than code defects (#346, #350, #483,
@@ -328,9 +328,9 @@ Checkpoint with the operator between numbered steps, not within them.
 | #172 | First-stage budget of 47 images across 17 scene classes | Order of work step 1 |
 | #235 | Growth to >=20 per instrument / >=120 total | Order of work steps 3-4 |
 | #240 | Coverage-matrix and per-class-minimum invariants in the structural test | Appendix budget table |
-| #288 | Ten of the 75 frames disagree with their sidecars locally | Order of work, the sixth stream |
+| #288 | Eight of the 75 frames disagree with their sidecars locally | Order of work, the sixth stream |
 | #346 | Three library frames lock confidently onto the wrong ring feature | Same |
-| #350 | Two resolved-body frames miss offset tolerance by ~2 px | Same |
+| #350 | A resolved-body frame misses offset tolerance by ~2 px | Same |
 | #483 | Re-ratchet library pins moved by the shift-equivariance fix | Same |
 | #563 | A Galileo frame's offset moved 5.6 px, with two reader tests | Same |
 | #239 | Decision: sub-5 px bodies — relaxed disc or expected-failure curation | Class assignment for `below_resolution_body` / `negative_cases` |

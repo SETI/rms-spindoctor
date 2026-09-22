@@ -211,9 +211,11 @@ it (#567).
 
 ### #350 — post-recalibration resolved-body red
 
-- **#350** — two resolved-body frames (N1484593951, N1686349893) miss the
-  offset tolerance by ~2 px after the recalibration. One debugging session
-  against its named frames; the sidecars pin them red until resolved.
+- **#350** — the issue names two frames, and the measurement attributes one
+  of them elsewhere: N1484593951 misses the offset tolerance by ~2 px after
+  the recalibration, while N1686349893's disagreement is a stale
+  `primary_technique` pin on #483. One debugging session against the first
+  frame; its sidecar pins it red until resolved.
 
 ### #373 — DT coarse-prior search vs competing edge populations
 
@@ -416,10 +418,6 @@ than the fitter. Fix it before reading any number it produces.
   which count is the honest one, not by making the ingest lie.
 - **#535** — the statistics report retains more than it prints under
   `--top-n`. Small; the fix is to bound what the accumulator keeps.
-- **#637** — `util/nav_verification/` knows one independently navigated
-  answer, the published F ring bundle. The Cassini B ring spokes bundle is a
-  second one, and it reaches frames the F ring bundle cannot. Adding it
-  widens the only external check on absolute pointing accuracy there is.
 - **#340** — `library_crosscheck` records only a yes/no primary-technique
   flag, not the winning technique, so a cross-check delta cannot say which
   technique took over. Cheap, and it makes the standing practice below
@@ -868,7 +866,7 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 10
+  debt with the widest blast radius. In the local integration environment 8
   of 75 sidecars disagree, each one attributed and owned, but the set is
   still wider than the deliberately-pinned one below, so the regression
   instrument cannot yet be read as clean. Two consequences to hold
