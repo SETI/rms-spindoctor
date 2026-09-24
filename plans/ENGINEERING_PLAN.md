@@ -166,7 +166,8 @@ and a per-axis NCC-quadratic fallback in `evaluate_candidate` for the case
 where the upsampled-DFT refinement argmax lands on the window boundary and
 the old code reported a pinned +-0.5 px.
 
-The PR is green, mergeable, and fifty commits behind `main`. What it filed
+The PR conflicts with `main` and is 291 commits behind it, so the first step
+in picking it up is a rebase. What it filed
 rather than fixed: RingEdgeNav is not
 shift-equivariant either and a planted shift re-locks it onto the wrong ring
 edge (#476, same family as #346 and #373 seen from the round-trip side, and
@@ -210,16 +211,18 @@ it (#567).
 
 ### #350 — post-recalibration resolved-body red
 
-- **#350** — two resolved-body frames (N1484593951, N1686349893) miss the
-  offset tolerance by ~2 px after the recalibration. One debugging session
-  against its named frames; the sidecars pin them red until resolved.
+- **#350** — the issue names two frames, and the measurement attributes one
+  of them elsewhere: N1484593951 misses the offset tolerance by ~2 px after
+  the recalibration, while N1686349893's disagreement is a stale
+  `primary_technique` pin on #483. One debugging session against the first
+  frame; its sidecar pins it red until resolved.
 
 ### #373 — DT coarse-prior search vs competing edge populations
 
 The coarse NCC search over the distance-transform image can lock onto the
 wrong edge population (e.g. a ring edge when fitting a limb) and hand the
 Levenberg-Marquardt refine an unrecoverable prior.
-`src/spindoctor/nav_technique/dt_fitting.py` (`coarse_ncc_search`). The
+`src/spindoctor/nav_technique/dt_fitting/coarse.py` (`coarse_ncc_search`). The
 polarity-weighted coarse seed already landed; what remains (#373) is making
 the RingEdgeNav coarse seed robust against competing edge populations even
 when polarity is blind — a calibration pass over the library that
@@ -228,6 +231,29 @@ widens the second-opinion gate to the other DT techniques or adds
 per-feature-type edge masking. Needs the library cohort; coordinate with
 Track A so the fix is measured, not guessed. #346 supplies the concrete
 wrong-lock datapoints.
+
+### #621 / #622 / #623 — the star gates and what the ensemble counts
+
+Three defects measured on the 1030-frame `ISS_006RI_LPHRLFMOV001_PRIME` F ring
+block, where stars are the only technique that can navigate at all -- the ring
+catalogs carry no F ring, so RingEdgeNav has no feature to fit there. They are
+one family: what the star techniques accept, and what the ensemble does with
+what they return.
+
+- **#621** — star navigation refuses about half the frames that are
+  demonstrably navigable by stars, and not for want of stars: the acceptance
+  gates refuse sparse fields. The cost is coverage.
+- **#622** — the converse, and the more serious of the two: a solution built
+  on one or two matched stars is accepted as `success` and lands five to
+  twenty-three pixels wrong. Two stars cannot constrain a two-dimensional
+  offset against misidentification, so an accepted two-star answer is a
+  confident-wrong exposure. Fix #622 before widening #621's gates.
+- **#623** — the ensemble counts two techniques consuming one feature as two
+  witnesses agreeing, when they are one measurement reported twice. Same shape
+  as the family `resolve_independent_estimators` already handles for seeded
+  refines and paired ring techniques; the shared-feature case is the one it
+  does not cover. #557 (combined confidence saturating at 0.99 whenever two
+  techniques agree) is the same arithmetic seen from the confidence side.
 
 ### #128 / #150 — Limb navigation redesign and the ~0.1 px systematic
 
@@ -251,6 +277,11 @@ higher-leverage pointing-kernel side (#50) was built first and is
 delivered. #128 is the fuller redesign (all body types and illuminations)
 and starts with a design document, not code.
 
+**#646 gates the measurement.** The harness that exists to calibrate the limb
+bias puts its simulated limb ridge in a different place from the catalog model
+the real frames use, about half a pixel away, so it measures the harness rather
+than the fitter. Fix it before reading any number it produces.
+
 ### Smaller Track B items
 
 - **#25** — high-resolution bodies: the model renders sharper than the
@@ -263,6 +294,15 @@ and starts with a design document, not code.
 - **#239** — implement the sub-5 px body policy the operator settled on
   (expected-failure curation); the open work is the targeted diameter-
   filtered cohort scan for a qualifying single-body frame.
+- **#591** — `NavModelRings._render`'s cheap 16x16 visibility pre-check can
+  skip the whole ring model on a frame whose rings fall between its samples,
+  so a navigable ring frame silently offers no ring feature.
+- **#577** — `compute_smear_vector_px` calls `obs.boresight_ra()` and
+  `obs.boresight_dec()`, which exist on no observation class, so the star
+  smear path raises wherever it is reached. Restore the accessor.
+- **#579** — the logged star-smear summary projects one sky direction, the
+  frame center, so it reads zero on a rolling frame where the smear is
+  largest at the corners. A log line, not a navigation input.
 - **#338** — decision: the highly-irregular exclusion discards a
   ground-truth terminator fit on N1853392805; implement whichever option the
   operator picks (accept the 2-px-class ground truth, keep TERMINATOR_ARC for
@@ -334,7 +374,7 @@ and starts with a design document, not code.
   Two structural changes stand behind those. Feature geometry payloads declare
   their coordinate system on the field, and `predicted_center_vu` means pixel
   centric on every payload that carries one rather than differing between them
-  (#655, #664). The sixteen conversions that were
+  (#655). The sixteen conversions that were
   spelled as a bare `0.5` are named (#660).
 
   The rest is instrumentation and record. The documentation agrees with the
@@ -346,6 +386,14 @@ and starts with a design document, not code.
   a navigated offset is a difference, so an error shared by prediction and
   measurement cancels everywhere except the absolute answer, and the library
   gate's tolerance carries the defect as its pad.
+
+  Two findings of the same class are open. `draw_line` converts a fractional
+  coordinate with `int()`, which truncates toward zero rather than rounding to
+  the pixel that contains it, so an overlay line is drawn in the wrong pixel
+  for negative coordinates and biased low elsewhere (#709). And
+  `create_body_backplane` treats two simulator truth fields as interchangeable
+  sources for one question when they are the silhouette and the visible extent,
+  which are different quantities (#701).
 - **Titan haze fit** — the haze solar-symmetry method ships and is validated;
   four measured refinements remain: the arc ray reach sized by the search
   window rather than by where the limb can be (#403), the flat arc-residual
@@ -378,7 +426,7 @@ and starts with a design document, not code.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 10 of 75 library frames red locally (#288), a cross-check
+  degraded: with 8 of 75 library frames red locally (#288), a cross-check
   can only be read as "no *new* deltas against `main`".
 
 ## Track D — Capability completion
@@ -394,67 +442,74 @@ and input support (#34, `dataset_pds4.py`) is not required for project
 completion — when an archive appears, implementing its `DataSetPDS4`
 replaces the PDS3 source for that instrument.
 
-Output current state: nothing works end to end yet. The Cassini path is
-partially implemented — the per-dataset hook pattern (template dir,
-LID/LIDVID builders, template variables) exists on
-`DataSetPDS3CassiniISS`, the collection machinery runs, and its data
-labels state real exposure times and describe the backplane FITS beside
-them, tested over a synthetic cohort of navigation and backplane
-products, and `sd_create_bundle check` holds a bundle to the PDS4 schemas,
-the Schematron rules and its own tables, gated by a test over that cohort —
-but its templates are still drafts in places, so its output does not yet validate
-against the PDS4 standard. The other three instruments additionally hit
-`NotImplementedError` walls in their `pds4_*` DataSet hooks. The work
-is therefore: finish and validate Cassini first (final templates; the
-remaining phases of `PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, which finishes as
-a prototype over the synthetic cohort, the run over a real volume being
-#708), then generalize — per-mission
+Output current state: the Cassini ISS Saturn path is finished and validated
+as a prototype. The per-dataset hook pattern (template dir, LID/LIDVID
+builders, template variables) lives on `DataSetPDS3CassiniISS`; the
+collection machinery writes the data, browse, context, document, SPICE
+kernel and miscellaneous collections with conforming inventories; the data
+labels state real exposure times, name their targets, describe the backplane
+FITS beside them and cite their source products; the global bodies and rings
+index tables state each image's ring and body ranges; and `sd_create_bundle
+check` holds a written bundle to the PDS4 schemas, the Schematron rules and
+its own tables. All of it is gated by tests over a synthetic cohort of
+navigation and backplane products. The design of record is
+`plans/archive/PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`, which finished as a
+prototype over that cohort.
+
+Two things remain. **#708** is the draft run over a real COISS volume and a
+pass of the NASA `validate` tool over its output; it needs registered DOIs
+for the bundle and its user guide, and a fresh navigation of the chosen
+volume. And the other three instruments still hit `NotImplementedError` walls
+in their `pds4_*` DataSet hooks, which is the second half of #53: per-mission
 template trees plus hook implementations, mechanical but voluminous.
 
 Work items, in dependency order:
 
-1. **The output-layout mismatch** — done: both guides describe the tree the
-   generator writes, section 3.1 of the PDS4 plan (Part A of its Phase 10,
-   closing #265, by hand when its PR merges). Its swallowed-label-write part
-   was fixed first: every label goes through one helper that reports what
-   `pdstemplate` returned and fails the run when a label was not written. So
-   was its inventory-filename part: the collection inventories are written as
-   the `.csv` files their labels name.
-2. **Template finalization acceptance list** — the items recorded
-   on #53: schema validation, which `sd_create_bundle check` does and a test
-   over the synthetic cohort gates, the unreferenced `cassini:*` variables (Part B of
-   the PDS4 plan's Phase 8, from the navigation document's `observation`
-   block, #684) and hardcoded placeholders, TITLE/DESCRIPTION wording,
-   the operator's acceptance of the index tables'
-   missing-value sentinel (#601), non-navigated-image
-   handling, and the directory layout. These are
-   the acceptance criteria for "final templates" in the paragraph above.
-3. **#30** — backplane label design (couples to the #55 backplane-set
+1. **#708** — the real-volume run. What blocks it is external (DOIs) and
+   operational (a fresh navigation), not code.
+2. **The real-run gaps the prototype does not hit** — the synthetic cohort
+   writes no holdings tree, so `sd_create_bundle` cannot enumerate it and an
+   operator pointed at it gets an empty bundle at exit 0 (#609); and the
+   `cassini:ISS_Specific_Attributes` mission area is empty, because every
+   `cassini:*` variable is mapped from a PDS3 index row and fourteen of the
+   names it asks for are not columns of one; the writer takes them from the
+   observation block instead (#717). These are the items to clear
+   before #708 is worth attempting.
+3. **The decisions still open on the bundle's content** — what a bundle says
+   about an image that did not navigate (#600) and about a navigated image
+   whose backplanes hold nothing worth describing, which today is dropped
+   with no record (#720); which SPICE kernels the metakernel lists (#677); and
+   whether to add a global navigation index beside the bodies and rings
+   indexes (#710).
+4. **#595 through #599** — the backplanes user guides. Every bundle's document
+   collection declares a `Product_Document` naming a PDF that does not exist;
+   #595 is the shared LaTeX template and #596-#599 are the per-instrument
+   guides.
+5. **#30** — backplane label design (couples to the #55 backplane-set
    decision).
-4. **#79** — scrape the PDS4 context products to maintain the targets
-   table, `backplanes.target_lids`, which Part A of the PDS4 plan's Phase 8
-   filled by hand from the PDS registry.
-5. **Label and collection completeness** — done: the bundle's name and
-   version and the schema locations, each set once in the configuration (the
-   PDS4 plan's Phase 9, closing #71), and the context collection's targets
-   (#72) and target handling (#73), which are Part A of its Phase 8; each is
-   closed by hand when its PR merges. The ring geometry class fields (#75) and
-   the ring incidence angle in the label (#47) are closed as not planned: by
-   the operator's decision of 2026-09-15 the data labels name the ring target
-   alone and leave every ring range to the global rings index, which also
-   states the incidence angle's least, greatest and mean and the wrapped
-   longitude arc.
-6. **The integrity pass** — done: `sd_create_bundle check` checks a written
-   bundle as a whole, and `sd_create_bundle labels --check-only` reports
-   whether each selected image has the pass's inputs (Part A of the PDS4
-   plan's Phase 10, closing #66, by hand when its PR merges).
+6. **#79** — scrape the PDS4 context products to maintain the targets
+   table, `backplanes.target_lids`, which Phase 8 of the PDS4 plan filled by
+   hand from the PDS registry.
 7. **#67** — cloud-aware bundle generation (with the Track D cloud
-   audit).
-8. Schema-validate generated `.lblx` against the PDS4 schemas in CI for
-   all four instruments (acceptance for the whole family). Cassini's is
-   done: the test gating `sd_create_bundle check` over its cohort. Each
-   other instrument's bundle is held to the same check over a cohort of its
-   own.
+   audit). #716 is the near half of it: the check pass walks the tree with
+   `pathlib` and reads schemas with lxml, so it refuses a remote
+   `--bundle-results-root` that the labels and summary passes accept.
+8. **#614** — `sd_create_bundle labels` and `summary` end in a traceback
+   rather than a clean refusal for five of the seven registered dataset
+   families. Cheap, and it is what an operator meets first when the answer is
+   "this dataset has no PDS4 support yet".
+9. **#705** — the spelling gate would read the NASA PDS4 schema copies the
+   package and the test suite ship, which are NASA's files byte for byte and
+   carry NASA's own misspellings. Exclude them by path; do not edit them.
+10. **#687** — cite each image's calibrated product by its PDS4 LID once a
+    calibrated Cassini ISS bundle is registered; today the
+    `Source_Product_External` names the PDS3 product by volume ID and label
+    path, because no such bundle exists.
+11. Schema-validate generated `.lblx` against the PDS4 schemas in CI for
+    all four instruments (acceptance for the whole family). Cassini's is
+    done: the test gating `sd_create_bundle check` over its cohort. Each
+    other instrument's bundle is held to the same check over a cohort of its
+    own.
 
 ### Backplane family (decision: #28 scope)
 
@@ -485,12 +540,45 @@ Two further items in this family, neither found by that suite:
   task handler, so the worker's failure mode is the handler's rather than
   the pipeline's. Same family as #418: decide what a task's status owes a
   retrying queue.
+- **#611** — `sd_backplane_viewer` decides whether a plane is angular with an
+  exact string match on the FITS `BUNIT`, so a plane whose unit is a compound
+  radian unit is displayed and read out in radians while every other angular
+  plane is in degrees.
+- **#618** — `create_ring_backplanes` builds the ring target name as
+  `f'{closest_planet}_RING_SYSTEM'` with a hardcoded exception routing Saturn
+  to `SATURN_MAIN_RINGS`. Each planet's ring target belongs in configuration.
 - **#520** — move the pointing selection and application code
   (`src/spindoctor/cli/reproj/offsets.py`: metadata pointing selection and
   the C-matrix/offset application ladder) out of the reprojection CLI
   package. It already has two consumers, the reprojection and backplane
   stages, which is the condition the code's own comment names for promoting
   it into the library package proper.
+
+### Reprojection and mosaics
+
+The machinery ships (`src/spindoctor/reproj/`, `sd_mosaic`,
+`sd_mosaic_display`). The open items are product correctness and
+photometry:
+
+- **#634** — every body reprojection and body mosaic records `sub_solar_lon`
+  and `sub_observer_lon` in west longitude while the grid they sit on is
+  east, and the same file says `lon_direction: east`. Nothing in the product
+  distinguishes the two, so a consumer reading them together is wrong by
+  `360 - lon`.
+- **#638** — three read paths in `reproj/_serialization.py` call
+  `get_local_path()` where they need `retrieve()`, so reading a reprojection
+  or mosaic product from remote storage never fetches it.
+- **#616** — mosaics show brightness steps at image boundaries: the
+  photometric models correct per pixel for incidence and emission and none of
+  them models phase, and nothing levels the seams afterward.
+- **#617** — `MinnaertModel.k` is fixed at 0.5 and nothing can change it,
+  which is the wrong limb-darkening exponent for the icy satellites. Pairs
+  with #616; a configurable exponent is the cheaper half.
+- **#718** — `--zoom` names two different operations: the ring path averages
+  sub-samples of the output grid, the body path interpolates the source
+  image. Decide whether one flag should mean one thing.
+- **#493** — `sd_mosaic` reports a lost results index as N failed images
+  rather than as one run-level condition (see the cloud items below).
 
 ### CK kernels: what remains after the deliverable (follow-ups)
 
@@ -594,7 +682,9 @@ Its follow-ups, none blocking:
   frame remain a practical pain); a `--since` selector so a re-scan stops
   paying for the whole listing (#467); `sd_offset` writing each result into
   the index as it navigates (#486); and an index that can say whether a
-  root's rows were pruned (#542).
+  root's rows were pruned (#542); and a URL with no scheme taken to mean a
+  local SQLite file, so that `--results-index-db nav_index.sqlite3` means what
+  it looks like it means rather than being refused (#572).
 - **Operational questions with a decision in them:** a documented workflow
   for getting the index to cloud workers (#466 -- publish the SQLite file to
   the results bucket, or run PostgreSQL); and the lockability probe that
@@ -612,7 +702,11 @@ Its follow-ups, none blocking:
   which nothing was navigated (#538); a narrow selection still listing a
   whole volume (#540); signed zero not surviving SQLite (#534); roots taken
   as `str` rather than the `FCPath` union (#472); and the FileCache/FCPath
-  construction audit (#541).
+  construction audit (#541); a results tree reached through a symlink giving
+  a document a different stub on each pass, because `_claim` keeps whichever
+  path the walk met first (#578); and a stale index passing the version gate
+  and failing on the first read, because `SCHEMA_VERSION` is a column-set
+  version and does not move when the column contents change (#587).
 - **Reported through other programs:** `sd_mosaic` reports a lost index as N
   failed images rather than one run-level condition (#493), and there is no
   integration-tier case for a document the ingest refused (#497).
@@ -690,6 +784,15 @@ asserts the generated half matches the registries.
   driver's cloud path actually works end to end, which is untested for
   several of them. The task files such a run needs, and the instance
   startup script it runs under, are scripted in `cloud_support/`.
+- **#574** — `cloud_support/` is outside every check the repository runs:
+  `ruff`, `ruff format --check` and `mypy` are invoked over `src tests` and
+  `pytest` collects `tests/`, so the four task generators and their shared
+  module are unlinted, untyped and untested. Sequence it with #108, which is
+  the work that will exercise them.
+- **#706** — the 24 files in `src/spindoctor/config_files/` reach a built
+  wheel only through setuptools-scm's git file finder, so a wheel built from
+  an unpacked sdist or a tarball ships no configuration at all. Name them in
+  `[tool.setuptools.package-data]`.
 - **#418** — a `sd_mosaic_cloud_tasks` task returns `status: success` no
   matter how many of its images failed. The counts are in the result now
   (`n_uncorrected`, `pointing_reasons`, `rejected_stubs`), so the
@@ -718,7 +821,9 @@ asserts the generated half matches the registries.
   fixed the worst instance and left the pattern. Sequence this **before**
   #118 (config validation): a schema per section is easier to write and to
   keep honest once the sections are organized, and doing it the other way
-  freezes the current grouping into a schema.
+  freezes the current grouping into a schema. #712 (renumber the
+  configuration files, so the `config_NN_*` merge order carries the same
+  axis) is the filename half of the same question and moves with it.
 - **#141 / #142** — dedup the CLI driver preamble and cloud-task loop;
   fix the dropped `extra_params` and the ImageFiles cardinality
   disagreement.
@@ -761,7 +866,7 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 10
+  debt with the widest blast radius. In the local integration environment 8
   of 75 sidecars disagree, each one attributed and owned, but the set is
   still wider than the deliberately-pinned one below, so the regression
   instrument cannot yet be read as clean. Two consequences to hold
@@ -854,6 +959,19 @@ asserts the generated half matches the registries.
 - **#470 / #471** — config placeholder comments and config placeholders
   themselves still carry an internal phase codename; documentation and
   configuration should be self-contained.
+- **#562** — 62 of 64 dev-guide chapters carry no class diagram, which the
+  developer-guide rules require of every chapter. Decide whether the rule
+  holds for every chapter or only where a class structure is the subject,
+  then make the guides and the rule agree.
+- **#714** — Python source carries 332 em dashes and 23 arrows that the
+  docstring rule prohibits in `.py` files, and no check gates them. The gate
+  is the point; the sweep without one only resets the count.
+- **#715** — the Qt modules document 7% of their method arguments where the
+  rest of `src/` documents 65%. Same exemption question as the mypy and
+  coverage carve-outs those modules already have.
+- **#576** — `mypy warn_unreachable` would have caught a `continue` left
+  behind after a `raise`, at the cost of seven suppressions elsewhere.
+  Decide whether the trade is worth taking.
 - **#443** — decide whether `spindoctor.cli` subpackages belong in the API
   reference at all. It is what decides whether the C-kernel writer package
   gets an autodoc page rather than the nitpick-ignore every other
@@ -899,6 +1017,31 @@ realism), sim polish: #84 ring edges/gaps overwrite, #78 CraterMaker
 craters, #151 flux-correct star smear, #152 diffraction spikes, #157
 line-based missing data, #158 smooth-shaded meshes.
 
+### Simulator scene authoring
+
+An audit of what a scene file can say, and what the renderer does with it,
+found three keys that render garbage and six that document something other
+than what they mean. None of them affects a shipped scene's navigation
+baseline, and all of them mislead the next person to author a scene.
+
+- **Renders wrong:** `limb_relief_rms` carves radial wedges out of the disc
+  at every value instead of roughening the limb (#625); `polyhedral_mesh`
+  bodies render as banded shells, and the shipped Hyperion scene renders as a
+  torus (#626); and the north and south haze terms seam the halo at the
+  equator instead of blending across it (#627).
+- **Says one thing and means another:** the artifact key `incidence` names
+  three different quantities and collides with the illumination angle
+  (#629); `cosmic_ray_rate_per_sec` is a fluence per cm^2 and two places
+  document it per pixel (#630); a `vgiss` scene renders in I/F with a raw-DN
+  marker and full well, matching neither documented unit class (#631); and
+  the ring scene keys carry no units beside keys in the same block that do
+  (#632).
+- **Tooling:** the scene editor authors mesh body scenes its own validator
+  refuses to load (#633).
+- **#644** — a planted roll turns the scene's positions and poses but not a
+  star's smear vector, a companion's position angle, or the background sky
+  field. Filed out of the pivot audit (#642) and deliberately left out of it.
+
 ### Hardening / cleanup tail
 
 Mostly small, any time, no ordering: #15 overlay
@@ -923,7 +1066,14 @@ logger-per-image design will find it), #494 Cassini BOTSIM pairs defined two
 different ways (one definition, before #27 builds on either), #518 state
 the encoding wherever a document or text file is read or written, and #552
 remove the `AttrDict` `_IS_IMMUTABLE` marker once oops confines its
-mutability bookkeeping to its own objects.
+mutability bookkeeping to its own objects, #554 the 82 test call sites that
+wrap a `Path` in `str()` to build an `FCPath`, #590 the remaining
+function-level imports that do not qualify for the GUI exemption, #604 a
+second `load_default_and_user_config` in one process silently keeping the
+first load, #612 `library_entry` resolving the PDS3 holdings root in a
+different order from `DataSetPDS3` while its docstring says the two agree,
+#711 hashing every static-data configuration file into a navigation's
+provenance rather than the instrument configuration it actually used.
 
 #552 is worth reading before touching `AttrDict` (#39), because it records
 a live constraint rather than a wish: an `AttrDict` is its own instance

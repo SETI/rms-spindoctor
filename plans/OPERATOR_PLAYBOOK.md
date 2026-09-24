@@ -2,7 +2,7 @@
 
 *Explicit operator instructions — commands to run, files to modify, and
 prompts to hand to agent sessions — for every next step in
-`plans/PROGRAM_PLAN.md` as of 2026-08-27. Work through Section 0 first; after
+`plans/PROGRAM_PLAN.md` as of 2026-09-21. Work through Section 0 first; after
 it, independent and unblocked work can be dispatched in parallel as agent
 sessions. Where a section states an order or a dependency -- Section 0.3's
 groups, or anything gated on #288 -- that order governs.
@@ -47,6 +47,11 @@ Each is a scope commitment the downstream work waits on:
   the one integration frame that would do it no longer navigates. Pick a
   frame that still navigates, or close it behind the image-library
   regression (#288).
+- **#600 / #720 / #677 what a bundle says about what it cannot describe**:
+  an image that did not navigate (#600), a navigated image with no
+  backplanes (#720), and which SPICE kernels the metakernel lists (#677).
+  Each is a scope commitment, and together they decide what the
+  generalization to Voyager, Galileo and New Horizons is generalizing.
 - **#459 Cassini predicted kernels**: whether Cassini navigation should run
   from the predicted rather than the reconstructed kernels. There is a
   branch, `origin/rf_ck_cassini_predicted`, nine commits, last touched
@@ -68,6 +73,9 @@ gh issue comment 547 --body "Decision: <pick frame <name> | close behind #288>"
 gh issue comment 459 --body "Decision: <rf_ck_cassini_predicted is live | abandon the branch>"
 gh issue comment 468 --body "Decision: <declare reconstructed | leave UNCLASSIFIED>"
 gh issue comment 466 --body "Decision: <ship the SQLite file | run PostgreSQL>"
+gh issue comment 600 --body "Decision: <per the enumerated options>"
+gh issue comment 720 --body "Decision: <per the enumerated options>"
+gh issue comment 677 --body "Decision: <per the enumerated options>"
 ```
 
 - **#557 where the confidence scale should saturate**: the combined
@@ -81,11 +89,14 @@ gh issue comment 466 --body "Decision: <ship the SQLite file | run PostgreSQL>"
   binds across the cohort and what the tiers would look like at other
   saturation points; choosing the point is yours.
 
-### 0.1b Merge or close the one open pull request
+### 0.1b Rebase or close the one open pull request
 
-PR #484 (#447, the round-trip residual) has been open since 2026-08-09,
-is green and mergeable, and is fifty commits behind `main`. Rebase and
-merge it, or say what it is waiting on. Nothing else is in flight.
+PR #484 (#447, the round-trip residual) has been open since 2026-08-09 and
+last saw a commit on 2026-08-10. It carries nine commits, conflicts with
+`main`, and is 291 commits behind it; the pixel-convention work on `main`
+touches the same silhouette code it changes, so this is a review of the fix
+against current code rather than a merge. Dispatch the rebase, or close it
+and refile the two body-side fixes against `main`. Nothing else is in flight.
 
 ### 0.1c Labels and assignees: check five inferred priorities
 
@@ -97,7 +108,7 @@ deleted from the repository if you want it gone.
 Five priorities were assigned by inference from these plans rather than by
 you, and are the ones worth a glance: **#53** PDS4 bundle generator parent as
 Essential (the plans call output bundles required for all four instruments,
-and none of it works end to end); **#28** backplane generator parent as
+and three of the four are not started); **#28** backplane generator parent as
 Important (a scope decision gating #54/#55/#57/#63/#77); **#34** PDS4 input
 as Defer (the plans say it is not required for project completion); and
 **#23** body shape models and **#78** CraterMaker as Defer (both sit with the
@@ -122,30 +133,75 @@ instrument.
 
 **Group 1 — evidence integrity.** Nothing above this in the whole project.
 
-1. **#288 resolution** — every one of the 10 reds is attributed and owned.
-   Four are the coarse-lock family (#346's three, plus `N1633925572_1` whose
-   tier the wrong ring lock moves); two are the Galileo star fields whose
-   ground truth was captured under three degrees of freedom and no longer
-   describes a two-DoF fit; one is the standing #24 exclusion; one is a real
-   limb bias deliberately pinned red; and two are stale or wrong
-   `primary_technique` pins batched onto #483. Nothing is unattributed, and
-   no `expected.*` field is moved to match current behavior.
+1. **#288 resolution** — 8 of 75 frames are red on `main`, and every one is
+   attributed and owned. Four are the coarse-lock family (#346's three, plus
+   `N1633925572_1`, whose fused sigma the wrong ring lock inflates past the
+   `max_sigma_px` boundary and whose tier therefore drops); one is
+   `N1853392805`, held out by the highly-irregular-body policy and owned by
+   the #338 decision; one is `N1484593951`, a real limb bias deliberately
+   pinned red; and two are stale or wrong `primary_technique` pins batched
+   onto #483. Nothing is unattributed, and no `expected.*` field is moved to
+   match current behavior. Closing the issue is therefore closing #483 and
+   the frames' owning issues, not a separate investigation.
+2. **#563** — a Galileo library frame's offset moved 5.6 px under `rms-oops`
+   0.3.0, and two C-matrix reader tests assert the old answer. Whether the
+   new offset is the better one is the question; the tests cannot be
+   re-ratcheted until it is answered.
 
-**Group 2 — the coarse-lock family.** One family, best done as one campaign:
-**#476** (RingEdgeNav re-locking under a planted shift), **#346** (three
-frames locked onto the wrong ring feature) and **#373** (the coarse seed
-against competing edge populations). These gate the Track A study, which
-consumes ensemble output at scale. The Saturn routing decision (annulus
-composite at and above 25 km/px radial resolution, per-edge fit below)
-reduces the family's exposure to the sub-25 km/px regime.
+**Group 2 — the confidently-wrong families.** Two campaigns, each best done
+as one piece. Both gate the Track A study, which consumes ensemble output at
+scale.
+
+*The coarse-lock family:* **#476** (RingEdgeNav re-locking under a planted
+shift), **#346** (three frames locked onto the wrong ring feature) and
+**#373** (the coarse seed against competing edge populations). The Saturn
+routing decision (annulus composite at and above 25 km/px radial resolution,
+per-edge fit below) reduces the family's exposure to the sub-25 km/px regime.
+
+*The sparse-star-field family:* **#621** (the acceptance gates refuse about
+half the frames that are demonstrably navigable by stars, because
+`pattern_match_min_inliers` exceeds the number of stars present on 99% of the
+frames that do navigate), **#622** (a one- or two-star solution accepted as
+`success` and landing 5 to 23 px wrong), **#623** (two techniques reading the
+same single star counted as two agreeing witnesses, reporting zero spread and
+a sharp sigma on a fit with no degrees of freedom) and **#639** (a centroid
+that takes the brightest pixel anywhere in a 61-pixel window, so a neighbor
+can win the star that was asked for). All four are measured against the
+published F ring bundle's own per-frame pointing, so each has an outside
+answer to fix against. #621 and #622 are one decision seen twice — where the
+line between "too little evidence to admit" and "refusing a solvable frame"
+sits — and are best scoped together.
 
 **Group 3 — parallel fill, any order, any number at once.**
 
 - **Results index:** #515 with #516 (the root-blind share write and the test
   that cannot catch it); #501, #512, #514, #536 as one seam-cleanup
   batch; #528 with #531 as a metadata-provenance pair; #493 and #496 (run-level
-  conditions reported per image); then the tail #472, #497, #524,
+  conditions reported per image); #587 and #578 (a stale index that passes
+  the version gate, and a symlinked tree that gets a different stub on each
+  pass); then the tail #472, #497, #524, #572,
   and #533, #534, #535, #538, #540, #541.
+- **PDS4 bundle:** #717 (fill the Cassini mission area from the observation
+  block; it is empty today because fourteen of the names it maps are not
+  PDS3 index columns); #609
+  (give the synthetic cohort a holdings tree so `sd_create_bundle` can
+  enumerate it); #705 (the spelling gate reads the shipped schemas); #614 (a
+  dataset without PDS4 support ends in a traceback); #716 (check a bundle at
+  a remote results root). #708, the draft run over a real COISS volume,
+  carries the cohort choice and needs your frame approval first.
+- **Simulator scene fidelity:** four features render something other than
+  what they name — #625 (`limb_relief_rms` carves radial wedges out of the
+  disc), #626 (`polyhedral_mesh` bodies render as banded shells), #627 (the
+  two haze terms seam the halo at the equator) and #644 (a planted roll turns
+  positions but not smear, companions or sky field) — plus #646 (the
+  limb-bias harness measures a ridge half a pixel from the deployed one) and
+  the scene-language batch #629, #630, #631, #632, #633, #641 with #409.
+- **Reprojection and mosaic products:** #634 (longitudes recorded west on an
+  east grid), #638 (a remote product is never fetched), #701 (body backplanes
+  read silhouette or visible extent depending on which truth field is
+  present), #617 (Minnaert k fixed at 0.5), #618 (ring target from
+  configuration), #616 (unleveled mosaic seams), #718 (the two `--zoom`
+  meanings).
 - **Test debt:** #241 and #242 first, because the plan wants tested ground
   under any serious PDS4 or backplane work; then #243, #177, #524,
   #525, #530, #473.
@@ -155,7 +211,8 @@ reduces the family's exposure to the sub-25 km/px regime.
   turn `main` red on its own.
 - **Products:** #520 (move the pointing selection out of the reprojection
   CLI package); #495 (raw-product dataset names for Cassini ISS).
-- **Docs and cleanup:** #545, #549, #470, #471, #494, #518.
+- **Docs and cleanup:** #545, #549, #470, #471, #494, #518, #714, #715,
+  #562, #612.
 
 **What looks dispatchable and is not.** #483 and #547 wait on #288. #129
 (Sphinx nitpicky-clean) wants #443 settled first, since that decides whether
@@ -169,40 +226,42 @@ is what makes Group 1 worth starting today.
 ## 1. The library regression, and the deliberately-red set
 
 **Read this before trusting a library run.** In the local integration
-environment 10 of 75 sidecars disagree on `main` (#288). That is not the
-pinned set below; it is a broken regression instrument, and until it is
-reconciled the only gate a navigation-affecting branch can honestly clear is
-**no new failures against `main`** — run the suite on `main` first, then on
-the branch, and account for the difference. Do not re-ratchet a sidecar to
-match current behavior, and do not read a green-looking subset as a pass.
+environment 8 of 75 sidecars disagree on `main` (#288), and the eight are
+exactly the table below, entry for entry. Every one is owned by an open
+issue. Three of the eight are unresolved judgments rather than settled pins —
+the two `primary_technique` flips on #483, and `N1484593951`'s limb bias —
+which is why #288 is open, and why the gate a navigation-affecting branch
+clears is **no new failures against `main`**: run the suite on `main` first,
+then on the branch, and account for the difference. Do not re-ratchet a
+sidecar to match current behavior, and do not read a green-looking subset as
+a pass.
 
 Reconciling #288 is prerequisite to two other things: #483 (re-ratcheting the
 pins the shift-equivariance fix moves) and #547 (the one place a built
 product is compared between the results tree and the results index, whose
 frame no longer navigates).
 
-The set below is the *intended* steady state — the frames that should stay
-red once #288 is reconciled, each owned by an open navigation issue. These
-are pins, not regressions; do not re-ratchet them until the owning issue
-closes.
+| frame(s) | disagreement | owner |
+|---|---|---|
+| N1492091163, N1867601758, N1867602424 | wrong ring-feature locks | #346 |
+| N1853392805 | highly-irregular exclusion discards the terminator fit | #338 |
+| N1484593951 | dv error 2.687 px, a limb bias pinned red on purpose | #350 |
+| N1487595731_1 | expects BodyDiscCorrelateNav primary, gets BodyLimbNav; the pin is stale | #483 |
+| N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
+| N1633925572_1 | expects the medium tier, gets low: a 39 px RingEdgeNav fit inflates the fused sigma past `max_sigma_px` | #476 |
 
-| frame(s) | owner |
-|---|---|
-| N1492091163, N1867601758, N1867602424 (wrong ring-feature locks) | #346 |
-| N1853392805 (highly-irregular exclusion discards the terminator fit) | #338 |
-| N1484593951, N1686349893 (resolved-body ~2 px offset misses) | #350 |
-| N1487595731_1 (multi_body: expects BodyDiscCorrelateNav primary, gets BodyLimbNav) | #483 |
-| N1633925572_1 (ring_plus_body: expects the medium tier, gets low) | #476 |
+`N1633925572_1` is not to be re-ratcheted; that is recorded in the sidecar
+itself, and the frame is the acceptance test for #476. The rest are pins, not
+regressions; do not re-ratchet them until the owning issue closes.
 
 **After any navigation-affecting merge, compare against `main` rather than
 against the table:**
 
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
-pytest tests/integration/test_autonomous_nav.py -m '' -n auto --dist=loadfile
-# Expect, while #288 is open: the same red set as main. Any delta either way
-# must be attributed in the merging PR.
-# Once #288 is reconciled: red set = only the frames above.
+pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
+# Expect, while #288 is open: the same red set as main — the eight frames
+# above. Any delta either way must be attributed in the merging PR.
 ```
 
 The thread pins are not optional and are set nowhere in the repository —
@@ -306,7 +365,10 @@ gates from the estimator findings above:
   independent witnesses. **Still settle #316 before reading the Keeler
   tiers:** the tooling fits tier boundaries from the fused confidence
   scalar, and the orbit-uncertainty severity call moves five
-  operator-verified frames across a boundary. Then: "Re-run the
+  operator-verified frames across a boundary. **And the anchor itself is
+  contaminated while the confidently-wrong ring locks stand (#558):** WS-5
+  calibrates against WS-1, so the coarse-lock family has to close first or
+  the recalibration trains on its errors. Then: "Re-run the
   calibration tooling against the agreement study's measurements per WS-5;
   retire the confidence_provisional marker where the evidence supports it;
   re-bless tiers with the operator." This is where the terminator's
@@ -366,6 +428,15 @@ Independent review before done; all CI gates; one PR."
   cleanest reproducer in the library: two techniques agree to 0.08 px while
   RingEdgeNav lands 39 px away on 6.7% of its points, so a fix is verifiable
   without operator adjudication and the frame's tier returns on its own.
+- **Sparse star fields, as one campaign**: #621 (the gates refuse about half
+  the frames that are navigable by stars), #622 (a one- or two-star solution
+  accepted as success, up to 23 px wrong), #623 (two techniques on one star
+  counted as independent corroboration) and #639 (the centroid can measure a
+  brighter neighbor). Scope #621 and #622 together: they are the same line
+  seen from two sides. The 260-frame block of
+  `ISS_006RI_LPHRLFMOV001_PRIME` named on each issue is the measurement
+  harness, and the published F ring bundle's per-frame pointing is the
+  outside answer, so a fix is verifiable without operator adjudication.
 - **Results-index follow-ups** (the index shipped 2026-08-25; none of these
   blocks anything): #515 and #516 together (a cloud-share ingest can write
   another root's document into this root's rows, and the test that should
@@ -413,10 +484,15 @@ else. Applied to the open items:
   implemented it.
 - **Mid-tier drafts, top-tier adjudicates:** #310 (the boundary
   restructuring — the guard tests catch mechanical regressions, the review
-  catches new leak shapes).
+  catches new leak shapes); **#621 with #622** (where the line between too
+  little evidence and a solvable frame sits is a calibration judgment, and
+  moving either gate the wrong way trades a visible failure for a silent
+  one) and **#623** (what makes two techniques independent witnesses is the
+  same question the agreement study answers at scale).
 - **Mid-tier or below suffices:** library growth, the agreement study's
   bulk execution (once WS-0 hands it a proven estimator), #229, #311, #373,
-  #130, the logging follow-ups (#418, #423, #424, #429), and the
+  #130, #639, the PDS4 bundle items, the simulator scene-fidelity batch, the
+  logging follow-ups (#418, #423, #424, #429), and the
   documentation/engineering items.
 
 ## 3c. Tracking-issue register
@@ -427,9 +503,12 @@ with assignee rfrenchseti.
 
 **Evidence integrity (do first; everything else reads what these produce):**
 
-- **#288** 10 of 75 library sidecars disagree on `main` locally, so the
-  regression instrument cannot tell a regression from the standing state;
-  20 are one dependency defect and 3 are genuine; blocks #483 and #547
+- **#288** 8 of 75 library sidecars disagree on `main` locally, all
+  attributed; what is left on it is two stale `primary_technique` pins on
+  #483, one limb bias that stays red, and the frames owned by #346, #338 and
+  #476; blocks #483 and #547
+- **#563** a Galileo library frame's offset moved 5.6 px under `rms-oops`
+  0.3.0 and two C-matrix reader tests assert the old answer
 - **#548** suite coverage is 79% against a stated 90% floor with nothing
   enforcing either (Section 0.1 decision)
 - **#547** the one place a built product is compared between the results tree
@@ -473,6 +552,17 @@ deferred until an instrument fits rotation again; a test fails if one does.
   fit an explicit cross-covariance once #225 measures real-frame rho
 - **#400** the ensemble merge and tier logic have never been exercised on the
   strongly anisotropic covariance the Titan haze fit reports
+- **#622** a one- or two-star solution is accepted as `success` and lands 5
+  to 23 px wrong; three such frames own 17% of a mosaic's longitude bins
+- **#623** two techniques consuming the same single star are counted as
+  independent corroboration, reporting 0.00 px spread and a sharp sigma on a
+  fit with no degrees of freedom
+- **#639** a star centroid takes the brightest pixel anywhere in a 61-pixel
+  window, so a brighter neighbor can win the star that was asked for
+- **#621** the star acceptance gates refuse about half the frames that are
+  demonstrably navigable by stars (the other side of #622's line)
+- **#591** the sparse 16x16 ring pre-check can skip a frame whose rings fall
+  between its samples
 
 **Simulator fidelity gaps (feed #309 and the sim follow-ups in Section 3):**
 
@@ -495,6 +585,18 @@ deferred until an instrument fits rotation again; a test fails if one does.
 - **#344** haze brightness is a module constant
 - **#345** a scene can echo truth-side noise into instrument_config with no
   validator warning
+- **#625** `limb_relief_rms` carves radial wedges out of the disc instead of
+  roughening the limb; **#626** `polyhedral_mesh` bodies render as banded
+  shells and the shipped Hyperion scene renders as a torus; **#627** the two
+  haze terms seam the halo at the equator; **#644** a planted roll turns
+  positions but not smear, companions or sky field
+- **#646** the limb-bias harness measures a simulated ridge half a pixel from
+  the deployed one
+- **#641** with **#409** stars sit on pixel indices beside bodies on pixel
+  corners; **#629** one artifact key names three quantities; **#630** a
+  fluence per cm^2 is documented per pixel; **#631** a Voyager scene renders
+  in I/F under a raw-DN marker; **#632** ring scene keys carry no units;
+  **#633** the editor authors mesh scenes its own validator refuses
 
 **Calibration governance / CI (gate WS-5 and the CI tier in Section 2.3):**
 
@@ -540,8 +642,29 @@ deferred until an instrument fits rotation again; a test fails if one does.
 
 - **#338** highly-irregular exclusion discards the ground-truth terminator fit
   on N1853392805 (decision)
-- **#350** two resolved-body frames miss offset tolerance by ~2 px
-  (N1484593951, N1686349893)
+- **#350** N1484593951's limb fit misses the offset tolerance by 2.687 px in
+  `dv`, a real accuracy gap pinned red on purpose
+- **#483** two `primary_technique` pins name a technique the current code
+  correctly declines to prefer (N1487595731_1, N1686349893_1); re-ratchet
+  them, or stop asserting `primary_technique` where two techniques agree
+  within tolerance
+
+**PDS4 bundle (the Cassini path runs end to end over the synthetic cohort;
+these are what it owes and what generalizes it):**
+
+- **#708** the draft run over a real COISS volume, judged by the PDS
+  `validate` tool; carries the cohort choice, the DOIs and a fresh navigation
+- **#717** the Cassini mission area, filled from the observation block: it is
+  empty today because fourteen of the names it maps are not index columns
+- **#609** the synthetic cohort has no holdings tree, so `sd_create_bundle`
+  cannot enumerate it; **#705** the spelling gate would read the shipped
+  schemas; **#614** a dataset without PDS4 support ends in a traceback;
+  **#716** check a bundle at a remote bundle results root
+- **#600**, **#720**, **#677**, **#710** scope decisions (Section 0.1)
+- **#53** with **#67**, **#79**, **#30**, **#63** the generalization to
+  Voyager, Galileo and New Horizons; **#595**-**#599** the user guides;
+  **#687** cite the calibrated PDS4 product once its bundle exists
+
 **Agreement estimator real-frame follow-ups (sequence with #225/WS-1 and
 #230/WS-5):**
 
@@ -586,11 +709,14 @@ deferred until an instrument fits rotation again; a test fails if one does.
 ## 5. Sequencing summary
 
 ```text
-0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #557)  (operator, minutes)
-0.1b merge or close PR #484                                     (operator, minutes)
+0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #557,
+    #600, #720, #677)                                           (operator, minutes)
+0.1b rebase or close PR #484                                    (operator, minutes)
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)
+--- #563 the moved Galileo offset        (agent session)
+--- the confidently-wrong families: #476/#346/#373, and #621/#622/#623/#639
 --- then ---
 2.1 library growth (batch-006 + continued)   (agent session; your votes gate it)
 2.2 agreement study bulk   (after 2.1 cohorts; you approve frames)

@@ -45,6 +45,14 @@ and build requirements without repeating them.
   describe how the software behaves, not the tracker items that shaped it; issue
   numbers belong in commit messages, PR descriptions, and (only as a supporting
   reference, never as the whole comment) inline ``#`` code comments.
+- This prohibition covers the documentation the package publishes: the README,
+  the user and developer guides, the how-to pages, and docstrings. It does not
+  cover `plans/` or `critiques/`, including their `archive/` subdirectories and
+  the README that indexes each one. Those are project records rather than
+  package documentation, and naming the issue that owns a piece of work is what
+  they are for: a plan states which issues a phase closes and which it leaves
+  open, and an archive index states which issues each retired document carried
+  forward. Cite freely there.
 - Do not use unicode smart quotes, em-dashes, or arrows inside `.py` files
   (they are acceptable in `.rst` and `.md`).
 

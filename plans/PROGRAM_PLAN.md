@@ -3,7 +3,7 @@
 *The top-level plan of record for all remaining work. It is written to be
 readable without knowledge of the code internals or the statistical
 methodology; the detail lives in the three sub-plans it points to. Last
-reconciled 2026-08-25.*
+reconciled 2026-09-21.*
 
 **Document map** (what to read for what):
 
@@ -53,19 +53,27 @@ reads a navigation record reads it through one seam over two storages — the
 results tree of JSON documents, and an optional rebuildable index
 (`sd_results_index` / `sd_stats_report`) that no program requires. The
 de-circularized, realism-tuned simulator and the cross-technique agreement
-estimator both exist and are proven on known-truth sims. PDS4 bundle
-generation exists only as partially implemented machinery (see Track D): a
-spec-tested generator backend, but no final templates and no schema
-validation.
+estimator both exist and are proven on known-truth sims. Every reported
+position is stated in one declared pixel convention across the navigator, the
+simulator, the reprojection and mosaic products, the bundle labels and the
+operator displays, with tests that fail on a wrong convention; the residuals
+that remain are named in the tracks below. PDS4 bundle generation runs end to
+end for Cassini ISS over a synthetic cohort: a bundle whose collections,
+inventories, index tables and data labels satisfy the PDS4 schemas, the
+Schematron rules and their own tables under `sd_create_bundle check`, held
+there by a test. What it does not yet have is a run over a real volume
+(#708), the Cassini mission area (#717), or any of the other three
+instruments (see Track D).
 
 Two facts about the evidence behind that health are worth stating plainly,
 because both are load-bearing and neither is comfortable. Suite coverage is
 79%, not the 90% two shipped plans' acceptance criteria claim, and nothing
-enforces any floor (#548). And 10 of 75 curated library frames disagree with
-their sidecars in the local integration environment (#288), so the regression
-instrument that is supposed to catch a navigation change is itself red; until
-it is reconciled, "no new failures against `main`" is the only gate a
-navigation-affecting branch can honestly clear.
+enforces any floor (#548). And 8 of 75 curated library frames disagree with
+their sidecars in the local integration environment (#288). Every one of the
+8 is attributed to an open issue, so the regression instrument reads as a
+known state rather than an unknown one; but three of the eight are judgments
+still owed rather than settled pins, so "no new failures against `main`"
+remains the only gate a navigation-affecting branch can honestly clear.
 
 The single largest remaining block is Track A: **the validation program is
 designed and partly built, but not yet run on real frames.** The confidence
@@ -151,9 +159,20 @@ its section names):
    rings vs realistic nested ringlets (#377), the placeholder
    `star_psf_sigma` (#342), the possibly registration-absorbing NAC PSF wing
    (#343), the constant haze brightness (#344), the truth-side-noise echo
-   into `instrument_config` (#345). The structural information-boundary guard
-   (#310) and the sim-navigator mirror-parity guard (#311) harden the
-   partition.
+   into `instrument_config` (#345). Four scene features render something
+   other than what they name -- `limb_relief_rms` carves radial wedges out of
+   the disc (#625), `polyhedral_mesh` bodies render as banded shells (#626),
+   the two haze terms seam the halo at the equator (#627), and a planted roll
+   turns positions but not smear, companions or sky field (#644) -- and the
+   limb-bias harness measures a simulated ridge half a pixel from the
+   deployed one (#646). The scene language itself still has keys that do not
+   say what they mean: stars on pixel indices beside bodies on pixel corners
+   (#641, with the unification in #409), one key naming three quantities
+   (#629), a fluence documented per pixel (#630), a Voyager scene in I/F
+   under a raw-DN marker (#631), ring keys without units (#632), and an
+   editor that authors scenes its own validator refuses (#633). The
+   structural information-boundary guard (#310) and the sim-navigator
+   mirror-parity guard (#311) harden the partition.
 3. **The agreement-estimator residual** (WS-0) — the estimator, the
    identifiability map, and the known-truth validation are delivered and on
    main under `util/agreement/`. Findings that constrain item 5: the
@@ -181,7 +200,11 @@ its section names):
    real frames with two or more independent fiducials and publish the
    agreement statistics. Its bulk (pairwise) layer needs only the library
    and distortion validation; it must not wait for items 2-3, which gate
-   only the finer per-technique separation.
+   only the finer per-technique separation. Two outside answers corroborate
+   it: the published F ring bundle's per-frame pointing, and the B ring
+   spokes bundle (#637). Two calibration recommendations that a sidecar note
+   is the wrong home for -- the agreement gap and the terminator coarse
+   search -- are carried on #675.
 6. **Wire real images into CI** (#229; WS-4) — a small cached tier on
    every PR, the full suite on a schedule. Related: the data-independent
    simulator suites still never run in Actions (#336), there is no
@@ -202,7 +225,12 @@ its section names):
 
 **Confident-wrong families that poison the validation data** (they belong to
 Track B but gate the study, because it consumes navigator output at scale): the
-three frames that lock onto the wrong ring feature (#346). The body-witness-veto
+three frames that lock onto the wrong ring feature (#346), and the sparse
+star field family -- a one- or two-star solution accepted as success and
+landing up to 23 px wrong (#622), two techniques reading the same single star
+counted as independent corroboration (#623), and a centroid that can measure
+a brighter neighbor instead of the star it was asked for (#639). The
+body-witness-veto
 family -- a high-phase haze crescent returning a gate-passing success ~30 px
 wrong (#328) and the disc technique locking on at extreme shape mismatch (#291)
 -- and the body-body occlusion pair -- the disc template (#326) and the
@@ -251,8 +279,9 @@ The known open defects:
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. The residual left after the shift-equivariance
   fix (#447) closes the coarse-grid and boundary-pinning halves.
-- **#350** — two resolved-body frames (N1484593951, N1686349893) miss the
-  offset tolerance by ~2 px after the recalibration.
+- **#350** — N1484593951 misses the offset tolerance by ~2 px after the
+  recalibration. The issue names a second frame, N1686349893, whose
+  disagreement the measurement attributes to a stale pin on #483 instead.
 - **#373** — the RingEdgeNav coarse seed is not robust against competing
   edge populations (polarity-blind); the coarse-lock family that a
   calibration pass against the library must close.
@@ -283,8 +312,30 @@ The known open defects:
   ground-truth terminator fit on N1853392805; choose among accepting the
   2-px-class ground truth, keeping TERMINATOR_ARC for SPICE-known
   synchronous rotators, or shape models (#23).
+- **Sparse star fields** — measured on a 260-frame block of a Cassini F ring
+  movie against the published bundle's own per-frame pointing, and the
+  largest open correctness family. The acceptance gates refuse about half the
+  frames that are demonstrably navigable by stars, because
+  `pattern_match_min_inliers` exceeds the number of stars present on 99% of
+  the frames that do navigate (#621). A one- or two-star solution is accepted
+  as `success` and lands 5 to 23 px wrong, and those frames own visible arcs
+  of the mosaic built from them rather than averaging out (#622). The
+  ensemble counts two techniques that consumed the same single star as two
+  agreeing witnesses, reporting zero spread and a sharp sigma on an
+  unmeasurable fit (#623). And a star centroid takes the brightest pixel
+  anywhere in its 61-pixel window, so a brighter neighbor can win the star
+  that was asked for and move the measured position by their separation
+  (#639).
 - **#130** — star limiting-magnitude calibration against real fields
   (coordinate with #233's measured-SNR work — same frames, same tooling).
+- **#591** — the sparse 16x16 ring pre-check can skip a frame whose rings
+  fall between its samples, so the frame is never offered a ring model.
+- **#585** — the correlation quality metric measures its background over a
+  window 20x the search window, which is a question about what the metric
+  means before it is a defect.
+- **#577** — the observation center RA/DEC accessor the star model reports
+  through; **#579** — the logged star-smear summary is a frame-center vector,
+  which reads zero for a rolling frame.
 - **Titan haze fit refinements** — Titan navigates autonomously via the
   haze solar-symmetry method, validated on an 82-frame Cassini cohort. Four
   measured follow-ups remain: the arc ray reach is sized by the full search
@@ -292,7 +343,9 @@ The known open defects:
   well-framed frames (#403); the flat arc-residual cap is a size-dependent
   gate that cannot simply be raised (#404); the extreme-phase edge of the
   working range is uncharacterized (#401); and the main rings are masked as
-  opaque, refusing frames visible through the C ring or the gaps (#402).
+  opaque, refusing frames visible through the C ring or the gaps (#402). The
+  symmetry axis is found by searching a backplane for the sunward direction
+  where it can be computed (#594).
 - **#400** — the ensemble merge and tier logic have never been exercised on
   a strongly anisotropic covariance; the haze fit reports a 0.36 px by
   1.02 px oblique ellipse whose orientation varies with the sun direction.
@@ -300,11 +353,14 @@ The known open defects:
   the round-trip residual every corrected-pointing consumer inherits. This is
   the one piece of open work in flight: PR #484 fixes both body-side causes
   (a sub-pixel silhouette probe, and a per-axis NCC-quadratic fallback for
-  saturated refinement) and files the rest as #476, #482 and #483. It is
-  mergeable and green, and it is fifty commits behind `main`.
+  saturated refinement) and files the rest as #476, #482 and #483. It carries
+  nine commits, conflicts with `main`, and is 291 commits behind it; the
+  pixel-convention work since then touches the same silhouette code, so
+  rebasing it is a review, not a merge.
 
 **Parallelism:** parallel with Track A, except that the coarse-lock family
-(#346, #476, #373) gates the agreement study -- a technique that reports a
+(#346, #476, #373) and the sparse-star-field family (#621, #622, #623, #639)
+gate the agreement study -- a technique that reports a
 confidently wrong answer moves the cross-technique disagreement WS-1 measures
 -- and #288 gates reading any Track A cohort with confidence.
 
@@ -392,7 +448,10 @@ question #542), operational questions with a decision in them (a documented work
 for getting the index to cloud workers #466, the consumer open that takes a
 write lock it never needs #462), and correctness or hygiene items
 (#472, #493, #496, #497, #501, #512, #514, #515, #516, #528,
-and #531, #533, #534, #536, #538, #540, #541).
+and #531, #533, #534, #536, #538, #540, #541, plus a stale index that passes
+the version gate and fails on the first read #587, a results tree reached
+through a symlink getting a different stub on each pass #578, and a URL with
+no scheme that should mean a local SQLite file #572).
 
 Some items start with an operator decision, because each is a scope
 commitment:
@@ -402,24 +461,35 @@ commitment:
 | **Backplane content** (#28 family): finalize the backplane set and formats | #55, #54, #57, #77, then the generator hardening (including the product-correctness defects #251, #252, #253 found by the #241 test suite). |
 
 **PDS4 output bundles are required for all four instruments** — not a
-scope decision — and **none of it works end to end today**. The Cassini path
-is partially implemented machinery with draft templates, though its labels
-are tested over a synthetic cohort, state real exposure times, describe the
-backplane FITS, and are held to the PDS4 schemas, the Schematron rules and
-their own tables by `sd_create_bundle check`, which a test over that cohort
-gates; Voyager, Galileo, and New Horizons additionally hit not-implemented
-walls. The work is: finish and validate the Cassini path (final templates —
-acceptance list recorded on #53; a prototype over the synthetic cohort, the
-run over a real volume, which the PDS `validate` tool judges, being #708,
-and a global navigation index in the bundle, which the operator deferred on
-2026-09-15, #710),
-then generalize — per-mission label templates,
-LID builders, and collection machinery (#53 with #67, #79, #30, #63). Beside them are the
-bundle's user guides, one LaTeX template and one guide per instrument
-(#595-#599); what a bundle says about images that did not navigate (#600);
-the index tables' missing value, which the operator has accepted and Phase 7
-closes (#601);
-a dataset without PDS4 support ending `sd_create_bundle` in a traceback
+scope decision. The Cassini ISS path runs end to end over a synthetic
+cohort and is the reference the other three are generalized from: the bundle
+product, the readme, and the context, document, schema, miscellaneous,
+`spice_kernels` and index collections, with conforming inventories, real
+epochs and named targets in the data labels, the backplane FITS described as
+an archived file, the bundle name and version taken from configuration, and
+an integrity pass (`sd_create_bundle check`) that holds the whole tree to the
+PDS4 schemas, the Schematron rules and its own tables, gated by a test. The
+design that produced it is archived at
+`plans/archive/PDS4_DRAFT_BUNDLE_PLAN_2026-09-08.md`. Voyager, Galileo and
+New Horizons hit not-implemented walls.
+
+What the Cassini path still owes: the run over a real COISS volume, which the
+PDS `validate` tool judges and which carries the cohort choice, registered
+DOIs and a fresh navigation with it (#708); the
+`cassini:ISS_Specific_Attributes` mission area, filled from the observation
+block (#717), which is empty today because the fourteen names the mapping
+asks of a PDS3 index row are not columns of one; a
+holdings tree for the synthetic cohort so `sd_create_bundle` can enumerate it
+(#609); a global navigation index in the bundle, deferred by the operator on
+2026-09-15 (#710); and the spelling gate reading the schemas the package
+ships (#705). Then the generalization — per-mission label templates, LID
+builders, and collection machinery (#53 with #67, #79, #30, #63). Beside them
+are the bundle's user guides, one LaTeX template and one guide per instrument
+(#595-#599); the scope questions of what a bundle says about an image that
+did not navigate (#600), one with no backplanes (#720), and which kernels the
+metakernel lists (#677); citing the calibrated PDS4 product once its bundle
+exists (#687); checking a bundle at a remote results root (#716); a dataset
+without PDS4 support ending `sd_create_bundle` in a traceback
 (#614); and the backplane viewer showing rad/pixel planes in radians where
 every other angular plane is in degrees (#611). Distinct from this, **PDS4
 *input*** (#34) — reading PDS4-archived data instead of PDS3 — is treated
@@ -427,6 +497,18 @@ like any other future instrument: the archives do not exist yet, their
 creation is external development outside our control, and input support is
 *not* required for project completion; when an archive appears, its support
 replaces the PDS3 source for that instrument.
+
+The reprojection and mosaic products have their own open list, all of it
+independent of the decisions above: mosaics show brightness steps between
+images because phase is not modeled and nothing levels the seams (#616), the
+Minnaert exponent is fixed at 0.5 where the icy satellites need another value
+(#617), each planet's ring target is a literal rather than configuration
+(#618), the products record sub-solar and sub-observer longitude west while
+their grid is east (#634), reading a product from remote storage never
+fetches it (#638), body backplanes read silhouette or visible extent
+depending on which truth field is present (#701), and ring `--zoom` averages
+sub-samples of the output grid where body `--zoom` interpolates the source
+image (#718).
 
 Plus, not gated on decisions: the capability matrix itself (#231),
 cloud-operation audit (#108, #67, #141, #142, and the cloud-task items the
@@ -452,9 +534,11 @@ cannot follow.
 - Summary-PNG unit tests (#177).
 - The image-library regression reconciliation (#288). In the local
   integration environment it is not reduced to the deliberately-red pins:
-  10 of 75 frames disagree, which is the state Track A's evidence has to be
-  read against, and it is what blocks the only place a built product is
-  compared between the results tree and the index (#547).
+  8 of 75 frames disagree, each attributed to an open issue, which is the
+  state Track A's evidence has to be read against, and it is what blocks the
+  only place a built product is compared between the results tree and the
+  index (#547). Beside it, a Galileo library frame's offset moved 5.6 px
+  under `rms-oops` 0.3.0 and two C-matrix reader tests fail with it (#563).
 - Suite coverage is 79% and unenforced against a stated 90% (#548). The
   shortfall is almost entirely PyQt6 widget code. This is an operator call
   before it is an implementer's: raise the number, or ratify a lower floor
@@ -464,14 +548,22 @@ cannot follow.
   the library pins the shift-equivariance fix moves is #483.
 - Test-suite hygiene: seventeen test modules over the 1000-line cap (#525),
   POSIX-only constructs behind a Windows-support claim (#473), fixture clock
-  seconds that do not follow from their epochs (#530), and consolidating
-  `test_record_source.py` onto the shared fixtures (#524).
+  seconds that do not follow from their epochs (#530), consolidating
+  `test_record_source.py` onto the shared fixtures (#524), no check in the
+  repository reaching `cloud_support/` (#574), and whether mypy's
+  `warn_unreachable` is worth its seven suppressions (#576).
 - Docs: Sphinx nitpicky-clean CI (#129, with the gate the rules already
   require but nothing runs, #438) and terminator-doc verification (#122).
   Smaller doc defects: the README names two of fourteen command-line
   programs and links to no guide (#545), four technique guides name a
   `dt_fitting.py` that is a package (#549), and config placeholder comments
-  still carry an internal codename (#470, #471). Renumbering the configuration
+  still carry an internal codename (#470, #471). Python source carries em
+  dashes and arrows the docstring rule prohibits with nothing gating them
+  (#714), the Qt modules document 7% of their method arguments where the rest
+  of `src` documents 65% (#715), 62 of 64 dev-guide chapters lack the class
+  diagram the rules require (#562), and `library_entry` resolves the PDS3
+  holdings root in a different order than `DataSetPDS3` while saying it does
+  not (#612). Renumbering the configuration
   files, whose numbering has grown with odd gaps, is left for later discussion
   (#712). The per-instrument
   chapters are written, one per instrument in
@@ -507,7 +599,7 @@ enhancement backlog and code-quality tail are burned down.
   chaotic-rotator poses (#187), manual-nav dialog redesign (#186),
   gated-feature PNG styling (#185), stop-after-features flag (#182),
   body shape models (#23), sim polish (#84, #78, #151, #152, #157, #158).
-- **Hardening/cleanup** (any time, mostly small): #15, #21, #38, #39, #65, #92, #96-#105, #109, #110, #119, #135, #137, #140, #143, #144, #147, #155, #212, plus the GUI viewers printing library log records to stdout (#423), the upstream `rms-pdslogger` registry-eviction request (#428), Cassini BOTSIM pairs defined two different ways (#494), stating the encoding wherever a document or text file is read or written (#518), hashing into a navigation document's provenance only the instrument configuration it used, where every instrument's is hashed now (#711), and removing the `AttrDict` `_IS_IMMUTABLE` marker once oops stops writing its mutability bookkeeping onto foreign objects (#552).
+- **Hardening/cleanup** (any time, mostly small): #15, #21, #38, #39, #65, #92, #96-#103, #105, #109, #110, #119, #135, #137, #140, #143, #144, #147, #155, #212, holding the model stage's backplane cache to one model's worth (#584), hoisting the remaining function-level imports or recording why each stays (#590), a second config load in one process keeping the first (#604), `draw_line` truncating a fractional coordinate instead of rounding to the containing pixel (#709), plus the GUI viewers printing library log records to stdout (#423), the upstream `rms-pdslogger` registry-eviction request (#428), Cassini BOTSIM pairs defined two different ways (#494), stating the encoding wherever a document or text file is read or written (#518), hashing into a navigation document's provenance only the instrument configuration it used, where every instrument's is hashed now (#711), and removing the `AttrDict` `_IS_IMMUTABLE` marker once oops stops writing its mutability bookkeeping onto foreign objects (#552).
 
 **Parallelism:** hardening is permanent filler. Instrument work waits for
 Track A's Cassini verdict only in the sense that there is no point
@@ -516,8 +608,12 @@ star-navigation bug fixes (#19, #18) can start any time.
 
 ## 5. Suggested global order
 
-0. **First, and small:** land PR #484 (#447, the round-trip residual), which
-   is green and fifty commits behind `main`.
+0. **First:** settle PR #484 (#447, the round-trip residual) — rebase it onto
+   `main`, 291 commits and one pixel-convention sweep later, or close it and
+   refile the two body-side fixes. Alongside it, the sparse-star-field family
+   (#621, #622, #623, #639): it is the largest measured confident-wrong
+   family open, and like the coarse-lock family it moves what the agreement
+   study measures.
 1. **Then, in parallel:** Track A items 1-4 (library growth, sim
    realism campaign, agreement-estimator real-frame follow-ups, distortion
    feed-in), with the gates above respected -- the coarse-lock family before
@@ -588,38 +684,40 @@ library votes and the decision gates, not by any implementation.
     caps at 0.99 on the ordinary two-technique agreement, and WS-5's monotonic
     calibration map cannot separate what the cap collapsed, so calibration
     does not settle it later.
-11. Recurring: library batch votes; agreement-study frame selection; tier
+11. **What a bundle says about an image it cannot fully describe** (#600 one
+    that did not navigate, #720 one with no backplanes, #677 which kernels
+    the metakernel lists) — three scope commitments that decide what the
+    generalization to the other three instruments is generalizing.
+12. **PR #484 (#447)** — open since 2026-08-09, nine commits, conflicting
+    with `main` and 291 commits behind it. Rebase it or close it; it cannot
+    stay as it is.
+13. Recurring: library batch votes; agreement-study frame selection; tier
     re-blessing after #230.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it. 239 issues
-as of 2026-09-03, then seventeen added (#595-#600, #611, #614, #628, #677,
-#687, #705, #706, #708, #710, #711, #712) and ten removed (#13, closed; #74 and #76, which Phases 6 and 7 of
-the PDS4 plan close; #72 and #73, which Part A of its Phase 8 closes; #47
-and #75, closed as not planned once the ring geometry leaves its data labels;
-#71, which its Phase 9 closes; #66 and #265, which Part A of its Phase 10
-closes): 246 in all. #601 and #678 were added and removed in the same period,
-since Phase 7 closes them too. The counts are given so a
-reader can tell a stale index from a current one at a glance.
+Every open issue, listed exactly once by the track that owns it: 290 issues
+as of 2026-09-21. The count is given so a reader can tell a stale index from
+a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
-| A — validation & calibration | 51 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561 |
-| B — navigation correctness | 25 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567 |
+| A — validation & calibration | 64 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675 |
+| B — navigation correctness | 34 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639 |
 | C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
-| D — capability completion | 75 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #595, #596, #597, #598, #599, #600, #611, #614, #677, #687, #705, #708, #710 |
-| E — test & docs debt | 29 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563, #712 |
-| F — instruments, features, hardening | 62 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #104, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #628, #706, #711 |
+| D — capability completion | 89 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720 |
+| E — test & docs debt | 34 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563, #574, #576, #612, #712, #714, #715 |
+| F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
-Priority census across all six tracks: no Critical, 22 Essential, 67
-Important, 111 Useful, 31 Minor, 15 Defer. Every open issue carries exactly
+Priority census across all six tracks: no Critical, 30 Essential, 81
+Important, 126 Useful, 38 Minor, 15 Defer. Every open issue carries exactly
 one Priority and one Effort label and at least one each of A-type and
 B-location.
 
 Cross-listed items (listed once above, noted here): #150/#128 sit in Track B
 and also serve Track A's limb-bias workstream (WS-10); the confident-wrong
-ring-lock family (#346, #476) sits in Track B but gates the Track A
+ring-lock family (#346, #476) and the sparse-star-field family (#621, #622,
+#623, #639) sit in Track B but gate the Track A
 study; #103/#134/#126 serve both Track D performance and Track F
 hardening; #513 and #520 are results-index work in Track D that lands in the kernel
 writer and the reprojection package respectively; #521 is a kernel-facing
