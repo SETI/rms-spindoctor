@@ -27,6 +27,7 @@ from pathlib import Path
 from filecache import FCPath
 
 from spindoctor.cli.stats.report_accumulate import RangeFilters, accumulate_statistics
+from spindoctor.cli.stats.report_charts import write_offset_hist, write_stacked_bar_chart
 from spindoctor.cli.stats.report_common import (
     ReportContext,
     ReportStatistics,
@@ -38,8 +39,6 @@ from spindoctor.cli.stats.report_common import (
     offset_stats,
     percentile,
     safe_filename,
-    write_offset_hist,
-    write_stacked_bar_chart,
 )
 from spindoctor.cli.stats.report_sections import (
     CsvExport,
