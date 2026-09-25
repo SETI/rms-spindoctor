@@ -7,14 +7,18 @@ directory can be a local path or any URL the ``filecache`` layer accepts.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from io import BytesIO
 from typing import Any
 
+import numpy as np
 from filecache import FCPath
+from numpy.typing import NDArray
 
 __all__ = [
     'instrument_color',
+    'write_offset_heatmap',
     'write_offset_hist',
     'write_stacked_bar_chart',
     'write_stacked_value_hist',
@@ -188,3 +192,215 @@ def write_offset_hist(
     fig.suptitle(title)
     fig.tight_layout()
     _save_figure(fig, plt, path)
+
+
+# The panel's half-width is this percentile of the correction length (with a
+# margin), so a few large corrections fall outside the panel instead of shrinking
+# the core to a few bins; the caption counts the ones that do.
+_HEATMAP_LIMIT_PERCENTILE = 98.0
+# Bins across each axis of the panel: about the square root of the image count,
+# within these bounds, and odd so the predicted pointing sits in the middle of a
+# bin. The bins are square.
+_HEATMAP_MIN_BINS = 11
+_HEATMAP_MAX_BINS = 61
+# Light-to-dark single-hue ramp for the image count per bin; it starts dark
+# enough that a bin holding one stray image still shows on white.
+_HEATMAP_RAMP: tuple[str, ...] = (
+    '#b7d3f6',
+    '#86b6ef',
+    '#5598e7',
+    '#2a78d6',
+    '#1c5cab',
+    '#104281',
+)
+_HEATMAP_GRID = '#b9b8b3'
+_HEATMAP_INK = '#52514e'
+
+
+def _ring_radii(limit: float) -> list[float]:
+    """Scale-ring radii for an offset heat map of the given half-width.
+
+    The spacing is the smallest 1-2-5 step of at least a fifth of the half-width,
+    so the panel carries two to four rings with round labels.
+
+    Parameters:
+        limit: The panel's half-width in pixels; positive.
+
+    Returns:
+        The ring radii in pixels, ascending, all inside ``limit``.
+    """
+    magnitude = 10.0 ** math.floor(math.log10(limit / 5.0))
+    step = next(
+        magnitude * factor for factor in (1.0, 2.0, 5.0, 10.0) if magnitude * factor >= limit / 5.0
+    )
+    return [step * multiple for multiple in range(1, 5) if step * multiple < limit]
+
+
+def _heatmap_limit(offsets: NDArray[np.float64]) -> float:
+    """The half-width of an offset heat map, in pixels.
+
+    Parameters:
+        offsets: The ``(N, 2)`` array of every ``(dv, du)`` correction; ``N > 0``.
+
+    Returns:
+        A little beyond the given percentile of the correction length, or 1 pixel
+        when every correction is zero.
+    """
+    length = np.hypot(offsets[:, 0], offsets[:, 1])
+    limit = 1.1 * float(np.percentile(length, _HEATMAP_LIMIT_PERCENTILE))
+    return limit if limit > 0.0 else 1.0
+
+
+def _heatmap_bins(count: int) -> int:
+    """The number of bins across each axis of an offset heat map.
+
+    Parameters:
+        count: How many images the heat map counts.
+
+    Returns:
+        An odd bin count near ``sqrt(count)``, within ``_HEATMAP_MIN_BINS`` and
+            ``_HEATMAP_MAX_BINS``.
+    """
+    bins = min(max(round(math.sqrt(count)), _HEATMAP_MIN_BINS), _HEATMAP_MAX_BINS)
+    return bins if bins % 2 == 1 else bins + 1
+
+
+def _heatmap_counts(
+    offsets: NDArray[np.float64], limit: float
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Count the corrections into the square bins of an offset heat map.
+
+    Parameters:
+        offsets: The ``(N, 2)`` array of every ``(dv, du)`` correction.
+        limit: The panel's half-width in pixels.
+
+    Returns:
+        The counts, with rows indexed by dV and columns by dU (the image's own
+        layout, so row 0 is the most negative dV), and the bin edges shared by
+        both axes. Corrections outside the panel are not counted.
+    """
+    edges = np.linspace(-limit, limit, _heatmap_bins(len(offsets)) + 1)
+    counts, _, _ = np.histogram2d(offsets[:, 0], offsets[:, 1], bins=[edges, edges])
+    return counts, edges
+
+
+def _count_ticks(most: float) -> list[float]:
+    """Colorbar ticks for image counts from 1 to ``most`` on a log scale.
+
+    Parameters:
+        most: The largest count on the colorbar; at least 1.
+
+    Returns:
+        The 1-2-5 values from 1 up to ``most``.
+    """
+    ticks: list[float] = []
+    decade = 1.0
+    while decade <= most:
+        ticks += [decade * factor for factor in (1.0, 2.0, 5.0) if decade * factor <= most]
+        decade *= 10.0
+    return ticks
+
+
+def _heatmap_caption(offsets: NDArray[np.float64], limit: float) -> str:
+    """The caption above an offset heat map.
+
+    It states the image count, the RMS correction length over every image, and
+    how many corrections fall outside the panel.
+
+    Parameters:
+        offsets: The ``(N, 2)`` array of every ``(dv, du)`` correction.
+        limit: The panel's half-width in pixels.
+
+    Returns:
+        The caption text.
+    """
+    total = len(offsets)
+    rms = float(np.sqrt(np.mean(offsets[:, 0] ** 2 + offsets[:, 1] ** 2)))
+    outside = int(np.count_nonzero(np.max(np.abs(offsets), axis=1) > limit))
+    noun = 'image' if total == 1 else 'images'
+    caption = f'{total:,} {noun}     RMS {rms:.2f} px'
+    if outside > 0:
+        caption += f'     {outside:,} outside the panel'
+    return caption
+
+
+def write_offset_heatmap(
+    path: FCPath, dv: Sequence[float], du: Sequence[float], *, title: str
+) -> bool:
+    """Write the pointing-correction heat map PNG for one camera.
+
+    Every successful image's fused ``(dv, du)`` correction is counted into a grid
+    of square pixel bins centered on the predicted pointing, drawn in image
+    orientation: dU to the right, dV down. Bin color is the image count on a log
+    scale, empty bins are left blank, the axes are equal-aspect in pixels, and
+    labeled rings give the scale. The caption states the image count, the RMS
+    correction length, and how many corrections fall outside the panel.
+
+    Parameters:
+        path: Destination PNG path (local or ``filecache`` URL).
+        dv: Fused V-axis offsets (pixels) of successful images.
+        du: Fused U-axis offsets (pixels) of successful images, paired with
+            ``dv`` by position.
+        title: Figure title (the instrument and camera are named by the caller).
+
+    Returns:
+        True if a chart was written; False, writing nothing, when there are no
+        offsets.
+    """
+    if len(dv) == 0:
+        return False
+    offsets = np.column_stack([np.asarray(dv, dtype=np.float64), np.asarray(du, dtype=np.float64)])
+    limit = _heatmap_limit(offsets)
+    counts, edges = _heatmap_counts(offsets, limit)
+    bins = len(edges) - 1
+
+    plt = import_pyplot()
+    from matplotlib.colors import LinearSegmentedColormap, LogNorm
+    from matplotlib.ticker import NullFormatter
+
+    most = max(float(counts.max()), 2.0)
+    cmap = LinearSegmentedColormap.from_list('offset_heatmap', list(_HEATMAP_RAMP))
+    fig, ax = plt.subplots(figsize=(7.5, 7))
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    mesh = ax.pcolormesh(
+        edges,
+        edges,
+        np.ma.masked_equal(counts, 0.0),
+        cmap=cmap,
+        norm=LogNorm(vmin=1.0, vmax=most),
+        zorder=2,
+    )
+    ax.set_xlim(-limit, limit)
+    ax.set_ylim(limit, -limit)
+    ax.set_aspect('equal')
+    for radius in _ring_radii(limit):
+        ax.add_patch(plt.Circle((0, 0), radius, fill=False, ec=_HEATMAP_GRID, lw=0.8, zorder=3))
+        ax.text(
+            -radius * 0.7071,
+            -radius * 0.7071,
+            f'{radius:g} px',
+            color=_HEATMAP_INK,
+            fontsize=8,
+            ha='center',
+            va='center',
+            zorder=5,
+            bbox={'fc': 'white', 'ec': 'none', 'pad': 1.2, 'alpha': 0.8},
+        )
+    ax.axhline(0, color=_HEATMAP_GRID, lw=0.8, zorder=3)
+    ax.axvline(0, color=_HEATMAP_GRID, lw=0.8, zorder=3)
+    ax.plot([0], [0], marker='+', ms=12, mew=1.8, color='#d65f5f', zorder=4)
+    ax.set_xlabel('dU (px), right')
+    ax.set_ylabel('dV (px), down')
+    ax.set_title(_heatmap_caption(offsets, limit), fontsize=10, color=_HEATMAP_INK)
+    bin_size = 2.0 * limit / bins
+    colorbar = fig.colorbar(mesh, ax=ax, shrink=0.8, ticks=_count_ticks(most), format='{x:g}')
+    colorbar.ax.yaxis.set_minor_formatter(NullFormatter())
+    size_text = f'{bin_size:.0f}' if bin_size >= 10.0 else f'{bin_size:.2g}'
+    colorbar.set_label(f'images per {size_text} px bin')
+    fig.suptitle(title)
+    fig.tight_layout()
+    _save_figure(fig, plt, path)
+    return True
