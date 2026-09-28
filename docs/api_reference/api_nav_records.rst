@@ -11,6 +11,11 @@ spindoctor.nav_records
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_records.descriptors
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_records.derived
    :members:
    :undoc-members:

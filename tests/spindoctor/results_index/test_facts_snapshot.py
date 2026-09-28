@@ -216,7 +216,7 @@ def test_the_racing_write_really_reaches_the_database_on_sqlite(tmp_path: Path) 
     _seed(url)
     _facts_read_against_a_writer(url)
     with opened(url) as engine, engine.connect() as connection:
-        stored = connection.execute(
+        stored: sqlalchemy.ScalarResult[str] = connection.execute(
             sqlalchemy.select(IMAGES.c.results_path_stub).order_by(IMAGES.c.results_path_stub)
         ).scalars()
         assert list(stored) == [ALREADY_THERE_STUB, ARRIVING_STUB]
