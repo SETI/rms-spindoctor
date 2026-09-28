@@ -445,7 +445,7 @@ def test_the_same_basename_in_two_volumes_produces_two_rows(postgres_url: str) -
             connection.execute(IMAGES.insert(), image_row())
             connection.execute(IMAGES.insert(), image_row(results_path_stub=OTHER_STUB))
         with engine.connect() as connection:
-            stubs = connection.execute(
+            stubs: sqlalchemy.ScalarResult[str] = connection.execute(
                 sqlalchemy.select(IMAGES.c.results_path_stub).order_by(IMAGES.c.results_path_stub)
             ).scalars()
             found = list(stubs)
@@ -1464,7 +1464,7 @@ def _tables_cursored_part_way_through(url: str) -> list[str]:
     with IndexRecordSource(engine, [RECORD_ROOT], url, RECORD_COLUMNS) as source:
         stream = source.facts(Selection())
         next(stream)
-        open_cursors = list(
+        open_cursors: list[str] = list(
             held[0].execute(sqlalchemy.text('SELECT statement FROM pg_cursors')).scalars()
         )
         list(stream)

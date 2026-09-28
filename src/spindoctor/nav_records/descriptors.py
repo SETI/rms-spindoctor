@@ -26,6 +26,10 @@ limit actually permits, so that a run under a hard limit too low for the
 configured batch retrieves in smaller batches instead of failing.  A pass only
 ever loses speed this way, never documents.
 
+A limit too low to cover even one document on one thread is the exception: no
+setting runs under it, so it is refused where it can be named rather than
+started and left to fail on a lock file partway through.
+
 Only a pass over a remote root is touched at all.  A local file is read where
 it lies and no lock is taken for it, so a local pass spends no descriptor per
 document however large the batch, and has neither its tuning held down nor the
@@ -34,7 +38,7 @@ process's limit raised on its account.
 
 import sys
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from filecache import FCPath
@@ -43,8 +47,10 @@ from pdslogger import PdsLogger
 from spindoctor.nav_records.tuning import TreeTuning
 
 __all__ = [
+    'MINIMUM_DESCRIPTORS',
     'RESERVED_DESCRIPTORS',
     'UNBOUNDED_SOFT_LIMIT',
+    'OpenFileLimit',
     'raise_open_file_limit',
     'within_open_file_limit',
 ]
@@ -78,6 +84,31 @@ The file it is writing and the connection it is reading, both for as long as
 the download lasts, which is inside the window where the whole batch's locks
 are also held.
 """
+
+MINIMUM_DESCRIPTORS = RESERVED_DESCRIPTORS + 1 + _DESCRIPTORS_PER_THREAD
+"""The fewest open files any retrieval from a remote root can run under.
+
+One document in the batch, one thread to fetch it, and the reserve.  A limit
+below this cannot be divided into a pass that runs at all, so it is refused
+rather than answered with a tuning that would exhaust it anyway -- the failure
+this exists to prevent, arrived at by a longer road.
+"""
+
+
+@dataclass(frozen=True)
+class OpenFileLimit:
+    """The limit on open files a pass is held to, and whether it can be lifted here.
+
+    Parameters:
+        in_force: The soft limit the process is running under.
+        at_hard_limit: Whether that is the hard limit as well.  True says the
+            process has already raised itself as far as it may and only the
+            system can go further; False says the raise did not happen, so the
+            limit in force is below what this system would allow.
+    """
+
+    in_force: int
+    at_hard_limit: bool
 
 
 if sys.platform == 'win32':  # pragma: no cover - the limit is Unix-only
@@ -130,7 +161,7 @@ else:
     """What an unbounded limit reads as."""
 
 
-def raise_open_file_limit() -> int | None:
+def raise_open_file_limit() -> OpenFileLimit | None:
     """Raise this process's open-file limit as far as it is allowed to go.
 
     A process may raise its own soft limit up to its hard limit without
@@ -147,9 +178,10 @@ def raise_open_file_limit() -> int | None:
     where the first one put it.
 
     Returns:
-        The soft limit in force afterwards, or None where there is no limit to
-        be held to -- a platform that has none, or a soft limit already
-        unbounded -- in which case nothing is held back on account of one.
+        The limit in force afterwards and whether it is the hard limit too, or
+        None where there is no limit to be held to -- a platform that has none,
+        or a soft limit already unbounded -- in which case nothing is held back
+        on account of one.
     """
     limits = _open_file_limits()
     if limits is None:
@@ -159,13 +191,16 @@ def raise_open_file_limit() -> int | None:
         return None
     target = UNBOUNDED_SOFT_LIMIT if hard == _UNLIMITED else hard
     if soft >= target:
-        return soft
+        return OpenFileLimit(in_force=soft, at_hard_limit=hard != _UNLIMITED)
     try:
         _set_soft_open_file_limit(target, hard)
     except (OSError, ValueError):
-        # The limit stays where it was and the pass is sized against it.
-        return soft
-    return target
+        # The raise was refused.  The pass is sized against the limit it has,
+        # and the operator is told that this is not the system's own ceiling,
+        # because the thing to raise is then the soft limit rather than the
+        # hard one.
+        return OpenFileLimit(in_force=soft, at_hard_limit=False)
+    return OpenFileLimit(in_force=target, at_hard_limit=hard != _UNLIMITED)
 
 
 def within_open_file_limit(
@@ -201,31 +236,52 @@ def within_open_file_limit(
     Returns:
         The tuning to run the pass at, which is the one given whenever the
         limit covers it.
+
+    Raises:
+        ValueError: If the limit cannot cover even one document on one thread.
+            Such a pass cannot be run at any setting, so it is refused here
+            rather than started and left to fail on a lock file partway
+            through, which is the failure this exists to prevent.
     """
     if all(FCPath(root).is_local() for root in roots):
         return tuning
     limit = raise_open_file_limit()
     if limit is None:
         return tuning
+    if limit.in_force < MINIMUM_DESCRIPTORS:
+        raise ValueError(
+            f'an open file limit of {limit.in_force} cannot cover a retrieval from a '
+            f'remote root: the smallest pass there is needs {MINIMUM_DESCRIPTORS} open '
+            f'files, being one document, one download thread and {RESERVED_DESCRIPTORS} '
+            f'for what a run holds open besides'
+        )
     # What is left for the locks of a batch and the threads' files and
     # connections together.  Threads are given at most a quarter of it, so that
     # a thread count far above what the limit allows cannot leave the batch
-    # with nothing.
-    spare = limit - RESERVED_DESCRIPTORS
+    # with nothing: half the budget is still there for it afterwards, which is
+    # why the batch needs no floor of its own to stay at or above the pool.
+    spare = limit.in_force - RESERVED_DESCRIPTORS
     threads = min(tuning.retrieve_threads, max(1, spare // (2 * _DESCRIPTORS_PER_THREAD)))
-    batch = max(threads, min(tuning.retrieve_batch_size, spare - _DESCRIPTORS_PER_THREAD * threads))
+    batch = min(tuning.retrieve_batch_size, spare - _DESCRIPTORS_PER_THREAD * threads)
     if batch == tuning.retrieve_batch_size and threads == tuning.retrieve_threads:
         return tuning
     if logger is not None:
+        remedy = (
+            'this process has already raised its soft limit to its hard limit, so '
+            'lifting it further needs ulimit -Hn or the container setting'
+            if limit.at_hard_limit
+            else 'this process was refused the raise of its own soft limit, which is '
+            'therefore below what the system would allow; ulimit -n before the run '
+            'would lift it'
+        )
         logger.info(
             'Open file limit of %d holds this pass to %d document(s) at a time on %d '
-            'thread(s), rather than the configured %d on %d; this process has already '
-            'raised its soft limit to its hard limit, so lifting it further needs '
-            'ulimit -Hn or the container setting',
-            limit,
+            'thread(s), rather than the configured %d on %d; %s',
+            limit.in_force,
             batch,
             threads,
             tuning.retrieve_batch_size,
             tuning.retrieve_threads,
+            remedy,
         )
     return replace(tuning, retrieve_threads=threads, retrieve_batch_size=batch)

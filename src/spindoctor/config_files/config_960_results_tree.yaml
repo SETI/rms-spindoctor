@@ -31,10 +31,12 @@ results_tree:
   # How many documents are handed to the downloader at a time.  Must be at
   # least retrieve_threads, or the download pool never fills.  A document
   # coming from remote storage holds an open file for as long as its batch
-  # is in flight, so a run raises its own limit on open files to its hard
-  # limit and, where even that will not cover this batch, retrieves in
-  # smaller batches than this and says so in its log.  A tree on a local
-  # directory spends no open file per document and is left as configured.
+  # is in flight, so a run tries to raise its own limit on open files to its
+  # hard limit.  Where it ends up with less than this batch needs -- a low
+  # hard limit, or a raise the system refused -- it retrieves in smaller
+  # batches than this and says so in its log, naming the limit to lift.  A
+  # tree on a local directory spends no open file per document and is left as
+  # configured.
   retrieve_batch_size: 1024
   # How many retrieval batches one database transaction covers during an
   # ingest.  Read by sd_results_index alone.  Raise it for fewer, larger

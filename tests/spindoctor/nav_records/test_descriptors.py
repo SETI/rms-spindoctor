@@ -14,8 +14,6 @@ writes the number out rather than reading the module's own constant, because an
 assertion made out of the value under test moves with it and cannot fail.
 """
 
-import resource
-import sys
 import uuid
 from pathlib import Path
 
@@ -24,25 +22,41 @@ from pdslogger import PdsLogger
 
 from spindoctor.nav_records import TreeRecordSource, TreeTuning, within_open_file_limit
 from spindoctor.nav_records import descriptors as descriptors_module
-from spindoctor.nav_records.descriptors import RESERVED_DESCRIPTORS, UNBOUNDED_SOFT_LIMIT
-
-pytestmark = pytest.mark.skipif(
-    sys.platform == 'win32', reason='the open-file limit these tests are about is Unix-only'
+from spindoctor.nav_records.descriptors import (
+    MINIMUM_DESCRIPTORS,
+    RESERVED_DESCRIPTORS,
+    UNBOUNDED_SOFT_LIMIT,
+    OpenFileLimit,
 )
+
+resource = pytest.importorskip(
+    'resource', reason='the open-file limit these tests are about is Unix-only'
+)
+"""The limit this module is about, which only a Unix-like platform has.
+
+Imported this way rather than plainly, because the module cannot be collected
+at all on a platform without it and a skip marker is evaluated too late to
+prevent that.
+"""
 
 _REMOTE = ['gs://a-bucket/a-results-root']
 """A root whose documents are downloaded, and so cost descriptors."""
 
 
-def _at_limit(monkeypatch: pytest.MonkeyPatch, limit: int | None) -> None:
+def _at_limit(
+    monkeypatch: pytest.MonkeyPatch, limit: int | None, *, at_hard_limit: bool = True
+) -> None:
     """Run the rest of a test as though the process were under one open-file limit.
 
     Parameters:
         monkeypatch: Fixture the replacement is installed through.
         limit: The soft limit to answer with, or None for a platform that has
             none to answer with.
+        at_hard_limit: Whether that limit is the hard one as well, which is what
+            decides how the pass tells an operator to lift it.
     """
-    monkeypatch.setattr(descriptors_module, 'raise_open_file_limit', lambda: limit)
+    answer = None if limit is None else OpenFileLimit(in_force=limit, at_hard_limit=at_hard_limit)
+    monkeypatch.setattr(descriptors_module, 'raise_open_file_limit', lambda: answer)
 
 
 def _peak(tuning: TreeTuning) -> int:
@@ -118,16 +132,24 @@ def test_the_threads_never_take_the_whole_budget(monkeypatch: pytest.MonkeyPatch
 
 def test_a_shrunken_pass_still_fills_its_download_pool(monkeypatch: pytest.MonkeyPatch) -> None:
     """A batch below the pool size leaves threads idle, which no limit is a reason for."""
-    _at_limit(monkeypatch, 258)
+    _at_limit(monkeypatch, MINIMUM_DESCRIPTORS)
     bounded = within_open_file_limit(TreeTuning(), _REMOTE)
     assert bounded.retrieve_batch_size >= bounded.retrieve_threads
 
 
-def test_a_limit_below_the_reserve_still_yields_a_pass_that_can_run(
+def test_a_limit_too_low_for_one_document_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No setting runs under it, so answering with one would only move the failure later."""
+    _at_limit(monkeypatch, MINIMUM_DESCRIPTORS - 1)
+    with pytest.raises(ValueError) as caught:
+        within_open_file_limit(TreeTuning(), _REMOTE)
+    assert str(MINIMUM_DESCRIPTORS) in str(caught.value)
+
+
+def test_the_smallest_limit_that_is_not_refused_yields_a_pass_that_can_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A limit under the reserve leaves nothing to divide, and zero is no batch."""
-    _at_limit(monkeypatch, 64)
+    """The boundary is the point of the refusal, so the pass just above it has to work."""
+    _at_limit(monkeypatch, MINIMUM_DESCRIPTORS)
     assert within_open_file_limit(TreeTuning(), _REMOTE).retrieve_batch_size >= 1
 
 
@@ -187,6 +209,25 @@ def test_the_line_names_the_limit_that_would_have_to_be_raised(
     assert 'ulimit -Hn' in capsys.readouterr().out
 
 
+def test_a_refused_raise_is_not_reported_as_the_system_ceiling(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Telling an operator to raise a hard limit that is already high wastes their time."""
+    _at_limit(monkeypatch, 1024, at_hard_limit=False)
+    within_open_file_limit(TreeTuning(), _REMOTE, logger=_logger())
+    written = capsys.readouterr().out
+    assert 'ulimit -n before the run' in written
+
+
+def test_a_refused_raise_does_not_advise_the_hard_limit(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The two remedies are different, so naming the wrong one is worse than naming none."""
+    _at_limit(monkeypatch, 1024, at_hard_limit=False)
+    within_open_file_limit(TreeTuning(), _REMOTE, logger=_logger())
+    assert 'ulimit -Hn' not in capsys.readouterr().out
+
+
 def test_a_pass_the_limit_covers_says_nothing(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -201,7 +242,7 @@ def test_the_soft_limit_is_raised_to_the_hard_one(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(resource, 'getrlimit', lambda _which: (1024, 65536))
     raised: list[tuple[int, int]] = []
     monkeypatch.setattr(resource, 'setrlimit', lambda _which, limits: raised.append(limits))
-    assert descriptors_module.raise_open_file_limit() == 65536
+    assert descriptors_module.raise_open_file_limit() == OpenFileLimit(65536, True)
     assert raised == [(65536, 65536)]
 
 
@@ -212,7 +253,7 @@ def test_an_unbounded_hard_limit_is_raised_to_rather_than_given_up_on(
     monkeypatch.setattr(resource, 'getrlimit', lambda _which: (256, resource.RLIM_INFINITY))
     raised: list[tuple[int, int]] = []
     monkeypatch.setattr(resource, 'setrlimit', lambda _which, limits: raised.append(limits))
-    assert descriptors_module.raise_open_file_limit() == UNBOUNDED_SOFT_LIMIT
+    assert descriptors_module.raise_open_file_limit() == OpenFileLimit(UNBOUNDED_SOFT_LIMIT, False)
     assert raised == [(UNBOUNDED_SOFT_LIMIT, resource.RLIM_INFINITY)]
 
 
@@ -230,7 +271,7 @@ def test_a_soft_limit_already_at_the_hard_one_is_not_set_again(
     monkeypatch.setattr(resource, 'getrlimit', lambda _which: (65536, 65536))
     raised: list[tuple[int, int]] = []
     monkeypatch.setattr(resource, 'setrlimit', lambda _which, limits: raised.append(limits))
-    assert descriptors_module.raise_open_file_limit() == 65536
+    assert descriptors_module.raise_open_file_limit() == OpenFileLimit(65536, True)
     assert raised == []
 
 
@@ -244,7 +285,7 @@ def test_a_limit_that_cannot_be_raised_is_the_one_the_pass_is_sized_against(
         raise ValueError('not permitted')
 
     monkeypatch.setattr(resource, 'setrlimit', refusing)
-    assert descriptors_module.raise_open_file_limit() == 1024
+    assert descriptors_module.raise_open_file_limit() == OpenFileLimit(1024, False)
 
 
 def test_a_source_over_a_remote_root_runs_at_the_bounded_tuning(

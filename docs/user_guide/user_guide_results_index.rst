@@ -280,15 +280,26 @@ The settings
    it is permitted -- its hard limit -- which on an ordinary machine is far
    above anything a batch needs, so usually there is nothing to do.
 
-   Where even the hard limit is too low, the run retrieves in smaller
-   batches and on fewer threads than you asked for. Every document is still
-   read; only the speed of the pass changes. A run with a log says which
-   numbers it used instead, so look there first if a pass is slower than you
-   expect; ``sd_stats_report``, which prints rather than logs, is held back
-   the same way but has nowhere to say so. Because the run has already
-   raised its soft limit as far as it goes, ``ulimit -n`` will not lift it
-   further -- the hard limit is what has to move, with ``ulimit -Hn`` as
-   root or the ``LimitNOFILE`` setting of the container or service.
+   Raising it is an attempt, not a guarantee: the system can refuse it. Where
+   the run ends up with less than the configured batch needs, either because
+   the hard limit is itself low or because the raise was refused, it
+   retrieves in smaller batches and on fewer threads than you asked for.
+   Every document is still read; only the speed of the pass changes. A run
+   with a log says which numbers it used instead, so look there first if a
+   pass is slower than you expect; ``sd_stats_report``, which prints rather
+   than logs, is held back the same way but has nowhere to say so.
+
+   Which limit to lift depends on which of those two happened, and the log
+   line says which. If the run is sitting at its hard limit, that is the one
+   to move -- ``ulimit -Hn`` as root, or the ``LimitNOFILE`` setting of the
+   container or service; ``ulimit -n`` will not help, because the run has
+   already raised its soft limit that far itself. If instead the system
+   refused the raise, the soft limit is below what the system would allow,
+   and ``ulimit -n`` before the run does lift it.
+
+   A limit too low to cover even one document on one thread -- fewer than 259
+   open files -- is refused outright rather than run, because no setting works
+   under it and starting anyway would only reach the same failure later.
 
    A tree on a local directory reads its files where they lie and spends no
    open file per document, so none of this applies to one: a pass over local
