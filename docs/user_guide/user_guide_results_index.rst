@@ -273,6 +273,27 @@ The settings
    a run configured that way is refused when the configuration is loaded,
    rather than running slowly for a reason you would have to go looking for.
 
+   **A batch also costs open files.** A document coming from remote storage
+   holds one open for as long as the batch it is in is in flight, so a batch
+   of a thousand needs a thousand open files at once, on top of two per
+   download thread. A run raises its own limit on open files to the highest
+   it is permitted -- its hard limit -- which on an ordinary machine is far
+   above anything a batch needs, so usually there is nothing to do.
+
+   Where even the hard limit is too low, the run retrieves in smaller
+   batches and on fewer threads than you asked for. Every document is still
+   read; only the speed of the pass changes. A run with a log says which
+   numbers it used instead, so look there first if a pass is slower than you
+   expect; ``sd_stats_report``, which prints rather than logs, is held back
+   the same way but has nowhere to say so. Because the run has already
+   raised its soft limit as far as it goes, ``ulimit -n`` will not lift it
+   further -- the hard limit is what has to move, with ``ulimit -Hn`` as
+   root or the ``LimitNOFILE`` setting of the container or service.
+
+   A tree on a local directory reads its files where they lie and spends no
+   open file per document, so none of this applies to one: a pass over local
+   roots alone is left at exactly the settings you configured.
+
 ``ingest_commit_batches`` (default 2)
    How many retrieval batches ``sd_results_index`` writes into the index in
    one database transaction. No other program reads it. A transaction is what

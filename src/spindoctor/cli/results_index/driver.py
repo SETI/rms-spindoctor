@@ -84,6 +84,7 @@ from spindoctor.nav_records import (
     TreeTuning,
     UnlistableRootError,
     distinct_roots,
+    within_open_file_limit,
 )
 from spindoctor.results_index import FAILED_FILES, IMAGES, STUBS_PER_STATEMENT
 
@@ -389,6 +390,11 @@ def ingest_metadata_files(
             reads absence under one of those as an answer.
     """
     total = IngestCounts()
+    # An ingest retrieves in batches, and a batch of documents from a cloud
+    # root costs a descriptor apiece while it is in flight, so how large a
+    # batch this pass may retrieve is settled once, here, against the limit
+    # this process can raise itself to.
+    tuning = within_open_file_limit(tuning, roots, logger=logger)
     # The normalized form is what is walked, not the string as typed.  It is
     # the same location, absolute and spelled once: walking the typed form
     # would record a relative source_file beside an absolute root_url, and a

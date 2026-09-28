@@ -696,23 +696,24 @@ library votes and the decision gates, not by any implementation.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it: 290 issues
-as of 2026-09-21. The count is given so a reader can tell a stale index from
+Every open issue, listed exactly once by the track that owns it: 293 issues
+as of 2026-09-28. The count is given so a reader can tell a stale index from
 a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
 | A — validation & calibration | 64 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675 |
 | B — navigation correctness | 34 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639 |
-| C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
+| C — statistics & QA | 5 | #240, #340, #533, #535, #724 (plus the standing cross-check and campaign-report practice) |
 | D — capability completion | 89 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720 |
-| E — test & docs debt | 34 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563, #574, #576, #612, #712, #714, #715 |
+| E — test & docs debt | 36 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563, #574, #576, #612, #712, #714, #715, #723, #725 |
 | F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
 Priority census across all six tracks: no Critical, 30 Essential, 81
-Important, 126 Useful, 38 Minor, 15 Defer. Every open issue carries exactly
-one Priority and one Effort label and at least one each of A-type and
-B-location.
+Important, 127 Useful, 39 Minor, 15 Defer. That accounts for 292 of the 293;
+#723 carries no labels at all and is the one exception to every open issue
+carrying exactly one Priority and one Effort label and at least one each of
+A-type and B-location.
 
 Cross-listed items (listed once above, noted here): #150/#128 sit in Track B
 and also serve Track A's limb-bias workstream (WS-10); the confident-wrong
