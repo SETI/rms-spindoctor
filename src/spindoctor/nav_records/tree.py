@@ -74,6 +74,7 @@ from typing import cast
 from filecache import FCPath
 from pdslogger import NullLogger, PdsLogger
 
+from spindoctor.nav_records.descriptors import within_open_file_limit
 from spindoctor.nav_records.document import (
     COULD_NOT_RETRIEVE,
     METADATA_SUFFIX,
@@ -151,7 +152,9 @@ class TreeRecordSource:
             to lend.
         tuning: How much of a pass over the documents runs at once.  None is
             the library's own defaults, for a caller with no configuration to
-            consult.
+            consult.  Over a remote root it is held down to what the
+            open-file limit allows, which bounds how large a batch may be
+            retrieved; over local roots alone it is used as given.
 
     Raises:
         ValueError: If no root is given, or if one of them is not a location.
@@ -169,7 +172,9 @@ class TreeRecordSource:
             raise ValueError('a record source over the documents needs at least one results root')
         self._roots = tuple(held)
         self._logger = NullLogger() if logger is None else logger
-        self._tuning = TreeTuning() if tuning is None else tuning
+        self._tuning = within_open_file_limit(
+            TreeTuning() if tuning is None else tuning, self._roots, logger=logger
+        )
         # What a walk answering a listing of named documents found, keyed by the
         # root and the top-level directory walked.  A scan asks in batches, so a
         # walk made for one batch answers every later batch of the same scan.

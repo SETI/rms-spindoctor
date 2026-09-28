@@ -558,7 +558,7 @@ def test_the_same_basename_in_two_volumes_produces_two_rows(sqlite_url: str) -> 
             connection.execute(IMAGES.insert(), image_row())
             connection.execute(IMAGES.insert(), image_row(results_path_stub=OTHER_STUB))
         with engine.connect() as connection:
-            stubs = connection.execute(
+            stubs: sqlalchemy.ScalarResult[str] = connection.execute(
                 sqlalchemy.select(IMAGES.c.results_path_stub).order_by(IMAGES.c.results_path_stub)
             ).scalars()
             found = list(stubs)

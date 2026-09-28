@@ -101,6 +101,7 @@ from spindoctor.nav_records import (
     distinct_roots,
     document_path,
     normalize_root_url,
+    within_open_file_limit,
 )
 
 __all__ = [
@@ -395,6 +396,9 @@ def fan_out_ingest_tasks(
     """
     if share_size < 1:
         raise ValueError(f'a task share holds at least one file, not {share_size}')
+    # Settled once for the fan-out rather than once per root, which is what
+    # the listing of each root would otherwise do and say.
+    tuning = within_open_file_limit(tuning, roots, logger=logger)
     fan_out = FanOut()
     for root_url in distinct_roots(roots):
         counts = IngestCounts()
@@ -578,6 +582,10 @@ def ingest_task_share(
         ValueError: If the task data is not the shape a fan-out produces.
     """
     share = _share_from_task(task_data)
+    # Settled once for the share, the same way the interactive driver
+    # settles it for a root: a batch of documents from a cloud root costs a
+    # descriptor apiece while it is in flight.
+    tuning = within_open_file_limit(tuning, [share.root_url], logger=logger)
     counts = _ShareCounts()
     root = FCPath(share.root_url)
     stubs = [listed.stub for listed in share.files]

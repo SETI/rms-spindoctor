@@ -51,6 +51,7 @@ Public API:
     UnlistableDirectoryError -- a directory under a root that ends a walk
     UnlistableRootError      -- a root that could not be listed at all
     TreeTuning               -- how much of a pass runs at once
+    within_open_file_limit   -- how much of one the open-file limit allows
     ImageFacts               -- what one document says about its image
     DocumentOrigin           -- where one document came from, and its metrics
     MetadataDocumentError    -- a document that is not a navigation result
@@ -71,6 +72,7 @@ from spindoctor.nav_records.derived import (
     datetime_from_image_et,
     image_number_from_name,
 )
+from spindoctor.nav_records.descriptors import within_open_file_limit
 from spindoctor.nav_records.document import (
     ABSOLUTE_PATH_FRAGMENT,
     COULD_NOT_RETRIEVE,
@@ -158,4 +160,5 @@ __all__ = [
     'stub_refusal',
     'subtree_of',
     'subtree_refusal',
+    'within_open_file_limit',
 ]
