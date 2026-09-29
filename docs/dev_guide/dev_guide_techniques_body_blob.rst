@@ -178,10 +178,10 @@ Restrictions and assumptions
   sigmoid is centered at the technique's own 3-sigma lit-pixel threshold, so a window with
   no body-scale signal above the noise floor sits decisively below the keep threshold at any
   size, while a bright body only a little above the 5 px emission floor is admitted (the
-  extent term applies a mild near-floor discount, not a second size gate — the reliability
-  crosses the 0.20 gate at detection SNR ~3.1-3.3 across the emitted size range). Whether
+  extent term applies a mild near-floor discount, not a second size threshold — the reliability
+  crosses the 0.20 keep threshold at detection SNR ~3.1-3.3 across the emitted size range). Whether
   the centroid is then *precise* is the per-blob covariance's and the confidence formula's
-  job, not the gate's.
+  job, not the reliability threshold's.
 - The technique carries no rotation evidence — a brightness-weighted centroid is rotation-
   invariant about itself. When the per-instrument
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true, the

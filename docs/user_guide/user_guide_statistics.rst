@@ -234,8 +234,8 @@ The report contains:
   both produced non-spurious results.
 - **Confidence calibration** -- per confidence tier, the distribution of each
   image's maximum cross-technique disagreement. The tiers always read
-  ``high`` / ``medium`` / ``low`` / ``failed`` / ``conflicted``, so a tier
-  with no images reads as an explicit zero rather than a missing row.
+  ``high`` / ``medium`` / ``low`` / ``failed`` / ``conflicted``, so a tier that
+  holds no images reads as an explicit zero rather than a missing row.
   Without ground truth,
   agreement between independent techniques is the production proxy for
   accuracy (the calibrated anchor is the simulation campaign; see

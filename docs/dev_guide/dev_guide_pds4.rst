@@ -1282,7 +1282,7 @@ and one entry in ``COHORTS``. The FITS files, the browse images and the
 documents it implies exist only while a test is running, so it costs the
 repository nothing.
 
-The bundle check (see `Checking a bundle`_) is gated by a test in the default suite, so
+The bundle check (see `Checking a bundle`_) is enforced by a test in the default suite, so
 it runs wherever the suite does: in ``scripts/run-all-checks.sh`` and in CI.
 ``tests/spindoctor/cli/pds4/check/test_check_cassini_iss_saturn.py`` builds the Cassini
 ISS Saturn cohort's bundle twice, plain and from a copy of the template directory holding
@@ -1294,7 +1294,7 @@ errors and warnings apart.  The errors are the ``TODO DOI`` placeholder of the b
 label and the two of the guide's label, and each data label's empty
 ``cassini:ISS_Specific_Attributes``; the warnings, in the plain build alone, are each
 reference to the user guide, which that bundle does not hold.  A finding outside that
-list fails the test, and so does a known one the check stops making.  The gate reads
+list fails the test, and so does a known one the check stops making.  The test reads
 the schemas from the local copies the tests keep, so the suite needs no network, and a
 test marked ``integration`` has the check fetch them by their URLs and holds it to the
 same findings.  Each part of the check is also held to a
@@ -1342,7 +1342,7 @@ The end-to-end checklist:
    the bundle, its entry in ``COHORTS``, and a test module named for the bundle
    for what only its cohort can state, among it the findings
    :func:`~spindoctor.cli.pds4.check.bundle.check_bundle` makes over the cohort's
-   bundle, as the Cassini ISS Saturn gate holds them.
+   bundle, as the Cassini ISS Saturn test holds them.
 
 API reference
 =============

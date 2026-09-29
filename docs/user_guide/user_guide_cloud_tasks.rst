@@ -21,7 +21,8 @@ read the cloud tasks documentation for how a queue is created, loaded, and run.
 
 SpinDoctor's part is small. For each pipeline stage that can be run in bulk there is a
 worker program whose name ends in ``_cloud_tasks``. A worker asks the queue for a task,
-processes the images the task names, returns what happened, and asks for the next one.
+processes the image the task names, returns what happened, and asks for the next one. One
+task is one image.
 ``sd_offset_cloud_tasks`` is the navigation worker: it does exactly what ``sd_offset``
 (:doc:`/user_guide/user_guide_navigation_running`) does to an image, and writes the same
 metadata document and preview under the same navigation results root.
@@ -44,7 +45,7 @@ The task file
 A queue is loaded from a JSON file that lists the work items. You produce that file with
 **sd_offset**, using its ``--output-cloud-tasks-file PATH`` option: this is an option of
 ``sd_offset``, not of the worker. Given that option, ``sd_offset`` enumerates the images
-your selection names, writes one task per batch to the named file, and does nothing else
+your selection names, writes one task per image to the named file, and does nothing else
 -- no image is navigated. The file is then loaded into a queue with the cloud tasks
 package's own tooling.
 
@@ -69,19 +70,20 @@ after one part rather than after the whole mission.
 We follow that convention for the larger holdings. Voyager ISS is generated one planetary
 encounter at a time, and Cassini ISS in consecutive groups of whole volumes. Galileo SSI
 and New Horizons LORRI are each generated as a single file. The generator scripts that
-make these files live in ``cloud_support/`` in the SpinDoctor repository rather than in
-the installed package, and each one runs ``sd_offset --output-cloud-tasks-file`` and then
-divides what it wrote. ``cloud_support/README.md`` describes them, together with the
-compute-instance startup script and the job configuration they go with. Each generator
-must be told the holdings root the workers will read, because the image and label URLs a
-task carries are absolute and are fixed at the moment the task is written.
+make these files are not part of the installed package. They live in ``cloud_support/`` in
+the source repository at https://github.com/SETI/rms-spindoctor, and each one runs
+``sd_offset --output-cloud-tasks-file`` and then divides what it wrote.
+``cloud_support/README.md`` there describes them, together with the compute-instance
+startup script and the job configuration they go with. Each generator must be told the
+holdings root the workers will read, because the image and label URLs a task carries are
+absolute and are fixed at the moment the task is written.
 
 Task file structure
 ===================
 
-The task file's structure is documented here for information only. You never need to write
-or edit one: ``sd_offset`` generates it, and the worker reads it. Nothing in this section
-is a thing to do.
+``sd_offset`` generates the task file and the worker reads it, so you do not write or edit
+one. Its structure is here for the times you want to read a generated file: to confirm
+which images a queue covers, or to see which models and techniques the workers were given.
 
 The file is a JSON array of task objects. Each task looks like this:
 
@@ -110,14 +112,14 @@ The file is a JSON array of task objects. Each task looks like this:
 The fields are:
 
 * ``task_id``: a string that identifies the task uniquely, built from the dataset name,
-  the first image's label filename, and the position of the batch in the enumeration.
+  the image's label filename, and the image's position in the enumeration.
 * ``data.dataset_name``: the dataset the images come from, spelled as it is on an
   ``sd_offset`` command line.
 * ``data.arguments``: an object with the optional keys ``nav_models`` and
   ``nav_techniques``, each a list of selection patterns or ``null`` for "use the default
   selection". These carry the ``--nav-models`` and ``--nav-techniques`` choices made when
   the file was generated.
-* ``data.files``: the images the task covers. Each entry requires ``image_file_url``,
-  ``label_file_url``, and ``results_path_stub``, and may carry ``index_file_row``, the row
-  the PDS3 index table held for that image, and ``extra_params``, further key and value
-  pairs passed through to the stage.
+* ``data.files``: a list holding the task's image, so a single entry. It requires
+  ``image_file_url``, ``label_file_url``, and ``results_path_stub``, and may carry
+  ``index_file_row``, the row the PDS3 index table held for that image, and
+  ``extra_params``, further key and value pairs passed through to the stage.

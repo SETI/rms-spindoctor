@@ -32,7 +32,7 @@ What these kernels claim
 ========================
 
 Three properties decide whether a corrected kernel answers the question a
-consumer is asking. None of them is a detail.
+consumer is asking.
 
 The originals are still required
 --------------------------------
@@ -58,29 +58,24 @@ reproduces the corrected attitude at those epochs exactly. Every other epoch in
 the window is interpolated between the bracketing records, and the interior
 error that interpolation leaves is **not bounded by anything**.
 
+A consumer that evaluates geometry at the exposure midtime is exact, because the
+midtime is a record epoch. That is what every SpinDoctor stage that reads a
+corrected kernel does, and what most single-epoch geometry does. Only a consumer
+that integrates smear across the exposure, or samples attitude at arbitrary
+interior epochs, meets the interpolation error at all.
+
 How large that error is depends on the instrument and on how the spacecraft was
 moving during the exposure, so this guide does not quote a single figure for it.
-The interpolation error is an angle, and the same angle is a different number of
-pixels on every camera, so an error that matters on one camera can be negligible
-on another. How much attitude structure a segment interpolates across also
-differs by mission and by how the platform was slewing.
+The error is an angle, and the same angle is a different number of pixels on
+every camera.
 
-What is fixed is how the error behaves rather than how large it is. It is zero
-at every record epoch and grows between them; it is largest where the baseline's
-rate changes inside the window; it shrinks as records are added, which is what
-the one-second cadence buys on a long exposure; and it is present in the same
-size when the correction itself is zero, which is how it is known to be
-interpolation loss rather than an error in the correction. Each instrument's
-chapter under :doc:`instruments/instruments` carries the characterization for
-that instrument, including the cases where there is no interpolation error at
-all; where a chapter reports no measured figure yet, a consumer who needs a
-bound should measure it for the frames they care about.
-
-A consumer that evaluates geometry at the exposure midtime is unaffected and
-exact: the midtime is a record epoch. That is what the backplane and
-reprojection stages do, and what most single-epoch geometry does. A consumer
-integrating smear across the exposure, or sampling attitude at arbitrary
-interior epochs, is subject to the interpolation error described above.
+How the error behaves is fixed. It is zero at every record epoch and grows
+between them. It is largest where the baseline's rate changes inside the window.
+It shrinks as records are added, which is what the one-second cadence buys on a
+long exposure. It is the same size when the correction itself is zero. Each
+instrument's chapter under :doc:`instruments/instruments` carries the
+characterization for that instrument, including the cases where there is no
+interpolation error at all.
 
 An instrument whose navigated attitude is constant across the exposure is a
 separate case entirely. Its segment carries that single corrected attitude,
@@ -94,7 +89,7 @@ Eligibility carries no quality threshold
 Any image whose navigation reached a status of ``success`` or ``conflicted``
 and recorded a corrected matrix gets a segment. There is **no confidence or
 rank threshold**, and a ``conflicted`` result -- one where two techniques
-disagreed and the ensemble reported the conflict -- is written like any other.
+disagreed and the disagreement was recorded -- is written like any other.
 
 The consequence is that filtering is the consumer's job, and the report is
 where the material to filter on lives. Its ``status``, ``status_reason``,
@@ -114,6 +109,13 @@ kernel does it for them.
 Which images get a segment
 ==========================
 
+Several of the reasons below speak of an image's **baseline**. That is the
+original C-kernel supplying the uncorrected attitude the navigation measured its
+offset against. The run identifies it by searching the C-kernels in the
+directories given on the command line for one that reproduces the uncorrected
+attitude the navigation recorded, to within a nanoradian, rather than by
+trusting the kernel names in the metadata.
+
 Every image the run considered appears in the report exactly once, with either
 the corrected file carrying its segment or one of these reasons it has none:
 
@@ -127,21 +129,20 @@ the corrected file carrying its segment or one of these reasons it has none:
      - The image's navigation status is neither ``success`` nor
        ``conflicted``, or it recorded no corrected matrix.
    * - ``rotation_unsupported``
-     - The navigation fitted a camera rotation. The rotation turns about a
-       per-technique pivot that the result does not record, so the correction
-       cannot be expressed as an attitude and none is claimed. It is reached
-       only after the eligibility check above, so it applies to every
-       otherwise eligible image of an instrument whose configuration fits
-       rotation, and to none of an instrument whose configuration does not;
-       an image of such an instrument whose navigation neither succeeded nor
-       conflicted is reported as ``not_eligible`` instead.
+     - The navigation fitted a camera rotation as well as an offset, and a
+       rotation cannot be expressed as a corrected attitude. Whether rotation
+       is fitted is a property of the instrument's configuration: either the
+       instrument fits rotation, in which case no image of it gets a segment,
+       or it does not, in which case no image of it is reported this way.
    * - ``botsim_loser``
-     - An exposure taken on two cameras at once, on an instrument that can do
-       that. The two frames share one spacecraft attitude and one attitude
-       cannot carry two different corrections, so one member of the pair keeps
-       its correction and the other yields. A frame yields only to a partner
-       that actually writes: one whose partner is ineligible, or has no
-       reproducing baseline, keeps its own correction.
+     - An instrument that can shutter two cameras at once produces two frames
+       sharing one spacecraft attitude, and one attitude cannot carry two
+       different corrections. One of the pair keeps its correction and the other
+       yields, and the one that yields is reported this way. It yields only to a
+       partner that actually receives a segment, so a frame whose partner is
+       ineligible or has no reproducing baseline keeps its own correction. Which
+       camera keeps the correction is a property of the instrument; see the
+       instrument's chapter under :doc:`instruments/instruments`.
    * - ``no_reproducing_baseline``
      - No C-kernel under the run's kernel directories reproduces the attitude
        this image navigated against. Either the kernel set has changed since
@@ -155,30 +156,20 @@ the corrected file carrying its segment or one of these reasons it has none:
        coverage is reproduced and then cannot be written. It is ordinary near a
        segment boundary and on a long exposure.
 
-The set is closed, and every member of it is one a run can produce: an image
-whose pointing the writer cannot express as a segment at all is not reported
-here but stops the run, since a run that has found something wrong with the
-kernels or the metadata should not bury it in one image's row. The set is the
-same for every mission because every consumer of the report reads the same
-column; which of these reasons a given instrument can actually produce, and
-why, is stated in its chapter under :doc:`instruments/instruments`.
+That is the whole list. An image whose pointing the writer cannot express as a
+segment at all is not reported here: it stops the run instead. Which of these
+reasons a given instrument can produce, and why, is stated in its chapter under
+:doc:`instruments/instruments`.
 
-An omitted image gets no segment and no uncorrected copy of one: its pointing
-falls through to the originals, exactly as an epoch between exposures does.
+An omitted image gets no segment: its pointing falls through to the originals,
+exactly as an epoch between exposures does.
 
-``no_reproducing_baseline`` doubles as the detector for a kernel set that
-changed since navigation ran. Each image is paired with its original by
-reproducing the uncorrected attitude the navigation recorded, to within a
-nanoradian, rather than by trusting the kernel names in the metadata. A
-baseline that no longer produces that attitude is refused rather than corrected
-against a baseline the measurement was never made on.
-
-``baseline_coverage_gap`` is the opposite case and is deliberately a reason of
-its own, so that the detector above keeps meaning what it says. The original
-did reproduce the recorded attitude; it simply does not cover the whole
-exposure. A run reporting these is not a run whose holdings have drifted, and
-an image reported this way is one whose exposure ran past the end of a
-segment's window rather than one whose kernel is missing.
+The two baseline reasons are not the same condition.
+``no_reproducing_baseline`` is also how a kernel set that changed since
+navigation ran is detected, since no kernel in the directories given still
+produces the attitude the measurement was made against.
+``baseline_coverage_gap`` is the opposite case: the original did reproduce the
+recorded attitude, and simply does not cover the whole exposure.
 
 Files a run writes
 ==================
@@ -221,19 +212,11 @@ are encoded against, and one line per image carrying the same offset, sigma,
 confidence, rank, status, and status reason the report carries. Read it with
 the NAIF ``commnt`` utility or with ``dafec``.
 
-Every corrected segment carries angular velocity, copied unchanged from the
-original; a segment whose attitude is constant across the exposure carries
-zeros instead, which is that attitude's true rate and is written without
-consulting the original at all. Where the rates are copied -- that is, for a
-time-varying segment -- an exposure whose original does not supply angular
-velocity at every record receives no segment at all, and the run stops and says
-so. That is
-because a segment declaring no angular velocity is not read as one whose
-angular velocity is unknown: SPICE skips it for ``ckgpav`` and for ``sxform``
-and answers those from the next loaded kernel that does carry angular velocity
-for the same object and epoch, which would be the original and its uncorrected
-attitude. Since every segment carries angular velocity, ``ckgp``, ``ckgpav``,
-``pxform``, and ``sxform`` all report the correction.
+Every corrected segment carries angular velocity, so ``ckgp``, ``ckgpav``,
+``pxform``, and ``sxform`` all report the correction. The rates are copied
+unchanged from the original, except on a segment whose attitude is constant
+across the exposure, which carries zeros. A run whose original supplies angular
+velocity at only some of a segment's record epochs stops and says so.
 
 Loading the kernels
 ===================
@@ -302,8 +285,7 @@ coverage in TDB is what they convert the segments' clock ticks into.
 The report
 ==========
 
-The report is CSV with a header row. Read it by header name: the column set is
-version 1 and is expected to grow as consumers ask for more.
+The report is CSV with a header row. Read it by header name.
 
 .. list-table::
    :header-rows: 1
@@ -468,24 +450,29 @@ Example
 -------
 
 Write one mission's corrections for one navigation results tree, pairing images
-against the reconstructed kernels:
+against the reconstructed kernels. For Cassini ISS, whose holdings keep the
+leapseconds kernel at the top of the tree and the rest in per-kind
+subdirectories:
 
 .. code-block:: bash
 
-   sd_create_ck MISSION \
+   sd_create_ck coiss \
        --nav-results-root /data/nav/results \
-       --kernel-dir DIR_HOLDING_THE_LEAPSECONDS_KERNEL \
-       --kernel-dir DIR_HOLDING_THE_SPACECRAFT_CLOCK_KERNEL \
-       --kernel-dir DIR_HOLDING_THE_FRAME_KERNEL \
-       --kernel-dir DIR_HOLDING_THE_ORIGINAL_C_KERNELS \
+       --kernel-dir /data/spice/Cassini \
+       --kernel-dir /data/spice/Cassini/SCLK \
+       --kernel-dir /data/spice/Cassini/FK \
+       --kernel-dir /data/spice/Cassini/CK-reconstructed \
        --output-dir /data/nav/ck
 
-Every kernel the navigation recorded has to be reachable, and directories are
-not searched recursively, so one flag is needed per kernel kind rather than one
-for the tree. Which directories a given mission's holdings put those kernels
-in is stated in that mission's chapter under :doc:`instruments/instruments`,
-each of which carries a worked invocation. Restricting a run to part of a
-mission is a matter of adding ``--start-time`` and ``--stop-time``.
+The first directory contributes the leapseconds kernel, the next two the
+spacecraft clock and frame kernels the navigation recorded, and the last the
+originals to pair images against. Every kernel the navigation recorded has to be
+reachable, and directories are not searched recursively, so one flag is needed
+per kernel kind rather than one for the tree. Which directories a given mission's
+holdings put those kernels in is stated in that mission's chapter under
+:doc:`instruments/instruments`, each of which carries a worked invocation.
+Restricting a run to part of a mission is a matter of adding ``--start-time`` and
+``--stop-time``.
 
 A C-kernel can describe an object whose spacecraft clock none of the furnished
 kernels defines, and the scan indexes the rest of the file rather than
@@ -511,22 +498,19 @@ which still exits 1 even when nothing was selected.
 Refusals worth knowing about
 ----------------------------
 
-A few conditions stop the run rather than being reported per image, because
-each of them would otherwise corrupt every image alike or force a silent
-choice. A run stopped by any of them writes **nothing at all**: every segment
-of every output file is built, and every destination judged, before the first
-file is opened, so such a refusal leaves no corrected kernels, no meta-kernel,
-and no report, and the run can be repeated once its cause is fixed without
-first clearing a partial set out of the way.
+A few conditions stop the run rather than being reported per image. A run
+stopped by any of them writes **nothing at all**: every segment of every output
+file is built, and every destination judged, before the first file is opened, so
+such a refusal leaves no corrected kernels, no meta-kernel, and no report, and
+the run can be repeated once its cause is fixed without first clearing a partial
+set out of the way.
 
-That covers everything the run can know before it starts writing, and it is not
-the same as a guarantee that writing cannot fail part way through. It can, for
-reasons no check made beforehand can see: the device filling up, a path or a
-permission changing between the check and the write, and a record set SPICE
-refuses only once a file is open. One more failure lands after every kernel is
-written rather than during: a kernel path -- an original's as readily as a
-correction's -- that a text kernel cannot express, which the meta-kernel refuses
-when it is rendered.
+Writing can still fail part way through, for reasons no check made beforehand
+can see: the device filling up, a path or a permission changing between the
+check and the write, and a record set SPICE refuses only once a file is open.
+One more failure lands after every kernel is written rather than during: a kernel
+path -- an original's as readily as a correction's -- that a text kernel cannot
+express, which the meta-kernel refuses when it is rendered.
 
 In all of those cases the corrected kernels already written stay on disk while
 the meta-kernel and the report do not, so these are the failures where the
@@ -546,22 +530,22 @@ every file it wrote, and each of them is a complete, valid kernel.
 * **An output path the run cannot write.** Every destination is judged
   together, before the first file is opened, and the refusal names every one
   that failed and why, so a set is cleared in one pass rather than one rerun
-  per file. A path fails when something already occupies it -- a rerun writes
-  a fresh corrected kernel rather than appending to or overwriting the old
-  one, so remove or move the previous file first -- when it is a symbolic
-  link, which would put the
-  kernel wherever the link points rather than in the output directory, when its
-  name is longer than the 60 characters SPICE stores as a file's internal name,
-  when the full path is longer than the 255 characters SPICE accepts in a file
-  name -- a meta-kernel naming it would be written and then refused by every
-  consumer that furnishes it --
-  or when the output directory does not exist and cannot be created, or exists
-  and cannot be written to.
+  per file. A path fails in any of these ways:
+
+  * Something already occupies it. A rerun writes a fresh corrected kernel
+    rather than appending to or overwriting the old one, so remove or move the
+    previous file first. This is the common case.
+  * It is a symbolic link, which would put the kernel wherever the link points
+    rather than in the output directory.
+  * Its filename is longer than the 60 characters SPICE stores as a file's
+    internal name.
+  * The full path is longer than the 255 characters SPICE accepts in a file
+    name.
+  * The output directory does not exist and cannot be created.
+  * The output directory exists and cannot be written to.
 
 * **A time range whose start is after its stop.** A swapped
-  ``--start-time``/``--stop-time`` pair would select nothing, and a run that
-  wrote nothing for that reason would be indistinguishable from a clean run
-  over a quiet span, so it is refused by name instead.
+  ``--start-time``/``--stop-time`` pair is refused by name rather than run.
 
 * **A directory under the navigation results root that cannot be listed.**
   Reading the tree stops where the walk meets it, and the run says which

@@ -119,7 +119,8 @@ Two ray-drop rules police the result. A ray is dropped unless its gradient minim
 it is dropped when the minimum lands on the first or last sample of that window. The second
 rule is the guard against a specific confident-wrong failure: a body displaced past the window
 returns a cluster of rays pinned at exactly the window bound, whose mutual agreement then wins
-the robust fit and produces a gate-passing, floor-sigma answer wrong by the whole excess. The
+the robust fit and produces an answer every gate accepts, at the floor sigma, wrong by
+the whole excess. The
 radius gate cannot see that case, because the saturation radius is inside the gate band by
 construction.
 

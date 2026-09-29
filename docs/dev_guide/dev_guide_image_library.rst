@@ -30,7 +30,7 @@ Each entry is a YAML *sidecar* that records:
 Two test layers consume it: a fast structural-invariants test
 (:file:`tests/integration/test_image_library.py`) and a slow per-image
 regression test (:file:`tests/integration/test_autonomous_nav.py`),
-gated by the ``integration`` pytest marker.
+carrying the ``integration`` pytest marker, so it runs only when that marker is selected.
 
 Layout
 ======
@@ -172,7 +172,7 @@ through this loop:
    (b) baseline JSONs, or (c) per-technique coefficients require a
    reviewer to manually open at least one shifted image's summary PNG
    and verify the overlay still tracks the data. This is the
-   "operator-in-the-loop" gate the calibration substrate cannot replace.
+   "operator-in-the-loop" review step the calibration substrate cannot replace.
 
 Coverage taxonomy
 -----------------
@@ -318,7 +318,7 @@ Two tests under ``tests/integration/test_baselines.py``:
   ``image_library/images/*/<image_id>.yaml``, and that the file's stem
   matches the baseline's ``image_id`` field. Catches the common drift
   where a sidecar is renamed or deleted but its baseline lingers.
-- ``test_regression_baseline_exact_match`` — gated by the
+- ``test_regression_baseline_exact_match`` — selected by the
   ``integration`` pytest marker and skipped when ``PDS3_HOLDINGS_DIR``
   is unset. Parametrized one case per ``(baseline, sidecar)`` pair;
   runs the orchestrator against the real holdings, calls

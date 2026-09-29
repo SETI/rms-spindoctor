@@ -63,7 +63,7 @@ Restrictions and assumptions
 - A simulated star field is clean by construction: there are no body- or ring-occlusion
   conflicts to mark, and the per-image smear vector is zero (the sim renders no attitude
   rate). The reliability gate's occlusion term still applies the same way the parent
-  computes it; the saturation / cosmic-ray mask is not consulted to gate stars in either
+  computes it; the saturation / cosmic-ray mask is not consulted to reject stars in either
   the parent or the simulated model.
 - The synthesized effective SNR follows the parent's magnitude-margin formula against
   ``obs.star_max_usable_vmag()``; on a simulated observation that limit is generous, so

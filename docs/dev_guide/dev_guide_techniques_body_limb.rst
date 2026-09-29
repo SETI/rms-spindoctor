@@ -139,7 +139,7 @@ the point-feature techniques on a well-resolved body, though it stays well insid
 navigability bound. When the converged offset
 sits within a small tolerance of any axis bound of the search window, or when the rotation
 parameter is at the configured fraction of its cap, the result is flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the
-confidence formula's hard-zero gate forces confidence to zero. The spurious tests gate on
+confidence formula's hard-zero gate forces confidence to zero. The spurious tests key on
 the Tukey-weighted DT residual RMS, the unweighted (raw) DT residual RMS against the same
 threshold (so a fit where Tukey rejects a wholly mis-aligned arc cannot pass on its
 collapsed weighted RMS), the degenerate flag, the inlier count and fraction, the LM
@@ -198,8 +198,8 @@ All numeric tunables for this technique live in ``techniques.BodyLimbNav.tuning`
   than allowed to emit a confident multi-pixel offset. This is the low-phase
   (below ~15 deg) under-conditioned failure where a false overlap peak seeds the wrong basin.
   A healthy sub-pixel fit sits within ~0.71 px of its integer seed and converges, so it
-  clears the gate. Convergence is the decisive condition: a fit that legitimately walks to
-  the trust-region boundary but still converges is not flagged, because the gate requires
+  is not flagged. Convergence is the decisive condition: a fit that legitimately walks to
+  the trust-region boundary but still converges is not flagged, because the test requires
   both a failure to converge and a boundary-pinned displacement.
 - ``lm_trust_region_px`` — float, default ``1.0`` px. Maximum LM displacement from the
   integer coarse seed; the LM rejects any trial step that would land outside this

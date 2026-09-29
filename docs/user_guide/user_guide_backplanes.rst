@@ -11,8 +11,11 @@ and more. ``sd_backplanes`` reads the navigation results for an image, points th
 observation as those results say it should be pointed, computes the body and ring
 backplanes, merges them per pixel by distance so that the nearer surface wins,
 and writes a multi-extension FITS file together with a metadata document in JSON.
-Each backplane value is the geometry at the center of that pixel; see
-:ref:`coordinate-systems`.
+Each backplane value is the geometry at the center of that pixel. Positions are
+written in pixel-corner coordinates, where a whole number falls on the boundary
+between two pixels: the first pixel spans 0.0 to 1.0 and its center is at 0.5, so
+the value in row 0, column 0 of a backplane is the geometry at position
+``(0.5, 0.5)``. :ref:`coordinate-systems` in the developer guide has more.
 
 Which pointing a product is built on
 ------------------------------------
@@ -131,53 +134,42 @@ see :doc:`user_guide_image_selection`.
 Options
 -------
 
-.. list-table::
-   :header-rows: 1
+* ``--config-file PATH`` (repeatable): configuration file overriding the
+  built-in settings. Without one, ``./nav_default_config.yaml`` is read if it
+  exists. See :doc:`user_guide_configuration`.
 
-   * - Option
-     - Default
-     - Description
-   * - ``--config-file PATH``
-     - *(none)*
-     - Configuration file overriding the built-in settings; may be given more
-       than once. Without one, ``./nav_default_config.yaml`` is read if it
-       exists. See :doc:`user_guide_configuration`.
-   * - ``--nav-results-root DIR``
-     - *(from configuration)*
-     - Root of the navigation results written by ``sd_offset`` (see
-       :doc:`user_guide_navigation_running`). Overrides the
-       ``NAV_RESULTS_ROOT`` environment variable and the configured value.
-   * - ``--backplane-results-root DIR``
-     - *(from configuration)*
-     - Root directory the backplane products are written under. Overrides the
-       ``NAV_BACKPLANE_RESULTS_ROOT`` environment variable and the configured value.
-   * - ``--results-index-db URL``
-     - *(none)*
-     - Connection URL of a results index built by ``sd_results_index`` (see
-       :doc:`user_guide_results_index`): a
-       ``sqlite:`` URL naming a local file, or a ``postgresql+psycopg:`` URL
-       naming a server. Each image's navigation record is then read as one
-       database row instead of one file, which on a cloud results root replaces
-       a round trip per image with a query. The index must already hold a
-       completed ingest of the root named by ``--nav-results-root``, and its
-       rows are a snapshot of that root as of the ingest. Omitting the option
-       names no index, which is the default, and the navigation results tree is
-       read directly. ``--results-index-db none`` also names no index, which is
-       how a machine that sets the option through configuration or through the
-       ``NAV_RESULTS_INDEX_DB`` environment variable reads the files instead.
-   * - ``--output-cloud-tasks-file PATH``
-     - *(none)*
-     - Write a cloud task queue file for the selected images and generate no
-       backplanes. See `Running through cloud tasks`_.
-   * - ``--dry-run``
-     - off
-     - Report what the run would do and process no images.
-   * - ``--no-write-output-files``
-     - off
-     - Do all the work and write none of the output files.
-   * - ``--profile``
-     - off
-     - Collect a performance profile of the run.
+* ``--nav-results-root DIR``: root of the navigation results written by
+  ``sd_offset`` (see :doc:`user_guide_navigation_running`). Takes precedence
+  over the ``NAV_RESULTS_ROOT`` environment variable and the configured value.
+
+* ``--backplane-results-root DIR``: root directory the backplane products are
+  written under. Takes precedence over the ``NAV_BACKPLANE_RESULTS_ROOT``
+  environment variable and the configured value.
+
+* ``--results-index-db URL``: connection URL of a results index built by
+  ``sd_results_index`` (see :doc:`user_guide_results_index`): a ``sqlite:`` URL
+  naming a local file, or a ``postgresql+psycopg:`` URL naming a server. Each
+  image's navigation record is then read as one database row instead of one file,
+  which on a cloud results root replaces a round trip per image with a query. The
+  results index must already hold a completed ingest of the root named by
+  ``--nav-results-root``, and its rows are a snapshot of that root as of the
+  ingest. Omitting the option names no results index, which is the default, and
+  the navigation results tree is read directly. ``--results-index-db none`` also
+  names no results index, which is how a machine that sets the option through
+  configuration or through the ``NAV_RESULTS_INDEX_DB`` environment variable
+  reads the files instead.
+
+* ``--output-cloud-tasks-file PATH``: write a cloud task queue file for the
+  selected images and generate no backplanes. See
+  `Running through cloud tasks`_.
+
+* ``--dry-run``: report what the run would do and process no images. Off by
+  default.
+
+* ``--no-write-output-files``: do all the work and write none of the output
+  files. Off by default.
+
+* ``--profile``: collect a performance profile of the run. Off by default.
 
 ``sd_backplanes`` also takes the logging options every pipeline program takes,
 which choose where the run's log and the per-image logs go and how much detail
@@ -187,7 +179,7 @@ When a results index is named
 -----------------------------
 
 An image that has no row in the results index is reported and skipped, exactly
-as an image that has no metadata file is. A named index that cannot be opened,
+as an image that has no metadata file is. A named results index that cannot be opened,
 or one that has not fully ingested the navigation results root, fails the run
 rather than quietly reverting to reading files.
 
@@ -228,6 +220,22 @@ For each image processed, ``sd_backplanes`` writes two files under
   sunlight on the ring plane. ``sd_create_bundle`` reads this file when it
   generates the PDS4 labels.
 
+The ``rings`` block of that metadata document looks like this:
+
+.. code-block:: json
+
+   {
+     "rings": {
+       "target": "SATURN_MAIN_RINGS",
+       "incidence_angle": {
+         "value": 82.57158, "min": 82.57085, "max": 82.57104, "mean": 82.57096, "units": "deg"
+       },
+       "backplanes": {"ring_radius": {"min": 74659.8, "max": 136779.0, "units": "km"}}
+     }
+   }
+
+The rest of this section says what those entries mean.
+
 Angular backplane arrays are in radians, as their ``BUNIT`` headers say. In the
 metadata document an angular plane's minimum and maximum are in degrees, so
 ``rad`` becomes ``deg`` and ``rad/pixel`` becomes ``deg/pixel``, and each
@@ -252,23 +260,19 @@ plane on its sunlit side, from 0 to 90 degrees, with its unit. Sunlight falls on
 the ring plane at one angle over the whole image, so no backplane holds it; it is
 taken once, at the center of the ring system, for the light that reached the
 camera at the observation's midtime. Both are recorded for every image that has a
-closest planet, whether or not any of its pixels is on the rings. Where the
-image's ring backplanes have values, ``incidence_angle`` also records the least,
-the greatest, and the mean angle over those pixels, as ``min``, ``max``, and
-``mean``, which differ from the angle at the center by thousandths of a degree.
-The ring statistics are under ``backplanes``:
+closest planet, whether or not any of its pixels is on the rings.
 
-.. code-block:: json
+Where the image's ring backplanes have values, ``incidence_angle`` also records
+the least, the greatest, and the mean angle over those pixels, as ``min``,
+``max``, and ``mean``. These four numbers answer two different questions.
+``value`` is the angle for the ring system, and it is there for every image that
+has a closest planet, including one that shows no ring pixels at all. The other
+three describe only the ring pixels this product holds. They are computed at each
+pixel rather than once at the ring center, so they vary a little across an image,
+and they tell you the range of illumination the ring pixels in this particular
+product were under.
 
-   {
-     "rings": {
-       "target": "SATURN_MAIN_RINGS",
-       "incidence_angle": {
-         "value": 82.57158, "min": 82.57085, "max": 82.57104, "mean": 82.57096, "units": "deg"
-       },
-       "backplanes": {"ring_radius": {"min": 74659.8, "max": 136779.0, "units": "km"}}
-     }
-   }
+Each ring backplane's own least and greatest value are under ``backplanes``.
 
 Logs are written under the log root rather than beside these products: the run's
 own log to ``{log_root}/sd_backplanes/main_{timestamp}.log``, and one log per
@@ -304,7 +308,15 @@ backplanes on top of the science image itself:
 
 It takes ``--config-file``, ``--nav-results-root``, and
 ``--backplane-results-root``, which mean what they mean for ``sd_backplanes``,
-plus the usual image selection options.
+plus the usual image selection options (see
+:doc:`user_guide_image_selection`).
+
+The image selection options can match any number of images, and the viewer shows
+one at a time. It opens on the first image of the selection, and **Prev Image**
+and **Next Image** step through the rest, reloading the science image and the
+backplanes for each. So a selection of a thousand images is a thousand images to
+page through rather than a thousand windows, and narrowing the selection is how
+you get to the image you want without stepping.
 
 Features
 --------
@@ -370,10 +382,10 @@ them to every task it handles: ``--config-file``, ``--nav-results-root``,
 ``--backplane-results-root``, and ``--results-index-db``.
 
 A worker has no run log, so each outcome a local run would have logged comes back
-in the task result instead. An index that cannot be used is
+in the task result instead. A results index that cannot be used is
 ``unusable_results_index_db``. An image nothing navigated is a skip named
-``no_navigation_record``. Every other way one image can fail, a metadata document
-the ingest could not read among them, is ``backplanes_failed``. All three are
+``no_navigation_record``. Every other way an image can fail, including a metadata
+document that could not be read, is ``backplanes_failed``. All three are
 returned rather than raised, so a queue set to retry on an exception does not
 retry a refusal that will refuse identically.
 

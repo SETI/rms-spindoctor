@@ -297,7 +297,7 @@ offset on a passing frame is unchanged. The veto fires in two shapes:
   faint body whose spurious disc agrees with the blob (both found the same
   body) is a legitimate blob-only success and is left alone.
 
-Each disagreement is a two-sided gate: the Euclidean separation must clear a
+Each disagreement is tested on two sides at once: the Euclidean separation must exceed a
 body-scaled pixel floor (``max(disagreement_floor_px, disagreement_frac *
 diameter)``) *and* the Mahalanobis distance under the combined translation
 covariance must exceed ``body_witness_agreement_sigma``, so a low-SNR or
@@ -314,7 +314,7 @@ caught and asserts its declined outcome as a regression:
   lock onto the mismatched model and agree at a multi-pixel wrong offset, and
   the fused confidence re-saturates to ~0.99 at a 10-17 px error. The pose-free
   blob, which does not chase the shape, disagrees by pixels; the shape-lock
-  veto reports the steps whose disagreement clears the statistical gate
+  veto reports the steps whose disagreement exceeds the statistical threshold
   ``conflicted``. The clean (zero-relief) step recovers the planted offset
   sub-pixel and stays a success, so the veto separates the shape lock from the
   legitimate fit rather than blanketing the sweep.
@@ -455,7 +455,7 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_agreement_sigma` —
   float, default ``2.0``. Mahalanobis-distance threshold the blob-vs-consensus disagreement
   must exceed under the combined translation covariance before the veto fires; the pixel
-  floor is a lower bound, this is the statistical gate.
+  floor is a lower bound, this is the statistical threshold.
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.scattered_light_gradient_score` —
   float, default ``5.0``. Background-gradient score at or above which the frame is treated as
   scattered-light, so the disc and limb techniques on one body are fused as a single
@@ -470,9 +470,9 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
   fitted); the high boundary sits at 0.85 because the campaign's ring family plants
   per-feature orbit errors that produce tight-sigma, confidently-wrong locks in the
   0.55-0.80 band, failure mass no ring diagnostic can see. The tiers are
-  sigma-differentiated: with calibrated covariances the ``max_sigma_px`` gate carries
+  sigma-differentiated: with calibrated covariances the ``max_sigma_px`` limit carries
   most of the discrimination, so the ``'medium'`` and ``'low'`` confidence floors rest
-  at the same value as the final ``min_confidence`` gate. A structural consequence:
+  at the same value as the final ``min_confidence`` threshold. A structural consequence:
   the two-star and one-star confidence caps (0.8 / 0.7) sit below the high boundary,
   so capped star locks top out at medium regardless of quality. The Step 8 tier caps
   apply on top of these thresholds.

@@ -7,7 +7,7 @@ Overview
 
 :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` is the catalog-driven star
 navigation model. For each observation the model reduces the configured catalog set into a
-deduplicated star list, gates each star by catalog magnitude against the per-observation
+deduplicated star list, screens each star by catalog magnitude against the per-observation
 limiting magnitude :meth:`obs.star_max_usable_vmag() <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>`,
 flags stars whose predicted positions overlap a body silhouette or
 ring annulus, and emits one
@@ -162,12 +162,12 @@ Each predicted star is checked against:
   (defined by the per-planet radial bounds in the YAML config), the star is flagged
   ``in_body_silhouette`` as well (a ring conflict occludes the star the same way).
 
-The model does **not** gate a star on the saturation or cosmic-ray mask at its predicted
+The model does **not** reject a star on the saturation or cosmic-ray mask at its predicted
 position: once a pointing offset is present the predicted position carries no special
 significance, and a sharp stellar peak self-triggers the cosmic-ray detector, so consulting
 the mask there would suppress good stars. The ``saturated`` and
 ``in_saturation_or_cosmic_mask`` flags therefore stay clear. Star usability is an
-occlusion-only gate.
+occlusion-only screen.
 
 Conflict-flagged stars stay in the model's list, so the conflict entries the model
 records in ``model_metadata`` and the per-image log's star list still name them, but
@@ -264,7 +264,7 @@ The per-star CRLB covariance reflects the magnitude-margin centroid uncertainty.
 does not capture systematic biases from a misaligned camera distortion model, from
 unmodelled background flux, or from PSF smear that exceeds the per-instrument
 ``max_smear`` cap (stars above that cap are dropped from the emission set rather than
-emitted with unreliable predictions). Star usability is gated only on body / ring occlusion;
+emitted with unreliable predictions). Only body and ring occlusion makes a star unusable;
 the saturation and cosmic-ray masks are not consulted at the predicted position, so the
 :class:`~spindoctor.feature.flags.StarFlags` saturation flags stay clear.
 
@@ -552,7 +552,7 @@ Call path traced through
    predicted position and the per-feature CRLB covariance.
 2. Build a :class:`~spindoctor.feature.flags.StarFlags` carrying the magnitude-margin effective
    SNR, the catalog magnitude, and the body / ring conflict flags. The saturation /
-   cosmic-ray-mask flags are left clear -- star usability is an occlusion-only gate.
+   cosmic-ray-mask flags are left clear -- occlusion is the only thing that makes a star unusable.
 3. Construct one :data:`~spindoctor.feature.feature_type.NavFeatureType.STAR`
    :class:`~spindoctor.feature.feature.NavFeature` per star and return the list.
 

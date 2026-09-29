@@ -13,7 +13,7 @@ Cassini-scale run is of the order of 400,000 images.
 
 The fields those programs actually consume are narrow: whether the image was
 navigated, what fatal error it recorded, the pixel offset, the corrected
-attitude and a handful of quality numbers. The results index holds them, and it
+attitude, and a handful of quality numbers. The results index holds them, and it
 is an index in the sense a PDS index table is: one row per product, a few fields
 chosen out of each, derived from the products themselves, and read to select
 among them and to summarize them. One pass reads every metadata document once and writes
@@ -338,7 +338,7 @@ How a results index is asked for
 Each subcommand takes the options it acts on and no others, so a command line
 asking for two different things is refused with a usage message naming the
 option instead of being run as one of them. ``--results-index-db``,
-``--config-file`` and the logging options belong to all four;
+``--config-file``, and the logging options belong to all four;
 ``--nav-results-root`` to the three that read a tree; ``--force`` and
 ``--no-prune`` to ``ingest`` and ``divide``; and ``--yes`` to ``drop``. Such a
 refusal exits 2 and does nothing at all --- no database is opened and no tree is
@@ -676,7 +676,7 @@ have landed.
 rows of metadata documents that have left the tree before any of them is read, so a pass
 whose tasks are never queued, or that is given up on, has already shrunk the
 results index. Nothing incorrect is lost -- the rows removed are exactly those
-whose metadata documents the listing did not find -- and the root stays
+whose metadata documents are no longer in the tree -- and the root stays
 unfinished throughout, so no consumer reads a wrong answer from it. What it costs
 is the rest of the root's content in the results index, which comes back by running
 the three steps through to the end, or an ordinary ``sd_results_index ingest`` over the
@@ -761,7 +761,7 @@ read ends in a partial line.
 The closing summary of step 3 is the summary a single-process ingest writes:
 files seen, ingested, skipped, and refused, with the refusals tallied by reason
 and one example file per reason. The reasons come back in the task results,
-since a worker has no run log to write them in. Every file a share could not
+since a worker writes no run log. Every file a share could not
 read is named in its task result too, and the ones refused for something about
 the metadata document are recorded in the results index's ``failed_files`` table as well.
 
@@ -817,7 +817,7 @@ server, and a database, with whatever else lives in the other schemas.
 six are among the commonest table names there are, so a table called ``images``
 is not evidence of anything and is never removed for its name alone. What is
 evidence is the results index's own stamp: a ``schema_meta`` table carrying the columns
-SpinDoctor's stamp carries. A database with no such stamp is refused, exits 1,
+SpinDoctor's stamp carries. A database that carries no such stamp is refused, exits 1,
 and has the tables that stopped it named -- because nothing distinguishes
 somebody else's ``images`` from what is left of a results index whose stamp has gone,
 and a destructive command may not decide that on your behalf. Such tables are
@@ -844,7 +844,7 @@ than as consent. Every refusal, the question itself, and the first line of the
 account name the results index URL with its password hidden; the lines that continue
 that account carry the schema and the counts rather than repeating the URL.
 
-**It does one thing, so it cannot be asked for two.** ``drop`` offers none of
+**It takes no option that belongs to another subcommand.** ``drop`` offers none of
 ``--force``, ``--no-prune``, ``--nav-results-root``, or either of the two
 cloud-task paths: a drop reads no metadata document and walks no tree, so each of
 those belongs to a different subcommand. Typing one is a usage error naming the
@@ -874,7 +874,7 @@ server refuses a PostgreSQL database it does not have, and a SQLite path that is
 not there gets the same refusal rather than being created, so both exit 1 and
 neither leaves an empty database behind.
 
-**What is left behind is a database, not a hole.** Every consumer reads a
+**What is left behind is an empty database.** Every consumer reads a
 dropped results index exactly as it reads one nobody has ever ingested into -- "not
 ingested", with a message naming ``sd_results_index`` -- and the next
 ``sd_results_index ingest`` builds it again from the metadata documents. On
@@ -1212,7 +1212,7 @@ pair with ``ON DELETE CASCADE``.
    * - ``root_url``, ``results_path_stub``
      - TEXT
      - Foreign key into ``images``. Unique together with ``feature_type``,
-       ``source_model`` and ``source_name``.
+       ``source_model``, and ``source_name``.
    * - ``feature_type``
      - TEXT
      - Feature type (e.g. ``BODY_DISC``, ``STAR``, ``RING_EDGE``).

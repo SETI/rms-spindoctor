@@ -162,10 +162,10 @@ Feature-emission tunables (per-planet)
 
 The upstream rings model decides whether to emit ``RING_ANNULUS`` or ``RING_EDGE`` features based on
 ``feature_emission.ring_annulus`` in ``src/spindoctor/config_files/config_510_techniques.yaml``.
-Two gates route an edge to the annulus template. The system-level gate is inclusive:
+Two tests route an edge to the annulus template. The system-level test is inclusive:
 ``km_per_pixel_radial >= kmpp_threshold`` forces every surviving edge in the scene into the
 composite, so a scene exactly at the threshold is annulus-class. Below the threshold a per-edge
-gate applies: an edge joins the composite when ``radial_extent_px <= max_radial_px and not
+test applies: an edge joins the composite when ``radial_extent_px <= max_radial_px and not
 straight`` -- a compressed polyline that is flagged straight-line stays on the per-edge path as a
 rank-1 ``RING_EDGE`` rather than joining the composite. A sub-threshold scene can therefore emit
 a mix: ``RING_EDGE`` features for well-extended or straight edges alongside one ``RING_ANNULUS``
@@ -187,7 +187,7 @@ threshold is Saturn-measured only; the other planets' entries keep geometric val
 
 - ``feature_emission.ring_annulus.default.max_radial_px`` — float, default ``5.0`` px.
   Maximum per-edge polyline radial extent below which the rings model emits a ``RING_ANNULUS``
-  template instead of per-edge polylines. Per-polyline gate; fires when a single ring edge
+  template instead of per-edge polylines. Tested per polyline; fires when a single ring edge
   has compressed below this width.
 - ``feature_emission.ring_annulus.default.kmpp_threshold`` — float, default ``1000.0`` km/px.
   Ring-radial km/px threshold above which the entire ring system is annulus-class

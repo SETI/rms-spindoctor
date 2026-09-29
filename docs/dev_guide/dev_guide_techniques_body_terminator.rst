@@ -114,7 +114,7 @@ covariance) and it does not capture model-side uncertainty in the SPICE predicti
 When the converged offset sits within a small tolerance of any axis bound of the search
 window, or when the rotation parameter is at the configured fraction of its cap, the result
 is flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the
-confidence formula's hard-zero gate forces confidence to zero. The spurious tests gate on
+confidence formula's hard-zero gate forces confidence to zero. The spurious tests key on
 the Tukey-weighted DT residual RMS, the unweighted (raw) DT residual RMS against the same
 threshold (so a fit where Tukey rejects a wholly mis-aligned arc cannot pass on its
 collapsed weighted RMS), the degenerate flag, the inlier count and fraction, and the LM
@@ -217,7 +217,8 @@ are single-class: zero of 116 usable rows recovered within 1 px (median error 5.
 p5 2.6 px). On randomized crescents the DT fit settles several pixels from the planted
 truth, systematically toward the bright limb-side gradient, and no diagnostic separates a
 closer result from a farther one, so the L2-regularized fit converges to an honest low
-plateau (confidence ~0.03-0.05): a terminator fix cannot pass the ensemble's 0.35 gate on
+plateau (confidence ~0.03-0.05): a terminator fix cannot reach the ensemble's 0.35
+minimum confidence on
 its own or outweigh a calibrated technique. The arc-fraction, arc-length, and phase terms
 are sign-bounded to zero by the single-class rows (no success mass to reward); they stay
 wired for a future real-anchored calibration.

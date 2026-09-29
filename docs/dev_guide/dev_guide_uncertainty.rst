@@ -7,7 +7,7 @@ Overview
 
 Every navigation answer carries a covariance, and the covariance is
 load-bearing: the ensemble weighs techniques against each other by it, the
-confidence tiers gate on the sigma derived from it, and downstream consumers
+confidence tiers are decided from the sigma derived from it, and downstream consumers
 read it from the per-image metadata to know how far to trust the offset. This
 chapter follows the covariance through the pipeline: how each technique
 family produces its ``covariance_px2``, which calibration corrections are

@@ -124,7 +124,7 @@ Restrictions and assumptions
   ``predicted_snr`` is the magnitude-margin effective SNR derived from how far the star
   sits below the per-observation limiting magnitude, so the SNR ratio between two stars
   recovers their catalog magnitude difference. A wrong catalog magnitude shifts the
-  brightness-margin computation and may erroneously pass or fail the uniqueness gate.
+  brightness-margin computation and may erroneously accept or reject the match.
 - The search window assumes the SPICE pointing error is bounded by ``search_window_px``
   (default 30 px). When the per-instrument pointing envelope exceeds this width, the
   brightest peak in the window is not the matched detection and the technique reports a
@@ -134,8 +134,8 @@ Restrictions and assumptions
 - Both paths assume the matched detection is unsaturated. A saturated star whose centroid
   has been clipped will produce a biased centroid; in practice the brightest catalog stars
   are held off by the magnitude gate. The predicted-position saturation / cosmic-ray mask is
-  not consulted to gate stars (a star's predicted pixel is not special once an offset is
-  present), so star usability is an occlusion-only gate.
+  not consulted to reject stars (a star's predicted pixel is not special once an offset is
+  present), so occlusion is the only thing that makes a star unusable.
 
 Sources of uncertainty
 ----------------------
