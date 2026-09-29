@@ -285,6 +285,38 @@ The settings
    a run configured that way is refused when the configuration is loaded,
    rather than running slowly for a reason you would have to go looking for.
 
+   **A batch also costs open files.** A document coming from remote storage
+   holds one open for as long as the batch it is in is in flight, so a batch
+   of a thousand needs a thousand open files at once, on top of two per
+   download thread. A run raises its own limit on open files to the highest
+   it is permitted -- its hard limit -- which on an ordinary machine is far
+   above anything a batch needs, so usually there is nothing to do.
+
+   Raising it is an attempt, not a guarantee: the system can refuse it. Where
+   the run ends up with less than the configured batch needs, either because
+   the hard limit is itself low or because the raise was refused, it
+   retrieves in smaller batches and on fewer threads than you asked for.
+   Every document is still read; only the speed of the pass changes. A run
+   with a log says which numbers it used instead, so look there first if a
+   pass is slower than you expect; ``sd_stats_report``, which prints rather
+   than logs, is held back the same way but has nowhere to say so.
+
+   Which limit to lift depends on which of those two happened, and the log
+   line says which. If the run is sitting at its hard limit, that is the one
+   to move -- ``ulimit -Hn`` as root, or the ``LimitNOFILE`` setting of the
+   container or service; ``ulimit -n`` will not help, because the run has
+   already raised its soft limit that far itself. If instead the system
+   refused the raise, the soft limit is below what the system would allow,
+   and ``ulimit -n`` before the run does lift it.
+
+   A limit too low to cover even one document on one thread -- fewer than 259
+   open files -- is refused outright rather than run, because no setting works
+   under it and starting anyway would only reach the same failure later.
+
+   A tree on a local directory reads its files where they lie and spends no
+   open file per document, so none of this applies to one: a pass over local
+   roots alone is left at exactly the settings you configured.
+
 ``ingest_commit_batches`` (default 2)
    How many retrieval batches ``sd_results_index`` writes into the results
    index in one database transaction. No other program reads it. A transaction is what

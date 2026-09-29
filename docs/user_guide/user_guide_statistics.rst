@@ -209,10 +209,27 @@ The report contains:
   enough on reliability to be handed to a technique.
 - **Offset statistics** -- mean, median, standard deviation, minimum, and
   maximum of the fused V and U offsets over successful images, grouped by
-  camera, with one histogram per camera, plus the same statistics grouped
+  camera, with two charts per camera, plus the same statistics grouped
   by (instrument, camera, image size). Distributions are never pooled
   across cameras: one Cassini WAC pixel is ten NAC pixels, so a pooled
-  distribution would describe neither camera.
+  distribution would describe neither camera. The charts for each camera
+  are:
+
+  - ``offsets_hist_<instrument>_<camera>.png``, a histogram of dV and one
+    of dU, side by side.
+  - ``offsets_heatmap_<instrument>_<camera>.png``, the corrections as a
+    heat map: every image's (dV, dU) correction counted into square pixel
+    bins around the predicted pointing (the crosshair), drawn in image
+    orientation with dU to the right and dV down. Bin color is the image
+    count on a log scale, and labeled rings give the scale in pixels. The
+    panel reaches a little beyond the 98th percentile of the correction
+    length, so a few large corrections fall outside it rather than
+    shrinking the rest into a few bins; the line above the panel states the
+    image count, the RMS correction length over every image, and how many
+    corrections fall outside. The bins are finer the more images there
+    are. The heat map shows what two histograms cannot: a bias that sits
+    the core off center, a correlation between the axes, or a spread along
+    one direction.
 - **Suspect offsets** -- successful images whose fused offset reaches at
   least ``--suspect-fraction`` (default 0.9) of the instrument's per-axis
   maximum expected pointing offset (the configured ``extfov_margin_vu``

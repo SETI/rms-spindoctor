@@ -158,11 +158,19 @@ and are never pooled.  Percentages are of the instrument total.
 
 ![offsets coiss NAC](offsets_hist_coiss_NAC.png)
 
+![offset heat map coiss NAC](offsets_heatmap_coiss_NAC.png)
+
 ![offsets coiss WAC](offsets_hist_coiss_WAC.png)
+
+![offset heat map coiss WAC](offsets_heatmap_coiss_WAC.png)
 
 ![offsets sim SIM](offsets_hist_sim_SIM.png)
 
+![offset heat map sim SIM](offsets_heatmap_sim_SIM.png)
+
 ![offsets vgiss NAC](offsets_hist_vgiss_NAC.png)
+
+![offset heat map vgiss NAC](offsets_heatmap_vgiss_NAC.png)
 
 ### By instrument, camera, and image size
 

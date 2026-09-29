@@ -88,6 +88,7 @@ methods above, which are matched on every object.
 """
 
 _MAY_WRITE_THROUGH_A_LENT_LOGGER = {
+    'nav_records/descriptors.py': (('within_open_file_limit', 'info'),),
     'nav_records/walk.py': (('_claim', 'info'),),
 }
 """Every place either data-access layer writes through a logger it was lent.
@@ -95,6 +96,11 @@ _MAY_WRITE_THROUGH_A_LENT_LOGGER = {
 The walk, and only for the directory it declines to descend a second time: a
 root is still wholly listed when that happens, and a run told nothing would read
 the decline as documents that were never there.
+
+And the open-file limit, and only where it holds a pass below what the
+configuration asked for: every document is still read, so the run is right
+either way, but one running at a fraction of the rate it was configured to run
+at for a reason outside the configuration is a fact no other line carries.
 
 Keyed by the module's path under the package rather than by its name, so a file
 of the same name elsewhere is not exempted by coincidence, and holding the
