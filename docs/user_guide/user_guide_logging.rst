@@ -85,9 +85,13 @@ but no main log -- for the reasons given under `Cloud tasks`_ below.
      - no
      - none
 
-``sd_results_index_cloud_tasks`` and ``sd_create_bundle_cloud_tasks`` write no
-log file of any kind. What each of their tasks did is in the value the task
-returns to the cloud task system.
+``sd_results_index_cloud_tasks`` writes no log file of any kind, because what
+its task did is in the value the task returns to the cloud task system.
+
+``sd_create_bundle_cloud_tasks`` also writes no log file, but for a different
+reason: it sets up no logging at all, so anything it would have recorded about a
+bundle run is discarded rather than returned. Read a bundle worker's outcome from
+the task result and from the bundle it produced.
 
 Where the files go
 ==================
