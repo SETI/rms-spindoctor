@@ -47,7 +47,7 @@ where it is predicted to fall, how uncertain that prediction is, and a name you 
 in the logs and the metadata document (``limb_arc:MIMAS``, ``ring_edge:SATURN:A_outer``,
 ``star:UCAC4:144787700``).
 
-The feature types are:
+The feature types navigation emits are:
 
 .. list-table::
    :header-rows: 1
@@ -79,9 +79,8 @@ how measurable this particular item is in this particular image. A star predicte
 behind a moon scores zero. A limb whose predicted position is uncertain by several pixels
 scores low. Before any technique runs, features scoring below a per-type minimum are set
 aside and never fitted. They still appear in the metadata document, marked as set aside
-and carrying the reason, so you can see what the navigator declined to use. The minimums
-are the ``orchestrator.reliability_gate`` settings: 0.20 for stars and blobs, and 0.30 for
-every other type.
+and carrying the reason. The minimums are the ``orchestrator.reliability_gate`` settings:
+0.20 for stars and blobs, and 0.30 for every other type.
 
 Confidence
 ----------
@@ -90,9 +89,16 @@ Confidence
 much the offset should be trusted. Every technique reports its own confidence from its own
 diagnostics: how many stars matched, how large the residuals were, how sharp the
 correlation peak was, and so on. The image then carries one combined confidence, raised
-when independent techniques corroborate one another and reduced when they disagree. A
-structural failure forces confidence to exactly zero, most often because the fit ran into
-the edge of its search window or because the technique detected its own misconvergence.
+when independent techniques corroborate one another and reduced when they disagree.
+
+A **structural failure** forces a technique's confidence to exactly zero. That means the
+technique reported a named defect in its own fit rather than merely an imprecise answer:
+most often that its solution ran into the edge of the window it was allowed to search, or
+that the technique judged its own answer **spurious**. Spurious is a technique's own
+verdict, from a symptom it can name, that its answer is untrustworthy rather than simply
+loose. Such an answer never contributes to the reported offset. It is still recorded, with
+the verdict beside it, and a status reason of ``all_techniques_spurious`` means every
+technique that ran reached that verdict.
 
 An image whose combined confidence falls below ``orchestrator.ensemble.min_confidence``
 (0.35) is recorded as a failed navigation and reports no offset.
@@ -131,167 +137,18 @@ between them is entirely the uncertainty. A result can be confident and still la
 One caveat travels with every confidence value SpinDoctor writes. The numbers and the tier
 boundaries are calibrated against simulated images whose true offsets were known, so they
 rank results correctly against one another but should not be read as probabilities of
-accuracy on real data. Each metadata document says so with a literal marker. For the
-recorded values and their exact keys see :doc:`/user_guide/user_guide_metadata`.
-
-.. _selecting-models-and-techniques:
-
-Choosing Which Models and Techniques Run
-========================================
-
-By default ``sd_offset`` (see :doc:`/user_guide/user_guide_navigation_running`) builds
-every model that applies to the scene and runs every technique that has something to work
-with. Two options narrow that set: ``--nav-models`` selects which models are built, and
-``--nav-techniques`` selects which techniques are allowed to run. The same pattern syntax
-serves both, and the only difference is the names it is matched against.
-
-The patterns can be given in three places:
-
-* On the command line, as ``sd_offset --nav-models LIST --nav-techniques LIST``.
-* In a cloud task description, under ``data.arguments.nav_models`` and
-  ``data.arguments.nav_techniques``, each a list of strings. Cloud tasks are a work queue
-  supplied by the Ring-Moon Systems Node, and ``sd_offset_cloud_tasks`` is a worker that
-  the queue runs on a cloud machine rather than a program you run yourself; see
-  :doc:`/user_guide/user_guide_cloud_tasks`.
-* From Python, through the orchestrator's ``only_models`` and ``only_techniques``
-  arguments.
-
-Both options only ever narrow. A pattern that matches nothing installed on your copy of
-SpinDoctor simply selects nothing, and no model or technique can be added by naming it.
-
-Pattern Syntax
---------------
-
-A pattern is a shell-style glob matched against a candidate name. On the command line,
-separate several patterns with commas inside one argument; in a task description or in
-Python, supply a list of strings.
-
-Inclusion patterns
-^^^^^^^^^^^^^^^^^^
-
-* A literal name matches that name alone: ``BodyLimbNav`` selects the body-limb technique
-  and nothing else.
-* ``*`` matches any run of characters, ``?`` matches one character, and ``[abc]`` matches
-  any one character from the set.
-* The default pattern is ``*``, which matches everything.
-
-Exclusion patterns
-^^^^^^^^^^^^^^^^^^
-
-* A leading ``!`` makes a pattern an exclusion: anything it matches is removed.
-  ``--nav-techniques '!StarFieldFromCatalogNav'`` runs every technique except that one.
-* When every pattern in the list is an exclusion, an inclusion of ``*`` is assumed, so
-  ``--nav-models '!body:MIMAS'`` means the same as ``--nav-models '*,!body:MIMAS'``.
-* When at least one inclusion is present, only what the inclusions match survives, minus
-  anything an exclusion matches. ``'body:*,!body:MIMAS'`` runs every body model except
-  Mimas.
-
-Combining patterns
-^^^^^^^^^^^^^^^^^^
-
-The order of the patterns does not matter. A name is kept when it matches at least one
-inclusion pattern and no exclusion pattern.
-
-.. code-block:: bash
-
-   --nav-models 'body:MIMAS,rings:SATURN,stars'
-
-.. code-block:: json
-
-   ["body:MIMAS", "rings:SATURN", "stars"]
-
-Model Names
------------
-
-Models are created fresh for each image, because what they can predict depends on what is
-in the frame. That is why a model name can carry the subject it was built for:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 24 76
-
-   * - Name
-     - What it names
-   * - ``stars``
-     - The star model, ``NavModelStars``. There is one per image and it takes no
-       subject, so the name is bare.
-   * - ``body:NAME``
-     - The body model, ``NavModelBody``. One is created for each body whose predicted
-       outline overlaps the frame, and ``NAME`` is that body's SPICE name in capitals:
-       ``body:MIMAS``, ``body:DIONE``, ``body:SATURN``.
-   * - ``rings:PLANET``
-     - The ring model, ``NavModelRings``. One is created for the planet nearest the
-       line of sight, and only when SpinDoctor carries a catalog of ring edges for
-       that planet. Only Saturn's catalog is populated, so ``rings:SATURN`` is the
-       name you will see.
-   * - ``titan:TITAN``
-     - The haze model, ``NavModelTitan``, created whenever Titan is in the frame. On a
-       simulated image the equivalent model is named ``titan_sim:TITAN``.
-
-Two conveniences apply to model patterns. The part after the colon is capitalized for you,
-so ``body:saturn`` matches ``body:SATURN``. And a bare prefix that has no colon and no
-glob characters is expanded to cover everything under it, so ``--nav-models 'body'`` means
-every body model and ``--nav-models '!body'`` excludes every body model. Both conveniences
-keep a leading ``!``.
-
-Technique Names
----------------
-
-Each technique is named after the class that implements it. The techniques that ship are:
-
-* **Body**: ``BodyDiscCorrelateNav``, ``BodyBlobNav``, ``BodyLimbNav``,
-  ``BodyTerminatorNav``.
-* **Ring**: ``RingAnnulusNav``, ``RingEdgeNav``.
-* **Star**: ``StarFieldFromCatalogNav``, ``StarUniqueMatchNav``, ``StarRefineNav``.
-* **Haze**: ``TitanHazeNav``.
-
-Interactive navigation, ``NavTechniqueManual``, is a separate path described at the end of
-this chapter. It cannot be selected with ``--nav-techniques``.
-
-Every technique that has usable features runs, and their answers are then reconciled with
-one another. ``--nav-techniques`` restricts the set of candidates rather than picking a
-single winner.
-
-Examples
---------
-
-.. code-block:: bash
-
-   # Run every model and every technique (the default).
-   sd_offset coiss N1234567890
-
-   # Mimas only: drop every other body, and the ring and star models.
-   sd_offset coiss N1234567890 --nav-models 'body:MIMAS'
-
-   # Every body, plus the rings, but no stars.
-   sd_offset coiss N1234567890 --nav-models 'body:*,rings'
-
-   # Every model except Mimas.
-   sd_offset coiss N1234567890 --nav-models '!body:MIMAS'
-
-   # Two specific curve-fitting techniques.
-   sd_offset nhlorri LOR_0034851733 \
-       --nav-techniques 'BodyLimbNav,RingEdgeNav'
-
-   # Every technique except the star pattern matcher.
-   sd_offset coiss N1234567890 \
-       --nav-techniques '!StarFieldFromCatalogNav'
-
-   # The body and ring families only.
-   sd_offset coiss N1234567890 \
-       --nav-techniques 'Body*,Ring*'
+accuracy on real data. Every metadata document that carries a navigation result records
+that basis. For the recorded values and their exact keys see
+:doc:`/user_guide/user_guide_metadata`.
 
 Navigation Models
 =================
 
 Four model families ship with SpinDoctor: stars, solid bodies, rings, and the haze
-envelope of a body whose atmosphere hides its surface.
-
-Every model reads its settings from the configuration system described in
-:doc:`/user_guide/user_guide_configuration`. This chapter names a setting only where
-changing it changes what you get out of a run, and always by its configuration key. The
-remaining internal constants are documented in
-:doc:`/dev_guide/dev_guide_navigation_models`.
+envelope of a body whose atmosphere hides its surface. Every model reads its settings from
+the configuration system described in :doc:`/user_guide/user_guide_configuration`, and
+this chapter names a setting by its configuration key wherever it quotes a number you can
+change.
 
 Star Navigation Model
 ---------------------
@@ -349,7 +206,7 @@ For each body whose predicted outline overlaps the frame, the body model renders
 body should look like: an oversampled silhouette shaded so that the brightness falls off
 toward the edges the way sunlight on a sphere does. From that rendering it traces the lit
 limb and the terminator, and it emits some combination of four feature types depending on
-how large the body is, how it is lit, and how well its shape is known.
+how large the body is, how it is lit, and how well its real form is known.
 
 ``LIMB_ARC``
    The traced lit limb. Only the lit part is traced, because the unlit limb merges into
@@ -358,15 +215,15 @@ how large the body is, how it is lit, and how well its shape is known.
    conditions matter: the pixel test alone would pass a very distant small moon, whose
    limb is well predicted in pixels precisely because it is tiny, which is when a limb fit
    is least useful. The feature carries a separate uncertainty at each vertex, larger
-   where the body's real shape departs from a smooth ellipsoid and larger where the Sun
+   where the body's real surface departs from a smooth ellipsoid and larger where the Sun
    grazes the surface most steeply.
 
 ``BODY_BLOB``
    Emitted instead of ``LIMB_ARC`` when the limb cannot be traced usefully, the predicted
    disc is nonetheless wide enough to centroid, and at least part of the silhouette is
-   lit. A body entirely in shadow has no brightness to centroid, so it emits no blob. A
+   lit. A body entirely in shadow has no brightness to centroid and emits no blob. A
    blob is also emitted *alongside* a limb when both are available, as an independent
-   cross-check that can catch a curve fit that locked onto the wrong shape.
+   cross-check that can catch a curve fit that locked onto the wrong outline.
 
 ``BODY_DISC``
    The rendered picture of the body itself, for brightness correlation. It is emitted only
@@ -382,7 +239,7 @@ how large the body is, how it is lit, and how well its shape is known.
    As with the limb, the fit needs 30 vertices, so a short terminator arc is emitted and
    then goes unused.
 
-Per-body shape knowledge drives all of this. SpinDoctor carries a table of how far each
+Per-body surface knowledge drives all of this. SpinDoctor carries a table of how far each
 body departs from a smooth ellipsoid, how deep its craters are, how much its surface
 brightness varies, and how well its orbit is known. Those quantities set the per-vertex
 uncertainties and decide when a body is too irregular for a limb fit. A body absent from
@@ -432,9 +289,12 @@ Accordingly the model emits one of two feature types:
 Both thresholds are configurable per planet, as
 ``feature_emission.ring_annulus.planets.<PLANET>.kmpp_threshold`` and
 ``feature_emission.ring_annulus.planets.<PLANET>.max_radial_px``, with fallbacks under
-``feature_emission.ring_annulus.default``. The 25-kilometer figure for Saturn is the
-resolution at which SpinDoctor's measurements support switching methods; the thresholds
-for Jupiter, Uranus, and Neptune are set from the widths of those systems.
+``feature_emission.ring_annulus.default``.
+
+Saturn's threshold is 25 kilometers per pixel. Coarser than that, the edge-by-edge fit
+becomes unreliable while the brightness match does not, so the brightness match is the one
+used. The thresholds for Jupiter, Uranus, and Neptune are set from the widths of those
+systems.
 
 A ring edge can also come out **straight**: when the curve that the model traced never
 departs from a straight line by more than a pixel. That happens in two real situations.
@@ -472,9 +332,9 @@ configuration file passed with ``--config-file``:
 If you write a ``rings:`` override of your own, keep the key: when it is absent altogether
 the model treats shadow removal as off.
 
-Shadows that moons cast on the rings are a separate matter, and SpinDoctor does not remove
-them. Nothing in the code reads the ``rings.remove_body_shadows`` setting, so changing it
-has no effect.
+Shadows that moons cast on the rings are a separate matter. SpinDoctor does not remove
+them, so a moon's shadow shows in the image but not in the model that is matched against
+it.
 
 Ring positions also depend on how well the rings' own orbits are known, and that
 contribution is quoted as ``rings.default_orbit_radial_sigma_km``, applied with the
@@ -484,11 +344,11 @@ widens the reported uncertainty of every ring-derived offset.
 Titan Navigation Model
 ----------------------
 
-Titan's atmospheric haze is opaque at most wavelengths, so what a camera sees is not the
-solid surface but the top of the haze, hundreds of kilometers above it, at an altitude
-that varies with wavelength, latitude, season, and phase. Fitting an ellipsoid limb to
-that edge gives an answer that is systematically wrong rather than merely noisy, so Titan
-is navigated from a property of the haze itself.
+Titan's atmospheric haze is opaque at most wavelengths. What a camera sees is therefore
+not the solid surface but the top of the haze, hundreds of kilometers above it, at an
+altitude that varies with wavelength, latitude, season, and phase. Fitting an ellipsoid
+limb to that edge gives an answer that is systematically wrong rather than merely noisy,
+so Titan is navigated from a property of the haze itself.
 
 Absent clouds or visible surface markings, a hazy atmosphere is mirror-symmetric about the
 line in the image plane that runs through the body's center and the sub-solar point. Two
@@ -581,8 +441,8 @@ the ring radius range treated as opaque; ``titan.navigation.star_mask_vmag_limit
 which a catalog star is masked out of the fit; and ``titan.navigation.high_phase_deg``,
 which defaults to 150 degrees and is the phase above which a frame is marked as
 strongly backlit. It is not the 60-degree figure quoted above, which describes where
-the measured accuracy falls off rather than where a frame is marked. Every remaining key,
-its default, and the measurement behind it are documented in
+the measured accuracy falls off rather than where a frame is marked. The measurements
+behind the method are described in
 :doc:`/dev_guide/dev_guide_navigation_models_titan` and
 :doc:`/dev_guide/dev_guide_techniques_titan_haze`.
 
@@ -597,17 +457,19 @@ onto a real brightness edge is the same problem whether the curve is a body's li
 body's terminator, or a ring edge. That shared method has three stages, and its vocabulary
 appears in the logs and in the metadata document:
 
-**The coarse search, or coarse NCC stage.** The predicted curve is drawn as a thin line of
-pixels and slid over the edges detected in the real image at every whole-pixel shift
-inside the search window. Each shift is scored by how many of the curve's vertices land on
-a detected edge. The best-scoring shift becomes the starting guess for the refinement.
+**The coarse search.** The predicted curve is drawn as a thin line of pixels and slid over
+the edges detected in the real image at every whole-pixel shift inside the search window.
+Each shift is scored by what fraction of the curve's vertices land on a detected edge, and
+the best-scoring shift becomes the starting guess for the refinement. The logs and the
+metadata document call this the coarse NCC stage, NCC standing for normalized
+cross-correlation, the family of pattern-matching scores this one belongs to.
 
 For a body's limb or terminator, each vertex's contribution to that score is also weighted
-by **polarity**, which means whether the image brightens in the direction the model
-predicts it should. Across a body's limb the answer is known in advance: outside is empty
-sky and inside is sunlit surface, so the brightness must rise inward. A vertex that lands
-on an edge running the other way is discounted, which keeps a bright unrelated edge
-elsewhere in the frame from outscoring the real limb.
+by **polarity**, which means knowing in advance which side of an edge should be the
+brighter one. Across a body's limb the answer is known: outside is empty sky and inside is
+sunlit surface, so the brightness must rise inward. A vertex that lands on an edge running
+the other way is discounted, which keeps a bright unrelated edge elsewhere in the frame
+from outscoring the real limb.
 
 **Levenberg-Marquardt refinement.** Starting from that guess, the fit is improved to
 fractions of a pixel by repeatedly measuring how far each vertex sits from the nearest
@@ -629,10 +491,6 @@ The full algorithm, including how the uncertainty is derived, is documented in
 diagnostics into a confidence is documented in
 :doc:`/dev_guide/dev_guide_techniques_confidence`.
 
-As with the models, this chapter names a configuration setting only where changing it
-changes what you get; the tuning constants behind each technique's confidence are
-documented in :doc:`/dev_guide/dev_guide_techniques`.
-
 Star Techniques
 ---------------
 
@@ -647,7 +505,7 @@ large the pointing error is. It detects bright sources in the image, then recogn
 pattern they form.
 
 Recognition works on triangles. For every set of three detected sources, the technique
-computes a description of the triangle's shape, using only ratios of side lengths and one
+computes a description of the triangle, using only ratios of side lengths and one
 angle. Such a description is unchanged by shifting, rotating, or uniformly scaling the
 triangle, so it can be compared against the same description computed for triples of
 catalog stars without knowing the offset first. A matching pair of triangles proposes a
@@ -683,36 +541,38 @@ nothing to work with. This technique handles exactly that case, and needs only o
 star.
 
 With one star, it requires that star to be clearly the brightest thing the catalog
-predicts in the frame, by a margin of about 1.5 magnitudes over the next candidate. Then
-the brightest peak inside a search window around the prediction can only be that star, and
-the offset is simply the difference. Confidence is capped at 0.7, because a single match
-has nothing to check itself against. Guards exist against locking onto a noise spike or a
-hot pixel: the peak must stand clear of the window's background, and where there is no
-rival peak at all to measure against, the match is accepted only if it sits close to the
-predicted position.
+predicts in the frame, by a margin over the next candidate of
+``techniques.StarUniqueMatchNav.tuning.brightness_margin_to_next_catalog_star_mag``
+magnitudes, 1.5 by default. Then the brightest peak inside a search window around the
+prediction can only be that star, and the offset is simply the difference. Confidence is
+capped at 0.7, because a single match has nothing to check itself against. Guards exist
+against locking onto a noise spike or a hot pixel: the peak must stand clear of the
+window's background, and where there is no rival peak at all to measure against, the match
+is accepted only if it sits close to the predicted position.
 
 With two stars, the technique tries both ways of assigning the two detections to the two
 predictions and keeps the assignment with the smaller combined residual. That comparison
 is a real check, so confidence is capped a little higher, at 0.8.
 
-The window searched around each prediction is sized to the known pointing error of the
-instrument, so no search of the whole frame is needed. That is what makes this technique
-work on images where a field-wide detection pass would find nothing.
+The search never covers the whole frame. It reaches
+``techniques.StarUniqueMatchNav.tuning.search_window_px`` pixels in each direction from
+each prediction, 30 by default, which is what makes this technique work on images where a
+field-wide detection pass would find nothing.
 
 StarRefineNav
 ^^^^^^^^^^^^^
 
-This technique sharpens an answer that another technique already found, so it runs only
+This technique sharpens an answer that another technique already found, and runs only
 after a first round has produced an offset. It shifts every predicted star position by
 that offset, looks for a peak in a small window around each shifted prediction, measures
 its center, and averages the leftover residuals, weighting each star by how precisely it
 can be located. A star whose peak is too far from the shifted prediction is dropped as a
 wrong identification.
 
-What it reports is a correction to the offset it was given, not an independent offset.
-With two or more stars it reports the measured scatter as its uncertainty; with a single
-star it falls back to the theoretical best and caps its confidence at 0.5, deliberately
-below what a single unique match gets.
+What it reports is a correction to the offset it was given. With two or more stars it
+reports the measured scatter as its uncertainty; with a single star it falls back to the
+theoretical best and caps its confidence at 0.5, deliberately below what a single unique
+match gets.
 
 Body Techniques
 ---------------
@@ -722,9 +582,10 @@ BodyLimbNav
 
 This technique fits a body's lit limb. It takes every ``LIMB_ARC`` feature in the frame,
 puts all their vertices into one set, and solves for the single shift that best lays that
-combined curve onto the brightness edges in the image, using the coarse NCC, refinement,
-and reweighting described above. It is feasible when at least one limb arc has 30 or more
-surviving vertices, which is set by ``techniques.BodyLimbNav.tuning.min_arc_vertices``.
+combined curve onto the brightness edges in the image, using the coarse search,
+refinement, and reweighting described above. It is feasible when at least one limb arc has
+30 or more surviving vertices, which is set by
+``techniques.BodyLimbNav.tuning.min_arc_vertices``.
 
 Fitting several bodies at once is better than fitting one. A single shift is solved for
 all of them, and because the bodies are in fixed positions relative to one another, a
@@ -735,21 +596,21 @@ This is the workhorse for encounter imaging, where a moon shows a clear illumina
 the Cassini ISS views of Mimas, Enceladus, Tethys, Dione, and Rhea are the typical case.
 
 One thing to expect from the reported uncertainty: a limb's predicted position carries
-about 2.6 pixels of unavoidable model error, from surface relief, albedo markings, and
-shading that a smooth predicted outline cannot capture. That error is added to every limb
+2.61 pixels of unavoidable model error, from surface relief, albedo markings, and shading
+that a smooth predicted outline cannot capture. That figure is
+``techniques.BodyLimbNav.tuning.model_error_floor_px``, and it is added to every limb
 result, so an image navigated on a limb alone usually lands in the ``low`` confidence tier
 however cleanly the curve fit. Corroboration from a star field or a disc correlation is
 what lifts it.
 
-Very low phase is where it struggles, and the reason is worth understanding because it
-runs against intuition. At low phase the Sun is nearly behind the camera, so almost the
-whole disc is lit and almost the whole limb is visible. That sounds like the easy case,
-and for tracing the limb it is. But what an edge fit actually needs is a *sharp* edge, and
-low phase is precisely where the limb is softest. Sunlight strikes a sphere most obliquely
-at its outline, so the surface brightness falls smoothly toward zero as it approaches the
-limb, and the disc fades into the sky over several pixels instead of stepping down at one.
-At higher phase the sub-solar point lies near the limb, the crescent stays bright right up
-to its edge, and the step is crisp.
+Very low phase is where it struggles. At low phase the Sun is nearly behind the camera, so
+almost the whole disc is lit and almost the whole limb is visible. That sounds like the
+easy case, and for tracing the limb it is. But what an edge fit actually needs is a
+*sharp* edge, and low phase is precisely where the limb is softest. Sunlight strikes a
+sphere most obliquely at its outline, so the surface brightness falls smoothly toward
+zero as it approaches the limb, and the disc fades into the sky over several pixels
+instead of stepping down at one. At higher phase the sub-solar point lies near the limb,
+the crescent stays bright right up to its edge, and the step is crisp.
 
 A soft edge means a faint gradient, and a faint gradient means other edges in the frame
 can score better in the coarse search than the true limb does. When that happens the
@@ -778,9 +639,13 @@ The correlation is computed at a series of scales, from a heavily downsampled co
 full resolution. That is much cheaper than testing every shift at full resolution, and it
 also yields a useful quality signal: if the winning position moves as the resolution
 improves, the answer is genuinely less well localized, and the reported uncertainty is
-widened accordingly. The technique also chooses for itself, per image, whether to
-correlate raw brightness or brightness gradients, running both and keeping the more
-confident result. Raw brightness wins on a smooth shaded disc that fills the frame;
+widened accordingly. How far the position may move between scales before the answer is
+called inconsistent is the larger of
+``techniques.BodyDiscCorrelateNav.tuning.consistency_max_px``, 4 pixels by default, and
+``techniques.BodyDiscCorrelateNav.tuning.consistency_max_fraction_of_diameter`` times the
+body's diameter in pixels. The technique also chooses for itself, per image,
+whether to correlate raw brightness or brightness gradients, running both and keeping the
+more confident result. Raw brightness wins on a smooth shaded disc that fills the frame;
 gradients win when only the edge carries distinctive information.
 
 This is the technique that carries a near-fully-lit body, which is the case where the limb
@@ -798,7 +663,7 @@ over-determined, which makes it tolerant of a poor center on any one of them.
 Its confidence is capped at 0.4 by design. A brightness center is much weaker evidence
 than a fitted limb, so even a perfect blob match should not be allowed to outweigh a limb
 or disc answer. Its role is to provide something where nothing better exists, and to act
-as an independent cross-check that can catch a shape fit that locked onto the wrong
+as an independent cross-check that can catch a curve fit that locked onto the wrong
 feature.
 
 BodyTerminatorNav
@@ -821,11 +686,12 @@ The second is that the confidence accounts for how variegated the body's surface
 albedo boundary looks much like a terminator, so a body with strongly varying surface
 brightness earns less confidence than a uniform one.
 
-Set your expectations low for this technique. A terminator is a photometric feature rather
-than a geometric one: it marks where the brightness crosses a threshold, not where the
-body's outline is. It can settle on the wrong contour on a textured surface with nothing
-in the fit itself to reveal the mistake, and measurements against known truth put its
-typical error at several pixels. Its confidence is calibrated accordingly and is low
+A terminator is a photometric feature rather than a geometric one: it marks where the
+brightness crosses a threshold, not where the body's outline is. It can settle on the
+wrong contour on a textured surface with nothing in the fit itself to reveal the mistake,
+and measurements against known truth put its typical error at 5.2 pixels. The model error
+added to every terminator result is accordingly
+``techniques.BodyTerminatorNav.tuning.model_error_floor_px``, 4.32 pixels, which is large
 enough that a terminator answer cannot carry an image by itself. It is treated as a
 fallback and is set aside whenever a limb fit or a disc correlation on the same body
 produced a result that was not flagged spurious. Its value is in covering a body that
@@ -833,8 +699,9 @@ offers nothing else.
 
 Because it is prone to settling on the wrong contour, this technique also asks a question
 the others do not: after converging, it scans the rest of the search window for a rival
-position that fits nearly as well. If one exists, the answer is not distinctive and is
-marked spurious.
+position that fits nearly as well. When a rival's cost is less than
+``techniques.BodyTerminatorNav.tuning.basin_cost_ratio_threshold`` times the winner's, 1.2
+times by default, the answer is not distinctive and is marked spurious.
 
 Ring Techniques
 ---------------
@@ -847,21 +714,22 @@ in the frame into one set and solves for the single shift that best lays them on
 edges in the image, with the same coarse search, refinement, and reweighting the body
 curve fits use.
 
-One thing it deliberately does not use is **polarity**, which means knowing in advance
-which side of an edge should be the brighter one. For a body's limb that is trivial: sky
-outside is dark, the lit surface inside is bright, so any vertex where the real image gets
-brighter in the wrong direction can be discarded as a wrong match. For a ring edge it is
-not knowable from the catalog, because the same kind of edge can be the outer boundary of
-a bright ringlet, with brightness inside and darkness outside, or the inner boundary of a
-gap, with the opposite. Which one it is at a given illumination depends on information the
-ring catalog does not record. So the ring fit matches shape alone, with one fewer way to
-tell a real edge from a plausible impostor than the body fits have.
+One thing it deliberately does not use is **polarity**, defined above as knowing in
+advance which side of an edge should be the brighter one. For a body's limb that knowledge
+is trivial: sky outside is dark, the lit surface inside is bright, so any vertex where the
+real image gets brighter in the wrong direction can be discarded as a wrong match. For a
+ring edge it is not knowable from the catalog, because the same kind of edge can be the
+outer boundary of a bright ringlet, with brightness inside and darkness outside, or the
+inner boundary of a gap, with the opposite. Which one it is at a given illumination
+depends on information the ring catalog does not record. So the ring fit matches the
+curve's form alone, with one fewer way to tell a real edge from a plausible impostor than
+the body fits have.
 
 This is the technique for close-range ring images. For Saturn it receives a frame only
 when the radial resolution is finer than 25 kilometers per pixel; everything coarser goes
 to ``RingAnnulusNav``. Note the caution that applies at the fine end: as resolution
 improves, the many similar concentric ringlet edges separate into distinct image edges,
-and a fit that matches shape alone can lock onto a neighbor of the edge it meant to match.
+and a fit that matches form alone can lock onto a neighbor of the edge it meant to match.
 A ring-edge answer at that resolution that no other technique corroborates deserves a look
 before you rely on it.
 
@@ -874,11 +742,11 @@ orientations between them would cover the plane, but the straight edges of a rin
 seen nearly edge-on are all parallel, so they never do.
 
 This condition is called **rank deficiency**: the measurement determines the offset in one
-direction and leaves the other completely open. SpinDoctor reports it honestly rather than
+direction and leaves the other completely open. SpinDoctor reports it rather than
 inventing a number for the open direction. In the per-image metadata document you will see
 it as ``sigma_along_unobservable_px`` under ``navigation_result``, which
-:doc:`/user_guide/user_guide_metadata` describes, and as ``is_rank_1`` in that
-technique's diagnostics. An
+:doc:`/user_guide/user_guide_metadata` describes, and as ``is_rank_1`` among this
+technique's ``diagnostics``. An
 image whose combined result is still rank-deficient after every technique has been
 considered reaches the ``medium`` tier at best, and records a status reason of
 ``rank_1_only``.
@@ -890,15 +758,17 @@ fuses a one-direction ring measurement with such a result to give a full answer.
 RingAnnulusNav
 ^^^^^^^^^^^^^^
 
-This technique matches the ring system's predicted *brightness* rather than the shape of
+This technique matches the ring system's predicted *brightness* rather than the outline of
 its edges. It takes the rendered picture that a ``RING_ANNULUS`` feature carries, slides
 it over the real image, and scores each position by normalized cross-correlation. As with
 the disc correlation, the search runs from a coarse downsampled copy up to full
 resolution, which is both faster than a full-resolution sweep and informative: a winning
 position that drifts between scales is less well localized, and the reported uncertainty
-grows to say so. The technique also runs both a raw-brightness pass and a gradient pass
-and keeps the more confident of the two, since a coarse view of Saturn's rings is mostly
-broad brightness variation while a closer one is mostly sharp ringlet edges.
+grows to say so, scaled by
+``techniques.RingAnnulusNav.tuning.localization_uncertainty_scale``. The technique also
+runs both a raw-brightness pass and a gradient pass and keeps the more confident of the
+two, since a coarse view of Saturn's rings is mostly broad brightness variation while a
+closer one is mostly sharp ringlet edges.
 
 For Saturn this is the technique for anything at 25 kilometers per pixel or coarser, which
 covers the great majority of ring imaging. The quantity actually being compared against
@@ -910,7 +780,7 @@ narrow strip.
 
 Matching brightness is what makes this the safer choice for the coarse regime. Relative
 ring brightness is part of the comparison, so a broad dim C ring and a bright B ring
-cannot be confused with each other, which is exactly the confusion a shape-only fit is
+cannot be confused with each other, which is exactly the confusion a form-only fit is
 prone to.
 
 A scene containing two ring systems at once is rare but real, as when Cassini imaged
@@ -934,7 +804,7 @@ TitanHazeNav
 finds the shift that makes the haze most nearly mirror-symmetric about the line through
 the body center and the sub-solar point, and it fits a free-radius circle to the sunward
 limb to place the shift along that line. It reads the image as it stands rather than the
-detected edges the shape-fitting techniques use, and it consumes at most one haze feature
+detected edges the curve-fitting techniques use, and it consumes at most one haze feature
 per frame.
 
 It is the only technique for a hazy body, since there is no second way to measure such a
@@ -943,10 +813,11 @@ body's position, and that is why it is treated as a primary result rather than a
 Manual Navigation
 -----------------
 
-For an image the autonomous pipeline cannot handle, ``NavTechniqueManual`` opens an
-interactive window that composes every renderable prediction into one overlay and lets you
-place the offset by hand. It is not part of the autonomous set and cannot be selected with
-``--nav-techniques``. Reach it from ``sd_offset`` with the ``--manual`` flag, which
+For an image the autonomous pipeline cannot handle, manual navigation opens an interactive
+window that composes every renderable prediction into one overlay and lets you place the
+offset by hand. It is not part of the autonomous set and cannot be selected with
+``--nav-techniques``. Reach it from ``sd_offset`` (see
+:doc:`/user_guide/user_guide_navigation_running`) with the ``--manual`` flag, which
 requires the image selection to resolve to exactly one image:
 
 .. code-block:: bash
@@ -960,37 +831,152 @@ reports the chosen offset and writes the same metadata document and summary pict
 autonomous run writes, under the navigation results root. The exit code is 2 if you cancel
 or if the image has no renderable predictions to show.
 
-The window's **Save as Library Entry...** button is the way to add an image to the
-operator-curated test library; see :doc:`/dev_guide/dev_guide_image_library`.
+.. _selecting-models-and-techniques:
 
-The same dialog is reachable from Python, taking one observation and returning one result:
+Choosing Which Models and Techniques Run
+========================================
 
-.. code-block:: python
+By default ``sd_offset`` builds every model that applies to the scene and runs every
+technique that has something to work with. Two options narrow that set: ``--nav-models``
+selects which models are built, and ``--nav-techniques`` selects which techniques are
+allowed to run. The same pattern syntax serves both, and the only difference is the names
+it is matched against.
 
-   from spindoctor.nav_technique import run_manual_nav
+The patterns can be given in two places:
 
-   result = run_manual_nav(obs)
+* On the command line, as ``sd_offset --nav-models LIST --nav-techniques LIST``.
+* In a cloud task description, under ``data.arguments.nav_models`` and
+  ``data.arguments.nav_techniques``, each a list of strings. Cloud tasks are a work queue
+  supplied by the Ring-Moon Systems Node, and ``sd_offset_cloud_tasks`` is a worker that
+  the queue runs on a cloud machine rather than a program you run yourself; see
+  :doc:`/user_guide/user_guide_cloud_tasks`.
 
-Filtering Examples
-------------------
+Both options only ever narrow. A pattern that matches nothing installed on your copy of
+SpinDoctor simply selects nothing, and no model or technique can be added by naming it.
 
-Run only the ring-edge technique:
+Pattern Syntax
+--------------
+
+A pattern is a shell-style glob matched against a candidate name. On the command line,
+separate several patterns with commas inside one argument; in a task description, supply a
+list of strings.
+
+Inclusion patterns
+^^^^^^^^^^^^^^^^^^
+
+* A literal name matches that name alone: ``BodyLimbNav`` selects the body-limb technique
+  and nothing else.
+* ``*`` matches any run of characters, ``?`` matches one character, and ``[abc]`` matches
+  any one character from the set.
+* The default pattern is ``*``, which matches everything.
+
+Exclusion patterns
+^^^^^^^^^^^^^^^^^^
+
+* A leading ``!`` makes a pattern an exclusion: anything it matches is removed.
+  ``--nav-techniques '!StarFieldFromCatalogNav'`` runs every technique except that one.
+* When every pattern in the list is an exclusion, an inclusion of ``*`` is assumed, so
+  ``--nav-models '!body:MIMAS'`` means the same as ``--nav-models '*,!body:MIMAS'``.
+* When at least one inclusion is present, only what the inclusions match survives, minus
+  anything an exclusion matches. ``'body:*,!body:MIMAS'`` runs every body model except
+  Mimas.
+
+Combining patterns
+^^^^^^^^^^^^^^^^^^
+
+The order of the patterns does not matter. A name is kept when it matches at least one
+inclusion pattern and no exclusion pattern.
 
 .. code-block:: bash
 
-   sd_offset coiss N1234567890 --nav-techniques RingEdgeNav
+   --nav-models 'body:MIMAS,rings:SATURN,stars'
 
-Run every technique except ``BodyTerminatorNav``:
+.. code-block:: json
+
+   ["body:MIMAS", "rings:SATURN", "stars"]
+
+Model Names
+-----------
+
+Models are created fresh for each image, because what they can predict depends on what is
+in the frame. That is why a model name can carry the subject it was built for:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 76
+
+   * - Name
+     - What it names
+   * - ``stars``
+     - Every catalog star predicted to be visible in the frame. There is one such
+       model per image and it takes no subject, so the name is bare.
+   * - ``body:NAME``
+     - One solid body: its rendered disc, its lit limb, and its terminator. One such
+       model is created for each body whose predicted outline overlaps the frame, and
+       ``NAME`` is that body's SPICE name in capitals: ``body:MIMAS``, ``body:DIONE``,
+       ``body:SATURN``.
+   * - ``rings:PLANET``
+     - One planet's ring system: its named edges and its predicted brightness. One
+       such model is created for the planet nearest the line of sight, and only when
+       SpinDoctor carries a catalog of ring edges for that planet. Only Saturn's
+       catalog is populated, so ``rings:SATURN`` is the name you will see.
+   * - ``titan:TITAN``
+     - The haze envelope of a body whose atmosphere hides its surface, created
+       whenever Titan is in the frame. On a simulated image the equivalent model is
+       named ``titan_sim:TITAN``.
+
+Two conveniences apply to model patterns. The part after the colon is capitalized for you,
+so ``body:saturn`` matches ``body:SATURN``. And a bare prefix that has no colon and no
+glob characters is expanded to cover everything under it, so ``--nav-models 'body'`` means
+every body model and ``--nav-models '!body'`` excludes every body model. Both conveniences
+keep a leading ``!``.
+
+Technique Names
+---------------
+
+Each technique is named after the class that implements it. The techniques that ship are:
+
+* **Body**: ``BodyDiscCorrelateNav``, ``BodyBlobNav``, ``BodyLimbNav``,
+  ``BodyTerminatorNav``.
+* **Ring**: ``RingAnnulusNav``, ``RingEdgeNav``.
+* **Star**: ``StarFieldFromCatalogNav``, ``StarUniqueMatchNav``, ``StarRefineNav``.
+* **Haze**: ``TitanHazeNav``.
+
+Manual navigation has no such name and cannot be selected with ``--nav-techniques``; it is
+reached with ``--manual``, as described above.
+
+Every technique that has usable features runs, and their answers are then reconciled with
+one another. ``--nav-techniques`` restricts the set of candidates rather than picking a
+single winner.
+
+Examples
+--------
 
 .. code-block:: bash
 
-   sd_offset coiss N1234567890 --nav-techniques '!BodyTerminatorNav'
+   # Run every model and every technique (the default).
+   sd_offset coiss N1234567890
 
-Run both body curve-fitting techniques together:
+   # Mimas only: drop every other body, and the ring and star models.
+   sd_offset coiss N1234567890 --nav-models 'body:MIMAS'
 
-.. code-block:: bash
+   # Every body, plus the rings, but no stars.
+   sd_offset coiss N1234567890 --nav-models 'body:*,rings'
 
-   sd_offset coiss N1234567890 --nav-techniques 'BodyLimbNav,BodyTerminatorNav'
+   # Every model except Mimas.
+   sd_offset coiss N1234567890 --nav-models '!body:MIMAS'
+
+   # Two specific curve-fitting techniques.
+   sd_offset nhlorri LOR_0034851733 \
+       --nav-techniques 'BodyLimbNav,RingEdgeNav'
+
+   # Every technique except the star pattern matcher.
+   sd_offset coiss N1234567890 \
+       --nav-techniques '!StarFieldFromCatalogNav'
+
+   # The body and ring families only.
+   sd_offset coiss N1234567890 \
+       --nav-techniques 'Body*,Ring*'
 
 What a Run Reports
 ==================
@@ -1002,10 +988,10 @@ result, an annotated summary picture. Both are described in
 The metadata document records the final offset for the image, its uncertainty, its
 confidence, and its confidence tier. Alongside those it records one entry per technique
 that ran, giving that technique's own offset, uncertainty, and confidence, together with
-the diagnostic quantities its confidence was computed from, so you can see which
-techniques contributed and how well each did. It also lists every feature the models
-emitted, including the ones set aside before fitting and the reason each was set aside.
-For the complete key-by-key description see :doc:`/user_guide/user_guide_metadata`.
+the diagnostic quantities its confidence was computed from. It also lists every feature
+the models emitted, including the ones set aside before fitting and the reason each was
+set aside. For the complete key-by-key description see
+:doc:`/user_guide/user_guide_metadata`.
 
 The summary picture shows the image with every model prediction drawn at the fitted
 offset, so one glance tells you whether the predictions landed on the real features.

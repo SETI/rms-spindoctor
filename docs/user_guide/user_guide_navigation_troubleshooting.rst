@@ -10,7 +10,56 @@ where both are written. The per-image metadata document records the same verdict
 machine-readable form, under the ``status``, ``status_reason``, ``status_error``, and
 ``status_exception`` keys described in :doc:`/user_guide/user_guide_metadata`.
 
+The fastest first look is the summary picture the run writes beside each metadata
+document. It draws the models over the image, so a model landing nowhere near the data is
+visible at a glance. :doc:`/user_guide/user_guide_navigation_outputs` describes it and
+says where it is written.
+
 The symptoms below are the ones that come up in practice, each with what to check.
+
+The run stops before it navigates anything
+==========================================
+
+The run stops with this message::
+
+   One of --nav-results-root, the configuration variable
+   "environment.nav_results_root", or the NAV_RESULTS_ROOT environment variable
+   must be set
+
+There is no built-in results root, so every run has to be told where to write. Supply it
+by any one of the three the message names; the command-line option wins over the
+configuration file, which wins over the environment variable. The backplane and bundle
+results roots behave the same way, and their messages name their own three sources. The
+log root is the exception: when none of its three is set, it falls back to a ``logs``
+directory under the navigation results root. See
+:doc:`/user_guide/user_guide_installation`.
+
+An environment variable is set but has no effect
+================================================
+
+Check the spelling of the variable. Every results and log root is named ``NAV_..._ROOT``,
+while the holdings variable is ``PDS3_HOLDINGS_DIR`` -- ``DIR``, not ``ROOT``, even
+though the matching option is ``--pds3-holdings-root``. The full list, with the option
+and configuration setting each one pairs with, is in
+:doc:`/user_guide/user_guide_installation`.
+
+A misspelled variable is not read and is not reported. Remember too that an exported
+variable is consulted last: it does not override a value a configuration file already
+sets.
+
+The run stops on a missing PDS3 index label
+===========================================
+
+The run stops with a file-not-found error naming a path under ``metadata``, such as::
+
+   File(s) do not exist: .../metadata/COISS_2xxx/COISS_2001/COISS_2001_index.lbl,
+   .../metadata/COISS_2xxx/COISS_2001/COISS_2001_index.tab
+
+The holdings tree has its ``volumes`` half but not its ``metadata`` half. Image selection
+is answered from each volume's PDS3 index table, which lives under ``metadata``, so a tree
+without that half cannot be enumerated at all. Retrieve the ``metadata`` tree for the
+volumes you are processing, or point ``--pds3-holdings-root`` at a tree that has both
+halves. :doc:`/user_guide/user_guide_installation` shows the layout.
 
 Every image fails and the failure mentions SPICE
 ================================================
@@ -32,10 +81,10 @@ or the image-name filters selected an empty set.
 
 Run the same selection with ``--dry-run``, which reports which images would be processed
 without navigating any of them. :doc:`/user_guide/user_guide_image_selection` describes
-the selection options and how they combine. Also confirm that the holdings root is the one
-you meant: it comes from ``--pds3-holdings-root``, then from the configuration, and only then
-from the ``PDS3_HOLDINGS_DIR`` environment variable. An exported variable does not
-override a value a configuration file already sets.
+the selection options and how they combine. Also confirm that the holdings root is the
+one you meant: it comes from ``--pds3-holdings-root``, then from the configuration, and
+only then from the ``PDS3_HOLDINGS_DIR`` environment variable. An exported variable does
+not override a value a configuration file already sets.
 
 An image cannot be read
 =======================
@@ -115,7 +164,7 @@ in SpinDoctor rather than a problem with the image or the configuration.
 Getting help
 ============
 
-When reporting a problem, include the exact command line you ran, the relevant part of the
-run's log, the failing image's log, and the image's metadata document. Say which holdings
-root and which SPICE kernels were in use. Those together are usually enough to reproduce
-the failure.
+Report a problem on the issue tracker at https://github.com/SETI/rms-spindoctor/issues.
+Include the exact command line you ran, the relevant part of the run's log, the failing
+image's log, and the image's metadata document. Say which holdings root and which SPICE
+kernels were in use. Those together are usually enough to reproduce the failure.

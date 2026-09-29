@@ -35,7 +35,7 @@ The simplest useful run navigates one image whose name you already know:
 Choosing Which Images to Navigate
 =================================
 
-A run with no selection options navigates every image the dataset offers, which for a
+A run that has no selection options navigates every image the dataset offers, which for a
 whole mission is a great many. The options that narrow the selection -- by volume, by
 image number, by name, from a list in a file, at random, or by what a previous run
 already recorded -- are shared with several other programs and are documented together
@@ -70,17 +70,13 @@ These say where configuration and results live.
   The connection URL of a results index: a ``sqlite:`` URL naming a local file, or a
   ``postgresql+psycopg:`` URL naming a server. Overrides the
   ``environment.results_index_db`` configuration setting and the
-  ``NAV_RESULTS_INDEX_DB`` environment variable. Given an index, the selection options
-  that ask what a previous run recorded are answered from the index's rows instead of by
+  ``NAV_RESULTS_INDEX_DB`` environment variable. Given a results index, the selection
+  options that ask what a previous run recorded are answered from its rows instead of by
   reading the results tree; see :doc:`user_guide_image_selection` for what that changes
-  and :doc:`user_guide_results_index` for the index itself.
+  and :doc:`user_guide_results_index` for the results index itself.
 
-  Pass ``--results-index-db none`` to name no index, and so read the results tree, even
-  when a URL is set in the environment or a configuration file. The opt-out is that word
-  exactly, in lower case, with surrounding spaces ignored, because any other non-empty
-  value is read as the URL of an index. A value that is empty, or nothing but spaces, is
-  refused: it is neither a connection URL nor the way to name no index, so the run stops
-  and names the setting that carried it.
+  Pass ``--results-index-db none`` to read the results tree even when a URL is configured
+  elsewhere. See :doc:`user_guide_configuration`.
 
 Navigation Options
 ==================
@@ -90,8 +86,8 @@ These control how each image is navigated.
 ``--nav-models LIST``
   A comma-separated list of glob patterns selecting which models are built. Model names
   follow the ``stars`` / ``body:NAME`` / ``rings:PLANET`` / ``titan:NAME``
-  convention, and a bare prefix such as ``rings`` selects every model under it. Defaults to ``*``,
-  which is every model that applies to the image. See
+  convention, and a bare prefix such as ``rings`` selects every model under it. Defaults
+  to ``*``, which is every model that applies to the image. See
   :doc:`user_guide_navigation_models` for the full syntax, including exclusion with
   ``!`` and the prefix-only shorthand.
 
@@ -101,11 +97,9 @@ These control how each image is navigated.
   pattern syntax are in :doc:`user_guide_navigation_models`.
 
 ``--manual``
-  Open the interactive manual-navigation dialog instead of navigating automatically. The
-  selection must resolve to exactly one image; a selection matching more is refused,
-  with the first few matches named so the selection can be tightened. On accept, the
-  chosen offset is printed and the same metadata document and summary image an automatic
-  run writes are produced, unless ``--no-write-output-files`` is also given.
+  Open the interactive manual-navigation window instead of navigating automatically, and
+  place the offset by hand. The selection must resolve to exactly one image. See
+  "Manual Navigation" in :doc:`user_guide_navigation_models`.
 
 Output Options
 ==============
@@ -156,21 +150,26 @@ Miscellaneous Options
 =====================
 
 ``--profile`` / ``--no-profile``
-  Measure where the run spends its time and report it at the end. Disabled by default.
+  Collect a Python profile of where the run spends its time. Disabled by default;
+  ``--no-profile`` is the explicit way to say so. The profile is collected in memory and
+  is neither printed nor written to a file, so the flag produces no report of its own.
 
 What a Run Writes
 =================
 
 Each image's metadata document is written when the run finishes with that image,
 whatever outcome it records, and its summary image is written when the navigation
-produced one. Each overwrites whatever an earlier run left in its place. Nothing is
-deleted in advance, so a run interrupted partway through an image, or one that records
-an error and produces no summary image, leaves the earlier files where they are. Start
-from an empty results directory when the absence of a metadata document has to mean the
-image was never navigated.
+produced one. Each overwrites whatever an earlier run left in its place, and nothing is
+deleted in advance.
 
-The documents themselves are described in :doc:`user_guide_navigation_outputs` and
-:doc:`user_guide_metadata`.
+An earlier run's summary image can therefore survive beside a fresh metadata document,
+which happens when the new run records an error and produces no summary image of its own.
+For the same reason, both files of an earlier run survive a run interrupted partway
+through an image. Start from an empty results directory when the absence of a metadata
+document has to mean the image was never navigated.
+
+The metadata documents themselves are described in
+:doc:`user_guide_navigation_outputs` and :doc:`user_guide_metadata`.
 
 Example Commands
 ================

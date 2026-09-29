@@ -25,65 +25,91 @@ A record belongs to exactly one of them, so the two never repeat each other.
 When you want to know what a run did, read the main log; when you want to know
 what happened to one image, read that image's log.
 
-A program that navigates, reprojects, or otherwise works through images one at
-a time writes both kinds. A program that works on a run as a whole, such as the
-results index builder, writes only a main log. The statistics report and the
-interactive viewers write neither: their output is terminal text meant to be
-read as it appears. The cloud task workers are the reverse case -- image logs
-but no main log -- for the reasons given under `Cloud tasks`_ below.
+A program writes an image log when the work it does on one image is deep enough
+to need a narrative of its own: navigation, backplane generation, reprojection,
+and C-kernel generation. A program that touches images one at a time but has
+only a line's worth to say about each, such as ``sd_create_bundle`` or
+``sd_consolidate_metadata``, writes only a main log, and so does a program that
+works on a run as a whole, such as the results index builder. The statistics
+report and the interactive viewers write neither: their output is terminal text
+meant to be read as it appears. The cloud task workers are the reverse case --
+image logs but no main log.
+
+The value in the Image-log column is the name of the *stage* an image log is
+filed under, which is explained further under `Where the files go`_ below.
 
 .. list-table::
    :header-rows: 1
-   :widths: 50 15 35
+   :widths: 34 11 15 40
 
    * - Program
      - Main log
      - Image log
+     - Documented in
    * - ``sd_offset``
      - yes
      - ``nav``
+     - :doc:`Navigation </user_guide/user_guide_navigation_running>`
    * - ``sd_backplanes``
      - yes
      - ``backplanes``
+     - :doc:`Backplanes </user_guide/user_guide_backplanes>`
    * - ``sd_mosaic`` (and ``sd_mosaic_rings`` / ``sd_mosaic_body``)
      - yes
      - ``reproj``
+     - :doc:`Reprojection </user_guide/user_guide_reprojection>`
    * - ``sd_create_ck``
      - yes
      - ``ck``
+     - :doc:`C kernels </user_guide/user_guide_ck_kernels>`
    * - ``sd_create_bundle``
      - yes
      - none
+     - :doc:`PDS4 bundles </user_guide/user_guide_pds4_bundle>`
    * - ``sd_consolidate_metadata``
      - yes
      - none
+     - :doc:`Consolidating outputs </user_guide/user_guide_consolidate_metadata>`
    * - ``sd_offset_cloud_tasks``
      - no
      - ``nav``
+     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
    * - ``sd_backplanes_cloud_tasks``
      - no
      - ``backplanes``
+     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
    * - ``sd_mosaic_cloud_tasks``
      - no
      - ``reproj``
+     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
    * - ``sd_results_index``
      - yes
      - none
+     - :doc:`Results index </user_guide/user_guide_results_index>`
    * - ``sd_results_index_cloud_tasks``
      - no
      - none
+     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
    * - ``sd_create_bundle_cloud_tasks``
      - no
      - none
+     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
    * - ``sd_stats_report``
      - no
      - none
+     - :doc:`Statistics </user_guide/user_guide_statistics>`
    * - ``sd_create_simulated_image``
      - no
      - none
-   * - ``sd_backplane_viewer``, ``sd_mosaic_display``
+     - :doc:`Simulated images </user_guide/user_guide_simulated_images>`
+   * - ``sd_backplane_viewer``
      - no
      - none
+     - :doc:`Backplanes </user_guide/user_guide_backplanes>`
+   * - ``sd_mosaic_display``
+     - no
+     - none
+     - :doc:`Reprojection </user_guide/user_guide_reprojection>`
 
 ``sd_results_index_cloud_tasks`` writes no log file of any kind, because what
 its task did is in the value the task returns to the cloud task system.
@@ -101,12 +127,12 @@ Both kinds live under one log root, named by ``--log-root``, the
 environment variable, in that order of precedence.
 
 With none of those set, the root is derived: a ``logs`` directory under the
-navigation results root. A cloud-task worker is not required to have a
-navigation results root, so each falls back to a ``logs`` directory under the
-root it does have -- the backplane results root for
-``sd_backplanes_cloud_tasks``, and the task's own output directory for
-``sd_mosaic_cloud_tasks`` -- rather than dropping its logs for want of a
-setting that does not apply to it.
+navigation results root.
+
+A cloud-task worker need not have a navigation results root, so each derives
+its root from the one it does have. ``sd_backplanes_cloud_tasks`` uses a
+``logs`` directory under the backplane results root, and
+``sd_mosaic_cloud_tasks`` uses one under the task's own output directory.
 
 A local root given as a relative path is resolved against the working directory
 once, at startup, and the absolute result is what every log file of that run is
@@ -140,24 +166,17 @@ driver is running:
   may not have been running at all when the batch began. Each image's log
   therefore carries the time its own task was picked up.
 
-UTC rather than local time is what makes the two comparable. Workers may sit
-in different zones, and a local-time name would be ambiguous across a
-daylight-saving fall-back. In UTC the names of an interactive run and of every
-worker in a batch sort into one order.
-
 .. warning::
 
    **The two clocks in a log file are different.** The timestamp in the file
    *name* is UTC. The timestamp at the front of every record *inside* the file
    is the local time of the machine that wrote it. A log named
    ``..._2026-07-31T02-36-04.log`` therefore opens with a first record stamped
-   ``2026-07-30 19:36:04`` on a machine seven hours behind UTC, and the two
-   numbers name the same instant.
+   ``2026-07-30 19:36:04.812043`` on a machine seven hours behind UTC, and the
+   two numbers name the same instant.
 
    Match a log to a wall-clock time by reading its contents, and match it by
-   name only in UTC terms. On a machine whose local time is UTC the two agree
-   and the difference is invisible, so do not take one file as evidence that
-   they always agree.
+   name only in UTC terms.
 
 Reprojection logs are keyed by mosaic subject as well, since one image may be
 reprojected onto more than one body::
@@ -273,8 +292,8 @@ component.
 Worked examples
 ---------------
 
-Quiet the run but keep one technique verbose -- the usual shape of
-investigating one technique across many images:
+Quiet the run but keep one technique verbose, which is the usual way to
+investigate one technique across many images:
 
 .. code-block:: bash
 
@@ -353,15 +372,14 @@ configuration names one: ``other.annotate: ERROR``. So ``--log-level NONE``
 does not produce silence -- annotation stays at ERROR, which keeps a log file
 open and writes one per image. To get silence, either name it
 (``--log-level NONE --log-level annotate=NONE``) or turn the file destination
-off with ``--no-log-image-to-file``, which is what you probably wanted.
+off with ``--no-log-image-to-file``.
 
 A ``programs`` block applies to that program alone and is merged key by key
 with the settings above it, so a program can override one value while
 inheriting the rest.
 
 An unrecognized component name, program name, or level is rejected when the
-configuration loads, naming the offending key. A setting that does nothing is
-worse than one that errors, because it looks like it worked.
+configuration loads, naming the offending key.
 
 Component names
 ---------------
@@ -377,8 +395,32 @@ A component is named by the technique or model it is, in snake_case.
 whole family: ``body`` governs every body model regardless of which body it
 renders, and a simulated model is named with the model it stands in for.
 
-**Everything else** -- ``annotate``, ``correlate``, ``ensemble``,
-``image_derivatives``, ``obs``, ``orchestrator``, ``provenance``
+**Everything else** -- seven components that are neither a technique nor a
+model, each covering one step of navigating an image:
+
+``annotate``
+    Drawing the models over the image to make the summary picture. This is the
+    one the shipped configuration pins, at ``ERROR``.
+
+``correlate``
+    The image correlation every correlating technique shares.
+
+``ensemble``
+    Combining the per-technique answers into the one offset reported for the
+    image.
+
+``image_derivatives``
+    The edge and gradient images built once per frame and reused by the
+    techniques that fit edges.
+
+``obs``
+    Reading the image file and its label.
+
+``orchestrator``
+    Running the models and techniques over one image and deciding the outcome.
+
+``provenance``
+    Recording which kernels, catalogs, and settings produced the answer.
 
 Cloud tasks
 ===========

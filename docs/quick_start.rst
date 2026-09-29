@@ -17,34 +17,30 @@ the :doc:`/user_guide/user_guide` chapters, which this page links to as it goes.
 The Pipeline
 ============
 
-SpinDoctor processes imagery in four phases. Navigation comes first, and each of the
-three phases after it reads what navigation recorded.
+SpinDoctor processes imagery in four phases, each reading what the phase before it
+recorded:
 
-1. **Navigation.** Compare each image against models of stars, planets, moons, and
-   rings, and record the pointing correction that makes the model line up with the
-   image. Each navigated image gets its own metadata document holding the correction,
-   its uncertainty, and the corrected pointing itself. Run with ``sd_offset``; see
-   :doc:`/user_guide/user_guide_navigation_running`.
+1. **Navigation** -- measure each image's pointing correction. Run with ``sd_offset``;
+   see :doc:`/user_guide/user_guide_navigation_running`.
 
-2. **Corrected-pointing C kernels.** Turn the corrected pointing that navigation
-   recorded into SPICE C kernels, one corrected kernel mirroring each original kernel
-   the images were navigated against, so any SPICE-based tool can use the improved
-   attitude. Run with ``sd_create_ck``; see :doc:`/user_guide/user_guide_ck_kernels`.
+2. **Corrected-pointing C kernels** -- package the corrected pointing as SPICE kernels
+   other software can furnish. Run with ``sd_create_ck``; see
+   :doc:`/user_guide/user_guide_ck_kernels`.
 
-3. **Backplane generation.** Compute per-pixel geometry for each navigated image:
-   longitude, latitude, incidence, emission, phase, ring radius, and the rest. Run with
-   ``sd_backplanes``; see :doc:`/user_guide/user_guide_backplanes`.
+3. **Backplane generation** -- compute the per-pixel geometry of a navigated image. Run
+   with ``sd_backplanes``; see :doc:`/user_guide/user_guide_backplanes`.
 
-4. **PDS4 bundle generation.** Assemble the navigation results and the backplanes into a
-   PDS4 bundle with labels, collections, and browse products, ready for archiving. Run
-   with ``sd_create_bundle``; see :doc:`/user_guide/user_guide_pds4_bundle`.
+4. **PDS4 bundle generation** -- assemble the archival deliverable. Run with
+   ``sd_create_bundle``; see :doc:`/user_guide/user_guide_pds4_bundle`.
 
-Alongside the phases, SpinDoctor ships a set of reprojection and mosaic tools. They are
-not a phase of the pipeline: they are available whenever you want to reproject navigated
-images onto a ring radius/longitude grid or a body latitude/longitude grid, combine many
-reprojections into one mosaic, and look at the result. Run them with ``sd_mosaic_rings`` or
-``sd_mosaic_body``, and view the result with ``sd_mosaic_display_rings`` or
-``sd_mosaic_display_body``; see :doc:`/user_guide/user_guide_reprojection`.
+:doc:`/user_guide/user_guide_introduction` describes what each phase consumes and
+produces.
+
+Reprojection and mosaicing are not a phase. They are a set of tools that read navigated
+images and build maps of a body's surface or of a planet's rings. Run them with
+``sd_mosaic_rings`` or ``sd_mosaic_body``, and look at the result with
+``sd_mosaic_display_rings`` or ``sd_mosaic_display_body``; see
+:doc:`/user_guide/user_guide_reprojection`.
 
 Installation
 ============
@@ -125,9 +121,16 @@ were furnished when the image was navigated; those kernels are named elsewhere i
 same metadata document, and without them the offset means nothing. It is written for
 reading, rounded to four decimal places; the exact value is the top-level ``offset``.
 
-``cmatrix`` under ``pointing`` is the corrected pointing itself, and it is what
-downstream tools should use. Reach for an offset only when you need the size of the
-correction rather than the answer.
+``sigma_px`` is the uncertainty of that offset, in pixels, one value per axis.
+``confidence`` is a number between 0 and 1 saying how much the evidence in the frame
+supports the answer, and 0.86 is a strong one. ``techniques_used`` names the measurements
+that contributed to it, here a fit to a body's illuminated limb and a correlation against
+the star field.
+
+``cmatrix`` under ``pointing`` is the corrected pointing itself, written as a C-matrix:
+the rotation from J2000 coordinates to camera coordinates, given as its nine elements row
+by row. It is what downstream tools should use. Reach for an offset only when you need
+the size of the correction rather than the answer.
 
 :doc:`/user_guide/user_guide_navigation_outputs` describes everything the metadata
 document contains, and :doc:`/user_guide/user_guide_metadata` documents every field in
@@ -151,11 +154,9 @@ mission:
 :doc:`/user_guide/user_guide_image_selection` describes every way to name the images a
 run should process.
 
-Nothing limits how many images a single run can process. For a mission with a very large
-number of images you may still prefer to break the work into smaller chunks, so that you
-can look at how each chunk turned out before starting the next one. That is a matter of
-convenience, not a requirement. Voyager, for instance, is conventionally run one
-planetary encounter at a time simply to keep each run small.
+Nothing limits how many images a single run can process. Breaking a large mission into
+smaller chunks is a convenience: it lets you see how each chunk turned out before
+starting the next. Voyager is conventionally run one planetary encounter at a time.
 
 Where to Go Next
 ================
@@ -183,8 +184,8 @@ with stars, bodies, and rings placed at a known offset, which lets you check wha
 navigation recovers against the truth that was planted.
 See :doc:`/user_guide/user_guide_simulated_images`.
 
-**Processing in the cloud.** Cloud tasks is a work-queue package supplied by the Green
-Moon Systems node, distributed as ``rms-cloud-tasks`` and documented at
+**Processing in the cloud.** Cloud tasks is a work-queue package supplied by the PDS
+Ring-Moon Systems Node, distributed as ``rms-cloud-tasks`` and documented at
 https://rms-cloud-tasks.readthedocs.io. It hands out batches of work to compute
 instances and keeps track of which batches have been done. SpinDoctor's programs whose
 names end in ``_cloud_tasks`` are the workers the cloud task system starts on those

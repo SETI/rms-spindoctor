@@ -22,7 +22,7 @@ supports work that an unnavigated one does not:
 * Per-pixel geometry, such as the latitude, longitude, ring radius, and illumination
   angles behind each pixel.
 * Measurements tied to a location on a body or in a ring, where an error of a few pixels
-  moves the feature being measured.
+  puts the measurement somewhere other than where it was meant to be.
 * Reprojection and mosaicing, which cannot line up two images of the same terrain
   without knowing where each one pointed.
 * Archival products that carry corrected geometry for other people to use.
@@ -55,15 +55,24 @@ The Rest of the Pipeline
 Navigation is the first of four processing phases. Each later phase consumes the results
 of the one before it:
 
-1. Navigation, run by ``sd_offset``
-   (:doc:`user_guide_navigation_running`).
-2. Corrected-pointing C-kernel generation, which packages the corrected attitudes as
-   SPICE kernels other software can furnish
-   (:doc:`user_guide_ck_kernels`).
-3. Backplane generation, which writes the per-pixel geometry of a navigated image
-   (:doc:`user_guide_backplanes`).
-4. PDS4 bundle generation, which assembles the archival deliverable
-   (:doc:`user_guide_pds4_bundle`).
+1. **Navigation.** Every image is compared against models of the stars, planets, moons,
+   and rings that should have been in its field of view, and the pointing correction that
+   makes the models line up with the image is recorded. Each navigated image gets a
+   metadata document of its own, holding the correction, its uncertainty, and the
+   corrected pointing. Run by ``sd_offset`` (:doc:`user_guide_navigation_running`).
+
+2. **Corrected-pointing C-kernel generation.** The corrected attitudes are packaged as
+   SPICE C kernels, one corrected kernel mirroring each original kernel the images were
+   navigated against, so any SPICE-based tool can furnish the improved attitude. Run by
+   ``sd_create_ck`` (:doc:`user_guide_ck_kernels`).
+
+3. **Backplane generation.** The per-pixel geometry of a navigated image is computed:
+   longitude, latitude, incidence, emission, phase, ring radius, and the rest. Run by
+   ``sd_backplanes`` (:doc:`user_guide_backplanes`).
+
+4. **PDS4 bundle generation.** The navigation results and the backplanes are assembled
+   into a PDS4 bundle with labels, collections, and browse products, ready for archiving.
+   Run by ``sd_create_bundle`` (:doc:`user_guide_pds4_bundle`).
 
 Reprojection and mosaicing are not a phase. They are a set of tools that read navigated
 images and build maps of a body's surface or of a planet's rings
@@ -75,8 +84,9 @@ Supported Missions
 Every program that processes images takes a dataset name as its first argument. The name
 says which mission and instrument the images come from, and for Cassini ISS it can also
 narrow the run to one part of the archive. Names are case-insensitive, so ``COISS`` and
-``coiss`` select the same dataset. The name ending in ``_pds3`` is an alias for the name
-without it.
+``coiss`` select the same dataset. Each name also has a form ending in ``_pds3``, which
+selects exactly the same images and spells out that they come from a PDS3 archive. Type
+the short form; the examples throughout this guide use it.
 
 * Cassini Imaging Science Subsystem: ``coiss`` and ``coiss_pds3`` for all volumes,
   ``coiss_cruise`` and ``coiss_cruise_pds3`` for the cruise volumes 1001 to 1009, and
@@ -94,8 +104,8 @@ without it.
 
 Cassini ISS, Voyager ISS, and Galileo SSI images are in VICAR format, and New Horizons
 LORRI images are in FITS format. All four instruments are read from PDS3 archives, which
-is the organization of volumes, labels, and index tables around those image files rather
-than a format of its own.
+is the organization of volumes, labels, and PDS3 index tables around those image files
+rather than a format of its own.
 
 Each instrument has its own chapter, which carries the volumes it covers, which product
 is navigated, the image-name forms accepted, the thresholds its results are judged

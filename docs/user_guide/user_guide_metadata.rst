@@ -174,9 +174,9 @@ Top-level keys
        For a load-error metadata document the window ends at error time. The peak is
        the largest resident size the navigating process reached while this
        image was being navigated, which is the figure an out-of-memory kill is
-       decided against. A process handling one image reports that image's whole
-       memory usage. A process handling several reports what it reached while
-       each ran, measured from a floor that includes what earlier images left
+       decided against. A process that navigates a single image reports that
+       image's whole memory usage. A process handling several reports what it
+       reached while each ran, measured from a floor that includes what earlier images left
        resident. It is null where the operating system publishes no peak, and
        where the measurement could not be reset ahead of this image.
    * - ``offset``
@@ -276,9 +276,12 @@ lists its keys, and the table below does not repeat them.
        ``WAC``, ``SSI``, ``LORRI``). On a navigated metadata document it comes
        from the loaded image and is always present. On a load-error metadata
        document the image was never opened, so the value falls back to what the
-       PDS3 index table recorded when the image was enumerated. It is therefore
-       present only when that table supplied it: an image navigated by explicit
-       path, rather than enumerated from the PDS3 index table, has none.
+       PDS3 index table recorded when the image was enumerated. Reading that
+       table needs no SPICE and never opens the image, so a frame whose
+       navigation failed for want of a kernel is still attributed to its camera.
+       The fallback is therefore available only when that table supplied it: an
+       image navigated by explicit path, rather than enumerated from the PDS3
+       index table, has none.
    * - ``shutter_mode``
      - string
      - The shutter mode the image was taken in, for an instrument whose label
@@ -544,12 +547,11 @@ The internal-error block
 ------------------------
 
 A result whose ``status_reason`` is ``internal_error`` carries an
-``internal_error`` object, and no other result carries one. It says which part of
-the navigation raised and what class of exception it raised, so a program reading
-the metadata document, rather than a person reading the log, can tell a navigation
-that hit a defect from one that simply found nothing. A Saturn ring model that
-raised an ``AttributeError`` while building records ``component`` as
-``rings:SATURN.create_model`` and ``exception_type`` as ``AttributeError``.
+``internal_error`` object, and no other result carries one. It names the part of the
+navigation that failed and the class of error it hit, so a program reading the
+metadata document, rather than a person reading the log, can tell a navigation that
+hit a defect from one that simply found nothing. An example of both keys, from a real
+captured run, is under `Internal error`_ below.
 
 .. list-table::
    :header-rows: 1
@@ -948,8 +950,8 @@ Rounding summary
        both levels, and each per-technique ``offset_px``
      - 4 decimals (pixel quantities)
    * - The ``confidence`` key inside ``navigation_result``, each per-technique
-       ``confidence``, ``rotation_deg`` and ``sigma_rotation_deg`` at both
-       levels, float ``diagnostics`` values, ``reliability`` and its float
+       ``confidence``, ``rotation_deg`` at both levels, ``sigma_rotation_deg`` at
+       both levels, float ``diagnostics`` values, ``reliability`` and its float
        ``reliability_reasons`` components, and every float in
        ``image_classifier``
      - 3 decimals (scores and degrees)

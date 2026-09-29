@@ -15,8 +15,8 @@ combine with logical AND, so ``--volumes COISS_2001 --camera nac`` selects the
 narrow-angle images of that one volume.
 
 The whole list is settled before any image is processed, so a selection can be inspected
-on its own. ``sd_offset --dry-run`` prints the images a selection resolves to and does
-nothing else.
+on its own. Running ``sd_offset`` (:doc:`user_guide_navigation_running`) with
+``--dry-run`` prints the images a selection resolves to and does nothing else.
 
 You will want to narrow a selection for several reasons:
 
@@ -32,6 +32,21 @@ You will want to narrow a selection for several reasons:
 * A spot check over a whole mission wants a sample rather than the first few thousand
   images. A selection can draw one at random.
 
+The Families of Options
+=======================
+
+The options fall into seven groups, each with a section of its own below:
+
+* **Where the images are read from** -- ``--pds3-holdings-root``.
+* **By volume** -- ``--volumes``, ``--first-volume``, and ``--last-volume``.
+* **By image name** -- the positional image names, ``--image-file-list``, and
+  ``--image-filespec-csv``.
+* **By image number** -- ``--first-image-num`` and ``--last-image-num``.
+* **At random** -- ``--choose-random-images``.
+* **By camera** -- ``--camera``.
+* **By what a previous run recorded** -- ``--has-offset-file``,
+  ``--has-no-offset-file``, and four more that ask what a recorded error was.
+
 Which Programs Accept These Options
 ===================================
 
@@ -45,6 +60,10 @@ that enumerates images out of an archive offers the same set:
   (:doc:`user_guide_consolidate_metadata`).
 * ``sd_mosaic`` and ``sd_backplane_viewer`` -- reprojection and viewing
   (:doc:`user_guide_reprojection`).
+
+``sd_create_ck`` (:doc:`user_guide_ck_kernels`) is not among them. It reads navigation
+results rather than an archive, and selects by time instead: ``--start-time`` and
+``--stop-time`` bound the exposure midtimes it will accept.
 
 Which options a run accepts depends on the dataset it names, because each dataset offers
 the options that suit its archive. Everything in this chapter applies to the PDS3
@@ -89,13 +108,16 @@ Selecting by Volume
 ``--volumes NAME[,NAME...]``
   One or more complete PDS3 volume names. Only images in those volumes are processed.
   Pass several names separated by commas, or repeat the option, or both. A name that is
-  not a volume of this dataset is refused and the run stops.
+  not a volume of this dataset is refused and the run stops. (Read from nothing: the
+  dataset already knows its own volume names.)
 
 ``--first-volume NAME``
-  Process only this volume and the chronologically later ones.
+  Process only this volume and the chronologically later ones. (Read from nothing, as
+  above.)
 
 ``--last-volume NAME``
-  Process only this volume and the chronologically earlier ones.
+  Process only this volume and the chronologically earlier ones. (Read from nothing, as
+  above.)
 
 Volume options are the cheapest way to make a run smaller, because a volume nobody
 selected has its PDS3 index table left unread.
@@ -106,19 +128,22 @@ Selecting by Image Name
 ``img_name`` (positional, repeatable)
   One or more image names. A name is matched case-insensitively against the start of each
   image name, so a complete name selects one image and a partial name selects every image
-  whose name begins with it.
+  whose name begins with it. (Matched against the PDS3 index table rows of the selected
+  volumes.)
 
 ``--image-file-list FILE`` (repeatable)
   A file holding one image name or file specification per line. Blank lines and lines
   beginning with ``#`` are ignored, and anything after the first space on a line is
   ignored. The names are matched exactly as the positional names are. A line that is not
-  a valid name for this dataset is refused and the run stops.
+  a valid name for this dataset is refused and the run stops. (Reads the file you name,
+  then matches against the PDS3 index table rows.)
 
 ``--image-filespec-csv FILE`` (repeatable)
   A CSV file of PDS3 file specifications, of the kind PDS publishes for a search result.
   The file must have a header row with a column named ``Primary File Spec`` or
   ``primaryfilespec``. Each row's image name must match an image exactly. A row too short
-  to have that column is reported and skipped, and the run goes on.
+  to have that column is reported and skipped, and the run goes on. (Reads the file you
+  name, then matches against the PDS3 index table rows.)
 
 Naming images does not by itself restrict the volumes a run looks in. Combining a name
 list with volume options keeps the run from reading PDS3 index tables that it does not
@@ -128,10 +153,12 @@ Selecting by Image Number
 =========================
 
 ``--first-image-num N``
-  The lowest image number to process, inclusive.
+  The lowest image number to process, inclusive. (Each candidate's number is taken from
+  its PDS3 index table row.)
 
 ``--last-image-num N``
-  The highest image number to process, inclusive.
+  The highest image number to process, inclusive. (Read from the PDS3 index table row, as
+  above.)
 
 An explicit list of names or file specifications also tightens the number range on its
 own, to the span of the numbers in the list, so a name list does not cost a scan of rows
@@ -148,7 +175,8 @@ Selecting a Random Sample
 
 ``--choose-random-images N``
   Process a random sample of N images, drawn uniformly from every image that satisfies
-  the other options across all the selected volumes, and yielded in random order.
+  the other options across all the selected volumes, and yielded in random order. (Reads
+  every selected volume's PDS3 index table.)
 
 Drawing a uniform sample means every selected volume's PDS3 index table is read, because
 the pool has to be complete before it can be sampled. The tables are cached locally, so
@@ -174,31 +202,33 @@ the tree of metadata documents, or the results index when the program was given 
 none of them opens an image file.
 
 ``--has-offset-file``
-  Keep only images that already have a metadata document.
+  Keep only images that already have a metadata document. (Answered from a listing of the
+  selected volumes' results directories.)
 
 ``--has-no-offset-file``
   Keep only images that have no metadata document. These are the images that were never
-  navigated.
+  navigated. (Answered by asking about each candidate image.)
 
 ``--has-offset-error``
-  Keep only images whose metadata document exists and records a fatal error.
+  Keep only images whose metadata document exists and records a fatal error. (Answered by
+  reading the candidate's metadata document.)
 
 ``--has-no-offset-error``
   Keep only images whose metadata document exists and records something other than a
   fatal error. These are the images whose navigation ran to a result, whether or not it
-  found an offset.
+  found an offset. (Answered by reading the candidate's metadata document.)
 
 ``--has-offset-spice-error``
   Keep only images whose metadata document exists and records a fatal error caused by
-  missing SPICE data.
+  missing SPICE data. (Answered by reading the candidate's metadata document.)
 
 ``--has-offset-nonspice-error``
   Keep only images whose metadata document exists and records a fatal error from some
-  other cause.
+  other cause. (Answered by reading the candidate's metadata document.)
 
 Each of the four error options asks what a metadata document records, so each of them
-requires the document to exist. An image that has no metadata document records no error,
-and ``--has-no-offset-file`` is what selects it.
+requires that metadata document to exist. An image that has no metadata document records
+no error, and ``--has-no-offset-file`` is what selects it.
 
 Combinations that nothing could satisfy are refused before the run starts, and the
 message names every flag involved:
@@ -206,57 +236,59 @@ message names every flag involved:
 * ``--has-offset-file`` with ``--has-no-offset-file``.
 * ``--has-offset-spice-error`` with ``--has-offset-nonspice-error``.
 * ``--has-no-offset-file`` with any of the four error options, since those need a
-  document to read.
+  metadata document to read.
 * ``--has-no-offset-error`` with any of the three options that name an error.
 
 What These Options Cost
 -----------------------
 
-Whether a metadata document exists is a question that opens no document, and it is asked
-in one of two ways.
+Whether a metadata document exists can be settled without reading one, and it is asked in
+one of two ways.
 
 A run selecting images that *have* one -- ``--has-offset-file``, and every error option,
-each of which needs a document to read -- lists the results directories of the selected
-volumes once, when the run starts. That is one listing per directory rather than one read
-per image, and testing a candidate image against the result afterwards costs nothing.
+each of which needs a metadata document to read -- lists the results directories of the
+selected volumes once, when the run starts. That is one listing per directory rather than
+one read per image, and testing a candidate image against the result afterwards costs
+nothing.
 
 A run selecting images that have *none* -- ``--has-no-offset-file`` -- asks about the
-candidate images themselves, in batches, as they are enumerated. It has to ask that way
-to be worth asking. A listing of whole volumes would be a list of images to reject, so a
-run whose other options name ten images would pay for fifty thousand entries to answer
-about ten. Asking about the candidates costs one check per candidate on a local results
-root, where a check is a system call, and one directory listing on a cloud results root,
-where a check is a paid round trip; there, one listing serves every batch of the run.
+candidate images themselves, in batches, as they are enumerated. A listing of whole
+volumes would be mostly a list of images to reject, so a run whose other options name ten
+images would pay for fifty thousand entries to answer about ten. Asking about the
+candidates costs one check per candidate on a local results root, where a check is a
+system call, and one directory listing on a cloud results root, where a check is a paid
+round trip; there, one listing serves every batch of the run.
 
-An error option has to read metadata documents, and which ones to read is the set of
-candidate images, which the other options decide and which is not known when the run
-starts. So the documents are read in batches, as the candidates are enumerated. A run
-whose other options keep one image in a hundred reads a hundredth of the documents,
-rather than every document under the volumes it selected. On a cloud results root that is
-a hundredth of the downloads. Only images that already passed the listing are ever read,
-which is also what makes every error option keep only images that have a document.
+An error option has to read metadata documents. Which ones to read is the set of candidate
+images, which the other options decide and which is not known when the run starts, so the
+metadata documents are read in batches as the candidates are enumerated. A run whose other
+options keep one image in a hundred reads a hundredth of the metadata documents, rather
+than every one under the volumes it selected. On a cloud results root that is a hundredth
+of the downloads. Only images that already passed the listing are ever read, which is also
+what makes every error option keep only images that have a metadata document.
 
 A filter answers from what the metadata document said at the moment the selection was
-made. A document rewritten or deleted while the run is under way is not noticed for an
-image the run has already selected.
+made. A metadata document rewritten or deleted while the run is under way is not noticed
+for an image the run has already selected.
 
 Metadata Documents That Cannot Be Read
 --------------------------------------
 
-An error option needs to know what a document records. A metadata document that cannot be
-read, that does not parse as JSON, that parses to something other than a JSON object, or
-that was written to an earlier version of the metadata schema tells it nothing. What such
-a document records is unknown rather than known, so its image satisfies no error option,
-including ``--has-no-offset-error``. A results root holding nothing but documents from an
-earlier schema therefore selects no image at all for any error option. Re-navigating
-those images rewrites their documents to the current schema.
+An error option needs to know what a metadata document records. A metadata document that
+cannot be read, that does not parse as JSON, that parses to something other than a JSON
+object, or that was written to an earlier version of the metadata schema tells it nothing.
+What such a metadata document records is unknown rather than known, so its image satisfies
+no error option, including ``--has-no-offset-error``. A results root holding nothing but
+metadata documents from an earlier schema therefore selects no image at all for any error
+option. Re-navigating those images rewrites their metadata documents to the current
+schema.
 
-Such a document is still a file that exists, so ``--has-offset-file`` selects its image
-and ``--has-no-offset-file`` passes over it.
+Such a metadata document is still a file that exists, so ``--has-offset-file`` selects its
+image and ``--has-no-offset-file`` passes over it.
 
-When a run ends, its log reports how many candidate documents it could read nothing out
-of and names one of them with the reason. A selection that is short for this reason says
-so, rather than only coming back smaller than expected.
+When a run ends, its log reports how many candidate metadata documents it could read
+nothing out of and names one of them with the reason. A selection that is short for this
+reason says so.
 
 Results Directories That Cannot Be Listed
 -----------------------------------------
@@ -268,30 +300,27 @@ A selected volume that has no directory under the results root contributes nothi
 volume nobody has navigated yet has no directory there, and that is an ordinary state of
 a results tree.
 
-A directory that is there and cannot be listed ends the run instead. This user may not
-have permission to read it, or the storage it lives on may have gone away. A filter
-answering from a partial listing would silently select images for which it has no
-evidence,
-so the run stops and says which directory it could not read. Asking about one volume at a
-time is what tells the two cases apart: a single request covering all of them would end
-at the first unreadable volume, and every volume after it would go unasked.
+A directory that is there and cannot be listed ends the run instead, and the message names
+that directory. This user may not have permission to read it, or the storage it lives on
+may have gone away.
 
 Answering These Options From the Results Index
 ==============================================
 
 Reading a results tree costs a listing per directory and, for an error option, a read per
-candidate document. On a cloud results root each of those is a network round trip. The
-results index is a database holding one row per navigated image, and a program given one
-answers these six options from its rows without reading the results tree at all.
+candidate metadata document. On a cloud results root each of those is a network round
+trip. The results index is a database holding one row per navigated image, and a program
+given one answers these six options from its rows without reading the results tree at
+all.
 
 ``sd_offset`` and ``sd_backplanes`` accept ``--results-index-db URL``; see
-:doc:`user_guide_results_index` for the index itself and for how to build and refresh it.
-A program that does not accept the option always reads the results tree.
+:doc:`user_guide_results_index` for the results index itself and for how to build and
+refresh it. A program that does not accept the option always reads the results tree.
 
-A run given an index refuses to answer when the index holds no completed ingest of the
-results root. An image that has no row otherwise reads as an image that was never
-navigated, and for a root the index knows nothing about, that answer would be wrong for
-every image under it.
+A run given a results index refuses to answer when that results index holds no completed
+ingest of the results root. An image that has no row otherwise reads as an image that was
+never navigated, and for a results root that has no ingest behind it, that answer would be
+wrong for every image under it.
 
 Where the Results Index Answers Differently
 -------------------------------------------
@@ -299,29 +328,34 @@ Where the Results Index Answers Differently
 The results index holds what an ingest pass could read and record. Three things follow,
 all of them worth knowing before a selection is trusted.
 
-**The index answers as of its last ingest.** An image navigated since that pass has no
-row, so ``--has-no-offset-file`` selects it again. A metadata document deleted since that
-pass still has a row, so ``--has-offset-file`` selects an image whose document is gone.
-The run log reports when the pass finished and how long ago that was, which is what says
-whether either applies to your run. Run ``sd_results_index ingest`` to bring the index up
-to date, or pass ``--results-index-db none`` for a run that must read the tree.
+**The results index answers as of its last ingest.** An image navigated since that pass
+has no row, so ``--has-no-offset-file`` selects it again. A metadata document deleted
+since that pass still has a row, so ``--has-offset-file`` selects an image whose metadata
+document is gone. The run log reports when the pass finished and how long ago that was,
+which is what says whether either applies to your run. Run ``sd_results_index ingest`` to
+bring the results index up to date, or pass ``--results-index-db none`` for a run that
+must read the tree.
 
 **An image that has no row in the results index reads as never navigated.** One kind of
-ingest failure leaves a metadata document unrecorded, and that is a pass that could not
-retrieve the file. We deliberately record nothing for such a file. A row for it would be
-skipped for as long as the file did not change, and a download that failed once says
-nothing that will still be true on the next pass. The other two ways a document could go
-unrecorded leave no completed pass behind, so a completed ingest cannot contain them: a
-pass that cannot list a directory stops there, and a pass whose document the database
-refuses stops there. After a completed pass, every directory under the root was listed
-and every metadata document under it was stored.
+ingest failure leaves a metadata document unrecorded: a pass that could not retrieve the
+file. Nothing is recorded for such a file, because a row for it would be skipped for as
+long as the file did not change, and a download that failed once says nothing that will
+still be true on the next pass. The other two ways a metadata document could go unrecorded
+leave no completed pass behind, so a completed ingest cannot contain them: a pass stops
+where it cannot list a directory, and it stops where the database refuses one of its
+metadata documents. After a completed pass, every directory under the results root was
+listed and every metadata document under it was stored.
 
-**A metadata document rewritten in place, keeping the length and modification time it had
-before, keeps the row the earlier document produced.** Those two are everything a
-directory listing says about a file, and they are how an ingest decides whether a
-document needs re-reading, so an error option answers from the earlier document however
-recently the last pass finished. A tree restored by a copy that preserves timestamps, a
-document patched and stamped back from a sibling, and a storage backend reporting one
-modification time for two writes all produce this. An ordinary re-navigation writes a
-different length at a later time and does not. Run ``sd_results_index ingest --force``
-over the root to re-read every document and put such a row right.
+**An error option can answer from a metadata document that has since been replaced.** The
+symptom is a stale verdict: the results index reports what the earlier metadata document
+recorded, however recently the last ingest finished. Run ``sd_results_index ingest
+--force`` over the results root to re-read every metadata document and put such a row
+right.
+
+This happens when a metadata document is rewritten in place and keeps the length and
+modification time it had before, because those two are everything a directory listing says
+about a file and are how an ingest decides whether a metadata document needs re-reading. A
+tree restored by a copy that preserves timestamps, a metadata document patched and stamped
+back from a sibling, and a storage backend reporting one modification time for two writes
+all produce it. An ordinary re-navigation writes a different length at a later time and
+does not.

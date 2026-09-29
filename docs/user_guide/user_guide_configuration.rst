@@ -24,10 +24,7 @@ Settings are resolved in this order, each step overriding the ones above it:
 
 1. **Built-in defaults.** A stack of configuration files ships inside SpinDoctor and gives
    every setting a value. You cannot edit these: they live inside the installed package,
-   and a change to them would be undone by the next upgrade. (A developer reading the
-   source will find them in ``src/spindoctor/config_files/``, loaded in filename order,
-   which is what the ``config_NN_`` number prefix on each filename is for.
-   :doc:`/dev_guide/dev_guide_config_and_static_data` describes what each one holds.)
+   and a change to them would be undone by the next upgrade.
 
 2. **Exactly one of the following**, loaded on top of the built-in defaults:
 
@@ -50,6 +47,10 @@ Settings are resolved in this order, each step overriding the ones above it:
 Some settings also have an environment variable, which is consulted last, after both
 the command line and the configuration files. Exporting one does not override a value a
 configuration file already sets. Each is named with the option it belongs to below.
+
+The built-in defaults are in ``src/spindoctor/config_files/`` of the installed package,
+loaded in filename order; that is where a developer reading the source finds them, and
+:doc:`/dev_guide/dev_guide_config_and_static_data` describes what each one holds.
 
 How a configuration file is written
 ===================================
@@ -85,30 +86,50 @@ The sections are:
     root, and the results index.
 
 ``general``, ``planets``, ``satellites``
-    Which planets and moons SpinDoctor knows about, and how each is grouped.
+    Which planets and moons SpinDoctor knows about, and how each is grouped. Change these
+    to add a moon that is not modeled, or to leave one out.
 
 ``logging``
-    What each program writes to its logs, and where. See
+    How much each program writes to its logs, and which components it writes about. See
     :doc:`/user_guide/user_guide_logging`.
 
 ``offset``
-    The shared machinery of offset finding, including the correlation settings.
+    The shared machinery every technique uses, including how finely the image correlation
+    is upsampled and whether star positions are refined after a first fit.
 
-``stars``, ``bodies``, ``rings``, ``titan``, ``body_shape``
-    One section per model family, describing what is modeled and how.
+``stars``, ``bodies``, ``rings``, ``titan``
+    What goes into the model of each kind of subject, and how the matching treats it:
+    which star catalogs are consulted and in what order, how small a moon may be and
+    still be measured, where the ring radii come from, and how thick the atmosphere of a
+    hazy body is taken to be.
 
-``techniques``, ``orchestrator``
-    Per-technique settings, and how the per-technique answers are combined into the one
-    offset reported for the image. The acceptance thresholds live here; see `Acceptance
-    thresholds`_ below.
+``body_shape``
+    The dimensions, surface roughness, and brightness assumed for each body, which is what
+    decides how closely a modeled limb can be expected to match the real one.
+
+``techniques``
+    Per-technique settings: how much work each technique does, and how it turns what it
+    measured into a confidence.
+
+``orchestrator``
+    How the per-technique answers are combined into the one offset reported for the image,
+    and how good that answer must be to be accepted at all. The acceptance thresholds live
+    here; see `Acceptance thresholds`_ below.
 
 ``cassini_iss``, ``voyager_iss``, ``galileo_ssi``, ``newhorizons_lorri``
     Per-instrument settings. :doc:`/user_guide/instruments/instruments` describes each
     instrument and what is particular to it.
 
-``backplanes``, ``pds4``, ``results_tree``, ``sim``
-    Settings for the downstream stages, for a pass over a navigation results tree, and for
-    the image simulator.
+``backplanes``, ``pds4``
+    Which backplanes are computed, and how a PDS4 bundle is assembled.
+
+``results_tree``
+    How many requests a pass over a navigation results tree makes at once. Worth tuning
+    for a results root on cloud storage, and best left alone for a local one.
+
+``sim``
+    The camera the image simulator pretends to be, and the noise and defects it renders.
+    See :doc:`/user_guide/user_guide_simulated_images`.
 
 When two configuration files name the same setting, the value from the last file loaded
 wins. Sections merge setting by setting, so naming one setting in a section leaves the
@@ -205,8 +226,8 @@ Navigation options
     named ``stars``, ``body:NAME``, ``rings:PLANET``, or ``titan:NAME``, and shell-glob
     wildcards are allowed. Writing a bare prefix selects every model under it, so
     ``rings`` means the same as ``rings:*``.
-    :doc:`user_guide_navigation_models` lists the names in full. Overrides any model selection
-    from a configuration file.
+    :doc:`user_guide_navigation_models` lists the names in full. Overrides any model
+    selection from a configuration file.
 
 ``--nav-techniques LIST``
     Which techniques to run, as a comma-separated list of glob patterns matched against
@@ -233,49 +254,14 @@ The options are ``--log-root``, ``--log-level`` (bare for both kinds of log, or
 ``MODULE=LEVEL`` for one component, repeatable), ``--log-level-main``,
 ``--log-level-image``, and the four switches ``--log-main-to-console``,
 ``--log-main-to-file``, ``--log-image-to-console``, and ``--log-image-to-file``, each of
-which also has a ``--no-`` form. A program that does not process images individually
-accepts only the main-log options, and the cloud task workers accept none.
+which also has a ``--no-`` form.
 
-Levels are ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``, and ``NONE``, and
-are accepted in any case.
+``--log-main-to-file`` and ``--log-image-to-file`` are the two with no configuration
+equivalent. All the rest correspond to a key in the ``logging`` section.
 
-.. code-block:: yaml
-
-    logging:
-      main: INFO            # the run's log
-      image: INFO           # per-image logs, and any component not named below
-      main_console: true    # whether the run's log reaches the terminal
-      image_console: false  # whether per-image logs do
-      techniques:
-        titan_haze: DEBUG   # one technique
-      models:
-        rings: WARNING      # one model family
-      other:
-        annotate: ERROR
-      programs:
-        sd_mosaic:          # applies to that program only
-          main: WARNING
-
-A component named anywhere takes the level it is given there. A category's ``default``
-applies to the rest of that category, and otherwise the level for that kind of log
-applies. An unrecognized component name, program name, or level is refused when the
-configuration loads rather than quietly ignored.
-
-``--log-root`` takes precedence over every configuration file, including one named with
-``--config-file``, and over the ``NAV_LOG_ROOT`` environment variable. So do
-``--log-main-to-console`` and ``--log-image-to-console``, over the ``main_console`` and
-``image_console`` settings. ``--log-main-to-file`` and ``--log-image-to-file`` have no
-configuration equivalent, because whether a log file is written is inseparable from where
-it goes, and that is chosen per run.
-
-The level options are ranked by how specifically they name their target rather than by
-being on the command line. ``--log-level MODULE=LEVEL`` outranks everything, but a
-component named in a configuration file outranks a bare ``--log-level``, which says
-nothing about that component. So ``--log-level DEBUG`` does not lift a component the
-configuration has pinned; name it, as in ``--log-level titan_haze=DEBUG``.
-
-:doc:`/user_guide/user_guide_logging` covers all of this in full, including the component
-names.
+:doc:`/user_guide/user_guide_logging` is the full account: the levels, the component
+names, the keys of the ``logging`` section, and which setting wins when two of them name
+the same component.
 
 Acceptance thresholds
 =====================
@@ -311,17 +297,9 @@ What a run records about its own configuration
 ==============================================
 
 Each navigation result records a digest of the configuration that produced it, so two
-results can be told apart when they were navigated under different settings. Three
-sections are deliberately left out of that digest, because none of them can change what a
-run concluded:
-
-* ``logging``, which says what a run wrote down about itself.
-* ``environment``, which says where a deployment keeps its files.
-* ``results_tree``, which says how many requests a pass over a navigation results tree
-  makes at once.
-
-Two results that differ only in those sections were produced by the same configuration and
-compare as such.
+results can be told apart when they were navigated under different settings. Two results
+that differ only in their ``logging``, ``environment``, or ``results_tree`` settings
+compare as identical.
 
 Worked example
 ==============

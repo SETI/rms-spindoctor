@@ -2,24 +2,22 @@
 Consolidating Navigation Outputs
 ================================
 
-Navigation writes each image's results where the image itself sits. Under the navigation
-results root, the per-volume directory hierarchy of the input holdings is mirrored
-exactly, so one image's metadata document and its summary preview lie many directories
-down, beside the results for the other images of that volume. That is the right place for
-a pipeline to keep them and a poor place to read them from. Reviewing fifty frames drawn
-from a dozen volumes means descending a dozen deep paths, and handing those fifty frames
-to somebody else means packing a directory tree that is almost all empty.
+The navigation results root mirrors the directory hierarchy of the input holdings, so an
+image's metadata document and its summary preview lie many directories down, which makes
+reviewing fifty frames drawn from a dozen volumes a matter of descending a dozen deep
+paths.
 
-``sd_consolidate_metadata`` solves that. It copies the results for a selected set of
-images into one flat directory, named only by each image. Nothing is moved and nothing in
-the navigation results root is changed; the program only reads from it.
+``sd_consolidate_metadata`` copies the results for a selected set of images into one flat
+directory, named only by each image. Nothing is moved and nothing in the navigation
+results root is changed; the program only reads from it.
 
 Basic invocation
 ================
 
 .. code-block:: bash
 
-   sd_consolidate_metadata DATASET [selection] --dest-dir PATH --copy-all
+   sd_consolidate_metadata DATASET [selection] --dest-dir PATH \
+       [--copy-metadata|--copy-png|--copy-all]
 
 Images are selected exactly as they are for ``sd_offset``
 (:doc:`/user_guide/user_guide_navigation_running`): the same dataset name, the same
@@ -27,8 +25,8 @@ positional image names, the same ``--volumes``, and the same image-number and fi
 filters. :doc:`/user_guide/user_guide_image_selection` describes them in full. Whatever
 selection navigated a set of images will consolidate the results for that same set.
 
-At least one of ``--copy-metadata``, ``--copy-png``, or ``--copy-all`` must be given; with
-none of them the program has nothing to do and says so.
+At least one of ``--copy-metadata``, ``--copy-png``, or ``--copy-all`` must be given.
+Given none of them the program has nothing to do and says so.
 
 What gets copied
 ================
@@ -74,8 +72,8 @@ Where the results are read from
 
 The navigation results root comes from ``--nav-results-root``, then the
 ``environment.nav_results_root`` configuration setting, and only then the
-``NAV_RESULTS_ROOT`` environment variable. Configuration files are resolved as they are for every other
-program; see :doc:`/user_guide/user_guide_configuration`.
+``NAV_RESULTS_ROOT`` environment variable. Configuration files are resolved as they are
+for every other program; see :doc:`/user_guide/user_guide_configuration`.
 
 Example
 =======

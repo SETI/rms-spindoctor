@@ -5,26 +5,13 @@ Navigation Inputs and Outputs
 Input Files
 ===========
 
-Navigation reads one image at a time, together with the label that describes it and
-the SPICE kernels that cover the time the image was taken.
-
-The image files are in one of two formats:
-
-* VICAR, for Cassini ISS, Voyager ISS, and Galileo SSI (``.IMG`` files).
-* FITS, for New Horizons LORRI (``.fit`` files).
-
-PDS3 is not an image format. It is the way the archive organizes those files into
-volumes, with a detached label beside each image and an index table listing what the
-volume holds. The label supplies the exposure times, the filters, and the rest of what
-the mission recorded about the frame; the PDS3 index table is one of the ways a run can
-enumerate images to process, as described in :doc:`user_guide_image_selection`.
-
-A navigation run therefore needs three things:
-
-1. The image file and its label.
-2. SPICE kernels for the mission and the time period the image was taken in.
-3. Configuration, which is optional: defaults are supplied for every instrument. See
-   :doc:`user_guide_configuration`.
+A navigation run needs the image file and its label, SPICE kernels covering the time the
+image was taken, and optionally a configuration of your own; defaults are supplied for
+every instrument. The images are VICAR files for Cassini ISS, Voyager ISS, and Galileo
+SSI, and FITS files for New Horizons LORRI. How images are enumerated is described in
+:doc:`user_guide_image_selection`, the configuration system in
+:doc:`user_guide_configuration`, and each mission's own holdings, labels, and metadata in
+its chapter under :doc:`/user_guide/instruments/instruments`.
 
 Output Files
 ============
@@ -39,73 +26,58 @@ The metadata document
 The metadata document is a JSON file holding the navigation results for one image. The
 complete key-by-key specification -- every key, its type, when it is present, the
 rounding policy, and one annotated example per kind of result -- is
-:doc:`user_guide_metadata`. In summary, it holds:
+:doc:`user_guide_metadata`. It is organized as these blocks:
 
-* ``observation`` -- the image's identity: name, path, instrument, and ``camera`` (the
-  camera that took it, for example ``NAC``). An image that fails to load has no
-  observation to ask, so the value recorded under ``camera`` falls back to what the
-  PDS3 index table said when the image was enumerated; that needs no SPICE and never
-  opens the image, so a frame whose navigation dies for want of a kernel is still
-  attributed to its camera. An image navigated by explicit path, rather than enumerated
-  from the PDS3 index table, has no such fallback. ``shutter_mode`` records the mode
-  the image was taken in for an instrument whose label carries one; instruments whose
-  labels carry no such field omit it. For every image whose navigation ran to a result,
-  successful or failed, the block also records what is known about the exposure from
-  the image itself: when the exposure began, its midpoint, and when it ended (in UTC and
-  ET, and as the spacecraft clock counts the label records), the exposure time, the
-  filters, and whatever else the instrument states about the image. These are recorded
-  whether or not a corrected pointing was. A metadata document written for an image
-  that could not be loaded, or whose navigation hit an internal fault, carries none of
-  them.
-* ``pointing`` -- the image's attitude as a C-matrix. ``cmatrix_original`` is the
-  uncorrected J2000-to-camera rotation the furnished kernels gave, and ``cmatrix`` is
-  the same rotation corrected by the navigated offset, alongside the SPICE
-  ``camera_frame``, ``camera_frame_id``, and the ``ck_frame_id`` of the object a
-  corrected C-kernel targets. Both matrices are nine row-major floats at the exposure
-  midtime. ``cmatrix`` is present only when the navigation produced an offset and
-  fitted no camera rotation.
-* ``offset`` -- the measured pointing correction ``[dv, du]`` in pixels, v first, then
-  u. It is a correction **relative to the SPICE kernels that were furnished when the
-  image was navigated**, and those kernels are listed by name in the metadata document
-  itself, under ``provenance.spice_kernels``. Applied against a different set of
-  kernels the offset means nothing, so the value a consumer should use is the corrected
-  pointing in ``cmatrix``, which already carries the correction and is tied to no
-  particular set of kernels.
-* ``sigma_px`` -- the per-axis 1-sigma uncertainty of the offset, in pixels, and
-  ``covariance_px2``, the full covariance it comes from.
-* ``confidence`` and ``confidence_rank`` -- how much the pipeline trusts the answer, as
-  a number in ``[0, 1]`` and as a coarse tier.
+* ``observation`` -- what image this is, and what its instrument states about the
+  exposure.
+* ``pointing`` -- the camera's attitude as a C-matrix, both as the furnished kernels gave
+  it and as corrected by the navigated offset.
+* ``offset``, ``sigma_px``, and ``covariance_px2`` -- the measured pointing correction
+  ``[dv, du]`` in pixels and how precisely it is known.
+* ``confidence`` and ``confidence_rank`` -- how much the pipeline trusts the answer, as a
+  number in ``[0, 1]`` and as a coarse tier.
 * ``status`` and ``status_reason`` -- whether the navigation succeeded, failed, or came
   out conflicted, and the discrete reason for that outcome.
-* ``per_technique`` -- one entry for each technique that produced an answer, with that
-  technique's own offset, covariance, confidence, its self-flags for a spurious result
-  and for a solution that touched its search boundary, and its diagnostics.
-* ``excluded_from_consensus`` -- the techniques whose answers were left out of the
-  reported combination: outliers rejected against a consensus of several techniques, or
-  the runner-up answer on a conflicted result.
-* ``times`` -- the exposure window the attitude belongs to: ``start_et``, ``stop_et``,
-  ``midtime_et``, ``exposure_s``, and the spacecraft-clock strings ``sclk_start``,
-  ``sclk_midtime``, and ``sclk_stop``.
+* ``per_technique`` and ``excluded_from_consensus`` -- what each technique answered on its
+  own, and which answers were left out of the reported combination.
+* ``times`` -- the exposure window the attitude belongs to.
 * ``provenance`` -- what the run was made of: the software version, the SPICE kernels
   loaded, the star catalogs used, and the configuration in force.
 * ``timing`` -- when the navigation of this image started and ended, how long it took,
   and the peak memory the process reached.
 
-.. note::
+The value a downstream consumer should use is the corrected pointing in
+``pointing.cmatrix``. The ``offset`` is a correction **relative to the SPICE kernels that
+were furnished when the image was navigated**, and those kernels are listed by name in the
+same metadata document, under ``provenance.spice_kernels``. Applied against a different
+set of kernels the offset means nothing. The corrected pointing already carries the
+correction and is tied to no particular set of kernels.
+
+.. warning::
 
    The ``confidence`` values and ``confidence_rank`` tiers are calibrated against
    *simulated* planted-truth recovery only. On real images they carry the simulator's
    realism as an unquantified assumption and must not be read as probabilities of
    real-image accuracy. The ``confidence_provisional: true`` field in every metadata
-   document that carries a navigation result marks that basis; a metadata document for
-   an image that could not be loaded has no navigation result and therefore no such
-   field. The
-   tiers price statistical error only. A coherent model error the diagnostics cannot
-   see -- a ring feature whose true orbit sits a few pixels off the catalog orbit, or a
-   high-phase haze crescent biasing a centroid -- can be absorbed into a wrong offset
-   that still reports high confidence and a tight uncertainty, so a high tier is not
-   evidence against that kind of error. See the confident-wrong discussion in
-   :doc:`/dev_guide/dev_guide_orchestrator_ensemble`.
+   document that carries a navigation result marks that basis.
+
+   The tiers cover statistical error only. Where a technique's answer is displaced by an
+   error coherent across the whole measurement, its own diagnostics cannot see the
+   displacement, so it reports a tight uncertainty and a high confidence around the wrong
+   offset. Two real cases: a ring feature whose true orbit sits a few pixels off the
+   catalog orbit the model was built from, so every vertex of every edge is displaced
+   together and the fit is internally consistent at the wrong place; and a high-phase
+   Titan crescent, where the visible haze is a thin arc on one side of the body, which
+   pulls a centroid toward the lit side by an amount no residual reveals.
+
+   The tier boundaries take that into account as far as they can. The ``high`` boundary
+   sits at a confidence of 0.85 because the calibration runs put most of their
+   tight-uncertainty wrong answers between 0.55 and 0.80, so those land in ``medium``
+   instead. What a ``high`` tier does not do is rule such an answer out. The thing that
+   catches one is corroboration from an independent technique working on different
+   content -- a star field beside the rings, a second resolved moon beside Titan -- which
+   is why the pipeline runs every technique that has something to work with rather than
+   stopping at the first answer.
 
 These metadata documents are also what the run-statistics tooling reads.
 ``sd_results_index`` (see :doc:`user_guide_results_index`) collects one row per
@@ -123,6 +95,12 @@ offset, so a glance tells you whether the predicted features land on the real on
 image whose data could not be loaded at all -- a frame outside the SPICE kernels'
 coverage, most often -- gets the metadata document, with a ``status`` of ``error``, and
 no picture: nothing was read to draw one from.
+
+Look at this picture first whenever a result surprises you. It shows in one glance what no
+single number in the metadata document can: whether the navigator was matching the thing
+you assumed it was matching. A confident offset whose drawn limb sits on a crater rim, a
+ring polyline one ringlet away from the bright edge beneath it, or a set of star boxes
+sitting on nothing are all immediately visible, and each points at a different cause.
 
 The base layer is the source image rendered in grayscale with a quantile contrast
 stretch. The black point sits at a low quantile; the white point adapts to how many
