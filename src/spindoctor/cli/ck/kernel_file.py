@@ -78,7 +78,7 @@ def check_output_paths(paths: Sequence[Path]) -> None:
     What this establishes, for each path:
 
     * It names a file and holds no character that cannot be written down.
-    * Nothing already occupies it, a symbolic link with no target included.
+    * Nothing already occupies it, a dangling symbolic link included.
     * Its basename fits the field SPICE stores as a file's internal name.
     * Its directory exists and its permission bits allow writing into it.
     * No other path in the set names the same file, however it is spelled.
@@ -310,11 +310,11 @@ def _occupied_refusal(path: Path) -> str | None:
 
     Returns:
         The reason, or ``None`` if nothing is there.  A symbolic link is
-        refused whether or not it has a target: one with a target would be
+        refused whether or not its target exists: a link that resolves would be
         written through, putting the corrected kernel wherever the link points
-        instead of in the output directory, and one without a target is the
-        case :meth:`~pathlib.Path.exists` alone misses, since it follows the
-        link and reports the absent target rather than the link itself.
+        instead of in the output directory, and a dangling one is the case
+        :meth:`~pathlib.Path.exists` alone misses, since it follows the link and
+        reports on the missing target rather than on the link itself.
     """
     if path.is_symlink():
         return (

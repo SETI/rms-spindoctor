@@ -834,8 +834,9 @@ Invariants
   bounded on purpose: it says nothing about a write that fails for a reason
   only the filesystem or ``ckw03`` knows at the moment of writing.
 * **"Is anything already there?" is not a plain existence test.** It follows symbolic
-  links, so a link with no target answers ``False`` and the write then creates
-  the target -- outside the output directory. A link that resolves in a loop
+  links, so a dangling link -- one whose target does not exist -- answers
+  ``False``, and the write then creates that target, outside the output
+  directory. A link that resolves in a loop
   answers ``False`` for a different reason and behaves the same way. Both are
   pinned as measurements in the writer's tests, so a rewrite back to ``exists``
   fails rather than passes. For the same class of reason, a path holding a
