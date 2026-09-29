@@ -42,11 +42,13 @@ for arg in "$@"; do
 done
 
 if [[ ${#FILES[@]} -eq 0 ]]; then
-    mapfile -t FILES < <(
-        find docs \( -name '*.rst' -o -name '*.md' \) \
-            -not -path 'docs/_build/*' -not -path 'docs/api_reference/*'
-        printf '%s\n' README.md CONTRIBUTING.md
-    )
+    if ! found=$(find docs \( -name '*.rst' -o -name '*.md' \) \
+            -not -path 'docs/_build/*' -not -path 'docs/api_reference/*'); then
+        echo 'check-doc-prose: FAILED -- could not list the documentation tree' >&2
+        exit 1
+    fi
+    mapfile -t FILES <<< "$found"
+    FILES+=(README.md CONTRIBUTING.md)
 fi
 
 # The user guide and the quick start are written for users; the developer guide
@@ -93,10 +95,12 @@ prose_stream() {
 import re
 import sys
 
+failed = []
 for path in sys.argv[1:]:
     try:
         lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
-    except OSError:
+    except OSError as exc:
+        failed.append(f"{path}: {exc}")
         continue
     md = path.endswith(".md")
     fence = None
@@ -104,17 +108,20 @@ for path in sys.argv[1:]:
     for n, line in enumerate(lines, 1):
         stripped = line.strip()
         if md:
-            # CommonMark allows ``` and ~~~ fences, and a fence closes only on a
-            # matching run of the same character. Recognizing backticks alone
-            # read a tilde-fenced example as prose.
-            m = re.match(r"(`{3,}|~{3,})", stripped)
+            # CommonMark allows ``` and ~~~ fences, a fence closes only on a
+            # matching run of the same character, and a run indented by four or
+            # more spaces is code-block content rather than a fence at all.
+            # Reading an indented fence as an opening one suppressed every line
+            # after it, because nothing closed it.
+            indent_md = len(line) - len(line.lstrip())
+            m = re.match(r"(`{3,}|~{3,})", stripped) if indent_md < 4 else None
             if m and fence is None:
                 # An opening fence may carry an info string.
                 fence = m.group(1)
                 continue
             # A closing fence holds only its own run, so ~~~example inside an
             # open block is content rather than the end of it.
-            if fence and re.fullmatch(re.escape(fence[0]) + "{%d,}" % len(fence), stripped):
+            if fence and m and re.fullmatch(re.escape(fence[0]) + "{%d,}" % len(fence), stripped):
                 fence = None
                 continue
             if fence:
@@ -139,6 +146,11 @@ for path in sys.argv[1:]:
             block_indent = indent
             continue
         print(f"{path}:{n}:{line}")
+
+if failed:
+    for entry in failed:
+        print(f"check-doc-prose: cannot read {entry}", file=sys.stderr)
+    raise SystemExit(1)
 ' "$@"
 }
 

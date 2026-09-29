@@ -175,8 +175,9 @@ driver is running:
    *name* is UTC. The timestamp at the front of every record *inside* the file
    is the local time of the machine that wrote it. A log named
    ``..._2026-07-31T02-36-04.log`` therefore opens with a first record stamped
-   ``2026-07-30 19:36:04.812043`` on a machine seven hours behind UTC, and the
-   two numbers name the same instant.
+   ``2026-07-30 19:36:04.812043`` on a machine seven hours behind UTC. The name
+   is good to the second and the record to the microsecond, so once the time
+   zone is accounted for the two numbers name the same second.
 
    Match a log to a wall-clock time by reading its contents, and match it by
    name only in UTC terms.
@@ -241,10 +242,11 @@ than falling back to the terminal.
 Command-line options
 ====================
 
-Every program you run yourself accepts the same options. A program that has no
-image log accepts only the main-log options, and rejects the image ones by
-name. The ``_cloud_tasks`` workers accept none of these and are configured
-through the configuration file alone; see `Cloud tasks`_ below.
+Every program you run yourself accepts the main-log options. Only a program
+that writes image logs accepts the image-log options; a program that writes
+none rejects them by name. The ``_cloud_tasks`` workers accept none of these
+and are configured through the configuration file alone; see `Cloud tasks`_
+below.
 
 ``--log-root PATH``
     Where this run's log files go.

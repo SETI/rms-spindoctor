@@ -12,9 +12,10 @@ What cloud tasks is
 Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. It is a
 separate product from SpinDoctor, distributed as ``rms-cloud-tasks``, and its own
 documentation is at https://rms-cloud-tasks.readthedocs.io. It manages a queue of work
-items, starts compute instances, hands each instance items from the queue, retries what
-fails, and records what each item returned. Read the cloud tasks documentation for how a
-queue is created, loaded, and run.
+items, starts compute instances, hands each instance items from the queue, and records
+what each item returned. Whether a failed item is handed out again depends on what the
+worker did with the failure and on how the queue was run. Read the cloud tasks
+documentation for how a queue is created, loaded, and run.
 
 A queue holds one task per unit of work. A worker running on a cloud compute instance
 takes a task off the queue, does the work the task names, reports what happened, and asks
@@ -29,6 +30,13 @@ The workers
 SpinDoctor's part is small. For each stage that can be run in bulk there is a worker
 program whose name ends in ``_cloud_tasks``. A worker does the same work the program you
 run yourself does, and writes its results to the same place.
+
+No SpinDoctor worker ever asks for a task to be handed out again. A failure the worker
+can describe comes back as a task result whose ``status`` is ``error``, with a
+``status_error`` value naming the failure, and the queue does not retry it. A failure
+that stops the worker outright reaches the queue as an exception instead, and the queue
+retries that only when it was run with retry-on-exception turned on. Each stage's chapter
+says what its worker reports.
 
 .. list-table::
    :header-rows: 1
@@ -82,12 +90,12 @@ program enumerates the work its command line selects, writes the task file, and 
 nothing else: no image is navigated, no backplane is generated, and no mosaic is
 reprojected.
 
-A task carries the work, not the worker's surroundings. Each task names the images to
-process, the dataset they come from, and the processing choices the command line made:
-for ``sd_offset`` the models and techniques to run, and for ``sd_mosaic`` the whole
-mosaic configuration, including where the mosaic is written and the prefix its
-filenames take. An ingest task from ``sd_results_index divide`` names the navigation
-results root it covers and the share of metadata documents in it.
+A task carries the work, not the worker's surroundings. An image-processing task names
+the images to process, the dataset they come from, and the processing choices the
+command line made: for ``sd_offset`` the models and techniques to run, and for
+``sd_mosaic`` the whole mosaic configuration, including where the mosaic is written
+and the prefix its filenames take. An ingest task from ``sd_results_index divide``
+names the navigation results root it covers and the share of metadata documents in it.
 
 The rest is the worker's own. The configuration file, the navigation results root a
 processing worker reads, the backplane and bundle results roots it writes, the

@@ -165,6 +165,11 @@ Getting help
 ============
 
 Report a problem on the issue tracker at https://github.com/SETI/rms-spindoctor/issues.
-Include the exact command line you ran, the relevant part of the run's log, the failing
-image's log, and the image's metadata document. Say which holdings root and which SPICE
-kernels were in use. Those together are usually enough to reproduce the failure.
+Include the command line you ran, the relevant part of the run's log, the failing image's
+log, and the image's metadata document. Say which holdings root and which SPICE kernels
+were in use. Those together are usually enough to reproduce the failure.
+
+The tracker is public, so replace anything secret before you post. A
+``--results-index-db`` URL can carry a database password: SpinDoctor hides it wherever it
+writes the URL itself, but the command line you copy out of your own shell is not
+something it can reach, so hide the password there yourself.

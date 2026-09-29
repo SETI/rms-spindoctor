@@ -20,7 +20,8 @@ no configuration on your part. You customize behavior by supplying your own sett
 top of those defaults, and you only ever write down the settings you want to change.
 Everything else falls through.
 
-Settings are resolved in this order, each step overriding the ones above it:
+Settings are resolved in this order, each step overriding the ones above it. An
+environment variable is not one of these steps; it is a fallback, described after them:
 
 1. **Built-in defaults.** A stack of configuration files ships inside SpinDoctor and gives
    every setting a value. You cannot edit these: they live inside the installed package,
@@ -44,9 +45,10 @@ Settings are resolved in this order, each step overriding the ones above it:
    take precedence over every file. They are listed under `Options that override
    configuration`_ below.
 
-Some settings also have an environment variable, which is consulted last, after both
-the command line and the configuration files. Exporting one does not override a value a
-configuration file already sets. Each is named with the option it belongs to below.
+Some settings also have an environment variable. It is a fallback rather than a layer:
+it supplies the value only when neither the command line nor any configuration file names
+the setting. Exporting one has no effect on a setting a configuration file already names.
+Each is named with the option it belongs to below.
 
 The built-in defaults are in ``src/spindoctor/config_files/`` of the installed package,
 loaded in filename order; that is where a developer reading the source finds them, and
@@ -282,10 +284,9 @@ Two settings in the ``orchestrator`` section decide that:
     The boundaries of the three tiers you can set thresholds for -- high, medium,
     and low. Two further ranks, conflicted and failed, are outcomes rather than
     thresholds, so they have no entry here;
-    :doc:`user_guide_navigation_models` describes all five. The boundaries a
-    reported answer is sorted into. Each tier names the confidence an answer must reach
-    and the largest pointing uncertainty, in pixels, it may have. An answer must satisfy
-    both to earn that tier.
+    :doc:`user_guide_navigation_models` describes all five. Each tier names the confidence
+    an answer must reach and the largest pointing uncertainty, in pixels, it may have. An
+    answer must satisfy both to earn that tier.
 
 Lowering these makes more frames report an answer and makes those answers less
 trustworthy, so change them only when you know why the evidence in your frames is weaker

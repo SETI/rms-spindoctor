@@ -37,12 +37,12 @@ it observations::
 
     from spindoctor.reproj import BodyMosaic
 
-    mosaic = BodyMosaic(body_name='MIMAS')
+    body_mosaic = BodyMosaic(body_name='MIMAS')
     for obs in observations:
-        result = mosaic.reproject(obs)
-        mosaic.add(result)
+        result = body_mosaic.reproject(obs)
+        body_mosaic.add(result)
 
-    data = mosaic.to_bounded()
+    data = body_mosaic.to_bounded()
 
 Every constructor argument is keyword-only. The mosaic grows automatically
 (``dynamic=True`` by default) to accommodate each new reprojected image. You can
@@ -50,7 +50,7 @@ pre-allocate a specific region instead::
 
     import math
 
-    mosaic = BodyMosaic(
+    body_mosaic = BodyMosaic(
         body_name='MIMAS',
         lat_range=(-math.pi / 4, math.pi / 4),  # -45 to 45 degrees latitude
         lon_range=(0.0, math.pi),               # 0 to 180 degrees longitude
@@ -82,10 +82,10 @@ whatever ``metadata_dtype`` says::
     from spindoctor.reproj import BodyMosaic
 
     # Defaults: image in float64, geometry in float32, time in float64
-    mosaic = BodyMosaic(body_name='MIMAS')
+    body_mosaic = BodyMosaic(body_name='MIMAS')
 
     # Float32 image storage, float64 geometry; time stays float64
-    mosaic = BodyMosaic(
+    body_mosaic = BodyMosaic(
         body_name='MIMAS',
         image_dtype=np.float32,
         metadata_dtype=np.float64,
@@ -102,7 +102,7 @@ Pass a photometric model to apply a correction during reprojection::
 
     from spindoctor.reproj import BodyMosaic, LambertModel
 
-    mosaic = BodyMosaic(
+    body_mosaic = BodyMosaic(
         body_name='MIMAS',
         photometric_model=LambertModel(),
     )
@@ -177,12 +177,12 @@ fraction of the ring plane::
 
     from spindoctor.reproj import RingMosaic
 
-    mosaic = RingMosaic('SATURN', radius_inner=70000, radius_outer=140000)
+    ring_mosaic = RingMosaic('SATURN', radius_inner=70000, radius_outer=140000)
     for obs in observations:
-        result = mosaic.reproject(obs)
-        mosaic.add(result)
+        result = ring_mosaic.reproject(obs)
+        ring_mosaic.add(result)
 
-    data = mosaic.to_sparse()
+    data = ring_mosaic.to_sparse()
 
 The planet name, the inner radius, and the outer radius are positional; every
 other constructor argument is keyword-only. The ``longitude_antimask`` field of
@@ -197,7 +197,7 @@ mosaic::
     import numpy as np
     from spindoctor.reproj import RingMosaic
 
-    mosaic = RingMosaic(
+    ring_mosaic = RingMosaic(
         'SATURN', radius_inner=70000, radius_outer=140000,
         metadata_dtype=np.float64,  # full-precision geometry
     )
@@ -237,10 +237,10 @@ Both forms::
     from spindoctor.reproj import RingMosaic, FRING_CORE
 
     # Inertial longitudes, absolute radii
-    mosaic_abs = RingMosaic('SATURN', radius_inner=70000, radius_outer=140000)
+    ring_mosaic_abs = RingMosaic('SATURN', radius_inner=70000, radius_outer=140000)
 
     # Corotating longitudes, a radius window around the F ring core
-    mosaic_off = RingMosaic(
+    ring_mosaic_off = RingMosaic(
         'SATURN', radius_inner=-1000, radius_outer=1000,
         orbit_model=FRING_CORE,
     )
@@ -259,8 +259,8 @@ A model of your own goes in through the same argument::
         mean_motion=math.radians(581.964),
         epoch_utc='2007-01-01',
     )
-    mosaic = RingMosaic('SATURN', radius_inner=-1000, radius_outer=1000,
-                        orbit_model=my_orbit)
+    ring_mosaic = RingMosaic('SATURN', radius_inner=-1000, radius_outer=1000,
+                             orbit_model=my_orbit)
 
 Mosaic compatibility
 --------------------
@@ -279,7 +279,7 @@ observations overlap::
 
     from spindoctor.reproj import RingMosaic, RingMosaicMergeStrategy
 
-    mosaic = RingMosaic(
+    ring_mosaic = RingMosaic(
         'SATURN', radius_inner=70000, radius_outer=140000,
         merge_strategy=RingMosaicMergeStrategy.BEST_RESOLUTION,
     )
@@ -324,7 +324,7 @@ Body mosaic::
 
     from spindoctor.reproj import BodyMosaicData
 
-    data = mosaic.to_bounded()
+    data = body_mosaic.to_bounded()
 
     data.save('mimas.npz')                   # compressed npz
     data.save('mimas.npz', compress=False)   # uncompressed npz, faster I/O
@@ -338,7 +338,7 @@ Body reprojection::
 
     from spindoctor.reproj import BodyReprojResult
 
-    result = mosaic.reproject(obs, image_name='N1234567890')
+    result = body_mosaic.reproject(obs, image_name='N1234567890')
     result.save('reproj.npz')
     reloaded = BodyReprojResult.load('reproj.npz')
 
@@ -414,7 +414,7 @@ that observation should look like, at that observation's resolution::
     from spindoctor.reproj import create_cartographic_model
 
     result = create_cartographic_model(
-        mosaic.to_bounded(),
+        body_mosaic.to_bounded(),
         obs,
         body_name='MIMAS',
     )

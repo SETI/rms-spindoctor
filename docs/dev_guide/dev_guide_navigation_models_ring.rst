@@ -225,9 +225,10 @@ Every key under ``rings`` is listed below, each naming the consumer that reads i
   Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 - ``orbit_radial_sigma_correlated_fraction`` — float, default ``1.0``, required to lie in
-  ``[0, 1]``. Fraction of an edge's catalog RMS treated as a coherent whole-edge
-  displacement rather than as per-vertex scatter; ``1.0`` is the fully-correlated
-  severity. A value outside the range raises. Consumed by
+  ``[0, 1]``. Scales the separate coherent whole-edge displacement computed from an edge's
+  catalog RMS; ``1.0`` charges that RMS in full. The per-vertex radial sigma is derived
+  from the catalog RMS independently and this key does not change it. A value outside the
+  range raises. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 - ``remove_planet_shadow`` — bool, default ``true``. When true the model masks pixels
   inside the per-planet shadow before rendering ring edges; the ring radius is still
@@ -402,8 +403,8 @@ Call path traced through
 :meth:`~spindoctor.nav_model.nav_model_rings.NavModelRings.create_model`:
 
 1. Open a logged section. Look up the per-planet ring catalog from the configured
-   ``ring_features`` mapping. Each entry carries a name, a radius, an RMS, and a per-edge
-   surface-brightness profile.
+   ``ring_features`` mapping. Each entry carries a name, a radius, an optional RMS, and a
+   per-edge surface-brightness profile.
 2. Build an oversampled meshgrid around the predicted ring's projected bounding box and
    query the per-pixel ring radius and longitude backplanes.
 3. For each catalog edge, mark the pixel set whose ring radius lies within the per-edge

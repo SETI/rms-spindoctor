@@ -68,7 +68,11 @@ provides.
   reports on success rates, technique usage, correction sizes, and how well the
   techniques agreed
 - **Configurable processing**: every threshold and tolerance can be overridden
-  from a configuration file, the environment, or the command line
+  from a configuration file
+- **Command-line and environment overrides**: the settings changed most often --
+  where files are read and written, which models and techniques run, and how
+  much is logged -- also have command-line options, and the file locations also
+  read environment variables
 
 ## Installation
 
