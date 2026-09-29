@@ -89,7 +89,8 @@ These control how each image is navigated.
 
 ``--nav-models LIST``
   A comma-separated list of glob patterns selecting which models are built. Model names
-  follow the ``stars`` / ``body:NAME`` / ``rings:PLANET`` convention. Defaults to ``*``,
+  follow the ``stars`` / ``body:NAME`` / ``rings:PLANET`` / ``titan:NAME``
+  convention, and a bare prefix such as ``rings`` selects every model under it. Defaults to ``*``,
   which is every model that applies to the image. See
   :doc:`user_guide_navigation_models` for the full syntax, including exclusion with
   ``!`` and the prefix-only shorthand.

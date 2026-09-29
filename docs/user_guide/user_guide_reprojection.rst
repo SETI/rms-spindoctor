@@ -30,6 +30,12 @@ dataset and combine the results into one mosaic::
     sd_mosaic_rings DATASET [options]
     sd_mosaic_body  DATASET [options]
 
+The same two are also reachable through one command that takes the kind of mosaic
+as its first argument, which is the form the cloud task worker uses::
+
+    sd_mosaic rings DATASET [options]
+    sd_mosaic body  DATASET [options]
+
 ``DATASET`` names the dataset to draw images from, and the options that choose
 which of its images to process are the same ones every pipeline program takes;
 see :doc:`user_guide_image_selection`. The two commands are two faces of one
@@ -98,11 +104,13 @@ Options both commands accept
      - Configuration file overriding the built-in settings; may be given more
        than once. See :doc:`user_guide_configuration`.
    * - ``--nav-results-root DIR``
-     - *(none)*
+     - *(from configuration)*
      - Root of the navigation results written by ``sd_offset`` (see
-       :doc:`user_guide_navigation_running`). Given one, each
-       image is reprojected on its navigated pointing. Given none, every image
-       is reprojected on the camera's uncorrected pointing.
+       :doc:`user_guide_navigation_running`). Each image is reprojected on its
+       navigated pointing. A root is required: give it here, or as
+       ``environment.nav_results_root`` in a configuration file, or as the
+       ``NAV_RESULTS_ROOT`` environment variable. A run that names none in any of
+       those places stops.
    * - ``--results-index-db URL``
      - *(none)*
      - Connection URL of a results index built by ``sd_results_index`` (see
@@ -377,8 +385,12 @@ untouched. That is the same attitude a SPICE consumer of the corrected C kernels
 sees for every image whose segment was written.
 
 The third check is also how a run notices that the kernels furnished to it
-already carry the correction. Nothing marks a corrected C kernel as corrected;
-it looks like any other C kernel. So the attitude the furnished kernels give is
+already carry the correction. A furnished kernel is anonymous in the attitudes it
+answers: it returns an attitude and says nothing about where that attitude came
+from. A corrected kernel does record the original it corrects, in the comment
+area described in :doc:`user_guide_ck_kernels`, but that is a property of the file
+rather than of the answers SPICE gives, so nothing in the attitude itself
+distinguishes the two. The attitude the furnished kernels give is therefore
 compared against both of the attitudes the metadata document records. If it
 matches the uncorrected one, the kernels are the ones navigation saw and the
 correction is applied. If it matches the corrected one instead, the correction
@@ -391,7 +403,7 @@ refused and the refusal is written to the run's log.
 Where no corrected attitude can be used, the recorded pixel offset is applied to
 the field of view instead. That is what happens for a navigation that fitted a
 camera rotation rather than a shift, for a simulated image, which records no
-pointing at all, for a recorded pointing that cannot be read, for an image whose
+corrected attitude, for a recorded pointing that cannot be read, for an image whose
 instrument has no SPICE camera frame to check the record against, and for each
 of the refusals above. Where neither form can be used -- there is no metadata
 document, the metadata document is not valid JSON, the navigation did not
@@ -478,8 +490,8 @@ successful no-op: the furnished kernels already carry the corrected attitude, so
 the image is right without anything being applied to it. It appears in the tally
 so that a pass can be seen to have taken that path.
 
-A run given no ``--nav-results-root`` is not counted at all. No navigated
-pointing was asked for, so none is missing.
+Every run names a navigation results root, so every image is asked for a
+navigated pointing and the tally covers all of them.
 
 Displaying reprojections and mosaics
 ====================================
@@ -622,7 +634,7 @@ Mouse bindings by mode
 Running through cloud tasks
 ===========================
 
-Cloud tasks is a work-queue package supplied by the Green Moon Systems node. A
+Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. A
 queue holds one task per unit of work, and a worker running on a cloud compute
 instance takes tasks off the queue and performs them. The reprojection worker is
 ``sd_mosaic_cloud_tasks``. You do not run it yourself: the cloud task system

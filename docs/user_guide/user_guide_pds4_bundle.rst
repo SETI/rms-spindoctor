@@ -103,8 +103,8 @@ Two main programs support bundle generation:
 
 * ``sd_create_bundle`` runs the labels pass, the summary pass, and the check pass.
 * ``sd_create_bundle_cloud_tasks`` runs the labels pass one image at a time as a worker
-  of a work queue. Cloud tasks is a work-queue package supplied by the Green Moon
-  Systems node; you do not run this program yourself, because the cloud task system
+  of a work queue. Cloud tasks is a work-queue package supplied by the Ring-Moon
+  Systems Node; you do not run this program yourself, because the cloud task system
   runs it for you on a cloud compute instance (see
   :doc:`/user_guide/user_guide_cloud_tasks`).
 
@@ -216,7 +216,7 @@ Cloud Tasks Variant
 
 ``sd_create_bundle_cloud_tasks`` runs the labels pass over a work queue, one image per
 task, and accepts the same environment options used to derive configuration and results
-roots. Cloud tasks is a work-queue package supplied by the Green Moon Systems node. You
+roots. Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. You
 do not run this program yourself: the cloud task system runs it on a cloud compute
 instance, one task per run. The command line below is the one that system runs. See
 :doc:`/user_guide/user_guide_cloud_tasks`.

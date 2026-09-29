@@ -47,8 +47,9 @@ Settings are resolved in this order, each step overriding the ones above it:
    take precedence over every file. They are listed under `Options that override
    configuration`_ below.
 
-Some settings also have an environment variable, which sits between the configuration
-files and the command line. Each is named with the option it belongs to below.
+Some settings also have an environment variable, which is consulted last, after both
+the command line and the configuration files. Exporting one does not override a value a
+configuration file already sets. Each is named with the option it belongs to below.
 
 How a configuration file is written
 ===================================
@@ -200,9 +201,11 @@ Navigation options
 ------------------
 
 ``--nav-models LIST``
-    Which models to build, as a comma-separated list of names or patterns. Valid entries
-    are ``stars``, ``rings``, ``titan``, and body-specific entries of the form
-    ``body:NAME``, where shell-glob wildcards are allowed. Overrides any model selection
+    Which models to build, as a comma-separated list of names or patterns. A model is
+    named ``stars``, ``body:NAME``, ``rings:PLANET``, or ``titan:NAME``, and shell-glob
+    wildcards are allowed. Writing a bare prefix selects every model under it, so
+    ``rings`` means the same as ``rings:*``.
+    :doc:`user_guide_navigation_models` lists the names in full. Overrides any model selection
     from a configuration file.
 
 ``--nav-techniques LIST``
@@ -290,7 +293,10 @@ Two settings in the ``orchestrator`` section decide that:
     refused.
 
 ``orchestrator.ensemble.tier_thresholds``
-    The boundaries of the three confidence tiers -- high, medium, and low -- that a
+    The boundaries of the three tiers you can set thresholds for -- high, medium,
+    and low. Two further ranks, conflicted and failed, are outcomes rather than
+    thresholds, so they have no entry here;
+    :doc:`user_guide_navigation_models` describes all five. The boundaries a
     reported answer is sorted into. Each tier names the confidence an answer must reach
     and the largest pointing uncertainty, in pixels, it may have. An answer must satisfy
     both to earn that tier.

@@ -42,8 +42,9 @@ three phases after it reads what navigation recorded.
 Alongside the phases, SpinDoctor ships a set of reprojection and mosaic tools. They are
 not a phase of the pipeline: they are available whenever you want to reproject navigated
 images onto a ring radius/longitude grid or a body latitude/longitude grid, combine many
-reprojections into one mosaic, and look at the result. Run them with ``sd_mosaic`` and
-``sd_mosaic_display``; see :doc:`/user_guide/user_guide_reprojection`.
+reprojections into one mosaic, and look at the result. Run them with ``sd_mosaic_rings`` or
+``sd_mosaic_body``, and view the result with ``sd_mosaic_display_rings`` or
+``sd_mosaic_display_body``; see :doc:`/user_guide/user_guide_reprojection`.
 
 Installation
 ============
@@ -121,9 +122,12 @@ the essentials:
 
 ``offset_px`` is how far the image moved, in pixels, relative to the SPICE kernels that
 were furnished when the image was navigated; those kernels are named elsewhere in the
-same metadata document, and without them the offset means nothing. ``cmatrix`` under
-``pointing`` is the corrected pointing itself, and it is what downstream tools should
-use.
+same metadata document, and without them the offset means nothing. It is written for
+reading, rounded to four decimal places; the exact value is the top-level ``offset``.
+
+``cmatrix`` under ``pointing`` is the corrected pointing itself, and it is what
+downstream tools should use. Reach for an offset only when you need the size of the
+correction rather than the answer.
 
 :doc:`/user_guide/user_guide_navigation_outputs` describes everything the metadata
 document contains, and :doc:`/user_guide/user_guide_metadata` documents every field in

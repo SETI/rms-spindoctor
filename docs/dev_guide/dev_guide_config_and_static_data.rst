@@ -251,7 +251,7 @@ both. ``results_index_db`` is the exception: it is a database connection URL,
 not a location ``filecache`` resolves. Every one of them resolves from the first
 level that names it: the CLI flag, then this ``environment`` block, then the
 environment variable (``PDS3_HOLDINGS_DIR``, ``NAV_RESULTS_ROOT``,
-``BACKPLANE_RESULTS_ROOT``, ``BUNDLE_RESULTS_ROOT``, ``NAV_RESULTS_INDEX_DB``).
+``NAV_BACKPLANE_RESULTS_ROOT``, ``NAV_BUNDLE_RESULTS_ROOT``, ``NAV_RESULTS_INDEX_DB``).
 A key written into a configuration file therefore wins over the same value
 exported into the environment, and a flag typed on the command line wins over
 both.

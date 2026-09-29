@@ -73,8 +73,8 @@ Where the results are read from
 ===============================
 
 The navigation results root comes from ``--nav-results-root``, then the
-``NAV_RESULTS_ROOT`` environment variable, then the ``environment.nav_results_root``
-configuration setting. Configuration files are resolved as they are for every other
+``environment.nav_results_root`` configuration setting, and only then the
+``NAV_RESULTS_ROOT`` environment variable. Configuration files are resolved as they are for every other
 program; see :doc:`/user_guide/user_guide_configuration`.
 
 Example

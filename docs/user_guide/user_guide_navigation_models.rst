@@ -150,7 +150,7 @@ The patterns can be given in three places:
 * On the command line, as ``sd_offset --nav-models LIST --nav-techniques LIST``.
 * In a cloud task description, under ``data.arguments.nav_models`` and
   ``data.arguments.nav_techniques``, each a list of strings. Cloud tasks are a work queue
-  supplied by the Green Moon Systems node, and ``sd_offset_cloud_tasks`` is a worker that
+  supplied by the Ring-Moon Systems Node, and ``sd_offset_cloud_tasks`` is a worker that
   the queue runs on a cloud machine rather than a program you run yourself; see
   :doc:`/user_guide/user_guide_cloud_tasks`.
 * From Python, through the orchestrator's ``only_models`` and ``only_techniques``
@@ -426,8 +426,8 @@ Accordingly the model emits one of two feature types:
    the threshold for that planet, which is 25 kilometers per pixel for Saturn. It is also
    what the model emits for an individual curved edge that has compressed into a strip 5
    pixels wide or less, because such an edge is no longer distinguishable from its
-   neighbors. At most one such picture is produced per ring system, since a composite
-   built from a single edge carries too little to match against.
+   neighbors. One such picture is produced per ring system, whatever the number of
+   edges that went into it.
 
 Both thresholds are configurable per planet, as
 ``feature_emission.ring_annulus.planets.<PLANET>.kmpp_threshold`` and
@@ -579,7 +579,9 @@ entering the fit itself; the two refusal conditions
 ``titan.navigation.max_occluded_fraction``; ``titan.navigation.ring_occlusion_radii_km``,
 the ring radius range treated as opaque; ``titan.navigation.star_mask_vmag_limit``, above
 which a catalog star is masked out of the fit; and ``titan.navigation.high_phase_deg``,
-above which a frame is marked as being in the weak high-phase regime. Every remaining key,
+which defaults to 150 degrees and is the phase above which a frame is marked as
+strongly backlit. It is not the 60-degree figure quoted above, which describes where
+the measured accuracy falls off rather than where a frame is marked. Every remaining key,
 its default, and the measurement behind it are documented in
 :doc:`/dev_guide/dev_guide_navigation_models_titan` and
 :doc:`/dev_guide/dev_guide_techniques_titan_haze`.
@@ -874,8 +876,9 @@ seen nearly edge-on are all parallel, so they never do.
 This condition is called **rank deficiency**: the measurement determines the offset in one
 direction and leaves the other completely open. SpinDoctor reports it honestly rather than
 inventing a number for the open direction. In the per-image metadata document you will see
-it as ``sigma_along_unobservable_px`` under ``navigation_result``, and as ``is_rank_1`` in
-that technique's diagnostics; see :doc:`/user_guide/user_guide_metadata` for both. An
+it as ``sigma_along_unobservable_px`` under ``navigation_result``, which
+:doc:`/user_guide/user_guide_metadata` describes, and as ``is_rank_1`` in that
+technique's diagnostics. An
 image whose combined result is still rank-deficient after every technique has been
 considered reaches the ``medium`` tier at best, and records a status reason of
 ``rank_1_only``.

@@ -254,7 +254,7 @@ if [[ $SHOW_WARNINGS -eq 1 ]]; then
         "$(hits '\b(images?|frames?|runs?|records?|rows?|products?)\s+with\s+no\b' "$PROSE_ALL")"
 
     report WARNING 'possible missing Oxford comma -- check whether this is a list of three' \
-        "$(hits ',\s+[^,]{3,60}\s+(and|or)\s+\w' "${ALL_FILES[@]}" | grep -vP ',\s+(and|or)\s')"
+        "$(hits ',\s+[^,]{3,60}\s+(and|or)\s+\w' "$PROSE_ALL" | grep -vP ',\s+(and|or)\s')"
 
     report WARNING 'X-not-Y: keep only if a reader would genuinely expect Y' \
         "$(hits ',\s+not\s+\w' "$PROSE_ALL")"

@@ -41,8 +41,12 @@ untouched. That is the same attitude a SPICE consumer of the corrected C kernels
 sees for every image whose segment was written.
 
 The third check is also how a run notices that the kernels furnished to it
-already carry the correction. Nothing marks a corrected C kernel as corrected;
-it looks like any other C kernel. So the attitude the furnished kernels give is
+already carry the correction. A furnished kernel is anonymous in the attitudes it
+answers: it returns an attitude and says nothing about where that attitude came
+from. A corrected kernel does record the original it corrects, in the comment
+area described in :doc:`user_guide_ck_kernels`, but that is a property of the file
+rather than of the answers SPICE gives, so nothing in the attitude itself
+distinguishes the two. The attitude the furnished kernels give is therefore
 compared against both of the attitudes the metadata document records. If it
 matches the uncorrected one, the kernels are the ones navigation saw and the
 correction is applied. If it matches the corrected one instead, the correction
@@ -55,7 +59,7 @@ refused and the refusal is written to the run's log.
 Where no corrected attitude can be used, the recorded pixel offset is applied to
 the field of view instead. That is what happens for a navigation that fitted a
 camera rotation rather than a shift, for a simulated image, which records no
-pointing at all, for a recorded pointing that cannot be read, for an image whose
+corrected attitude, for a recorded pointing that cannot be read, for an image whose
 instrument has no SPICE camera frame to check the record against, and for each
 of the refusals above. Where neither form can be used -- there is no metadata
 document, the metadata document is not valid JSON, the navigation did not
@@ -69,10 +73,25 @@ recorded measurement, which is the better answer for that image, while a
 consumer of the corrected kernels sees the attitude of the segment that won.
 
 Each image's backplane metadata document reports which pointing its backplanes
-were built on. ``pointing_source`` is ``'cmatrix'``, ``'pool'``, ``'offset'``, or
-``'none'``, with ``pointing_reason`` naming why whenever the source is a
-fallback, and ``uncorrected_pointing`` set to ``true`` when the source is
-``'none'``.
+were built on. ``pointing_source`` names which one:
+
+``'cmatrix'``
+    The corrected attitude the navigation measured was applied.
+
+``'pool'``
+    The furnished kernels already carried the correction, so nothing was applied.
+    This is the case described above, where the recorded corrected attitude was
+    found to be the one already in effect.
+
+``'offset'``
+    No corrected attitude could be used, so the recorded pixel offset was applied
+    to the observation instead.
+
+``'none'``
+    Neither was usable, and the backplanes were built on the uncorrected pointing.
+
+``pointing_reason`` names why whenever the source is a fallback, and
+``uncorrected_pointing`` is ``true`` when the source is ``'none'``.
 
 What the FITS file holds
 ------------------------
@@ -131,7 +150,7 @@ Options
    * - ``--backplane-results-root DIR``
      - *(from configuration)*
      - Root directory the backplane products are written under. Overrides the
-       ``BACKPLANE_RESULTS_ROOT`` environment variable and the configured value.
+       ``NAV_BACKPLANE_RESULTS_ROOT`` environment variable and the configured value.
    * - ``--results-index-db URL``
      - *(none)*
      - Connection URL of a results index built by ``sd_results_index`` (see
@@ -329,7 +348,7 @@ is the same rule for body and ring planes alike.
 Running through cloud tasks
 ===========================
 
-Cloud tasks is a work-queue package supplied by the Green Moon Systems node. A
+Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. A
 queue holds one task per unit of work, and a worker running on a cloud compute
 instance takes tasks off the queue and performs them. The backplane worker is
 ``sd_backplanes_cloud_tasks``. You do not run it yourself: the cloud task system

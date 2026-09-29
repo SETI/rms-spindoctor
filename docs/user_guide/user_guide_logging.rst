@@ -383,7 +383,7 @@ renders, and a simulated model is named with the model it stands in for.
 Cloud tasks
 ===========
 
-Cloud tasks is a work-queue package supplied by the Green Moon Systems node.
+Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node.
 The programs whose names end in ``_cloud_tasks`` are workers that the cloud
 task system runs on a cloud compute instance; a user never runs one directly.
 See :doc:`/user_guide/user_guide_cloud_tasks`.

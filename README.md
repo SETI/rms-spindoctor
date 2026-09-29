@@ -29,84 +29,89 @@
 
 # Introduction
 
-SpinDoctor is a comprehensive navigation system designed for spacecraft imagery
-processing. It provides tools to analyze images from various space missions
-(Cassini, Voyager, Galileo, New Horizons) and determine precise positional
-offsets by comparing observed images with theoretical models of celestial
-bodies.
+SpinDoctor determines where a spacecraft camera was really pointing when it
+took an image. It reads images from Cassini ISS, Voyager ISS, Galileo SSI, and
+New Horizons LORRI, builds a model of the stars, rings, and bodies that should
+appear in each one from the SPICE kernels, and measures how far the real image
+has shifted from that model. From that measurement it records a corrected
+pointing for the image.
+
+The corrected pointing is what makes everything downstream possible. SpinDoctor
+turns it into SPICE C kernels that any SPICE-based tool can use, into per-pixel
+geometry backplanes, and into PDS4 archive bundles. It also reprojects and
+mosaics navigated images onto ring and body grids.
+
+SpinDoctor is for anyone who needs to know the geometry of an archived
+planetary image more precisely than the mission's own reconstructed pointing
+provides.
 
 ## Features
 
-- **Multi-mission support**: Works with Cassini, Voyager, Galileo, and New
-  Horizons imagery
-- **Multiple navigation techniques**: Star-based, body-based, rings-based, and
-  haze-symmetry (Titan) navigation
-- **Automated offset calculation**: Determines precise pointing corrections
-- **Visualization tools**: Creates annotated images with identified features
-- **Configurable processing**: Customizable parameters for different scenarios
-- **PDS4 bundle generation**: Creates PDS4-compliant bundles with labels,
-  metadata, and browse products
-- **Backplane generation**: Computes per-pixel geometry products (longitude,
-  latitude, angles, etc.)
-- **Run statistics**: Ingests navigation results into SQLite and generates
-  reports on success rates, technique usage, offsets, and cross-technique
-  agreement (`sd_results_index` / `sd_stats_report`)
+- **Multi-mission support**: Cassini ISS, Voyager ISS, Galileo SSI, and New
+  Horizons LORRI imagery, read from VICAR files (Cassini, Voyager, Galileo) and
+  FITS files (New Horizons)
+- **Multiple navigation techniques**: star fields, body limbs and terminators,
+  body discs, ring edges and annuli, and the solar symmetry of Titan's haze
+- **Automated pointing corrections**: every applicable technique is run and
+  their answers are reconciled into one correction with an uncertainty
+- **Corrected-pointing C kernels**: writes SPICE C kernels carrying the
+  corrected attitude, mirroring the original kernels the images were navigated
+  against
+- **Backplane generation**: per-pixel geometry products such as longitude,
+  latitude, incidence, emission, phase, and ring radius
+- **PDS4 bundle generation**: bundles with labels, collections, and browse
+  products, checkable against the PDS4 schemas
+- **Reprojection and mosaicing**: ring radius/longitude and body
+  latitude/longitude reprojections, combined into mosaics, with interactive
+  viewers
+- **Run statistics**: a results index holding one row per navigated image, plus
+  reports on success rates, technique usage, correction sizes, and how well the
+  techniques agreed
+- **Configurable processing**: every threshold and tolerance can be overridden
+  from a configuration file, the environment, or the command line
 
 ## Installation
 
-## Prerequisites
+SpinDoctor requires Python 3.11 or higher.
 
-- Python 3.11 or higher
-- SPICE toolkit and kernels for planetary data
-- Dependencies listed in `requirements.txt`
+Install the library and all command-line programs:
 
-### Setup
+```bash
+pip install rms-spindoctor
+```
 
-1. Clone the repository:
+To install only the command-line programs, in their own isolated environment:
 
-   ```bash
-   git clone https://github.com/SETI/rms-spindoctor.git
-   cd rms-spindoctor
-   ```
+```bash
+pipx install rms-spindoctor
+```
 
-2. Create and activate a virtual environment (recommended):
+Navigation also needs data that does not ship with the package: the SPICE
+kernels for your mission, the image files themselves, and a star catalog.
+Point SpinDoctor at them with environment variables:
 
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+```bash
+export SPICE_PATH=/path/to/spice/kernels
+export PDS3_HOLDINGS_DIR=/path/to/pds3/holdings
+export UCAC4_PATH=/path/to/UCAC4
+```
 
-3. Install the required packages:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Set up SPICE kernels:
-   - Download the required SPICE kernels for your mission
-   - Set the `SPICE_PATH` environment variable to point to your kernels directory:
-
-     ```bash
-     export SPICE_PATH=/path/to/your/spice/kernels
-     ```
-
-> **Note**: To fix mypy operability with editable pip installs:
->
-> ```bash
-> export SETUPTOOLS_ENABLE_FEATURES="legacy-editable"
-> ```
+The
+[Installation and Setup guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_installation.html)
+lists every environment variable, the expected directory layouts, and where to
+obtain each kind of data.
 
 ## Quick Start
 
-Process a single Cassini image using the installed CLI script:
+Navigate a single Cassini image:
 
 ```bash
-sd_offset coiss N1234567890 \
+sd_offset coiss N1294562056 \
   --pds3-holdings-root /path/to/pds3 \
   --nav-results-root /path/to/nav_results
 ```
 
-Process all Voyager images within a single PDS3 volume:
+Navigate every Voyager image in one archive volume:
 
 ```bash
 sd_offset vgiss \
@@ -115,7 +120,27 @@ sd_offset vgiss \
   --nav-results-root /path/to/nav_results
 ```
 
-Generate backplanes for processed images:
+Each navigated image gets a metadata document holding the correction, its
+uncertainty, and the corrected pointing, plus a summary PNG showing the models
+drawn over the image. See the
+[navigation guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_navigation_running.html)
+for `sd_offset`'s full option reference.
+
+Write SPICE C kernels carrying the corrected pointing:
+
+```bash
+sd_create_ck coiss \
+  --nav-results-root /path/to/nav_results \
+  --kernel-dir /path/to/spice/kernels \
+  --output-dir /path/to/ck_results
+```
+
+One corrected kernel is written for each original kernel the images were
+navigated against, alongside a meta-kernel that furnishes the set and a CSV
+report on every image considered. See the
+[C kernel guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_ck_kernels.html).
+
+Generate backplanes for navigated images:
 
 ```bash
 sd_backplanes coiss_saturn \
@@ -124,7 +149,12 @@ sd_backplanes coiss_saturn \
   --volumes COISS_2001
 ```
 
-Generate PDS4 bundle files:
+See the
+[backplanes guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_backplanes.html);
+`sd_backplane_viewer` displays the result interactively.
+
+Generate a PDS4 bundle, then check it against the PDS4 schemas, its own tables,
+and itself:
 
 ```bash
 sd_create_bundle labels coiss_saturn \
@@ -133,15 +163,13 @@ sd_create_bundle labels coiss_saturn \
   --bundle-results-root /path/to/bundle_results \
   --volumes COISS_2001
 sd_create_bundle summary coiss_saturn --bundle-results-root /path/to/bundle_results
-```
-
-Check the bundle against the PDS4 schemas, its tables and itself:
-
-```bash
 sd_create_bundle check coiss_saturn --bundle-results-root /path/to/bundle_results
 ```
 
-### Mosaicing
+See the
+[PDS4 bundle guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_pds4_bundle.html).
+
+### Reprojection and mosaicing
 
 Reproject a set of ring images and combine them into a mosaic:
 
@@ -157,13 +185,7 @@ sd_mosaic_rings coiss_saturn \
   --prefix saturn_fring_2004
 ```
 
-Display the resulting mosaic (or any individual reprojection file):
-
-```bash
-sd_mosaic_display_rings /path/to/mosaic_results/saturn_fring_2004_mosaic.fits
-```
-
-Reproject body images (e.g. Mimas):
+Reproject body images onto a latitude/longitude grid:
 
 ```bash
 sd_mosaic_body coiss_saturn \
@@ -175,50 +197,73 @@ sd_mosaic_body coiss_saturn \
   --prefix mimas_2004
 ```
 
+Display a mosaic, or any individual reprojection file:
+
+```bash
+sd_mosaic_display_rings /path/to/mosaic_results/saturn_fring_2004_mosaic.fits
+```
+
 See the
-[Reprojection user guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_reprojection.html)
-for full option references and more examples.
+[reprojection guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_reprojection.html)
+for the full option reference for `sd_mosaic` and `sd_mosaic_display`, and more
+examples.
 
-### Cloud Tasks variants
+### Reviewing results
 
-Each of the main batch drivers above has a queue-driven counterpart suffixed
-with `_cloud_tasks`, which reads file lists from a
-[cloud_tasks](https://github.com/SETI/rms-cloud-tasks) queue instead of
-enumerating the dataset locally:
+```bash
+sd_consolidate_metadata coiss_saturn --nav-results-root /path/to/nav_results \
+  --dest-dir /path/to/flat_results --copy-all
+sd_results_index ingest --nav-results-root /path/to/nav_results \
+  --results-index-db sqlite:///path/to/results_index.db
+sd_stats_report --nav-results-root /path/to/nav_results \
+  --output-dir /path/to/stats_report
+```
 
-- `sd_offset_cloud_tasks` — navigation offsets
-- `sd_backplanes_cloud_tasks` — backplane generation
-- `sd_create_bundle_cloud_tasks` — PDS4 bundle labels pass
-- `sd_mosaic_cloud_tasks` — mosaic reprojection pass; a single worker
-  handles both ring and body tasks, with the mode carried in each task
-  payload (mosaic combination is run separately via
-  `sd_mosaic <mode> --skip-reproject`)
+`sd_consolidate_metadata` gathers each image's metadata document and summary
+PNG into one flat directory
+([guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_consolidate_metadata.html)).
+`sd_results_index` builds the results index, a database holding one row per
+navigated image, so later programs can read a whole mission's results in bulk
+([guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_results_index.html)).
+`sd_stats_report` summarizes how a run went
+([guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_statistics.html)).
 
-These workers accept only the environment flags needed to locate configuration
-and results roots; the task payload carries the list of files plus any
-per-task parameters. Each of `sd_offset`, `sd_backplanes`, and
-`sd_mosaic_rings` / `sd_mosaic_body` can produce a ready-to-load task-queue
-JSON file for its matching worker via `--output-cloud-tasks-file PATH`. The
-per-feature user guides document the JSON schema each worker expects:
+`sd_create_simulated_image` renders an image of a known geometry with stars,
+bodies, and rings placed at a known offset, so you can compare what navigation
+recovers against the truth that was planted
+([guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_simulated_images.html)).
 
-- `sd_offset_cloud_tasks`:
-  [Navigation user guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_navigation.html)
-- `sd_backplanes_cloud_tasks`:
-  [Backplanes user guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_backplanes.html)
-- `sd_mosaic_cloud_tasks`:
-  [Reprojection user guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_reprojection.html)
+### Processing in the cloud
+
+Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node,
+distributed as [rms-cloud-tasks](https://rms-cloud-tasks.readthedocs.io). It
+hands out batches of work to cloud compute instances and keeps track of which
+batches have been done.
+
+SpinDoctor's programs whose names end in `_cloud_tasks` are the workers that
+the cloud task system starts on those instances, and you never run one
+yourself: `sd_offset_cloud_tasks`, `sd_backplanes_cloud_tasks`,
+`sd_create_bundle_cloud_tasks`, `sd_mosaic_cloud_tasks`, and
+`sd_results_index_cloud_tasks`. `sd_offset`, `sd_backplanes`, and `sd_mosaic`
+each write the task file their worker's queue is loaded from, via
+`--output-cloud-tasks-file PATH`.
+
+Nothing limits how many images one run can process. For a mission with a very
+large number of images you may still prefer to break the work into smaller
+chunks, so that you can assess how each chunk turned out before starting the
+next one. See the
+[cloud task worker guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_cloud_tasks.html).
 
 ## Documentation
 
-Comprehensive documentation is available in the `docs` directory. To build
-the documentation:
-
-```bash
-cd docs
-make html
-```
-
-The built documentation will be available in `docs/_build/html`.
+The full documentation is at
+[rms-spindoctor.readthedocs.io](https://rms-spindoctor.readthedocs.io/en/latest/),
+starting with the
+[Quick Start](https://rms-spindoctor.readthedocs.io/en/latest/quick_start.html)
+and the
+[User Guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide.html).
+To build it locally, run `make html` in the `docs` directory; the result
+appears in `docs/_build/html`.
 
 ## Contributing
 

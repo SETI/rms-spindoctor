@@ -33,8 +33,9 @@ or the image-name filters selected an empty set.
 Run the same selection with ``--dry-run``, which reports which images would be processed
 without navigating any of them. :doc:`/user_guide/user_guide_image_selection` describes
 the selection options and how they combine. Also confirm that the holdings root is the one
-you meant: it comes from ``--pds3-holdings-root``, the ``PDS3_HOLDINGS_DIR`` environment
-variable, or the configuration, in that order.
+you meant: it comes from ``--pds3-holdings-root``, then from the configuration, and only then
+from the ``PDS3_HOLDINGS_DIR`` environment variable. An exported variable does not
+override a value a configuration file already sets.
 
 An image cannot be read
 =======================

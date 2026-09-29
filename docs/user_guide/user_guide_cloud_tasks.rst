@@ -12,7 +12,7 @@ Cloud Task Worker
 What cloud tasks is
 ===================
 
-Cloud tasks is a work-queue package supplied by the Green Moon Systems node. It is a
+Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. It is a
 separate product from SpinDoctor, distributed as ``rms-cloud-tasks``, and its own
 documentation is at https://github.com/SETI/rms-cloud-tasks. It manages a queue of work
 items, starts compute instances, hands each instance items from the queue, retries what

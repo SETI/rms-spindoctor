@@ -38,8 +38,8 @@ installed package.
 **Legitimately user-facing, and therefore allowed:**
 
 - Names a user types on the command line. Model and technique names
-  (`NavModelStars`, `BodyLimbNav`) are the patterns passed to `--model` and
-  `--technique`. Say a technique is **named after the class that implements it**;
+  (`NavModelStars`, `BodyLimbNav`) are the patterns passed to `--nav-models` and
+  `--nav-techniques`. Say a technique is **named after the class that implements it**;
   never that it "registers under" a name, and never use the word **registry** --
   a user does not know what one is and does not need to.
 - Keys a user reads in a metadata document. Name them as JSON keys, not as
@@ -141,7 +141,8 @@ to the chapter that documents it:
 | `sd_create_ck` | `user_guide_ck_kernels` |
 | `sd_backplanes` | `user_guide_backplanes` |
 | `sd_create_bundle` | `user_guide_pds4_bundle` |
-| `sd_mosaic`, `sd_mosaic_display`, `sd_backplane_viewer` | `user_guide_reprojection` |
+| `sd_mosaic`, `sd_mosaic_display` | `user_guide_reprojection` |
+| `sd_backplane_viewer` | `user_guide_backplanes` |
 | `sd_create_simulated_image` | `user_guide_simulated_images` |
 | `sd_results_index` | `user_guide_results_index` |
 | `sd_stats_report` | `user_guide_statistics` |
@@ -152,12 +153,15 @@ to the chapter that documents it:
 - Heading levels within a file: title takes an over- and under-line of `=`,
   sections `=`, subsections `-`, sub-subsections `^`. An underline is at least as
   long as its title.
-- **Double backticks do not render inside a heading.** Put the option name in the
-  body text and give the heading plain words.
+- **Inline markup does not nest.** A literal opened inside a bold span renders its
+  backticks as visible text, so `**No orbit model (``--orbit-model none``)**` is
+  broken. Real section titles take inline markup correctly -- a heading containing
+  ``code`` is fine -- so the fix is to stop using bold as a pseudo-heading, not to
+  strip backticks from headings.
 
 ## 7. Cloud tasks
 
-Cloud tasks is a work-queue package supplied by the Green Moon Systems node. The
+Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. The
 `*_cloud_tasks` programs are workers that the cloud task system runs on a cloud
 compute instance; **a user never runs one directly**. Say this wherever cloud
 tasks first appears in a chapter -- do not assume the reader met the explanation

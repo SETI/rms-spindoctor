@@ -624,7 +624,7 @@ that many independent reads, so the reads can be spread over a queue. Three step
 do it, and the middle one is where the work happens.
 
 The middle step runs ``sd_results_index_cloud_tasks``. Cloud tasks is a
-work-queue package supplied by the Green Moon Systems node. You do not run that
+work-queue package supplied by the Ring-Moon Systems Node. You do not run that
 program yourself: the cloud task system runs it on a cloud compute instance, one
 share of the work per task. See :doc:`user_guide_cloud_tasks`.
 
