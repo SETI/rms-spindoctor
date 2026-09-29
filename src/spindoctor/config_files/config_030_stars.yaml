@@ -16,10 +16,12 @@ stars:
 
   min_confidence: 0.9
   max_smear: 100  # (px) smear length above which a star is dropped
-  # Effective SNR at which a star's predicted_snr reliability contribution
-  # reaches 1.0; below it the contribution is snr / min_predicted_snr, which
-  # lowers the star's reliability.  It never drops a star by itself.  0.0 uses
-  # the default scale, where an SNR of 50 saturates the contribution.
+  # Scales the predicted_snr entry of a star's reported reliability breakdown:
+  # the entry reaches 1.0 at this effective SNR and is snr / min_predicted_snr
+  # below it.  This is a reporting value only.  It does not drop a star and it
+  # does not change the reliability the per-type threshold compares, so it
+  # cannot affect which features a run uses.  0.0 uses the default scale, where
+  # an SNR of 50 saturates the entry.
   min_predicted_snr: 0.0
   ring_occlusion_enabled: true
   # Fraction of the star's conflict-window pixels that must fall inside an

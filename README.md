@@ -120,8 +120,10 @@ sd_offset vgiss \
   --nav-results-root /path/to/nav_results
 ```
 
-Every reported image gets a metadata document holding the correction, its
-uncertainty, and the corrected pointing. An image the navigator worked through
+Every reported image gets a metadata document. Where navigation measured a
+correction the document holds it, its uncertainty, and the corrected pointing;
+where navigation failed it holds the status and the reason instead. An image the
+navigator worked through
 also gets a summary PNG showing the models drawn over the image; an image that
 could not be read or that failed before navigation gets the metadata document
 alone. See the

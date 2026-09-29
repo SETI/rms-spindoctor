@@ -305,11 +305,12 @@ The model's runtime knobs live in ``stars`` in
 - ``max_smear`` — float, default ``100`` (dimensionless). Maximum smear length above which
   a star is dropped from the emission set.
 - ``min_predicted_snr`` — float, default ``0.0`` (dimensionless). Effective SNR at which
-  a star's ``predicted_snr`` reliability contribution reaches 1.0; below it the
-  contribution is ``snr / min_predicted_snr``, which lowers the feature's reliability and
-  can leave it below the per-type reliability threshold. It never drops a star from the
-  emission set by itself. ``0.0`` uses the default scale, where an SNR of 50 saturates the
-  contribution.
+  the ``predicted_snr`` entry of a star's reported reliability breakdown reaches 1.0;
+  below it the entry is ``snr / min_predicted_snr``. It is a reporting value only: the
+  scalar reliability that the per-type threshold compares comes from
+  ``_reliability_from_snr``, which never receives this setting, so changing it cannot drop
+  a star or alter which features a run uses. ``0.0`` uses the default scale, where an SNR
+  of 50 saturates the entry.
 - ``ring_occlusion_enabled`` — bool, default ``true``. Whether to flag stars whose
   predicted positions lie inside a planet's ring system.
 - ``ring_occlusion_min_opaque_fraction`` — float, default ``0.25``. Fraction of the

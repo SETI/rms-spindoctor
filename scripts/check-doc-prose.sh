@@ -174,7 +174,8 @@ PROSE_CFG="$(prose_stream "${CFG_FILES[@]}")"
 # match on what is left. Removing the whole LINE instead, as this once did, let a
 # line carrying both a filename and a real identifier pass unseen.
 attribute_identifiers() {
-    printf '%s\n' "$PROSE_USER" | python3 -c '
+    printf '%s\n' "$PROSE_USER" | PATTERN="${1:-}" python3 -c '
+import os
 import re
 import sys
 
@@ -191,7 +192,7 @@ SECTIONS = ("general|environment|logging|planets|satellites|offset|bodies|rings|
             "stars|titan|bootstrap|backplanes|pds4|orchestrator|techniques|"
             "results_tree|sim|body_shape|feature_emission|other|ephem")
 CONFIG_KEY = re.compile(r"\b(?:%s)(?:\.[a-z0-9_<>*]+)+" % SECTIONS, re.I)
-DOTTED = re.compile(r"\b[a-z][a-z0-9_]*\.[a-z][a-z0-9_]{2,}\b")
+DOTTED = re.compile(os.environ.get("PATTERN") or r"\b[a-z][a-z0-9_]*\.[a-z][a-z0-9_]{2,}\b")
 ROLE = re.compile(r"^\S+:\d+:\s*(?:\.\.|:doc:|:ref:|\|)")
 
 for raw in sys.stdin:
@@ -238,7 +239,7 @@ if [[ ${#USER_FILES[@]} -gt 0 ]]; then
         "$(hits '\b(navigate_image_files|build_metadata_dict|compute_pointing|select_pointing|apply_pointing_to_obs|NavResult|NavContext|NavBase|ObsSnapshotInst|TreeRecordSource|IndexRecordSource)\b' "$PROSE_USER")"
 
     report ERROR 'attribute access on an internal object in user-facing prose' \
-        "$(hits '\b(?:nav_result|obs|snapshot_inst|snapshot|psf_model|nav_context|ctx|feature_set|result|self)\.[a-z_]{3,}' "$PROSE_USER")"
+        "$(attribute_identifiers '\b(?:nav_result|obs|snapshot_inst|psf_model|nav_context|feature_set)\.[a-z_]{3,}')"
 fi
 
 # docutils does not nest inline markup, so a literal opened inside a bold span

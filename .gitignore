@@ -187,3 +187,11 @@ tests/integration/sim_sweeps/results/
 *_tasks.json
 *_tasks_*.json
 cloud_support/job_config.yml
+
+# SQLite databases a local run writes into the tree: a results index built for
+# one's own experiments, and the cloud-task queue database. Both reach hundreds
+# of megabytes or more, over GitHub's per-file limit, so a stray `git add -A`
+# would make a branch unpushable.
+*.db
+*.db-shm
+*.db-wal
