@@ -5,10 +5,12 @@ The Per-Image Metadata Document
 Overview
 ========
 
-Every image the navigation pipeline touches produces one metadata document, a JSON file
-written under the navigation results root, named after the image with a
-``_metadata.json`` suffix, beside the ``_summary.png`` picture of the same image. This
-file is the pipeline's authoritative record of what happened to that image: the measured
+The navigation pipeline records what it did to an image in one metadata document, almost
+always as a JSON file written under the navigation results root, named after the image
+with a ``_metadata.json`` suffix, beside the ``_summary.png`` picture of the same image.
+The one image whose metadata document is returned to the caller without being written to
+disk is described under `Early return`_. The metadata document is the pipeline's
+authoritative record of what happened to that image: the measured
 pointing offset and its uncertainty, the corrected camera attitude, every technique's
 individual answer, every feature that was extracted and whether it was used, the
 image-quality verdict, and the record of what the run was made of. It is read by the
@@ -411,9 +413,11 @@ marked conditional.
    * - ``techniques_used``
      - array
      - Sorted names of every technique that produced a result, listed once
-       each, whether or not its answer was used. The techniques whose answers
-       actually formed the reported offset are those not listed in
-       ``excluded_from_consensus``.
+       each, whether or not its answer was used. An answer that never became a
+       candidate for the combination, such as one the technique marked
+       ``spurious``, is listed here and is not listed in
+       ``excluded_from_consensus``, so absence from that list does not by itself
+       mean an answer formed the reported offset.
    * - ``excluded_from_consensus``
      - array
      - Sorted names of the techniques whose usable answers were left out when
@@ -430,8 +434,10 @@ marked conditional.
    * - ``per_technique``
      - array
      - One entry per technique result; see
-       `Per-technique entries`_. This includes answers that were later dropped;
-       their names appear in ``excluded_from_consensus``.
+       `Per-technique entries`_. This includes answers that did not contribute to
+       the reported offset. An answer set aside as an outlier is named in
+       ``excluded_from_consensus``; an answer that marked itself ``spurious`` is
+       not, because it was never a candidate for the consensus.
    * - ``feature_inventory``
      - array
      - One entry per extracted feature, whether it was used or dropped; see

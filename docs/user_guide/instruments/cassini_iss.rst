@@ -58,7 +58,8 @@ holdings root, not from ``volumes/``:
    $PDS3_HOLDINGS_DIR/metadata/COISS_2xxx/COISS_2001/COISS_2001_index.lbl
 
 The volume set directory is ``COISS_1xxx`` or ``COISS_2xxx`` according to the
-volume's first digit, and the PDS3 index file name is lowercase.
+volume's first digit. In the PDS3 index file name, the volume identifier keeps
+its uppercase form and the ``_index.lbl`` suffix is lowercase.
 
 **Which product is navigated.** The calibrated product, always. Each PDS3 index
 row names a raw ``.IMG`` filespec, which the dataset rewrites to ``_CALIB.LBL``
@@ -599,8 +600,8 @@ than losing it to nothing.
 
 **Interpolation error.** Not yet measured for this instrument. What is known is
 how the error behaves rather than how large it is: it is zero at every record
-epoch, grows between them, is largest where the baseline's own rate changes
-inside the window, and shrinks as records are added. Two things make the size a
+epoch, depends between them on how the baseline was moving across the window,
+and shrinks as records are added. Two things make the size a
 per-camera question here. The error is an angle, and a wide angle pixel
 subtends about ten times what a narrow angle pixel does, so the same angular
 error is roughly ten times fewer pixels on the wide angle camera. And how much

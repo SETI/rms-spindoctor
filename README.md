@@ -120,9 +120,11 @@ sd_offset vgiss \
   --nav-results-root /path/to/nav_results
 ```
 
-Each navigated image gets a metadata document holding the correction, its
-uncertainty, and the corrected pointing, plus a summary PNG showing the models
-drawn over the image. See the
+Every reported image gets a metadata document holding the correction, its
+uncertainty, and the corrected pointing. An image the navigator worked through
+also gets a summary PNG showing the models drawn over the image; an image that
+could not be read or that failed before navigation gets the metadata document
+alone. See the
 [navigation guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_navigation_running.html)
 for `sd_offset`'s full option reference.
 
@@ -205,8 +207,8 @@ sd_mosaic_display_rings /path/to/mosaic_results/saturn_fring_2004_mosaic.fits
 
 See the
 [reprojection guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_reprojection.html)
-for the full option reference for `sd_mosaic` and `sd_mosaic_display`, and more
-examples.
+for the full option reference for `sd_mosaic_rings`, `sd_mosaic_body`,
+`sd_mosaic_display_rings`, and `sd_mosaic_display_body`, and more examples.
 
 ### Reviewing results
 

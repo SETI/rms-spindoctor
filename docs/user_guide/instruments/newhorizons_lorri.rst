@@ -261,8 +261,8 @@ this instrument has one.
 
 **Interpolation error.** Not yet measured for this instrument. What is known is
 how the error behaves rather than how large it is: it is zero at every record
-epoch, grows between them, is largest where the baseline's own rate changes
-inside the window, and shrinks as records are added. The size depends on how
+epoch, depends between them on how the baseline was moving across the window,
+and shrinks as records are added. The size depends on how
 the spacecraft was turning during the exposure, which differs sharply between a
 cruise frame and an encounter frame. A consumer who evaluates geometry at the
 exposure midtime is exact and unaffected; one who needs a bound at arbitrary

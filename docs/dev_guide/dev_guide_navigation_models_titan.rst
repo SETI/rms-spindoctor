@@ -99,8 +99,10 @@ Four components are unioned:
   occlusion.
 - **Ring occluders** -- pixels whose ring-plane intercept radius falls inside
   ``ring_occlusion_radii_km`` and whose ring intercept is nearer than the body. The main rings
-  are treated as opaque; a frame where Titan shows through the C ring or a gap is rejected at
-  zero reliability rather than being fitted through ring stripes.
+  are treated as opaque, so Titan showing through the C ring or a gap counts as occluded
+  like any other coverage. That occlusion scales the reliability down by
+  ``1 - occluded``, and a frame whose occluded fraction exceeds
+  ``max_occluded_fraction`` is rejected at zero reliability.
 - **Sibling footprints** -- the inventory bounding box of every other in-FOV body regardless of
   range order. A moon behind Titan occludes nothing, but its visible sliver beside the limb
   sits exactly in the symmetry annulus and in the arc rays. Box masking is deliberately

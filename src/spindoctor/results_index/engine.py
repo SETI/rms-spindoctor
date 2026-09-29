@@ -1025,9 +1025,14 @@ def reporting_a_failed_read(url: str) -> Iterator[None]:
         # 'None', which would read as a driver that said so.
         driver_error = getattr(exc, 'orig', None)
         detail = (str(driver_error).strip() if driver_error is not None else '') or str(exc)
+        # Cleaned for the same reason the open-time refusals clean theirs: a
+        # driver reports a URL it could not use by quoting the piece of it that
+        # stopped it, and for a password holding an ``@`` or a ``:`` that quote
+        # is a run of the password.
         raise ValueError(
             f'{masked_url(url)}: the results index could not be read '
-            f'({type(exc).__name__}: {detail}). Check that this URL names an index '
+            f'({type(exc).__name__}: {without_credentials(detail, url)}). '
+            f'Check that this URL names an index '
             f'sd_results_index wrote and that the account it is opened with may read '
             f'every table of it.'
         ) from exc

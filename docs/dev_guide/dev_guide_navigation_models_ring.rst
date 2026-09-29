@@ -216,6 +216,15 @@ rings block
 
 Every key under ``rings`` is listed below, each naming the consumer that reads it.
 
+- ``default_orbit_radial_sigma_km`` — float, default ``2.0`` km. Coherent whole-edge
+  radial orbit uncertainty used for an edge whose catalog entry carries no ``rms``.
+  Consumed by
+  :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
+- ``orbit_radial_sigma_correlated_fraction`` — float, default ``1.0``, required to lie in
+  ``[0, 1]``. Fraction of an edge's catalog RMS treated as a coherent whole-edge
+  displacement rather than as per-vertex scatter; ``1.0`` is the fully-correlated
+  severity. A value outside the range raises. Consumed by
+  :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 - ``remove_planet_shadow`` — bool, default ``true``. When true the model masks pixels
   inside the per-planet shadow before rendering ring edges; the ring radius is still
   defined inside the shadow but the brightness is zero, so leaving the shadow pixels

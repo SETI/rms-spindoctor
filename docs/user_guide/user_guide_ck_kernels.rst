@@ -69,13 +69,15 @@ moving during the exposure, so this guide does not quote a single figure for it.
 The error is an angle, and the same angle is a different number of pixels on
 every camera.
 
-How the error behaves is fixed. It is zero at every record epoch and grows
-between them. It is largest where the baseline's rate changes inside the window.
-It shrinks as records are added, which is what the one-second cadence buys on a
-long exposure. It is the same size when the correction itself is zero. Each
-instrument's chapter under :doc:`instruments/instruments` carries the
-characterization for that instrument, including the cases where there is no
-interpolation error at all.
+Two things about the error are certain. It is zero at every record epoch, and it
+shrinks as records are added, which is what the one-second cadence buys on a long
+exposure. Between two records the attitude furnished is a straight interpolation
+between them, so how far it departs from the true attitude there depends on how
+the spacecraft was actually turning during that stretch. Nothing about where in
+the window the departure is largest is guaranteed. The error is the same size when
+the correction itself is zero. Each instrument's chapter under
+:doc:`instruments/instruments` carries the characterization for that instrument,
+including the cases where there is no interpolation error at all.
 
 An instrument whose navigated attitude is constant across the exposure is a
 separate case entirely. Its segment carries that single corrected attitude,

@@ -32,8 +32,9 @@ only a line's worth to say about each, such as ``sd_create_bundle`` or
 ``sd_consolidate_metadata``, writes only a main log, and so does a program that
 works on a run as a whole, such as the results index builder. The statistics
 report and the interactive viewers write neither: their output is terminal text
-meant to be read as it appears. The cloud task workers are the reverse case --
-image logs but no main log.
+meant to be read as it appears. A cloud task worker writes no main log; one that
+processes images writes their image logs, and one that does not, such as the
+results index worker or the bundle worker, writes no log file at all.
 
 The value in the Image-log column is the name of the *stage* an image log is
 filed under, which is explained further under `Where the files go`_ below.
@@ -431,12 +432,15 @@ Cloud tasks
 the programs whose names end in ``_cloud_tasks`` come to be run. This section
 covers what those workers write to their logs.
 
-A worker writes **nothing** to the terminal. That terminal belongs to the cloud
-task system, which reports task progress there under its own configuration, and
-interleaving per-image navigation detail with it would make both harder to
-read.
+A worker writes **nothing** to the terminal, with one exception. That terminal
+belongs to the cloud task system, which reports task progress there under its own
+configuration, and interleaving per-image navigation detail with it would make
+both harder to read. The exception is ``sd_create_bundle_cloud_tasks``, which sets
+up no logging, so its records are rerouted to the main logger and reach the
+worker's terminal.
 
-The per-image logs are written exactly as an interactive run writes them, to
+A worker that processes images writes their per-image logs exactly as an
+interactive run writes them, to
 the same ``{log_root}/{backend}/`` tree and at the same levels, so an image's
 log reads the same whichever driver produced it. There is no main log: with
 many workers writing to one log root, a single shared main log is not something

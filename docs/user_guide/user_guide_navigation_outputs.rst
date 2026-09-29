@@ -16,9 +16,13 @@ its chapter under :doc:`/user_guide/instruments/instruments`.
 Output Files
 ============
 
-``sd_offset`` (see :doc:`user_guide_navigation_running`) writes two files per image
-under the navigation results root, both named after the image: a metadata document
-named ``*_metadata.json``, and an annotated picture named ``*_summary.png``.
+``sd_offset`` (see :doc:`user_guide_navigation_running`) writes up to two files per
+image under the navigation results root, both named after the image: a
+metadata document named ``*_metadata.json``, and an annotated picture named
+``*_summary.png``. The metadata document is written for every image the run reports
+on. The picture is
+written only for an image the navigator worked through; an image whose file could not
+be read, or that failed before navigation, gets the metadata document alone.
 
 The metadata document
 ---------------------

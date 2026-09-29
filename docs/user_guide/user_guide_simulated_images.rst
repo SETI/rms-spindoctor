@@ -10,9 +10,10 @@ answer can be checked exactly. The simulator backs the algorithmic-invariant tes
 regression baselines, and the single-variable sensitivity sweeps that verify the navigator
 behaves as expected.
 
-You do not need the simulator to navigate real spacecraft images, and nothing in the
-navigation, C-kernel, backplane, or PDS4 bundle stages reads a simulated frame. The
-results you rely on are validated with the simulator on your behalf.
+You do not need the simulator to navigate real spacecraft images; the results you rely
+on are validated with it on your behalf. A simulated frame is navigated by the same
+program that navigates a real one, as described below, and a simulated scene cannot be
+assembled into a PDS4 bundle.
 
 What a simulated check measures
 ===============================
@@ -47,12 +48,18 @@ The scene editor
 ================
 
 ``sd_create_simulated_image`` is an interactive editor for scene files. It opens a window
-in which a scene is assembled and rendered, and it can be given the path of an existing
-scene file to open on launch.
+in which a scene is assembled and rendered.
 
 .. code-block:: bash
 
-   sd_create_simulated_image [SCENE.yaml]
+   sd_create_simulated_image
+
+Give it the path of an existing scene file to open that scene on launch instead of
+starting from an empty one.
+
+.. code-block:: bash
+
+   sd_create_simulated_image /path/to/scene.yaml
 
 Further reading
 ===============

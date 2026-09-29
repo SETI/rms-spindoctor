@@ -101,9 +101,15 @@ A ``postgresql+psycopg:`` URL names a server, and needs the driver:
     pip install "rms-spindoctor[postgres]"
 
 A results index URL can carry a password, and these URLs are written to run
-logs, printed in refusals, and returned in cloud-task results. Every message that
-names one masks it, so a log records ``postgresql+psycopg://user:***@dbhost``
-and the command line it was typed on is masked the same way.
+logs, printed in refusals, and returned in cloud-task results. Wherever SpinDoctor
+writes the URL it hides the password, so a log records
+``postgresql+psycopg://user:***@dbhost``, and the command line it was typed on is
+hidden the same way.
+
+A refusal also quotes what the database software itself reported, and the password is
+hidden inside that quoted text too. A driver names a URL it could not use by quoting
+the part of it that stopped it, which for a password holding an ``@`` or a ``:`` can be
+a run of the password, so the quote is cleaned wherever a refusal carries one.
 
 Which programs read a results index
 ===================================
@@ -799,8 +805,10 @@ array of task objects, and one of them looks like this:
   either of which may be ``null``. Where the file lives is not carried: it is the
   stub joined onto the root, and both already travel in the task.
 
-Every value here comes from the single listing step 1 made, so no worker stats a
-file or checks for one.
+The file entries and ``data.has_file_metrics`` come from the single listing step 1
+made, so no worker stats a file or checks for one. The rest of the task -- its
+identifier, the ingest run, the results root, and the ``--force`` setting -- also
+comes from step 1, which mints them as it divides the root.
 
 Rebuilding a results index
 ==========================

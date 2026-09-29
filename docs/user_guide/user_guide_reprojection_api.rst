@@ -92,7 +92,8 @@ whatever ``metadata_dtype`` says::
     )
 
 The ``image_number`` field is always ``uint16``, which caps a single mosaic at
-65 535 contributing images.
+65 536 contributing images, numbered 0 through 65 535. Adding the image that would
+exceed that raises ``OverflowError``.
 
 Photometric correction
 ----------------------
@@ -153,8 +154,9 @@ Retrieval methods
 
 Each retrieval method returns a frozen
 :class:`~spindoctor.reproj.bodies.BodyMosaicData` dataclass holding masked
-arrays for the image data, resolution, phase, emission, incidence, observation
-time, and image number, plus the per-image sub-solar and sub-observer
+arrays for the image data, resolution, effective resolution, phase, emission,
+incidence, observation time, and image number, plus the per-image sub-solar and
+sub-observer
 longitudes and latitudes described below.
 
 - :meth:`~spindoctor.reproj.bodies.BodyMosaic.to_bounded` returns the mosaic

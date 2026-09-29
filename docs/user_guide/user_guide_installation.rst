@@ -39,7 +39,8 @@ The programs, and the chapter that documents each, are:
 * ``sd_create_ck`` -- :doc:`user_guide_ck_kernels`
 * ``sd_backplanes`` and ``sd_backplane_viewer`` -- :doc:`user_guide_backplanes`
 * ``sd_create_bundle`` -- :doc:`user_guide_pds4_bundle`
-* ``sd_mosaic`` and ``sd_mosaic_display`` -- :doc:`user_guide_reprojection`
+* ``sd_mosaic_rings``, ``sd_mosaic_body``, ``sd_mosaic_display_rings``, and
+  ``sd_mosaic_display_body`` -- :doc:`user_guide_reprojection`
 * ``sd_consolidate_metadata`` -- :doc:`user_guide_consolidate_metadata`
 * ``sd_results_index`` -- :doc:`user_guide_results_index`
 * ``sd_stats_report`` -- :doc:`user_guide_statistics`

@@ -19,18 +19,20 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 SHOW_WARNINGS=0
+EXPLICIT=0
 FILES=()
 for arg in "$@"; do
     case "$arg" in
         --warnings|-w) SHOW_WARNINGS=1 ;;
         -h|--help) sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-        *) FILES+=("$arg") ;;
+        *) FILES+=("$arg"); EXPLICIT=1 ;;
     esac
 done
 
 if [[ ${#FILES[@]} -eq 0 ]]; then
     mapfile -t FILES < <(
-        find docs -name '*.rst' -not -path 'docs/_build/*' -not -path 'docs/api_reference/*'
+        find docs \( -name '*.rst' -o -name '*.md' \) \
+            -not -path 'docs/_build/*' -not -path 'docs/api_reference/*'
         printf '%s\n' README.md CONTRIBUTING.md
     )
 fi
@@ -71,6 +73,7 @@ report() {
 # tracebacks. prose_stream emits "path:line:text" for prose lines only.
 PROSE_ALL=""
 PROSE_USER=""
+PROSE_RST=""
 
 prose_stream() {
     [[ $# -eq 0 ]] && return 0
@@ -127,11 +130,23 @@ hits() {
 
 USER_FILES=()
 ALL_FILES=()
+RST_FILES=()
+missing=()
 for f in "${FILES[@]}"; do
-    [[ -f "$f" ]] || continue
+    if [[ ! -f "$f" ]]; then
+        missing+=("$f")
+        continue
+    fi
     ALL_FILES+=("$f")
+    [[ "$f" == *.rst ]] && RST_FILES+=("$f")
     user_facing "$f" && USER_FILES+=("$f")
 done
+
+# Silently dropping a path a caller named turns a typo into a clean pass.
+if [[ ${#missing[@]} -gt 0 && $EXPLICIT -eq 1 ]]; then
+    printf 'check-doc-prose: FAILED -- no such file: %s\n' "${missing[@]}" >&2
+    exit 1
+fi
 
 if [[ ${#ALL_FILES[@]} -eq 0 ]]; then
     echo 'check-doc-prose: no documentation files to check'
@@ -142,6 +157,7 @@ echo "check-doc-prose: ${#ALL_FILES[@]} file(s), ${#USER_FILES[@]} user-facing"
 
 PROSE_ALL="$(prose_stream "${ALL_FILES[@]}")"
 [[ ${#USER_FILES[@]} -gt 0 ]] && PROSE_USER="$(prose_stream "${USER_FILES[@]}")"
+[[ ${#RST_FILES[@]} -gt 0 ]] && PROSE_RST="$(prose_stream "${RST_FILES[@]}")"
 
 # Packaged config filenames belong in the configuration chapter alone.
 CFG_FILES=()
@@ -152,6 +168,47 @@ for f in "${ALL_FILES[@]}"; do
     CFG_FILES+=("$f")
 done
 PROSE_CFG="$(prose_stream "${CFG_FILES[@]}")"
+
+# An attribute-style identifier is obj.member. A URL, a filename, and an
+# abbreviation all look like one, so remove those tokens from the line first and
+# match on what is left. Removing the whole LINE instead, as this once did, let a
+# line carrying both a filename and a real identifier pass unseen.
+attribute_identifiers() {
+    printf '%s\n' "$PROSE_USER" | python3 -c '
+import re
+import sys
+
+EXTS = ("rst|md|py|json|yaml|yml|png|html|txt|csv|lbl|img|fits?|tab|xml|db|gz|"
+        "sh|cfg|toml|in|bak|ipynb|rst_|bdb|tls|tpc|bsp|bc|tf|ti|tm")
+URL = re.compile(r"(?:https?://|ftp://|www\.)\S+")
+MAILTO = re.compile(r"\b[\w.+-]+@[\w.-]+\b")
+FILENAME = re.compile(r"\b[\w./-]+\.(?:%s)\b" % EXTS, re.I)
+ABBREV = re.compile(r"(?i)\b(?:e\.g|i\.e|etc|vs|fig|no|sec|ch|eq|approx|cf)\.")
+# A bare hostname in link text is not an attribute.
+HOST = re.compile(r"\b[\w-]+(?:\.[\w-]+)+\.(?:io|com|org|net|gov|edu|dev|ai)\b", re.I)
+# Naming a configuration setting by its key is allowed, and a key is dotted.
+SECTIONS = ("general|environment|logging|planets|satellites|offset|bodies|rings|"
+            "stars|titan|bootstrap|backplanes|pds4|orchestrator|techniques|"
+            "results_tree|sim|body_shape|feature_emission|other|ephem")
+CONFIG_KEY = re.compile(r"\b(?:%s)(?:\.[a-z0-9_<>*]+)+" % SECTIONS, re.I)
+DOTTED = re.compile(r"\b[a-z][a-z0-9_]*\.[a-z][a-z0-9_]{2,}\b")
+ROLE = re.compile(r"^\S+:\d+:\s*(?:\.\.|:doc:|:ref:|\|)")
+
+for raw in sys.stdin:
+    line = raw.rstrip("\n")
+    if ROLE.match(line):
+        continue
+    parts = line.split(":", 2)
+    if len(parts) < 3:
+        continue
+    text = parts[2]
+    for pat in (URL, MAILTO, FILENAME, HOST, ABBREV, CONFIG_KEY):
+        text = pat.sub(" ", text)
+    if DOTTED.search(text):
+        print(line)
+'
+    return 0
+}
 
 # ------------------------------------------------------------------ errors ----
 
@@ -180,11 +237,8 @@ if [[ ${#USER_FILES[@]} -gt 0 ]]; then
     report ERROR 'internal class or function name in user-facing prose' \
         "$(hits '\b(navigate_image_files|build_metadata_dict|compute_pointing|select_pointing|apply_pointing_to_obs|NavResult|NavContext|NavBase|ObsSnapshotInst|TreeRecordSource|IndexRecordSource)\b' "$PROSE_USER")"
 
-    report ERROR 'attribute-style identifier in user-facing prose (obj.member)' \
-        "$(hits '\b[a-z][a-z0-9_]*\.[a-z][a-z0-9_]{2,}(\(|\b)' "$PROSE_USER" \
-            | grep -vP '\.(rst|md|py|json|yaml|yml|png|html|txt|csv|lbl|img|fits?|tab|xml|db|gz|sh|cfg|toml|in|bak)\b' \
-            | grep -vP '(?i)\b(e\.g|i\.e|etc|vs|fig|no|sec|ch|eq)\.' \
-            | grep -vP '^\S+:\d+:\s*(\.\.|:doc:|:ref:|\|)')"
+    report ERROR 'attribute access on an internal object in user-facing prose' \
+        "$(hits '\b(?:nav_result|obs|snapshot_inst|snapshot|psf_model|nav_context|ctx|feature_set|result|self)\.[a-z_]{3,}' "$PROSE_USER")"
 fi
 
 # docutils does not nest inline markup, so a literal opened inside a bold span
@@ -193,7 +247,8 @@ fi
 # tell a nested literal from an adjacent one, or from a "**" inside a literal
 # (``rho_n**2``), so scan each line and track the two states.
 nested_markup() {
-    printf '%s\n' "$PROSE_ALL" | python3 -c '
+    # reStructuredText only: in Markdown a code span inside bold is valid.
+    printf '%s\n' "$PROSE_RST" | python3 -c '
 import re
 import sys
 
@@ -270,6 +325,9 @@ if [[ $SHOW_WARNINGS -eq 1 ]]; then
         report WARNING 'say which index -- the results index or the PDS3 index' \
             "$(hits '(?<!results )(?<!PDS3 )(?<!PDS4 )\bindex\b' "$PROSE_USER" \
                 | grep -vP '(?i)\bindex (file|table|column|row|of)\b')"
+
+        report WARNING 'dotted identifier -- allowed for a JSON key or a configuration key, not for an attribute' \
+            "$(attribute_identifiers)"
 
         report WARNING 'shape means dimensions and nothing else' \
             "$(hits '\bshapes?\b' "$PROSE_USER" \

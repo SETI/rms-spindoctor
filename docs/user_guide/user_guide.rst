@@ -2,11 +2,9 @@
 User Guide
 ==========
 
-This guide is the complete reference for using SpinDoctor. It begins with the
-concepts every program shares -- configuration, logging, and image selection --
-then follows the pipeline from navigation through corrected-pointing C kernels,
-backplanes, and PDS4 bundles. It closes with the reprojection and mosaic tools
-and one chapter per instrument.
+This guide is the complete reference for using SpinDoctor: the concepts every program
+shares, the pipeline from navigation through corrected-pointing C kernels, backplanes,
+and PDS4 bundles, the reprojection and mosaic tools, and one chapter per instrument.
 
 .. toctree::
    :maxdepth: 2

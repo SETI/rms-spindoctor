@@ -313,9 +313,10 @@ caught and asserts its declined outcome as a regression:
   mesh-vs-ellipsoid shape mismatch the disc correlation and the limb fit both
   lock onto the mismatched model and agree at a multi-pixel wrong offset, and
   the fused confidence re-saturates to ~0.99 at a 10-17 px error. The pose-free
-  blob, which does not chase the shape, disagrees by pixels; the shape-lock
-  veto reports the steps whose disagreement exceeds the statistical threshold
-  ``conflicted``. The clean (zero-relief) step recovers the planted offset
+  blob, which does not chase the shape, disagrees by pixels. The shape-lock veto
+  reports those steps as ``conflicted``, because the blob's separation from the
+  consensus clears both the body-scaled pixel floor and the Mahalanobis
+  threshold. The clean (zero-relief) step recovers the planted offset
   sub-pixel and stays a success, so the veto separates the shape lock from the
   legitimate fit rather than blanketing the sweep.
 - ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` (and

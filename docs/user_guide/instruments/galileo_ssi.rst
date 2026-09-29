@@ -41,8 +41,9 @@ error rather than an empty result.
    $PDS3_HOLDINGS_DIR/volumes/GO_0xxx/GO_0017/...
    $PDS3_HOLDINGS_DIR/metadata/GO_0xxx/GO_0017/GO_0017_index.lbl
 
-Every volume sits under the single volume set directory ``GO_0xxx``, and the
-PDS3 index file name is lowercase.
+Every volume sits under the single volume set directory ``GO_0xxx``. In the PDS3
+index file name, the volume identifier keeps its uppercase form and the
+``_index.lbl`` suffix is lowercase.
 
 **Which product is navigated.** The PDS3 index names a ``.LBL`` filespec
 directly and it is used as it stands, with the image resolved from the label's

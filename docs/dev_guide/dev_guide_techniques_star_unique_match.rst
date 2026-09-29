@@ -135,7 +135,8 @@ Restrictions and assumptions
   has been clipped will produce a biased centroid; in practice the brightest catalog stars
   are held off by the magnitude gate. The predicted-position saturation / cosmic-ray mask is
   not consulted to reject stars (a star's predicted pixel is not special once an offset is
-  present), so occlusion is the only thing that makes a star unusable.
+  present), so among the predictable stars occlusion is the only thing that makes one
+  unusable.
 
 Sources of uncertainty
 ----------------------
