@@ -246,13 +246,14 @@ yourself: `sd_offset_cloud_tasks`, `sd_backplanes_cloud_tasks`,
 `sd_create_bundle_cloud_tasks`, `sd_mosaic_cloud_tasks`, and
 `sd_results_index_cloud_tasks`. `sd_offset`, `sd_backplanes`, and `sd_mosaic`
 each write the task file their worker's queue is loaded from, via
-`--output-cloud-tasks-file PATH`.
+`--output-cloud-tasks-file PATH`, and `sd_results_index divide` writes its own
+via `--tasks-file PATH`.
 
 Nothing limits how many images one run can process. For a mission with a very
 large number of images you may still prefer to break the work into smaller
 chunks, so that you can assess how each chunk turned out before starting the
 next one. See the
-[cloud task worker guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_cloud_tasks.html).
+[cloud tasks guide](https://rms-spindoctor.readthedocs.io/en/latest/user_guide/user_guide_cloud_tasks.html).
 
 ## Documentation
 

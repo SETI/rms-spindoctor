@@ -17,13 +17,13 @@ the :doc:`/user_guide/user_guide` chapters, which this page links to as it goes.
 The Pipeline
 ============
 
-SpinDoctor processes imagery in four phases, each reading what the phase before it
-recorded:
+SpinDoctor processes imagery in four phases. Navigation comes first, and each of the
+three that follow reads what navigation recorded:
 
 1. **Navigation** -- measure each image's pointing correction. Run with ``sd_offset``;
    see :doc:`/user_guide/user_guide_navigation_running`.
 
-2. **Corrected-pointing C kernels** -- package the corrected pointing as SPICE kernels
+2. **C kernel generation** -- package the corrected pointing as SPICE kernels
    other software can furnish. Run with ``sd_create_ck``; see
    :doc:`/user_guide/user_guide_ck_kernels`.
 
@@ -184,14 +184,14 @@ with stars, bodies, and rings placed at a known offset, which lets you check wha
 navigation recovers against the truth that was planted.
 See :doc:`/user_guide/user_guide_simulated_images`.
 
-**Processing in the cloud.** Cloud tasks is a work-queue package supplied by the PDS
+**Processing in the cloud.** Cloud tasks is a work-queue package supplied by the
 Ring-Moon Systems Node, distributed as ``rms-cloud-tasks`` and documented at
 https://rms-cloud-tasks.readthedocs.io. It hands out batches of work to compute
 instances and keeps track of which batches have been done. SpinDoctor's programs whose
 names end in ``_cloud_tasks`` are the workers the cloud task system starts on those
-instances; you never run one yourself. ``sd_offset``, ``sd_backplanes``, and
-``sd_mosaic`` each write the task file their worker's queue is loaded from. See
-:doc:`/user_guide/user_guide_cloud_tasks`.
+instances; you never run one yourself. ``sd_offset``, ``sd_backplanes``, ``sd_mosaic``,
+and ``sd_results_index divide`` each write the task file their worker's queue is loaded
+from. See :doc:`/user_guide/user_guide_cloud_tasks`.
 
 **Per-instrument details.** Each supported instrument has its own cameras, calibration,
 file formats, and quirks, described in

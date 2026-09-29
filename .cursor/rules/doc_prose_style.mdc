@@ -136,7 +136,7 @@ to the chapter that documents it:
 | Program | Chapter |
 |---|---|
 | `sd_offset` | `user_guide_navigation_running` |
-| `sd_offset_cloud_tasks` | `user_guide_cloud_tasks` |
+| `sd_offset_cloud_tasks` | `user_guide_navigation_cloud_tasks` |
 | `sd_consolidate_metadata` | `user_guide_consolidate_metadata` |
 | `sd_create_ck` | `user_guide_ck_kernels` |
 | `sd_backplanes` | `user_guide_backplanes` |
@@ -161,12 +161,18 @@ to the chapter that documents it:
 
 ## 7. Cloud tasks
 
-Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. The
-`*_cloud_tasks` programs are workers that the cloud task system runs on a cloud
-compute instance; **a user never runs one directly**. Say this wherever cloud
-tasks first appears in a chapter -- do not assume the reader met the explanation
-elsewhere -- and point at the package's own documentation rather than
-re-documenting it.
+Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node,
+distributed as `rms-cloud-tasks` and documented at
+<https://rms-cloud-tasks.readthedocs.io>. The `*_cloud_tasks` programs are
+workers that the cloud task system runs on a cloud compute instance; **a user
+never runs one directly**.
+
+That explanation lives in one place, `user_guide_cloud_tasks` under General
+Concepts. A chapter that documents a program does **not** repeat it: it states
+that program's own JSON task format, which differs from every other program's,
+and links back to the concepts chapter for what cloud tasks is. Repeating the
+general explanation in each chapter is what this rule previously asked for, and
+five copies of it read as distrust of the reader.
 
 ## 8. Review checklist
 

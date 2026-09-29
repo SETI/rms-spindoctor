@@ -845,11 +845,9 @@ it is matched against.
 The patterns can be given in two places:
 
 * On the command line, as ``sd_offset --nav-models LIST --nav-techniques LIST``.
-* In a cloud task description, under ``data.arguments.nav_models`` and
-  ``data.arguments.nav_techniques``, each a list of strings. Cloud tasks are a work queue
-  supplied by the Ring-Moon Systems Node, and ``sd_offset_cloud_tasks`` is a worker that
-  the queue runs on a cloud machine rather than a program you run yourself; see
-  :doc:`/user_guide/user_guide_cloud_tasks`.
+* In a navigation cloud task, under ``data.arguments.nav_models`` and
+  ``data.arguments.nav_techniques``, each a list of strings; see
+  :doc:`/user_guide/user_guide_navigation_cloud_tasks`.
 
 Both options only ever narrow. A pattern that matches nothing installed on your copy of
 SpinDoctor simply selects nothing, and no model or technique can be added by naming it.

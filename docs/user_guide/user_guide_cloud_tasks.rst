@@ -1,125 +1,139 @@
-=================
-Cloud Task Worker
-=================
+===========
+Cloud Tasks
+===========
 
-.. note::
-
-   You do not run the program described in this chapter. It is a worker, started for you
-   on a cloud compute instance by the cloud task system. The chapter is here so that you
-   can recognize the program in a log, and understand where a navigation result came from
-   when it was produced in the cloud rather than on your own machine.
+Most SpinDoctor stages can be run over a whole mission at once by spreading the images
+across cloud compute instances. This chapter describes the arrangement that makes that
+possible. Each stage's own chapter describes the tasks that stage's worker reads.
 
 What cloud tasks is
 ===================
 
 Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. It is a
 separate product from SpinDoctor, distributed as ``rms-cloud-tasks``, and its own
-documentation is at https://github.com/SETI/rms-cloud-tasks. It manages a queue of work
+documentation is at https://rms-cloud-tasks.readthedocs.io. It manages a queue of work
 items, starts compute instances, hands each instance items from the queue, retries what
-fails, and records what each item returned. This chapter does not re-document any of that;
-read the cloud tasks documentation for how a queue is created, loaded, and run.
+fails, and records what each item returned. Read the cloud tasks documentation for how a
+queue is created, loaded, and run.
 
-SpinDoctor's part is small. For each pipeline stage that can be run in bulk there is a
-worker program whose name ends in ``_cloud_tasks``. A worker asks the queue for a task,
-processes the image the task names, returns what happened, and asks for the next one. One
-task is one image.
-``sd_offset_cloud_tasks`` is the navigation worker: it does exactly what ``sd_offset``
-(:doc:`/user_guide/user_guide_navigation_running`) does to an image, and writes the same
-metadata document and preview under the same navigation results root.
+A queue holds one task per unit of work. A worker running on a cloud compute instance
+takes a task off the queue, does the work the task names, reports what happened, and asks
+for the next one. **A user never runs a worker directly**: the cloud task system starts it
+on the compute instances you have asked for. What you do is write the task file, load it
+into a queue, and read the results the workers leave behind.
 
-Because the queue supplies the list of images, the worker has no image-selection options
-at all. It accepts only what it needs to find its configuration and its output root, plus
-whatever options the cloud tasks package itself defines:
+The workers
+===========
 
-.. code-block:: bash
+SpinDoctor's part is small. For each stage that can be run in bulk there is a worker
+program whose name ends in ``_cloud_tasks``. A worker does the same work the program you
+run yourself does, and writes its results to the same place.
 
-   sd_offset_cloud_tasks [--config-file PATH] [--nav-results-root PATH]
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
 
-A worker writes no run log and no output to the terminal, because the terminal on a
-compute instance belongs to the cloud task system. It does write the ordinary per-image
-log for every image it navigates. See :doc:`/user_guide/user_guide_logging`.
+   * - Worker
+     - What it does, and where its tasks are described
+   * - ``sd_offset_cloud_tasks``
+     - Navigates images.
+       :doc:`/user_guide/user_guide_navigation_cloud_tasks`
+   * - ``sd_backplanes_cloud_tasks``
+     - Generates backplanes.
+       :doc:`/user_guide/user_guide_backplanes`
+   * - ``sd_mosaic_cloud_tasks``
+     - Reprojects images for a ring or body mosaic.
+       :doc:`/user_guide/user_guide_reprojection`
+   * - ``sd_create_bundle_cloud_tasks``
+     - Runs the PDS4 labels pass.
+       :doc:`/user_guide/user_guide_pds4_bundle`
+   * - ``sd_results_index_cloud_tasks``
+     - Ingests one share of a results root into the results index.
+       :doc:`/user_guide/user_guide_results_index`
 
-The task file
-=============
+A worker takes no image-selection options, because the queue is what tells it which images
+to process. It accepts only the options that describe its own environment -- where its
+configuration is, and which roots it reads and writes -- plus whatever options the cloud
+tasks package itself defines. Each stage's chapter lists the ones its worker takes.
 
-A queue is loaded from a JSON file that lists the work items. You produce that file with
-**sd_offset**, using its ``--output-cloud-tasks-file PATH`` option: this is an option of
-``sd_offset``, not of the worker. Given that option, ``sd_offset`` enumerates the images
-your selection names, writes one task per image to the named file, and does nothing else
--- no image is navigated. The file is then loaded into a queue with the cloud tasks
-package's own tooling.
+How a task file comes to exist
+==============================
 
-.. code-block:: bash
+A queue is loaded from a JSON file that describes the work items. Four programs write one:
 
-   sd_offset coiss --volumes COISS_2xxx/COISS_2116 \
-       --output-cloud-tasks-file coiss_2116_tasks.json
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
 
-The models and techniques you select on that command line are written into the file and
-are what the workers will use, so choose them when you generate the tasks rather than
-later.
+   * - Program
+     - Option
+   * - ``sd_offset``
+     - ``--output-cloud-tasks-file PATH``
+   * - ``sd_backplanes``
+     - ``--output-cloud-tasks-file PATH``
+   * - ``sd_mosaic``
+     - ``--output-cloud-tasks-file PATH``
+   * - ``sd_results_index divide``
+     - ``--tasks-file PATH``
+
+The option belongs to the program you run yourself, never to the worker. Given it, the
+program enumerates the work its command line selects, writes the task file, and does
+nothing else: no image is navigated, no backplane is generated, and no mosaic is
+reprojected. Every setting the worker needs is written into the file at that moment, so
+the choices you make on that command line are the ones the workers will use.
+
+Where a task names image files, it names them by absolute URL, and that URL is fixed when
+the task is written. Such a task file has to be generated against the holdings root the
+workers will read.
+
+What every task file has in common
+==================================
+
+A task file is a JSON array of task objects. Each object has two members:
+
+* ``task_id``, a string that identifies the task uniquely within the file.
+* ``data``, an object holding everything the worker needs in order to do that task.
+
+What is inside ``data`` differs from one program to the next, and the differences matter:
+a reprojection task carries a whole mosaic configuration, and a results index task carries
+no image files at all. Each stage's chapter gives its own layout in full.
+
+A task file is generated by one program and read by another, so a user never writes or
+edits one. The layouts are documented so that you can read a file you have generated: to
+confirm which images a queue covers, or to check which settings the workers were given.
 
 Splitting a large selection
----------------------------
+===========================
 
-A single run can process any number of images; nothing in SpinDoctor limits how many
-images one task file or one queue may hold. Splitting a mission into several task files is
-therefore a convenience, and the convenience is this: each part can be run to completion
-and its results assessed before the next part starts, so a systematic problem is caught
-after one part rather than after the whole mission.
+Nothing limits how many images one run, one task file, or one queue may hold. Splitting a
+large selection into several task files is a convenience, and the convenience is this:
+each part can be run to completion and its results assessed before the next part starts,
+so a systematic problem is caught after one part rather than after the whole mission.
 
-We follow that convention for the larger holdings. Voyager ISS is generated one planetary
+We follow that convention for the larger holdings. Voyager ISS is navigated one planetary
 encounter at a time, and Cassini ISS in consecutive groups of whole volumes. Galileo SSI
-and New Horizons LORRI are each generated as a single file. The generator scripts that
-make these files are not part of the installed package. They live in ``cloud_support/`` in
-the source repository at https://github.com/SETI/rms-spindoctor, and each one runs
-``sd_offset --output-cloud-tasks-file`` and then divides what it wrote.
+and New Horizons LORRI are each navigated from a single task file. The generator scripts
+that make these files are not part of the installed package. They live in
+``cloud_support/`` in the source repository at https://github.com/SETI/rms-spindoctor, and
+each one runs ``sd_offset --output-cloud-tasks-file`` and then divides what it wrote.
 ``cloud_support/README.md`` there describes them, together with the compute-instance
-startup script and the job configuration they go with. Each generator must be told the
-holdings root the workers will read, because the image and label URLs a task carries are
-absolute and are fixed at the moment the task is written.
+startup script and the job configuration they go with.
 
-Task file structure
-===================
+What a worker writes to its logs
+================================
 
-``sd_offset`` generates the task file and the worker reads it, so you do not write or edit
-one. Its structure is here for the times you want to read a generated file: to confirm
-which images a queue covers, or to see which models and techniques the workers were given.
+A worker is meant to write nothing to the terminal, because the terminal on a compute
+instance belongs to the cloud task system. ``sd_create_bundle_cloud_tasks`` is the
+exception, and that is the defect described below rather than a choice. Workers that process images write the ordinary per-image
+log for every image they handle, into the same tree an interactive run writes it to. None
+of them writes a main log. An outcome an interactive run would have reported in its main
+log comes back in the task result instead. See :doc:`/user_guide/user_guide_logging`.
 
-The file is a JSON array of task objects. Each task looks like this:
+Two workers write no log file at all. ``sd_results_index_cloud_tasks`` writes none
+deliberately: it reads metadata documents rather than images, and what its task did is the
+value the task returns. ``sd_create_bundle_cloud_tasks`` writes none because it configures
+no logging at all. Its records are not discarded: with no output destination set they are
+rerouted to the main logger and reach the worker's terminal. Read a bundle worker's
+outcome from its task result and from the bundle it produced.
 
-.. code-block:: json
-
-    {
-        "task_id": "<dataset_name>-<label_file_name>-<index>",
-        "data": {
-            "dataset_name": "<dataset_name>",
-            "arguments": {
-                "nav_models": ["body:*", "rings", "stars"],
-                "nav_techniques": ["*"]
-            },
-            "files": [
-                {
-                    "image_file_url": "<path or URL to image file>",
-                    "label_file_url": "<path or URL to label file>",
-                    "results_path_stub": "<relative stub used to name outputs>",
-                    "index_file_row": {"<column>": "<value>", "...": "..."},
-                    "extra_params": {"<key>": "<value>"}
-                }
-            ]
-        }
-    }
-
-The fields are:
-
-* ``task_id``: a string that identifies the task uniquely, built from the dataset name,
-  the image's label filename, and the image's position in the enumeration.
-* ``data.dataset_name``: the dataset the images come from, spelled as it is on an
-  ``sd_offset`` command line.
-* ``data.arguments``: an object with the optional keys ``nav_models`` and
-  ``nav_techniques``, each a list of selection patterns or ``null`` for "use the default
-  selection". These carry the ``--nav-models`` and ``--nav-techniques`` choices made when
-  the file was generated.
-* ``data.files``: a list holding the task's image, so a single entry. It requires
-  ``image_file_url``, ``label_file_url``, and ``results_path_stub``, and may carry
-  ``index_file_row``, the row the PDS3 index table held for that image, and
-  ``extra_params``, further key and value pairs passed through to the stage.
+.. Removing the bundle worker altogether is tracked as issue #424.

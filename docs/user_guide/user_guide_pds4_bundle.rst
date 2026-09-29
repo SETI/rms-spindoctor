@@ -103,10 +103,7 @@ Two main programs support bundle generation:
 
 * ``sd_create_bundle`` runs the labels pass, the summary pass, and the check pass.
 * ``sd_create_bundle_cloud_tasks`` runs the labels pass one image at a time as a worker
-  of a work queue. Cloud tasks is a work-queue package supplied by the Ring-Moon
-  Systems Node; you do not run this program yourself, because the cloud task system
-  runs it for you on a cloud compute instance (see
-  :doc:`/user_guide/user_guide_cloud_tasks`).
+  of a cloud task queue (see `Cloud Tasks Variant`_).
 
 Labels Pass
 -----------
@@ -214,12 +211,11 @@ Each line names the image by where its results are under the two roots.
 Cloud Tasks Variant
 ^^^^^^^^^^^^^^^^^^^
 
-``sd_create_bundle_cloud_tasks`` runs the labels pass over a work queue, one image per
-task, and accepts the same environment options used to derive configuration and results
-roots. Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. You
-do not run this program yourself: the cloud task system runs it on a cloud compute
-instance, one task per run. The command line below is the one that system runs. See
-:doc:`/user_guide/user_guide_cloud_tasks`.
+``sd_create_bundle_cloud_tasks`` runs the labels pass over a queue, one image per task.
+:doc:`/user_guide/user_guide_cloud_tasks` describes what cloud tasks is, how a task file
+is loaded into a queue, and who runs the workers. The worker takes only the environment
+options it needs to derive its configuration and its results roots, and the command line
+below is the one the cloud task system runs:
 
 .. code-block:: bash
 
@@ -229,12 +225,37 @@ instance, one task per run. The command line below is the one that system runs. 
      --backplane-results-root /data/nav/backplanes \
      --bundle-results-root /data/nav/bundle
 
-Each task payload must be a JSON object with the following fields:
+Cloud Task Format
+^^^^^^^^^^^^^^^^^
 
-* ``dataset_name``: a dataset that can be bundled (see `Supported Datasets`_).
-* ``files``: an array holding one object, for the task's image, with the required
-  fields ``image_file_url``, ``label_file_url``, and ``results_path_stub``, and the
-  optional field ``index_file_row`` (the image's row of its PDS3 index).
+``sd_create_bundle`` has no option that writes a bundle task file.
+
+A task file is a JSON array of task objects. A bundle task looks like this:
+
+.. code-block:: json
+
+    {
+        "task_id": "<identifier for the task>",
+        "data": {
+            "dataset_name": "<dataset_name>",
+            "files": [
+                {
+                    "image_file_url": "<path or URL to image file>",
+                    "label_file_url": "<path or URL to label file>",
+                    "results_path_stub": "<relative stub used to name outputs>",
+                    "index_file_row": {"<column>": "<value>", "...": "..."}
+                }
+            ]
+        }
+    }
+
+* ``task_id`` identifies the task uniquely within the file.
+* ``data.dataset_name`` is a dataset that can be bundled (see `Supported Datasets`_).
+  A task naming any other dataset fails with ``unknown_dataset``.
+* ``data.files`` holds one entry per image, each requiring ``image_file_url``,
+  ``label_file_url``, and ``results_path_stub``, and each optionally carrying
+  ``index_file_row``, the row the PDS3 index table held for that image. The worker
+  accepts no other per-task settings.
 
 Summary Pass
 ------------
@@ -903,7 +924,7 @@ Typical workflow for generating a complete PDS4 bundle:
         --bundle-results-root /data/nav/bundle
 
    For large datasets, the cloud task system runs the labels pass over a queue of
-   workers (see :doc:`/user_guide/user_guide_cloud_tasks`), each worker running:
+   workers (see `Cloud Tasks Variant`_), each worker running:
 
    .. code-block:: bash
 

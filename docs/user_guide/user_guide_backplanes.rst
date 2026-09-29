@@ -360,15 +360,11 @@ is the same rule for body and ring planes alike.
 Running through cloud tasks
 ===========================
 
-Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. A
-queue holds one task per unit of work, and a worker running on a cloud compute
-instance takes tasks off the queue and performs them. The backplane worker is
-``sd_backplanes_cloud_tasks``. You do not run it yourself: the cloud task system
-starts it on the compute instances you have asked for. What you do is write the
-queue file and load it. :doc:`/user_guide/user_guide_cloud_tasks` covers the
-arrangement in full.
+The backplane worker is ``sd_backplanes_cloud_tasks``, and
+:doc:`/user_guide/user_guide_cloud_tasks` describes what cloud tasks is, how a
+task file is loaded into a queue, and who runs the workers.
 
-``--output-cloud-tasks-file`` writes such a queue file for the images a run would
+``--output-cloud-tasks-file`` writes such a task file for the images a run would
 have processed, and generates no backplanes:
 
 .. code-block:: bash
@@ -381,7 +377,7 @@ The worker takes only the settings that describe its own environment, and applie
 them to every task it handles: ``--config-file``, ``--nav-results-root``,
 ``--backplane-results-root``, and ``--results-index-db``.
 
-A worker has no run log, so each outcome a local run would have logged comes back
+A worker has no run log, and each outcome a local run would have logged comes back
 in the task result instead. A results index that cannot be used is
 ``unusable_results_index_db``. An image nothing navigated is a skip named
 ``no_navigation_record``. Every other way an image can fail, including a metadata
@@ -389,10 +385,11 @@ document that could not be read, is ``backplanes_failed``. All three are
 returned rather than raised, so a queue set to retry on an exception does not
 retry a refusal that will refuse identically.
 
-The queue file
---------------
+The task format
+---------------
 
-The file ``--output-cloud-tasks-file`` writes is a JSON array of task objects:
+The file ``--output-cloud-tasks-file`` writes is a JSON array of task objects. A
+backplane task looks like this:
 
 .. code-block:: json
 

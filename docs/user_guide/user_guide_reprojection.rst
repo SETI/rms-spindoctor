@@ -26,6 +26,11 @@ array over its own bounds or over the full grid, saving and reloading a mosaic o
 a single reprojection, and reading the per-cell geometry out of one are all
 package-only; no option of these programs reaches them.
 
+.. toctree::
+   :hidden:
+
+   user_guide_reprojection_api
+
 Building reprojections and mosaics
 ==================================
 
@@ -800,15 +805,11 @@ Mouse bindings by mode
 Running through cloud tasks
 ===========================
 
-Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node. A
-queue holds one task per unit of work, and a worker running on a cloud compute
-instance takes tasks off the queue and performs them. The reprojection worker is
-``sd_mosaic_cloud_tasks``. You do not run it yourself: the cloud task system
-starts it on the compute instances you have asked for. What you do is write the
-queue file and load it.
-:doc:`user_guide_cloud_tasks` covers the arrangement in full.
+The reprojection worker is ``sd_mosaic_cloud_tasks``, and
+:doc:`user_guide_cloud_tasks` describes what cloud tasks is, how a task file is
+loaded into a queue, and who runs the workers.
 
-``--output-cloud-tasks-file`` writes such a queue file for the images a run
+``--output-cloud-tasks-file`` writes such a task file for the images a run
 would have processed, and does no reprojection or mosaicing:
 
 .. code-block:: bash
@@ -859,10 +860,11 @@ prefix, format, and mosaic configuration, so that the expected filenames match:
        --radius-inner 70000 --radius-outer 140000 \
        --output-dir /data/mosaics --prefix saturn_main_rings_2004
 
-The queue file
---------------
+The task format
+---------------
 
-The file ``--output-cloud-tasks-file`` writes is a JSON array of task objects:
+The file ``--output-cloud-tasks-file`` writes is a JSON array of task objects. A
+reprojection task looks like this:
 
 .. code-block:: json
 
@@ -906,8 +908,3 @@ The file ``--output-cloud-tasks-file`` writes is a JSON array of task objects:
 * ``data.files`` holds one or more file descriptions. Each requires
   ``image_file_url``, ``label_file_url``, and ``results_path_stub``, and may
   carry an ``index_file_row``, which may be ``null``.
-
-.. toctree::
-   :maxdepth: 2
-
-   user_guide_reprojection_api

@@ -5,8 +5,8 @@ Image Navigation
 Navigation is the first stage of the pipeline: it compares an image against a
 model of what the spacecraft should have been looking at and reports a corrected
 pointing for the frame. The chapters below cover running the navigation program,
-choosing the models and techniques it uses, the files it writes, and the
-programs that summarize its results.
+choosing the models and techniques it uses, the files it writes, the programs
+that summarize its results, and the tasks the navigation cloud worker reads.
 
 .. toctree::
    :maxdepth: 2
@@ -20,4 +20,4 @@ programs that summarize its results.
    user_guide_statistics
    user_guide_consolidate_metadata
    user_guide_simulated_images
-   user_guide_cloud_tasks
+   user_guide_navigation_cloud_tasks

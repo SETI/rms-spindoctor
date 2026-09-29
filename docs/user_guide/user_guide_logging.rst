@@ -73,15 +73,15 @@ filed under, which is explained further under `Where the files go`_ below.
    * - ``sd_offset_cloud_tasks``
      - no
      - ``nav``
-     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
+     - :doc:`Navigation cloud tasks </user_guide/user_guide_navigation_cloud_tasks>`
    * - ``sd_backplanes_cloud_tasks``
      - no
      - ``backplanes``
-     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
+     - :doc:`Backplanes </user_guide/user_guide_backplanes>`
    * - ``sd_mosaic_cloud_tasks``
      - no
      - ``reproj``
-     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
+     - :doc:`Reprojection </user_guide/user_guide_reprojection>`
    * - ``sd_results_index``
      - yes
      - none
@@ -89,11 +89,11 @@ filed under, which is explained further under `Where the files go`_ below.
    * - ``sd_results_index_cloud_tasks``
      - no
      - none
-     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
+     - :doc:`Results index </user_guide/user_guide_results_index>`
    * - ``sd_create_bundle_cloud_tasks``
      - no
      - none
-     - :doc:`Cloud tasks </user_guide/user_guide_cloud_tasks>`
+     - :doc:`PDS4 bundles </user_guide/user_guide_pds4_bundle>`
    * - ``sd_stats_report``
      - no
      - none
@@ -115,9 +115,11 @@ filed under, which is explained further under `Where the files go`_ below.
 its task did is in the value the task returns to the cloud task system.
 
 ``sd_create_bundle_cloud_tasks`` also writes no log file, but for a different
-reason: it sets up no logging at all, so anything it would have recorded about a
-bundle run is discarded rather than returned. Read a bundle worker's outcome from
-the task result and from the bundle it produced.
+reason: it sets up no logging at all. What it records is not discarded either.
+With no output destination configured, its records are rerouted to the main
+logger and reach the worker's terminal, so this one worker does write to the
+terminal where the others do not. Read a bundle worker's outcome from the task
+result and from the bundle it produced.
 
 Where the files go
 ==================
@@ -425,10 +427,9 @@ model, each covering one step of navigating an image:
 Cloud tasks
 ===========
 
-Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node.
-The programs whose names end in ``_cloud_tasks`` are workers that the cloud
-task system runs on a cloud compute instance; a user never runs one directly.
-See :doc:`/user_guide/user_guide_cloud_tasks`.
+:doc:`/user_guide/user_guide_cloud_tasks` describes what cloud tasks is and how
+the programs whose names end in ``_cloud_tasks`` come to be run. This section
+covers what those workers write to their logs.
 
 A worker writes **nothing** to the terminal. That terminal belongs to the cloud
 task system, which reports task progress there under its own configuration, and

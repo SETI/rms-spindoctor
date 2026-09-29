@@ -106,8 +106,9 @@ Output Options
 
 ``--output-cloud-tasks-file PATH``
   Write a JSON file describing one task per selected image, suitable for loading into a
-  cloud task queue, and do no other processing. The queue is what later runs the images;
-  see :doc:`user_guide_cloud_tasks`.
+  cloud task queue, and do no other processing. The queue is what later runs the images.
+  :doc:`user_guide_navigation_cloud_tasks` gives the format of the file this writes, and
+  :doc:`user_guide_cloud_tasks` explains what cloud tasks is.
 
 ``--dry-run``
   Print the images the selection resolves to and stop. Nothing is navigated and nothing

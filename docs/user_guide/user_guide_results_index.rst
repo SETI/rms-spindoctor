@@ -623,10 +623,9 @@ A root of a few hundred thousand metadata documents is one listing followed by
 that many independent reads, so the reads can be spread over a queue. Three steps
 do it, and the middle one is where the work happens.
 
-The middle step runs ``sd_results_index_cloud_tasks``. Cloud tasks is a
-work-queue package supplied by the Ring-Moon Systems Node. You do not run that
-program yourself: the cloud task system runs it on a cloud compute instance, one
-share of the work per task. See :doc:`user_guide_cloud_tasks`.
+The middle step runs ``sd_results_index_cloud_tasks``, one share of the work per
+task. :doc:`user_guide_cloud_tasks` describes what cloud tasks is, how a task
+file is loaded into a queue, and who runs the workers.
 
 .. code-block:: bash
 
@@ -743,15 +742,6 @@ absent from step 3 on the same reasoning from the other side: step 3 removes no
 row, so whether a root keeps the rows of metadata documents that have left it was
 settled at step 1.
 
-The tasks file is a JSON array in the form a cloud task queue loads. Each
-entry has a ``task_id`` and a ``data`` object carrying ``run_id`` (the ingest
-run the share belongs to), ``root_url`` (the normalized results root),
-``force``, ``has_file_metrics`` (whether the listing reported a size and
-modification time for every file), and ``files`` -- one object per metadata document,
-with its ``results_path_stub``, ``mtime_ns``, and ``size_bytes``. Every one of
-those comes from the single listing, so no worker stats a file or checks for
-one.
-
 Step 3 reads the ``cloud_tasks`` event log, which is JSON Lines with one event
 per line; the ``task_completed`` events carry what each worker returned, under
 the ``task_id`` the task ran as. Lines that are not events are counted and
@@ -764,6 +754,53 @@ and one example file per reason. The reasons come back in the task results,
 since a worker writes no run log. Every file a share could not
 read is named in its task result too, and the ones refused for something about
 the metadata document are recorded in the results index's ``failed_files`` table as well.
+
+The task format
+---------------
+
+A share is not a list of image files, so an ingest task looks nothing like the
+tasks of the other stages. ``sd_results_index divide --tasks-file`` writes a JSON
+array of task objects, and one of them looks like this:
+
+.. code-block:: json
+
+    {
+        "task_id": "ingest-<run_id>-<index>",
+        "data": {
+            "run_id": 7,
+            "root_url": "<normalized results root>",
+            "force": false,
+            "has_file_metrics": true,
+            "files": [
+                {
+                    "results_path_stub": "<relative stub naming the metadata document>",
+                    "mtime_ns": 1758000000000000000,
+                    "size_bytes": 4096
+                }
+            ]
+        }
+    }
+
+* ``task_id`` identifies the task, and is built from the ingest run and the
+  position of the share.
+* ``data.run_id`` is the ingest run the share belongs to. Step 3 credits a share
+  only to the run it names.
+* ``data.root_url`` is the results root the share's rows are written under, in
+  the normalized spelling the rows record. A relative spelling is resolved
+  against the worker's own working directory, which is why step 1 writes the
+  absolute form.
+* ``data.force`` is ``true`` when the share must read every metadata document,
+  whatever the results index already records. It carries the ``--force`` given
+  to step 1.
+* ``data.has_file_metrics`` says whether the listing reported a size and a
+  modification time for every file it found.
+* ``data.files`` holds one entry per metadata document, each with its
+  ``results_path_stub`` and the two file metrics ``mtime_ns`` and ``size_bytes``,
+  either of which may be ``null``. Where the file lives is not carried: it is the
+  stub joined onto the root, and both already travel in the task.
+
+Every value here comes from the single listing step 1 made, so no worker stats a
+file or checks for one.
 
 Rebuilding a results index
 ==========================
