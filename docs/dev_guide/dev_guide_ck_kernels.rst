@@ -833,13 +833,14 @@ Invariants
   has files behind it. The guarantee is
   bounded on purpose: it says nothing about a write that fails for a reason
   only the filesystem or ``ckw03`` knows at the moment of writing.
-* **"Is anything already there?" is not a plain existence test.** It follows symbolic
-  links, so a dangling link -- one whose target does not exist -- answers
-  ``False``, and the write then creates that target, outside the output
-  directory. A link that resolves in a loop
-  answers ``False`` for a different reason and behaves the same way. Both are
-  pinned as measurements in the writer's tests, so a rewrite back to ``exists``
-  fails rather than passes. For the same class of reason, a path holding a
+* **"Is anything already there?" is not a plain existence test.** The check tests
+  for a symbolic link directly and refuses one, whether or not its target exists.
+  ``exists`` alone would not: it follows the link, so a dangling link -- one whose
+  target does not exist -- answers ``False``, and the write would go through the
+  link and create that target outside the output directory. A link that resolves
+  in a loop answers ``False`` for a different reason and would behave the same
+  way. Both are pinned as measurements in the writer's tests, so a rewrite back to
+  ``exists`` fails rather than passes. For the same class of reason, a path holding a
   character outside printable ASCII is refused rather than tested:
   ``os.path.lexists`` answers ``False`` for a name holding a null byte, SPICE
   is handed the name as a C string, and the comment area and meta-kernel that

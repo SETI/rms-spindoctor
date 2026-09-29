@@ -101,12 +101,14 @@ What the FITS file holds
 
 - ``BODY_ID_MAP`` is the first image extension, after the primary one. It gives
   the NAIF identifier of the body each pixel shows.
-- A pixel a backplane did not measure carries the masked value, ``-999.0``. It
-  sits outside the range of every plane, so ``!= -999.0`` selects the measured
-  pixels of any of them. ``BODY_ID_MAP`` is the exception: it holds ``0`` where
-  no body claimed the pixel, ``0`` not being a NAIF identifier. (The masked value
-  is a configured setting; :doc:`user_guide_configuration` says where the
-  defaults live.)
+- A pixel a backplane did not measure carries the masked value, which is
+  ``-999.0`` as shipped (``backplanes.masked_value``). It sits outside the range
+  of every plane, so comparing against the configured value selects the measured
+  pixels of any of them. Read the value out of the configuration of the run that
+  wrote the file rather than assuming the default. ``BODY_ID_MAP`` is the
+  exception: it holds ``0`` where no body claimed the pixel, ``0`` not being a
+  NAIF identifier. (:doc:`user_guide_configuration` says where the defaults
+  live.)
 - A backplane that measured no pixel at all is left out of the file.
 - Which backplanes are generated is configured, as are the units each is written
   in; see :doc:`user_guide_configuration`.

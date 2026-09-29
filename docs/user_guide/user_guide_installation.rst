@@ -169,8 +169,10 @@ Where Results Go
 ================
 
 Each phase of the pipeline writes into a root of its own. Apart from the log root, none
-of them has a built-in default, so every run must be told where to write, either by
-exporting the environment variable, by setting the value in a configuration file, or by
+of them has a built-in default, so a run must be told where to write each product it
+produces. A run that uses a results index must also be told the index's connection URL.
+A run that uses no results index needs no value for it. Each value is supplied by
+exporting the environment variable, by setting it in a configuration file, or by
 passing the command-line option. The command-line option wins over the configuration
 file, which wins over the environment variable.
 

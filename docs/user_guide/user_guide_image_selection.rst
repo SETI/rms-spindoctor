@@ -82,8 +82,8 @@ The candidate images, and everything known about them before processing, come fr
 **PDS3 index table** of each selected volume. That is the table shipped with the volume
 itself, holding one row per image, which a holdings tree keeps under ``metadata``. The
 options that select by volume, by image name, by image number, or by camera are all
-answered from those rows. Index tables are cached locally after they are first read, so
-repeating a run over the same volumes does not fetch them again.
+answered from those rows. PDS3 index tables are cached locally after they are first
+read, so repeating a run over the same volumes does not fetch them again.
 
 The options that ask what a previous navigation recorded are answered from the
 **navigation results**: either the tree of metadata documents under the navigation

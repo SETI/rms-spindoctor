@@ -993,9 +993,11 @@ Examples
 ========
 
 The examples below are captured from real runs. For display, long arrays (the SPICE
-kernel list) and repetitive list entries are shortened as noted, and the leading
-directories of the paths in ``image_path`` and ``star_catalogs`` are abbreviated.
-Every other value is verbatim.
+kernel list) and repetitive list entries are shortened as noted, the leading
+directories of the paths in ``image_path`` and ``star_catalogs`` are abbreviated, and
+the ``status_exception`` and ``status_traceback`` text of an error example is cut short
+where that example says so. Every other value is verbatim. All of this shortening is
+this chapter's own: the file a run writes carries every one of these values in full.
 
 Navigated, success
 ------------------

@@ -107,7 +107,7 @@ Navigate a single Cassini image:
 
 ```bash
 sd_offset coiss N1294562056 \
-  --pds3-holdings-root /path/to/pds3 \
+  --pds3-holdings-root /path/to/pds3/holdings \
   --nav-results-root /path/to/nav_results
 ```
 
@@ -116,7 +116,7 @@ Navigate every Voyager image in one archive volume:
 ```bash
 sd_offset vgiss \
   --volumes VGISS_5101 \
-  --pds3-holdings-root /path/to/pds3 \
+  --pds3-holdings-root /path/to/pds3/holdings \
   --nav-results-root /path/to/nav_results
 ```
 
@@ -180,7 +180,7 @@ Reproject a set of ring images and combine them into a mosaic:
 ```bash
 sd_mosaic_rings coiss_saturn \
   --volumes COISS_2001 \
-  --pds3-holdings-root /path/to/pds3 \
+  --pds3-holdings-root /path/to/pds3/holdings \
   --nav-results-root /path/to/nav_results \
   --planet SATURN \
   --radius-inner 139500 \
@@ -194,7 +194,7 @@ Reproject body images onto a latitude/longitude grid:
 ```bash
 sd_mosaic_body coiss_saturn \
   --volumes COISS_2001 \
-  --pds3-holdings-root /path/to/pds3 \
+  --pds3-holdings-root /path/to/pds3/holdings \
   --nav-results-root /path/to/nav_results \
   --body-name MIMAS \
   --output-dir /path/to/mosaic_results \
@@ -218,7 +218,7 @@ for the full option reference for `sd_mosaic_rings`, `sd_mosaic_body`,
 sd_consolidate_metadata coiss_saturn --nav-results-root /path/to/nav_results \
   --dest-dir /path/to/flat_results --copy-all
 sd_results_index ingest --nav-results-root /path/to/nav_results \
-  --results-index-db sqlite:///path/to/results_index.db
+  --results-index-db sqlite:////path/to/results_index.db
 sd_stats_report --nav-results-root /path/to/nav_results \
   --output-dir /path/to/stats_report
 ```

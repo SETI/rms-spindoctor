@@ -15,8 +15,8 @@ use two ways. There are command-line programs, ``sd_mosaic_rings`` and
 ``sd_mosaic_body`` to build reprojections and mosaics and
 ``sd_mosaic_display_rings`` and ``sd_mosaic_display_body`` to look at them; and
 there is an importable Python package, ``spindoctor.reproj``, which you can call
-from your own code when you want control the programs do not offer. This chapter
-covers the programs, which is what most work needs.
+from your own code when you want control that the programs do not offer. This
+chapter covers the programs, which is what most work needs.
 :doc:`user_guide_reprojection_api` covers the package.
 
 The programs work entirely through the package, so every option a program takes

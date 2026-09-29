@@ -69,7 +69,7 @@ WARNINGS=0
 # this function in a subshell and the counters would not survive it.
 report() {
     local tier="$1" msg="$2" matches="$3"
-    [[ -z "${matches//[[:space:]]/}" ]] && return 0
+    [[ "$matches" != *[![:space:]]* ]] && return 0
     printf '\n%s: %s\n' "$tier" "$msg"
     printf '%s\n' "$matches" | sed 's/^/  /'
     if [[ "$tier" == ERROR ]]; then
@@ -90,6 +90,7 @@ PROSE_RST=""
 prose_stream() {
     [[ $# -eq 0 ]] && return 0
     python3 -c '
+import re
 import sys
 
 for path in sys.argv[1:]:
@@ -98,13 +99,20 @@ for path in sys.argv[1:]:
     except OSError:
         continue
     md = path.endswith(".md")
-    fence = False
+    fence = None
     block_indent = None
     for n, line in enumerate(lines, 1):
         stripped = line.strip()
         if md:
-            if stripped.startswith("```"):
-                fence = not fence
+            # CommonMark allows ``` and ~~~ fences, and a fence closes only on a
+            # matching run of the same character. Recognizing backticks alone
+            # read a tilde-fenced example as prose.
+            m = re.match(r"(`{3,}|~{3,})", stripped)
+            if m and fence is None:
+                fence = m.group(1)[0] * len(m.group(1))
+                continue
+            if m and fence and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence):
+                fence = None
                 continue
             if fence:
                 continue
@@ -129,7 +137,6 @@ for path in sys.argv[1:]:
             continue
         print(f"{path}:{n}:{line}")
 ' "$@"
-    return 0
 }
 
 # hits PATTERN STREAM  -- PCRE, case sensitive, over a prose stream
@@ -167,9 +174,24 @@ fi
 
 echo "check-doc-prose: ${#ALL_FILES[@]} file(s), ${#USER_FILES[@]} user-facing"
 
-PROSE_ALL="$(prose_stream "${ALL_FILES[@]}")"
-[[ ${#USER_FILES[@]} -gt 0 ]] && PROSE_USER="$(prose_stream "${USER_FILES[@]}")"
-[[ ${#RST_FILES[@]} -gt 0 ]] && PROSE_RST="$(prose_stream "${RST_FILES[@]}")"
+# A filter that fails would hand every check an empty stream, and every check
+# would pass. Its exit status is therefore load-bearing.
+if ! PROSE_ALL="$(prose_stream "${ALL_FILES[@]}")"; then
+    echo 'check-doc-prose: FAILED -- could not read the documentation prose' >&2
+    exit 1
+fi
+if [[ ${#USER_FILES[@]} -gt 0 ]] && ! PROSE_USER="$(prose_stream "${USER_FILES[@]}")"; then
+    echo 'check-doc-prose: FAILED -- could not read the user-facing prose' >&2
+    exit 1
+fi
+if [[ ${#RST_FILES[@]} -gt 0 ]] && ! PROSE_RST="$(prose_stream "${RST_FILES[@]}")"; then
+    echo 'check-doc-prose: FAILED -- could not read the reStructuredText prose' >&2
+    exit 1
+fi
+if [[ "$PROSE_ALL" != *[![:space:]]* ]]; then
+    echo 'check-doc-prose: FAILED -- the prose stream is empty' >&2
+    exit 1
+fi
 
 # Packaged config filenames belong in the configuration chapter alone.
 CFG_FILES=()
@@ -179,7 +201,10 @@ for f in "${ALL_FILES[@]}"; do
     [[ "$f" == docs/*_report/* ]] && continue
     CFG_FILES+=("$f")
 done
-PROSE_CFG="$(prose_stream "${CFG_FILES[@]}")"
+if ! PROSE_CFG="$(prose_stream "${CFG_FILES[@]}")"; then
+    echo 'check-doc-prose: FAILED -- could not read the prose for the config check' >&2
+    exit 1
+fi
 
 # An attribute-style identifier is obj.member. A URL, a filename, and an
 # abbreviation all look like one, so remove those tokens from the line first and

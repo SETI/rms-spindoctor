@@ -52,8 +52,9 @@ camera attitude, and is what other programs should use.
 The Rest of the Pipeline
 ========================
 
-Navigation is the first of four processing phases. Each later phase consumes the results
-of the one before it:
+Navigation is the first of four processing phases. Each of the three that follow reads
+what navigation recorded. C-kernel generation and backplane generation read nothing
+else the pipeline produced. Bundle generation reads the backplanes as well:
 
 1. **Navigation.** Every image is compared against models of the stars, planets, moons,
    and rings that should have been in its field of view, and the pointing correction that
