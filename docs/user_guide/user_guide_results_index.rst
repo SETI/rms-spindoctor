@@ -299,7 +299,7 @@ The settings
    Every document is still read; only the speed of the pass changes. A run
    with a log says which numbers it used instead, so look there first if a
    pass is slower than you expect; ``sd_stats_report``, which prints rather
-   than logs, is held back the same way but has nowhere to say so.
+   than logs, is held back the same way without reporting it anywhere.
 
    Which limit to lift depends on which of those two happened, and the log
    line says which. If the run is sitting at its hard limit, that is the one
