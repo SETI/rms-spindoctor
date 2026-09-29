@@ -229,8 +229,8 @@ in the frame. That is why a model name can carry the subject it was built for:
        simulated image the equivalent model is named ``titan_sim:TITAN``.
 
 Two conveniences apply to model patterns. The part after the colon is capitalized for you,
-so ``body:saturn`` matches ``body:SATURN``. And a bare prefix that has no colon and no glob
-characters is expanded to cover everything under it, so ``--nav-models 'body'`` means
+so ``body:saturn`` matches ``body:SATURN``. And a bare prefix that has no colon and no
+glob characters is expanded to cover everything under it, so ``--nav-models 'body'`` means
 every body model and ``--nav-models '!body'`` excludes every body model. Both conveniences
 keep a leading ``!``.
 
@@ -445,8 +445,8 @@ few hundred pixels in the frame is less than a pixel. A straight edge is flagged
 because it constrains the pointing in only one direction; the consequences are described
 under ``RingEdgeNav`` below.
 
-Which planet's ring catalog exists is worth stating plainly: only Saturn's is populated.
-The per-edge definitions live in the ring configuration, under
+Only Saturn's ring catalog is populated. The per-edge definitions live in the ring
+configuration, under
 ``rings.ring_features.<PLANET>.features``; the Jupiter, Uranus, and Neptune entries are
 empty. The full layout of an edge definition is documented in
 :doc:`/dev_guide/dev_guide_navigation_models_rings`.
@@ -456,8 +456,8 @@ Planet shadow removal
 
 Saturn casts a shadow across part of its own rings, and the ring arcs inside that shadow
 are dark in the image. A model that still shows them bright would ask the navigator to
-align a bright prediction against a dark patch of sky, which drags the fitted offset off
-the truth.
+align a bright prediction against a dark part of the image, which drags the fitted offset
+off the truth.
 
 The ``rings.remove_planet_shadow`` setting, on by default, zeroes every model pixel that
 falls inside the planet's shadow, so those arcs enter neither the traced edges nor the
@@ -878,7 +878,7 @@ it as ``sigma_along_unobservable_px`` under ``navigation_result``, and as ``is_r
 that technique's diagnostics; see :doc:`/user_guide/user_guide_metadata` for both. An
 image whose combined result is still rank-deficient after every technique has been
 considered reaches the ``medium`` tier at best, and records a status reason of
-``RANK_1_ONLY``.
+``rank_1_only``.
 
 An image in that state is not lost. Anything that measures the missing direction completes
 it: a star field, a body limb, or even a body brightness center. The combination step
@@ -968,7 +968,7 @@ The same dialog is reachable from Python, taking one observation and returning o
 
    result = run_manual_nav(obs)
 
-Filtering examples
+Filtering Examples
 ------------------
 
 Run only the ring-edge technique:
