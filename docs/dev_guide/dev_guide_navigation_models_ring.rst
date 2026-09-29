@@ -214,52 +214,13 @@ sigma and curvature thresholds that are not exposed to YAML.
 rings block
 -----------
 
-Every key under ``rings`` is listed below. Several keys are reserved for ring-feature
-filtering work that is not consumed by the active extractor; the second line of each
-bullet names the consumer (or "reserved" when no consumer is wired).
+Every key under ``rings`` is listed below, each naming the consumer that reads it.
 
-- ``model_source`` — str, default ``ephemeris``. Selects the ring-feature data source.
-  Reserved; the active extractor reads the per-planet ``ring_features`` mapping
-  unconditionally.
-- ``fiducial_feature_threshold`` — int, default ``3`` (count). Reserved for the
-  fiducial-feature classifier that promotes a ring edge to fiducial status when at
-  least this many independent edge measurements line up. Not consumed by the active
-  extractor.
-- ``fiducial_rms_gain`` — float, default ``2`` (dimensionless). Reserved alongside
-  ``fiducial_feature_threshold`` for the fiducial classifier's RMS gain term. Not
-  consumed by the active extractor.
-- ``fiducial_min_feature_width`` — int, default ``2`` px. Reserved alongside
-  ``fiducial_feature_threshold``; minimum radial width below which a fiducial promotion
-  is suppressed. Not consumed by the active extractor.
-- ``one_sided_feature_width`` — float, default ``30.0`` px. Reserved width used by the
-  fiducial classifier for one-sided (gap or step) features. Not consumed by the active
-  extractor.
-- ``fiducial_ephemeris_width`` — int, default ``100`` px. Reserved tolerance window for
-  matching ephemeris-predicted radii against detected fiducials. Not consumed by the
-  active extractor.
-- ``min_curvature_low_confidence`` — list (rad, ratio), default ``[0.0, 0.5]``. Reserved
-  curvature / confidence threshold for the rank-1 degeneracy escape on the all-straight
-  ring fit. Not consumed by the active extractor; the equivalent test lives on the
-  per-feature flags.
-- ``min_curvature_high_confidence`` — list (rad, ratio), default ``[0.17, 1.0]``.
-  Reserved alongside ``min_curvature_low_confidence``. Not consumed by the active
-  extractor.
-- ``curvature_to_reduce_features`` — float, default ``1.5708`` rad (= 90 degrees).
-  Reserved threshold above which the extractor would reduce the surviving polyline
-  count by collapsing nearly-orthogonal edges. Not consumed by the active extractor.
-- ``curvature_reduced_features`` — int, default ``1`` (count). Reserved for the
-  reduce-features path. Not consumed by the active extractor.
-- ``emission_fiducial_threshold`` — float, default ``0.75`` (dimensionless). Reserved
-  per-edge fiducial-promotion threshold. Not consumed by the active extractor.
-- ``emission_use_threshold`` — float, default ``0.2`` (dimensionless). Reserved per-edge
-  emission floor. Not consumed by the active extractor.
 - ``remove_planet_shadow`` — bool, default ``true``. When true the model masks pixels
   inside the per-planet shadow before rendering ring edges; the ring radius is still
   defined inside the shadow but the brightness is zero, so leaving the shadow pixels
   in would skew the per-vertex covariance. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
-- ``remove_body_shadows`` — bool, default ``false``. Reserved for masking the projected
-  shadow of every body in the FOV. Not consumed by the active extractor.
 - ``ring_features`` — dict[str, dict]. Per-planet ring catalog overlaid from the
   per-planet ``config_3N0_*_rings.yaml`` files (see below). Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.

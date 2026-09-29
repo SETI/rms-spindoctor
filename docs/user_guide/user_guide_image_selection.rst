@@ -325,37 +325,36 @@ wrong for every image under it.
 Where the Results Index Answers Differently
 -------------------------------------------
 
-The results index holds what an ingest pass could read and record. Three things follow,
-all of them worth knowing before a selection is trusted.
-
-**The results index answers as of its last ingest.** An image navigated since that pass
-has no row, so ``--has-no-offset-file`` selects it again. A metadata document deleted
-since that pass still has a row, so ``--has-offset-file`` selects an image whose metadata
-document is gone. The run log reports when the pass finished and how long ago that was,
-which is what says whether either applies to your run. Run ``sd_results_index ingest`` to
-bring the results index up to date, or pass ``--results-index-db none`` for a run that
+The results index holds what an ingest pass could read and record, so it answers as of
+that pass. An image navigated since then has no row, so ``--has-no-offset-file`` selects
+it again, and a metadata document deleted since then still has a row, so
+``--has-offset-file`` selects an image whose metadata document is gone. The run log
+reports when the pass finished and how long ago that was. Run ``sd_results_index ingest``
+to bring the results index up to date, or pass ``--results-index-db none`` for a run that
 must read the tree.
 
-**An image that has no row in the results index reads as never navigated.** One kind of
-ingest failure leaves a metadata document unrecorded: a pass that could not retrieve the
-file. Nothing is recorded for such a file, because a row for it would be skipped for as
-long as the file did not change, and a download that failed once says nothing that will
-still be true on the next pass. The other two ways a metadata document could go unrecorded
-leave no completed pass behind, so a completed ingest cannot contain them: a pass stops
-where it cannot list a directory, and it stops where the database refuses one of its
-metadata documents. After a completed pass, every directory under the results root was
-listed and every metadata document under it was stored.
+Two answers the results index is known to give differently from the results tree follow.
+Each is a property of what an ingest pass could read and record rather than of the
+storage.
 
-**An error option can answer from a metadata document that has since been replaced.** The
-symptom is a stale verdict: the results index reports what the earlier metadata document
-recorded, however recently the last ingest finished. Run ``sd_results_index ingest
---force`` over the results root to re-read every metadata document and put such a row
-right.
+**An image that has no row at all in the results index reads as never navigated**, and
+``--has-no-offset-file`` selects it again. One kind of ingest failure leaves a metadata
+document unrecorded: a pass that could not retrieve the file. Nothing is recorded for such
+a file, because a row for it would be skipped for as long as the file did not change, and
+a download that failed once says nothing that will still be true on the next pass. The
+other two ways a metadata document could go unrecorded leave no completed pass behind, so
+a completed ingest cannot contain them: a pass stops where it cannot list a directory, and
+it stops where the database refuses one of its metadata documents. After a completed pass,
+every directory under the results root was listed and every metadata document under it was
+stored.
 
-This happens when a metadata document is rewritten in place and keeps the length and
-modification time it had before, because those two are everything a directory listing says
-about a file and are how an ingest decides whether a metadata document needs re-reading. A
-tree restored by a copy that preserves timestamps, a metadata document patched and stamped
-back from a sibling, and a storage backend reporting one modification time for two writes
-all produce it. An ordinary re-navigation writes a different length at a later time and
-does not.
+**A metadata document rewritten in place, keeping the length and the modification time it
+had before, is one the ingest skips**, because those two are everything a directory
+listing says about a file and are how an ingest decides whether a metadata document needs
+re-reading. Its row goes on reporting what the earlier metadata document recorded, however
+recently the last ingest finished, so an error option can answer from a verdict that has
+since been replaced. A tree restored by a copy that preserves timestamps, a metadata
+document patched and stamped back from a sibling, and a storage backend reporting one
+modification time for two writes all produce it. An ordinary re-navigation writes a
+different length at a later time and does not. Run ``sd_results_index ingest --force``
+over the results root to re-read every metadata document and put such a row right.

@@ -49,9 +49,9 @@ class NavInternalErrorRecord:
             class-level name, as in ``RingEdgeNav.navigate``.
         exception_type: The class name of the exception raised, for example
             ``AttributeError``.  The message and traceback are deliberately
-            not carried here: they can hold file paths and array contents,
-            and the metadata document is an archive product.  The error log
-            has both.
+            not carried here: they are unbounded free text, and a field of
+            the metadata document is not the place for it.  The per-image
+            error log has both.
 
     Raises:
         TypeError: If either field is not a ``str``.

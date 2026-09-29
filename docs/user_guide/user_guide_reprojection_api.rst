@@ -407,8 +407,7 @@ A finished body mosaic can be projected back onto the pixel grid of one
 observation. For every pixel of that observation the latitude and longitude on
 the body are computed from the observation geometry, and the mosaic is sampled
 there by bilinear interpolation. The result is an image of what the mosaic says
-that observation should look like, which is useful for comparing a mosaic
-against a single frame::
+that observation should look like, at that observation's resolution::
 
     from spindoctor.reproj import create_cartographic_model
 

@@ -300,43 +300,13 @@ The model's runtime knobs live in ``stars`` in
   duplicate detection step.
 - ``overlapping_vmag_threshold`` — float, default ``2`` mag. Below this magnitude
   difference, two visually-overlapping stars are dropped from both catalogs.
-- ``calibrated_data`` — bool, default ``true``. Whether the per-image data is in
-  calibrated I/F units (vs. raw DN).
-- ``float_psf_sigma`` — bool, default ``false``. When true, the per-instrument PSF sigma is
-  treated as a fit parameter; when false, the per-instrument value is used verbatim.
-- ``search_multipliers`` — list[float], default ``[0.25, 0.5, 0.75, 1.0]``. Multipliers on
-  the per-instrument SPICE pointing-error envelope used by the star matcher's coarse
-  search.
-- ``perform_photometry`` — bool, default ``true``. Whether to run per-star photometric
-  validation.
-- ``try_without_photometry`` — bool, default ``false``. Whether to attempt a fallback
-  match path with photometry disabled.
-- ``min_stars_low_confidence`` — list (count, confidence), default ``[3, 0.75]``. Minimum
-  star count and confidence level for the low-confidence match path.
-- ``min_stars_high_confidence`` — list (count, confidence), default ``[6, 1.0]``. Minimum
-  star count and confidence level for the high-confidence match path.
 - ``min_confidence`` — float, default ``0.9``. Minimum confidence level for the match to
   succeed.
-- ``psf_gain`` — list (DN, gain), default ``[5000, 4]``. PSF integrated gain mapping for
-  flux estimation.
 - ``max_smear`` — float, default ``100`` (dimensionless). Maximum smear length above which
   a star is dropped from the emission set.
-- ``min_vmag`` — float, default ``5.0`` mag. Minimum visual magnitude (i.e. brightest)
-  considered.
-- ``max_vmag`` — float, default ``15.0`` mag. Maximum visual magnitude (i.e. dimmest)
-  considered for prediction.
-- ``vmag_increment`` — float, default ``0.5`` mag. Magnitude bin width for the per-bin
-  star-list build.
-- ``max_star_dn`` — float, default ``100000.0`` DN. Above this, stars are too bright to
-  use (saturation regime).
-- ``min_dn_force_one_star`` — float, default ``25000.0`` DN. Below this DN, the
-  unique-bright single-star path will not fire even on a uniquely bright catalog star.
-- ``star_body_conflict_margin`` — int, default ``3`` px. Smaller-than-body conflict margin
-  used when the per-star centroid is close to the body silhouette boundary.
-- ``too_bright_dn`` — float, default ``1000`` DN. Threshold above which a star is "very
-  bright" for the per-star photometric tests.
-- ``too_bright_factor`` — float, default ``1`` (dimensionless). Multiplier on
-  ``too_bright_dn`` (reserved tuning slot).
+- ``min_predicted_snr`` — float, default ``0.0`` (dimensionless). Predicted
+  signal-to-noise below which a star is dropped from the emission set. ``0.0``
+  imposes no floor.
 - ``ring_occlusion_enabled`` — bool, default ``true``. Whether to flag stars whose
   predicted positions lie inside a planet's ring system.
 - ``ring_occlusion_min_opaque_fraction`` — float, default ``0.25``. Fraction of the
