@@ -45,7 +45,8 @@ Every volume sits under the single volume set directory ``GO_0xxx``. In the PDS3
 index file name, the volume identifier keeps its uppercase form and the
 ``_index.lbl`` suffix is lowercase.
 
-**Which product is navigated.** The PDS3 index names a ``.LBL`` filespec
+**Which product is navigated.** The image files are VICAR; PDS3 is the archive
+organization around them. The PDS3 index names a ``.LBL`` filespec
 directly and it is used as it stands, with the image resolved from the label's
 image pointer. The archive holds no calibrated Galileo SSI product, so navigation
 runs on raw DN.

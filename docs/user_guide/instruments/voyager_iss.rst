@@ -76,7 +76,7 @@ The volume set directory takes the volume's first digit: ``VGISS_5xxx``,
 ``VGISS_6xxx``, ``VGISS_7xxx``, or ``VGISS_8xxx``.
 
 **Which product is navigated.** The geometrically corrected product, and only
-that one. Each volume carries ``_RAW``, ``_CALIB``, and ``_GEOMED`` products
+that one. The image files are VICAR; PDS3 is the archive organization around them. Each volume carries ``_RAW``, ``_CALIB``, and ``_GEOMED`` products
 for each frame; the dataset navigates ``_GEOMED`` and **silently skips** the other
 two rather than reporting them, so an image count from a volume listing will
 not match the number of images a run considers. The filespec is

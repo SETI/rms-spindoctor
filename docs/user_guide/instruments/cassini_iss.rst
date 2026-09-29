@@ -61,7 +61,8 @@ The volume set directory is ``COISS_1xxx`` or ``COISS_2xxx`` according to the
 volume's first digit. In the PDS3 index file name, the volume identifier keeps
 its uppercase form and the ``_index.lbl`` suffix is lowercase.
 
-**Which product is navigated.** The calibrated product, always. Each PDS3 index
+**Which product is navigated.** The calibrated product, always. The image files are
+VICAR; PDS3 is the archive organization around them. Each PDS3 index
 row names a raw ``.IMG`` filespec, which the dataset rewrites to ``_CALIB.LBL``
 before the image is opened, so every selection route -- volume ranges, image
 number ranges, explicit names, ``--image-file-list``, ``--image-filespec-csv``
