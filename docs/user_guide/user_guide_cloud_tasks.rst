@@ -124,9 +124,9 @@ What a worker writes to its logs
 
 A worker is meant to write nothing to the terminal, because the terminal on a compute
 instance belongs to the cloud task system. ``sd_create_bundle_cloud_tasks`` is the
-exception, and that is the defect described below rather than a choice. Workers that process images write the ordinary per-image
-log for every image they handle, into the same tree an interactive run writes it to. None
-of them writes a main log. An outcome an interactive run would have reported in its main
+exception described below. Every worker that processes images, apart from that one, writes
+the ordinary per-image log for every image it handles, into the same tree an interactive
+run writes it to. None of them writes a main log. An outcome an interactive run would have reported in its main
 log comes back in the task result instead. See :doc:`/user_guide/user_guide_logging`.
 
 Two workers write no log file at all. ``sd_results_index_cloud_tasks`` writes none

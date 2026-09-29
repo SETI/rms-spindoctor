@@ -29,7 +29,9 @@ Writing the task file
 
 ``--output-cloud-tasks-file PATH`` is an option of **sd_offset**, not of the worker.
 Given it, ``sd_offset`` enumerates the images your selection names, writes one task per
-image to the named file, and navigates nothing:
+enumerated entry to the named file, and navigates nothing. Each task carries a list of
+images, and every selection an instrument offers today puts one image in each, so a file
+written now holds one task per image:
 
 .. code-block:: bash
 

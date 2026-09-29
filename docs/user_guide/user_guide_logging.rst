@@ -374,8 +374,11 @@ Note that a component named in a configuration file outranks a bare
 configuration names one: ``other.annotate: ERROR``. So ``--log-level NONE``
 does not produce silence -- annotation stays at ERROR, which keeps a log file
 open and writes one per image. To get silence, either name it
-(``--log-level NONE --log-level annotate=NONE``) or turn the file destination
-off with ``--no-log-image-to-file``.
+(``--log-level NONE --log-level annotate=NONE``) or turn both per-image
+destinations off (``--no-log-image-to-file --no-log-image-to-console``).
+``--no-log-image-to-file`` on its own is enough only while the per-image console
+is off: with ``image_console`` true, the annotation records go to the terminal
+instead.
 
 A ``programs`` block applies to that program alone and is merged key by key
 with the settings above it, so a program can override one value while

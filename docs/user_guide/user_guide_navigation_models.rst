@@ -28,10 +28,15 @@ disc against the image, sliding a predicted limb curve onto the real brightness 
 recognizing a star pattern, and so on. Each technique that runs reports its own offset,
 its own uncertainty, and its own confidence.
 
-Fourth, the results are reconciled into a single answer. Techniques that agree are fused,
-a technique that contradicts a corroborated majority is set aside, and the surviving
-estimates are combined by weighting each by how tightly it is determined. What comes out
-is one offset in pixels, one uncertainty, and one confidence for the image.
+Fourth, the results are reconciled into a single answer. SpinDoctor forms, around each
+technique, the group of techniques whose offsets agree with that one, and keeps the group
+whose confidences add up to the most. That is not always the group with the most members:
+one confident technique can outweigh several weaker ones that agree with each other. The
+techniques left outside the surviving group are set aside, and those inside it are
+combined by weighting each by how tightly its offset is determined. When a set-aside group
+is close enough in summed confidence to stand as a rival answer, the image is reported as
+``conflicted``. What comes out is one offset in pixels, one uncertainty, and one confidence
+for the image.
 
 The offset follows one convention throughout SpinDoctor: if the prediction puts something
 at row and column ``(v, u)``, the real thing is at ``(v + dv, u + du)``.
@@ -115,7 +120,9 @@ does not:
      - Meaning
    * - ``high``
      - Confidence at least 0.85 and per-axis uncertainty at most 0.5 pixel. The
-       pointing is well determined; use it without further checking.
+       pointing is well determined. Read the reported uncertainty, and where a
+       second technique measured different scene content, check that it agrees;
+       see :doc:`user_guide_navigation_outputs`.
    * - ``medium``
      - Confidence at least 0.35 and per-axis uncertainty at most 2.0 pixels.
        Trustworthy for most work. Carry the reported uncertainty into anything

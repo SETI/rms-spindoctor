@@ -344,9 +344,9 @@ a file, because a row for it would be skipped for as long as the file did not ch
 a download that failed once says nothing that will still be true on the next pass. The
 other two ways a metadata document could go unrecorded leave no completed pass behind, so
 a completed ingest cannot contain them: a pass stops where it cannot list a directory, and
-it stops where the database refuses one of its metadata documents. After a completed pass,
-every directory under the results root was listed and every metadata document under it was
-stored.
+it stops where the database refuses one of its metadata documents. After a completed pass, every
+directory under the results root was listed and every metadata document the pass could
+retrieve was stored.
 
 **A metadata document rewritten in place, keeping the length and the modification time it
 had before, is one the ingest skips**, because those two are everything a directory

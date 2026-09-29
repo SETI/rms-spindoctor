@@ -6,8 +6,9 @@ Overview
 ========
 
 Navigation writes one ``_metadata.json`` metadata document per image under
-``nav_results_root``. Every program downstream of navigation then reads one of
-those metadata documents per image it processes. On a local disk that is cheap. On a
+``nav_results_root``. In a run that names no results index, every program downstream
+of navigation reads one of those metadata documents per image it processes. On a
+local disk that is cheap. On a
 cloud root it is one paid round trip per image per program, and a
 Cassini-scale run is of the order of 400,000 images.
 

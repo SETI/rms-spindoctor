@@ -180,8 +180,10 @@ When a results index is named
 
 An image that has no row in the results index is reported and skipped, exactly
 as an image that has no metadata file is. A named results index that cannot be opened,
-or one that has not fully ingested the navigation results root, fails the run
-rather than quietly reverting to reading files.
+or one that has not fully ingested the navigation results root, fails a run that
+generates backplanes rather than quietly reverting to reading files. ``--dry-run``
+and ``--output-cloud-tasks-file`` read no navigation record, so neither one opens the
+results index and neither fails for want of a usable one.
 
 An image whose metadata document could not be read is a third case, and it fails
 that image rather than skipping it. The results index records such a file as one

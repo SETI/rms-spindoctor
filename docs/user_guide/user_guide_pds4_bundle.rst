@@ -820,12 +820,13 @@ Bundle Results Root
 
 The bundle results root can be specified via:
 
-1. Configuration file: ``environment.bundle_results_root``
-2. Environment variable: ``NAV_BUNDLE_RESULTS_ROOT``
-3. Command-line argument: ``--bundle-results-root``
+1. Command-line argument: ``--bundle-results-root``
+2. Configuration file: ``environment.bundle_results_root``
+3. Environment variable: ``NAV_BUNDLE_RESULTS_ROOT``
 
-Command-line arguments have the highest priority, followed by environment variables,
-then configuration files.
+They are consulted in that order, so a value in a configuration file wins over the same
+value exported into the environment. :doc:`user_guide_configuration` describes the order
+every such setting follows.
 
 Templates
 =========

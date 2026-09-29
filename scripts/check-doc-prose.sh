@@ -16,7 +16,19 @@
 
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+# Without errexit a failed cd would carry on and check the caller's directory,
+# or find nothing and report success.
+if ! cd "$(dirname "$0")/.."; then
+    echo 'check-doc-prose: FAILED -- cannot reach the repository root' >&2
+    exit 1
+fi
+
+# Landing somewhere that is not this repository would find no documentation and
+# report success, which is the same false pass as a failed cd.
+if [[ ! -d docs || ! -f .cursor/rules/doc_prose_style.mdc ]]; then
+    echo 'check-doc-prose: FAILED -- not in the SpinDoctor repository root' >&2
+    exit 1
+fi
 
 SHOW_WARNINGS=0
 EXPLICIT=0

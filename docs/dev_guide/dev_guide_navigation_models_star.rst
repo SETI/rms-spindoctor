@@ -166,8 +166,9 @@ The model does **not** reject a star on the saturation or cosmic-ray mask at its
 position: once a pointing offset is present the predicted position carries no special
 significance, and a sharp stellar peak self-triggers the cosmic-ray detector, so consulting
 the mask there would suppress good stars. The ``saturated`` and
-``in_saturation_or_cosmic_mask`` flags therefore stay clear. Star usability is an
-occlusion-only screen.
+``in_saturation_or_cosmic_mask`` flags therefore stay clear. So among the predictable
+stars -- those the model emits a STAR feature for, after the magnitude and smear cuts
+below have removed the rest -- occlusion is the only thing that makes one unusable.
 
 Conflict-flagged stars stay in the model's list, so the conflict entries the model
 records in ``model_metadata`` and the per-image log's star list still name them, but
@@ -264,8 +265,9 @@ The per-star CRLB covariance reflects the magnitude-margin centroid uncertainty.
 does not capture systematic biases from a misaligned camera distortion model, from
 unmodelled background flux, or from PSF smear that exceeds the per-instrument
 ``max_smear`` cap (stars above that cap are dropped from the emission set rather than
-emitted with unreliable predictions). Only body and ring occlusion makes a star unusable;
-the saturation and cosmic-ray masks are not consulted at the predicted position, so the
+emitted with unreliable predictions). Among the predictable stars, body and ring
+occlusion is the only thing that makes one unusable; the saturation and cosmic-ray
+masks are not consulted at the predicted position, so the
 :class:`~spindoctor.feature.flags.StarFlags` saturation flags stay clear.
 
 Configuration
@@ -526,7 +528,8 @@ Call path traced through
    predicted position and the per-feature CRLB covariance.
 2. Build a :class:`~spindoctor.feature.flags.StarFlags` carrying the magnitude-margin effective
    SNR, the catalog magnitude, and the body / ring conflict flags. The saturation /
-   cosmic-ray-mask flags are left clear -- occlusion is the only thing that makes a star unusable.
+   cosmic-ray-mask flags are left clear -- among the predictable stars, occlusion is the
+   only thing that makes one unusable.
 3. Construct one :data:`~spindoctor.feature.feature_type.NavFeatureType.STAR`
    :class:`~spindoctor.feature.feature.NavFeature` per star and return the list.
 

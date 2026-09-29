@@ -171,8 +171,12 @@ covariance from those, exactly as the ring-edge technique does from its fit vert
 Restrictions and assumptions
 ----------------------------
 
-- The catalog must provide a per-ring-edge radius and an RMS uncertainty. Rings missing
-  either field are dropped silently.
+- The catalog must give every ring edge a mode-1 base orbit carrying a semi-major axis. An
+  edge whose entry omits it is an authoring error, and the catalog parse raises rather
+  than dropping the feature. The ``rms`` of that base orbit is optional: an edge that
+  omits it is read with an RMS of zero, which contributes nothing to the feature's
+  per-vertex radial sigma, and its coherent whole-edge orbit term falls back to
+  ``rings.default_orbit_radial_sigma_km``.
 - The model assumes the per-image SPICE pose is good enough that the predicted ring
   geometry is approximately correct. A wrong pose shifts every edge polyline by the same
   pose error; the downstream DT fit recovers the offset.
