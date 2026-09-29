@@ -110,7 +110,7 @@ removal. The shipping sections:
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` gates; see
   :doc:`dev_guide_techniques_ring_annulus`.
 
-The user-facing tour at :doc:`/introduction_configuration` covers how operators
+The user-facing tour at :doc:`/user_guide/user_guide_configuration` covers how operators
 override these defaults with their own files; this chapter is the reference for
 what ships and where.
 

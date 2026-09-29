@@ -800,7 +800,7 @@ Invariants
   any C-kernel furnished (``ktotal('CK')``), since a stray one answers the same
   lookups as the candidate under test; the segment builder requires the
   supporting kernels and the one baseline to be furnished before it is called.
-* **The spacecraft clock table is the resolver; ``ckmeta`` is the cross-check.**
+* **The spacecraft clock table is the resolver; ckmeta is the cross-check.**
   ``ckmeta`` computes rather than validates -- it answers -999 for the
   nonexistent object -999999 and raises for neither -- so both call sites return
   the value recorded in :data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID` even
@@ -833,7 +833,7 @@ Invariants
   has files behind it. The guarantee is
   bounded on purpose: it says nothing about a write that fails for a reason
   only the filesystem or ``ckw03`` knows at the moment of writing.
-* **"Is anything already there?" is not ``Path.exists``.** It follows symbolic
+* **"Is anything already there?" is not a plain existence test.** It follows symbolic
   links, so a link with no target answers ``False`` and the write then creates
   the target -- outside the output directory. A link that resolves in a loop
   answers ``False`` for a different reason and behaves the same way. Both are

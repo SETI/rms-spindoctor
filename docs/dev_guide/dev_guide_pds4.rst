@@ -404,7 +404,7 @@ own named for its mission and target --
 -- holding its template directory, the bundle's name and
 version (``bundle_name``, ``bundle_version``), and the information model version and the
 dictionary schemas its labels are written against (``information_model_version``,
-``schemas``).  Each is set there and nowhere else: every template is handed them (see
+``schemas``).  That is the only place each is set: every template is handed them (see
 `The bundle's variables`_), so a new bundle version, a new name or a dictionary moving
 to another version is one edit of this entry.  The dictionary schemas are the bundle's
 beside its name, since each bundle's labels are checked against the dictionaries its

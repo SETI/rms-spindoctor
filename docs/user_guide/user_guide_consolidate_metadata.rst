@@ -2,37 +2,91 @@
 Consolidating Navigation Outputs
 ================================
 
-``sd_offset`` writes each image's results (the ``*_metadata.json`` offset file
-and the ``*_summary.png`` preview) under the navigation results root, mirroring
-the per-volume directory hierarchy of the input holdings. Browsing results
-across many volumes therefore means descending a deep path tree. The
-``sd_consolidate_metadata`` program copies the results for a selected set of
-images into a single flat directory so they are easy to review or hand off.
+Navigation writes each image's results where the image itself sits. Under the navigation
+results root, the per-volume directory hierarchy of the input holdings is mirrored
+exactly, so one image's metadata document and its summary preview lie many directories
+down, beside the results for the other images of that volume. That is the right place for
+a pipeline to keep them and a poor place to read them from. Reviewing fifty frames drawn
+from a dozen volumes means descending a dozen deep paths, and handing those fifty frames
+to somebody else means packing a directory tree that is almost all empty.
 
-It selects images with the same dataset arguments as ``sd_offset`` (positional
-image names, ``--volumes``, image-number and file-list filters, and so on), and
-for each selected image copies the requested product(s) out of the navigation
-results root into the destination directory:
+``sd_consolidate_metadata`` solves that. It copies the results for a selected set of
+images into one flat directory, named only by each image. Nothing is moved and nothing in
+the navigation results root is changed; the program only reads from it.
 
-* ``--dest-dir PATH``: destination directory; every copied file lands directly
-  here with no subdirectories, and missing parents are created on first write.
-* ``--copy-metadata``: copy the per-image ``*_metadata.json`` files.
-* ``--copy-png``: copy the per-image ``*_summary.png`` files.
-* ``--copy-both``: copy both (equivalent to ``--copy-metadata --copy-png``).
-* ``--index-prefix``: prefix each destination filename with a six-digit
-  increasing index so the flat listing matches the iteration order.
-* ``--overwrite``: overwrite destination files that already exist.
-* ``--dry-run``: report what would be copied without copying anything.
+Basic invocation
+================
 
-It reads (and never modifies) the navigation results; the source root comes
-from ``--nav-results-root``, the ``NAV_RESULTS_ROOT`` environment variable, or
-the ``nav_results_root`` configuration value, and holdings and configuration
-are resolved exactly as for ``sd_offset``.
+.. code-block:: bash
 
-For example, to gather the summary PNGs for one Cassini volume into a single
-directory for a quick visual pass::
+   sd_consolidate_metadata DATASET [selection] --dest-dir PATH --copy-all
+
+Images are selected exactly as they are for ``sd_offset``
+(:doc:`/user_guide/user_guide_navigation_running`): the same dataset name, the same
+positional image names, the same ``--volumes``, and the same image-number and file-list
+filters. :doc:`/user_guide/user_guide_image_selection` describes them in full. Whatever
+selection navigated a set of images will consolidate the results for that same set.
+
+At least one of ``--copy-metadata``, ``--copy-png``, or ``--copy-all`` must be given; with
+none of them the program has nothing to do and says so.
+
+What gets copied
+================
+
+``--copy-metadata``
+    Copy each image's metadata document, the ``*_metadata.json`` file that records the
+    frame's corrected pointing and everything navigation concluded about it. See
+    :doc:`/user_guide/user_guide_metadata`.
+
+``--copy-png``
+    Copy each image's summary preview, the ``*_summary.png`` annotated image.
+
+``--copy-all``
+    Copy both. Equivalent to giving ``--copy-metadata`` and ``--copy-png`` together.
+
+Where it goes
+=============
+
+``--dest-dir PATH``
+    The destination directory. Required. Every copied file lands directly in it and no
+    subdirectories are made, while the directory itself and any missing parents are
+    created on the first write. The path may be local or a remote URL such as ``gs://`` or
+    ``s3://``.
+
+``--add-numerical-prefix``
+    Prefix each destination filename with a six-digit increasing number, so that an
+    alphabetical listing of the destination directory comes out in the order the images
+    were selected. Without it the files sort by image name.
+
+``--overwrite``
+    Replace destination files that already exist. Without it an existing file is left
+    alone and reported as skipped, which makes a repeated run safe.
+
+``--dry-run``
+    Report every copy that would happen, and make none of them. Use it to confirm the
+    selection before writing anything.
+
+An image that was never navigated, or whose navigation wrote no preview, simply has
+nothing to copy. It is reported as a file that is not present, and the run continues.
+
+Where the results are read from
+===============================
+
+The navigation results root comes from ``--nav-results-root``, then the
+``NAV_RESULTS_ROOT`` environment variable, then the ``environment.nav_results_root``
+configuration setting. Configuration files are resolved as they are for every other
+program; see :doc:`/user_guide/user_guide_configuration`.
+
+Example
+=======
+
+Gather the summary previews for one Cassini volume into a single directory, numbered so
+they can be flipped through in selection order:
+
+.. code-block:: bash
 
    sd_consolidate_metadata coiss --volumes COISS_2xxx/COISS_2116 \
-       --copy-png --index-prefix --dest-dir /tmp/coiss_2116_summaries
+       --copy-png --add-numerical-prefix --dest-dir /tmp/coiss_2116_summaries
 
-
+The run reports how many files it copied and how many were not present, and writes the
+same account to its log; see :doc:`/user_guide/user_guide_logging`.

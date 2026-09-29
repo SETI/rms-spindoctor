@@ -2,30 +2,35 @@
 Logging
 =======
 
-Every SpinDoctor pipeline program writes two kinds of record, and keeps them
-apart. This page covers what goes where, how to change it, and where the files
-land.
+SpinDoctor keeps two kinds of log record apart: what a run did, and what
+happened to one image. Which of the two a program writes depends on what the
+program does, and the table below says which. This chapter covers what goes
+where, how to change it, and where the files land.
 
-The two loggers
-===============
+The two kinds of log
+====================
 
-**The main log** covers one run of one program. It reports what the program is
-doing at the top level: which image it is about to process, one line for each
-image's answer, counts and totals, elapsed time, and the path of each image log
-it wrote. There is one for the life of the run.
+**The main log** covers one run of one program, such as one pass of
+``sd_offset`` (:doc:`/user_guide/user_guide_navigation_running`) over a set of
+images. It reports what the program is doing at the top level: which image it is
+about to process, one line for each image's answer, counts and totals, elapsed
+time, and the path of each image log it wrote. There is one for the life of the
+run.
 
 **An image log** covers one image inside one processing stage. It carries the
 detail of that image's processing -- which models were built, which techniques
-ran, what each of them found. A new one is started for each image.
+ran, what each of them found. One is started for each image.
 
 A record belongs to exactly one of them, so the two never repeat each other.
 When you want to know what a run did, read the main log; when you want to know
 what happened to one image, read that image's log.
 
-Not every program has both. A program that does not process images
-individually has only a main log; the statistics report and the GUI programs
-have neither -- they write to the terminal directly, because both are read as
-they run rather than afterwards.
+A program that navigates, reprojects, or otherwise works through images one at
+a time writes both kinds. A program that works on a run as a whole, such as the
+results index builder, writes only a main log. The statistics report and the
+interactive viewers write neither: their output is terminal text meant to be
+read as it appears. The cloud task workers are the reverse case -- image logs
+but no main log -- for the reasons given under `Cloud tasks`_ below.
 
 .. list-table::
    :header-rows: 1
@@ -67,6 +72,9 @@ they run rather than afterwards.
    * - ``sd_results_index_cloud_tasks``
      - no
      - none
+   * - ``sd_create_bundle_cloud_tasks``
+     - no
+     - none
    * - ``sd_stats_report``
      - no
      - none
@@ -77,11 +85,15 @@ they run rather than afterwards.
      - no
      - none
 
+``sd_results_index_cloud_tasks`` and ``sd_create_bundle_cloud_tasks`` write no
+log file of any kind. What each of their tasks did is in the value the task
+returns to the cloud task system.
+
 Where the files go
 ==================
 
 Both kinds live under one log root, named by ``--log-root``, the
-``environment.log_root`` configuration variable or the ``NAV_LOG_ROOT``
+``environment.log_root`` configuration variable, or the ``NAV_LOG_ROOT``
 environment variable, in that order of precedence.
 
 With none of those set, the root is derived: a ``logs`` directory under the
@@ -105,7 +117,7 @@ something later changes the working directory.
 The main log is filed under the program that wrote it. An image log is filed
 under the *stage* rather than the program, so an image's navigation log sits
 beside every other navigation log whether an interactive run or a cloud task
-produced it. The four stages are ``nav``, ``backplanes``, ``reproj`` and
+produced it. The four stages are ``nav``, ``backplanes``, ``reproj``, and
 ``ck``.
 
 The timestamp is UTC, in ``YYYY-MM-DDTHH-MM-SS`` form, and is taken once when
@@ -126,15 +138,22 @@ driver is running:
 
 UTC rather than local time is what makes the two comparable. Workers may sit
 in different zones, and a local-time name would be ambiguous across a
-daylight-saving fall-back; in UTC the names of an interactive run and of every
+daylight-saving fall-back. In UTC the names of an interactive run and of every
 worker in a batch sort into one order.
 
-.. note::
+.. warning::
 
-   The timestamp in the file *name* is UTC; the timestamps on the records
-   *inside* are local. A log named ``..._2026-07-31T02-36-04.log`` can open
-   with ``2026-07-30 19:36:04``. Match a log to a wall-clock time by its
-   contents rather than its name, and glob by name only in UTC terms.
+   **The two clocks in a log file are different.** The timestamp in the file
+   *name* is UTC. The timestamp at the front of every record *inside* the file
+   is the local time of the machine that wrote it. A log named
+   ``..._2026-07-31T02-36-04.log`` therefore opens with a first record stamped
+   ``2026-07-30 19:36:04`` on a machine seven hours behind UTC, and the two
+   numbers name the same instant.
+
+   Match a log to a wall-clock time by reading its contents, and match it by
+   name only in UTC terms. On a machine whose local time is UTC the two agree
+   and the difference is invisible, so do not take one file as evidence that
+   they always agree.
 
 Reprojection logs are keyed by mosaic subject as well, since one image may be
 reprojected onto more than one body::
@@ -163,7 +182,7 @@ to a file only.
    :header-rows: 1
    :widths: 34 33 33
 
-   * - Logger
+   * - Log
      - Terminal
      - File
    * - Main
@@ -181,26 +200,25 @@ to a file only.
    ``logging.image_console: true`` to see it on every run.
 
    ``sd_offset`` summarizes each image's answer to the main log regardless, so
-   the offset, status and confidence stay on the terminal without asking for
+   the offset, status, and confidence stay on the terminal without asking for
    the whole per-image narrative::
 
       N1234567890_1.IMG: status=success, offset (dv, du) = (1.500, -2.500) px,
       confidence 0.750 (medium)
 
-   The sigmas, the confidence rank's inputs and the per-technique breakdown
+   The sigmas, the confidence rank's inputs, and the per-technique breakdown
    remain in that image's log.
 
-Turning every sink off produces no output at all, rather than falling back to
-the terminal.
+Turning off both output destinations of a log produces no output at all, rather
+than falling back to the terminal.
 
 Command-line options
 ====================
 
-Every program you run yourself accepts the same options, so what you learn for
-one works for the next. A program with no image log accepts only the
-main-logger options, and rejects the image ones by name rather than accepting
-and ignoring them. The ``_cloud_tasks`` drivers accept none of these and are
-configured through the configuration file alone; see `Cloud tasks`_ below.
+Every program you run yourself accepts the same options. A program that has no
+image log accepts only the main-log options, and rejects the image ones by
+name. The ``_cloud_tasks`` workers accept none of these and are configured
+through the configuration file alone; see `Cloud tasks`_ below.
 
 ``--log-root PATH``
     Where this run's log files go.
@@ -215,22 +233,38 @@ configured through the configuration file alone; see `Cloud tasks`_ below.
     The level for one logger, taking precedence over a bare ``--log-level``.
 
 ``--log-main-to-console`` / ``--no-log-main-to-console``
-    Whether the main log reaches the terminal. Default on; set
+    Whether the main log reaches the terminal. Default on. Set
     ``logging.main_console`` to change the default for every run.
 
 ``--log-main-to-file`` / ``--no-log-main-to-file``
     Whether the main log is written to a file. Default on.
 
 ``--log-image-to-console`` / ``--no-log-image-to-console``
-    Whether image logs reach the terminal. Default off; set
+    Whether image logs reach the terminal. Default off. Set
     ``logging.image_console`` to change the default for every run.
 
 ``--log-image-to-file`` / ``--no-log-image-to-file``
     Whether image logs are written to files. Default on.
 
-Levels are ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL`` and
-``NONE``. Both sinks of a logger always share a level, so there is one level to
-set per component rather than one per sink.
+Levels
+------
+
+Six levels are accepted, wherever a level is asked for -- on the command line
+and in the configuration alike. In order of increasing severity they are
+``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``, and ``NONE``.
+Setting a level admits records of that severity and above, so ``WARNING``
+admits warnings, errors, and critical records, and drops informational and
+debugging ones. ``NONE`` sits above ``CRITICAL`` and admits nothing at all.
+The default is ``INFO``.
+
+Level names are not case sensitive, and surrounding whitespace is ignored:
+``debug``, ``Debug``, and ``DEBUG`` all mean the same thing. This chapter
+spells them in upper case throughout. Anything that is not one of the six is
+refused, with a message naming what you wrote and listing what is accepted.
+
+A level applies to a log, not to one of its output destinations. The terminal
+and the file always show the same records, so there is one level to set per
+component.
 
 Worked examples
 ---------------
@@ -272,11 +306,11 @@ Every level is settable in the configuration, under the top-level ``logging``
 section, as is whether each logger reaches the terminal -- ``main_console`` and
 ``image_console``.
 
-There are no configuration keys for the file sinks or the log root. Whether a
-log file is written is inseparable from where it goes, and that is chosen per
-run with ``--log-root``, so ``--log-main-to-file`` and ``--log-image-to-file``
-are command-line only. Writing ``main_file`` or ``image_file`` in the
-configuration is an error naming the key, not a setting that quietly does
+There are no configuration keys for the file destinations or the log root.
+Whether a log file is written is inseparable from where it goes, and that is
+chosen per run with ``--log-root``, so ``--log-main-to-file`` and
+``--log-image-to-file`` are command-line only. Writing ``main_file`` or ``image_file`` in
+the configuration is an error naming the key, not a setting that quietly does
 nothing.
 
 .. code-block:: yaml
@@ -312,16 +346,16 @@ The most specific setting wins:
 Note that a component named in a configuration file outranks a bare
 ``--log-level``, which says nothing about that component. The shipped
 configuration names one: ``other.annotate: ERROR``. So ``--log-level NONE``
-does not produce silence -- annotation stays at ERROR, which keeps a file sink
-open and writes a log per image. To get silence, either name it
-(``--log-level NONE --log-level annotate=NONE``) or turn the sink off with
-``--no-log-image-to-file``, which is what you probably wanted.
+does not produce silence -- annotation stays at ERROR, which keeps a log file
+open and writes one per image. To get silence, either name it
+(``--log-level NONE --log-level annotate=NONE``) or turn the file destination
+off with ``--no-log-image-to-file``, which is what you probably wanted.
 
 A ``programs`` block applies to that program alone and is merged key by key
 with the settings above it, so a program can override one value while
 inheriting the rest.
 
-An unrecognized component name, program name or level is rejected when the
+An unrecognized component name, program name, or level is rejected when the
 configuration loads, naming the offending key. A setting that does nothing is
 worse than one that errors, because it looks like it worked.
 
@@ -345,10 +379,15 @@ renders, and a simulated model is named with the model it stands in for.
 Cloud tasks
 ===========
 
-The ``_cloud_tasks`` drivers write **nothing** to the terminal. A worker's
-console belongs to ``cloud_tasks``, which reports task progress there under its
-own configuration, and interleaving per-image navigation detail with it would
-make both harder to read.
+Cloud tasks is a work-queue package supplied by the Green Moon Systems node.
+The programs whose names end in ``_cloud_tasks`` are workers that the cloud
+task system runs on a cloud compute instance; a user never runs one directly.
+See :doc:`/user_guide/user_guide_cloud_tasks`.
+
+A worker writes **nothing** to the terminal. That terminal belongs to the cloud
+task system, which reports task progress there under its own configuration, and
+interleaving per-image navigation detail with it would make both harder to
+read.
 
 The per-image logs are written exactly as an interactive run writes them, to
 the same ``{log_root}/{backend}/`` tree and at the same levels, so an image's
@@ -356,27 +395,29 @@ log reads the same whichever driver produced it. There is no main log: with
 many workers writing to one log root, a single shared main log is not something
 they can all append to sensibly.
 
-These drivers accept no logging command-line options, because every one of them
-configures a logger they do not have or a terminal they must not write to. Set
-their levels in the configuration instead. ``main_console`` and
+These workers accept no logging command-line options, because every one of
+those options configures a log they do not have or a terminal they must not
+write to. Set their levels in the configuration instead. ``main_console`` and
 ``image_console`` have no effect on them either: a worker's terminal is not
 theirs to write to however it is configured.
 
-A cloud-task driver shares its interactive sibling's identity: ``sd_offset``
-for ``sd_offset_cloud_tasks``, and so on. So a ``programs`` block covers both
-forms of a program and cannot distinguish them -- ``logging.programs.sd_offset``
-governs the interactive driver and the worker alike, and there is no
-``logging.programs.sd_offset_cloud_tasks``. That is deliberate: an image's log
-should read the same whichever driver produced it, which is the same reason the
-two write into one tree.
+A worker shares its interactive sibling's identity: ``sd_offset`` for
+``sd_offset_cloud_tasks``, and so on. A ``programs`` block therefore covers
+both forms of a program and cannot distinguish them.
+``logging.programs.sd_offset`` governs the program you run and the worker
+alike, and there is no ``logging.programs.sd_offset_cloud_tasks``. An image's
+log reads the same whichever of the two produced it, which is the same reason
+the two write into one tree.
 
-Because a cloud task has no main log, an outcome that an interactive run would
+Because a worker has no main log, an outcome that an interactive run would
 report there is returned in the task result instead. A backplanes task reports
 whether the image was processed or skipped, and a reprojection task returns how
-many images it completed, skipped and failed.
+many images it completed, how many it skipped, and how many failed.
 
 ``sd_results_index_cloud_tasks`` is the case where the task result is the whole
-record: it has no per-image log either, because it reads documents rather than
-images. Each task returns how many files it ingested, skipped and could not
-read, and names every file it could not read. ``sd_results_index`` reads those
-tallies back and writes them into the index, where they stay.
+record. It has no per-image log either, because it reads metadata documents
+rather than images. Each task returns how many files it ingested, how many it
+skipped, and how many it could not read, and names every file it could not
+read. ``sd_results_index`` reads those tallies back and writes them into the
+results index, where they stay. See
+:doc:`/user_guide/user_guide_results_index`.

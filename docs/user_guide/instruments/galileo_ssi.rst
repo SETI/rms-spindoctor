@@ -7,14 +7,15 @@ Overview
 
 The Galileo Solid State Imager is a single framing camera which SpinDoctor
 navigates across the whole PDS3 archive: the cruise targets and the Jupiter
-orbital tour. Navigation, backplanes, mosaics and corrected pointing kernels
+orbital tour. Navigation, backplanes, mosaics, and corrected-pointing kernels
 are all supported.
 
 Pipeline support
 ================
 
 * **Navigation** -- supported.
-* **Corrected-pointing C-kernels** -- supported. See
+* **Corrected-pointing C-kernels** -- supported, as ``sd_create_ck gossi``
+  (see :doc:`/user_guide/user_guide_ck_kernels`). See also
   `Corrected-pointing C-kernels`_.
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
@@ -41,11 +42,11 @@ error rather than an empty result.
    $PDS3_HOLDINGS_DIR/metadata/GO_0xxx/GO_0017/GO_0017_index.lbl
 
 Every volume sits under the single volume set directory ``GO_0xxx``, and the
-index file name is lowercase.
+PDS3 index file name is lowercase.
 
-**Which product is navigated.** The index names a ``.LBL`` filespec directly
-and it is used as it stands, with the image resolved from the label's image
-pointer. The archive holds no calibrated Galileo SSI product, so navigation
+**Which product is navigated.** The PDS3 index names a ``.LBL`` filespec
+directly and it is used as it stands, with the image resolved from the label's
+image pointer. The archive holds no calibrated Galileo SSI product, so navigation
 runs on raw DN.
 
 The directory layout inside a volume is organized by target rather than by
@@ -59,7 +60,7 @@ Jupiter orbits (``C3``, ``C9``, ``C10``, ``C20``, ``C21``, ``C22``, ``C30``,
 ``I27``, ``I31``, ``I32``, ``I33``, ``J0``). Either form may sit under a
 leading ``REDO`` directory, and reprocessed images under ``REDO`` are
 navigated like any other. A filespec whose leading directory is none of those
-names is logged as an error naming the index file and the filespec, and that
+names is logged as an error naming the PDS3 index file and the filespec, and that
 row alone is dropped -- so a layout change shows up in the log rather than
 silently reducing the image count.
 
@@ -87,7 +88,8 @@ the whole surface.
 
 **Grouping.** None.
 
-**Examples.**
+**Examples.** These invocations run ``sd_offset``
+(see :doc:`/user_guide/user_guide_navigation_running`).
 
 .. code-block:: bash
 
@@ -106,12 +108,12 @@ Image data and units
 
 **Units.** Raw DN. No I/F conversion is applied or expected: navigation treats
 image brightness scale-invariantly -- normalized cross-correlation, an
-image-derived noise floor, a magnitude-based star gate -- so no photometric
-calibration is required to navigate.
+image-derived noise floor, and a star selection made on catalog magnitude --
+so no photometric calibration is required to navigate.
 
 **Saturation.** 255 DN, the 8-bit ADC ceiling. The saturation threshold matches
-it, so the per-pixel saturation mask and the fully-overexposed early-out both
-work as documented.
+it, so the per-pixel saturation mask is populated and the early-out that
+abandons a fully overexposed image can fire.
 
 **Missing pixels.** The marker is ``0``.
 
@@ -151,14 +153,14 @@ eighteen, so it is provisional pending a larger star-frame cohort.
 field corner, with a radial RMS of 0.155 pixels against a
 centroid-and-astrometry floor of 0.115. The navigator does not remove it. See
 :doc:`/fov_distortion_report/fov_distortion_report` for the coefficients, the
-method and the figures.
+method, and the figures.
 
 Metadata fields
 ===============
 
 Beyond the keys every instrument writes -- image path and name, the start,
-midtime and end of the exposure in UTC and in TDB seconds, the image shape,
-the camera, the exposure time and the instrument host and instrument LIDs --
+midtime, and end of the exposure in UTC and in TDB seconds, the image shape,
+the camera, the exposure time, and the instrument host and instrument LIDs --
 a Galileo SSI record carries one filter entry in ``filters``. Its
 ``instrument`` is ``gossi`` and its ``camera`` is ``SSI``. It writes no
 ``shutter_mode``, since its labels carry none.
@@ -169,7 +171,7 @@ leading field, the RIM count, with its three finer fields as a fraction of one.
 The ``times`` block's clock strings are computed from the exposure times and
 differ from it by seconds. ``midtime_sclk`` and ``end_time_sclk`` are always
 null, because a Galileo SSI label records no count at the end of the image. It
-writes none of ``sampling``, ``gain_mode``, ``description`` or
+writes none of ``sampling``, ``gain_mode``, ``description``, or
 ``observation_id``. The instrument host LID is
 ``...:instrument_host:spacecraft.go`` and the instrument LID is
 ``...:instrument:go.ssi``, with no camera component, since there is one camera.
@@ -213,8 +215,8 @@ exposure whose baseline supplies pointing but not a rate stops the run rather
 than being omitted. Roughly a quarter of this mission's baseline segments would
 refuse a run that reached them.
 
-**Segment shape.** Records at the exposure start, midtime and stop, plus a
-one-second cadence once the exposure reaches ten seconds. The attitude is
+**What a segment records.** Records at the exposure start, midtime, and stop,
+plus a one-second cadence once the exposure reaches ten seconds. The attitude is
 time-varying: the correction is held body-fixed and composed onto the
 baseline's own pointing at each record epoch.
 

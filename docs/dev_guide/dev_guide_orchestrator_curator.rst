@@ -7,7 +7,7 @@ Overview
 
 The curator turns a :class:`~spindoctor.nav_orchestrator.nav_result.NavResult` into a JSON-friendly
 metadata dict consumed by downstream readers. The complete key-by-key specification of
-the file this block is written into, with annotated examples of every document shape,
+the file this block is written into, with annotated examples of every metadata document structure,
 is the user guide's :doc:`/user_guide/user_guide_metadata` chapter; this page covers the
 conversion mechanism. Two functions form the public surface:
 :func:`~spindoctor.nav_orchestrator.curator.build_metadata_dict` does the conversion, and

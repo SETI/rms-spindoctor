@@ -2,31 +2,78 @@
 Installation and Setup
 ======================
 
-See :doc:`/introduction_overview` for package installation with ``pip`` or
-``pipx``.
+SpinDoctor is a Python package that installs a set of command-line programs. Installing
+it is quick; most of the setup work is telling those programs where the data they need
+lives. This chapter covers both. :doc:`/quick_start` has the abbreviated version.
 
-Environment Setup
------------------
+Requirements
+============
 
-In addition to installing the package, the following external resources are
-needed at runtime.
+* Python 3.11 or later.
+* Enough disk space for the results you intend to write, and for the local cache of any
+  data read over the network.
+* The external data described under `External Data`_ below. The amount you need depends
+  on the mission: SPICE kernels and images for one Voyager encounter are a modest
+  download, while the whole Cassini ISS archive is not.
 
-**SPICE kernels.**  Download the SPICE kernels required for your mission and
-set ``SPICE_PATH`` to the directory that contains them:
+Installing the Package
+======================
+
+To install into the current Python environment, where the package can also be imported::
+
+   pip install rms-spindoctor
+
+To install the command-line programs on their own, in an isolated environment of their
+own, which is the better choice if you only intend to run them::
+
+   pipx install rms-spindoctor
+
+Either way the programs land on your ``PATH``. Check the installation by asking one of
+them for its options::
+
+   sd_offset coiss --help
+
+The program names, and the chapter that documents each, are listed in
+:doc:`/quick_start`.
+
+External Data
+=============
+
+SpinDoctor reads four kinds of data from outside the package. Each is located by an
+environment variable, and most can also be named in a configuration file or on the
+command line.
+
+Every path described here may be a local directory or a URL. Remote locations are read
+over the network and cached locally, so ``https://pds-rings.seti.org/holdings`` works
+wherever a local holdings directory works. A remote location is convenient for a small
+run and slow for a large one, because every file it reads is a download.
+
+SPICE kernels
+-------------
+
+Navigating an image requires the SPICE kernels that describe where the spacecraft was,
+where it was pointing, and where the planets and moons were. Download the kernels for
+your mission and point ``SPICE_PATH`` at the directory holding them:
 
 .. code-block:: bash
 
-   export SPICE_PATH=/path/to/your/spice/kernels
+   export SPICE_PATH=/path/to/spice/kernels
 
-**PDS3 holdings.**  For PDS3 datasets (all currently supported missions), set
-``PDS3_HOLDINGS_DIR`` to the root of a PDS3 holdings tree (or pass
-``--pds3-holdings-root`` on the command line):
+Every real navigation run needs this. Without the kernels an image cannot be navigated
+at all, and the run records a SPICE error for it.
+
+Image holdings
+--------------
+
+All four supported instruments are archived as PDS3 volumes. Point
+``PDS3_HOLDINGS_DIR`` at the root of a PDS3 holdings tree, or pass
+``--pds3-holdings-root`` on the command line:
 
 .. code-block:: bash
 
-   export PDS3_HOLDINGS_DIR=/path/to/your/pds3/data
+   export PDS3_HOLDINGS_DIR=/path/to/pds3/holdings
 
-The holdings tree follows the layout used by the PDS Ring-Moon Systems Node::
+The tree follows the layout used by the PDS Ring-Moon Systems Node::
 
    $PDS3_HOLDINGS_DIR/
        volumes/
@@ -39,8 +86,88 @@ The holdings tree follows the layout used by the PDS Ring-Moon Systems Node::
                    <volume>_index.lbl
                    <volume>_index.tab
 
-Remote holdings are supported: ``PDS3_HOLDINGS_DIR`` and
-``--pds3-holdings-root`` accept any URL understood by ``filecache.FCPath``
-(for example ``https://pds-rings.seti.org/holdings``).
+Both halves matter. The ``volumes`` tree holds the images and their labels. The
+``metadata`` tree holds each volume's PDS3 index table, which is the table shipped with
+the volume that has one row per image. Image selection is answered from those index
+tables rather than by opening images, so a holdings tree missing its ``metadata`` half
+cannot be enumerated. See :doc:`user_guide_image_selection`.
 
+Star catalogs
+-------------
 
+Navigation against the star field needs a star catalog. Set the variable for each
+catalog you have installed:
+
+* ``UCAC4_PATH`` -- the root of the UCAC4 catalog.
+* ``YBSC_PATH`` -- the root of the Yale Bright Star Catalog.
+* Tycho-2 is read from a ``Stars`` directory under ``SPICE_PATH``, falling back to
+  ``SPICE/Stars`` under ``OOPS_RESOURCES`` when ``SPICE_PATH`` does not have one.
+
+Which catalogs are consulted, and in what order, is a configuration setting; see
+:doc:`user_guide_configuration`.
+
+Geometry resources
+------------------
+
+``OOPS_RESOURCES`` names the root of the resource collection used by the underlying
+geometry library, and is also the fallback location of the Tycho-2 catalog described
+above.
+
+Where Results Go
+================
+
+Each phase of the pipeline writes into a root of its own. None of them has a built-in
+default, so every run must be told where to write, either by exporting the environment
+variable, by setting the value in a configuration file, or by passing the command-line
+option. The command-line option wins over the configuration file, which wins over the
+environment variable.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 32 38
+
+   * - Environment variable
+     - Command-line option
+     - What it holds
+   * - ``NAV_RESULTS_ROOT``
+     - ``--nav-results-root``
+     - Navigation results: one metadata document and one summary image per navigated
+       image.
+   * - ``NAV_LOG_ROOT``
+     - ``--log-root``
+     - Log files. Defaults to a ``logs`` directory under the navigation results root.
+   * - ``NAV_RESULTS_INDEX_DB``
+     - ``--results-index-db``
+     - Connection URL of the results index, a database holding one row per navigated
+       image. Optional; see :doc:`user_guide_results_index`.
+   * - ``NAV_BACKPLANE_RESULTS_ROOT``
+     - ``--backplane-results-root``
+     - Generated backplanes.
+   * - ``NAV_BUNDLE_RESULTS_ROOT``
+     - ``--bundle-results-root``
+     - Generated PDS4 bundles.
+
+A results root may also be a URL, so results can be written straight to cloud storage.
+
+Checking the Setup
+==================
+
+Navigating one image end to end is the quickest way to confirm that the kernels, the
+holdings, and the results root are all in place:
+
+.. code-block:: bash
+
+   export SPICE_PATH=/path/to/spice/kernels
+   export PDS3_HOLDINGS_DIR=/path/to/pds3/holdings
+   export NAV_RESULTS_ROOT=/path/to/results
+
+   sd_offset coiss_saturn --volumes COISS_2001 --choose-random-images 1
+
+The run prints its progress to the terminal and writes a metadata document and a summary
+image under the results root. :doc:`user_guide_navigation_running` describes the run and
+its options, and :doc:`user_guide_navigation_troubleshooting` covers what to do when it
+does not work.
+
+Settings other than paths -- which models and techniques run, the thresholds results are
+judged against, and everything else that governs a navigation -- are described in
+:doc:`user_guide_configuration`.

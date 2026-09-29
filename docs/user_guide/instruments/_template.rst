@@ -13,10 +13,11 @@ question answered on both pages. Nothing here is a comparison: a chapter states
 what is true of its own instrument and never mentions another.
 
 Do not restate the instrument team's own documentation. Apertures, focal
-lengths, pixel scales, angular field extents and filter tables belong to the
-official instrument and volume documents, which the References section points
-at. What a chapter carries is what SpinDoctor itself decides, configures,
-measures, or does for this instrument, described for this instrument alone.
+lengths, pixel scales, angular field extents, and filter tables belong to the
+official instrument and volume documentation, which the References section
+points at. What a chapter carries is what SpinDoctor itself decides,
+configures, measures, or does for this instrument, described for this
+instrument alone.
 
 Overview
 ========
@@ -36,8 +37,8 @@ Datasets and image selection
 ============================
 
 Dataset names and aliases; supported volumes; the holdings subtree and the
-index path; which product is actually navigated; the image-name forms accepted
-on the command line and their case sensitivity; image numbering and any
+PDS3 index path; which product is actually navigated; the image-name forms
+accepted on the command line and their case sensitivity; image numbering and any
 range-selection caveat; cameras; instrument-specific CLI flags; grouping.
 Illustrative invocations belong here.
 
@@ -67,8 +68,8 @@ Corrected-pointing C-kernels
 The corrected object and what it physically is; the spacecraft clock; the
 camera frames; which kernel directories to supply, with a worked invocation;
 the baseline kernel naming and class conventions; angular-velocity availability
-in the baselines; the segment shape; which omission reasons this instrument can
-produce and why; the interpolation-error characterization.
+in the baselines; the layout of a segment's records; which omission reasons this
+instrument can produce and why; the interpolation-error characterization.
 
 Known limitations
 =================

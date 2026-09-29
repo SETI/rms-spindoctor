@@ -1,54 +1,47 @@
-=============================================
-Per-Image Metadata (``_metadata.json``)
-=============================================
+=================================
+The Per-Image Metadata Document
+=================================
 
 Overview
 ========
 
-Every image the navigation pipeline touches produces one JSON document, written
-to ``<nav_results_root>/<results_path_stub>_metadata.json`` alongside the
-``_summary.png`` preview. This file is the pipeline's authoritative record of
-what happened to that image: the measured pointing offset and its uncertainty,
-the corrected camera attitude, every technique's individual answer, every
-feature that was extracted and whether it survived its gate, the image-quality
-verdict, and the provenance needed to reproduce the run. It is consumed by the
-backplane generator, the reprojection and mosaic drivers, the PDS4 bundle
-builder, the metadata consolidator, the statistics ingester, and the C-kernel
-writer, and it is designed to be read directly by external users.
+Every image the navigation pipeline touches produces one metadata document, a JSON file
+written under the navigation results root, named after the image with a
+``_metadata.json`` suffix, beside the ``_summary.png`` picture of the same image. This
+file is the pipeline's authoritative record of what happened to that image: the measured
+pointing offset and its uncertainty, the corrected camera attitude, every technique's
+individual answer, every feature that was extracted and whether it was used, the
+image-quality verdict, and the record of what the run was made of. It is read by the
+backplane generator, the reprojection and mosaic tools, the PDS4 bundle builder, the
+metadata consolidator, the results index, and the C-kernel writer, and it is meant to
+be read directly by users as well.
 
-This chapter specifies the file exactly: every key that can appear, its type,
-its meaning, when it is present and when it is absent, and one complete example
-per document shape. The writers are
-:func:`~spindoctor.navigate_image_files.navigate_image_files` (the driver
-``sd_offset`` runs per image) and
-:func:`~spindoctor.nav_orchestrator.curator.build_metadata_dict` (which
-produces the ``navigation_result`` block); the manual-navigation driver
-(``sd_offset --manual``) writes the same schema through
-:func:`~spindoctor.navigate_image_files.build_metadata_from_result`. A unit
-test compares this chapter's examples against what those writers actually
-emit, so the chapter and the code cannot silently drift apart.
+This chapter specifies the file exactly: every key that can appear, its type, its
+meaning, when it is present and when it is absent, and one complete example of each
+structure a metadata document can take. ``sd_offset`` writes the file, in autonomous
+runs and in manual navigation alike; see :doc:`user_guide_navigation_running`. A unit
+test compares this chapter's examples against what ``sd_offset`` actually writes, so
+the chapter and the program cannot silently drift apart.
+
+Keys are written here in the form ``block.key`` when it helps to say where a key
+sits: ``provenance.spice_kernels`` is the ``spice_kernels`` key inside the
+``provenance`` block.
 
 Serialization
 -------------
 
-The file is UTF-8 JSON with two-space indentation, written by
-:func:`~spindoctor.support.file.json_as_string`. Keys appear in the fixed
-insertion order shown in the examples. NumPy scalars and arrays are converted
-to native Python types before serialization. Non-finite floats never appear in
-the file: the curator maps ``+inf`` to the finite sentinel
-:data:`~spindoctor.feature.constants.JSON_INF_SENTINEL` (``1.0e9``), ``-inf``
-to ``-1.0e9``, and NaN to the *positive* sentinel (a NaN here only ever comes
-from a degenerate variance, and rendering it as ``0.0`` would read as
-zero-variance certainty, the opposite of the truth). A value equal to the
-sentinel therefore means "unbounded / no information", never a measured
-billion of anything.
+The file is UTF-8 JSON with two-space indentation. Keys appear in the fixed order
+shown in the examples. Non-finite floats never appear in the file: ``+inf`` is
+written as the finite sentinel ``1.0e9``, ``-inf`` as ``-1.0e9``, and NaN as
+``1.0e9`` as well. A NaN here only ever comes from a degenerate variance, and
+writing it as ``0.0`` would read as zero-variance certainty, the opposite of the
+truth. A value equal to the sentinel therefore means "unbounded, no information",
+never a measured billion of anything.
 
-One number reaches the file without passing through the curator, and is
-settled where it enters instead. The top-level ``offset`` is written straight
-off :class:`~spindoctor.nav_orchestrator.nav_result.NavResult`, whose
-construction refuses a non-finite offset outright -- an offset is a position,
-and the value would be this code's arithmetic gone wrong rather than something
-to record.
+The top-level ``offset`` is written exactly as the navigation computed it, with no
+rounding, and no sentinel can appear in it. A non-finite offset would be arithmetic
+gone wrong inside the pipeline, and the navigation refuses such a value where the
+offset is formed rather than writing it to the file.
 
 The offset convention
 ---------------------
@@ -57,6 +50,13 @@ Everything in this file uses the ``(v, u)`` pixel convention: ``v`` is the row
 (line) coordinate and ``u`` the column (sample) coordinate. An offset is a pair
 ``[dv, du]`` with the meaning: if the SPICE-predicted position of a feature is
 ``(v, u)``, its actual position in the image is ``(v + dv, u + du)``.
+
+The offset is a correction **relative to the SPICE kernels that were furnished when
+the image was navigated**. Those kernels are named in the same file, under
+``provenance.spice_kernels``. Read against a different set of kernels the offset
+means something else, which is why the corrected attitude in ``pointing.cmatrix`` is
+the value a consumer should normally use: it already carries the correction, and it
+stands on its own.
 
 A position the pipeline states -- the ``(v, u)`` above, a star position in a
 navigation log, a predicted body center -- is written in pixel-corner
@@ -71,52 +71,51 @@ tall. See :ref:`coordinate-systems`.
 
 The same measured offset appears twice, at two precisions:
 
-* The top-level ``offset`` key is the **full-precision** value, exactly as the
-  ensemble computed it. Downstream geometry consumers (backplanes, mosaics)
-  read this one.
-* ``navigation_result.offset_px`` is the same value **rounded to 4 decimals**,
-  the display form used in reports and logs.
+* The top-level ``offset`` key holds the **full-precision** value, exactly as the
+  navigation computed it. Downstream geometry work (backplanes, mosaics) reads this
+  one.
+* The ``offset_px`` key inside ``navigation_result`` holds the same value **rounded
+  to 4 decimals**, the display form used in reports and logs.
 
-Document shapes
-===============
+Metadata document structures
+============================
 
-Four document shapes exist. Which one an image gets depends on how far the
-pipeline carried it:
+A metadata document takes one of four structures. Which one an image gets depends on
+how far the pipeline carried it:
 
 **Navigated**
-    The image loaded and the orchestrator ran to completion. The document has
-    a full ``navigation_result`` block. The top-level ``status`` is the
-    navigation outcome: ``success``, ``failed``, or ``conflicted``. This shape
-    covers failed navigations too: a failure still records what is known
-    about the exposure from the image itself, such as its exposure times and
-    filters, and also every technique that ran, the feature inventory, the
-    image classifier, provenance, and the ``pointing`` and ``times`` blocks
-    when the attitude was computed. The offset and its uncertainty are absent
-    on every failed navigation.
+    The image loaded and the navigation ran to completion. The metadata document
+    has a full ``navigation_result`` block. The top-level ``status`` is the
+    navigation outcome: ``success``, ``failed``, or ``conflicted``. This structure
+    covers failed navigations too. A failure still records what is known about the
+    exposure from the image itself, such as its exposure times and filters, and
+    also every technique that ran, the feature inventory, the image classifier, the
+    provenance record, and the ``pointing`` and ``times`` blocks when the attitude
+    was computed. The offset and its uncertainty are absent on every failed
+    navigation.
 
 **Load error**
-    The image file could not be read, or SPICE coverage was missing for its
-    epoch, so no observation ever existed. ``status`` is ``error``,
-    ``status_error`` says which kind, ``status_exception`` and
-    ``status_traceback`` carry the failure, and there is no
-    ``navigation_result``. The ``observation`` block is limited to what the
-    dataset index supplied without opening the image.
+    The image file could not be read, or SPICE coverage was missing for its epoch,
+    so no observation ever existed. ``status`` is ``error``, ``status_error`` says
+    which kind, ``status_exception`` and ``status_traceback`` carry the failure, and
+    there is no ``navigation_result``. The ``observation`` block is limited to what
+    was known about the image before anything tried to open it.
 
 **Internal error**
-    Navigating the image raised an exception the orchestrator does not turn
-    into a result, or the run faulted before the image's own log section
-    opened. Same keys as the load-error shape, with ``status_error``
-    ``internal_error``, the exception's type and message in
-    ``status_exception`` and its traceback in ``status_traceback``; the
-    ``observation`` block is what the dataset index supplied, since the
-    observation is not consulted once it has raised.
+    Navigating the image raised an exception the navigation does not turn into a
+    result, or the run faulted before the image's own log section opened. The same
+    keys as the load-error structure, with ``status_error`` ``internal_error``, the
+    exception's type and message in ``status_exception``, and its traceback in
+    ``status_traceback``. The ``observation`` block is again limited to what was
+    known before the image was opened, since an observation that has raised is not
+    consulted again.
 
 **Early return**
-    The driver refused the request before reaching the image: the batch did
-    not contain exactly one image, or the image's results-path stub would have
-    placed its log outside the log root. These documents are **returned to
-    the caller** (and recorded in cloud-task results) but are **not written
-    to disk** -- there is no per-image results location to write them to.
+    ``sd_offset`` refused the request before reaching the image, because the
+    image's results-path stub would have placed its per-image log outside the log
+    root. Such a metadata document is **returned to the caller**, and recorded in
+    cloud-task results, but is **not written to disk**: there is no per-image
+    results location to write it to.
 
 Top-level keys
 ==============
@@ -127,36 +126,40 @@ Top-level keys
 
    * - Key
      - Type
-     - Shapes
+     - Present in
      - Meaning
    * - ``status``
      - string
      - all
-     - ``success``, ``failed``, or ``conflicted`` for a navigated document
-       (mirrored in ``navigation_result.status``); ``error`` for the
-       load-error, internal-error and early-return shapes.
+     - ``success``, ``failed``, or ``conflicted`` for a navigated metadata
+       document, where the ``status`` key inside ``navigation_result`` repeats
+       it. ``error`` for the load-error, internal-error, and early-return
+       structures.
    * - ``status_error``
      - string
-     - error shapes
-     - Machine-readable error class; see the vocabulary below. Never present
-       on a navigated document (whose discrete reason is
-       ``navigation_result.status_reason`` instead).
+     - error structures
+     - Machine-readable error class; see the vocabulary below. Never present on
+       a navigated metadata document, whose discrete reason is the
+       ``status_reason`` key inside ``navigation_result``.
    * - ``status_exception``
      - string
-     - error shapes
-     - The stringified exception or refusal message. Free text, for humans.
+     - error structures
+     - The exception or refusal message as text. Free text, for people to
+       read.
    * - ``status_traceback``
      - string
      - load error, internal error
      - The traceback of the exception named in ``status_exception``, as the
-       interpreter renders it, newlines and all. A chained exception brings
-       its chain with it. Present on the two error shapes written to disk, so
-       a failure can be diagnosed from the document alone; absent from the
-       early-return shapes, which refuse a request rather than fail on one.
+       interpreter renders it, newlines and all. A chained exception brings its
+       chain with it. It is present on the two error structures written to disk,
+       so a failure can be diagnosed from the metadata document alone. An
+       early-return metadata document has none: it refuses a request rather
+       than fails on one.
    * - ``observation``
      - object
      - all
-     - The image's identity; see `The observation block`_.
+     - The image's identity and what its instrument states about it; see
+       `The observation block`_.
    * - ``navigation_result``
      - object
      - navigated
@@ -166,33 +169,31 @@ Top-level keys
      - all
      - Run timing and memory usage: ``start_iso8601`` and ``end_iso8601`` (UTC
        8601 strings with a ``Z`` suffix, microsecond precision),
-       ``elapsed_s`` (float seconds) and ``peak_memory_bytes`` (integer or
+       ``elapsed_s`` (float seconds), and ``peak_memory_bytes`` (integer or
        null).
-       For a load-error document the window ends at error time. The peak is
+       For a load-error metadata document the window ends at error time. The peak is
        the largest resident size the navigating process reached while this
        image was being navigated, which is the figure an out-of-memory kill is
        decided against. A process handling one image reports that image's whole
-       memory usage; a process handling several reports what it reached while
-       each ran,
-       measured from a floor that includes what earlier images left resident.
-       It is null where the kernel publishes no peak, and where the mark
-       could not be reset ahead of this image. Built by
-       :func:`~spindoctor.navigate_image_files.build_timing_section`.
+       memory usage. A process handling several reports what it reached while
+       each ran, measured from a floor that includes what earlier images left
+       resident. It is null where the operating system publishes no peak, and
+       where the measurement could not be reset ahead of this image.
    * - ``offset``
      - array
      - navigated
      - The full-precision ``[dv, du]`` offset in pixels. Present exactly when
        the navigation produced an offset: on ``success`` and ``conflicted``
-       documents, absent on ``failed`` ones.
+       metadata documents, absent on ``failed`` ones.
    * - ``confidence``
      - number
      - navigated
      - The full-precision calibrated confidence in ``[0, 1]``; ``0.0`` on a
-       failed navigation. The rounded display form is
-       ``navigation_result.confidence``.
+       failed navigation. The rounded display form is the ``confidence`` key
+       inside ``navigation_result``.
 
-The ``status_error`` vocabulary
--------------------------------
+The status_error vocabulary
+---------------------------
 
 .. list-table::
    :header-rows: 1
@@ -206,23 +207,20 @@ The ``status_error`` vocabulary
        ``SPICE(CKINSUFFDATA)``, ``SPICE(SPKINSUFFDATA)``, or
        ``SPICE(NOFRAMECONNECT)``). Written to disk.
    * - ``image_read_error``
-     - The image load raised any other ``OSError`` or ``RuntimeError`` (a
-       corrupt or unreadable file). Written to disk.
+     - The image could not be read for any other reason, such as a corrupt or
+       unreadable file. Written to disk.
    * - ``internal_error``
-     - Navigating the image raised an exception the orchestrator does not
-       turn into a result: in provenance or context construction, the
-       corrected-pointing computation, the summary PNG, or a defect anywhere
-       between, or before the image's own log section opened.
+     - Navigating the image raised an exception the navigation does not turn
+       into a result: while assembling the provenance record or the navigation
+       context, while computing the corrected pointing, while drawing the
+       summary picture, or before the image's own log section opened.
        ``status_exception`` carries the exception type and message,
        ``status_traceback`` carries the traceback, and the run goes on to the
-       next image. The
-       summary PNG is not written, except when the fault arose in the document
-       write itself, after the PNG. A model or technique that
-       raised is recorded differently, as ``status_reason`` ``internal_error``
-       on a ``failed`` document. Written to disk.
-   * - ``expected_one_image_per_batch``
-     - The driver was handed a batch whose size was not exactly one. Early
-       return; not written to disk.
+       next image. The summary picture is not written, except when the fault
+       arose in writing the metadata document itself, after the picture. A
+       model or technique that raised is recorded differently, as
+       ``status_reason`` ``internal_error`` on a ``failed`` metadata document.
+       Written to disk.
    * - ``invalid_results_path_stub``
      - The image's results-path stub would have placed its per-image log
        outside the log root. Early return; not written to disk.
@@ -230,20 +228,23 @@ The ``status_error`` vocabulary
 The observation block
 =====================
 
-The block has two parts. The first six keys below are the image's identity,
-which the navigator writes on every document shape that knows it. The rest are
-what the image's instrument states about it: the identifiers of its spacecraft
-and camera, and metadata about the exposure, such as its times and its filters.
-Those are present on every navigated document, successful or failed, whether
-or not a ``pointing`` block was recorded; a load-error or internal-error
-document carries none of them. Which of the keys below an instrument records,
-and what each holds for it, is in the Metadata fields section of that
-instrument's chapter under :doc:`/user_guide/instruments/instruments`; a key
-an instrument does not record is absent. An instrument may also record what the
-image itself states, in a ``label_metadata`` block of its own; that section of
-its chapter lists its keys, and the table below does not repeat them. The
-image's path, name, camera and shape are recorded once, under the identity
-keys.
+The block has two parts.
+
+The first six keys below identify the image: where it was read from, what it is
+called, which instrument and camera took it, the shutter mode, and the pixel
+dimensions of the data. These are the identity keys, and they are written on every
+structure of metadata document that knows them.
+
+The rest are what the image's instrument states about it: the identifiers of its
+spacecraft and camera, and metadata about the exposure, such as its times and its
+filters. Those are present on every navigated metadata document, successful or
+failed, whether or not a ``pointing`` block was recorded. A load-error or
+internal-error metadata document carries none of them. Which of the keys below an
+instrument records, and what each holds for it, is in the Metadata fields section of
+that instrument's chapter under :doc:`/user_guide/instruments/instruments`; a key an
+instrument does not record is absent. An instrument may also record what the image
+itself states, in a ``label_metadata`` block of its own; that section of its chapter
+lists its keys, and the table below does not repeat them.
 
 .. list-table::
    :header-rows: 1
@@ -257,37 +258,37 @@ keys.
      - Where the run read the source image from: its URL when the holdings
        are remote (``gs://...``, ``https://...``), its absolute path when they
        are local. Never the local cache copy of a remote image, which is
-       transient and private to the machine that made it. Present on
-       navigated, load-error and internal-error documents; absent on early
-       returns (which never resolved an image).
+       transient and private to the machine that made it. Present on navigated,
+       load-error, and internal-error metadata documents. An early-return
+       metadata document has none, because no image was ever resolved.
    * - ``image_name``
      - string
      - Basename of the source image file. Same presence as ``image_path``.
    * - ``instrument``
      - string
-     - The registered name of the instrument whose observation class read
-       the image (``unknown`` for an unregistered class). Always present, in
-       every shape.
+     - The name of the instrument that took the image, as SpinDoctor names it
+       (``coiss``, ``vgiss``, ``gossi``, ``nhlorri``, or ``sim`` for a
+       simulated image), or ``unknown`` when the instrument could not be
+       identified. Always present, in every structure.
    * - ``camera``
      - string
-     - The camera that took the image, as the instrument names it.
-       On a navigated document this comes from the loaded observation
-       (:attr:`~spindoctor.obs.obs_inst.ObsInst.camera`) and is always
-       present. On a load-error document the image was never opened, so the
-       value falls back to what the dataset index recorded when the image
-       was enumerated; it is present only when the index supplied it (an
-       image navigated by explicit path rather than enumerated from an
-       index has none).
+     - The camera that took the image, as the instrument names it (``NAC``,
+       ``WAC``, ``SSI``, ``LORRI``). On a navigated metadata document it comes
+       from the loaded image and is always present. On a load-error metadata
+       document the image was never opened, so the value falls back to what the
+       PDS3 index table recorded when the image was enumerated. It is therefore
+       present only when that table supplied it: an image navigated by explicit
+       path, rather than enumerated from the PDS3 index table, has none.
    * - ``shutter_mode``
      - string
-     - The shutter mode the image was taken in, for an instrument whose
-       label carries one. Omitted for an instrument whose labels carry no
-       such field, and on load-error and internal-error documents.
+     - The shutter mode the image was taken in, for an instrument whose label
+       carries one. Omitted for an instrument whose labels carry no such field,
+       and on load-error and internal-error metadata documents.
    * - ``image_shape``
      - array
-     - ``[v, u]`` pixel dimensions of the loaded image data, as two
-       integers. Present only on navigated documents (a load never
-       produced pixel data on the error shapes).
+     - ``[v, u]`` pixel dimensions of the loaded image data, as two integers.
+       Present only on navigated metadata documents: on the error structures no
+       pixel data was ever read.
    * - ``instrument_host_lid``
      - string
      - The PDS4 context identifier of the spacecraft that carried the
@@ -302,7 +303,7 @@ keys.
    * - ``start_time_et``, ``midtime_et``, ``end_time_et``
      - number
      - The same three instants in TDB seconds past J2000, unrounded. When
-       the ``times`` block is present, its ``start_et``, ``midtime_et`` and
+       the ``times`` block is present, its ``start_et``, ``midtime_et``, and
        ``stop_et`` hold these same values.
    * - ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk``
      - number or null
@@ -321,21 +322,19 @@ keys.
    * - ``filters``
      - array
      - The names of the filters the image was taken through, as strings, one
-       per filter wheel; an empty array for a camera with no filters.
+       per filter wheel; an empty array for a camera that has no filters.
    * - ``label_metadata``
      - object
      - What the image itself states about the exposure, for an instrument
        that records it, under the names that instrument's data dictionary
-       gives those quantities. Its keys, their meanings and their units are
+       gives those quantities. Its keys, their meanings, and their units are
        listed in that instrument's chapter.
 
 The navigation_result block
 ===========================
 
-This block is emitted by
-:func:`~spindoctor.nav_orchestrator.curator.build_metadata_dict` from the
-in-memory :class:`~spindoctor.nav_orchestrator.nav_result.NavResult`. Every
-key below is always present unless marked conditional.
+This block holds the navigation outcome. Every key below is always present unless
+marked conditional.
 
 .. list-table::
    :header-rows: 1
@@ -350,12 +349,10 @@ key below is always present unless marked conditional.
        top-level ``status``.
    * - ``status_reason``
      - string
-     - The discrete reason for the outcome; one of the
-       :class:`~spindoctor.support.status_reason.NavStatusReason` values
-       listed below. Unlike the top-level ``status_error`` (which
-       classifies pre-navigation failures on the error shapes), this
-       explains a completed navigation's outcome, including its success
-       modes.
+     - The discrete reason for the outcome, from the vocabulary listed below.
+       The top-level ``status_error`` classifies a failure that happened before
+       navigation began; this key explains the outcome of a navigation that
+       ran, including its success modes.
    * - ``offset_px``
      - array or null
      - ``[dv, du]`` rounded to 4 decimals; ``null`` on a failed
@@ -367,10 +364,11 @@ key below is always present unless marked conditional.
        rounded to 4 decimals; ``null`` on failure.
    * - ``sigma_along_unobservable_px``
      - number or null
-     - Set only when the combined covariance is rank-1 (for example a
-       flat-ring-only scene that constrains just one direction). The
-       in-memory value is infinite, so the serialized value is the
-       ``1.0e9`` sentinel. ``null`` for full-rank results and failures.
+     - Set only when the fit constrained one direction and left the
+       perpendicular direction unmeasured; see `One-axis results`_. The
+       uncertainty along that unmeasured direction is unbounded, so the value
+       written is the ``1.0e9`` sentinel. ``null`` when both directions were
+       measured, and on failures.
    * - ``confidence``
      - number
      - Calibrated confidence in ``[0, 1]``, rounded to 3 decimals; ``0.0``
@@ -386,9 +384,11 @@ key below is always present unless marked conditional.
    * - ``confidence_rank``
      - string
      - Five-bucket rank: ``high``, ``medium``, ``low``, ``conflicted``, or
-       ``failed``. Derived from confidence, sigma, and status; the tier
-       thresholds live in the ``orchestrator.ensemble.tier_thresholds``
-       configuration.
+       ``failed``. A frame earns a tier only when its confidence is at least
+       that tier's minimum and its offset uncertainty is no larger than that
+       tier's maximum, so a precise-but-doubtful fit and a confident-but-loose
+       fit both fall short. The thresholds are configurable; see
+       :doc:`user_guide_configuration`.
    * - ``covariance_px2``
      - array or null
      - The combined covariance as nested row lists, entries rounded to 4
@@ -407,30 +407,31 @@ key below is always present unless marked conditional.
        degrees, rounded to 3 decimals; same presence rule.
    * - ``techniques_used``
      - array
-     - Sorted, de-duplicated names of every technique that produced a
-       result (whether or not the ensemble kept it). The techniques whose
-       results actually formed the reported offset are those *not* listed
-       in ``excluded_from_consensus``.
+     - Sorted names of every technique that produced a result, listed once
+       each, whether or not its answer was used. The techniques whose answers
+       actually formed the reported offset are those not listed in
+       ``excluded_from_consensus``.
    * - ``excluded_from_consensus``
      - array
-     - Sorted technique names of viable results the ensemble left out of
-       the reported combine: outliers rejected against a multi-technique
-       consensus, or the runner-up alternative on a conflicted result.
-       Empty when every viable result contributed.
+     - Sorted names of the techniques whose usable answers were left out when
+       the answers were combined: outliers rejected against a consensus of
+       several techniques, or the runner-up answer on a conflicted result.
+       Empty when every usable answer contributed.
    * - ``feature_count_by_type``
      - object
-     - Map from feature-type name (see `Feature inventory entries`_) to
-       the count of **ungated** features of that type. Types with no
-       surviving features are simply absent; a document can have an empty
-       object here.
+     - Map from feature-type name (see `Feature inventory entries`_) to the
+       number of features of that type that were **passed to the techniques**.
+       Features dropped for low reliability are not counted. A feature type
+       that has no surviving features is simply absent, and a metadata document
+       can carry an empty object here.
    * - ``per_technique``
      - array
      - One entry per technique result; see
-       `Per-technique entries`_. Includes results the ensemble later
-       dropped (their names appear in ``excluded_from_consensus``).
+       `Per-technique entries`_. This includes answers that were later dropped;
+       their names appear in ``excluded_from_consensus``.
    * - ``feature_inventory``
      - array
-     - One entry per extracted feature, kept or gated; see
+     - One entry per extracted feature, whether it was used or dropped; see
        `Feature inventory entries`_.
    * - ``image_classifier``
      - object
@@ -438,28 +439,26 @@ key below is always present unless marked conditional.
        `The image_classifier block`_.
    * - ``provenance``
      - object
-     - The reproducibility envelope; see `The provenance block`_.
+     - What the run was made of; see `The provenance block`_.
    * - ``pointing``
      - object
      - *Conditional.* The recorded camera attitude; see
-       `The pointing block`_. Present whenever the observation's attitude
-       could be computed -- on failed navigations too. Absent for a host
-       with no SPICE camera-frame mapping (simulated images) or when the
-       attitude computation failed (the failure is logged, never fatal to
-       the navigation).
+       `The pointing block`_. Present whenever the image's attitude could be
+       computed, on failed navigations too. It is absent for a spacecraft that
+       has no SPICE camera-frame mapping, which includes simulated images, and
+       when the attitude computation itself failed. Such a failure is written to
+       the log and never stops the navigation.
    * - ``times``
      - object
      - *Conditional.* The exposure epochs the attitude belongs to; see
        `The times block`_. Present exactly when ``pointing`` is present.
 
-The ``status_reason`` vocabulary
---------------------------------
+The status_reason vocabulary
+----------------------------
 
-The full set of values, from
-:class:`~spindoctor.support.status_reason.NavStatusReason`. ``ok`` and
-``rank_1_only`` accompany ``status`` ``success``; ``conflicted_techniques``
-and ``body_shape_lock_suspect`` accompany ``conflicted``; every other value
-accompanies ``failed``.
+The full set of values. ``ok`` and ``rank_1_only`` accompany ``status``
+``success``. ``conflicted_techniques`` and ``body_shape_lock_suspect`` accompany
+``conflicted``. Every other value accompanies ``failed``.
 
 .. list-table::
    :header-rows: 1
@@ -470,8 +469,10 @@ accompanies ``failed``.
    * - ``ok``
      - Normal success.
    * - ``rank_1_only``
-     - Success with only one observable axis (e.g. a flat-ring scene with
-       no orthogonal feature); ``sigma_along_unobservable_px`` is set.
+     - Success along one direction only, with the perpendicular direction
+       unmeasured -- a flat ring edge that has no other feature crossing it,
+       for example. ``sigma_along_unobservable_px`` is set. See `One-axis
+       results`_.
    * - ``conflicted_techniques``
      - Multiple agreement groups existed and the best-vs-runner-up
        summed-confidence gap fell below the configured ``agreement_gap``;
@@ -501,28 +502,28 @@ accompanies ``failed``.
      - No per-instrument configuration block exists for this camera.
    * - ``body_fills_fov``
      - A body's disc covers the extended field of view, shows neither a limb
-       nor a terminator inside it, and nothing in front of it emitted a
-       feature; the only features, if any, were stars the body hides. The
-       image could not have been navigated, and a statistics report can omit
-       it from success statistics on that basis. ``no_features_extracted``
-       says the same of an image with nothing in it at all.
+       nor a terminator inside it, and nothing in front of it produced a
+       feature. The only features, if any, were stars the body hides. The image
+       could not have been navigated, and a statistics report can omit it from
+       success statistics on that basis. ``no_features_extracted`` says the same
+       of an image that has nothing in it at all.
    * - ``no_features_extracted``
-     - Every feature extractor returned an empty list.
+     - No model produced a feature.
    * - ``all_features_gated``
-     - Features were extracted but every one fell below its reliability
-       gate.
+     - Features were extracted, but every one of them scored below the minimum
+       reliability configured for its feature type, so none was passed to a
+       technique.
    * - ``no_feasible_techniques``
-     - Features passed the gate but no technique's feasibility check
-       accepted them.
+     - Features survived, but no technique found them usable.
    * - ``all_techniques_spurious``
      - Every technique that ran flagged its own result spurious.
    * - ``final_confidence_below_threshold``
-     - The ensemble's combined confidence sat below the configured
-       ``min_confidence``.
+     - The combined confidence of all the techniques' answers sat below the
+       configured minimum.
    * - ``final_sigma_above_threshold``
-     - Combined confidence cleared the lowest tier but the offset sigma
-       exceeded every tier's ``max_sigma_px`` (confident but too imprecise
-       to earn any tier).
+     - The combined confidence cleared the lowest tier, but the offset
+       uncertainty was larger than the maximum every tier allows: confident,
+       and too imprecise to earn a tier.
    * - ``unobservable_offset``
      - Every input covariance shared one null direction; the
        precision-weighted combine could not proceed.
@@ -543,13 +544,12 @@ The internal-error block
 ------------------------
 
 A result whose ``status_reason`` is ``internal_error`` carries an
-``internal_error`` object, and no other result carries one. It says which
-component raised and what class of exception it raised, so a consumer
-reading the document -- rather than a person reading the log -- can tell a
-navigation that hit a defect from one that simply found nothing. A Saturn
-ring model that raised an ``AttributeError`` while building records
-``component`` as ``rings:SATURN.create_model`` and ``exception_type`` as
-``AttributeError``.
+``internal_error`` object, and no other result carries one. It says which part of
+the navigation raised and what class of exception it raised, so a program reading
+the metadata document, rather than a person reading the log, can tell a navigation
+that hit a defect from one that simply found nothing. A Saturn ring model that
+raised an ``AttributeError`` while building records ``component`` as
+``rings:SATURN.create_model`` and ``exception_type`` as ``AttributeError``.
 
 .. list-table::
    :header-rows: 1
@@ -558,22 +558,50 @@ ring model that raised an ``AttributeError`` while building records
    * - Key
      - Meaning
    * - ``component``
-     - What raised, as ``<registered name>.<method>``. The registered name
-       is the model's instance name (``stars``, ``rings:SATURN``,
-       ``body:TITAN``) or the technique's name (``RingEdgeNav``), which is
-       the name the logs and the configuration use -- not the Python class.
+     - What raised, as ``<name>.<step>``. The name is the model's name for this
+       image (``stars``, ``rings:SATURN``, ``body:TITAN``) or the technique's
+       name (``RingEdgeNav``), which is the same name the logs and the
+       configuration use.
    * - ``exception_type``
-     - The class name of the exception raised.
+     - The name of the exception class raised.
 
-The exception's message and traceback are deliberately not recorded here.
-They can carry local file paths and array contents, and this document is an
-archive product; the per-image error log holds both.
+The exception's message and traceback are not repeated here. They are unbounded
+free text, which can run to array contents and machine-specific detail, so they are
+left to the per-image error log, which carries both.
+
+.. _rank-one-results:
+
+One-axis results
+----------------
+
+A navigation normally measures the pointing correction in both image directions. Some
+scenes only allow one. The plainest case is a single ring edge that crosses the frame
+as a straight line: moving the model across the edge changes how well it fits, while
+sliding it along the edge changes nothing, so the correction along the edge is never
+measured. Such a fit is called rank deficient, or rank one, because it measures one
+direction out of the two it would take to fix the pointing completely.
+
+A navigation like that is still reported as a success, and the offset it reports is
+right along the direction that was measured. The metadata document says so in three
+places:
+
+* ``status_reason`` is ``rank_1_only``.
+* ``sigma_along_unobservable_px`` is set, to the ``1.0e9`` sentinel: the uncertainty
+  along the unmeasured direction is unbounded.
+* ``confidence_rank`` is capped at ``medium``, however precise the measured direction
+  is, because one of the two numbers in the offset rests on an assumption rather than
+  a measurement.
+
+A consumer that needs the pointing in both directions must treat such a result as
+incomplete. One that only needs the measured direction -- a ring radius scale, for
+instance -- can use it as it stands. A second feature that runs across the first,
+such as a body limb or a single identified star, is enough to make both directions
+measurable, and then ``sigma_along_unobservable_px`` is ``null``.
 
 Per-technique entries
 ---------------------
 
-Each element of ``per_technique`` is the curated form of one
-:class:`~spindoctor.nav_technique.technique_result.NavTechniqueResult`:
+Each element of ``per_technique`` records what one technique answered:
 
 .. list-table::
    :header-rows: 1
@@ -584,13 +612,15 @@ Each element of ``per_technique`` is the curated form of one
      - Meaning
    * - ``technique_name``
      - string
-     - Class name of the producing technique (``BodyLimbNav``,
-       ``StarFieldFromCatalogNav``, ...).
+     - The name of the technique that produced this answer (``BodyLimbNav``,
+       ``StarFieldFromCatalogNav``, and so on). These are the same names
+       ``sd_offset`` accepts in its ``--nav-techniques`` option; see
+       :doc:`user_guide_navigation_models`.
    * - ``feature_ids``
      - array
-     - The feature identifiers this result actually consumed
-       (``limb_arc:RHEA``, ``star:...``, ...); they match
-       ``feature_inventory`` entries.
+     - The features this technique actually used, by identifier
+       (``limb_arc:RHEA``, ``star:...``, and so on). Each one matches an entry
+       in ``feature_inventory``.
    * - ``offset_px``
      - array
      - This technique's own ``[dv, du]``, rounded to 4 decimals. Never
@@ -606,18 +636,18 @@ Each element of ``per_technique`` is the curated form of one
        decimals.
    * - ``spurious``
      - boolean
-     - The technique's structural-failure self-flag. The ensemble drops
-       spurious results unconditionally, but they remain listed here.
+     - True when the technique judged its own fit structurally unsound. Such a
+       result never contributes to the reported offset, and it is still listed
+       here.
    * - ``at_edge``
      - boolean
      - True when the solution touched its search-window boundary.
    * - ``diagnostics``
      - object
-     - Technique-specific diagnostic fields. Each technique publishes a
-       fixed key set declared in its diagnostics dataclass's
-       ``CURATOR_FIELDS`` allow-list (see
-       :doc:`/dev_guide/dev_guide_techniques_diagnostics`); float values
-       are rounded to 3 decimals.
+     - Technique-specific diagnostic values. Each technique publishes its own
+       fixed set of keys, listed in
+       :doc:`/dev_guide/dev_guide_techniques_diagnostics`. Float values are
+       rounded to 3 decimals.
    * - ``rotation_deg``
      - number
      - *Conditional.* This technique's fitted camera rotation in degrees,
@@ -630,10 +660,12 @@ Each element of ``per_technique`` is the curated form of one
 Feature inventory entries
 -------------------------
 
-Each element of ``feature_inventory`` is the curated form of one
-:class:`~spindoctor.nav_orchestrator.feature_summary.NavFeatureSummary` -- a
-post-mortem entry for one extracted feature, whether or not it survived the
-reliability gate:
+A feature is one thing in the image a model predicted and expects to be matched: a
+star, an arc of a body's limb or terminator, a ring edge, and so on. Each model
+scores each feature it produces for reliability, and a feature that scores below the
+minimum configured for its type is dropped before any technique sees it. Each element
+of ``feature_inventory`` records one extracted feature, whether it was used or
+dropped:
 
 .. list-table::
    :header-rows: 1
@@ -644,28 +676,29 @@ reliability gate:
      - Meaning
    * - ``feature_id``
      - string
-     - Unique feature identifier (``limb_arc:RHEA``,
-       ``body_blob:TETHYS``, ...).
+     - Unique identifier of the feature (``limb_arc:RHEA``,
+       ``body_blob:TETHYS``, and so on).
    * - ``feature_type``
      - string
-     - One of the :class:`~spindoctor.feature.feature_type.NavFeatureType`
-       names: ``STAR``, ``LIMB_ARC``, ``TERMINATOR_ARC``, ``BODY_DISC``,
+     - One of ``STAR``, ``LIMB_ARC``, ``TERMINATOR_ARC``, ``BODY_DISC``,
        ``BODY_BLOB``, ``RING_EDGE``, ``RING_ANNULUS``, ``TITAN_LIMB``, or
        ``CARTOGRAPHIC_MODEL``.
    * - ``source_model``
      - string
-     - Name of the producing model instance (``stars``, ``body:MIMAS``,
-       ``rings:SATURN``).
+     - The name of the model that produced this feature (``stars``,
+       ``body:MIMAS``, ``rings:SATURN``).
    * - ``reliability``
      - number
-     - Self-assessed reliability in ``[0, 1]``, rounded to 3 decimals.
+     - How much the model that produced the feature expects it to be matchable,
+       from 0 to 1, rounded to 3 decimals.
    * - ``gated``
      - boolean
-     - True when the reliability gate dropped this feature before any
-       technique saw it.
+     - True when this feature's reliability fell below the minimum configured
+       for its feature type, so it was dropped before any technique saw it.
    * - ``gate_reason``
      - string or null
-     - Human-readable reason when ``gated`` is true; ``null`` otherwise.
+     - Why the feature was dropped, in words, when ``gated`` is true; ``null``
+       otherwise.
    * - ``bbox_extfov_vu``
      - array
      - Bounding box ``[v_min, u_min, v_max, u_max]``, four integers giving a
@@ -682,26 +715,21 @@ reliability gate:
        which covers image rows 445 through 593 and columns 437 through 586.
    * - ``reliability_reasons``
      - object
-     - The per-component breakdown of ``reliability``, so a gate decision
-       is attributable from this file alone. Only the components that
-       apply to this feature type appear; float components are rounded to
-       3 decimals, boolean components pass through. The component
-       vocabulary is the field set of
-       :class:`~spindoctor.feature.feature.NavReliabilityBreakdown`
-       (``predicted_snr``, ``visible_arc_fraction``, ``incidence_factor``,
+     - The per-component breakdown of ``reliability``, so the decision to keep
+       or drop a feature can be traced from this file alone. Only the
+       components that apply to this feature type appear; float components are
+       rounded to 3 decimals, boolean components pass through. The components
+       are ``predicted_snr``, ``visible_arc_fraction``, ``incidence_factor``,
        ``albedo_penalty``, ``shadow_occluded_fraction``,
        ``visible_lit_fraction``, ``overflow_fraction``, ``blob_snr``,
        ``blob_extent_px``, ``in_body_silhouette``,
        ``in_saturation_or_cosmic``, ``smear_length_ok``,
-       ``titan_envelope_diameter_px``, ``titan_occluded_fraction``); a
-       component added there appears here as soon as some model populates
-       it.
+       ``titan_envelope_diameter_px``, and ``titan_occluded_fraction``.
 
 The image_classifier block
 --------------------------
 
-The curated form of
-:class:`~spindoctor.nav_orchestrator.image_classifier_result.NavImageClassifierResult`:
+The image-quality verdict for this frame:
 
 .. list-table::
    :header-rows: 1
@@ -728,12 +756,10 @@ The curated form of
      - Maximum DN observed in the image, 3 decimals.
    * - ``background_gradient_score``
      - number or null
-     - Dimensionless score of the low-order brightness ramp across the
-       sensor (see
-       :func:`~spindoctor.support.background_gradient.background_gradient_score`);
-       a flat field scores near zero, a scattered-light veiling gradient
-       well above five. ``null`` when the image is too small for the
-       measure or the downsample is perfectly constant.
+     - Dimensionless score of the low-order brightness ramp across the sensor.
+       A flat field scores near zero; a scattered-light veiling gradient scores
+       well above five. ``null`` when the image is too small for the measure, or
+       when the image is perfectly uniform.
    * - ``flags``
      - array
      - Advisory flags, independent of ``class``: ``partial_dropout``
@@ -742,10 +768,22 @@ The curated form of
 The provenance block
 --------------------
 
-The curated form of
-:class:`~spindoctor.nav_orchestrator.provenance.Provenance`. Two navigations
-with identical inputs produce identical provenance except
-``pipeline_run_iso8601``, which is wall-clock by construction.
+The provenance block records what the run was made of: which version of the
+software navigated the image, which SPICE kernels were loaded, which star catalogs
+were used, which configuration was in force, and when the run started.
+
+It exists so that a reader can answer one question: what would I have to reproduce
+to get this answer again? That matters most for the offset, which is a correction
+relative to the kernels that were furnished at navigation time. Read against a
+different set of kernels the offset means something else, and
+``provenance.spice_kernels`` is where those kernels are named. The same block
+answers the everyday questions that follow a surprising result: was this frame
+navigated by an older version of the software than its neighbors, did it run with a
+configuration override in place, and were its kernels the ones the rest of the batch
+used.
+
+Two navigations with identical inputs produce identical provenance except
+``pipeline_run_iso8601``, which is a wall-clock time and differs by construction.
 
 .. list-table::
    :header-rows: 1
@@ -756,51 +794,55 @@ with identical inputs produce identical provenance except
      - Meaning
    * - ``spindoctor_version``
      - string
-     - The package ``__version__`` string.
+     - The version of SpinDoctor that navigated the image.
    * - ``spindoctor_git_sha``
      - string or null
-     - Short git SHA of the source tree, with a ``-dirty`` suffix when
-       uncommitted changes were present; ``null`` when the tree is not a
-       git checkout or git is unavailable.
+     - Short git SHA of the source tree the run used, with a ``-dirty`` suffix
+       when it carried uncommitted changes; ``null`` when the source is not a
+       git checkout, or when git was unavailable.
    * - ``spice_kernels``
      - array
-     - Sorted basenames of every SPICE kernel actually loaded at
-       navigate time. Basenames only, so the list is stable across
-       machines with different kernel roots.
+     - Sorted filenames of every SPICE kernel that was loaded when the image
+       was navigated. Filenames only, without directories, so the list is the
+       same on two machines that keep their kernels in different places. The
+       recorded ``offset`` is a correction relative to exactly these kernels.
    * - ``spice_kernel_count``
      - integer
-     - ``len(spice_kernels)``.
+     - How many entries ``spice_kernels`` holds.
    * - ``static_data_hashes``
      - object
-     - Map of static-data YAML filename to the SHA-256 hex digest of its
-       raw bytes: the body-shape catalog, every ring catalog, and every
-       per-instrument configuration file shipped with the package.
+     - Map from the filename of a static data file to the SHA-256 hex digest of
+       its contents: the body-shape catalog, every ring catalog, and every
+       per-instrument configuration file shipped with SpinDoctor. Two runs whose
+       digests match read the same catalogs.
    * - ``technique_names``
      - array
-     - Sorted class names of every registered technique (whether or not
-       it ran on this image).
+     - Sorted names of every technique SpinDoctor knows, whether or not it ran
+       on this image.
    * - ``extractor_names``
      - array
-     - Sorted names of the model instances built for this observation
-       (``stars``, ``body:RHEA``, ``rings:SATURN``, ...).
+     - Sorted names of the models built for this image (``stars``,
+       ``body:RHEA``, ``rings:SATURN``, and so on).
    * - ``config_hash``
      - string or null
-     - SHA-256 hex digest of the fully-resolved configuration content
-       (bundled defaults plus applied overrides, deterministically
-       serialized); ``null`` when it could not be computed.
+     - SHA-256 hex digest of the configuration that was actually in force: the
+       shipped defaults with every override applied. ``null`` when it could not
+       be computed. Two runs whose digests match were configured identically.
    * - ``config_overrides``
      - array
-     - User/CLI override configuration file paths in application order
-       (later files win the merge). Often empty.
+     - The configuration override files the run applied, as paths, in the order
+       they were applied; a later file wins where two set the same value. Often
+       empty.
    * - ``star_catalogs``
      - object
-     - Map of configured star-catalog name to its resolution root (path
-       or URL), or ``""`` when unresolvable. The catalog data carries no
-       version identifier to record.
+     - Map from the name of each configured star catalog to the path or URL the
+       run read it from, or ``""`` when it could not be resolved. The catalog
+       data carries no version number to record, so the location is what
+       identifies it.
    * - ``image_et``
      - number
-     - Observation midtime in TDB seconds past J2000, rounded to 6
-       decimals. The unrounded epochs are in ``times``.
+     - The exposure midtime in TDB seconds past J2000, rounded to 6 decimals.
+       The unrounded epochs are in ``times``.
    * - ``pipeline_run_iso8601``
      - string
      - UTC timestamp when the run began (``Z`` suffix, whole seconds).
@@ -808,21 +850,20 @@ with identical inputs produce identical provenance except
 The pointing block
 ------------------
 
-The recorded camera attitude, produced by
-:func:`~spindoctor.support.cmatrix.compute_pointing` and curated from the
-:class:`~spindoctor.support.cmatrix.PointingSolution` on the result. A
-C-matrix here is the rotation taking a vector expressed in J2000 to the same
-vector expressed in the camera frame::
+The recorded camera attitude. A C-matrix here is the rotation taking a vector
+expressed in J2000 to the same vector expressed in the camera frame::
 
     v_frame = C . v_J2000
 
-Both matrices are given in the **SPICE camera frame** convention (not the
-oops observation-frame convention, which differs by a constant flip on some
-instruments), evaluated at the exposure midtime, and serialized as **nine
-row-major floats**. They are deliberately **unrounded**: the C-kernel writer
-identifies the baseline kernel an image navigated against by reproducing
-``cmatrix_original`` to within a nanoradian, and rounding would break that
-bound.
+Both matrices are given in the **SPICE camera frame** convention, evaluated at the
+exposure midtime, and written as **nine row-major floats**. On some instruments that
+frame differs by a constant rotation from the frame the image's own geometry is
+expressed in, so a consumer that mixes the two must apply that rotation.
+
+The matrices are deliberately **unrounded**. ``sd_create_ck`` (see
+:doc:`user_guide_ck_kernels`) identifies the kernel an image was navigated against by
+reproducing ``cmatrix_original`` to within a nanoradian, and rounding would break
+that bound.
 
 .. list-table::
    :header-rows: 1
@@ -833,11 +874,11 @@ bound.
      - Meaning
    * - ``cmatrix``
      - array
-     - *Conditional.* The corrected attitude -- the one the camera
-       actually had, per the navigation. Present only when the navigation
-       produced an offset **and** fitted no camera rotation (a fitted
-       rotation turns about a per-technique pivot that is not recorded,
-       so no corrected attitude is claimed for it). Absent on failed
+     - *Conditional.* The corrected attitude: the one the camera actually had,
+       according to the navigation. This is the value downstream work should
+       use. Present only when the navigation produced an offset **and** fitted
+       no camera rotation. A fitted rotation turns about a pivot this file does
+       not record, so no corrected attitude is claimed for it. Absent on failed
        navigations.
    * - ``cmatrix_original``
      - array
@@ -902,67 +943,65 @@ Rounding summary
 
    * - Fields
      - Precision
-   * - ``navigation_result.offset_px``, ``sigma_px``,
-       ``sigma_along_unobservable_px``, every ``covariance_px2`` entry
-       (top-level and per-technique), per-technique ``offset_px``
+   * - The ``offset_px``, ``sigma_px``, and ``sigma_along_unobservable_px``
+       keys inside ``navigation_result``, every ``covariance_px2`` entry at
+       both levels, and each per-technique ``offset_px``
      - 4 decimals (pixel quantities)
-   * - ``navigation_result.confidence``, per-technique ``confidence``,
-       ``rotation_deg`` / ``sigma_rotation_deg`` (both levels), float
-       ``diagnostics`` values, ``reliability`` and float
-       ``reliability_reasons`` components, every float in
+   * - The ``confidence`` key inside ``navigation_result``, each per-technique
+       ``confidence``, ``rotation_deg`` and ``sigma_rotation_deg`` at both
+       levels, float ``diagnostics`` values, ``reliability`` and its float
+       ``reliability_reasons`` components, and every float in
        ``image_classifier``
      - 3 decimals (scores and degrees)
    * - ``provenance.image_et``
      - 6 decimals
-   * - Top-level ``offset`` and ``confidence``; everything in ``pointing``
-       and ``times``; the ``timing`` block
-     - Exact (full float precision, unrounded)
+   * - The top-level ``offset`` and ``confidence``, everything in ``pointing``
+       and ``times``, and the ``timing`` block
+     - Exact (full precision, unrounded)
 
-The rounding constants are chosen tighter than the per-image tolerance
-budget. Two fields change on every run whatever the input --
-``pipeline_run_iso8601`` and the ``timing`` block -- so a regression
-comparator strips those and diffs what remains, which is byte-identical
-across runs of the same input.
+Rounded values are written to more decimal places than the accuracy of the
+navigation itself, so nothing a consumer needs is lost to rounding. Only two parts
+of the file change from run to run on the same input, ``pipeline_run_iso8601`` and
+the ``timing`` block; set those aside and two runs of the same image produce
+byte-identical files.
 
-How consumers apply the record
-==============================
+How other programs use the record
+=================================
 
-Downstream stages that rebuild an image's geometry (backplanes, reprojection,
-mosaics) correct the observation's pointing from this file. The recorded
-``pointing.cmatrix`` is the senior form: when a usable one is present,
-:func:`~spindoctor.cli.reproj.offsets.select_pointing` selects it and
-:func:`~spindoctor.cli.reproj.offsets.apply_pointing_to_obs` replaces the
-observation's frame with the corrected attitude. A record with no usable
-C-matrix -- a fitted-rotation result, a simulated image, or a malformed
-pointing block -- falls back to applying the top-level ``offset`` as a
-field-of-view shift, and a record with neither proceeds uncorrected. The
-C-kernel writer (``sd_create_ck``) reads the same ``pointing`` and ``times``
-blocks to build corrected SPICE kernels; see
-:doc:`user_guide_ck_kernels` and, for the mechanism,
-:doc:`/dev_guide/dev_guide_ck_kernels`.
+The stages that rebuild an image's geometry -- backplane generation, reprojection,
+and mosaicing -- read this file to correct the image's pointing, and they prefer the
+recorded ``pointing.cmatrix``: when the navigation succeeded and a usable corrected
+matrix is present, the image's attitude is replaced with it outright. Where there is
+no usable corrected matrix, as on a result that fitted a camera rotation or on a
+simulated image, they fall back to applying the top-level ``offset`` as a shift of
+the field of view. Where neither is usable, the image is left uncorrected, and the
+reason is written to the log. A metadata document whose ``status`` is not ``success``
+is never used to correct anything.
+
+``sd_create_ck`` reads the same ``pointing`` and ``times`` blocks to build corrected
+SPICE kernels.
 
 Examples
 ========
 
-The examples below are captured from real runs of the shipped writers. For
-display, long arrays (the SPICE kernel list) and repetitive list entries are
-shortened with the elisions noted, and site-specific filesystem prefixes in
-``image_path`` and ``star_catalogs`` are abbreviated; every other value is
-verbatim.
+The examples below are captured from real runs. For display, long arrays (the SPICE
+kernel list) and repetitive list entries are shortened as noted, and the leading
+directories of the paths in ``image_path`` and ``star_catalogs`` are abbreviated.
+Every other value is verbatim.
 
 Navigated, success
 ------------------
 
-A Cassini narrow-angle frame of Rhea and Tethys, navigated by a two-body limb
-fit corroborated by the brightness centroid. Points worth noticing: the
-top-level ``offset`` is the full-precision form of
-``navigation_result.offset_px``; ``BodyBlobNav``'s own offset disagrees but
-its large covariance keeps it consistent with the limb fit, so nothing was
-excluded; the ``pointing`` block carries both matrices because the navigation
-succeeded without fitting a rotation. The ``observation`` block ends with the
-``label_metadata`` block, whose keys the Cassini ISS chapter lists. Of the
-six ``feature_inventory`` entries, four are shown; the two ``TERMINATOR_ARC``
-entries follow the same form. Of 79 SPICE kernels, three are shown.
+A Cassini narrow-angle frame of Rhea and Tethys, navigated by a two-body limb fit
+corroborated by the brightness centroid. Three things are worth noticing. The
+top-level ``offset`` is the full-precision form of the ``offset_px`` inside
+``navigation_result``. ``BodyBlobNav``'s own offset disagrees with the limb fit, but
+its large covariance keeps the two consistent, so nothing was excluded. And the
+``pointing`` block carries both matrices, because the navigation succeeded without
+fitting a rotation. The ``observation`` block ends with the ``label_metadata``
+block, whose keys the Cassini ISS chapter lists. Of the six ``feature_inventory``
+entries, four are shown; the two ``TERMINATOR_ARC`` entries follow the same form. Of
+79 SPICE kernels, three are shown.
 
 .. code-block:: json
 
@@ -1270,14 +1309,13 @@ entries follow the same form. Of 79 SPICE kernels, three are shown.
 Navigated, failed
 -----------------
 
-A Galileo SSI frame in which no extractor produced a feature. Everything the
-pipeline learned is still recorded: what is known about the exposure from the
-image itself, including its exposure times and filter, the classifier verdict,
-the provenance, and the ``pointing`` block -- with ``cmatrix_original`` only,
-since a failed navigation produces no corrected attitude. There is no
-top-level ``offset`` key at all, and both confidence values are ``0.0``. The
-empty lists and the provenance follow the same form as the success example
-and are shortened here.
+A Galileo SSI frame in which no model produced a feature. Everything the pipeline
+learned is still recorded: what is known about the exposure from the image itself,
+including its exposure times and filter, the image-quality verdict, the provenance
+block, and the ``pointing`` block -- with ``cmatrix_original`` only, since a failed
+navigation produces no corrected attitude. There is no top-level ``offset`` key at
+all, and both confidence values are ``0.0``. The empty lists and the provenance
+block follow the same form as the success example and are shortened here.
 
 .. code-block:: json
 
@@ -1401,12 +1439,12 @@ and are shortened here.
 Load error
 ----------
 
-A Cassini frame whose epoch falls in a C-kernel coverage gap. The image was
-never opened, so there is no ``navigation_result``, no ``image_shape`` and no
-epoch anywhere -- an epoch is the observation's midtime, and no observation was
-built. ``camera`` comes from the dataset index, which needs no SPICE. The
-exception text and its traceback are shortened here; the real file carries the
-full SPICE message and every frame of the traceback.
+A Cassini frame whose epoch falls in a C-kernel coverage gap. The image was never
+opened, so there is no ``navigation_result``, no ``image_shape``, and no epoch
+anywhere: an epoch is the exposure midtime, and nothing ever read the exposure.
+``camera`` comes from the PDS3 index table, which needs no SPICE. The exception text
+and its traceback are shortened here; the real file carries the full SPICE message
+and every frame of the traceback.
 
 .. code-block:: json
 
@@ -1432,12 +1470,12 @@ full SPICE message and every frame of the traceback.
 Internal error
 --------------
 
-A Cassini frame that loaded and then raised outside the orchestrator's own
-handling, here while the summary PNG was being captioned. Same keys as the
-load-error shape; ``camera`` comes from the dataset index, since the
-observation is not consulted once it has raised, ``status_exception``
-names the exception type and message, and ``status_traceback`` carries the
-traceback, shortened here.
+A Cassini frame that loaded and then raised where the navigation does not turn an
+exception into a result, here while the summary picture was being captioned. The same
+keys as the load-error structure. ``camera`` comes from the PDS3 index table, since
+an image that has raised is not consulted again; ``status_exception`` names the
+exception type and message; and ``status_traceback`` carries the traceback, shortened
+here.
 
 .. code-block:: json
 
@@ -1463,26 +1501,26 @@ traceback, shortened here.
 Early return
 ------------
 
-The document a driver returns (but does not write to disk) when handed a
-malformed batch. The ``invalid_results_path_stub`` shape is identical except
-for its ``status_error`` and message. The ``observation`` block carries only
-the instrument, because no image was ever resolved. This example was captured
-by calling :func:`~spindoctor.navigate_image_files.navigate_image_files` with
-a two-image batch, since these documents are never stored.
+The metadata document ``sd_offset`` returns, and does not write to disk, when an
+image's results-path stub would have put its per-image log outside the log root. The
+``observation`` block carries only the instrument, because no image was ever read;
+here the instrument could not be identified either, so it reads ``unknown``. This
+example was captured from the returned value, since these metadata documents are
+never stored.
 
 .. code-block:: json
 
     {
       "status": "error",
-      "status_error": "expected_one_image_per_batch",
-      "status_exception": "Expected exactly one image per batch; got 2",
+      "status_error": "invalid_results_path_stub",
+      "status_exception": "Results path stub must stay within the log root, got '../../escaped/fake_image'",
       "observation": {
-        "instrument": "coiss"
+        "instrument": "unknown"
       },
       "timing": {
-        "start_iso8601": "2026-08-08T20:26:26.088795Z",
-        "end_iso8601": "2026-08-08T20:26:26.088888Z",
-        "elapsed_s": 9.3e-05,
-        "peak_memory_bytes": 271650816
+        "start_iso8601": "2026-09-29T00:10:24.111908Z",
+        "end_iso8601": "2026-09-29T00:10:24.297621Z",
+        "elapsed_s": 0.185713,
+        "peak_memory_bytes": 214089728
       }
     }

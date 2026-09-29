@@ -2,50 +2,59 @@
 Configuration
 =============
 
-SpinDoctor uses a hierarchical YAML-based configuration system that allows you to
-customize behavior without modifying the source code. Understanding how
-configuration files are loaded and how to override settings is important for
-effective use of the system.
+Every SpinDoctor program reads the same body of settings. They control where files are
+read and written, which models and techniques navigation uses, how hard each technique
+works, how much a result must prove before it is accepted, and how much the programs write
+to their logs. The settings are YAML, and you change them without touching any source
+code.
 
-Configuration Loading Order
-============================
+This chapter is the full account of that system: where settings come from, which source
+wins when two disagree, and which of them have command-line equivalents. The
+:doc:`/quick_start` shows the short version.
 
-SpinDoctor ships with a complete set of built-in defaults, so the system works out
-of the box with no configuration on your part. You customize behavior by supplying
-your own settings on top of those defaults. Settings are resolved as follows:
+Where settings come from
+========================
 
-1. **Built-in defaults**: SpinDoctor bundles a stack of default configuration files
-   that give every setting a sensible value. You do not edit these. (Developers
-   who need to know exactly which files ship and what each one holds should see
-   :doc:`/dev_guide/dev_guide_config_and_static_data`.)
+SpinDoctor ships with a complete set of built-in defaults, so it works out of the box with
+no configuration on your part. You customize behavior by supplying your own settings on
+top of those defaults, and you only ever write down the settings you want to change.
+Everything else falls through.
 
-2. **Exactly one of the following** is loaded on top of the built-in defaults:
+Settings are resolved in this order, each step overriding the ones above it:
 
-   * **Command-line configuration files**: If one or more files are specified
-     with the ``--config-file`` option, they are loaded in the order given,
-     each overriding the built-in defaults (and, for the same key, any file
-     loaded before it).
+1. **Built-in defaults.** A stack of configuration files ships inside SpinDoctor and gives
+   every setting a value. You cannot edit these: they live inside the installed package,
+   and a change to them would be undone by the next upgrade. (A developer reading the
+   source will find them in ``src/spindoctor/config_files/``, loaded in filename order,
+   which is what the ``config_NN_`` number prefix on each filename is for.
+   :doc:`/dev_guide/dev_guide_config_and_static_data` describes what each one holds.)
 
-   * **User default configuration**: Only when no ``--config-file`` option is
-     given, a file named ``nav_default_config.yaml`` in the current working
-     directory is loaded if it exists. Use it to set personal defaults for
-     runs where you do not pass ``--config-file``. Note that passing
-     ``--config-file`` replaces this file entirely rather than adding to it;
-     to keep your personal defaults in such a run, list
-     ``nav_default_config.yaml`` explicitly as the first ``--config-file``
-     argument.
+2. **Exactly one of the following**, loaded on top of the built-in defaults:
 
-3. **Command-line option overrides**: A handful of CLI flags (described under
-   `Command-Line Option Overrides`_ below) override the matching configuration
-   key directly and take precedence over everything above.
+   * **Files named with** ``--config-file``. One or more files, loaded in the order given.
+     Each overrides the built-in defaults and, for any setting they both name, any file
+     given before it.
 
-You only ever need to specify the settings you want to change; everything else
-falls through to the built-in defaults.
+   * **Your own default file.** Only when no ``--config-file`` is given, a file named
+     ``nav_default_config.yaml`` in the current working directory is loaded if it exists.
+     This is where personal defaults belong.
 
-Configuration File Structure
-============================
+   Note that these two are alternatives, not layers. Passing ``--config-file`` replaces
+   ``nav_default_config.yaml`` rather than adding to it. To keep your personal defaults in
+   such a run, name that file explicitly as the first ``--config-file`` argument.
 
-Configuration files use YAML format and are organized into sections:
+3. **Command-line options.** A number of options set one configuration value directly, and
+   take precedence over every file. They are listed under `Options that override
+   configuration`_ below.
+
+Some settings also have an environment variable, which sits between the configuration
+files and the command line. Each is named with the option it belongs to below.
+
+How a configuration file is written
+===================================
+
+A configuration file is YAML, organized into top-level sections. Each section groups the
+settings for one part of the system:
 
 .. code-block:: yaml
 
@@ -67,46 +76,51 @@ Configuration files use YAML format and are organized into sections:
      min_bounding_box_area: 9
      oversample_maximum: 2
 
-Each section can contain multiple settings. When multiple configuration files
-define the same setting, the value from the last file loaded takes precedence.
+The sections are:
 
-Logging Configuration
----------------------
+``environment``
+    Where a deployment keeps its files: the holdings root that images are read from, the
+    roots that navigation results, backplanes, and PDS4 bundles are written to, the log
+    root, and the results index.
 
-Logging is configured by the top-level ``logging`` section, described under
-`Logging Options`_ below, together with command-line options that override it.
-It is one of the three sections excluded from the provenance configuration
-digest recorded with each navigation result: what a run wrote down about itself
-cannot change what it concluded, so two results differing only in logging were
-produced by the same configuration and compare as such. The others are
-``environment``, which says where a deployment keeps its files rather than how
-it navigates, and ``results_tree``, which says how many requests a pass over a
-navigation results tree makes at once.
+``general``, ``planets``, ``satellites``
+    Which planets and moons SpinDoctor knows about, and how each is grouped.
 
-Two loggers write during a run: the main logger, covering one program run, and
-the image logger, covering one image inside one processing stage. A component
-can be given its own level, so one technique or model can be made verbose or
-quiet without affecting the rest. For the full component list, where the log
-files are written, and the precedence between the configuration and the
-command line, see :doc:`/user_guide/user_guide_logging`.
+``logging``
+    What each program writes to its logs, and where. See
+    :doc:`/user_guide/user_guide_logging`.
 
-Example -- enable verbose output for star and ring models while keeping other
-components at the default level:
+``offset``
+    The shared machinery of offset finding, including the correlation settings.
 
-.. code-block:: yaml
+``stars``, ``bodies``, ``rings``, ``titan``, ``body_shape``
+    One section per model family, describing what is modeled and how.
 
-   logging:
-     models:
-       stars: DEBUG
-       rings: DEBUG
+``techniques``, ``orchestrator``
+    Per-technique settings, and how the per-technique answers are combined into the one
+    offset reported for the image. The acceptance thresholds live here; see `Acceptance
+    thresholds`_ below.
 
-Creating a User Configuration File
-===================================
+``cassini_iss``, ``voyager_iss``, ``galileo_ssi``, ``newhorizons_lorri``
+    Per-instrument settings. :doc:`/user_guide/instruments/instruments` describes each
+    instrument and what is particular to it.
 
-To create your own default configuration:
+``backplanes``, ``pds4``, ``results_tree``, ``sim``
+    Settings for the downstream stages, for a pass over a navigation results tree, and for
+    the image simulator.
 
-1. Create a file named ``nav_default_config.yaml`` in your working directory
-2. Add only the settings you want to override:
+When two configuration files name the same setting, the value from the last file loaded
+wins. Sections merge setting by setting, so naming one setting in a section leaves the
+rest of that section at its default.
+
+Writing your own default file
+=============================
+
+To set defaults for every run you make from a given directory:
+
+1. Create a file named ``nav_default_config.yaml`` there.
+
+2. Write down only the settings you want to change:
 
    .. code-block:: yaml
 
@@ -116,19 +130,20 @@ To create your own default configuration:
       offset:
         correlation_fft_upsample_factor: 256
 
-3. The system will automatically load this file if it exists, provided you do
-   not pass ``--config-file`` (which replaces it; see below)
+3. Run any program without ``--config-file``. The file is found and loaded.
 
-Using Command-Line Configuration Overrides
-===========================================
+Naming a file per run
+=====================
 
-You can override configuration on a per-run basis using ``--config-file``:
+``--config-file PATH`` names a configuration file for one run. Every program accepts it;
+``sd_offset`` (:doc:`/user_guide/user_guide_navigation_running`) is used for the examples
+here:
 
 .. code-block:: bash
 
    sd_offset coiss N1234567890 --config-file /path/to/special_config.yaml
 
-You can specify multiple configuration files, and they will be loaded in order:
+The option is repeatable, and the files are loaded in the order given:
 
 .. code-block:: bash
 
@@ -136,9 +151,8 @@ You can specify multiple configuration files, and they will be loaded in order:
      --config-file base_overrides.yaml \
      --config-file run_specific.yaml
 
-When any ``--config-file`` is given, ``nav_default_config.yaml`` is not loaded
-automatically. To keep your personal defaults for that run, pass the file
-explicitly as the first ``--config-file`` argument:
+Because ``--config-file`` replaces ``nav_default_config.yaml`` rather than adding to it,
+keeping your personal defaults for such a run means naming that file first:
 
 .. code-block:: bash
 
@@ -146,72 +160,86 @@ explicitly as the first ``--config-file`` argument:
      --config-file nav_default_config.yaml \
      --config-file run_specific.yaml
 
-Command-Line Option Overrides
-==============================
+Options that override configuration
+===================================
 
-In addition to configuration files, certain command-line options can override
-configuration settings directly. These options take precedence over all
-configuration file settings:
+These command-line options each set one configuration value, and take precedence over
+every configuration file.
 
-Environment Options
+Environment options
 -------------------
 
-* ``--pds3-holdings-root PATH``: Overrides the ``environment.pds3_holdings_root``
-  configuration setting and the ``PDS3_HOLDINGS_DIR`` environment variable, in
-  that order. This specifies the root directory or URL for PDS3 holdings. It is
-  offered by the dataset rather than by each program, so it appears among a
-  program's dataset-selection options and only when the dataset named on the
-  command line reads a PDS3 holdings tree.
+``--pds3-holdings-root PATH``
+    The root directory or URL of the PDS3 holdings that images are read from. Overrides
+    the ``PDS3_HOLDINGS_DIR`` environment variable and the
+    ``environment.pds3_holdings_root`` setting. The dataset offers this option rather than
+    the program, so it appears among a program's image-selection options, and only when
+    the dataset named on the command line reads a PDS3 holdings tree at all.
 
-* ``--nav-results-root PATH``: Overrides the ``NAV_RESULTS_ROOT`` environment
-  variable and any ``environment.nav_results_root`` configuration setting. This
-  specifies the root directory or URL where navigation results will be written.
+``--nav-results-root PATH``
+    The root directory or URL that navigation results are written to. Overrides the
+    ``NAV_RESULTS_ROOT`` environment variable and the ``environment.nav_results_root``
+    setting.
 
-* ``--results-index-db URL``: Overrides the ``NAV_RESULTS_INDEX_DB`` environment
-  variable and any ``environment.results_index_db`` configuration setting. This
-  names the results index --- a database derived from the navigation results
-  tree by a separate ingest step --- as a ``sqlite:`` URL naming a local file or
-  a ``postgresql+psycopg:`` URL naming a server. Unset means no index, which is
-  the default for every program that offers the option; the literal value
-  ``none`` says so explicitly and overrides a URL set elsewhere. A value that is
-  empty, or nothing but spaces, is neither, and is refused where it is spelled.
-  Only a program that offers the option reads one:
-  ``environment.results_index_db`` and ``NAV_RESULTS_INDEX_DB`` do not make a
-  program index-backed that does not declare ``--results-index-db``. See
-  :doc:`/user_guide/user_guide_results_index`.
+``--results-index-db URL``
+    The results index, a database with one row per navigated image that a separate step
+    builds from the navigation results tree. Give a ``sqlite:`` URL naming a local file,
+    or a ``postgresql+psycopg:`` URL naming a server. Overrides the
+    ``NAV_RESULTS_INDEX_DB`` environment variable and the ``environment.results_index_db``
+    setting.
 
-Navigation Options
+    No results index is the default for every program that offers this option, and the
+    literal value ``none`` says so explicitly, overriding a URL set anywhere else. A value
+    that is empty or nothing but spaces is neither a URL nor ``none``, and is refused
+    where it is written. Only a program that offers this option reads a results index at
+    all: setting ``environment.results_index_db`` or ``NAV_RESULTS_INDEX_DB`` does not
+    give a results index to a program that does not offer ``--results-index-db``. See
+    :doc:`/user_guide/user_guide_results_index`.
+
+Navigation options
 ------------------
 
-* ``--nav-models LIST``: Overrides any default model selection. This is a
-  comma-separated list of model names or patterns to enable. Valid entries
-  include ``stars``, ``rings``, ``titan``, and body-specific entries of the
-  form ``body:NAME`` (glob patterns are allowed).
+``--nav-models LIST``
+    Which models to build, as a comma-separated list of names or patterns. Valid entries
+    are ``stars``, ``rings``, ``titan``, and body-specific entries of the form
+    ``body:NAME``, where shell-glob wildcards are allowed. Overrides any model selection
+    from a configuration file.
 
-* ``--nav-techniques LIST``: Overrides any default technique selection. This
-  is a comma-separated list of glob patterns matched against the registered
-  technique names: ``BodyBlobNav``, ``BodyDiscCorrelateNav``, ``BodyLimbNav``,
-  ``BodyTerminatorNav``, ``RingAnnulusNav``, ``RingEdgeNav``,
-  ``StarFieldFromCatalogNav``, ``StarRefineNav``, ``StarUniqueMatchNav``, and
-  ``TitanHazeNav``.
-  Shell-glob wildcards are allowed (``Star*`` selects the three star
-  techniques) and a leading ``!`` excludes matching names (``!Ring*`` runs
-  everything except the ring techniques). Interactive manual navigation is
-  not selected here; it is invoked with the separate ``--manual`` flag, which
-  opens the manual-navigation dialog instead of running the autonomous
-  pipeline.
+``--nav-techniques LIST``
+    Which techniques to run, as a comma-separated list of glob patterns matched against
+    the technique names: ``BodyBlobNav``, ``BodyDiscCorrelateNav``, ``BodyLimbNav``,
+    ``BodyTerminatorNav``, ``RingAnnulusNav``, ``RingEdgeNav``,
+    ``StarFieldFromCatalogNav``, ``StarRefineNav``, ``StarUniqueMatchNav``, and
+    ``TitanHazeNav``. Wildcards are allowed, so ``Star*`` selects the three star
+    techniques, and a leading ``!`` excludes what it matches, so ``!Ring*`` runs
+    everything except the ring techniques. Overrides any technique selection from a
+    configuration file.
 
-Logging Options
+    Interactive manual navigation is not selected here. It is invoked with the separate
+    ``--manual`` flag, which opens the manual-navigation dialog instead of running the
+    autonomous pipeline.
+
+:doc:`/user_guide/user_guide_navigation_models` describes the models and techniques
+themselves.
+
+Logging options
 ---------------
 
-Logging is configured by the ``logging`` section and by command-line options
-that override it. Levels are ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``,
-``CRITICAL`` and ``NONE``.
+Logging is set by the ``logging`` section and by command-line options that override it.
+The options are ``--log-root``, ``--log-level`` (bare for both kinds of log, or
+``MODULE=LEVEL`` for one component, repeatable), ``--log-level-main``,
+``--log-level-image``, and the four switches ``--log-main-to-console``,
+``--log-main-to-file``, ``--log-image-to-console``, and ``--log-image-to-file``, each of
+which also has a ``--no-`` form. A program that does not process images individually
+accepts only the main-log options, and the cloud task workers accept none.
+
+Levels are ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``, and ``NONE``, and
+are accepted in any case.
 
 .. code-block:: yaml
 
     logging:
-      main: INFO            # the run's logger
+      main: INFO            # the run's log
       image: INFO           # per-image logs, and any component not named below
       main_console: true    # whether the run's log reaches the terminal
       image_console: false  # whether per-image logs do
@@ -225,58 +253,88 @@ that override it. Levels are ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``,
         sd_mosaic:          # applies to that program only
           main: WARNING
 
-A component named anywhere takes its own level; a category's ``default``
-applies to the rest of that category; otherwise the per-logger default
-applies. An unrecognized component or program name is rejected when the
-configuration loads, rather than being silently ignored.
+A component named anywhere takes the level it is given there. A category's ``default``
+applies to the rest of that category, and otherwise the level for that kind of log
+applies. An unrecognized component name, program name, or level is refused when the
+configuration loads rather than quietly ignored.
 
-The command-line options are ``--log-root``, ``--log-level`` (bare for both
-loggers, or ``MODULE=LEVEL`` for one component, repeatable),
-``--log-level-main``, ``--log-level-image``, and the four sink switches
-``--log-main-to-console``, ``--log-main-to-file``, ``--log-image-to-console``
-and ``--log-image-to-file``, each with a ``--no-`` form. A program that does
-not process images individually accepts only the main-logger options, and the
-cloud-task drivers accept none: see :doc:`/user_guide/user_guide_logging`.
+``--log-root`` takes precedence over every configuration file, including one named with
+``--config-file``, and over the ``NAV_LOG_ROOT`` environment variable. So do
+``--log-main-to-console`` and ``--log-image-to-console``, over the ``main_console`` and
+``image_console`` settings. ``--log-main-to-file`` and ``--log-image-to-file`` have no
+configuration equivalent, because whether a log file is written is inseparable from where
+it goes, and that is chosen per run.
 
-``--log-root`` takes precedence over every configuration file, including one
-named with ``--config-file``, and over the ``NAV_LOG_ROOT`` environment
-variable. So do ``--log-main-to-console`` and ``--log-image-to-console``, over
-the ``main_console`` and ``image_console`` keys.
+The level options are ranked by how specifically they name their target rather than by
+being on the command line. ``--log-level MODULE=LEVEL`` outranks everything, but a
+component named in a configuration file outranks a bare ``--log-level``, which says
+nothing about that component. So ``--log-level DEBUG`` does not lift a component the
+configuration has pinned; name it, as in ``--log-level titan_haze=DEBUG``.
 
-``--log-main-to-file`` and ``--log-image-to-file`` have no configuration
-equivalent: whether a log file is written is inseparable from where it goes,
-and that is chosen per run. There is no ``main_file`` or ``image_file``
-setting, and writing one is an error rather than a line that does nothing.
+:doc:`/user_guide/user_guide_logging` covers all of this in full, including the component
+names.
 
-The level options are ranked by how specifically they name their target, not
-by being on the command line, so the order above governs them: ``--log-level
-MODULE=LEVEL`` outranks everything, but a component named in a configuration
-file outranks a bare ``--log-level``, which says nothing about that component.
-``--log-level DEBUG`` therefore does not lift a component the configuration
-pinned; name it, as in ``--log-level titan_haze=DEBUG``.
+Acceptance thresholds
+=====================
 
-Example: Combining Configuration Methods
-========================================
+Navigation reports a **confidence** with every answer: a number between 0 and 1 saying how
+much the evidence in that frame supports the offset it found. A frame with a dozen matched
+stars earns a high confidence. A frame with one faint blur at the edge earns a low one. An
+answer whose confidence is too low is not reported as a success at all; the frame is
+refused and the reason is recorded.
 
-The following example demonstrates how different configuration methods interact.
-Suppose the built-in defaults set
-``offset.correlation_fft_upsample_factor: 128``, your
-``nav_default_config.yaml`` sets it to ``256``, and ``custom.yaml`` sets it to
-``512``:
+Two settings in the ``orchestrator`` section decide that:
 
-1. Running ``sd_offset`` with no ``--config-file`` loads
-   ``nav_default_config.yaml``, so the final value is ``256``.
+``orchestrator.ensemble.min_confidence``
+    The lowest confidence an answer may have and still be accepted. Below it the frame is
+    refused.
 
-2. Running ``sd_offset --config-file custom.yaml`` does not load
-   ``nav_default_config.yaml`` at all, so the final value is ``512`` -- and
-   every other setting in ``nav_default_config.yaml`` also reverts to its
-   built-in default.
+``orchestrator.ensemble.tier_thresholds``
+    The boundaries of the three confidence tiers -- high, medium, and low -- that a
+    reported answer is sorted into. Each tier names the confidence an answer must reach
+    and the largest pointing uncertainty, in pixels, it may have. An answer must satisfy
+    both to earn that tier.
 
-3. To combine the two, list both files explicitly:
-   ``sd_offset --config-file nav_default_config.yaml --config-file custom.yaml``
-   loads them in order, so the final value is ``512`` while the rest of your
-   personal defaults still apply.
+Lowering these makes more frames report an answer and makes those answers less
+trustworthy, so change them only when you know why the evidence in your frames is weaker
+than the defaults assume. The confidence and the tier that navigation settled on for each
+image are recorded in that image's metadata document; see
+:doc:`/user_guide/user_guide_metadata`.
 
-If you also specify ``--nav-models stars,rings`` on the command line, this
-overrides any model selection from configuration files, regardless of what's in
-the configuration.
+What a run records about its own configuration
+==============================================
+
+Each navigation result records a digest of the configuration that produced it, so two
+results can be told apart when they were navigated under different settings. Three
+sections are deliberately left out of that digest, because none of them can change what a
+run concluded:
+
+* ``logging``, which says what a run wrote down about itself.
+* ``environment``, which says where a deployment keeps its files.
+* ``results_tree``, which says how many requests a pass over a navigation results tree
+  makes at once.
+
+Two results that differ only in those sections were produced by the same configuration and
+compare as such.
+
+Worked example
+==============
+
+Suppose the built-in defaults set ``offset.correlation_fft_upsample_factor`` to ``128``,
+your ``nav_default_config.yaml`` sets it to ``256``, and ``custom.yaml`` sets it to
+``512``.
+
+1. ``sd_offset`` run without ``--config-file`` loads ``nav_default_config.yaml``, so the
+   value is ``256``.
+
+2. ``sd_offset --config-file custom.yaml`` does not load ``nav_default_config.yaml`` at
+   all, so the value is ``512`` -- and every other setting in ``nav_default_config.yaml``
+   reverts to its built-in default too.
+
+3. ``sd_offset --config-file nav_default_config.yaml --config-file custom.yaml`` loads
+   both, in that order, so the value is ``512`` while the rest of your personal defaults
+   still apply.
+
+Adding ``--nav-models stars,rings`` to any of the three selects those two models
+regardless of what the configuration files say, because a command-line override outranks
+them all.

@@ -1,134 +1,223 @@
-======================
-Command-Line Interface
-======================
+==================
+Running sd_offset
+==================
+
+``sd_offset`` is the navigation program. One run selects a set of images, navigates each
+of them, and writes a metadata document and a summary image for each. This chapter
+covers how to invoke it and what every option does.
 
 Basic Usage
------------
-
-The main entry point for SpinDoctor is the ``sd_offset`` script installed via ``pyproject.toml``. The basic syntax is:
+===========
 
 .. code-block:: bash
 
    sd_offset DATASET_NAME [options]
 
-Where ``DATASET_NAME`` is one of the supported names listed in the "Supported Missions" section. Names are case-insensitive (for example, ``COISS`` and ``coiss`` are equivalent).
+``DATASET_NAME`` is the first argument and is required. It names the mission and
+instrument whose images the run reads, and is one of the names listed under "Supported
+Missions" in :doc:`user_guide_introduction`. Names are case-insensitive, so ``COISS`` and
+``coiss`` are equivalent.
 
-An image's metadata document is written when the run completes that image, whatever status it records, and its summary PNG when the navigation produced one; each overwrites the file an earlier run left there. Nothing is deleted ahead of time, so a run that is interrupted partway through an image, or one that records an error and writes no PNG, leaves the earlier file in place. Start from an empty results directory when the absence of a document must mean the image was never navigated.
+Everything else is an option. Which options a run accepts depends in part on the dataset
+named, because each dataset offers the selection options that suit its archive. Asking
+for the options of the dataset you intend to use shows exactly what that run accepts:
 
-Command-Line Arguments
-----------------------
+.. code-block:: bash
 
-The command-line interface groups options by purpose. Environment options control configuration sources and output roots; where the images themselves are read from belongs to the dataset, and is listed with its selection options below. Navigation options select which models or techniques to run. Output options determine whether to write artifacts locally or to produce a cloud-tasks description instead of processing. Dataset selection options are provided by each dataset type: PDS3 datasets expose volume and image filters. A single profiling toggle is available for performance analysis.
+   sd_offset coiss --help
 
-Environment options
-^^^^^^^^^^^^^^^^^^^
+The simplest useful run navigates one image whose name you already know:
 
-* ``--config-file PATH`` (repeatable): one or more configuration file paths to
-  override defaults. See :doc:`/introduction_configuration` for details.
+.. code-block:: bash
 
-* ``--nav-results-root PATH``: root directory or URL where navigation results
-  will be written, overriding both the ``NAV_RESULTS_ROOT`` environment variable
-  and any corresponding configuration setting.
+   sd_offset coiss_saturn N1466448128
 
-* ``--results-index-db URL``: connection URL of a results index (a ``sqlite:``
-  URL naming a local path, or a ``postgresql+psycopg:`` URL naming a server),
-  overriding both the ``NAV_RESULTS_INDEX_DB`` environment variable and any
-  corresponding configuration setting. The results-file selection filters below
-  are then answered from the index's rows, and the results tree is not read.
-  Pass ``--results-index-db none`` to name no index, and so read the tree, even
-  when a URL is set in
-  the environment or a configuration file; the opt-out is that word exactly, in
-  lower case, with any surrounding spaces ignored, since any other non-empty
-  value is read as the URL of an index. A value that is empty, or nothing but
-  spaces, is refused: it is neither a connection URL nor the way to name no
-  index, so the run stops and names the setting that carries it.
+Choosing Which Images to Navigate
+=================================
 
-Navigation options
-^^^^^^^^^^^^^^^^^^
+A run with no selection options navigates every image the dataset offers, which for a
+whole mission is a great many. The options that narrow the selection -- by volume, by
+image number, by name, from a list in a file, at random, or by what a previous run
+already recorded -- are shared with several other programs and are documented together
+in :doc:`user_guide_image_selection`.
 
-* ``--nav-models LIST``: a comma-separated glob-pattern list selecting which
-  ``NavModel`` instances run.  Names follow the ``stars`` /
-  ``body:NAME`` / ``rings:PLANET`` convention.  Defaults to ``*``.  See
-  :ref:`selecting-models-and-techniques` for the full syntax (globs,
-  ``!`` exclusion, prefix-only shorthand).
+Two of them are worth knowing before anything else. ``--volumes`` bounds a run to named
+PDS3 volumes, and ``--has-no-offset-file`` keeps only the images that have no result yet,
+which is what makes an interrupted run resumable:
 
-* ``--nav-techniques LIST``: a comma-separated glob-pattern list selecting
-  which registered ``NavTechnique`` subclasses run.  Defaults to ``*``.
-  See :ref:`selecting-models-and-techniques` for the full syntax and the
-  list of shipping technique class names.
+.. code-block:: bash
 
-Output options
-^^^^^^^^^^^^^^
+   sd_offset coiss_saturn --volumes COISS_2001 --has-no-offset-file
 
-* ``--output-cloud-tasks-file PATH``: write a JSON file describing tasks for all selected images suitable for a cloud-tasks queue, and exit without performing navigation.
-* ``--dry-run``: print the images that would be processed without performing navigation.
-* ``--no-write-output-files``: perform navigation but do not write any output files.
+Environment Options
+===================
 
+These say where configuration and results live.
 
-Logging options
-^^^^^^^^^^^^^^^
+``--config-file PATH``
+  A configuration file whose settings override the defaults. May be given more than
+  once, in which case each file is applied in turn. When no file is named, a
+  ``nav_default_config.yaml`` in the current directory is loaded if there is one. See
+  :doc:`user_guide_configuration`.
 
-``sd_offset`` writes a main log reporting what the run is doing, and one log
-per image carrying the detail of navigating it:
+``--nav-results-root PATH``
+  The root directory or URL the navigation results are written under. Overrides the
+  ``environment.nav_results_root`` configuration setting and the ``NAV_RESULTS_ROOT``
+  environment variable. A run must have this from one of the three, since there is no
+  built-in default.
 
-.. code-block:: text
+``--results-index-db URL``
+  The connection URL of a results index: a ``sqlite:`` URL naming a local file, or a
+  ``postgresql+psycopg:`` URL naming a server. Overrides the
+  ``environment.results_index_db`` configuration setting and the
+  ``NAV_RESULTS_INDEX_DB`` environment variable. Given an index, the selection options
+  that ask what a previous run recorded are answered from the index's rows instead of by
+  reading the results tree; see :doc:`user_guide_image_selection` for what that changes
+  and :doc:`user_guide_results_index` for the index itself.
 
-   {log_root}/sd_offset/main_{timestamp}.log
-   {log_root}/nav/{results_path_stub}_{timestamp}.log
+  Pass ``--results-index-db none`` to name no index, and so read the results tree, even
+  when a URL is set in the environment or a configuration file. The opt-out is that word
+  exactly, in lower case, with surrounding spaces ignored, because any other non-empty
+  value is read as the URL of an index. A value that is empty, or nothing but spaces, is
+  refused: it is neither a connection URL nor the way to name no index, so the run stops
+  and names the setting that carried it.
 
-``--log-root`` says where those go, defaulting to a ``logs`` directory under
-the navigation results root. The main log goes to the terminal as well as a
-file; image logs go to a file only, so the per-technique detail is on disk
-rather than on screen unless ``--log-image-to-console`` asks for it.
+Navigation Options
+==================
 
-The level of any one component can be raised or lowered on its own, which is
-the usual way to investigate a single technique across many images:
+These control how each image is navigated.
+
+``--nav-models LIST``
+  A comma-separated list of glob patterns selecting which models are built. Model names
+  follow the ``stars`` / ``body:NAME`` / ``rings:PLANET`` convention. Defaults to ``*``,
+  which is every model that applies to the image. See
+  :doc:`user_guide_navigation_models` for the full syntax, including exclusion with
+  ``!`` and the prefix-only shorthand.
+
+``--nav-techniques LIST``
+  A comma-separated list of glob patterns selecting which techniques run. Defaults to
+  ``*``, which is every technique the models make feasible. The technique names and the
+  pattern syntax are in :doc:`user_guide_navigation_models`.
+
+``--manual``
+  Open the interactive manual-navigation dialog instead of navigating automatically. The
+  selection must resolve to exactly one image; a selection matching more is refused,
+  with the first few matches named so the selection can be tightened. On accept, the
+  chosen offset is printed and the same metadata document and summary image an automatic
+  run writes are produced, unless ``--no-write-output-files`` is also given.
+
+Output Options
+==============
+
+``--output-cloud-tasks-file PATH``
+  Write a JSON file describing one task per selected image, suitable for loading into a
+  cloud task queue, and do no other processing. The queue is what later runs the images;
+  see :doc:`user_guide_cloud_tasks`.
+
+``--dry-run``
+  Print the images the selection resolves to and stop. Nothing is navigated and nothing
+  is written. This is the way to check a selection before committing a long run to it.
+
+``--no-write-output-files``
+  Navigate the images but write no metadata documents or summary images. Results still
+  appear in the logs.
+
+Logging Options
+===============
+
+A run writes a main log reporting what it is doing, and one log per image carrying the
+detail of navigating that image. ``--log-root`` says where those files go, defaulting to
+a ``logs`` directory under the navigation results root. The main log also goes to the
+terminal; per-image logs go only to their files, unless asked otherwise.
+
+The flags are:
+
+* ``--log-root PATH``
+* ``--log-level LEVEL`` and ``--log-level MODULE=LEVEL``, repeatable
+* ``--log-level-main LEVEL`` and ``--log-level-image LEVEL``
+* ``--log-main-to-console`` / ``--no-log-main-to-console``
+* ``--log-main-to-file`` / ``--no-log-main-to-file``
+* ``--log-image-to-console`` / ``--no-log-image-to-console``
+* ``--log-image-to-file`` / ``--no-log-image-to-file``
+
+Raising or lowering one module on its own is the usual way to investigate a single
+technique across many images:
 
 .. code-block:: bash
 
    sd_offset coiss_saturn --volumes COISS_2001 \
        --log-level WARNING --log-level titan_haze=DEBUG
 
-The full set of options, the component names, the configuration-file
-equivalents and the precedence between them are in :doc:`user_guide_logging`.
+The accepted levels, the module names, the file names, the configuration-file
+equivalents, and the precedence between them are all in :doc:`user_guide_logging`.
 
-Miscellaneous
-^^^^^^^^^^^^^
+Miscellaneous Options
+=====================
 
-* ``--profile`` / ``--no-profile``: enable or disable runtime profiling (default is disabled).
+``--profile`` / ``--no-profile``
+  Measure where the run spends its time and report it at the end. Disabled by default.
+
+What a Run Writes
+=================
+
+Each image's metadata document is written when the run finishes with that image,
+whatever outcome it records, and its summary image is written when the navigation
+produced one. Each overwrites whatever an earlier run left in its place. Nothing is
+deleted in advance, so a run interrupted partway through an image, or one that records
+an error and produces no summary image, leaves the earlier files where they are. Start
+from an empty results directory when the absence of a metadata document has to mean the
+image was never navigated.
+
+The documents themselves are described in :doc:`user_guide_navigation_outputs` and
+:doc:`user_guide_metadata`.
 
 Example Commands
-----------------
+================
 
-To process a single Cassini image by specifying its name explicitly and using the default navigation technique:
+Navigate one Cassini image by name:
 
 .. code-block:: bash
 
-   sd_offset coiss N1234567890
+   sd_offset coiss N1466448128
 
-To process Voyager images within a single PDS3 volume:
+Navigate every image in one Voyager volume:
 
 .. code-block:: bash
 
    sd_offset vgiss --volumes VGISS_5101
 
-To process a New Horizons image list found in a CSV from PDS, restricting the
-run to the body-limb and ring-edge DT techniques:
+Navigate a list of New Horizons images taken from a CSV file published by PDS, using only
+the body-limb and ring-edge techniques:
 
 .. code-block:: bash
 
    sd_offset nhlorri --image-filespec-csv /path/to/nhlorri.csv \
        --nav-techniques 'BodyLimbNav,RingEdgeNav'
 
-To choose ten random Cassini images between two volumes and perform a dry run:
+Check which ten random Cassini images a range of volumes would yield, without navigating
+any of them:
 
 .. code-block:: bash
 
-   sd_offset coiss --first-volume COISS_2001 --last-volume COISS_2010 --choose-random-images 10 --dry-run
+   sd_offset coiss --first-volume COISS_2001 --last-volume COISS_2010 \
+       --choose-random-images 10 --dry-run
 
-To generate a cloud-tasks JSON file for images across two Voyager volumes without processing:
+Resume a long run, navigating only the images it has not reached yet:
 
 .. code-block:: bash
 
-   sd_offset vgiss --volumes VGISS_5101 --volumes VGISS_5102 --output-cloud-tasks-file tasks.json
+   sd_offset coiss_saturn --volumes COISS_2001 --has-no-offset-file
 
+Re-navigate the images a previous run could not navigate for want of SPICE data, after
+furnishing the missing kernels:
+
+.. code-block:: bash
+
+   sd_offset coiss_saturn --volumes COISS_2001 --has-offset-spice-error
+
+Describe the work for a cloud task queue instead of doing it:
+
+.. code-block:: bash
+
+   sd_offset vgiss --volumes VGISS_5101,VGISS_5102 \
+       --output-cloud-tasks-file tasks.json

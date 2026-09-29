@@ -2,39 +2,113 @@
 Introduction
 ============
 
-SpinDoctor is a spacecraft image navigation system designed to analyze images from various space missions and determine precise positional offsets. This guide explains how to use the primary command-line interface exposed by the ``sd_offset`` script to navigate images and generate results, and how to invoke the cloud-tasks variant for queue-driven processing.
+SpinDoctor determines where a spacecraft camera was really pointing when it took an
+image, and turns that answer into archival data products. It reads images from Cassini
+ISS, Voyager ISS, Galileo SSI, and New Horizons LORRI, compares each one against a model
+of what the sky should have contained, and records the correction needed to make the
+model line up with the image.
 
-Purpose of the System
----------------------
+What SpinDoctor Is For
+======================
 
-The primary purpose of SpinDoctor is to determine the precise pointing of spacecraft instruments by comparing the observed images with theoretical models of what should appear in the field of view. This process, known as "navigation," is crucial for:
+The pointing recorded for an image by its mission comes from spacecraft telemetry and is
+only as good as the attitude reconstruction behind it. It is often wrong by several
+pixels, and sometimes by far more. Every measurement that depends on knowing which part
+of the sky, or which part of a ring or a moon, a pixel looked at inherits that error.
 
-1. Validating and correcting spacecraft pointing information
-2. Ensuring accurate scientific interpretations of the imagery
-3. Creating properly annotated and labeled images for analysis
-4. Supporting mission planning and operations
+Determining the true pointing of an image is called *navigation*. A navigated image
+supports work that an unnavigated one does not:
 
-The system works by:
+* Per-pixel geometry, such as the latitude, longitude, ring radius, and illumination
+  angles behind each pixel.
+* Measurements tied to a location on a body or in a ring, where an error of a few pixels
+  moves the feature being measured.
+* Reprojection and mosaicing, which cannot line up two images of the same terrain
+  without knowing where each one pointed.
+* Archival products that carry corrected geometry for other people to use.
 
-1. Reading spacecraft imagery and metadata
-2. Generating theoretical models of stars, planets, moons, and rings
-3. Correlating the observed features with the theoretical models
-4. Calculating the offset between the expected and actual pointing
-5. Producing annotated images and data files with the results
+How a Single Image Is Navigated
+===============================
+
+Navigation is a comparison between an image and a prediction of that image:
+
+1. The image and its label are read, and the spacecraft trajectory and attitude are
+   looked up in SPICE kernels.
+2. Models are built of everything that should be in the field of view: the star field,
+   each body, and each planet's rings.
+3. Each model is matched against the image by whichever methods suit it, such as fitting
+   a body's illuminated limb, correlating a star field, or fitting a ring edge.
+4. The individual answers are reconciled into one pointing correction, with an
+   uncertainty and a statement of how much the methods agreed.
+5. The results are written out: a metadata document recording the correction and
+   everything that led to it, and a summary image showing the models drawn over the
+   data.
+
+The correction is expressed two ways. The *offset* says how far the image must be
+shifted, in pixels, to agree with the prediction, and is meaningful only alongside the
+SPICE kernels that produced that prediction. The *corrected pointing* is the resulting
+camera attitude, and is what other programs should use.
+
+The Rest of the Pipeline
+========================
+
+Navigation is the first of four processing phases. Each later phase consumes the results
+of the one before it:
+
+1. Navigation, run by ``sd_offset``
+   (:doc:`user_guide_navigation_running`).
+2. Corrected-pointing C-kernel generation, which packages the corrected attitudes as
+   SPICE kernels other software can furnish
+   (:doc:`user_guide_ck_kernels`).
+3. Backplane generation, which writes the per-pixel geometry of a navigated image
+   (:doc:`user_guide_backplanes`).
+4. PDS4 bundle generation, which assembles the archival deliverable
+   (:doc:`user_guide_pds4_bundle`).
+
+Reprojection and mosaicing are not a phase. They are a set of tools that read navigated
+images and build maps of a body's surface or of a planet's rings
+(:doc:`user_guide_reprojection`).
 
 Supported Missions
-------------------
+==================
 
-SpinDoctor supports multiple instruments, organized by dataset names you will pass on the command line. Dataset names are case-insensitive and map to instrument-specific handlers. The complete set is:
+Every program that processes images takes a dataset name as its first argument. The name
+says which mission and instrument the images come from, and for Cassini ISS it can also
+narrow the run to one part of the archive. Names are case-insensitive, so ``COISS`` and
+``coiss`` select the same dataset. The name ending in ``_pds3`` is an alias for the name
+without it.
 
-* ``coiss`` and ``coiss_pds3`` — Cassini Imaging Science Subsystem (all volumes) — :doc:`instruments/cassini_iss`
-* ``coiss_cruise`` and ``coiss_cruise_pds3`` — Cassini Imaging Science Subsystem (Cruise volumes 1001-1009) — :doc:`instruments/cassini_iss`
-* ``coiss_saturn`` and ``coiss_saturn_pds3`` — Cassini Imaging Science Subsystem (Saturn volumes 2001-2116) — :doc:`instruments/cassini_iss`
-* ``gossi`` and ``gossi_pds3`` — Galileo Solid State Imager — :doc:`instruments/galileo_ssi`
-* ``nhlorri`` and ``nhlorri_pds3`` — New Horizons Long Range Reconnaissance Imager — :doc:`instruments/newhorizons_lorri`
-* ``vgiss`` and ``vgiss_pds3`` — Voyager Imaging Science Subsystem — :doc:`instruments/voyager_iss`
-* ``sim`` — simulated images (see :doc:`user_guide_simulated_images`)
+* Cassini Imaging Science Subsystem: ``coiss`` and ``coiss_pds3`` for all volumes,
+  ``coiss_cruise`` and ``coiss_cruise_pds3`` for the cruise volumes 1001 to 1009, and
+  ``coiss_saturn`` and ``coiss_saturn_pds3`` for the Saturn volumes 2001 to 2116. See
+  :doc:`instruments/cassini_iss`.
+* Galileo Solid State Imager: ``gossi`` and ``gossi_pds3``. See
+  :doc:`instruments/galileo_ssi`.
+* New Horizons Long Range Reconnaissance Imager: ``nhlorri`` and ``nhlorri_pds3``. See
+  :doc:`instruments/newhorizons_lorri`.
+* Voyager Imaging Science Subsystem: ``vgiss`` and ``vgiss_pds3``. See
+  :doc:`instruments/voyager_iss`.
+* Simulated images: ``sim``. These are rendered from a scene description rather than
+  read from an archive, and are used to check the pipeline against a known answer. See
+  :doc:`user_guide_simulated_images`.
 
-Each instrument's chapter carries the volumes it covers, which product is navigated, the image-name forms accepted, the units and thresholds it is judged against, and everything else that is true of that instrument and not of another. The shared chapters describe the mechanisms; the instrument chapters carry the values.
+Cassini ISS, Voyager ISS, and Galileo SSI images are in VICAR format, and New Horizons
+LORRI images are in FITS format. All four instruments are read from PDS3 archives, which
+is the organization of volumes, labels, and index tables around those image files rather
+than a format of its own.
 
+Each instrument has its own chapter, which carries the volumes it covers, which product
+is navigated, the image-name forms accepted, the thresholds its results are judged
+against, and everything else true of that instrument alone. The shared chapters describe
+the mechanisms, and the instrument chapters carry the values.
 
+Where to Start
+==============
+
+* :doc:`/quick_start` installs the package and walks through navigating one image.
+* :doc:`user_guide_installation` covers installation, external data, and every
+  environment variable in full.
+* :doc:`user_guide_concepts` introduces what every program has in common, including
+  :doc:`user_guide_configuration`, :doc:`user_guide_logging`, and
+  :doc:`user_guide_image_selection`.
+* :doc:`user_guide_navigation` is the navigation phase itself.

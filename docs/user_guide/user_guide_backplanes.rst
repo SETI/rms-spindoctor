@@ -5,137 +5,186 @@ Backplane Generation
 Overview
 ========
 
-Backplanes are per-pixel geometry products (longitude, latitude, incidence
-angle, emission angle, phase angle, resolution, etc.) derived from a
-navigated image. The system reads prior navigation metadata to apply the
-image's recorded pointing, then computes body and ring backplanes, merges
-them per-pixel by distance, and writes a multi-HDU FITS file along with a
-JSON metadata file. Each backplane value is the geometry at the center of
-that pixel (see :ref:`coordinate-systems`).
+Backplanes are per-pixel geometry products derived from a navigated image:
+longitude, latitude, incidence angle, emission angle, phase angle, resolution,
+and more. ``sd_backplanes`` reads the navigation results for an image, points the
+observation as those results say it should be pointed, computes the body and ring
+backplanes, merges them per pixel by distance so that the nearer surface wins,
+and writes a multi-extension FITS file together with a metadata document in JSON.
+Each backplane value is the geometry at the center of that pixel; see
+:ref:`coordinate-systems`.
 
 Which pointing a product is built on
 ------------------------------------
 
-The driver prefers the exact recorded form over its approximation. When the
-navigation record carries a corrected camera attitude
-(``navigation_result.pointing.cmatrix``) that passes the reader's
-consistency gates, the observation's frame is replaced with that attitude —
-the same measurement as the pixel offset, expressed exactly, and what a
-SPICE consumer of the corrected C-kernels sees for every image whose segment
-was written. When there is no usable corrected attitude — a fitted-rotation
-result (``no_cmatrix_rotation_fitted``), a record with no pointing block
-(``no_pointing_block``), an unusable one (``malformed_pointing``), or a gate
-refusal (``cmatrix_foreign_midtime``, ``cmatrix_baseline_mismatch``,
-``cmatrix_unknown_host``, each
-warned to the run log) — the recorded ``(dv, du)`` offset is applied via
-:class:`oops.fov.OffsetFOV` instead; no product is ever built on a corrected
-attitude that failed a gate. A kernel pool that already answers the
-corrected attitude (corrected C-kernels furnished at load time) is left
-alone, counted as ``pool_already_corrected``, since applying anything again
-would double-correct. With no usable pointing of either kind the backplanes
-are computed on uncorrected pointing, with a warning in the run log.
+Navigation measures where the camera was really pointed, and records that
+measurement in each image's metadata document in two forms: a corrected camera
+attitude, and a pixel offset. The corrected attitude states the measurement
+exactly. The offset is its first-order approximation, and it is a correction
+relative to the SPICE kernels that were furnished when the image was navigated:
+the spacecraft and planetary ephemerides, the spacecraft clock and leapsecond
+kernels, the frame and instrument kernels, and above all the original C kernels
+that supply the camera's uncorrected attitude. Those kernels are listed by name
+in the same metadata document, under
+``navigation_result.provenance.spice_kernels``. Read against a different set of
+kernels the offset means something different, so the corrected attitude is the
+form preferred wherever it can be used.
 
-Each single-image result reports what happened: ``pointing_source`` is one
-of ``'cmatrix'``, ``'pool'``, ``'offset'``, or ``'none'``, joined by
-``pointing_reason`` when the source is degraded and by
-``uncorrected_pointing: true`` when it is ``'none'``. A success-status
-record with no ``offset`` key at all is a recorded no-answer like a null one,
-counted under ``missing_offset_key``. For a result the kernel generator omitted
-from the corrected kernels (a BOTSIM-yielding WAC, or any image with an
-omission reason), the backplanes still carry that image's own recorded
-measurement — the authoritative product for it — while a kernel consumer
-sees the winning segment's attitude.
+The corrected attitude is used when the record survives three checks. The
+recorded matrices must be proper rotations. The recorded exposure midtime must
+match this observation's own midtime to within a microsecond, so that a record
+belonging to a different image is refused rather than applied. And the
+uncorrected attitude recorded at navigation time must agree with the attitude
+the furnished kernels give now. When all three hold, the observation's camera
+frame is replaced by the corrected attitude and the field of view is left
+untouched. That is the same attitude a SPICE consumer of the corrected C kernels
+sees for every image whose segment was written.
 
-Key properties:
+The third check is also how a run notices that the kernels furnished to it
+already carry the correction. Nothing marks a corrected C kernel as corrected;
+it looks like any other C kernel. So the attitude the furnished kernels give is
+compared against both of the attitudes the metadata document records. If it
+matches the uncorrected one, the kernels are the ones navigation saw and the
+correction is applied. If it matches the corrected one instead, the correction
+is already in the kernels and nothing at all is applied, because applying either
+form again would move the image by about twice the measured offset. If it
+matches neither, then the kernels, the metadata document, or the camera frame
+convention has changed since the image was navigated; the corrected attitude is
+refused and the refusal is written to the run's log.
 
-- The output FITS places ``BODY_ID_MAP`` as the first image HDU (after the
-  primary HDU).
-- Pixels a backplane did not measure carry the masked value, ``-999.0`` as
-  shipped (``backplanes.masked_value``). It sits outside the range of every
-  plane, so ``!= -999.0`` selects the measured pixels of any plane.
-  ``BODY_ID_MAP`` is the exception: it holds ``0`` where no body claimed the
-  pixel, ``0`` not being a NAIF ID.
-- Backplanes that are entirely masked are omitted from the FITS file.
-- The list of backplanes to generate is configured under ``backplanes`` in
-  ``src/spindoctor/config_files/config_900_backplanes.yaml``.
-- For simulated observations, synthetic backplanes are produced whose masks
+Where no corrected attitude can be used, the recorded pixel offset is applied to
+the field of view instead. That is what happens for a navigation that fitted a
+camera rotation rather than a shift, for a simulated image, which records no
+pointing at all, for a recorded pointing that cannot be read, for an image whose
+instrument has no SPICE camera frame to check the record against, and for each
+of the refusals above. Where neither form can be used -- there is no metadata
+document, the metadata document is not valid JSON, the navigation did not
+succeed, or the recorded offset is null or unusable -- the product is built on
+the camera's uncorrected pointing, and the run's log says so.
+
+The corrected C kernels deliberately leave out some navigated images: the
+yielding camera of a simultaneous pair, and any image recorded with an omission
+reason. For such an image the products built here still carry that image's own
+recorded measurement, which is the better answer for that image, while a
+consumer of the corrected kernels sees the attitude of the segment that won.
+
+Each image's backplane metadata document reports which pointing its backplanes
+were built on. ``pointing_source`` is ``'cmatrix'``, ``'pool'``, ``'offset'``, or
+``'none'``, with ``pointing_reason`` naming why whenever the source is a
+fallback, and ``uncorrected_pointing`` set to ``true`` when the source is
+``'none'``.
+
+What the FITS file holds
+------------------------
+
+- ``BODY_ID_MAP`` is the first image extension, after the primary one. It gives
+  the NAIF identifier of the body each pixel shows.
+- A pixel a backplane did not measure carries the masked value, ``-999.0``. It
+  sits outside the range of every plane, so ``!= -999.0`` selects the measured
+  pixels of any of them. ``BODY_ID_MAP`` is the exception: it holds ``0`` where
+  no body claimed the pixel, ``0`` not being a NAIF identifier. (The masked value
+  is a configured setting; :doc:`user_guide_configuration` says where the
+  defaults live.)
+- A backplane that measured no pixel at all is left out of the file.
+- Which backplanes are generated is configured, as are the units each is written
+  in; see :doc:`user_guide_configuration`.
+- For a simulated observation, the backplanes are synthetic, and their masks
   follow the simulated body shapes.
 
-Backplane generation only writes the FITS file and the associated metadata
-JSON. PDS4 labels for the backplane products are produced in a later step
-by ``sd_create_bundle labels`` (see :doc:`user_guide_pds4_bundle`).
+``sd_backplanes`` writes only the FITS file and its metadata document. The PDS4
+labels for these products are produced later, by ``sd_create_bundle labels``;
+see :doc:`user_guide_pds4_bundle`.
 
-For the pipeline's internal architecture (per-source generation,
-distance-aware merge, FITS writer details, "Adding a backplane" checklist),
-see :doc:`/dev_guide/dev_guide_backplanes`.
+For how the backplanes are generated, merged, and written internally, see
+:doc:`/dev_guide/dev_guide_backplanes`.
 
-Command-Line Interfaces
-========================
+Running sd_backplanes
+=====================
 
-Two drivers mirror the offset drivers:
+::
 
-- ``sd_backplanes`` (local/CLI)
-- ``sd_backplanes_cloud_tasks`` (Cloud Tasks)
+    sd_backplanes DATASET [options]
 
-Common flags:
+``DATASET`` names the dataset to draw images from, and the options that choose
+which of its images to process are the same ones every pipeline program takes;
+see :doc:`user_guide_image_selection`.
 
-- ``--nav-results-root``: Root containing prior navigation results
-  (``*_metadata.json``).
-- ``--backplane-results-root``: Root directory for the backplane outputs.
-- ``--results-index-db``: Connection URL of a results index built by
-  ``sd_results_index``. With one, each image's navigation record is read as one
-  database row instead of one file, which on a cloud results root replaces a
-  round trip per image with a query. The index must already hold a completed
-  ingest of the root named by ``--nav-results-root``, and the rows it holds are
-  a snapshot of the tree as of that ingest. Omitting the option names no index,
-  which is the default: the navigation results tree is read directly.
-  ``--results-index-db none`` names no index either, which is how a machine that
-  sets the option through configuration or through ``NAV_RESULTS_INDEX_DB``
-  reads the files.
-- Dataset selection flags are the same as for ``sd_offset`` (see
-  :doc:`user_guide_navigation`).
+Options
+-------
 
-An image the index has no row for is reported and skipped exactly as an image
-with no metadata file is, and a named index that cannot be opened, or a
-navigation results root it has not fully ingested, fails the run rather than
-quietly reverting to reading files.
+.. list-table::
+   :header-rows: 1
 
-An image whose metadata document the ingest could not read is a third case, and
-it fails that image rather than skipping it. Such a document is recorded as a
-file the index holds no navigation record for, which is not the same fact as
-"nothing navigated this image": read directly, the same document may well carry
-a pointing and a status. The failure names the image, the index and the reason
-the ingest recorded, so the remedy — fix the document and ingest that root
-again, or run without ``--results-index-db`` — is visible from the run log. The
-rest of the pass continues; only that image is lost.
+   * - Option
+     - Default
+     - Description
+   * - ``--config-file PATH``
+     - *(none)*
+     - Configuration file overriding the built-in settings; may be given more
+       than once. Without one, ``./nav_default_config.yaml`` is read if it
+       exists. See :doc:`user_guide_configuration`.
+   * - ``--nav-results-root DIR``
+     - *(from configuration)*
+     - Root of the navigation results written by ``sd_offset`` (see
+       :doc:`user_guide_navigation_running`). Overrides the
+       ``NAV_RESULTS_ROOT`` environment variable and the configured value.
+   * - ``--backplane-results-root DIR``
+     - *(from configuration)*
+     - Root directory the backplane products are written under. Overrides the
+       ``BACKPLANE_RESULTS_ROOT`` environment variable and the configured value.
+   * - ``--results-index-db URL``
+     - *(none)*
+     - Connection URL of a results index built by ``sd_results_index`` (see
+       :doc:`user_guide_results_index`): a
+       ``sqlite:`` URL naming a local file, or a ``postgresql+psycopg:`` URL
+       naming a server. Each image's navigation record is then read as one
+       database row instead of one file, which on a cloud results root replaces
+       a round trip per image with a query. The index must already hold a
+       completed ingest of the root named by ``--nav-results-root``, and its
+       rows are a snapshot of that root as of the ingest. Omitting the option
+       names no index, which is the default, and the navigation results tree is
+       read directly. ``--results-index-db none`` also names no index, which is
+       how a machine that sets the option through configuration or through the
+       ``NAV_RESULTS_INDEX_DB`` environment variable reads the files instead.
+   * - ``--output-cloud-tasks-file PATH``
+     - *(none)*
+     - Write a cloud task queue file for the selected images and generate no
+       backplanes. See `Running through cloud tasks`_.
+   * - ``--dry-run``
+     - off
+     - Report what the run would do and process no images.
+   * - ``--no-write-output-files``
+     - off
+     - Do all the work and write none of the output files.
+   * - ``--profile``
+     - off
+     - Collect a performance profile of the run.
 
-A run that also names an error filter (``--has-offset-error``,
-``--has-no-offset-error``, ``--has-offset-spice-error``,
-``--has-offset-nonspice-error``) has already read each selected image's
-navigation document, because that is how the filter decided what to select. The
-record travels with the image, so each such image's document is read once for
-the whole run. A second read would be a second download on a cloud results root,
-not a second look at a file already local — the two readers hold caches of their
-own. What the backplanes are built on is what the document said when the
-selection was made, so a document rewritten or deleted while the run is going is
-not noticed for an image already selected, and the "skipped due to missing
-metadata" outcome is not reported for one: a record travels only with a document
-that was read whole. With ``--results-index-db`` nothing travels with the image,
-because the filter narrows on columns; each image's row is read as it is for any
-other run.
+``sd_backplanes`` also takes the logging options every pipeline program takes,
+which choose where the run's log and the per-image logs go and how much detail
+each carries; see :doc:`user_guide_logging`.
 
-Under ``sd_backplanes_cloud_tasks`` each of those outcomes is reported in the
-task result rather than in a run log, because a cloud task has none: an
-unusable index is ``unusable_results_index_db``, an image nothing navigated is a
-skip named ``no_navigation_record``, and every other way one image can fail —
-a document the ingest refused among them — is ``backplanes_failed``. All three
-are returned rather than raised, so a queue configured to retry on an
-exception does not retry a refusal that will refuse identically.
+When a results index is named
+-----------------------------
+
+An image that has no row in the results index is reported and skipped, exactly
+as an image that has no metadata file is. A named index that cannot be opened,
+or one that has not fully ingested the navigation results root, fails the run
+rather than quietly reverting to reading files.
+
+An image whose metadata document could not be read is a third case, and it fails
+that image rather than skipping it. The results index records such a file as one
+it holds no navigation record for, which is not the same fact as nothing having navigated
+that image: read directly, the same metadata document may well carry a status and
+a pointing. The failure names the image, the results index, and the reason the
+ingest recorded, so the remedy is visible from the run's log: fix the metadata document
+and ingest that root again, or run without ``--results-index-db``. The rest of
+the pass continues, and only that image is lost.
 
 Examples
 --------
 
-Generate backplanes locally for a dataset:
+Generate backplanes for a range of Cassini images:
 
 .. code-block:: bash
 
@@ -144,8 +193,152 @@ Generate backplanes locally for a dataset:
       --backplane-results-root /data/nav/backplanes \
       --volumes COISS_2001 --first-image-num 1454000000 --last-image-num 1454999999
 
-To generate a cloud-tasks JSON file for all selected images without actually
-generating any backplanes, use ``--output-cloud-tasks-file``:
+Outputs
+=======
+
+For each image processed, ``sd_backplanes`` writes two files under
+``--backplane-results-root``:
+
+- ``<results_path_stub>_backplanes.fits``, holding a primary extension,
+  ``BODY_ID_MAP`` as the first image extension, and one image extension per
+  backplane that measured at least one pixel, each carrying the unit it is in as
+  its ``BUNIT`` header.
+- ``<results_path_stub>_backplane_metadata.json``, holding the per-body
+  inventory, the least and greatest value of each backplane with the unit those
+  are in, and, for the rings, the ring target and the incidence angle of
+  sunlight on the ring plane. ``sd_create_bundle`` reads this file when it
+  generates the PDS4 labels.
+
+Angular backplane arrays are in radians, as their ``BUNIT`` headers say. In the
+metadata document an angular plane's minimum and maximum are in degrees, so
+``rad`` becomes ``deg`` and ``rad/pixel`` becomes ``deg/pixel``, and each
+statistic records its own unit.
+
+Each minimum and maximum is taken over the pixels where the FITS plane has a
+value. A body's are taken over the pixels ``BODY_ID_MAP`` gives to that body, so
+a part of a body, or of the rings, that a nearer body covers does not count.
+
+The ring longitude's statistic, and each body's longitude statistic, also record
+``wrapped_min`` and ``wrapped_max``, in degrees: the arc of longitude the image's
+ring pixels, or that body's pixels, cover, from where the arc starts to where it
+ends. Where the arc crosses zero, ``wrapped_min`` is greater than
+``wrapped_max``. An arc covering the whole circle, as a body's does when one of
+its poles is in view, records 0 and 360. The ring longitude's arc is recorded
+when the ring longitudinal resolution backplane has a value.
+
+The metadata document's ``rings`` block names the ring target the ring
+backplanes were computed for, as ``target``, and records ``incidence_angle``:
+the angle between the direction sunlight arrives from and the normal to the ring
+plane on its sunlit side, from 0 to 90 degrees, with its unit. Sunlight falls on
+the ring plane at one angle over the whole image, so no backplane holds it; it is
+taken once, at the center of the ring system, for the light that reached the
+camera at the observation's midtime. Both are recorded for every image that has a
+closest planet, whether or not any of its pixels is on the rings. Where the
+image's ring backplanes have values, ``incidence_angle`` also records the least,
+the greatest, and the mean angle over those pixels, as ``min``, ``max``, and
+``mean``, which differ from the angle at the center by thousandths of a degree.
+The ring statistics are under ``backplanes``:
+
+.. code-block:: json
+
+   {
+     "rings": {
+       "target": "SATURN_MAIN_RINGS",
+       "incidence_angle": {
+         "value": 82.57158, "min": 82.57085, "max": 82.57104, "mean": 82.57096, "units": "deg"
+       },
+       "backplanes": {"ring_radius": {"min": 74659.8, "max": 136779.0, "units": "km"}}
+     }
+   }
+
+Logs are written under the log root rather than beside these products: the run's
+own log to ``{log_root}/sd_backplanes/main_{timestamp}.log``, and one log per
+image to ``{log_root}/backplanes/{results_path_stub}_{timestamp}.log``.
+
+An image whose navigation did not succeed is skipped and gets no backplanes. The
+run's log says which images those were, and reports the navigation status that
+caused each skip.
+
+An image that cannot be processed does not end the run. Backplane generation is
+per-image work, so a failure is reported against that image, counted, and the
+next image is attempted. The run's log carries the image, the message, and the
+traceback, which matters because an image can fail before it has a log of its
+own; that image's own log carries the traceback too whenever the failure got as
+far as opening one. The pass ends with a summary line counting what became of
+every image::
+
+   Backplane pass complete: 143 done, 4 skipped, 1 failed
+
+Backplane Viewer
+================
+
+``sd_backplane_viewer`` opens an interactive window showing an image's
+backplanes on top of the science image itself:
+
+.. code-block:: bash
+
+    sd_backplane_viewer coiss_saturn \
+      --nav-results-root /data/nav/results \
+      --backplane-results-root /data/nav/backplanes \
+      --volumes COISS_2001 \
+      --first-image-num 1454000000 --last-image-num 1454000999
+
+It takes ``--config-file``, ``--nav-results-root``, and
+``--backplane-results-root``, which mean what they mean for ``sd_backplanes``,
+plus the usual image selection options.
+
+Features
+--------
+
+- Image stretch: black point, white point, and gamma for the grayscale science
+  image.
+- Zoom and pan, with the same controls as the simulated body model window.
+- Summary overlay: where ``<results_path_stub>_summary.png`` exists under
+  ``--nav-results-root``, it can be turned on and off and faded with an alpha
+  control. It carries no stretch or colormap of its own.
+- Backplane layers:
+
+  - Every image extension of the FITS file is listed: ``BODY_ID_MAP`` and each
+    backplane.
+  - Each layer can be turned on and off, given a transparency from 0 to 1, given
+    a colormap, and scaled either absolutely or relatively.
+  - Relative scaling takes the minimum and maximum over only the pixels that
+    plane measured, which are the finite ones that are not the masked value.
+  - Absolute scaling uses fixed ranges: 0 to 360 degrees for longitudes, -90 to
+    90 degrees for latitudes, 0 to 180 degrees for incidence, emission, and
+    phase, 0 to the observed maximum for radius, and the observed minimum to
+    maximum for resolution and everything else.
+
+- Live readout: the cursor's ``(v, u)`` position to two decimals in pixel-corner
+  coordinates (see :ref:`coordinate-systems`), the science image value at the
+  pixel holding that position, the object ``BODY_ID_MAP`` names there, and the
+  value of each backplane at the cursor.
+
+Units and masking
+-----------------
+
+A backplane whose ``BUNIT`` is ``rad``, or whose name contains ``longitude``,
+``latitude``, ``incidence``, ``emission``, or ``phase``, is shown in degrees.
+Every other backplane is shown in the unit it is stored in, so
+``ring_longitudinal_resolution``, stored in ``rad/pixel``, is shown in radians
+per pixel.
+
+A pixel counts as valid where it is finite and is not the masked value, and that
+is the same rule for body and ring planes alike.
+
+Running through cloud tasks
+===========================
+
+Cloud tasks is a work-queue package supplied by the Green Moon Systems node. A
+queue holds one task per unit of work, and a worker running on a cloud compute
+instance takes tasks off the queue and performs them. The backplane worker is
+``sd_backplanes_cloud_tasks``. You do not run it yourself: the cloud task system
+starts it on the compute instances you have asked for. What you do is write the
+queue file and load it. :doc:`/user_guide/user_guide_cloud_tasks` covers the
+arrangement in full.
+
+``--output-cloud-tasks-file`` writes such a queue file for the images a run would
+have processed, and generates no backplanes:
 
 .. code-block:: bash
 
@@ -153,19 +346,22 @@ generating any backplanes, use ``--output-cloud-tasks-file``:
       --volumes COISS_2001 \
       --output-cloud-tasks-file backplanes_tasks.json
 
-Cloud Tasks variant (file list comes from the queue):
+The worker takes only the settings that describe its own environment, and applies
+them to every task it handles: ``--config-file``, ``--nav-results-root``,
+``--backplane-results-root``, and ``--results-index-db``.
 
-.. code-block:: bash
+A worker has no run log, so each outcome a local run would have logged comes back
+in the task result instead. An index that cannot be used is
+``unusable_results_index_db``. An image nothing navigated is a skip named
+``no_navigation_record``. Every other way one image can fail, a metadata document
+the ingest could not read among them, is ``backplanes_failed``. All three are
+returned rather than raised, so a queue set to retry on an exception does not
+retry a refusal that will refuse identically.
 
-    sd_backplanes_cloud_tasks \
-      --nav-results-root /data/nav/results \
-      --backplane-results-root /data/nav/backplanes
+The queue file
+--------------
 
-Cloud-tasks JSON schema
-^^^^^^^^^^^^^^^^^^^^^^^
-
-The file produced by ``--output-cloud-tasks-file`` is a JSON array of task
-objects. Each task is:
+The file ``--output-cloud-tasks-file`` writes is a JSON array of task objects:
 
 .. code-block:: json
 
@@ -184,156 +380,11 @@ objects. Each task is:
         }
     }
 
-Fields:
-
-* ``task_id``: unique string identifier built from the dataset name, the
-  first image's label filename, and the enumeration index.
-* ``data.dataset_name``: one of the supported dataset names (same value as
-  the positional argument to ``sd_backplanes``).
-* ``data.files``: one or more file descriptors. Each descriptor has required
-  fields ``image_file_url``, ``label_file_url``, ``results_path_stub``, and
-  an optional ``index_file_row`` (metadata from the source index file, may
-  be ``null``). The ``sd_backplanes_cloud_tasks`` worker accepts no other
-  task-level parameters; all other settings come from its own
-  ``--config-file``, ``--nav-results-root``, and ``--backplane-results-root``
-  CLI flags, which apply to every task the worker handles.
-
-Configuration
--------------
-
-Backplanes are configured under ``backplanes`` in
-``src/spindoctor/config_files/config_900_backplanes.yaml``:
-
-- ``backplanes.bodies``: list of body backplane entries. Each entry has
-  ``name`` (the FITS HDU name), ``method`` (the ``oops.Backplane`` method to
-  call), and ``units`` (written to the ``BUNIT`` FITS header). All three are
-  required. Each entry also has an ``index`` block, which the PDS4 bundle's
-  index tables read: the ``data_type`` and, under ``minimum`` and ``maximum``,
-  the ``name`` and ``description`` of the two columns that give the backplane's
-  least and greatest value (see :doc:`user_guide_pds4_bundle`).
-- ``backplanes.rings``: list of ring backplane entries with the same
-  structure. The special ``distance`` entry is used only for per-pixel
-  merge ordering and is not written as an HDU.
-- ``backplanes.target_lids``: the PDS4 targets table a bundle's labels read, one
-  entry for each body and ring target (see :doc:`user_guide_pds4_bundle`).
-
-Outputs
--------
-
-For each processed image, ``sd_backplanes`` writes two files under
-``--backplane-results-root``:
-
-- ``<results_path_stub>_backplanes.fits`` containing:
-
-  - A primary HDU.
-  - ``BODY_ID_MAP`` (int32) as the first image HDU.
-  - One ``ImageHDU`` per backplane array that measured at least one pixel,
-    with ``BUNIT`` set to the configured ``units``.
-
-- ``<results_path_stub>_backplane_metadata.json`` containing per-body
-  inventory information and per-backplane ``min``/``max`` statistics with the
-  ``units`` they are in, and, for the rings, the ring target and the incidence
-  angle of sunlight on the ring plane (consumed by ``sd_create_bundle`` when
-  generating PDS4 labels).
-
-Angular backplane arrays are in radians, as their ``BUNIT`` headers say. In the
-metadata file an angular plane's minimum and maximum are in degrees (``rad``
-becomes ``deg``, ``rad/pixel`` becomes ``deg/pixel``), and each statistic records
-its unit.
-
-Each minimum and maximum is taken over the pixels where the FITS plane has a value.
-A body's are taken over the pixels ``BODY_ID_MAP`` gives that body, so a part of a
-body, or of the rings, that a nearer body covers does not count.
-
-The ring longitude's statistic, and each body's longitude statistic, also record
-``wrapped_min`` and ``wrapped_max``, in degrees: the arc of longitude the image's ring
-pixels, or the body's pixels, cover, from where it starts to where it ends. Where the
-arc crosses zero, ``wrapped_min`` is greater than ``wrapped_max``. An arc covering the
-whole circle, as a body's does when one of its poles is in view, records 0 and 360. The
-ring longitude's is recorded when the ring longitudinal resolution backplane has a value.
-
-The metadata file's ``rings`` block names the ring target the ring backplanes are
-computed for, as ``target``, and records ``incidence_angle``: the angle between the
-direction sunlight arrives from and the normal to the ring plane on its sunlit side,
-from 0 to 90 degrees, with its unit. Sunlight falls on the ring plane at one angle over
-the whole image, so no backplane holds it; it is taken once, at the center of the ring
-system, for the light that reached the camera at the observation's midtime. Both are
-recorded for every image that has a closest planet, whether or not any of its pixels is
-on the rings. Where the image's ring backplanes have values, ``incidence_angle`` also
-records the least, the greatest and the mean angle over those pixels, as ``min``,
-``max`` and ``mean``, which differ from the angle at the center by thousandths of a
-degree. The ring statistics are under ``backplanes``:
-
-.. code-block:: json
-
-   {
-     "rings": {
-       "target": "SATURN_MAIN_RINGS",
-       "incidence_angle": {
-         "value": 82.57158, "min": 82.57085, "max": 82.57104, "mean": 82.57096, "units": "deg"
-       },
-       "backplanes": {"ring_radius": {"min": 74659.8, "max": 136779.0, "units": "km"}}
-     }
-   }
-
-Logs are written under the log root rather than beside these products: the
-run's own log to ``{log_root}/sd_backplanes/main_{timestamp}.log`` and one per
-image to ``{log_root}/backplanes/{results_path_stub}_{timestamp}.log``.
-``sd_backplanes`` accepts the same logging options as every other pipeline
-program; see :doc:`user_guide_logging`.
-
-An image whose navigation did not succeed is skipped and gets no backplanes.
-The run's log says which images those were, and reports the navigation status
-that caused each skip.
-
-One image that cannot be processed does not end the run. Backplane generation
-is per-image work, so a failure is reported against that image, counted, and
-the next image is attempted. The run's log carries the image, the message and
-the traceback — an image can fail before it has a log of its own, and then the
-run's log is the only account of it — and that image's own log carries the
-traceback too whenever the failure got as far as opening one. The pass ends
-with a summary line counting what became of every image::
-
-   Backplane pass complete: 143 done, 4 skipped, 1 failed
-
-Backplane Viewer GUI
-====================
-
-Use the interactive GUI to inspect backplane FITS alongside the science image.
-
-Run
----
-
-.. code-block:: bash
-
-    sd_backplane_viewer coiss_saturn \
-      --nav-results-root /data/nav/results \
-      --backplane-results-root /data/nav/backplanes \
-      --volumes COISS_2001 \
-      --first-image-num 1454000000 --last-image-num 1454000999
-
-Features
---------
-
-- Image stretch: Blackpoint, whitepoint, and gamma for the grayscale science image.
-- Zoom and pan: Same behavior as the simulated body model UI.
-- Summary overlay: If ``<results_path_stub>_summary.png`` exists under ``--nav-results-root``, it can be toggled on/off with an alpha control (no stretch or colormap).
-- Backplane layers:
-
-  - Lists all FITS image HDUs: ``BODY_ID_MAP`` (int32) plus each backplane (float32).
-  - Each backplane can be toggled with a checkbox, assigned transparency 0-1, a colormap, and scaling mode (Absolute or Relative).
-  - Relative mode computes min/max using only the pixels a plane measured, which are the finite ones that are not the masked value.
-  - Absolute mode:
-
-    - Longitudes: 0-360 deg; Latitudes: -90-90 deg.
-    - Incidence/Emission/Phase: 0-180 deg.
-    - Radius: 0 to observed max.
-    - Resolution and others: observed min-max.
-
-- Live readout: Shows the cursor's ``(v, u)`` position to two decimals in pixel-corner coordinates (see :ref:`coordinate-systems`), the science image value at the pixel containing that position, the object ``BODY_ID_MAP`` names there, and, for each backplane row, the current value at the cursor (angles are converted from radians to degrees when applicable).
-
-Notes
------
-
-- Units: a backplane whose ``BUNIT`` is ``rad``, or whose name contains ``longitude``, ``latitude``, ``incidence``, ``emission`` or ``phase``, is shown in degrees; every other backplane is shown in the unit it is stored in, so ``ring_longitudinal_resolution``, in ``rad/pixel``, is shown in radians per pixel.
-- Masking: Backplane visualizations treat a pixel as valid when it is finite and is not the masked value, which is the same rule for body and ring planes.
+* ``task_id`` identifies the task, and is built from the dataset name, the first
+  image's label filename, and the position of the task in the enumeration.
+* ``data.dataset_name`` is the dataset the images come from, the same value the
+  local command takes as its positional argument.
+* ``data.files`` holds one or more file descriptions. Each requires
+  ``image_file_url``, ``label_file_url``, and ``results_path_stub``, and may
+  carry an ``index_file_row``, which may be ``null``. The worker accepts no
+  other per-task settings.

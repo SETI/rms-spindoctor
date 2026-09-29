@@ -52,8 +52,8 @@ recommended way to load a corrected set (see `Loading the kernels`_).
 The record epochs are exact; between them the segment interpolates
 ------------------------------------------------------------------
 
-A segment carries records at the exposure start, the midtime and the stop, plus
-a one-second cadence once the exposure reaches ten seconds. It
+A segment carries records at the exposure start, the midtime, and the stop,
+plus a one-second cadence once the exposure reaches ten seconds. It
 reproduces the corrected attitude at those epochs exactly. Every other epoch in
 the window is interpolated between the bracketing records, and the interior
 error that interpolation leaves is **not bounded by anything**.
@@ -65,7 +65,7 @@ pixels on every camera, so an error that matters on one camera can be negligible
 on another. How much attitude structure a segment interpolates across also
 differs by mission and by how the platform was slewing.
 
-What is fixed is the shape of the effect rather than its size. The error is zero
+What is fixed is how the error behaves rather than how large it is. It is zero
 at every record epoch and grows between them; it is largest where the baseline's
 rate changes inside the window; it shrinks as records are added, which is what
 the one-second cadence buys on a long exposure; and it is present in the same
@@ -98,7 +98,7 @@ disagreed and the ensemble reported the conflict -- is written like any other.
 
 The consequence is that filtering is the consumer's job, and the report is
 where the material to filter on lives. Its ``status``, ``status_reason``,
-``confidence`` and ``confidence_rank`` columns carry each image's own
+``confidence``, and ``confidence_rank`` columns carry each image's own
 measurement as the navigation recorded it, and each corrected kernel's comment
 area repeats the same numbers for the images inside that file. A consumer who
 wants only high-confidence pointing reads those and decides; nothing in the
@@ -218,8 +218,8 @@ so a listing tool such as ``ckbrief`` names the image every segment came from.
 The comment area records the generator version, the configuration hash, the
 original kernel the file corrects, the spacecraft clock kernel its time tags
 are encoded against, and one line per image carrying the same offset, sigma,
-confidence, rank, status and status reason the report carries. Read it with the
-NAIF ``commnt`` utility or with ``dafec``.
+confidence, rank, status, and status reason the report carries. Read it with
+the NAIF ``commnt`` utility or with ``dafec``.
 
 Every corrected segment carries angular velocity, copied unchanged from the
 original; a segment whose attitude is constant across the exposure carries
@@ -233,7 +233,7 @@ angular velocity is unknown: SPICE skips it for ``ckgpav`` and for ``sxform``
 and answers those from the next loaded kernel that does carry angular velocity
 for the same object and epoch, which would be the original and its uncorrected
 attitude. Since every segment carries angular velocity, ``ckgp``, ``ckgpav``,
-``pxform`` and ``sxform`` all report the correction.
+``pxform``, and ``sxform`` all report the correction.
 
 Loading the kernels
 ===================
@@ -252,7 +252,7 @@ in that order:
 
 The paths inside are absolute, so the meta-kernel works from any working
 directory. It furnishes only the original kernels that some correction mirrors;
-a leapseconds kernel, a spacecraft clock kernel and a frame kernel are still
+a leapseconds kernel, a spacecraft clock kernel, and a frame kernel are still
 the consumer's own to furnish, as they would be for the originals alone.
 
 Without the meta-kernel
@@ -353,13 +353,13 @@ failed to load records a name and a status and nothing else -- which is how the
 report distinguishes "not measured" from a measurement that happened to be
 zero.
 
-The ``sd_create_ck`` program
-============================
+Running the program
+===================
 
-``sd_create_ck`` writes one mission's corrected kernels, its meta-kernel and
+``sd_create_ck`` writes one mission's corrected kernels, its meta-kernel, and
 its report. It reads the navigation results a previous ``sd_offset`` run wrote
-and the SPICE kernels those runs used; it does not read images and does not
-navigate anything.
+(see :doc:`user_guide_navigation_running`) and the SPICE kernels those runs
+used. It does not read images and does not navigate anything.
 
 .. code-block:: bash
 
@@ -367,10 +367,10 @@ navigate anything.
 
 ``MISSION`` is positional and required, and case-insensitive. It selects which
 metadata documents under the navigation results root the run considers, matched
-against each document's ``observation.instrument``. The permitted values are
-exactly the instruments SpinDoctor navigates, each linking to its own chapter,
-which is where that mission's corrected object, kernel directories, naming
-conventions and omission reasons are stated:
+against each metadata document's ``observation.instrument``. The permitted
+values are exactly the instruments SpinDoctor navigates, each linking to its own
+chapter, which is where that mission's corrected object, kernel directories,
+naming conventions, and omission reasons are stated:
 
 * ``coiss`` -- :doc:`instruments/cassini_iss`
 * ``gossi`` -- :doc:`instruments/galileo_ssi`
@@ -382,7 +382,7 @@ Environment options
 
 * ``--config-file PATH`` (repeatable): configuration files overriding the
   defaults. With none given, ``./nav_default_config.yaml`` is loaded if it
-  exists. See :doc:`/introduction_configuration`.
+  exists. See :doc:`user_guide_configuration`.
 
 * ``--nav-results-root PATH``: the root of the navigation results to read.
   The whole tree is walked for ``*_metadata.json`` files. Takes precedence
@@ -397,26 +397,26 @@ Environment options
   archive-scale root costs one paid round trip per image otherwise, and a
   Cassini-scale root holds several hundred thousand. Takes precedence over the
   ``environment.results_index_db`` configuration variable and
-  ``NAV_RESULTS_INDEX_DB``. ``--results-index-db none`` names no index, which is
-  how a machine that has one configured is told to read the tree for this run.
-  Without an index the tree is read, which is the default.
+  ``NAV_RESULTS_INDEX_DB``. ``--results-index-db none`` names no results index,
+  which is how a machine that has one configured is told to read the tree for
+  this run. With no results index the tree is read, which is the default.
 
-  The index must hold a completed ingest of the same results root, and the run
-  is refused if it does not: a root nobody has ingested cannot say what it
-  holds, and a mission would silently come back short. What the run writes does
-  not otherwise depend on which it read -- the same images, the same
-  eligibility, the same matrices, epochs and recorded kernels -- with one
+  The results index must hold a completed ingest of the same results root, and
+  the run is refused if it does not: a root nobody has ingested cannot say what
+  it holds, and a mission would silently come back short. What the run writes
+  does not otherwise depend on which it read -- the same images, the same
+  eligibility, the same matrices, epochs, and recorded kernels -- with one
   exception, which is that a value the ingest could not store is read as one
-  the document never recorded. A malformed offset, sigma or confidence is
-  refused outright when the tree is read, and reported as a blank column when
-  the index is; nothing a segment is built from can differ, because a matrix
-  the readers refuse is refused either way.
+  that the metadata document never recorded. A malformed offset, sigma, or
+  confidence is refused outright when the tree is read, and reported as a blank
+  column when the results index is read. Nothing a segment is built from can
+  differ, because a matrix the readers refuse is refused either way.
 
 * ``--kernel-dir DIR`` (repeatable, at least one required): a directory of
   SPICE kernels. These directories serve two purposes at once: every C-kernel
   in them is a candidate original to pair images against, and all of them
   together resolve the kernel basenames each image's provenance recorded, so
-  the leapseconds, frame and spacecraft clock kernels the navigation used must
+  the leapseconds, frame, and spacecraft clock kernels the navigation used must
   be among them. Directories are **not** searched recursively, so a holdings
   tree that keeps its kernels in per-kind subdirectories needs one flag per
   subdirectory.
@@ -439,7 +439,7 @@ Output options
 --------------
 
 * ``--output-dir PATH`` (required): where the corrected kernels, the
-  meta-kernel and the report are written. It is created if it does not exist,
+  meta-kernel, and the report are written. It is created if it does not exist,
   and it must be a local directory, since SPICE creates a kernel by name on
   the local filesystem. Relative paths are resolved to absolute before
   anything is written, so the meta-kernel names its kernels by paths that work
@@ -452,7 +452,7 @@ Logging options
 logging surface: ``--log-root``, ``--log-level``, ``--log-level-main``,
 ``--log-level-image``, and the ``--log-main-to-console`` /
 ``--log-main-to-file`` / ``--log-image-to-console`` / ``--log-image-to-file``
-pairs with their ``--no-`` forms. Defaults, precedence and the configuration
+pairs with their ``--no-`` forms. Defaults, precedence, and the configuration
 equivalents are documented once, for every program, in
 :doc:`user_guide_logging`.
 
@@ -501,12 +501,12 @@ Exit status
 The program exits 0 when every metadata file it was pointed at could be read,
 whether or not every image received a segment -- an image omitted for a reason
 is reported in the CSV, which is the answer. It exits 1 when any file under the
-navigation results root could not be read as a document naming its image and
-mission; those files are named in the run log and the run continues on what it
-could read, so a batch wrapper can tell a clean run from one that silently
-skipped its input. Selecting no images at all is not an error: the run says so,
-writes nothing, and exits 0 -- unless some of its input was unreadable, which
-still exits 1 even when nothing was selected.
+navigation results root could not be read as a metadata document naming its
+image and mission. Those files are named in the run log and the run continues on
+what it could read, so a batch wrapper can tell a clean run from one that
+silently skipped its input. Selecting no images at all is not an error: the run
+says so, writes nothing, and exits 0 -- unless some of its input was unreadable,
+which still exits 1 even when nothing was selected.
 
 Refusals worth knowing about
 ----------------------------
@@ -515,7 +515,7 @@ A few conditions stop the run rather than being reported per image, because
 each of them would otherwise corrupt every image alike or force a silent
 choice. A run stopped by any of them writes **nothing at all**: every segment
 of every output file is built, and every destination judged, before the first
-file is opened, so such a refusal leaves no corrected kernels, no meta-kernel
+file is opened, so such a refusal leaves no corrected kernels, no meta-kernel,
 and no report, and the run can be repeated once its cause is fixed without
 first clearing a partial set out of the way.
 
@@ -539,7 +539,7 @@ every file it wrote, and each of them is a complete, valid kernel.
   every image navigated under the other would be reported as having no
   baseline. The run names the two kernels and what they disagree about.
 
-* **A clock or frame kernel the images recorded that no ``--kernel-dir``
+* **A clock or frame kernel that the images recorded and no kernel directory
   holds.** Named, rather than left to surface as an image whose baseline
   appears to have drifted.
 
@@ -565,12 +565,12 @@ every file it wrote, and each of them is a complete, valid kernel.
 
 * **A directory under the navigation results root that cannot be listed.**
   Reading the tree stops where the walk meets it, and the run says which
-  directory it was and exits 1. A directory nobody enumerated holds documents
-  nobody read, so a kernel set built around the gap would quietly cover less
-  than the tree and go on being trusted; a run that stops can simply be
-  repeated once the directory is readable. A results root that cannot be listed
-  at all is refused the same way, since nothing under it has been read either.
-  Nothing is written in either case.
+  directory it was and exits 1. A directory nobody enumerated holds metadata
+  documents nobody read, so a kernel set built around the gap would quietly
+  cover less than the tree and go on being trusted. A run that stops can simply
+  be repeated once the directory is readable. A results root that cannot be
+  listed at all is refused the same way, since nothing under it has been read
+  either. Nothing is written in either case.
 
 * **A metadata document that cannot be read as a navigated image**; an image
   whose segment copies its baseline's rates and whose baseline supplied
@@ -586,8 +586,8 @@ Related chapters
 
 * :doc:`instruments/instruments` -- one chapter per instrument, carrying the
   corrected object, the spacecraft clock, the kernel directories, the baseline
-  naming conventions, the segment shape, the omission reasons that instrument
-  can produce, and its interpolation-error characterization.
+  naming conventions, the layout of a segment's records, the omission reasons
+  that instrument can produce, and its interpolation-error characterization.
 * :doc:`user_guide_navigation` -- the navigation run that records the
   C-matrices, and the ``pointing`` and ``times`` metadata blocks this program
   reads.

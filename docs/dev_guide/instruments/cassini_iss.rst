@@ -393,7 +393,7 @@ these parameters reproduce 0.90 and 1.72 through the same estimator. The
 80%-to-50% ratio of 1.97, against 1.52 for a pure Gaussian, is what forces
 substantial mid-range wing energy, so this is an *effective* in-window kernel
 rather than an optical one: the fitted ``w = 0.12`` carries measured 1-8 pixel
-halo energy that a FWHM-derived core put nowhere. A first fit at ``w = 0.20``
+halo energy that a FWHM-derived core did not put anywhere. A first fit at ``w = 0.20``
 matched the encircled energy but over-lifted the wide-field halo.
 
 ``coiss_wac`` is ``{sigma_v: 1.05, sigma_u: 1.05, w: 0.12, r0: 3.0, n: 4.0}``,
