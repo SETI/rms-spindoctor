@@ -109,9 +109,12 @@ for path in sys.argv[1:]:
             # read a tilde-fenced example as prose.
             m = re.match(r"(`{3,}|~{3,})", stripped)
             if m and fence is None:
-                fence = m.group(1)[0] * len(m.group(1))
+                # An opening fence may carry an info string.
+                fence = m.group(1)
                 continue
-            if m and fence and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence):
+            # A closing fence holds only its own run, so ~~~example inside an
+            # open block is content rather than the end of it.
+            if fence and re.fullmatch(re.escape(fence[0]) + "{%d,}" % len(fence), stripped):
                 fence = None
                 continue
             if fence:
