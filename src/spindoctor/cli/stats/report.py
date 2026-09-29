@@ -27,6 +27,11 @@ from pathlib import Path
 from filecache import FCPath
 
 from spindoctor.cli.stats.report_accumulate import RangeFilters, accumulate_statistics
+from spindoctor.cli.stats.report_charts import (
+    write_offset_heatmap,
+    write_offset_hist,
+    write_stacked_bar_chart,
+)
 from spindoctor.cli.stats.report_common import (
     ReportContext,
     ReportStatistics,
@@ -38,8 +43,6 @@ from spindoctor.cli.stats.report_common import (
     offset_stats,
     percentile,
     safe_filename,
-    write_offset_hist,
-    write_stacked_bar_chart,
 )
 from spindoctor.cli.stats.report_sections import (
     CsvExport,
@@ -369,7 +372,7 @@ def _pooled_offsets(ctx: ReportContext) -> dict[tuple[str, str], tuple[array[flo
 
 
 def _add_offset_section(ctx: ReportContext) -> None:
-    """Append the fused-offset statistics and a histogram per camera.
+    """Append the fused-offset statistics, a histogram and a correction heat map per camera.
 
     Pointing error is a property of the camera, not of the spacecraft, so
     the distributions are grouped by ``(instrument, camera)`` and never
@@ -415,6 +418,14 @@ def _add_offset_section(ctx: ReportContext) -> None:
             title=f'Fused offset distribution, {instrument} {camera} (successful images)',
         )
         ctx.lines += [f'![offsets {instrument} {camera}]({chart})', '']
+        heatmap_chart = f'offsets_heatmap_{safe_filename(f"{instrument}_{camera}")}.png'
+        if write_offset_heatmap(
+            ctx.output_dir / heatmap_chart,
+            dv_values,
+            du_values,
+            title=f'Pointing corrections, {instrument} {camera} (successful images)',
+        ):
+            ctx.lines += [f'![offset heat map {instrument} {camera}]({heatmap_chart})', '']
 
 
 def _add_agreement_sections(ctx: ReportContext) -> None:

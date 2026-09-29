@@ -200,6 +200,14 @@ def test_build_report_writes_one_histogram_per_camera(
     assert (out / 'offsets_hist_coiss_NAC.png').exists()
 
 
+def test_build_report_links_one_heatmap_per_camera(standard: RecordSource, tmp_path: Path) -> None:
+    """Each camera with a successful image gets a heat map linked beside its histogram."""
+    out = tmp_path / 'report'
+    text = build_report(standard, out).read_text(encoding='utf-8')
+    assert (out / 'offsets_heatmap_coiss_NAC.png').exists()
+    assert '![offset heat map coiss NAC](offsets_heatmap_coiss_NAC.png)' in text
+
+
 def test_build_report_selection_section(standard: RecordSource, tmp_path: Path) -> None:
     """The report opens with per-instrument counts and image/date bounds."""
     text = build_report(standard, tmp_path / 'report').read_text(encoding='utf-8')

@@ -26,6 +26,7 @@ from typing import Any
 
 from filecache import FCPath
 
+from spindoctor.cli.stats.report_charts import write_stacked_value_hist
 from spindoctor.cli.stats.report_common import (
     ReportContext,
     add_drilldown,
@@ -34,7 +35,6 @@ from spindoctor.cli.stats.report_common import (
     fmt,
     image_name_from_filename,
     percentile,
-    write_stacked_value_hist,
 )
 from spindoctor.config import DEFAULT_CONFIG, Config
 from spindoctor.nav_records import ImageFacts

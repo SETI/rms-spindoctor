@@ -13,8 +13,9 @@ records from wherever they are kept:
   not read again, so a second pass over an unchanged root costs one listing.
 - ``sd_stats_report`` (:mod:`spindoctor.cli.stats.report`, with the pass over
   the records in :mod:`spindoctor.cli.stats.report_accumulate`, the section
-  builders in :mod:`spindoctor.cli.stats.report_sections`, and the shared state
-  and helpers in :mod:`spindoctor.cli.stats.report_common`) reads every record
+  builders in :mod:`spindoctor.cli.stats.report_sections`, the chart writers
+  in :mod:`spindoctor.cli.stats.report_charts`, and the shared state and
+  helpers in :mod:`spindoctor.cli.stats.report_common`) reads every record
   once and emits a deterministic report (Markdown text plus PNG charts):
   success/failure counts with failure reasons, a failure taxonomy by scene
   content with per-body failure shares, technique and model usage, offset
