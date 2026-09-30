@@ -1171,8 +1171,9 @@ pair with ``ON DELETE CASCADE``.
      - BIGINT
      - Largest resident size the navigating process reached while navigating
        this image, from the metadata document's ``timing`` section. This is
-       the figure an out-of-memory kill is decided against, so it is what
-       sizes a worker: for a process that handled several images it is
+       what sizes a worker, though a container's memory limit is accounted
+       separately from a process's resident size: for a process that handled
+       several images it is
        measured from a floor including what the earlier ones left resident,
        which is the memory the worker had to hold at that moment. NULL where
        the run recorded none: a system whose kernel publishes no peak, or one

@@ -116,7 +116,8 @@ Techniques run but nothing is accepted
 The navigation reports ``no_feasible_techniques``, ``all_techniques_spurious``,
 ``final_confidence_below_threshold``, or ``final_sigma_above_threshold``. Measurements
 were made, but none of them earned enough confidence, or the combined answer was too
-imprecise to accept.
+imprecise to accept. :doc:`/user_guide/user_guide_navigation_models` defines confidence
+and the confidence tiers.
 
 Read that image's log to see what each technique found and where it stopped. The
 acceptance thresholds are configurable; see

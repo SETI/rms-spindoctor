@@ -64,8 +64,10 @@ Where it goes
     Report every copy that would happen, and make none of them. Use it to confirm the
     selection before writing anything.
 
-An image that was never navigated, or whose navigation wrote no preview, simply has
-nothing to copy. It is reported as a file that is not present, and the run continues.
+Each requested file is looked for on its own. An image that was never navigated has
+neither file. An image whose navigation wrote no summary preview still has its
+metadata document, and it is copied. Every requested file that is absent is reported by
+name and counted, and the run continues.
 
 Where the results are read from
 ===============================

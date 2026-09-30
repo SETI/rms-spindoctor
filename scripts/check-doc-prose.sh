@@ -96,6 +96,10 @@ import re
 import sys
 
 failed = []
+LITERAL_DIRECTIVES = {
+    "code-block", "code", "literalinclude", "parsed-literal", "math", "raw",
+}
+
 for path in sys.argv[1:]:
     try:
         lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
@@ -139,10 +143,24 @@ for path in sys.argv[1:]:
             block_indent = None
         if not stripped:
             continue
-        # A directive that takes literal content, or a paragraph ending in "::".
         low = stripped.lower()
-        if low.startswith((".. code-block::", ".. code::", ".. literalinclude::",
-                           ".. parsed-literal::", ".. math::")) or stripped.endswith("::"):
+        if stripped.startswith(".."):
+            # A directive whose content is literal suppresses that content. An
+            # admonition or a table holds ordinary prose, so its content stays.
+            # Reading every "::"-terminated line as literal suppressed the whole
+            # of every note and warning, which is where a caveat lives.
+            name = re.match(r"\.\.\s+([a-z0-9_+-]+)::", low)
+            if name:
+                if name.group(1) in LITERAL_DIRECTIVES:
+                    block_indent = indent
+            else:
+                # A comment: its indented continuation is not rendered either.
+                block_indent = indent
+            continue
+        if stripped.endswith("::"):
+            # The paragraph that introduces a literal block is itself rendered,
+            # so it is checked; only the block below it is literal.
+            print(f"{path}:{n}:{line}")
             block_indent = indent
             continue
         print(f"{path}:{n}:{line}")
@@ -166,10 +184,17 @@ USER_FILES=()
 ALL_FILES=()
 RST_FILES=()
 missing=()
+repo_root=$(pwd -P)
 for f in "${FILES[@]}"; do
     if [[ ! -f "$f" ]]; then
         missing+=("$f")
         continue
+    fi
+    # A path spelled ./docs/... or /abs/path/docs/... names the same file as
+    # docs/..., and the audience and exemption rules key on the path, so an
+    # unnormalized one silently skipped those checks.
+    if abs=$(cd -- "$(dirname -- "$f")" && pwd -P); then
+        f="${abs#"$repo_root"/}/$(basename -- "$f")"
     fi
     ALL_FILES+=("$f")
     [[ "$f" == *.rst ]] && RST_FILES+=("$f")

@@ -378,8 +378,7 @@ These are accepted by ``sd_mosaic_body``.
        pixel only where its resolution in kilometers per pixel, multiplied by this
        number, is still smaller than the resolution already there. At the default
        of ``1.0`` any improvement at all wins. ``2.0`` demands the new image be
-       twice as fine. Below 1.0 the new image wins even when it is coarser, so
-       values below 1.0 make later images override earlier ones.
+       twice as fine. Supported values are 1.0 and above.
    * - ``--copy-slop N``
      - ``0``
      - Extra pixels copied around each copied pixel, which fills in the

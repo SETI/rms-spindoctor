@@ -285,8 +285,9 @@ Two settings in the ``orchestrator`` section decide that:
     and low. Two further ranks, conflicted and failed, are outcomes rather than
     thresholds, so they have no entry here;
     :doc:`user_guide_navigation_models` describes all five. Each tier names the confidence
-    an answer must reach and the largest pointing uncertainty, in pixels, it may have. An
-    answer must satisfy both to earn that tier.
+    an answer must reach. The high and medium tiers also name the largest pointing
+    uncertainty, in pixels, an answer may have, and an answer must satisfy both to earn
+    one of them. The low tier sets no maximum uncertainty.
 
 Lowering these makes more frames report an answer and makes those answers less
 trustworthy, so change them only when you know why the evidence in your frames is weaker

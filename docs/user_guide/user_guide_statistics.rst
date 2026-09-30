@@ -269,8 +269,10 @@ The report contains:
 - **Peak-memory statistics** -- the same table over the largest
   resident size each navigation reached, in GiB, with a histogram and (with
   ``--top-n``) the hungriest images. The maximum is the column that sizes a
-  worker, since it is the figure an out-of-memory kill is decided against,
-  and the distribution says how far below it most of a pass stays. Each
+  worker, and the distribution says how far below it most of a pass stays. A
+  container's memory limit is accounted separately from a process's resident
+  size, so treat the peak as a sizing figure rather than as the number a kill
+  is decided against. Each
   peak is what the navigating process reached while that image ran, so a pass
   whose images were navigated one per process reads as their individual memory
   usage.

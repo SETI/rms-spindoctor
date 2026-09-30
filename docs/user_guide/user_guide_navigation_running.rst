@@ -3,8 +3,10 @@ Running sd_offset
 ==================
 
 ``sd_offset`` is the navigation program. One run selects a set of images, navigates each
-of them, and writes a metadata document and a summary image for each. This chapter
-covers how to invoke it and what every option does.
+of them, and writes a metadata document for each. It also writes a summary image for each
+image it was able to navigate. An image whose data could not be loaded at all gets the
+metadata document alone. This chapter covers how to invoke it and what every option
+does.
 
 Basic Usage
 ===========

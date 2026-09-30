@@ -12,11 +12,13 @@ The one image whose metadata document is returned to the caller without being wr
 disk is described under `Early return`_. The metadata document is the pipeline's
 authoritative record of what happened to that image: the measured
 pointing offset and its uncertainty, the corrected camera attitude, every technique's
-individual answer, every feature that was extracted and whether it was used, the
-image-quality verdict, and the record of what the run was made of. It is read by the
-backplane generator, the reprojection and mosaic tools, the PDS4 bundle builder, the
-metadata consolidator, the results index, and the C-kernel writer, and it is meant to
-be read directly by users as well.
+individual answer, every extracted feature and whether it was used, the image-quality
+verdict, and the record of what the run was made of. A feature is one thing in the image a
+model predicted and expects to be matched: one star, one arc of a body's limb, one ring
+edge, and so on. The metadata document is read by the backplane generator, the
+reprojection and mosaic tools, the PDS4 bundle builder, the metadata consolidator, the
+results index, and the C-kernel writer, and it is meant to be read directly by users as
+well.
 
 This chapter specifies the file exactly: every key that can appear, its type, its
 meaning, when it is present and when it is absent, and one complete example of each
@@ -175,12 +177,14 @@ Top-level keys
        null).
        For a load-error metadata document the window ends at error time. The peak is
        the largest resident size the navigating process reached while this
-       image was being navigated, which is the figure an out-of-memory kill is
-       decided against. A process that navigates a single image reports that
-       image's whole memory usage. A process handling several reports what it
-       reached while each ran, measured from a floor that includes what earlier images left
-       resident. It is null where the operating system publishes no peak, and
-       where the measurement could not be reset ahead of this image.
+       image was being navigated. Use it to size a worker to the images it will
+       handle. It is a sizing figure and not a limit: a container's memory limit
+       is accounted separately from a process's resident size. A process that
+       navigates a single image reports that image's whole memory usage. A
+       process handling several reports what it reached while each ran, measured
+       from a floor that includes what earlier images left resident. It is null
+       where the operating system publishes no peak, and where the measurement
+       could not be reset ahead of this image.
    * - ``offset``
      - array
      - navigated

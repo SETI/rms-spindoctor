@@ -26,7 +26,8 @@ Third, a set of **navigation techniques** measures where those things actually a
 technique is one matching method suited to one kind of content: correlating a rendered
 disc against the image, sliding a predicted limb curve onto the real brightness edge,
 recognizing a star pattern, and so on. Each technique that runs reports its own offset,
-its own uncertainty, and its own confidence.
+its own uncertainty, and its own confidence -- a number saying how much its answer should
+be trusted, described under `Confidence`_.
 
 Fourth, the results are reconciled into a single answer. SpinDoctor forms, around each
 technique, the group of techniques whose offsets agree with that one, and keeps the group
@@ -398,9 +399,11 @@ zero, after which the usual reliability minimum removes it before any fitting ha
   through the C ring or through a gap is refused rather than fitted through ring stripes;
 * the envelope is narrower than ``titan.navigation.min_envelope_diameter_px`` across.
 
-Such a frame ends with a status reason of ``all_features_gated``, and its metadata
-document records the measured envelope diameter and hidden fraction that caused the
-refusal, so the cause is readable without re-running anything.
+The metadata document records the measured envelope diameter and hidden fraction that
+caused the refusal, so the cause is readable without re-running anything. A frame that
+carried other navigable content is then navigated on that content alone. A frame whose
+haze envelope was its only feature ends with a status reason of ``all_features_gated``,
+which is recorded only when no feature of any model survived the reliability minimum.
 
 A frame that clears those conditions can still be refused by the fit. Each of the
 following checks rejects the frame, and the name of the check that fired is recorded in

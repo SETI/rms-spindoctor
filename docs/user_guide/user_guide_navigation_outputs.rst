@@ -81,13 +81,15 @@ correction and is tied to no particular set of kernels.
    catches one is corroboration from an independent technique working on different
    content -- a star field beside the rings, a second resolved moon beside Titan -- which
    is why the pipeline runs every technique that has something to work with rather than
-   stopping at the first answer.
+   stopping at the first answer. That is the default. ``--nav-techniques`` narrows the
+   candidates to the techniques you name, and only those then run.
 
 These metadata documents are also what the run-statistics tooling reads.
 ``sd_results_index`` (see :doc:`user_guide_results_index`) collects one row per
-navigated image from them, and ``sd_stats_report`` (see
-:doc:`user_guide_statistics`) aggregates them into success and failure counts,
-technique usage, offset distributions, and cross-technique agreement reports.
+navigated image from them. ``sd_stats_report`` (see :doc:`user_guide_statistics`)
+aggregates success and failure counts, technique usage, offset distributions, and
+cross-technique agreement reports. It reads the metadata documents when the run names no
+results index, and queries the results index when the run names one.
 
 The summary picture
 -------------------
@@ -95,7 +97,9 @@ The summary picture
 A navigation that reached a result writes a ``*_summary.png`` beside its metadata
 document: one annotated picture showing what the navigator saw and where it placed its
 model. The source image is composited with the merged model overlay at the fitted
-offset, so a glance tells you whether the predicted features land on the real ones. An
+offset, so a glance tells you whether the predicted features land on the real ones. A
+feature is one star, one limb, one ring edge, or any other single thing a model expected
+to find. :doc:`user_guide_navigation_models` describes every feature type. An
 image whose data could not be loaded at all -- a frame outside the SPICE kernels'
 coverage, most often -- gets the metadata document, with a ``status`` of ``error``, and
 no picture: nothing was read to draw one from.
