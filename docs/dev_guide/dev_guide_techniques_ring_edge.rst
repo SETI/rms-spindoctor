@@ -163,7 +163,7 @@ axis instead of on an axis chosen by rounding.
 
 **What this changes in practice.** For :math:`\lVert g \rVert \le 1` the added term's major
 eigenvalue is exactly :math:`\sigma_{\mathrm{orbit}}^{2}` whatever direction :math:`g`
-points, and only the minor eigenvalue depends on the geometry. Because the tier gate reads
+points, and only the minor eigenvalue depends on the geometry. Because the tier threshold reads
 :math:`\max(\sigma_{dv}, \sigma_{du})`, within that regime the derived *direction* cannot
 by itself change a tier outcome -- the behavioral change against a plain directional
 inflation is the isotropic floor it puts under the minor axis, which is what stops a
@@ -277,7 +277,7 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   frame can match) rather than *misaligned* (a wrong-ring lock). The two are separable by
   the per-edge median DT residual: an absent edge sits far from every detected image edge
   (a large median), while a wrong-lock leaves its rejected vertices lying *on* a detected
-  edge they disagree with (a near-zero median). The gate is therefore waived — the fit is
+  edge they disagree with (a near-zero median). The test is therefore waived — the fit is
   kept, not flagged spurious — only when all of: at least ``spurious_waiver_min_well_fit_edges``
   edges each independently clear ``spurious_min_inlier_fraction`` and ``spurious_min_inliers``
   on their own vertices (so the surviving edges genuinely constrain the offset); every
@@ -287,7 +287,7 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   A waived fit receives a sigma floor added in quadrature so it lands at the ``'low'`` tier
   and cannot outweigh a full-support result.
 - ``spurious_waiver_min_well_fit_edges`` — int, default ``1`` (count). Minimum number of
-  edges that must each independently clear the inlier-fraction and inlier-count gates for
+  edges that must each independently meet the inlier-fraction and inlier-count minimums for
   the absent-edge waiver to apply.
 - ``spurious_waiver_absent_median_px`` — float, default ``5.0`` px. A non-well-fit edge
   whose per-edge median DT residual is at least this large counts as *absent* (waivable)

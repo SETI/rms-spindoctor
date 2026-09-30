@@ -147,7 +147,7 @@ where they were read from.
 **Cassini ISS CALIB pipeline.**  When the operator runs the calibrated-IF pipeline,
 ``data_units: calibrated_if``, ``noise.saturation_dn: null``, and
 ``noise.marker_value: NaN``. The orchestrator's saturation-mask helper returns an empty
-mask (saturation cannot be identified post-CALIB), and the star navigation model gates
+mask (saturation cannot be identified post-CALIB), and the star navigation model screens
 catalog stars purely by magnitude against :meth:`obs.star_max_usable_vmag()
 <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>`, so the calibrated-IF units carry
 no effect on the star detectability decision.

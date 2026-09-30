@@ -774,7 +774,7 @@ and its holder empties it and ingests the tree again.
 2. **Increment** :data:`~spindoctor.results_index.schema.SCHEMA_VERSION` in the same
    commit. Increment it again for a second change in the same branch rather
    than reusing the bump: an index built from the intermediate state would
-   otherwise pass the gate and then fail on a column that is not there.
+   otherwise pass the version check and then fail on a column that is not there.
 3. Fill it in :mod:`spindoctor.nav_records.facts`, reading the document
    through the accessors in :mod:`spindoctor.support.nav_record` that the
    consumers read it through. The invariant is that a record rebuilt from the

@@ -14,35 +14,15 @@ stars:
   duplicate_vmag_threshold: 3  # Less than this - stars are true duplicates
   overlapping_vmag_threshold: 2  # Less than this - remove both stars when visually overlapping
 
-  calibrated_data: true
-  float_psf_sigma: false
-  search_multipliers:
-    - 0.25
-    - 0.5
-    - 0.75
-    - 1.0
-  perform_photometry: true
-  try_without_photometry: false
-  min_stars_low_confidence:
-    - 3
-    - 0.75
-  min_stars_high_confidence:
-    - 6
-    - 1.0
   min_confidence: 0.9
-  psf_gain:
-    - 5000
-    - 4
   max_smear: 100  # (px) smear length above which a star is dropped
-  min_vmag: 5.0
-  max_vmag: 15.0
-  vmag_increment: 0.5
-  max_star_dn: 100000.0
-  min_dn_force_one_star: 25000.0
-  star_body_conflict_margin: 3  # (px) smaller-than-body conflict margin; reserved,
-                                # no code reads it
-  too_bright_dn: 1000
-  too_bright_factor: 1  # TODO
+  # Scales the predicted_snr entry of a star's reported reliability breakdown:
+  # the entry reaches 1.0 at this effective SNR and is snr / min_predicted_snr
+  # below it.  This is a reporting value only.  It does not drop a star and it
+  # does not change the reliability the per-type threshold compares, so it
+  # cannot affect which features a run uses.  0.0 uses the default scale, where
+  # an SNR of 50 saturates the entry.
+  min_predicted_snr: 0.0
   ring_occlusion_enabled: true
   # Fraction of the star's conflict-window pixels that must fall inside an
   # opaque annulus before the star is marked ring-occluded. Membership is

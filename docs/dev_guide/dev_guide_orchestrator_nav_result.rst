@@ -147,7 +147,7 @@ The dataclass enforces consistency in ``__post_init__``:
 Examples
 ========
 
-**``success`` result on body_partial_overflow.**  After
+**A success result on body_partial_overflow.**  After
 :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav` reports
 ``(12.06, 30.53)`` px and :func:`~spindoctor.nav_orchestrator.ensemble.ensemble` accepts the
 result, the orchestrator returns::
@@ -163,7 +163,7 @@ result, the orchestrator returns::
         ...
     )
 
-**``failed`` result on a blank image.**  When the image classifier returns
+**A failed result on a blank image.**  When the image classifier returns
 ``image_class='blank'`` the orchestrator's hard-failure short-circuit invokes
 :meth:`~spindoctor.nav_orchestrator.nav_result.NavResult.failed`::
 
@@ -177,7 +177,7 @@ result, the orchestrator returns::
         ...
     )
 
-**``conflicted`` result on multi_body.**  When pass-1 techniques produce two non-
+**A conflicted result on multi_body.**  When pass-1 techniques produce two non-
 overlapping high-confidence groups (the disc + limb cohort agreeing around
 :math:`(7.0, -18.0)` px and the terminator latching at :math:`(11.6, 12.6)` px), the
 ensemble's agreement-gap test fails and the orchestrator returns the best group's

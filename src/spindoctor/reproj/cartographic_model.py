@@ -1,7 +1,7 @@
 """Cartographic model creation for planetary bodies.
 
-Creates navigation model images by projecting a lat/lon body mosaic back
-onto the image coordinate system for use in navigation correlation.
+Projects a lat/lon body mosaic back onto the image coordinate system,
+producing an image of the body at that observation's resolution.
 
 Thread safety: create_cartographic_model() creates a Backplane from the
 provided observation and is not thread-safe. Do not call it from multiple
@@ -46,7 +46,7 @@ def create_cartographic_model(
     latlon_type: Literal['centric', 'graphic', 'squashed'] = 'centric',
     lon_direction: Literal['east', 'west'] = 'east',
 ) -> CartographicModelResult | None:
-    """Create a navigation model by projecting a body mosaic onto image coordinates.
+    """Create an image of a body by projecting a mosaic onto image coordinates.
 
     For each pixel in the observation image, the corresponding latitude and
     longitude on the body surface is computed using the observation geometry.

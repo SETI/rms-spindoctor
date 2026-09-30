@@ -20,22 +20,22 @@ being a single non-interactive invocation:
 **The report reads a navigation results tree or a results index, and over the
 records both storages can read it is the same report either way.** Every number
 in it comes from one pass over the per-image records, and the two storages hand
-that pass the same records, so a report over a tree and a report from an index
-built from that tree carry the same text and the same charts.
+that pass the same records, so a report over a tree and a report from a results
+index built from that tree carry the same text and the same charts.
 
 One count is the exception, and it is the count of files that yielded no record:
 a file the storage could not deliver at all is counted from a tree and not from
-an index, because the ingest deliberately records no refusal for a retrieval
-that failed once. The **Files that yielded no record** entry below says what
-that means for the number printed.
+the results index, because the ingest deliberately records no refusal for a
+retrieval that failed once. The **Files that yielded no record** entry below says
+what that means for the number printed.
 
-An index built by an ingest run with ``--no-prune`` is the other way the two can
-differ, and it is a choice somebody made rather than a property of the storages:
-that ingest leaves in place the rows of documents that have left the tree, so
-the report from it counts images the tree no longer holds and the report over
-the tree does not. Running ``sd_results_index ingest`` again without the flag
-removes them. :doc:`user_guide_results_index` says what the flag gives up and what it
-saves.
+A results index built by an ingest run with ``--no-prune`` is the other way the
+two can differ, and it is a choice somebody made rather than a property of the
+storages: that ingest leaves in place the rows of metadata documents that have
+left the tree, so the report from it counts images the tree no longer holds and
+the report over the tree does not. Running ``sd_results_index ingest`` again
+without the flag removes them. :doc:`user_guide_results_index` covers that
+program and says what the flag gives up and what it saves.
 
 The configuration is read the way every other program reads it: the files named
 with ``--config-file``, or else ``nav_default_config.yaml`` in the working
@@ -43,12 +43,12 @@ directory. Over a tree, the ``results_tree`` section decides how many requests
 the report makes at once; :doc:`user_guide_results_index` says what each
 setting costs.
 
-An index is optional here exactly as it is everywhere else, and
+A results index is optional here exactly as it is everywhere else, and
 ``--results-index-db`` is resolved the same way: from the command line, then the
 ``environment.results_index_db`` configuration variable, then the
 ``NAV_RESULTS_INDEX_DB`` environment variable, with the literal ``none`` at any
-level meaning no index. The index is a database built from the navigation
-results tree by a separate pass, ``sd_results_index ingest``, and
+level meaning no results index. The results index is a database built from the
+navigation results tree by a separate pass, ``sd_results_index ingest``, and
 :doc:`user_guide_results_index` is where it is documented: how it is named and
 resolved, how to build and rebuild one, the tables it holds, and how to query it
 directly for the questions this report does not answer.
@@ -60,23 +60,24 @@ directly for the questions this report does not answer.
     sd_stats_report \
         --results-index-db sqlite:////data/nav-offset-results/index.sqlite3
 
-With no index the navigation results tree is read instead. The roots to read
-come from ``--nav-results-root`` (repeatable), then the ``nav_results_root``
+With no results index the navigation results tree is read instead. The roots to
+read come from ``--nav-results-root`` (repeatable), then the ``nav_results_root``
 configuration variable, then ``NAV_RESULTS_ROOT``, as they do for the ingest.
-On a machine where an index is configured, ``--results-index-db none`` is how a
-single run is made to read the tree anyway:
+On a machine where a results index is configured, ``--results-index-db none`` is
+how a single run is made to read the tree anyway:
 
 .. code-block:: bash
 
     sd_stats_report --nav-results-root /data/nav-offset-results \
         --results-index-db none
 
-**Reading a tree costs one full read of every document under every root, on
-every report run.** That is exactly the cost an index exists to remove -- a
-Cassini-scale root is several hundred thousand documents, and on a cloud root
-each one is a paid round trip. For a local tree and a single report that is
-the right trade; for a cloud root, or for a report you will run more than
-once, build an index with ``sd_results_index ingest`` first and name it.
+**Reading a tree costs one full read of every metadata document under every
+root, on every report run.** That is exactly the cost a results index exists to
+remove. A Cassini-scale root is several hundred thousand metadata documents, and
+on a cloud root each one is a paid round trip. For a local tree and a single
+report that is the right trade. For a cloud root, or for a report you will run
+more than once, build a results index with ``sd_results_index ingest`` first and
+name it.
 
 A root, or a directory under one, that cannot be listed fails the run, and no
 report is written. A report that quietly covered less than the tree could not
@@ -93,13 +94,13 @@ in the basename, so ``--min-image N1454725799`` and ``--min-image 1454725799``
 are equivalent); both bounds are inclusive and either may be given alone. The
 same inputs always produce the same numbers and the same charts.
 
-``--root`` restricts an index-backed report to one ingested navigation-results
-root and may be given more than once; with none given the report covers every
-root the index holds a completed ingest of. A root whose newest ingest run did
-not finish is passed over rather than counted, because no absence under it can
-be read as an image nothing navigated; naming such a root outright is an error
-rather than an empty report. A report legitimately spans roots where a
-per-image lookup never does.
+``--root`` restricts a report backed by the results index to one ingested
+navigation-results root and may be given more than once. With none given, the
+report covers every root for which the results index holds a completed ingest.
+A root whose newest ingest run did not finish is passed over rather than
+counted, because no absence under it can be read as an image nothing navigated.
+Naming such a root outright is an error rather than an empty report. A report
+legitimately spans roots where a per-image lookup never does.
 
 **A report that passed a root over says so.** Its header names the roots it
 covered as the narrowing they are, and a ``Roots dropped`` line under them names
@@ -107,9 +108,9 @@ the ones it left out; nothing under a dropped root is reported, neither its
 images nor its files that yielded no record, because a half-covered root is
 worse than an uncovered one. Ingest such a root and the next report covers it.
 
-Because ``--root`` selects among the roots one index holds, it is a different
-thing from ``--nav-results-root``, and it is refused when no index is named
-rather than read as a second spelling of it.
+Because ``--root`` selects among the roots one results index holds, it is a
+different thing from ``--nav-results-root``, and it is refused when no results
+index is named rather than read as a second spelling of it.
 
 Three options control drill-down output:
 
@@ -118,9 +119,9 @@ Three options control drill-down output:
   image names per category and instrument, caps the suspect-offset and
   worst-BOTSIM-pair tables at N rows, and lists the N slowest images and the
   N hungriest. The default is 0, which turns the example lists, the
-  worst-pair table and both image lists off entirely -- but leaves the
-  suspect-offset table uncapped, so it prints one row for every suspect image
-  the selection holds.
+  worst-pair table, and both image lists off entirely, but leaves the
+  suspect-offset table uncapped, printing one row for every suspect image in
+  the selection.
 - ``--filelists`` writes one plain-text file per category and instrument
   (one image name per line, the full list rather than the top N) into the
   ``filelists/`` subdirectory of the output directory, ready to feed back
@@ -128,15 +129,16 @@ Three options control drill-down output:
 - ``--csv`` writes ``images.csv`` next to ``report.md``: one row per image,
   ``results_path_stub`` first and then every remaining per-image field in
   schema order -- ``root_url`` through ``mtime_ns`` and ``size_bytes`` -- plus
-  ``n_technique_rows``, ``n_feature_sources``, ``n_features`` and ``n_gated``
+  ``n_technique_rows``, ``n_feature_sources``, ``n_features``, and ``n_gated``
   aggregates, for pandas or spreadsheet analysis. Rows end with a single
   newline on every platform, and a JSON column that holds nothing is an empty
-  cell. One index column stays out: ``status_traceback``, whose value carries
+  cell. One column stays out: ``status_traceback``, whose value carries
   newlines of its own, so a row holding it would span as many lines as the
   traceback has frames and every line-oriented reader of the file would
-  miscount it. Query the index for that column. Each row is written as it is read, so the rows are **not sorted**:
-  their order is whatever the storage yields them in -- the walk's own order
-  for a tree, the server's own order for an index -- and the two do not agree.
+  miscount it. Query the results index for that column. Each row is written as
+  it is read, so the rows are **not sorted**: their order is whatever the
+  storage yields them in -- the walk's own order for a tree, or the server's
+  own order for the results index -- and the two do not agree.
   ``results_path_stub`` is the first column so that putting them in order is
   one shell pipeline, with the header line held out of the sort:
 
@@ -166,29 +168,30 @@ The report contains:
   image, and the first and last available date. Image numbers only compare
   within one instrument, so the bounds are never pooled across instruments.
   The date bounds are found independently of the image ordering, so a
-  single image with no recorded epoch at either end of the number range
+  single image that has no recorded epoch at either end of the number range
   cannot hide the instrument's real time span.
 - **Files that yielded no record** -- how many files named like a navigation
-  document no record could be read out of: one that could not be retrieved,
-  one that is not JSON, or JSON that is not a navigation document of the
-  current schema. The line is printed whether the count is zero or not,
+  metadata document no record could be read out of: one that could not be
+  retrieved, one that is not JSON, or JSON that is not a navigation metadata
+  document of the current schema. The line is printed whether the count is zero
+  or not,
   because a line that vanished at zero could not be told apart from a report
   that never looked for such files at all. **The count covers the whole of
-  every selected root and is not narrowed by ``--instrument``,
-  ``--start-date`` or ``--min-image``**: a file no record could be read out of
-  carries no instrument, no date and no image number, so it cannot obey a
+  every selected root, and the instrument, start-date, and minimum-image-number
+  options do not narrow it**: a file no record could be read out of
+  carries no instrument, no date, and no image number, so it cannot obey a
   filter that compares one. For the same reason it is kept out of the
   per-instrument count tables, whose percentages are of images.
 
-  One of those kinds is counted from a tree and not from an index: a file the
-  storage could not deliver at all. The ingest deliberately records no refusal
-  for it, because a retrieval that failed once is worth trying again on the next
-  pass rather than being remembered as a file that will not read, so a
-  tree-backed count of unreadable files can exceed an index-backed one over the
-  same root by the number of files that would not come back. Every other kind --
-  a file that is not JSON, JSON that is not an object, and JSON that is not a
-  navigation document of the current schema -- is counted alike by both, under
-  the same reason.
+  One of those kinds is counted from a tree and not from the results index: a
+  file the storage could not deliver at all. The ingest deliberately records no
+  refusal for it, because a retrieval that failed once is worth trying again on
+  the next pass rather than being remembered as a file that will not read, so a
+  count of unreadable files taken from a tree can exceed one taken from the
+  results index over the same root by the number of files that would not come
+  back. Every other kind -- a file that is not JSON, JSON that is not an object,
+  and JSON that is not a navigation metadata document of the current schema --
+  is counted alike by both, under the same reason.
 - **Success / failure counts** with a breakdown of failure reasons. The
   reason table carries each reason's status, so errors (SPICE-related or
   not) are visible alongside outright navigation failures.
@@ -202,8 +205,8 @@ The report contains:
   technique, per-instrument detail table of non-spurious runs and mean
   confidence.
 - **Model and source usage** -- which bodies, rings, and star catalogs
-  appeared, in how many images, and how many of their features survived the
-  reliability gate.
+  appeared, in how many images, and how many of their features scored high
+  enough on reliability to be handed to a technique.
 - **Offset statistics** -- mean, median, standard deviation, minimum, and
   maximum of the fused V and U offsets over successful images, grouped by
   camera, with two charts per camera, plus the same statistics grouped
@@ -248,8 +251,8 @@ The report contains:
   both produced non-spurious results.
 - **Confidence calibration** -- per confidence tier, the distribution of each
   image's maximum cross-technique disagreement. The tiers always read
-  ``high`` / ``medium`` / ``low`` / ``failed`` / ``conflicted``, so a tier
-  with no images reads as an explicit zero rather than a missing row.
+  ``high`` / ``medium`` / ``low`` / ``failed`` / ``conflicted``, so a tier that
+  holds no images reads as an explicit zero rather than a missing row.
   Without ground truth,
   agreement between independent techniques is the production proxy for
   accuracy (the calibrated anchor is the simulation campaign; see
@@ -263,11 +266,13 @@ The report contains:
   deviation, and total of the per-image wall-clock run times, a run-time
   histogram, and (with ``--top-n``) the slowest images. The section is
   omitted when no selected image carries timing data.
-- **Peak-memory statistics** -- the same shape of table over the largest
+- **Peak-memory statistics** -- the same table over the largest
   resident size each navigation reached, in GiB, with a histogram and (with
   ``--top-n``) the hungriest images. The maximum is the column that sizes a
-  worker, since it is the figure an out-of-memory kill is decided against,
-  and the distribution says how much of a pass runs nowhere near it. Each
+  worker, and the distribution says how far below it most of a pass stays. A
+  container's memory limit is accounted separately from a process's resident
+  size, so treat the peak as a sizing figure rather than as the number a kill
+  is decided against. Each
   peak is what the navigating process reached while that image ran, so a pass
   whose images were navigated one per process reads as their individual memory
   usage.

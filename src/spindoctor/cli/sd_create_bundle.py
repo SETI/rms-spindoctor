@@ -79,7 +79,7 @@ def add_common_arguments(
         type=str,
         default=None,
         required=False,
-        help="""Root directory for bundle results; overrides the BUNDLE_RESULTS_ROOT
+        help="""Root directory for bundle results; overrides the NAV_BUNDLE_RESULTS_ROOT
         environment variable and the bundle_results_root configuration variable""",
     )
 
@@ -95,7 +95,7 @@ def add_common_arguments(
             '--backplane-results-root',
             type=str,
             default=None,
-            help="""Root directory for backplane results; overrides the BACKPLANE_RESULTS_ROOT
+            help="""Root directory for backplane results; overrides the NAV_BACKPLANE_RESULTS_ROOT
             environment variable and the backplane_results_root configuration variable""",
         )
 

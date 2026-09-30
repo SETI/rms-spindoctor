@@ -367,6 +367,7 @@ run_markdown_checks() {
 
     local codespell_failed=false
     local pymarkdown_failed=false
+    local prose_failed=false
 
     print_info "Running codespell (typos and British spellings)..."
     if python -m codespell_lib src tests docs util experiments scripts plans README.md CONTRIBUTING.md .cursor; then
@@ -384,6 +385,14 @@ run_markdown_checks() {
         pymarkdown_failed=true
     fi
 
+    print_info "Running documentation prose check..."
+    if ./scripts/check-doc-prose.sh; then
+        print_success "Documentation prose check passed"
+    else
+        print_error "Documentation prose check failed"
+        prose_failed=true
+    fi
+
     deactivate 2>/dev/null || true
 
     # Report both, and report them the way the caller reads.  In parallel mode
@@ -392,13 +401,16 @@ run_markdown_checks() {
     # the array is the channel.  The return value is what sets EXIT_CODE, so it
     # has to cover codespell too -- returning 0 because PyMarkdown passed is how
     # a spelling failure used to leave the run green.
-    if [ "$codespell_failed" = true ] || [ "$pymarkdown_failed" = true ]; then
+    if [ "$codespell_failed" = true ] || [ "$pymarkdown_failed" = true ] || \
+       [ "$prose_failed" = true ]; then
         if [ -n "$status_file" ]; then
             [ "$codespell_failed" = true ] && echo "Markdown - codespell" >> "$status_file"
             [ "$pymarkdown_failed" = true ] && echo "Markdown - PyMarkdown scan" >> "$status_file"
+            [ "$prose_failed" = true ] && echo "Markdown - documentation prose" >> "$status_file"
         else
             [ "$codespell_failed" = true ] && FAILED_CHECKS+=("Markdown - codespell")
             [ "$pymarkdown_failed" = true ] && FAILED_CHECKS+=("Markdown - PyMarkdown scan")
+            [ "$prose_failed" = true ] && FAILED_CHECKS+=("Markdown - documentation prose")
         fi
         return 1
     fi

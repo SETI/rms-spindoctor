@@ -77,9 +77,12 @@ NAVIGATION_GUIDE = (
     FCPath(Path(__file__).resolve().parents[3])
     / 'docs'
     / 'user_guide'
-    / 'user_guide_navigation.rst'
+    / 'user_guide_image_selection.rst'
 )
 """The guide, which states the enumeration where an operator will meet it.
+
+The account lives in the image-selection chapter, which is where a reader
+chooses between the two storages.
 
 The member the guide is most easily written without is the one that costs an
 operator most: a selection answered from an index is short by every document
@@ -210,9 +213,9 @@ def _docstring_members() -> list[str]:
 def _navigation_guide_members() -> list[str]:
     """Return the enumeration as the navigation guide states it.
 
-    The guide's members are the bold-led paragraphs of its account of
-    ``--results-index-db``, which runs from the sentence introducing that option's
-    answers to the end of the selection section.
+    The guide's members are the bold-led paragraphs of the section that states
+    where the two storages answer differently, which runs to the end of the
+    chapter.
 
     Returns:
         One entry per member.
@@ -226,8 +229,8 @@ def _navigation_guide_members() -> list[str]:
     return _lead_paragraphs(
         lines,
         re.compile(r'^\*\*'),
-        opens='Given ``--results-index-db``',
-        closes='Miscellaneous',
+        opens='Where the Results Index Answers Differently',
+        closes=None,
     )
 
 

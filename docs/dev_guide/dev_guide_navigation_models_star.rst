@@ -7,7 +7,7 @@ Overview
 
 :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` is the catalog-driven star
 navigation model. For each observation the model reduces the configured catalog set into a
-deduplicated star list, gates each star by catalog magnitude against the per-observation
+deduplicated star list, screens each star by catalog magnitude against the per-observation
 limiting magnitude :meth:`obs.star_max_usable_vmag() <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>`,
 flags stars whose predicted positions overlap a body silhouette or
 ring annulus, and emits one
@@ -162,12 +162,13 @@ Each predicted star is checked against:
   (defined by the per-planet radial bounds in the YAML config), the star is flagged
   ``in_body_silhouette`` as well (a ring conflict occludes the star the same way).
 
-The model does **not** gate a star on the saturation or cosmic-ray mask at its predicted
+The model does **not** reject a star on the saturation or cosmic-ray mask at its predicted
 position: once a pointing offset is present the predicted position carries no special
 significance, and a sharp stellar peak self-triggers the cosmic-ray detector, so consulting
 the mask there would suppress good stars. The ``saturated`` and
-``in_saturation_or_cosmic_mask`` flags therefore stay clear. Star usability is an
-occlusion-only gate.
+``in_saturation_or_cosmic_mask`` flags therefore stay clear. So among the predictable
+stars -- those the model emits a STAR feature for, after the magnitude and smear cuts
+below have removed the rest -- occlusion is the only thing that makes one unusable.
 
 Conflict-flagged stars stay in the model's list, so the conflict entries the model
 records in ``model_metadata`` and the per-image log's star list still name them, but
@@ -264,8 +265,9 @@ The per-star CRLB covariance reflects the magnitude-margin centroid uncertainty.
 does not capture systematic biases from a misaligned camera distortion model, from
 unmodelled background flux, or from PSF smear that exceeds the per-instrument
 ``max_smear`` cap (stars above that cap are dropped from the emission set rather than
-emitted with unreliable predictions). Star usability is gated only on body / ring occlusion;
-the saturation and cosmic-ray masks are not consulted at the predicted position, so the
+emitted with unreliable predictions). Among the predictable stars, body and ring
+occlusion is the only thing that makes one unusable; the saturation and cosmic-ray
+masks are not consulted at the predicted position, so the
 :class:`~spindoctor.feature.flags.StarFlags` saturation flags stay clear.
 
 Configuration
@@ -300,43 +302,17 @@ The model's runtime knobs live in ``stars`` in
   duplicate detection step.
 - ``overlapping_vmag_threshold`` — float, default ``2`` mag. Below this magnitude
   difference, two visually-overlapping stars are dropped from both catalogs.
-- ``calibrated_data`` — bool, default ``true``. Whether the per-image data is in
-  calibrated I/F units (vs. raw DN).
-- ``float_psf_sigma`` — bool, default ``false``. When true, the per-instrument PSF sigma is
-  treated as a fit parameter; when false, the per-instrument value is used verbatim.
-- ``search_multipliers`` — list[float], default ``[0.25, 0.5, 0.75, 1.0]``. Multipliers on
-  the per-instrument SPICE pointing-error envelope used by the star matcher's coarse
-  search.
-- ``perform_photometry`` — bool, default ``true``. Whether to run per-star photometric
-  validation.
-- ``try_without_photometry`` — bool, default ``false``. Whether to attempt a fallback
-  match path with photometry disabled.
-- ``min_stars_low_confidence`` — list (count, confidence), default ``[3, 0.75]``. Minimum
-  star count and confidence level for the low-confidence match path.
-- ``min_stars_high_confidence`` — list (count, confidence), default ``[6, 1.0]``. Minimum
-  star count and confidence level for the high-confidence match path.
 - ``min_confidence`` — float, default ``0.9``. Minimum confidence level for the match to
   succeed.
-- ``psf_gain`` — list (DN, gain), default ``[5000, 4]``. PSF integrated gain mapping for
-  flux estimation.
 - ``max_smear`` — float, default ``100`` (dimensionless). Maximum smear length above which
   a star is dropped from the emission set.
-- ``min_vmag`` — float, default ``5.0`` mag. Minimum visual magnitude (i.e. brightest)
-  considered.
-- ``max_vmag`` — float, default ``15.0`` mag. Maximum visual magnitude (i.e. dimmest)
-  considered for prediction.
-- ``vmag_increment`` — float, default ``0.5`` mag. Magnitude bin width for the per-bin
-  star-list build.
-- ``max_star_dn`` — float, default ``100000.0`` DN. Above this, stars are too bright to
-  use (saturation regime).
-- ``min_dn_force_one_star`` — float, default ``25000.0`` DN. Below this DN, the
-  unique-bright single-star path will not fire even on a uniquely bright catalog star.
-- ``star_body_conflict_margin`` — int, default ``3`` px. Smaller-than-body conflict margin
-  used when the per-star centroid is close to the body silhouette boundary.
-- ``too_bright_dn`` — float, default ``1000`` DN. Threshold above which a star is "very
-  bright" for the per-star photometric tests.
-- ``too_bright_factor`` — float, default ``1`` (dimensionless). Multiplier on
-  ``too_bright_dn`` (reserved tuning slot).
+- ``min_predicted_snr`` — float, default ``0.0`` (dimensionless). Effective SNR at which
+  the ``predicted_snr`` entry of a star's reported reliability breakdown reaches 1.0;
+  below it the entry is ``snr / min_predicted_snr``. It is a reporting value only: the
+  scalar reliability that the per-type threshold compares comes from
+  ``_reliability_from_snr``, which never receives this setting, so changing it cannot drop
+  a star or alter which features a run uses. ``0.0`` uses the default scale, where an SNR
+  of 50 saturates the entry.
 - ``ring_occlusion_enabled`` — bool, default ``true``. Whether to flag stars whose
   predicted positions lie inside a planet's ring system.
 - ``ring_occlusion_min_opaque_fraction`` — float, default ``0.25``. Fraction of the
@@ -552,7 +528,8 @@ Call path traced through
    predicted position and the per-feature CRLB covariance.
 2. Build a :class:`~spindoctor.feature.flags.StarFlags` carrying the magnitude-margin effective
    SNR, the catalog magnitude, and the body / ring conflict flags. The saturation /
-   cosmic-ray-mask flags are left clear -- star usability is an occlusion-only gate.
+   cosmic-ray-mask flags are left clear -- among the predictable stars, occlusion is the
+   only thing that makes one unusable.
 3. Construct one :data:`~spindoctor.feature.feature_type.NavFeatureType.STAR`
    :class:`~spindoctor.feature.feature.NavFeature` per star and return the list.
 

@@ -46,7 +46,7 @@ offers the same feature set a real one would. The terminator technique is sim-fi
 these emissions (2026-07-18 campaign; the fit came out single-class, so its formula is a
 low plateau -- see ``config_510_techniques.yaml``), and a terminator fix stays
 ``confidence_provisional``: the realism match has no terminator-side rise-width verdict,
-which is the condition that gates trust in its confidences.
+which is the condition on which trust in its confidences depends.
 
 The model overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build
 one instance per body of a simulated observation; the parent

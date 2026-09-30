@@ -3,10 +3,9 @@
 Consumes every ``LIMB_ARC`` feature in the input set, concatenates their
 per-vertex positions, weights them by ``1 / sigma_normal_per_vertex_px**2``,
 and runs the shared distance-transform fitter to recover a single
-translation that minimizes the joint cost across all bodies.  Multi-body
-inputs improve the fit by ``sqrt(N_bodies)`` when SPICE relative geometry
-is correct; the joint-translation parameterization cannot represent
-"swap two moons" mistakes by construction.
+translation that minimizes the joint cost across all bodies.  The
+joint-translation parameterization cannot represent "swap two moons"
+mistakes by construction.
 """
 
 from __future__ import annotations

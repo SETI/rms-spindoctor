@@ -157,7 +157,7 @@ Feature-stage failures
     scene genuinely lacks a reliable feature.
 
 ``no_feasible_techniques``
-    Features passed the gate but no technique's feasibility check accepted
+    Features were reliable enough to keep, but no technique accepted
     them (see :doc:`dev_guide_techniques_feasibility`) -- for example stars
     present but too few for a pattern match and too ambiguous for a unique
     match. The per-image log records each technique's feasibility verdict

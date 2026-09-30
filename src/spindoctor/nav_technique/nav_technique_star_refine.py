@@ -1,7 +1,7 @@
 """``StarRefineNav`` — pass-2 star-refinement technique.
 
 Consumes the pass-1 ensemble's prior offset and refines it via local
-PSF-centroid fits on every predicted catalog star.  For each STAR
+moment centroids on every predicted catalog star.  For each STAR
 feature, the technique:
 
 1. Shifts the catalog prediction by the prior offset.

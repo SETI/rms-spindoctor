@@ -1,0 +1,188 @@
+---
+description: Prose style for all SpinDoctor documentation -- audience separation, forbidden constructions, terminology, and the mechanical check that enforces them.
+alwaysApply: false
+---
+
+# Documentation Prose Style
+
+This rule governs the words in every `.rst` and `.md` file under `docs/`, plus
+`README.md` and `CONTRIBUTING.md`. It sits alongside `doc_user_guide.mdc` (which
+governs what a user-guide chapter contains) and `doc_dev_guide.mdc` (which governs
+the developer guide). Where this rule and those overlap, this one governs the
+sentence and that one governs the outline.
+
+`scripts/check-doc-prose.sh` enforces the mechanically detectable half. Run it
+before claiming a documentation change is done; `scripts/run-all-checks.sh` runs
+it too. The rest of this rule is a review checklist -- a human or a model has to
+read the prose to apply it.
+
+## 1. Audience separation
+
+The user guide is for users. A user runs command-line programs, reads the files
+those programs write, and reasons about images, missions, cameras, rings, and
+bodies. A user has never read our source and cannot open a file inside the
+installed package.
+
+**Never in the user guide:**
+
+- Class names used as objects (`NavResult`, `ObsSnapshotInst`).
+- Attribute or field access (`nav_result.offset_px`, `obs.star_max_usable_vmag`,
+  `psf_model.eval_rect`, `stars.max_smear`).
+- Function names (`navigate_image_files`, `build_metadata_dict`,
+  `compute_pointing`, `select_pointing`, `apply_pointing_to_obs`).
+- Packaged configuration filenames (`config_050_rings.yaml` and its siblings).
+  The configuration chapter states where the packaged defaults live, **once**, as
+  a parenthetical aside noting that this is where developers find them. No other
+  chapter repeats it.
+
+**Legitimately user-facing, and therefore allowed:**
+
+- Names a user types on the command line. Model and technique names
+  (`NavModelStars`, `BodyLimbNav`) are the patterns passed to `--nav-models` and
+  `--nav-techniques`. Say a technique is **named after the class that implements it**;
+  never that it "registers under" a name, and never use the word **registry** --
+  a user does not know what one is and does not need to.
+- Keys a user reads in a metadata document. Name them as JSON keys, not as
+  Python attributes.
+- Module and class names in a chapter that documents an importable package. Say
+  up front that the chapter documents an importable package, cover the
+  command-line programs first, and put the module material in its own file.
+
+Where the machinery genuinely matters to a user's understanding, name the
+technique in one plain sentence and cross-reference the developer guide with
+`:doc:` instead of explaining it in place.
+
+## 2. Forbidden constructions
+
+| Do not write | Write instead | Why |
+|---|---|---|
+| "marginal frames are refused, not guessed" | "marginal frames are refused" | See the X-not-Y test below. |
+| "one kind of refusal is recorded nowhere" | "this kind of refusal is not recorded" | You cannot record something nowhere. |
+| "an image with no usable pointing" | "an image that has no usable pointing" | You cannot be *with* an absent thing. |
+| "an image the results index has no row for" | "an image that has no row in the results index" | No inverted relative clause with a stranded preposition. |
+| "an image whose metadata document the ingest could not read" | "an image whose metadata document could not be read" | Same. |
+| "one image that cannot be processed is not in the run" | "an image that cannot be processed is not in the run" | "one" reads as a count. |
+| "the frame passes the system-level gate" | "the frame is accepted only when its uncertainty is below N pixels" | Name what is tested. |
+| "the document shape depends on ..." | "the metadata document's contents depend on ..." | A shape is a physical form. |
+| "exactly as every offset product has always been built" | (delete) | No implementation history. |
+| "every program accepts the same options, so what you learn for one works for the next" | "every program accepts the same options" | Delete clauses that restate the obvious. |
+
+### The X-not-Y test
+
+Keep "X, not Y" only when **Y is something a reasonable reader might genuinely
+expect to happen**, so that ruling it out does real work. If no reasonable person
+would ever assume Y, the contrast is noise: state X alone.
+
+- Keep: "the offset is measured against the furnished kernels, not against a
+  fixed reference" -- a reader might well have assumed a fixed reference.
+- Delete the contrast: "marginal frames are refused, not guessed" -- nobody
+  expects a guess.
+
+### The gate rule
+
+Do not use **gate** to mean "meets a criterion". It is not how the word works in
+ordinary English. Replace it with wording that names exactly what is being
+tested. Do not sacrifice clarity or accuracy to avoid the word -- rewrite the
+sentence instead.
+
+### The shape rule
+
+**shape** means dimensions and nothing else. `image shape` (rows by columns) is
+correct and stays. A metadata document has **contents** or a **structure**.
+
+## 3. Terminology
+
+- **Never bare "document".** Write **metadata document**, **PDS4 label**, or
+  whatever it actually is.
+- **Never bare "index".** There are two, and they are unrelated: the **results
+  index** (our one row per navigated image) and the **PDS3 index** (the index
+  table shipped with a PDS3 volume). Every mention says which. When only one is
+  relevant, name that one and do not mention the other.
+- **PDS3 is not an image format.** It is an archive organization. Cassini ISS,
+  Voyager ISS, and Galileo SSI images are **VICAR**; New Horizons LORRI images
+  are **FITS**.
+- The corrected **pointing** is what a downstream consumer uses. The **offset**
+  is a correction relative to the SPICE kernels furnished when the image was
+  navigated; wherever an offset is described, name those kernels, because without
+  them the offset means nothing.
+- **corotation** and **corotating** take no hyphen.
+- American spelling throughout. `codespell` fails the build otherwise; see
+  `CLAUDE.md` for the allow-list policy.
+- **Define a term before using it.** A chapter that uses *feature*, *polarity*,
+  *confidence*, *curator*, *identity key*, or *rank deficiency* must have
+  introduced it, or must link to the chapter that does.
+
+## 4. Sentence mechanics
+
+- Short declarative sentences. No stacked subordinate clauses, no semicolon
+  chains. A convoluted paragraph becomes two or three plain sentences.
+- Ground an explanation in real images and real geometry rather than in
+  abstractions.
+- **Oxford comma, always.** Every list of three or more items separated by "and"
+  or "or" takes a comma before the conjunction.
+- Do not describe a limitation as fundamental when it is a convention. Splitting a
+  large mission into chunks is a convenience that lets each chunk's success be
+  assessed before the next one starts; nothing limits how many images one run can
+  process.
+- Do not include a hypothetical a user would never meet -- a hand-built record in
+  the results tree, a batch that did not contain exactly one image.
+- Issue numbers appear only in `..` comments, never in running prose.
+
+## 5. Cross-references
+
+Every mention of a command-line program links, on first mention in the chapter,
+to the chapter that documents it:
+
+| Program | Chapter |
+|---|---|
+| `sd_offset` | `user_guide_navigation_running` |
+| `sd_offset_cloud_tasks` | `user_guide_navigation_cloud_tasks` |
+| `sd_consolidate_metadata` | `user_guide_consolidate_metadata` |
+| `sd_create_ck` | `user_guide_ck_kernels` |
+| `sd_backplanes` | `user_guide_backplanes` |
+| `sd_create_bundle` | `user_guide_pds4_bundle` |
+| `sd_mosaic`, `sd_mosaic_display` | `user_guide_reprojection` |
+| `sd_backplane_viewer` | `user_guide_backplanes` |
+| `sd_create_simulated_image` | `user_guide_simulated_images` |
+| `sd_results_index` | `user_guide_results_index` |
+| `sd_stats_report` | `user_guide_statistics` |
+
+## 6. reStructuredText mechanics
+
+- Wrap prose at 90 characters. Do not hand-wrap inside a table.
+- Heading levels within a file: title takes an over- and under-line of `=`,
+  sections `=`, subsections `-`, sub-subsections `^`. An underline is at least as
+  long as its title.
+- **Inline markup does not nest.** A literal opened inside a bold span renders its
+  backticks as visible text, so `**No orbit model (``--orbit-model none``)**` is
+  broken. Real section titles take inline markup correctly -- a heading containing
+  ``code`` is fine -- so the fix is to stop using bold as a pseudo-heading, not to
+  strip backticks from headings.
+
+## 7. Cloud tasks
+
+Cloud tasks is a work-queue package supplied by the Ring-Moon Systems Node,
+distributed as `rms-cloud-tasks` and documented at
+<https://rms-cloud-tasks.readthedocs.io>. The `*_cloud_tasks` programs are
+workers that the cloud task system runs on a cloud compute instance; **a user
+never runs one directly**.
+
+That explanation lives in one place, `user_guide_cloud_tasks` under General
+Concepts. A chapter that documents a program does **not** repeat it: it states
+that program's own JSON task format, which differs from every other program's,
+and links back to the concepts chapter for what cloud tasks is. Repeating the
+general explanation in each chapter is what this rule previously asked for, and
+five copies of it read as distrust of the reader.
+
+## 8. Review checklist
+
+The script cannot judge these. Read for them:
+
+1. Would a user who has never seen our source understand every sentence?
+2. Is every term defined before it is used, or linked to where it is defined?
+3. For each "X, not Y": would a reasonable reader have expected Y?
+4. Does each command-line option say what it does, what it looks at, and how
+   expensive it is?
+5. Is any passage explaining how the code works rather than what the program does?
+6. Does any sentence appeal to history, or to how a product has always been built?
+7. Is a convention described as a requirement?

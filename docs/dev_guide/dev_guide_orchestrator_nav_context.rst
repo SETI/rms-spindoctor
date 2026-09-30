@@ -152,7 +152,7 @@ and covariance. The returned context carries the prior on
 techniques like
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` consume those.
 
-**Field-by-field illustration on ``body_partial_overflow``.**  After the orchestrator's
+**Field-by-field illustration on body_partial_overflow.**  After the orchestrator's
 ``_make_context`` builds the per-image state for the Rhea-overflow scene, the context
 fields might be::
 

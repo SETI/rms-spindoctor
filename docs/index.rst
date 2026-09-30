@@ -11,7 +11,7 @@ Welcome to the Documentation for SpinDoctor!
    :maxdepth: 2
    :caption: Contents:
 
-   introduction
+   quick_start
    user_guide/user_guide
    dev_guide/dev_guide
    simulator_report/simulator_report

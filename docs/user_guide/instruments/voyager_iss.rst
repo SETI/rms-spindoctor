@@ -17,8 +17,9 @@ Pipeline support
 ================
 
 * **Navigation** -- supported, both spacecraft and both cameras.
-* **Corrected-pointing C-kernels** -- supported. ``sd_create_ck vgiss``. The
-  segments carry one constant attitude: see `Corrected-pointing C-kernels`_.
+* **Corrected-pointing C-kernels** -- supported, as ``sd_create_ck vgiss``
+  (see :doc:`/user_guide/user_guide_ck_kernels`). The segments carry one
+  constant attitude: see `Corrected-pointing C-kernels`_.
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
 * **PDS4 bundles** -- not supported. The dataset names a bundle and a label
@@ -72,13 +73,14 @@ Naming a volume outside those ranges is an error rather than an empty result.
    $PDS3_HOLDINGS_DIR/metadata/VGISS_6xxx/VGISS_6101/VGISS_6101_index.lbl
 
 The volume set directory takes the volume's first digit: ``VGISS_5xxx``,
-``VGISS_6xxx``, ``VGISS_7xxx`` or ``VGISS_8xxx``.
+``VGISS_6xxx``, ``VGISS_7xxx``, or ``VGISS_8xxx``.
 
 **Which product is navigated.** The geometrically corrected product, and only
-that one. Each volume carries ``_RAW``, ``_CALIB`` and ``_GEOMED`` products for
-each frame; the dataset navigates ``_GEOMED`` and **silently skips** the other
-two rather than reporting them, so an image count from a volume listing will
-not match the number of images a run considers. The filespec is
+that one. The image files are VICAR. PDS3 is the archive organization around
+them. Each volume carries ``_RAW``, ``_CALIB``, and ``_GEOMED`` products for
+each frame. The dataset navigates ``_GEOMED`` and **silently skips** the other
+two, so an image count from a volume listing will not match the number of
+images a run considers. The filespec is
 ``DATA/Cddddddd/Cddddddd_GEOMED.LBL``, matched uppercase, which is the
 archive's own convention.
 
@@ -105,12 +107,12 @@ frames in any volume. The dataset therefore declares image numbers
 non-monotonic across volumes and no volume-level early exit is possible:
 ``--first-image-num`` and ``--last-image-num`` still filter correctly, but they
 scan every requested volume rather than stopping once the range is passed. On a
-whole-archive run that is the difference between reading one index and reading
-all eighty-seven. Restrict the volumes as well when the frames wanted are known
-to sit in one encounter.
+whole-archive run that is the difference between reading one PDS3 index and
+reading all eighty-seven. Restrict the volumes as well when the frames wanted
+are known to sit in one encounter.
 
 **Cameras and instrument-specific flags.** Two cameras per spacecraft, reported
-as ``NAC`` and ``WAC``. The Voyager indexes carry no instrument identifier
+as ``NAC`` and ``WAC``. The Voyager PDS3 indexes carry no instrument identifier
 column, so the camera is read from ``INSTRUMENT_NAME``, whose values spell it
 out as ``NARROW ANGLE CAMERA`` and ``WIDE ANGLE CAMERA``. This instrument adds
 no selection flags of its own; the shared PDS3 options are the whole surface,
@@ -118,7 +120,8 @@ and there is no camera filter.
 
 **Grouping.** None.
 
-**Examples.**
+**Examples.** These invocations run ``sd_offset``
+(see :doc:`/user_guide/user_guide_navigation_running`).
 
 .. code-block:: bash
 
@@ -202,14 +205,14 @@ wide angle camera 0.345, both with a substantial non-radial component that a
 radial model cannot represent, and both against a high centroid-and-astrometry
 floor of 0.25 to 0.34 pixels. These figures are therefore of low confidence.
 See :doc:`/fov_distortion_report/fov_distortion_report` for the coefficients,
-the method and the figures.
+the method, and the figures.
 
 Metadata fields
 ===============
 
 Beyond the keys every instrument writes -- image path and name, the start,
-midtime and end of the exposure in UTC and in TDB seconds, the image shape,
-the camera, the exposure time and the instrument host and instrument LIDs --
+midtime, and end of the exposure in UTC and in TDB seconds, the image shape,
+the camera, the exposure time, and the instrument host and instrument LIDs --
 a Voyager ISS record carries one filter entry in ``filters``. Its
 ``instrument`` is ``vgiss`` and its ``camera`` is ``NAC`` or ``WAC``. It writes
 no ``shutter_mode``, since its labels carry none.
@@ -224,12 +227,12 @@ number: one unit is 48 minutes, 60 frames of 48 seconds, each 800 lines of 60
 milliseconds, and the frame and the line are a fraction of it. The ``times``
 block's clock strings are computed from the exposure times and can differ from
 these counts by minutes. It writes none of ``sampling``, ``gain_mode``,
-``description`` or ``observation_id``.
+``description``, or ``observation_id``.
 
 The two LIDs vary by spacecraft and camera, and are the one place the metadata
 distinguishes the two spacecraft. The instrument host LID is
 ``...:instrument_host:spacecraft.vg1`` or ``...:spacecraft.vg2``, and the
-instrument LID is ``...:instrument:vg1.issn``, ``vg1.issw``, ``vg2.issn`` or
+instrument LID is ``...:instrument:vg1.issn``, ``vg1.issw``, ``vg2.issn``, or
 ``vg2.issw``. Which spacecraft took a frame is read from the ``LAB02`` record
 of its own label, not from the volume it sits in.
 
@@ -244,7 +247,7 @@ against spacecraft clock **-31** or **-32** respectively; the clock is not
 derivable from the object by arithmetic, and each object states its own.
 
 The camera frames the correction is measured in are ``VG1_ISSNA``,
-``VG1_ISSWA``, ``VG2_ISSNA`` and ``VG2_ISSWA``. One ``sd_create_ck vgiss`` run
+``VG1_ISSWA``, ``VG2_ISSNA``, and ``VG2_ISSWA``. One ``sd_create_ck vgiss`` run
 covers both spacecraft and writes segments for whichever objects its images
 name.
 
@@ -272,12 +275,12 @@ reproduces an image's attitude, the tie-break falls through to the
 lexicographically greatest basename. That is a deterministic choice among
 candidates that agree on the attitude, not a quality judgment.
 
-**Segment shape: one constant attitude.** The navigated attitude comes from a
-single tolerance-snapped pointing lookup that is constant across the exposure,
-not from an evaluated frame chain, so a corrected segment carries **that one
-attitude, constant across its window, with zero angular velocity**. There is
-nothing to interpolate between the records, and therefore no interpolation
-error at all: every epoch inside a Voyager segment is exact.
+**What a segment records: one constant attitude.** The navigated attitude comes
+from a single tolerance-snapped pointing lookup that is constant across the
+exposure, so a corrected segment carries **that one attitude, constant across
+its window, with zero angular velocity**. There is nothing to interpolate
+between the records, and therefore no interpolation error at all: every epoch
+inside a Voyager segment is exact.
 
 The zero angular velocity is a measurement rather than an omission -- zero is
 what a constant attitude's angular velocity is -- and it is written explicitly
@@ -319,7 +322,7 @@ Known limitations
 * No saturation mask is built and the reported saturation fraction is always
   zero, with no raw product available to navigate instead.
 * Image-number range selection cannot skip volumes, so a whole-archive number
-  range reads every index.
+  range reads every volume's PDS3 index.
 * The per-frame twist these cameras carry is real and is not fitted; it is
   absorbed into the reported translation. The wide angle measurement is over
   four pixels at the field corner.

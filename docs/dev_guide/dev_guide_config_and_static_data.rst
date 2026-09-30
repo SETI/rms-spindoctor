@@ -110,7 +110,7 @@ removal. The shipping sections:
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` gates; see
   :doc:`dev_guide_techniques_ring_annulus`.
 
-The user-facing tour at :doc:`/introduction_configuration` covers how operators
+The user-facing tour at :doc:`/user_guide/user_guide_configuration` covers how operators
 override these defaults with their own files; this chapter is the reference for
 what ships and where.
 
@@ -251,7 +251,7 @@ both. ``results_index_db`` is the exception: it is a database connection URL,
 not a location ``filecache`` resolves. Every one of them resolves from the first
 level that names it: the CLI flag, then this ``environment`` block, then the
 environment variable (``PDS3_HOLDINGS_DIR``, ``NAV_RESULTS_ROOT``,
-``BACKPLANE_RESULTS_ROOT``, ``BUNDLE_RESULTS_ROOT``, ``NAV_RESULTS_INDEX_DB``).
+``NAV_BACKPLANE_RESULTS_ROOT``, ``NAV_BUNDLE_RESULTS_ROOT``, ``NAV_RESULTS_INDEX_DB``).
 A key written into a configuration file therefore wins over the same value
 exported into the environment, and a flag typed on the command line wins over
 both.

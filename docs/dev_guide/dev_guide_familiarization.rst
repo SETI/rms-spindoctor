@@ -206,7 +206,7 @@ Output: annotations, metadata, summary PNG, top-level driver
 Stage 5 — Orchestrator round-trip: feasibility, confidence, diagnostics, ensemble
 =================================================================================
 
-Goal: understand how individual technique results are gated, calibrated,
+Goal: understand how individual technique results are screened, calibrated,
 classified, and combined into the single per-image answer the
 orchestrator returns.
 
@@ -436,4 +436,4 @@ conventions land on top of a working mental model of the code.
   - :mod:`spindoctor.ui.mosaic_viewer.sphere_render`
   - :mod:`spindoctor.ui.mosaic_viewer.graticule`
 
-- :doc:`/contributing` — the contributor checklist that gates every PR.
+- :doc:`/contributing` — the contributor checklist every PR has to satisfy.

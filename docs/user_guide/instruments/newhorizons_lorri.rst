@@ -8,14 +8,15 @@ Overview
 The New Horizons Long Range Reconnaissance Imager is a single panchromatic
 framing camera with no filter wheel, which SpinDoctor navigates across the
 whole PDS3 archive: launch, the Jupiter encounter, the Pluto cruise and
-encounter, and the Kuiper Belt cruise and encounters. Navigation, corrected
-pointing kernels, backplanes and mosaics are supported.
+encounter, and the Kuiper Belt cruise and encounters. Navigation,
+corrected-pointing kernels, backplanes, and mosaics are supported.
 
 Pipeline support
 ================
 
 * **Navigation** -- supported.
-* **Corrected-pointing C-kernels** -- supported. ``sd_create_ck nhlorri``.
+* **Corrected-pointing C-kernels** -- supported, as ``sd_create_ck nhlorri``
+  (see :doc:`/user_guide/user_guide_ck_kernels`).
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
 * **PDS4 bundles** -- not supported. The dataset names a bundle and a label
@@ -45,11 +46,11 @@ error rather than an empty result.
 Every volume sits under the single volume set directory ``NHxxLO_xxxx``.
 
 **Which product is navigated.** Both the science and the engineering products:
-an index filespec ending ``_sci.lbl`` or ``_eng.lbl`` is used as it stands,
+a PDS3 index filespec ending ``_sci.lbl`` or ``_eng.lbl`` is used as it stands,
 with the FITS image resolved from the label. Those two suffixes are matched
-**lowercase only**, which is the archive's own convention; an index row naming
-anything else stops the run rather than being skipped, so a layout change is
-visible instead of silently reducing the image count. A row whose directory
+**lowercase only**, which is the archive's own convention; a PDS3 index row
+naming anything else stops the run rather than being skipped, so a layout change
+is visible instead of silently reducing the image count. A row whose directory
 structure is unexpected is a milder case: it is logged as an error and that
 row alone is dropped.
 
@@ -83,7 +84,8 @@ the whole surface.
 
 **Grouping.** None.
 
-**Examples.**
+**Examples.** These invocations run ``sd_offset``
+(see :doc:`/user_guide/user_guide_navigation_running`).
 
 .. code-block:: bash
 
@@ -104,12 +106,12 @@ Image data and units
 purpose: the calibrated LORRI products are themselves in DN rather than I/F, so
 there is no I/F conversion to make, and navigation treats image brightness
 scale-invariantly in any case -- normalized cross-correlation, an image-derived
-noise floor, a magnitude-based star gate.
+noise floor, and a star selection made on catalog magnitude.
 
 **Saturation.** 4095 DN, the 12-bit ADC ceiling. The saturation threshold
-matches it, so the per-pixel saturation mask and the fully-overexposed early-out
-both work as documented. The ADC ceiling is not the same quantity as the
-detector full well, which is still a placeholder.
+matches it, so the per-pixel saturation mask is populated and the early-out
+that abandons a fully overexposed image can fire. The ADC ceiling is not the
+same quantity as the detector full well, which is still a placeholder.
 
 **Missing pixels.** The marker is ``0``.
 
@@ -133,7 +135,7 @@ Field of view and geometry
 
 **Extended-FOV margins.** The margin is how far outside the frame the model is
 generated, and therefore the largest offset a search can find. It is keyed by
-image size, because the archive holds full frames and binned frames and a
+image size, because the archive holds both full frames and binned frames, and a
 margin that is right for one is wrong for the other:
 
 .. list-table::
@@ -172,14 +174,14 @@ near 0.06 pixels, with a radial RMS of 0.078 pixels against a
 centroid-and-astrometry floor of 0.082. The twist, not the distortion, is this
 camera's significant geometric signature. See
 :doc:`/fov_distortion_report/fov_distortion_report` for the coefficients, the
-method and the figures.
+method, and the figures.
 
 Metadata fields
 ===============
 
 Beyond the keys every instrument writes -- image path and name, the start,
-midtime and end of the exposure in UTC and in TDB seconds, the image shape, the
-camera, the exposure time and the instrument host and instrument LIDs -- a
+midtime, and end of the exposure in UTC and in TDB seconds, the image shape, the
+camera, the exposure time, and the instrument host and instrument LIDs -- a
 New Horizons LORRI record carries the spacecraft clock counts described below.
 ``filters`` is present and **empty**: the camera is panchromatic and has no
 filter wheel, so there is no filter name to record. Its ``instrument`` is
@@ -193,7 +195,7 @@ the start and the end of the exposure, in seconds of the clock with the
 halfway between them. The ``times`` block's clock strings are computed from the
 exposure times and can differ from these counts by a fraction of a second. It
 writes none of ``sampling``, ``gain_mode``,
-``description`` or ``observation_id``. The instrument host LID is
+``description``, or ``observation_id``. The instrument host LID is
 ``...:instrument_host:spacecraft.nh`` and the instrument LID is
 ``...:instrument:nh.lorri``, with no camera component, since there is one
 camera.
@@ -246,22 +248,22 @@ greatest basename.
 angular velocity -- 4346 of 4346 measured -- so no New Horizons image is
 refused for a baseline that supplies pointing without a rate.
 
-**Segment shape.** A segment carries records at the exposure start, midtime and
-stop, plus a one-second cadence once the exposure reaches ten seconds. The
-attitude is time-varying: the correction is held body-fixed and composed onto
-the baseline's own pointing at each record epoch.
+**What a segment records.** A segment carries records at the exposure start,
+midtime, and stop, plus a one-second cadence once the exposure reaches ten
+seconds. The attitude is time-varying: the correction is held body-fixed and
+composed onto the baseline's own pointing at each record epoch.
 
 **Omission reasons this instrument produces.** ``not_eligible``,
-``no_reproducing_baseline`` and ``baseline_coverage_gap``.
+``no_reproducing_baseline``, and ``baseline_coverage_gap``.
 ``rotation_unsupported`` never appears, because rotation fitting is off.
 ``botsim_loser`` cannot appear, since it needs two cameras exposed at once and
 this instrument has one.
 
 **Interpolation error.** Not yet measured for this instrument. What is known is
-the shape rather than the size: the error is zero at every record epoch, grows
-between them, is largest where the baseline's own rate changes inside the
-window, and shrinks as records are added. The size depends on how the
-spacecraft was turning during the exposure, which differs sharply between a
+how the error behaves rather than how large it is: it is zero at every record
+epoch, depends between them on how the baseline was moving across the window,
+and shrinks as records are added. The size depends on how
+the spacecraft was turning during the exposure, which differs sharply between a
 cruise frame and an encounter frame. A consumer who evaluates geometry at the
 exposure midtime is exact and unaffected; one who needs a bound at arbitrary
 interior epochs should measure it on the frames they care about, by comparing a

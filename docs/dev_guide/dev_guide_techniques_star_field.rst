@@ -131,7 +131,8 @@ A candidate must also clear every remaining guard:
 
 An accepted wide-offset lock is confidence-capped at ``wide_offset_confidence_cap`` (0.6),
 below the high-tier floor: it rests on fewer corroborating stars than a strong-tier match, so
-it cannot claim the high tier on its own and must still clear the ensemble gate to navigate. A
+it cannot claim the high tier on its own and must still reach the ensemble's minimum
+confidence to navigate. A
 clean lock lands in the medium tier. The
 :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.wide_offset_lock` and
 :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.wide_offset_false_lock_expectation`
@@ -158,12 +159,13 @@ unambiguous, which is gated on two brightness-uniqueness margins:
 - The brightest detection must outshine the next by a peak-DN factor of at least
   ``wide_offset_one_star_detection_margin_ratio``, so the dominant peak is uniquely the anchor.
   A glare field routinely raises peaks brighter than a real faint star, so a frame whose
-  brightest detection is not uniquely dominant (two comparably bright peaks) fails this gate and
+  brightest detection is not uniquely dominant (two comparably bright peaks) fails this test and
   correctly stays unlocked: pairing the anchor with one of two rival peaks would be a guess.
 
 The lock also requires the anchor offset to fall inside the search window. An accepted one-star
 lock is confidence-capped at ``wide_offset_one_star_confidence_cap``, below even the
-``>= 3``-inlier wide-offset cap, and must still clear the ensemble gate to navigate. The
+``>= 3``-inlier wide-offset cap, and must still reach the ensemble's minimum confidence
+to navigate. The
 capability is validated on planted-truth scenes but ``wide_offset_one_star_enabled`` defaults to
 off, pending an image-library false-lock sweep against the SPICE holdings the unit suite does not
 reach; enabling it is a per-instrument configuration choice once that sweep confirms the
@@ -324,7 +326,8 @@ in ``src/spindoctor/config_files/config_510_techniques.yaml``.
 - ``wide_offset_confidence_cap`` — float, default ``0.6`` (dimensionless, in ``[0, 1]``).
   Post-formula confidence cap for a wide-offset lock. Fewer corroborating stars than a
   strong-tier match means the result cannot claim the high tier on its own; it must still
-  clear the ensemble gate to navigate. 0.6 lands a clean lock in the medium / low tier.
+  reach the ensemble's minimum confidence to navigate. 0.6 lands a clean lock in the
+  medium / low tier.
 - ``wide_offset_one_star_enabled`` — int flag, default ``0``. ``1`` enables the
   single-bright-star wide-offset acquisition (a one-inlier lock from a uniquely-bright anchor
   pair); ``0`` disables it. Off by default pending an image-library false-lock sweep.

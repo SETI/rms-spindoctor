@@ -1,5 +1,4 @@
 rings:
-  model_source: ephemeris
   # Default radial orbit uncertainty (km, 1 sigma) for a catalog ring edge
   # that carries no fitted rms.  An edge's OWN catalog rms takes precedence;
   # this default covers only rms-less entries.  RingEdgeNav converts it to
@@ -39,25 +38,8 @@ rings:
   # approximate the mode-fitted-to-unfitted ratio above, but nothing has
   # measured it, so the conservative 1.0 ships.
   orbit_radial_sigma_correlated_fraction: 1.0
-  # The five fiducial-classifier knobs below are reserved: no code reads them.
-  fiducial_feature_threshold: 3       # (count) aligned edge measurements to promote
-  fiducial_rms_gain: 2                # (dimensionless) RMS gain term
-  fiducial_min_feature_width: 2       # (px) radial width below which promotion is
-                                      # suppressed
-  one_sided_feature_width: 30.0       # (px) width used for one-sided gap/step features
-  fiducial_ephemeris_width: 100       # (px) ephemeris-radius matching tolerance
-  min_curvature_low_confidence:
-    - 0.0
-    - 0.5
-  min_curvature_high_confidence:
-    - 0.17
-    - 1.0
-  curvature_to_reduce_features: 1.5707963267948966
-  curvature_reduced_features: 1
-  emission_fiducial_threshold: 0.75
-  emission_use_threshold: 0.2
+
   remove_planet_shadow: true
-  remove_body_shadows: false
   label_font: liberation2/LiberationMono-Bold.ttf
   label_font_size: 18
     # 512: 18

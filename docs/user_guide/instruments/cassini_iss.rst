@@ -7,7 +7,7 @@ Overview
 
 The Cassini Imaging Science Subsystem carries two framing cameras, a narrow
 angle camera (NAC) and a wide angle camera (WAC), which SpinDoctor navigates
-over the whole PDS3 archive: the cruise volumes covering the Venus, Earth and
+over the whole PDS3 archive: the cruise volumes covering the Venus, Earth, and
 Jupiter encounters, and the Saturn tour. Both cameras are supported by every
 stage of the pipeline.
 
@@ -15,7 +15,8 @@ Pipeline support
 ================
 
 * **Navigation** -- supported, both cameras.
-* **Corrected-pointing C-kernels** -- supported. ``sd_create_ck coiss``.
+* **Corrected-pointing C-kernels** -- supported, as ``sd_create_ck coiss``
+  (see :doc:`/user_guide/user_guide_ck_kernels`).
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
 * **PDS4 bundles** -- supported for the Saturn dataset. The dataset class
@@ -57,18 +58,21 @@ holdings root, not from ``volumes/``:
    $PDS3_HOLDINGS_DIR/metadata/COISS_2xxx/COISS_2001/COISS_2001_index.lbl
 
 The volume set directory is ``COISS_1xxx`` or ``COISS_2xxx`` according to the
-volume's first digit, and the index file name is lowercase.
+volume's first digit. In the PDS3 index file name, the volume identifier keeps
+its uppercase form and the ``_index.lbl`` suffix is lowercase.
 
-**Which product is navigated.** The calibrated product, always. Each index row
-names a raw ``.IMG`` filespec, which the dataset rewrites to ``_CALIB.LBL``
+**Which product is navigated.** The calibrated product, always. The image files are
+VICAR; PDS3 is the archive organization around them. Each PDS3 index
+row names a raw ``.IMG`` filespec, which the dataset rewrites to ``_CALIB.LBL``
 before the image is opened, so every selection route -- volume ranges, image
 number ranges, explicit names, ``--image-file-list``, ``--image-filespec-csv``
 -- enumerates ``_CALIB.IMG`` files. The raw configuration block exists and is
 selected by the absence of ``_CALIB`` in the filename, but no ``sd_offset``
-selection route reaches it: a ``_RAW`` image name is rejected by the name
-rule, and the path a run opens always comes from the index rewrite. Navigating
-a raw frame means calling the observation loader on the ``_RAW.IMG`` path from
-Python.
+selection route reaches it (see
+:doc:`/user_guide/user_guide_navigation_running`): a ``_RAW`` image name is
+rejected by the name rule, and the path a run opens always comes from the PDS3
+index rewrite. Navigating a raw frame means calling the observation loader on
+the ``_RAW.IMG`` path from Python.
 
 **Image names.** A name is a camera letter, ``N`` or ``W``, followed by ten
 digits, optionally followed by ``_`` and one or two more digits, and
@@ -127,7 +131,7 @@ camera.
 
 **Saturation.** The raw block declares a 4095 DN ceiling, the 12-bit ADC
 limit. The calibrated block declares **no saturation threshold at all**, and
-that is deliberate: the calibration pipeline applies an exposure-, filter- and
+that is deliberate: the calibration pipeline applies an exposure-, filter-, and
 gain-dependent scaling, so no single I/F constant identifies the physically
 saturated DN ceiling. The consequence for a user is concrete -- on a
 calibrated frame the per-pixel saturation mask is empty, the reported
@@ -161,8 +165,8 @@ Field of view and geometry
 
 **Extended-FOV margins.** The margin is how far outside the frame the model is
 generated, and therefore the largest offset a search can find. It is keyed by
-image size, because the archive holds full frames and on-chip summed frames and
-a margin that is right for one is wrong for the other:
+image size, because the archive holds both full frames and on-chip summed
+frames, and a margin that is right for one is wrong for the other:
 
 .. list-table::
    :header-rows: 1
@@ -198,20 +202,20 @@ left is a few hundredths of a pixel and close to radially symmetric: the narrow
 angle camera measures a radial RMS of 0.048 pixels against a
 centroid-and-astrometry floor of 0.081, and the wide angle camera 0.086 against
 a floor of 0.053. See :doc:`/fov_distortion_report/fov_distortion_report` for
-the method, the coefficients and the figures.
+the method, the coefficients, and the figures.
 
 Metadata fields
 ===============
 
 Beyond the keys every instrument writes -- image path and name, the start,
-midtime and end of the exposure in UTC and in TDB seconds, the image shape,
-the camera, the exposure time and the instrument host and instrument LIDs --
+midtime, and end of the exposure in UTC and in TDB seconds, the image shape,
+the camera, the exposure time, and the instrument host and instrument LIDs --
 a Cassini ISS record carries:
 
-* ``shutter_mode`` -- ``NACONLY``, ``WACONLY`` or ``BOTSIM``, the last when
+* ``shutter_mode`` -- ``NACONLY``, ``WACONLY``, or ``BOTSIM``, the last when
   both cameras were exposed at once, sharing one spacecraft attitude.
 * ``start_time_sclk``, ``midtime_sclk``, ``end_time_sclk`` -- the start,
-  middle and end of the exposure as spacecraft clock counts: the label's own
+  middle, and end of the exposure as spacecraft clock counts: the label's own
   start and stop counts, which mark the start and the end of the exposure, in
   seconds of the clock with the 1/256-second ticks as a fraction, and the
   count exactly halfway between them. The ``times`` block's clock strings are
@@ -243,12 +247,12 @@ Each value is the label's own, in the label's own form:
   compression parameters and the two optics temperatures are read this way,
   among others. A label that states a single value for such a keyword fills
   the first of its attributes, and the rest are null.
-* A value the label writes as ``N/A``, ``UNK``, ``--`` or ``-999.0`` is
+* A value the label writes as ``N/A``, ``UNK``, ``--``, or ``-999.0`` is
   recorded as written. What it means depends on the attribute, and the
   attribute's row says so wherever the label writes one.
 
-Every attribute below is present on every record, so the block is the same
-shape for every image. An attribute the image does not state is null. The label
+Every attribute below is present on every record, so the block carries the same
+keys for every image. An attribute the image does not state is null. The label
 inside a calibrated image states all of them for a tour image; an earlier image
 may state fewer, and each one it does not state is null. An earlier label may
 also carry items of its own, some of them the same quantities under different
@@ -311,7 +315,7 @@ mode reads the image size.
      - DN
    * - ``cassini:data_conversion_type``
      - How the 12-bit data were reduced to 8 bits: ``12BIT`` (not reduced),
-       ``TABLE`` (by look-up table) or ``8LSB`` (keeping the 8 least
+       ``TABLE`` (by look-up table), or ``8LSB`` (keeping the 8 least
        significant bits).
      - none
    * - ``cassini:delayed_readout_flag``
@@ -388,11 +392,11 @@ mode reads the image size.
        no value.
      - kilobits per second
    * - ``cassini:instrument_mode_id``
-     - The on-chip summing mode: ``FULL``, ``SUM2`` or ``SUM4``. The recorded
+     - The on-chip summing mode: ``FULL``, ``SUM2``, or ``SUM4``. The recorded
        image size follows from it.
      - none
    * - ``cassini:inst_cmprs_type``
-     - The on-board compression: ``LOSSLESS``, ``LOSSY`` or ``NOTCOMP`` (not
+     - The on-board compression: ``LOSSLESS``, ``LOSSY``, or ``NOTCOMP`` (not
        compressed).
      - none
    * - ``cassini:inst_cmprs_param_malgo``
@@ -511,7 +515,7 @@ mode reads the image size.
      - none
    * - ``cassini:shutter_state_id``
      - Whether the shutter was enabled: ``ENABLED`` or ``DISABLED``. When it
-       was disabled, the label's start, middle and stop times are all the
+       was disabled, the label's start, middle, and stop times are all the
        start of the exposure window.
      - none
    * - ``cassini:start_time_doy``
@@ -570,20 +574,20 @@ them apart -- the tour and the cruise stamp ``YYDOY_YYDOY``, the Jupiter flyby
 stamps ``YYMMDD_YYMMDD``, and the earliest flyby release omits the code
 altogether. Gapfill kernels are ``pa`` names carrying ``_gapfill_vN``. When
 several kernels reproduce one image's attitude, which the overlapping
-reconstructed, gapfill and predicted sets make ordinary, reconstructed is
+reconstructed, gapfill, and predicted sets make ordinary, reconstructed is
 preferred over gapfill over predicted.
 
 **Angular velocity.** Every -82000 segment in the reconstructed baselines
 carries angular velocity -- 2645 of 2645 measured locally -- so no Cassini
 image is refused for a baseline that supplies pointing without a rate.
 
-**Segment shape.** A segment carries records at the exposure start, midtime and
-stop, plus a one-second cadence once the exposure reaches ten seconds. The
-attitude is time-varying: the correction is held body-fixed and composed onto
-the baseline's own pointing at each record epoch.
+**What a segment records.** A segment carries records at the exposure start,
+midtime, and stop, plus a one-second cadence once the exposure reaches ten
+seconds. The attitude is time-varying: the correction is held body-fixed and
+composed onto the baseline's own pointing at each record epoch.
 
 **Omission reasons this instrument produces.** ``not_eligible``,
-``botsim_loser``, ``no_reproducing_baseline`` and ``baseline_coverage_gap``.
+``botsim_loser``, ``no_reproducing_baseline``, and ``baseline_coverage_gap``.
 ``rotation_unsupported`` never appears, because rotation fitting is off for
 both cameras.
 
@@ -596,9 +600,9 @@ ineligible, or has no reproducing baseline, keeps its own correction rather
 than losing it to nothing.
 
 **Interpolation error.** Not yet measured for this instrument. What is known is
-the shape rather than the size: the error is zero at every record epoch, grows
-between them, is largest where the baseline's own rate changes inside the
-window, and shrinks as records are added. Two things make the size a
+how the error behaves rather than how large it is: it is zero at every record
+epoch, depends between them on how the baseline was moving across the window,
+and shrinks as records are added. Two things make the size a
 per-camera question here. The error is an angle, and a wide angle pixel
 subtends about ten times what a narrow angle pixel does, so the same angular
 error is roughly ten times fewer pixels on the wide angle camera. And how much

@@ -1440,7 +1440,7 @@ guards: the only surviving body offset is the bias-prone centroid while a
 sibling geometric technique on the same body self-flagged spurious, so the
 frame is declined (``failed``, ``status_reason``
 ``lone_blob_in_collapsed_regime``) rather than reported as a 30-px-wrong
-success -- a wrong offset that passes the acceptance gate is worse than a
+success -- a wrong offset that is accepted is worse than a
 declared failure. The scene asserts that decline. The noiseless
 sibling ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the
 same haze and phase geometry -- pins the underlying centroid bias

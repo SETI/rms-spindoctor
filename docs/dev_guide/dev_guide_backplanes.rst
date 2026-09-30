@@ -116,7 +116,7 @@ Restrictions and assumptions
   pixel grid (``extfov_margin_vu=(0, 0)``). The extended-FOV margin used
   by navigation does not appear in the FITS file.
 - **A successful record supplying no offset is processed, not refused.**
-  The rule applies below the status gate of phase 1: a record whose
+  The rule applies below the status check of phase 1: a record whose
   ``status`` is anything but ``success`` is skipped before its offset is
   ever read.  A ``success`` record that reports ``offset = None``, or
   carries no ``offset`` key at all, and has no usable C-matrix is

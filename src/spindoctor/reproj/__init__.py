@@ -4,7 +4,7 @@ This package provides tools for reprojecting planetary body images onto
 latitude/longitude grids (BodyMosaic) and ring images onto radius/longitude
 grids (RingMosaic), along with supporting photometric models, merge strategies,
 and ring orbit models. A standalone cartographic model utility projects a
-body mosaic back onto image coordinates for navigation correlation.
+body mosaic back onto image coordinates at that observation's resolution.
 
 Public API:
 

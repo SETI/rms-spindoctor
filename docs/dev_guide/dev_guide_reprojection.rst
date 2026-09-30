@@ -97,7 +97,7 @@ was constructed with an ``orbit_model``:
 
 - ``orbit_model is None``: longitudes are inertial J2000; radii are
   **absolute km**.
-- ``orbit_model`` is set: longitudes are co-rotating in that model's frame;
+- ``orbit_model`` is set: longitudes are corotating in that model's frame;
   radii are **signed offsets in km from the orbital radius at each
   (longitude, time)** — i.e. from
   ``orbit_model.radius_at_longitude(inertial_lon, et)``. With this
