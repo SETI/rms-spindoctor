@@ -29,8 +29,6 @@ dependencies = [
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
   "scipy",
-  # 2.1 made Row a variadic generic; the row annotations in results_index are
-  # spelled for that Row and do not type-check against 2.0's single-parameter one.
   "sqlalchemy>=2.1",
   "xmlschema>=4.1.0"
 ]
@@ -74,7 +72,7 @@ dev = [
   "ruff",
   # The Cassini ISS label tests read a VICAR label directly, which is the only
   # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops.
-  "rms-vicar>=1.2.1",
+  "rms-vicar>=1.3.0",
   "rms-spindoctor[docs]",
   "rms-spindoctor[postgres]",
   "threadpoolctl",
@@ -167,10 +165,6 @@ ignore_missing_imports = true
 module = "threadpoolctl"
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = "vicar.*"
-ignore_missing_imports = true
-
 [tool.pytest.ini_options]
 pythonpath = [
   "src"
@@ -228,7 +222,7 @@ regex = "[a-zA-Z]+"
 # metadata fixtures under the stats results tree.  The PDS4 schemas are a
 # cached, verbatim copy of the NASA information model, typos and all; fixing
 # one would mean the cache no longer matches what `validate` checks against.
-skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json,*/pds4/check/schemas/*"
+skip = "*/.git/*,*/_build/*,*/venv/*,*/*.egg-info/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json,*/pds4/check/schemas/*"
 # Words the dictionaries flag that are right here.  Each is a term of art, an
 # identifier, or a spelling both dictionaries accept -- not an exception granted
 # to avoid a fix.
