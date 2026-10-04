@@ -772,7 +772,13 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
     value as no sequence would publish the front reading this label does state as null.
     """
     path = cast(Path, FCPath(URL_CASSINI_ISS_CRUISE_01).retrieve())
-    label = vicar.VicarImage.from_file(path, strict=False).label
+    image = vicar.VicarImage.from_file(path, strict=False)
+    assert isinstance(image, vicar.VicarImage), (
+        'a read that asks for no extraneous bytes hands back the image alone'
+    )
+    # The attributes read a label by key, the way they read ``obs.dict``; a VicarLabel
+    # answers that way without being a Mapping, so it is handed over as the one they take.
+    label = cast(Mapping[str, Any], image.label)
     published = _label_metadata(label, 'N1294562651_1_CALIB.IMG')
     section = _property_block_keywords(label)
     absent = [

@@ -244,7 +244,7 @@ def _place(record: dict[str, Any], block: tuple[str, ...], field: str, value: An
     holder[field] = value
 
 
-def record_from_row(row: sqlalchemy.Row[Any]) -> dict[str, Any]:
+def record_from_row(row: sqlalchemy.Row[*tuple[Any, ...]]) -> dict[str, Any]:
     """Rebuild the navigation record one index row records.
 
     Only the columns the row carries are put back: a consumer selects the

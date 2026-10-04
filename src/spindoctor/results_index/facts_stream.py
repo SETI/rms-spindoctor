@@ -146,7 +146,7 @@ def reading_one_snapshot(connection: Connection) -> Connection:
     return connection
 
 
-def _key_of(row: sqlalchemy.Row[Any]) -> tuple[str, str]:
+def _key_of(row: sqlalchemy.Row[*tuple[Any, ...]]) -> tuple[str, str]:
     """Return the image one row belongs to.
 
     Parameters:
@@ -170,9 +170,9 @@ class _ChildRows:
         rows: The table's rows, ordered by the image key and streamed.
     """
 
-    def __init__(self, rows: Iterator[sqlalchemy.Row[Any]]) -> None:
+    def __init__(self, rows: Iterator[sqlalchemy.Row[*tuple[Any, ...]]]) -> None:
         self._rows = rows
-        self._held: sqlalchemy.Row[Any] | None = next(rows, None)
+        self._held: sqlalchemy.Row[*tuple[Any, ...]] | None = next(rows, None)
 
     def take(self, key: tuple[str, str]) -> list[dict[str, Any]]:
         """Return the rows belonging to one image, consuming them.

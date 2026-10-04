@@ -29,7 +29,9 @@ dependencies = [
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
   "scipy",
-  "sqlalchemy>=2.0",
+  # 2.1 made Row a variadic generic; the row annotations in results_index are
+  # spelled for that Row and do not type-check against 2.0's single-parameter one.
+  "sqlalchemy>=2.1",
   "xmlschema>=4.1.0"
 ]
 license = {text = "Apache-2.0"}

@@ -834,7 +834,7 @@ class IndexRecordSource:
         names = {column.name for column in added}
         return (*added, *(column for column in self._columns if column.name not in names))
 
-    def _row(self, root_url: str, stub: str) -> sqlalchemy.Row[Any]:
+    def _row(self, root_url: str, stub: str) -> sqlalchemy.Row[*tuple[Any, ...]]:
         """Read what the index holds about one image, from both of its tables.
 
         One query rather than a record lookup followed by a refusal lookup: an
@@ -949,7 +949,7 @@ class IndexRecordSource:
             return document_path(root_url, stub)
         return FCPath(str(source_file))
 
-    def _record_of(self, row: sqlalchemy.Row[Any]) -> NavRecord:
+    def _record_of(self, row: sqlalchemy.Row[*tuple[Any, ...]]) -> NavRecord:
         """Rebuild one row's record, with the document it stands for.
 
         Parameters:
@@ -966,7 +966,7 @@ class IndexRecordSource:
             metadata=record_from_row(row),
         )
 
-    def _refusal_of(self, row: sqlalchemy.Row[Any]) -> UnreadableFile:
+    def _refusal_of(self, row: sqlalchemy.Row[*tuple[Any, ...]]) -> UnreadableFile:
         """Rebuild one refusal row as the file it says the ingest could not read.
 
         Parameters:
