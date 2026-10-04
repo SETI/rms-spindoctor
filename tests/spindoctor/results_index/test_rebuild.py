@@ -64,7 +64,7 @@ def _mapped_columns() -> set[str]:
     return {column for entry in RECORD_FIELDS for column in entry.columns}
 
 
-def _row_of(document: dict[str, Any], columns: tuple[Any, ...]) -> sqlalchemy.Row[Any]:
+def _row_of(document: dict[str, Any], columns: tuple[Any, ...]) -> sqlalchemy.Row[*tuple[Any, ...]]:
     """Flatten a document the way the ingest does and hand back one row of it.
 
     The row is built in memory rather than through a database, because what is
