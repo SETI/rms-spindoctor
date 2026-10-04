@@ -222,7 +222,7 @@ regex = "[a-zA-Z]+"
 # metadata fixtures under the stats results tree.  The PDS4 schemas are a
 # cached, verbatim copy of the NASA information model, typos and all; fixing
 # one would mean the cache no longer matches what `validate` checks against.
-skip = "*/.git/*,*/_build/*,*/venv/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json,*/pds4/check/schemas/*"
+skip = "*/.git/*,*/_build/*,*/venv/*,*/*.egg-info/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json,*/pds4/check/schemas/*"
 # Words the dictionaries flag that are right here.  Each is a term of art, an
 # identifier, or a spelling both dictionaries accept -- not an exception granted
 # to avoid a fix.
