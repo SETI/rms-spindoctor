@@ -659,7 +659,9 @@ def evaluate_candidate(
         mask_pad: The padded mask.
         corr: The correlation matrix.
         rc: The row and column of the candidate.
-        upsample_factor: The upsample factor.
+        upsample_factor: The upsample factor.  Must be even and at least 2, so the
+            refinement window spans exactly half a pixel either side of the integer
+            peak.
         model_shape: The shape of the model.
         image_shape: The shape of the image.
         logger: Logger for the saturated-refinement diagnostic; ``None``
@@ -689,9 +691,14 @@ def evaluate_candidate(
             (the model must be at least image-sized; pad it with
             ``pad_top_left`` first).  This is validated here so the failure is a
             clear contract error rather than an opaque ``crop_center`` error two
-            calls deep.
+            calls deep.  Also raised when ``upsample_factor`` is odd or below 2.
     """
 
+    # An odd factor makes the refinement window one upsampled step wider on one
+    # side, so a saturated argmax would no longer mean "half a pixel from the
+    # integer peak" and the NCC fallback below would misread it.
+    if upsample_factor < 2 or upsample_factor % 2 != 0:
+        raise ValueError(f'upsample_factor must be an even integer >= 2; got {upsample_factor}')
     model_h, model_w = model_shape
     image_h, image_w = image_shape
     if image_h > model_h or image_w > model_w:
@@ -752,10 +759,9 @@ def evaluate_candidate(
     dy = dy_i + (int(upy) - oy) / upsample_factor
     dx = dx_i + (int(upx) - ox) / upsample_factor
     # The refinement window spans the half-pixel neighborhood of the integer
-    # NCC peak (exactly +-0.5 px for the even upsample factors in use; an odd
-    # factor would make it asymmetric by one upsampled step).  An argmax on
-    # the window boundary means the cross-power surface's own peak lies
-    # beyond half a pixel from the NCC peak, so the two surfaces disagree.
+    # NCC peak (exactly +-0.5 px, because the factor is validated even above).
+    # An argmax on the window boundary means the cross-power surface's own peak
+    # lies beyond half a pixel from the NCC peak, so the two surfaces disagree.
     # That happens when the template constrains an axis poorly (e.g. a disc
     # that overflows the FOV) and the raw surface's scale bias takes over.
     # Following the raw surface farther is not safe (its peak can sit pixels

@@ -60,6 +60,8 @@ def test_ncc_quadratic_axis_offset_neighbor_above_center_returns_zero() -> None:
 def _evaluate_candidate_for_shift(
     true_shift_vu: tuple[float, float],
     corr: np.ndarray | None = None,
+    *,
+    upsample_factor: int = 64,
 ) -> dict[str, Any]:
     """Run evaluate_candidate on a Gaussian scene with integer peak (0, 0).
 
@@ -74,6 +76,7 @@ def _evaluate_candidate_for_shift(
         corr: Optional fabricated NCC surface handed to the candidate; the
             default puts the integer peak at ``(0, 0)`` with v-neighbors 0.8
             and 0.4 (quadratic vertex ``+0.25``) and a flat u axis.
+        upsample_factor: The refinement upsample factor handed to the candidate.
 
     Returns:
         The candidate dictionary from :func:`evaluate_candidate`; the tests
@@ -93,7 +96,7 @@ def _evaluate_candidate_for_shift(
         mask_pad=mask,
         corr=corr,
         rc=(0, 0),
-        upsample_factor=64,
+        upsample_factor=upsample_factor,
         model_shape=(64, 64),
         image_shape=(64, 64),
         logger=IMAGE_LOGGER,
@@ -125,3 +128,10 @@ def test_evaluate_candidate_saturated_axis_never_reports_half_pixel_pin() -> Non
     corr[0, 0] = 1.0
     result = _evaluate_candidate_for_shift((1.2, 0.0), corr=corr)
     assert result['offset'][0] == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.parametrize('upsample_factor', [63, 1, 0], ids=['odd', 'one', 'zero'])
+def test_evaluate_candidate_rejects_a_factor_that_is_not_even(upsample_factor: int) -> None:
+    """An odd or sub-2 upsample factor would make the refinement window asymmetric."""
+    with pytest.raises(ValueError, match='upsample_factor must be an even integer >= 2'):
+        _evaluate_candidate_for_shift((0.3, -0.2), upsample_factor=upsample_factor)
