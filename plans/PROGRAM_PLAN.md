@@ -395,8 +395,8 @@ refinement stage (#398).
 
 Logging is delivered across every pipeline program: one main logger per
 program run and one image logger per image, per-module levels, four
-independently-controlled sinks, and one identical flag set whose defaults
-also live in the configuration file, so learning the logging surface for one
+independently-controlled sinks, and one identical flag set whose defaults also
+live in the configuration file, so learning the logging surface for one
 program teaches it for all of them. Cloud-task workers are silent at the
 terminal and complete in their log files. Three defects the work surfaced are
 open: a mosaic cloud task still reports success when every image in it failed
@@ -404,11 +404,11 @@ open: a mosaic cloud task still reports success when every image in it failed
 pdslogger's handler-less fallback (#423), and `sd_create_bundle_cloud_tasks`
 is unwired and should be removed rather than fixed (#424). A log's file name
 is stamped in UTC while the records inside it are stamped in local time, and
-nothing in the file says so (#731). Three follow-ups
-the design deferred are also open: the config namespace that `logging` was
-lifted out of is still organized on no stated axis (#427), an upstream
-registry-eviction request to `rms-pdslogger` (#428), and extending the same
-surface to the `util/` tooling (#429).
+nothing in the file says so (#731). Three follow-ups the design deferred are
+also open: the config namespace that `logging` was lifted out of is still
+organized on no stated axis (#427), an upstream registry-eviction request to
+`rms-pdslogger` (#428), and extending the same surface to the `util/` tooling
+(#429).
 
 The headline capability item is delivered in both halves: the navigator
 records each image's corrected attitude as a C-matrix and `sd_create_ck`
@@ -438,23 +438,23 @@ rebuildable index over the results tree, so programs stop reading one JSON
 document per image on a cloud root, and no program requires it: a run that
 names none reads the tree exactly as it always has. What it actually changed
 is broader than the index — every program that reads a navigation record now
-reads it through one seam over both storages, with one rebuild, one opener
-and one enumerated list of where the two storages answer differently. The
-design is archived at `plans/archive/RESULTS_INDEX_PLAN_2026-08-04.md`;
-current behavior is `docs/user_guide/user_guide_results_index.rst` and its
-dev-guide companion. Its follow-ups divide into three groups: capability
-extensions nobody is blocked on (a document column for bundle
-generation #464, a schema wide enough for the curation triage tool #465, a `--since`
-selector #467, `sd_offset` writing its own rows #486, a pruned-rows
-question #542, and the three programs that take the results filters but
-cannot name a results index #736), operational questions with a decision
-in them (a documented workflow for getting the index to cloud workers #466,
-the consumer open that takes a write lock it never needs #462), and correctness or hygiene items
-(#472, #493, #496, #497, #501, #512, #514, #515, #516, #528,
-and #531, #533, #534, #536, #538, #540, #541, plus a stale index that passes
-the version gate and fails on the first read #587, a results tree reached
-through a symlink getting a different stub on each pass #578, and a URL with
-no scheme that should mean a local SQLite file #572).
+reads it through one seam over both storages, with one rebuild, one opener and
+one enumerated list of where the two storages answer differently. The design
+is archived at `plans/archive/RESULTS_INDEX_PLAN_2026-08-04.md`; current
+behavior is `docs/user_guide/user_guide_results_index.rst` and its dev-guide
+companion. Its follow-ups divide into three groups: capability extensions
+nobody is blocked on (a document column for bundle generation #464, a schema
+wide enough for the curation triage tool #465, a `--since` selector #467,
+`sd_offset` writing its own rows #486, a pruned-rows question #542, and the
+three programs that take the results filters but cannot name a results index
+#736), operational questions with a decision in them (a documented workflow
+for getting the index to cloud workers #466, the consumer open that takes a
+write lock it never needs #462), and correctness or hygiene items (#472, #493,
+#496, #497, #501, #512, #514, #515, #516, #528, and #531, #533, #534, #536,
+#538, #540, #541, plus a stale index that passes the version gate and fails on
+the first read #587, a results tree reached through a symlink getting a
+different stub on each pass #578, and a URL with no scheme that should mean a
+local SQLite file #572).
 
 Some items start with an operator decision, because each is a scope
 commitment:
@@ -508,26 +508,26 @@ images because phase is not modeled and nothing levels the seams (#616), the
 Minnaert exponent is fixed at 0.5 where the icy satellites need another value
 (#617), each planet's ring target is a literal rather than configuration
 (#618), the products record sub-solar and sub-observer longitude west while
-their grid is east (#634), reading a product from remote storage never
-fetches it (#638), body backplanes read silhouette or visible extent
-depending on which truth field is present (#701), and ring `--zoom` averages
-sub-samples of the output grid where body `--zoom` interpolates the source
-image (#718). `sd_mosaic` carries handling for a missing navigation results
-root that it can never reach, and an unset root ends in a traceback rather
-than the one-line message every other configuration error gets (#733); and
-`--resolution-threshold` accepts a value below the 1.0 its contract states
-as the minimum (#738).
+their grid is east (#634), reading a product from remote storage never fetches
+it (#638), body backplanes read silhouette or visible extent depending on
+which truth field is present (#701), and ring `--zoom` averages sub-samples of
+the output grid where body `--zoom` interpolates the source image (#718).
+`sd_mosaic` carries handling for a missing navigation results root that it can
+never reach, and an unset root ends in a traceback rather than the one-line
+message the configuration-error reporting exists to print (#733); and
+`--resolution-threshold` accepts a value below the 1.0 its contract states as
+the minimum (#738).
 
 Plus, not gated on decisions: the capability matrix itself (#231),
 cloud-operation audit (#108, #67, #141, #142, and the cloud-task items the
-logging work left open, #418 and #424), performance and safe
-parallelism for campaign scale (#236, #103, #134, #126), and config
-validation (#118, which should follow the namespace reorganization #427
-rather than freeze the current grouping into a schema), and two
-command-line inconsistencies: `--profile` produces no profile in `sd_offset`
-and does nothing in `sd_backplanes` (#734), and `sd_create_ck` and
-`sd_stats_report` cannot select images with the options the other six
-programs share (#735). The user-guide completion items are delivered.
+logging work left open, #418 and #424), performance and safe parallelism for
+campaign scale (#236, #103, #134, #126), and config validation (#118, which
+should follow the namespace reorganization #427 rather than freeze the current
+grouping into a schema), and two command-line inconsistencies: `--profile`
+produces no profile in `sd_offset` and does nothing in `sd_backplanes` (#734),
+and `sd_create_ck` and `sd_stats_report` cannot select images with the options
+the other six programs share (#735). The user-guide completion items are
+delivered.
 
 **Parallelism:** decisions can be made any time; the resulting work is
 independent of Tracks A-B except that #232 (end-product accuracy) wants
@@ -565,28 +565,25 @@ cannot follow.
   `warn_unreachable` is worth its seven suppressions (#576).
 - Docs: Sphinx nitpicky-clean CI (#129, with the gate the rules already
   require but nothing runs, #438) and terminator-doc verification (#122).
-  Smaller doc defects: the README's Features list names no command-line
-  program and links to no guide (#545), four technique guides name a
-  `dt_fitting.py` that is a package (#549), and config placeholder comments
-  still carry an internal codename (#470, #471). Python source carries em
-  dashes and arrows the docstring rule prohibits with nothing gating them
-  (#714), the Qt modules document 7% of their method arguments where the rest
-  of `src` documents 65% (#715), 62 of 64 dev-guide chapters lack the class
-  diagram the rules require (#562), and `library_entry` resolves the PDS3
-  holdings root in a different order than `DataSetPDS3` while saying it does
-  not (#612). Renumbering the configuration
+  Smaller doc defects: the README's Features entries link to no guide (#545),
+  four technique guides name a `dt_fitting.py` that is a package (#549), and
+  config placeholder comments still carry an internal codename (#470, #471).
+  Python source carries em dashes and arrows the docstring rule prohibits with
+  nothing gating them (#714), the Qt modules document 7% of their method
+  arguments where the rest of `src` documents 65% (#715), 62 of 64 dev-guide
+  chapters lack the class diagram the rules require (#562), and
+  `library_entry` resolves the PDS3 holdings root in a different order than
+  `DataSetPDS3` while saying it does not (#612). Renumbering the configuration
   files, whose numbering has grown with odd gaps, is left for later discussion
   (#712). The project rules and checks have fallen behind the `rms-devenv`
   template they came from, and some now contradict this repository's own
   configuration (#723). The open-file clamp on a retrieval batch is a
-  workaround to remove once filecache bounds its own lock batches (#725).
-  The per-instrument
-  chapters are written, one per instrument in
-  each guide, as is the metadata-JSON format chapter
-  (docs/user_guide/user_guide_metadata.rst, with a staleness-guard test),
-  along with the filters / uncertainty / troubleshooting dev-guide pages,
-  the mosaic-viewer API-reference pages, and the curation-tooling language
-  pass.
+  workaround to remove once filecache bounds its own lock batches (#725). The
+  per-instrument chapters are written, one per instrument in each guide, as is
+  the metadata-JSON format chapter (docs/user_guide/user_guide_metadata.rst,
+  with a staleness-guard test), along with the filters / uncertainty /
+  troubleshooting dev-guide pages, the mosaic-viewer API-reference pages, and
+  the curation-tooling language pass.
 - Tooling parity: give the `util/` programs the logging surface the
   pipeline programs now have (#429) — several run for hours and report
   through bare `print()`.

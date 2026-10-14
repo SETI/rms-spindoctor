@@ -1010,9 +1010,10 @@ asserts the generated half matches the registries.
   so a fixture that looks self-consistent is not.
 - **#438** — the Sphinx nitpicky gate is required by the project rules and
   is not run; pairs with #129, which is the work of getting to zero.
-- **#545** — the README's Features list names no command-line program and
-  links to no guide, where the README rules ask each entry to link to its
-  user-guide chapter. Cheap, and it is the first page anyone reads.
+- **#545** — the README's Features entries carry no link to the user-guide
+  chapter behind each. The program mentions and the Quick Start invocations
+  the issue also asked for are in place. Cheap, and it is the first page
+  anyone reads.
 - **#549** — four technique guides name a `dt_fitting.py` that is a package.
 - **#470 / #471** — config placeholder comments and config placeholders
   themselves still carry an internal phase codename; documentation and

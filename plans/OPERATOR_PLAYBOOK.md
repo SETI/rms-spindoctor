@@ -188,8 +188,8 @@ sits — and are best scoped together.
   batch; #528 with #531 as a metadata-provenance pair; #493 and #496 (run-level
   conditions reported per image); #587 and #578 (a stale index that passes
   the version gate, and a symlinked tree that gets a different stub on each
-  pass); #736 (three programs that take the results filters declare
-  `--results-index-db`); then the tail #472, #497, #524, #572,
+  pass); #736 (three programs that take the results filters cannot name a
+  results index); then the tail #472, #497, #524, #572,
   and #533, #534, #535, #538, #540, #541.
 - **PDS4 bundle:** #717 (fill the Cassini mission area from the observation
   block; it is empty today because fourteen of the names it maps are not
@@ -225,8 +225,8 @@ sits — and are best scoped together.
   CLI package); #495 (raw-product dataset names for Cassini ISS).
 - **Command-line programs:** #734 (`--profile` produces no profile in
   `sd_offset` and does nothing in `sd_backplanes`); #735 (`sd_create_ck` and
-  `sd_stats_report` take the image-selection options the other six programs
-  share); #731 (log file names in UTC, log records in local time).
+  `sd_stats_report` cannot take the image-selection options the other six
+  programs share).
 - **Docs and cleanup:** #545, #549, #470, #471, #494, #518, #714, #715,
   #562, #612.
 
