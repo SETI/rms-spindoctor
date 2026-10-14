@@ -54,6 +54,7 @@ from spindoctor.feature.geometry import (
     TerminatorPolyline,
 )
 from spindoctor.nav_model.nav_model_body import NavModelBody
+from spindoctor.nav_model.silhouette_probe import PROBE_OFFSETS_PX
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
@@ -1009,6 +1010,55 @@ def test_terminator_arc_vertices_straddle_the_stated_sphere_center(
     assert isinstance(geometry, TerminatorPolyline)
     expected_v = spec.center_vu[0] + obs.extfov_margin_v - PIXEL_CENTER_TO_CORNER_PX
     assert float(geometry.vertices_vu[:, 0].mean()) == pytest.approx(expected_v, abs=1e-12)
+
+
+def test_terminator_arc_vertices_lie_on_the_analytic_terminator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every TERMINATOR_ARC vertex sits on the analytic terminator to probe resolution.
+
+    With the sun tilted ``alpha`` from the observer axis along +u, the terminator of
+    an orthographic sphere of radius ``r`` projects onto the half ellipse
+    ``du = -r * cos(alpha) * sqrt(1 - (dv / r) ** 2)`` about the stated center.  The
+    probe brackets the lit region's boundary between two ladder probes an eighth of
+    a pixel apart and places the vertex at their midpoint, so no vertex lies farther
+    than half a ladder step from that curve.  A vertex left on its ridge-pixel center,
+    or probed against the silhouette rather than the lit region, sits up to a pixel
+    away.
+
+    Parameters:
+        monkeypatch: Patches the module's oops Meshgrid / Backplane names.
+    """
+    alpha_deg = 60.0
+    spec = _SphereSpec((50.0, 50.0), 20.0, sun_vuz=_sun_for_angle(alpha_deg))
+    model, obs = _make_model(monkeypatch, spec, phase_deg=alpha_deg)
+    model.create_model()
+    features = model.to_features(_noise_context(obs))
+    terminator = next(f for f in features if f.feature_type.name == 'TERMINATOR_ARC')
+    geometry = terminator.geometry
+    assert isinstance(geometry, TerminatorPolyline)
+    # The vertices are extfov pixel centric; the sphere is stated in the FOV's
+    # pixel corner coordinates.
+    pos_v = (
+        geometry.vertices_vu[:, 0]
+        - obs.extfov_margin_v
+        + PIXEL_CENTER_TO_CORNER_PX
+        - spec.center_vu[0]
+    )
+    pos_u = (
+        geometry.vertices_vu[:, 1]
+        - obs.extfov_margin_u
+        + PIXEL_CENTER_TO_CORNER_PX
+        - spec.center_vu[1]
+    )
+    radius = spec.radius_px
+    curve_v = np.linspace(-radius, radius, 40001)
+    curve_u = -radius * math.cos(math.radians(alpha_deg)) * np.sqrt(1.0 - (curve_v / radius) ** 2)
+    distance = np.min(
+        np.hypot(pos_v[:, None] - curve_v[None, :], pos_u[:, None] - curve_u[None, :]), axis=1
+    )
+    half_ladder_step = 0.5 * float(np.diff(PROBE_OFFSETS_PX)[0])
+    assert float(distance.max()) <= half_ladder_step
 
 
 def test_disc_template_matches_model_crop(monkeypatch: pytest.MonkeyPatch) -> None:
