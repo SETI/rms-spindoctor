@@ -426,8 +426,8 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 8 of 75 library frames red locally (#288), a cross-check
-  can only be read as "no *new* deltas against `main`".
+  degraded: with 10 of 75 library frames red locally (#288, #744), a
+  cross-check can only be read as "no *new* deltas against `main`".
 
 ## Track D — Capability completion
 
@@ -866,11 +866,14 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 8
+  debt with the widest blast radius. In the local integration environment 10
   of 75 sidecars disagree, each one attributed and owned, but the set is
   still wider than the deliberately-pinned one below, so the regression
-  instrument cannot yet be read as clean. Two consequences to hold
-  onto: a navigation-affecting branch can only be gated on *no new failures
+  instrument cannot yet be read as clean. Two of the ten, the Galileo frames
+  `C0059894800R` and `C0059899900R`, record the rotation-fitted answer that
+  #560 retired; re-recording their truth from an outside measurement, or
+  pinning them red under #434, is the operator decision in #744. Two
+  consequences to hold onto: a navigation-affecting branch can only be gated on *no new failures
   against `main`*, and #547 (the one place a built product is compared
   between the results tree and the results index) is blocked because the
   frame it needs no longer navigates. Reconciling this is prerequisite

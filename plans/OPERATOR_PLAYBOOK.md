@@ -47,6 +47,12 @@ Each is a scope commitment the downstream work waits on:
   the one integration frame that would do it no longer navigates. Pick a
   frame that still navigates, or close it behind the image-library
   regression (#288).
+- **#744 the two Galileo library frames' truth**: `C0059894800R` and
+  `C0059899900R` record the rotation-fitted answer that #560 retired, so both
+  are red against the translation `main` now reports. Re-record their truth
+  from an outside measurement, or pin them red under #434. The frames carry a
+  real twist of about -0.39 deg, so a translation alone cannot match their
+  stars everywhere in the frame.
 - **#600 / #720 / #677 what a bundle says about what it cannot describe**:
   an image that did not navigate (#600), a navigated image with no
   backplanes (#720), and which SPICE kernels the metakernel lists (#677).
@@ -70,6 +76,7 @@ gh issue comment 407 --body "Decisions: <per the enumerated list>"
 gh issue comment 338 --body "Decision: <accept 2px GT | keep TERMINATOR_ARC | shape models>"
 gh issue comment 548 --body "Decision: <raise to 90% | ratify <N>% and gate CI on it>"
 gh issue comment 547 --body "Decision: <pick frame <name> | close behind #288>"
+gh issue comment 744 --body "Decision: <re-record truth from <measurement> | pin red under #434>"
 gh issue comment 459 --body "Decision: <rf_ck_cassini_predicted is live | abandon the branch>"
 gh issue comment 468 --body "Decision: <declare reconstructed | leave UNCLASSIFIED>"
 gh issue comment 466 --body "Decision: <ship the SQLite file | run PostgreSQL>"
@@ -133,20 +140,18 @@ instrument.
 
 **Group 1 — evidence integrity.** Nothing above this in the whole project.
 
-1. **#288 resolution** — 8 of 75 frames are red on `main`, and every one is
-   attributed and owned. Four are the coarse-lock family (#346's three, plus
-   `N1633925572_1`, whose fused sigma the wrong ring lock inflates past the
-   `max_sigma_px` boundary and whose tier therefore drops); one is
-   `N1853392805`, held out by the highly-irregular-body policy and owned by
-   the #338 decision; one is `N1484593951`, a real limb bias deliberately
-   pinned red; and two are stale or wrong `primary_technique` pins batched
-   onto #483. Nothing is unattributed, and no `expected.*` field is moved to
-   match current behavior. Closing the issue is therefore closing #483 and
-   the frames' owning issues, not a separate investigation.
-2. **#563** — a Galileo library frame's offset moved 5.6 px under `rms-oops`
-   0.3.0, and two C-matrix reader tests assert the old answer. Whether the
-   new offset is the better one is the question; the tests cannot be
-   re-ratcheted until it is answered.
+1. **#288 resolution** — 10 of 75 frames are red on `main`, and every one is
+   attributed and owned. Two are the Galileo frames awaiting the #744 decision
+   (Section 0.1); the other eight are under #288. Four are the coarse-lock
+   family (#346's three, plus `N1633925572_1`, whose fused sigma the wrong
+   ring lock inflates past the `max_sigma_px` boundary and whose tier
+   therefore drops); one is `N1853392805`, held out by the
+   highly-irregular-body policy and owned by the #338 decision; one is
+   `N1484593951`, a real limb bias deliberately pinned red; and two are stale
+   or wrong `primary_technique` pins batched onto #483. Nothing is
+   unattributed, and no `expected.*` field is moved to match current behavior.
+   Closing the issue is therefore closing #483 and the frames' owning issues,
+   not a separate investigation.
 
 **Group 2 — the confidently-wrong families.** Two campaigns, each best done
 as one piece. Both gate the Track A study, which consumes ensemble output at
@@ -226,15 +231,16 @@ is what makes Group 1 worth starting today.
 ## 1. The library regression, and the deliberately-red set
 
 **Read this before trusting a library run.** In the local integration
-environment 8 of 75 sidecars disagree on `main` (#288), and the eight are
-exactly the table below, entry for entry. Every one is owned by an open
-issue. Three of the eight are unresolved judgments rather than settled pins —
-the two `primary_technique` flips on #483, and `N1484593951`'s limb bias —
-which is why #288 is open, and why the gate a navigation-affecting branch
-clears is **no new failures against `main`**: run the suite on `main` first,
-then on the branch, and account for the difference. Do not re-ratchet a
-sidecar to match current behavior, and do not read a green-looking subset as
-a pass.
+environment 10 of 75 sidecars disagree on `main`, eight under #288 and two
+under #744, and the ten are exactly the table below, entry for entry. Every
+one is owned by an open issue. The two under #744 await your decision in
+Section 0.1. Three of the eight are unresolved judgments rather than settled
+pins — the two `primary_technique` flips on #483, and `N1484593951`'s limb
+bias — which is why #288 is open, and why the gate a navigation-affecting
+branch clears is **no new failures against `main`**: run the suite on `main`
+first, then on the branch, and account for the difference. Do not re-ratchet a
+sidecar to match current behavior, and do not read a green-looking subset as a
+pass.
 
 Reconciling #288 is prerequisite to two other things: #483 (re-ratcheting the
 pins the shift-equivariance fix moves) and #547 (the one place a built
@@ -249,6 +255,7 @@ frame no longer navigates).
 | N1487595731_1 | expects BodyDiscCorrelateNav primary, gets BodyLimbNav; the pin is stale | #483 |
 | N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
 | N1633925572_1 | expects the medium tier, gets low: a 39 px RingEdgeNav fit inflates the fused sigma past `max_sigma_px` | #476 |
+| C0059894800R, C0059899900R | du error 5.594 px and dv error 3.620 px: the recorded truth is the rotation-fitted answer #560 retired | #744 |
 
 `N1633925572_1` is not to be re-ratcheted; that is recorded in the sidecar
 itself, and the frame is the acceptance test for #476. The rest are pins, not
@@ -260,7 +267,7 @@ against the table:**
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
-# Expect, while #288 is open: the same red set as main — the eight frames
+# Expect, while #288 is open: the same red set as main — the ten frames
 # above. Any delta either way must be attributed in the merging PR.
 ```
 
@@ -503,12 +510,13 @@ with assignee rfrenchseti.
 
 **Evidence integrity (do first; everything else reads what these produce):**
 
-- **#288** 8 of 75 library sidecars disagree on `main` locally, all
-  attributed; what is left on it is two stale `primary_technique` pins on
-  #483, one limb bias that stays red, and the frames owned by #346, #338 and
-  #476; blocks #483 and #547
-- **#563** a Galileo library frame's offset moved 5.6 px under `rms-oops`
-  0.3.0 and two C-matrix reader tests assert the old answer
+- **#288** 10 of 75 library sidecars disagree on `main` locally, all
+  attributed (two to #744); what is left on it is two stale
+  `primary_technique` pins on #483, one limb bias that stays red, and the
+  frames owned by #346, #338 and #476; blocks #483 and #547
+- **#744** two Galileo library frames record the rotation-fitted answer #560
+  retired, so both are red; re-record their truth from an outside measurement
+  or pin them red under #434 (Section 0.1 decision)
 - **#548** suite coverage is 79% against a stated 90% floor with nothing
   enforcing either (Section 0.1 decision)
 - **#547** the one place a built product is compared between the results tree
@@ -710,12 +718,11 @@ these are what it owes and what generalizes it):**
 
 ```text
 0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #557,
-    #600, #720, #677)                                           (operator, minutes)
+    #600, #720, #677, #744)                                     (operator, minutes)
 0.1b rebase or close PR #484                                    (operator, minutes)
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)
---- #563 the moved Galileo offset        (agent session)
 --- the confidently-wrong families: #476/#346/#373, and #621/#622/#623/#639
 --- then ---
 2.1 library growth (batch-006 + continued)   (agent session; your votes gate it)

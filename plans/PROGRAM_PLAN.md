@@ -68,12 +68,14 @@ instruments (see Track D).
 Two facts about the evidence behind that health are worth stating plainly,
 because both are load-bearing and neither is comfortable. Suite coverage is
 79%, not the 90% two shipped plans' acceptance criteria claim, and nothing
-enforces any floor (#548). And 8 of 75 curated library frames disagree with
-their sidecars in the local integration environment (#288). Every one of the
-8 is attributed to an open issue, so the regression instrument reads as a
-known state rather than an unknown one; but three of the eight are judgments
-still owed rather than settled pins, so "no new failures against `main`"
-remains the only gate a navigation-affecting branch can honestly clear.
+enforces any floor (#548). And 10 of 75 curated library frames disagree with
+their sidecars in the local integration environment: eight under #288, and the
+two Galileo frames whose recorded truth is the rotation-fitted answer that
+#560 retired (#744). Every one of the 10 is attributed to an open issue, so
+the regression instrument reads as a known state rather than an unknown one;
+but three of the eight under #288, and both under #744, are judgments still
+owed rather than settled pins, so "no new failures against `main`" remains the
+only gate a navigation-affecting branch can honestly clear.
 
 The single largest remaining block is Track A: **the validation program is
 designed and partly built, but not yet run on real frames.** The confidence
@@ -534,11 +536,13 @@ cannot follow.
 - Summary-PNG unit tests (#177).
 - The image-library regression reconciliation (#288). In the local
   integration environment it is not reduced to the deliberately-red pins:
-  8 of 75 frames disagree, each attributed to an open issue, which is the
+  10 of 75 frames disagree, each attributed to an open issue, which is the
   state Track A's evidence has to be read against, and it is what blocks the
   only place a built product is compared between the results tree and the
-  index (#547). Beside it, a Galileo library frame's offset moved 5.6 px
-  under `rms-oops` 0.3.0 and two C-matrix reader tests fail with it (#563).
+  index (#547). Two of the ten are Galileo frames whose recorded truth is the
+  rotation-fitted answer that #560 retired; re-recording that truth from an
+  outside measurement, or pinning both red under #434, is an operator
+  decision (#744).
 - Suite coverage is 79% and unenforced against a stated 90% (#548). The
   shortfall is almost entirely PyQt6 widget code. This is an operator call
   before it is an implementer's: raise the number, or ratify a lower floor
@@ -706,10 +710,10 @@ a current one at a glance.
 | B — navigation correctness | 34 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639 |
 | C — statistics & QA | 5 | #240, #340, #533, #535, #724 (plus the standing cross-check and campaign-report practice) |
 | D — capability completion | 89 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720 |
-| E — test & docs debt | 37 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563, #574, #576, #612, #712, #714, #715, #723, #725, #728 |
+| E — test & docs debt | 37 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #574, #576, #612, #712, #714, #715, #723, #725, #728, #744 |
 | F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
-Priority census across all six tracks: no Critical, 31 Essential, 82
+Priority census across all six tracks: no Critical, 30 Essential, 83
 Important, 127 Useful, 39 Minor, 15 Defer. That accounts for 294 of the 295;
 #723 carries no labels at all and is the one exception to every open issue
 carrying exactly one Priority and one Effort label and at least one each of
