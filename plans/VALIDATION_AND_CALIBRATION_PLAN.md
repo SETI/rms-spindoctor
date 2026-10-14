@@ -77,7 +77,7 @@ reads:
   (#483), one is the ~2.7 px `dv` limb bias on a partially overflowing limb arc
   that WS-10 owns, one is the standing highly-irregular exclusion of #338, and
   one is a tier move the operator has ruled is not to be re-ratcheted, routed
-  to #476 and #504 as an acceptance test. That
+  to #476 as an acceptance test. That
   count predates the pixel-convention corrections, so it wants re-measuring
   before it is quoted again.
 

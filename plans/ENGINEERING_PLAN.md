@@ -577,6 +577,20 @@ photometry:
 - **#718** — `--zoom` names two different operations: the ring path averages
   sub-samples of the output grid, the body path interpolates the source
   image. Decide whether one flag should mean one thing.
+- **#733** — `sd_mosaic` is written for an optional navigation results root
+  (`str | None` annotations and two `is not None` guards in
+  `src/spindoctor/cli/sd_mosaic.py`), but `get_nav_results_root` raises when
+  no root is set and never returns `None`, so those branches are unreachable.
+  Decide whether a mosaic on uncorrected pointing should be possible: if so,
+  catch the refusal and leave the path `None`; if not, remove the `None`
+  handling. Either way, move the call inside the
+  `reporting_configuration_errors()` block, so an unset root prints the
+  one-line message rather than a `ValueError` traceback.
+- **#738** — `--resolution-threshold` takes any float
+  (`src/spindoctor/cli/reproj/args.py`), and `BodyMosaic.add` applies it
+  unchecked, although its contract says the value should be at least 1.0.
+  Below 1.0 a coarser pixel can replace a finer one. Refuse the value where it
+  is parsed, naming the option and the bound.
 - **#493** — `sd_mosaic` reports a lost results index as N failed images
   rather than as one run-level condition (see the cloud items below).
 
@@ -684,7 +698,13 @@ Its follow-ups, none blocking:
   the index as it navigates (#486); and an index that can say whether a
   root's rows were pruned (#542); and a URL with no scheme taken to mean a
   local SQLite file, so that `--results-index-db nav_index.sqlite3` means what
-  it looks like it means rather than being refused (#572).
+  it looks like it means rather than being refused (#572); and
+  `--results-index-db` declared by the three programs that take the results
+  filters without it -- `sd_create_bundle`, `sd_consolidate_metadata`, and
+  `sd_backplane_viewer` -- so their filters can read a results index rather
+  than always walking the tree (#736). The fix is for each program to declare
+  the option; the seam must not start reading `NAV_RESULTS_INDEX_DB` on their
+  behalf.
 - **Operational questions with a decision in them:** a documented workflow
   for getting the index to cloud workers (#466 -- publish the SQLite file to
   the results bucket, or run PostgreSQL); and the lockability probe that
@@ -717,6 +737,37 @@ holding more than a thousand objects lists short and says nothing
 (SETI/rms-filecache#65). The seam's completeness guarantee assumes a listing
 is complete or raises, and there is deliberately no workaround here. GS
 auto-paginates and is unaffected.
+
+### Metadata document precision (#730, a decision)
+
+`src/spindoctor/nav_orchestrator/curator.py` rounds as it assembles the
+metadata document: `PIXEL_DECIMALS = 4` for offsets, sigmas, and covariance
+entries, `CONFIDENCE_DECIMALS = 3` for confidences, reliability components, and
+classifier scores, and `ET_DECIMALS = 6` for `provenance.image_et`. The
+top-level `offset` and `confidence`, the C-matrices, and the epochs are written
+unrounded, so `navigation_result.offset_px` and the top-level `offset` can
+disagree in the last place. The operator decides whether every stored value
+is written at full precision with rounding left to reports and logs, or names
+what makes a rounded value different. Whatever is decided, the two fields
+holding one quantity agree, and the rounding table in
+`docs/user_guide/user_guide_metadata.rst` changes with it.
+
+### Command-line consistency
+
+- **#734** — `--profile` is declared by three programs and works in one.
+  `sd_mosaic` prints its profile; `sd_offset` starts a profiler and never
+  stops or reports it, so a run pays the overhead for nothing; and
+  `sd_backplanes` declares the flag and never reads it. One small context
+  manager shared by all three, printing on exit or writing to a named file,
+  keeps a fourth program from acquiring the flag without the report.
+- **#735** — `sd_create_ck` selects only by `--start-time` / `--stop-time`,
+  and `sd_stats_report` by its own `--instrument`, `--start-date`,
+  `--min-image`, and `--max-image`; neither takes the volume, image-list, and
+  image-number options the other six programs share through
+  `add_selection_arguments`. For `sd_create_ck` adding them is additive; for
+  `sd_stats_report` it carries a choice between aliasing and replacing its own
+  spellings. Writing kernels or a report for one volume is the commonest
+  request neither program can serve today.
 
 ### Capability matrix (#231)
 
@@ -812,6 +863,12 @@ asserts the generated half matches the registries.
   already-processed collection, not per-image work suited to a task queue;
   the module is unwired for logging and leaks to the worker terminal, and
   fixing it would be maintaining something that should not exist.
+- **#731** — log file names are stamped in UTC (`run_timestamp()` in
+  `src/spindoctor/config/logging_config.py`) while the records inside them
+  are stamped in naive local time by pdslogger, and nothing in the file says
+  which clock each half is on. Stamping the records in UTC as well, through a
+  pdslogger change or a formatter installed here, is the option that makes a
+  log comparable against other timestamped records.
 - **#411** — migrate the technique config keys to snake_case, so the
   configuration spells component names the way `log_key_for` and the rest
   of the config system already do.
@@ -953,8 +1010,9 @@ asserts the generated half matches the registries.
   so a fixture that looks self-consistent is not.
 - **#438** — the Sphinx nitpicky gate is required by the project rules and
   is not run; pairs with #129, which is the work of getting to zero.
-- **#545** — the README names two of fourteen command-line programs and
-  links to no guide. Cheap, and it is the first page anyone reads.
+- **#545** — the README's Features list names no command-line program and
+  links to no guide, where the README rules ask each entry to link to its
+  user-guide chapter. Cheap, and it is the first page anyone reads.
 - **#549** — four technique guides name a `dt_fitting.py` that is a package.
 - **#470 / #471** — config placeholder comments and config placeholders
   themselves still carry an internal phase codename; documentation and
@@ -972,6 +1030,17 @@ asserts the generated half matches the registries.
 - **#576** — `mypy warn_unreachable` would have caught a `continue` left
   behind after a `raise`, at the cost of seven suppressions elsewhere.
   Decide whether the trade is worth taking.
+- **#723** — the rules in `.cursor/rules/` came from the `rms-devenv`
+  repository template, which has moved on. Some of the differences contradict
+  this repository's own configuration or its other rules, some are checks the
+  template runs and this repository does not, and the rest is improved rule
+  text; the issue carries the checklist. It is the one open issue that carries
+  no labels and no assignee.
+- **#725** — `spindoctor/nav_records/descriptors.py` raises the open-file
+  limit and clamps `retrieve_threads` and `retrieve_batch_size` because
+  `FileCache.retrieve()` holds a lock file for every path in a batch until the
+  last download finishes. Remove the module once filecache bounds its own lock
+  batches (SETI/rms-filecache#67).
 - **#443** — decide whether `spindoctor.cli` subpackages belong in the API
   reference at all. It is what decides whether the C-kernel writer package
   gets an autodoc page rather than the nitpick-ignore every other

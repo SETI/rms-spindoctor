@@ -3,7 +3,7 @@
 *The top-level plan of record for all remaining work. It is written to be
 readable without knowledge of the code internals or the statistical
 methodology; the detail lives in the three sub-plans it points to. Last
-reconciled 2026-09-21.*
+reconciled 2026-10-14.*
 
 **Document map** (what to read for what):
 
@@ -402,7 +402,9 @@ terminal and complete in their log files. Three defects the work surfaced are
 open: a mosaic cloud task still reports success when every image in it failed
 (#418), the GUI viewers print library log records to stdout through
 pdslogger's handler-less fallback (#423), and `sd_create_bundle_cloud_tasks`
-is unwired and should be removed rather than fixed (#424). Three follow-ups
+is unwired and should be removed rather than fixed (#424). A log's file name
+is stamped in UTC while the records inside it are stamped in local time, and
+nothing in the file says so (#731). Three follow-ups
 the design deferred are also open: the config namespace that `logging` was
 lifted out of is still organized on no stated axis (#427), an upstream
 registry-eviction request to `rms-pdslogger` (#428), and extending the same
@@ -444,9 +446,10 @@ dev-guide companion. Its follow-ups divide into three groups: capability
 extensions nobody is blocked on (a document column for bundle
 generation #464, a schema wide enough for the curation triage tool #465, a `--since`
 selector #467, `sd_offset` writing its own rows #486, a pruned-rows
-question #542), operational questions with a decision in them (a documented workflow
-for getting the index to cloud workers #466, the consumer open that takes a
-write lock it never needs #462), and correctness or hygiene items
+question #542, and the three programs that take the results filters but
+cannot name a results index #736), operational questions with a decision
+in them (a documented workflow for getting the index to cloud workers #466,
+the consumer open that takes a write lock it never needs #462), and correctness or hygiene items
 (#472, #493, #496, #497, #501, #512, #514, #515, #516, #528,
 and #531, #533, #534, #536, #538, #540, #541, plus a stale index that passes
 the version gate and fails on the first read #587, a results tree reached
@@ -459,6 +462,7 @@ commitment:
 | Decision | Then the work is |
 |---|---|
 | **Backplane content** (#28 family): finalize the backplane set and formats | #55, #54, #57, #77, then the generator hardening (including the product-correctness defects #251, #252, #253 found by the #241 test suite). |
+| **Metadata document precision** (#730): whether any value is rounded when the metadata document is written | Store every value at full precision and leave rounding to reports and logs, or name what makes a rounded value different; either way the two fields holding the offset agree, and the metadata chapter's rounding table changes with the answer. |
 
 **PDS4 output bundles are required for all four instruments** — not a
 scope decision. The Cassini ISS path runs end to end over a synthetic
@@ -508,15 +512,22 @@ their grid is east (#634), reading a product from remote storage never
 fetches it (#638), body backplanes read silhouette or visible extent
 depending on which truth field is present (#701), and ring `--zoom` averages
 sub-samples of the output grid where body `--zoom` interpolates the source
-image (#718).
+image (#718). `sd_mosaic` carries handling for a missing navigation results
+root that it can never reach, and an unset root ends in a traceback rather
+than the one-line message every other configuration error gets (#733); and
+`--resolution-threshold` accepts a value below the 1.0 its contract states
+as the minimum (#738).
 
 Plus, not gated on decisions: the capability matrix itself (#231),
 cloud-operation audit (#108, #67, #141, #142, and the cloud-task items the
 logging work left open, #418 and #424), performance and safe
 parallelism for campaign scale (#236, #103, #134, #126), and config
 validation (#118, which should follow the namespace reorganization #427
-rather than freeze the current grouping into a schema). The user-guide
-completion items are delivered.
+rather than freeze the current grouping into a schema), and two
+command-line inconsistencies: `--profile` produces no profile in `sd_offset`
+and does nothing in `sd_backplanes` (#734), and `sd_create_ck` and
+`sd_stats_report` cannot select images with the options the other six
+programs share (#735). The user-guide completion items are delivered.
 
 **Parallelism:** decisions can be made any time; the resulting work is
 independent of Tracks A-B except that #232 (end-product accuracy) wants
@@ -554,8 +565,8 @@ cannot follow.
   `warn_unreachable` is worth its seven suppressions (#576).
 - Docs: Sphinx nitpicky-clean CI (#129, with the gate the rules already
   require but nothing runs, #438) and terminator-doc verification (#122).
-  Smaller doc defects: the README names two of fourteen command-line
-  programs and links to no guide (#545), four technique guides name a
+  Smaller doc defects: the README's Features list names no command-line
+  program and links to no guide (#545), four technique guides name a
   `dt_fitting.py` that is a package (#549), and config placeholder comments
   still carry an internal codename (#470, #471). Python source carries em
   dashes and arrows the docstring rule prohibits with nothing gating them
@@ -565,7 +576,11 @@ cannot follow.
   holdings root in a different order than `DataSetPDS3` while saying it does
   not (#612). Renumbering the configuration
   files, whose numbering has grown with odd gaps, is left for later discussion
-  (#712). The per-instrument
+  (#712). The project rules and checks have fallen behind the `rms-devenv`
+  template they came from, and some now contradict this repository's own
+  configuration (#723). The open-file clamp on a retrieval batch is a
+  workaround to remove once filecache bounds its own lock batches (#725).
+  The per-instrument
   chapters are written, one per instrument in
   each guide, as is the metadata-JSON format chapter
   (docs/user_guide/user_guide_metadata.rst, with a staleness-guard test),
@@ -691,26 +706,32 @@ library votes and the decision gates, not by any implementation.
 12. **PR #484 (#447)** — open since 2026-08-09, nine commits, conflicting
     with `main` and 291 commits behind it. Rebase it or close it; it cannot
     stay as it is.
-13. Recurring: library batch votes; agreement-study frame selection; tier
+13. **Metadata document precision (#730)** — whether the metadata document
+    should round any value at all. Today pixel values are stored to four
+    decimal places and confidences to three, while the top-level offset beside
+    them is stored at full precision, so two fields holding one quantity can
+    disagree in the last place. Decide whether every value is stored at full
+    precision, with rounding left to reports and logs.
+14. Recurring: library batch votes; agreement-study frame selection; tier
     re-blessing after #230.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it: 295 issues
-as of 2026-09-28. The count is given so a reader can tell a stale index from
+Every open issue, listed exactly once by the track that owns it: 300 issues
+as of 2026-10-14. The count is given so a reader can tell a stale index from
 a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
 | A — validation & calibration | 65 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675, #727 |
 | B — navigation correctness | 34 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639 |
-| C — statistics & QA | 5 | #240, #340, #533, #535, #724 (plus the standing cross-check and campaign-report practice) |
-| D — capability completion | 89 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720 |
-| E — test & docs debt | 37 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563, #574, #576, #612, #712, #714, #715, #723, #725, #728 |
+| C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
+| D — capability completion | 96 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720, #730, #731, #733, #734, #735, #736, #738 |
+| E — test & docs debt | 36 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563, #574, #576, #612, #712, #714, #715, #723, #725 |
 | F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
-Priority census across all six tracks: no Critical, 31 Essential, 82
-Important, 127 Useful, 39 Minor, 15 Defer. That accounts for 294 of the 295;
+Priority census across all six tracks: no Critical, 30 Essential, 85
+Important, 130 Useful, 39 Minor, 15 Defer. That accounts for 299 of the 300;
 #723 carries no labels at all and is the one exception to every open issue
 carrying exactly one Priority and one Effort label and at least one each of
 A-type and B-location.

@@ -2,7 +2,7 @@
 
 *Explicit operator instructions — commands to run, files to modify, and
 prompts to hand to agent sessions — for every next step in
-`plans/PROGRAM_PLAN.md` as of 2026-09-21. Work through Section 0 first; after
+`plans/PROGRAM_PLAN.md` as of 2026-10-14. Work through Section 0 first; after
 it, independent and unblocked work can be dispatched in parallel as agent
 sessions. Where a section states an order or a dependency -- Section 0.3's
 groups, or anything gated on #288 -- that order governs.
@@ -63,6 +63,12 @@ Each is a scope commitment the downstream work waits on:
   the results bucket and have each worker download it once, or run a
   PostgreSQL instance. This one also decides whether #464's document column
   is affordable, since it roughly doubles the index size.
+- **#730 whether the metadata document rounds anything**: pixel values are
+  stored to four decimal places and confidences to three, while the top-level
+  offset beside them is stored at full precision, so two fields holding one
+  quantity can disagree in the last place. Store every value at full
+  precision and leave rounding to reports and logs, or say what makes a
+  rounded value different.
 
 ```bash
 gh issue comment 316 --body "Decision: <ship default | ratchet fraction | wander decomposition>"
@@ -76,6 +82,7 @@ gh issue comment 466 --body "Decision: <ship the SQLite file | run PostgreSQL>"
 gh issue comment 600 --body "Decision: <per the enumerated options>"
 gh issue comment 720 --body "Decision: <per the enumerated options>"
 gh issue comment 677 --body "Decision: <per the enumerated options>"
+gh issue comment 730 --body "Decision: <store full precision | keep rounding for <values>, because <reason>>"
 ```
 
 - **#557 where the confidence scale should saturate**: the combined
@@ -100,9 +107,11 @@ and refile the two body-side fixes against `main`. Nothing else is in flight.
 
 ### 0.1c Labels and assignees: check five inferred priorities
 
-The tracker is fully labeled. Every open issue carries exactly one Priority
-and one Effort label, at least one each of A-type and B-location, and
-`rfrenchseti` as an assignee. The `Priority TBD` label is unused and can be
+The tracker is labeled except for #723, which carries no labels and no
+assignee; give it a Priority, an Effort, an A-type, a B-location, and
+`rfrenchseti`. Every other open issue carries exactly one Priority and one
+Effort label, at least one each of A-type and B-location, and `rfrenchseti` as
+an assignee. The `Priority TBD` label is unused and can be
 deleted from the repository if you want it gone.
 
 Five priorities were assigned by inference from these plans rather than by
@@ -179,7 +188,8 @@ sits — and are best scoped together.
   batch; #528 with #531 as a metadata-provenance pair; #493 and #496 (run-level
   conditions reported per image); #587 and #578 (a stale index that passes
   the version gate, and a symlinked tree that gets a different stub on each
-  pass); then the tail #472, #497, #524, #572,
+  pass); #736 (three programs that take the results filters declare
+  `--results-index-db`); then the tail #472, #497, #524, #572,
   and #533, #534, #535, #538, #540, #541.
 - **PDS4 bundle:** #717 (fill the Cassini mission area from the observation
   block; it is empty today because fourteen of the names it maps are not
@@ -201,7 +211,9 @@ sits — and are best scoped together.
   read silhouette or visible extent depending on which truth field is
   present), #617 (Minnaert k fixed at 0.5), #618 (ring target from
   configuration), #616 (unleveled mosaic seams), #718 (the two `--zoom`
-  meanings).
+  meanings), #733 (`sd_mosaic`'s unreachable handling of a missing navigation
+  results root, and the traceback that an unset root produces), #738
+  (`--resolution-threshold` accepts a value below 1.0).
 - **Test debt:** #241 and #242 first, because the plan wants tested ground
   under any serious PDS4 or backplane work; then #243, #177, #524,
   #525, #530, #473.
@@ -211,6 +223,10 @@ sits — and are best scoped together.
   turn `main` red on its own.
 - **Products:** #520 (move the pointing selection out of the reprojection
   CLI package); #495 (raw-product dataset names for Cassini ISS).
+- **Command-line programs:** #734 (`--profile` produces no profile in
+  `sd_offset` and does nothing in `sd_backplanes`); #735 (`sd_create_ck` and
+  `sd_stats_report` take the image-selection options the other six programs
+  share); #731 (log file names in UTC, log records in local time).
 - **Docs and cleanup:** #545, #549, #470, #471, #494, #518, #714, #715,
   #562, #612.
 
@@ -264,7 +280,7 @@ pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
 # above. Any delta either way must be attributed in the merging PR.
 ```
 
-The thread pins are not optional and are set nowhere in the repository —
+The thread pins are not optional and are not set anywhere in the repository —
 not in `setup.sh`, not in `conftest.py`, not in CI, not in
 `scripts/run-all-checks.sh` — so every script and every session exports them
 itself. Without them a parallel run saturates the machine.
@@ -452,7 +468,8 @@ Independent review before done; all CI gates; one PR."
   before it is a coding one); #423 (the GUI viewers print library log
   records to stdout; about ten tests capture that fallback and need their
   capture strategy changed first); #429 (give the `util/` tooling the same
-  logging surface). #427 (reorganize the config namespace) is larger and
+  logging surface); #731 (log file names are stamped in UTC and log records
+  in local time). #427 (reorganize the config namespace) is larger and
   should precede #118.
 - **Sim realism residual (#227)**: the de-circularization is done and on
   main; #227 stays open only for the realism proof and closes at the
@@ -492,7 +509,7 @@ else. Applied to the open items:
 - **Mid-tier or below suffices:** library growth, the agreement study's
   bulk execution (once WS-0 hands it a proven estimator), #229, #311, #373,
   #130, #639, the PDS4 bundle items, the simulator scene-fidelity batch, the
-  logging follow-ups (#418, #423, #424, #429), and the
+  logging follow-ups (#418, #423, #424, #429, #731), and the
   documentation/engineering items.
 
 ## 3c. Tracking-issue register
@@ -533,6 +550,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   where the image was cached rather than where it came from
 - **#462, #466** decisions (Section 0.1)
 - **#464, #465, #467, #486, #542** capability extensions, schedule on demand
+- **#736** three programs that take the results filters cannot name a results
+  index, so their filters always walk the tree
 - **#472, #497, #524, #533, #534, #535, #538, #540, #541** the small tail
 
 **Confident-wrong / ensemble honesty (sequence with #230/WS-5):**
@@ -637,6 +656,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   before #118
 - **#428** upstream registry-eviction request to `rms-pdslogger`
 - **#429** give the `util/` tooling the same logging surface
+- **#731** log file names are stamped in UTC while the records inside them are
+  stamped in local time
 
 **Library-frame reds and decisions (Section 1):**
 
@@ -710,7 +731,7 @@ these are what it owes and what generalizes it):**
 
 ```text
 0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #557,
-    #600, #720, #677)                                           (operator, minutes)
+    #600, #720, #677, #730)                                     (operator, minutes)
 0.1b rebase or close PR #484                                    (operator, minutes)
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
