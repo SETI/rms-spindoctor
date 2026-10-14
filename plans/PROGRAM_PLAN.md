@@ -728,10 +728,9 @@ a current one at a glance.
 | F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
 Priority census across all six tracks: no Critical, 30 Essential, 85
-Important, 130 Useful, 39 Minor, 15 Defer. That accounts for 299 of the 300;
-#723 carries no labels at all and is the one exception to every open issue
-carrying exactly one Priority and one Effort label and at least one each of
-A-type and B-location.
+Important, 131 Useful, 39 Minor, 15 Defer, which accounts for all 300. Every
+open issue carries exactly one Priority and one Effort label and at least one
+each of A-type and B-location.
 
 Cross-listed items (listed once above, noted here): #150/#128 sit in Track B
 and also serve Track A's limb-bias workstream (WS-10); the confident-wrong

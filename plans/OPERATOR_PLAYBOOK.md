@@ -107,11 +107,9 @@ and refile the two body-side fixes against `main`. Nothing else is in flight.
 
 ### 0.1c Labels and assignees: check five inferred priorities
 
-The tracker is labeled except for #723, which carries no labels and no
-assignee; give it a Priority, an Effort, an A-type, a B-location, and
-`rfrenchseti`. Every other open issue carries exactly one Priority and one
-Effort label, at least one each of A-type and B-location, and `rfrenchseti` as
-an assignee. The `Priority TBD` label is unused and can be
+The tracker is fully labeled. Every open issue carries exactly one Priority
+and one Effort label, at least one each of A-type and B-location, and
+`rfrenchseti` as an assignee. The `Priority TBD` label is unused and can be
 deleted from the repository if you want it gone.
 
 Five priorities were assigned by inference from these plans rather than by

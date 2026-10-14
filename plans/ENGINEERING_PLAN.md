@@ -1035,8 +1035,7 @@ asserts the generated half matches the registries.
   repository template, which has moved on. Some of the differences contradict
   this repository's own configuration or its other rules, some are checks the
   template runs and this repository does not, and the rest is improved rule
-  text; the issue carries the checklist. It is the one open issue that carries
-  no labels and no assignee.
+  text; the issue carries the checklist.
 - **#725** — `spindoctor/nav_records/descriptors.py` raises the open-file
   limit and clamps `retrieve_threads` and `retrieve_batch_size` because
   `FileCache.retrieve()` holds a lock file for every path in a batch until the
