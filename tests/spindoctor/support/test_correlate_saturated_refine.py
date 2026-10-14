@@ -130,6 +130,35 @@ def test_evaluate_candidate_saturated_axis_never_reports_half_pixel_pin() -> Non
     assert result['offset'][0] == pytest.approx(0.0, abs=1e-6)
 
 
+def test_evaluate_candidate_lower_window_edge_falls_back_to_ncc_quadratic() -> None:
+    """A cross-power peak below the window's lower edge also uses the NCC vertex.
+
+    The true v shift of -1.2 px puts the upsampled-DFT maximum on the window's first
+    sample.  The fabricated NCC surface has its quadratic vertex at ``-0.25`` along v.
+    """
+    corr = np.zeros((64, 64))
+    corr[0, 0] = 1.0
+    corr[-1, 0] = 0.8
+    corr[1, 0] = 0.4
+    result = _evaluate_candidate_for_shift((-1.2, 0.0), corr=corr)
+    assert result['offset'][0] == pytest.approx(-0.25, abs=1e-6)
+
+
+def test_evaluate_candidate_saturated_u_axis_falls_back_to_ncc_quadratic() -> None:
+    """A saturated u axis uses the NCC vertex along u; the interior v axis does not.
+
+    The fabricated NCC surface has its quadratic vertex at ``+0.25`` along u and a
+    flat v axis, and the true shift saturates only u.
+    """
+    corr = np.zeros((64, 64))
+    corr[0, 0] = 1.0
+    corr[0, 1] = 0.8
+    corr[0, -1] = 0.4
+    result = _evaluate_candidate_for_shift((0.0, 1.2), corr=corr)
+    assert result['offset'][1] == pytest.approx(0.25, abs=1e-6)
+    assert result['offset'][0] == pytest.approx(0.0, abs=0.03)
+
+
 @pytest.mark.parametrize('upsample_factor', [63, 1, 0], ids=['odd', 'one', 'zero'])
 def test_evaluate_candidate_rejects_a_factor_that_is_not_even(upsample_factor: int) -> None:
     """An odd or sub-2 upsample factor would make the refinement window asymmetric."""
