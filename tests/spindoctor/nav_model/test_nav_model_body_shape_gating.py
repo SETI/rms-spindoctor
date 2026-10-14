@@ -90,7 +90,7 @@ def _make_body_model(*, body_name: str, diameter_px: float) -> NavModelBody:
     model._bbox_extfov_vu = (4, 4, 16, 16)
     model._subject_range_km = 1000.0
     model._visible_lit_fraction = 0.0
-    model._overflow_fraction = 1.0
+    model._overflow_fraction = 0.0
     model._phase_angle_factor = 0.0
     model._metadata['phase_angle_deg'] = 0.0
     return model

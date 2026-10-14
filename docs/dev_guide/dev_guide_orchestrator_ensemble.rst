@@ -266,7 +266,11 @@ technique with a different failure mode, and the pose-free brightness centroid
 witness the veto reads. So the witness exists on real frames as well as
 simulated ones, :class:`~spindoctor.nav_model.nav_model_body.NavModelBody` emits
 a ``BODY_BLOB`` alongside the geometric limb / disc rather than only when the
-limb is unusable (see :doc:`dev_guide_navigation_models_body`). The blob runs
+limb is unusable (see :doc:`dev_guide_navigation_models_body`). It emits no
+blob for a body whose silhouette overflows the sensor beyond
+``blob_max_overflow_fraction``, because a witness that survives a rejected limb
+fit becomes the frame's answer, and the centroid of a clipped body does not
+locate it. The blob runs
 even when a primary already covers the body -- it opts in via
 :attr:`~spindoctor.nav_technique.nav_technique.NavTechnique.runs_as_witness`,
 and is still superseded in the fuse, so only the veto sees it and the fused
