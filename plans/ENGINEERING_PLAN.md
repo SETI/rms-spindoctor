@@ -882,17 +882,19 @@ asserts the generated half matches the registries.
   reading the Track A cohorts with confidence.
 
   The intended steady state, and what the pins mean when it is reached: the
-  standing red set reduced to the deliberately-pinned frames, each owned by
-  an open navigation issue (#338, #346, #350). N1530185128 (#351) and W1444747627
-  (#352) are now re-ratcheted to success/medium and green: the ensemble
-  blob-outlier drop lets the multi-star fix commit on the former, and the
-  star-navigation hardening already locks the latter. N1806609736 (#392) is
-  green as well: the shape-lock veto no longer misfires when a star fix
-  corroborates the limb. N1572105349's pin was
-  owned by #222 (now closed by the independence resolution); its autonomous
-  regression should flip green on the next integration run against real
-  holdings (that suite does not run in PR CI). Keep the pins accurate as
-  issues close and re-ratchet only what they authorize.
+  standing red set reduced to the deliberately-pinned frames, each owned by an
+  open navigation issue (#338, #346, #350). W1444747627 (#352) is re-ratcheted
+  to success/medium and green: the star-navigation hardening locks it.
+  N1530185128 was re-ratcheted to success/medium under #351, once the ensemble
+  blob-outlier drop let the multi-star fix commit, but it has been red since
+  the star datum correction (#643), with a dv error of 17.472 px, and is owned
+  by the star-centroid defect in #639. N1806609736 (#392) is green as well:
+  the shape-lock veto no longer misfires when a star fix corroborates the
+  limb. N1572105349's pin was owned by #222 (now closed by the independence
+  resolution); its autonomous regression should flip green on the next
+  integration run against real holdings (that suite does not run in PR CI).
+  Keep the pins accurate as issues close and re-ratchet only what they
+  authorize.
 - **#243** — direct tests for `nav_model/stars/conflicts.py`
   (`_check_one_star`, `mark_body_and_ring_conflicts`) with synthetic
   geometry; the existing per-pixel occlusion tests cover only the
