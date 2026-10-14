@@ -140,9 +140,10 @@ instrument.
 
 **Group 1 — evidence integrity.** Nothing above this in the whole project.
 
-1. **#288 resolution** — 10 of 75 frames are red on `main`, and every one is
+1. **#288 resolution** — 11 of 75 frames are red on `main`, and every one is
    attributed and owned. Two are the Galileo frames awaiting the #744 decision
-   (Section 0.1); the other eight are under #288. Four are the coarse-lock
+   (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
+   Group 2's #639; the other eight are under #288. Four are the coarse-lock
    family (#346's three, plus `N1633925572_1`, whose fused sigma the wrong
    ring lock inflates past the `max_sigma_px` boundary and whose tier
    therefore drops); one is `N1853392805`, held out by the
@@ -231,16 +232,17 @@ is what makes Group 1 worth starting today.
 ## 1. The library regression, and the deliberately-red set
 
 **Read this before trusting a library run.** In the local integration
-environment 10 of 75 sidecars disagree on `main`, eight under #288 and two
-under #744, and the ten are exactly the table below, entry for entry. Every
-one is owned by an open issue. The two under #744 await your decision in
-Section 0.1. Three of the eight are unresolved judgments rather than settled
-pins — the two `primary_technique` flips on #483, and `N1484593951`'s limb
-bias — which is why #288 is open, and why the gate a navigation-affecting
-branch clears is **no new failures against `main`**: run the suite on `main`
-first, then on the branch, and account for the difference. Do not re-ratchet a
-sidecar to match current behavior, and do not read a green-looking subset as a
-pass.
+environment 11 of 75 sidecars disagree on `main`: eight under #288, two
+under #744 and one under #639, and the eleven are exactly the table
+below, entry for entry. Every one is owned by an open issue. The two
+under #744 await your decision in Section 0.1. Three of the eight are
+unresolved judgments rather than settled pins — the two
+`primary_technique` flips on #483, and `N1484593951`'s limb bias — which
+is why #288 is open, and why the gate a navigation-affecting branch
+clears is **no new failures against `main`**: run the suite on `main`
+first, then on the branch, and account for the difference. Do not
+re-ratchet a sidecar to match current behavior, and do not read a
+green-looking subset as a pass.
 
 Reconciling #288 is prerequisite to two other things: #483 (re-ratcheting the
 pins the shift-equivariance fix moves) and #547 (the one place a built
@@ -256,6 +258,7 @@ frame no longer navigates).
 | N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
 | N1633925572_1 | expects the medium tier, gets low: a 39 px RingEdgeNav fit inflates the fused sigma past `max_sigma_px` | #476 |
 | C0059894800R, C0059899900R | du error 5.594 px and dv error 3.620 px: the recorded truth is the rotation-fitted answer #560 retired | #744 |
+| N1530185128_1 | dv error 17.472 px: StarUniqueMatchNav is spurious and StarRefineNav seeds on another source; red since the star datum correction (#643) | #639 |
 
 `N1633925572_1` is not to be re-ratcheted; that is recorded in the sidecar
 itself, and the frame is the acceptance test for #476. The rest are pins, not
@@ -267,7 +270,7 @@ against the table:**
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
-# Expect, while #288 is open: the same red set as main — the ten frames
+# Expect, while #288 is open: the same red set as main — the eleven frames
 # above. Any delta either way must be attributed in the merging PR.
 ```
 
@@ -510,8 +513,8 @@ with assignee rfrenchseti.
 
 **Evidence integrity (do first; everything else reads what these produce):**
 
-- **#288** 10 of 75 library sidecars disagree on `main` locally, all
-  attributed (two to #744); what is left on it is two stale
+- **#288** 11 of 75 library sidecars disagree on `main` locally, all
+  attributed (two to #744, one to #639); what is left on it is two stale
   `primary_technique` pins on #483, one limb bias that stays red, and the
   frames owned by #346, #338 and #476; blocks #483 and #547
 - **#744** two Galileo library frames record the rotation-fitted answer #560

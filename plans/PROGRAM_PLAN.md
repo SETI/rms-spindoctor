@@ -68,10 +68,11 @@ instruments (see Track D).
 Two facts about the evidence behind that health are worth stating plainly,
 because both are load-bearing and neither is comfortable. Suite coverage is
 79%, not the 90% two shipped plans' acceptance criteria claim, and nothing
-enforces any floor (#548). And 10 of 75 curated library frames disagree with
-their sidecars in the local integration environment: eight under #288, and the
-two Galileo frames whose recorded truth is the rotation-fitted answer that
-#560 retired (#744). Every one of the 10 is attributed to an open issue, so
+enforces any floor (#548). And 11 of 75 curated library frames disagree with
+their sidecars in the local integration environment: eight under #288, the two
+Galileo frames whose recorded truth is the rotation-fitted answer that the
+change in #560 retired (#744), and `N1530185128_1`, whose star centroid lands
+on a neighbor (#639). Every one of the 11 is attributed to an open issue, so
 the regression instrument reads as a known state rather than an unknown one;
 but three of the eight under #288, and both under #744, are judgments still
 owed rather than settled pins, so "no new failures against `main`" remains the
@@ -536,13 +537,14 @@ cannot follow.
 - Summary-PNG unit tests (#177).
 - The image-library regression reconciliation (#288). In the local
   integration environment it is not reduced to the deliberately-red pins:
-  10 of 75 frames disagree, each attributed to an open issue, which is the
+  11 of 75 frames disagree, each attributed to an open issue, which is the
   state Track A's evidence has to be read against, and it is what blocks the
   only place a built product is compared between the results tree and the
-  index (#547). Two of the ten are Galileo frames whose recorded truth is the
-  rotation-fitted answer that #560 retired; re-recording that truth from an
-  outside measurement, or pinning both red under #434, is an operator
-  decision (#744).
+  index (#547). Two of the eleven are Galileo frames whose recorded truth is
+  the rotation-fitted answer that #560 retired; re-recording that truth from
+  an outside measurement, or pinning both red under #434, is an operator
+  decision (#744). One more, `N1530185128_1`, went red with the star datum
+  correction (#643) and is owned by the centroid defect in #639.
 - Suite coverage is 79% and unenforced against a stated 90% (#548). The
   shortfall is almost entirely PyQt6 widget code. This is an operator call
   before it is an implementer's: raise the number, or ratify a lower floor
