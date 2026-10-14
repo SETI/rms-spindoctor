@@ -744,8 +744,8 @@ auto-paginates and is unaffected.
 metadata document: `PIXEL_DECIMALS = 4` for offsets, sigmas, and covariance
 entries, `CONFIDENCE_DECIMALS = 3` for confidences, reliability components, and
 classifier scores, and `ET_DECIMALS = 6` for `provenance.image_et`. The
-top-level `offset` and `confidence`, the C-matrices, and the epochs are written
-unrounded, so `navigation_result.offset_px` and the top-level `offset` can
+top-level `offset` and `confidence`, the C-matrices, and `times.start_et`,
+`times.stop_et`, and `times.midtime_et` are written unrounded, so `navigation_result.offset_px` and the top-level `offset` can
 disagree in the last place. The operator decides whether every stored value
 is written at full precision with rounding left to reports and logs, or names
 what makes a rounded value different. Whatever is decided, the two fields
