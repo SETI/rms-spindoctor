@@ -318,8 +318,7 @@ Checkpoint with the operator between numbered steps, not within them.
   verifies pixel-level alignment, and sub-pixel systematics are exactly what
   WS-1/WS-2 measure — record `offset_uncertainty_px` honestly (1.0 px
   default, 2.0 px for soft features), never 0.1 px.
-- Voyager: only geometrically corrected products; Galileo/Voyager carry
-  camera-rotation fitting (slow) — budget triage time accordingly.
+- Voyager: only geometrically corrected products.
 
 ## 7. Open issues this plan carries
 
@@ -443,13 +442,16 @@ expected primary technique and record the judgment in the sidecar `notes`.
 - **New Horizons LORRI:** strong star-cal coverage (panchromatic, filter slot
   `1`); Pluto/Charon for body classes; `raw_dn` only.
 - **Galileo SSI:** the canonical source of `faint_stars` and
-  `scattered_light`; carries camera-rotation fitting
-  (`fit_camera_rotation: true`), which makes triage slower — budget for it.
+  `scattered_light`. Its frames carry a real twist of a few tenths of a
+  degree that navigation does not fit (`fit_camera_rotation: false`), so the
+  reported offset is a translation that cannot match every star in the frame.
+  What truth to record for such a frame is open (#744, #434).
 - **Voyager ISS:** the second source of `faint_stars` / `scattered_light`;
   must be navigated against the geometrically corrected (GEOMED) products
-  because raw Voyager frames carry uncorrected distortion; also
-  rotation-fitting. Usable epochs are constrained by the fixed SPICE coverage
-  windows (`util/cohort_curation/spice_coverage.json`).
+  because raw Voyager frames carry uncorrected distortion. Navigation does
+  not fit its camera rotation (`fit_camera_rotation: false`). Usable epochs
+  are constrained by the fixed SPICE coverage windows
+  (`util/cohort_curation/spice_coverage.json`).
 
 Aim for all four missions across the full library so the calibration never
 silently overfits one camera.
