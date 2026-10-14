@@ -62,6 +62,21 @@ signal, making the cross-power peak non-smooth at its apex) into the reported of
 template gradient structure provides the matched-filter statistical covariance term (see
 "Sources of uncertainty").
 
+The refinement window spans half a pixel either side of the integer NCC peak. The window
+is symmetric only when the upsample factor is even, so
+:func:`~spindoctor.support.correlate.evaluate_candidate` rejects an odd factor. When the
+upsampled-DFT maximum lands on the window boundary, the cross-power surface's own peak lies
+more than half a pixel from the NCC peak, and the two surfaces disagree. That happens when
+the template constrains an axis poorly. A disc that overflows the FOV, for example,
+constrains its overflow axis only weakly, and the raw surface's scale bias takes over.
+Following the raw surface farther is unsafe, because its peak can sit pixels away from the
+true alignment. Reporting the boundary value would pin the offset at exactly half a pixel
+from the integer peak, an answer that does not move when the true alignment does. Each
+saturated axis therefore falls back to the vertex of the quadratic through the three NCC
+samples around the peak. That is the surface that selected the peak, and the vertex is
+bounded to the same half pixel. Refinements whose maximum lies inside the window are
+unchanged.
+
 Sub-pixel refinement band-limit (``refine_lowpass_sigma_px``)
 -------------------------------------------------------------
 

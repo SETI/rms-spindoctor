@@ -28,6 +28,11 @@ spindoctor.nav_model
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_model.silhouette_probe
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_model.nav_model_rings
    :members:
    :undoc-members:

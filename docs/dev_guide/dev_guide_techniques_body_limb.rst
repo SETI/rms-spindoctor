@@ -122,6 +122,13 @@ limb fit therefore recovers ~(0.06, 0.08) px instead of (0, 0), and a direct mea
 the signed normal distance from the model silhouette to the gradient peak gives a median of
 ~+0.10 px inward.
 
+The model polyline is not itself a quantization source. Its vertices are probed onto the
+sub-pixel geometric silhouette (see the sub-pixel boundary refinement section of
+:doc:`dev_guide_navigation_models_body`), so the polyline translates continuously with the
+predicted pointing. Across the image library, re-navigating each frame with its pointing
+shifted by a planted amount returns that shift with a median residual of 0.05 px per axis
+(90th percentile 0.18 px on the worse axis).
+
 The integer-quantized distance transform (see :doc:`dev_guide_techniques_dt_fitting`) adds its
 own sub-pixel-phase jitter on top, and its quantization + Tukey + trust-region machinery
 *accidentally* pulls the fit ~0.1 px back toward truth, so the observed ~0.1 px floor is the

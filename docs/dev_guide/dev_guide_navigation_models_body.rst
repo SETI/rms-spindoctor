@@ -107,10 +107,12 @@ terminator masks are walked to produce per-vertex polylines.
 Polyline sampling
 -----------------
 
-Each polyline vertex is a pixel that survived the discrete-mask construction. At every vertex
-the model records:
+Each polyline vertex starts at a pixel that survived the discrete-mask construction and is
+then moved onto the body's sub-pixel boundary (see "Sub-pixel boundary refinement" below).
+At every vertex the model records:
 
-- The vertex position in the extended-FOV pixel frame.
+- The vertex position in the extended-FOV pixel frame, in pixel centric coordinates. After
+  refinement the position is fractional.
 - The outward-pointing unit normal, estimated from the mask gradient: a body-side neighbor
   contributes a +1 in the outward direction, an off-body neighbor contributes a -1, and the
   resulting two-component vector is normalized.
@@ -120,6 +122,42 @@ the model records:
 The km/px scale at the limb sets the sensitivity that converts physical km uncertainties into
 pixel sigmas. An empty mask collapses the sampler to zero-length arrays so the downstream
 emission gates skip the corresponding feature without special-case handling.
+
+Sub-pixel boundary refinement
+-----------------------------
+
+A ridge pixel locates the boundary only to the nearest whole pixel. A polyline built from
+ridge-pixel centers is therefore quantized to the pixel grid. A sub-pixel change in the
+predicted pointing re-rasterizes the ridge instead of translating it, and a fit against
+the polyline inherits a bias of up to half a pixel that depends on the sub-pixel phase.
+The practical consequence is that re-navigating an image with corrected pointing does not
+return the correction.
+
+After the samplers are built,
+:func:`~spindoctor.nav_model.silhouette_probe.refine_polyline_vertices` moves every vertex
+onto the boundary itself:
+
+1. A ladder of 21 probe points is laid along the vertex's outward normal, in 1/8 px steps
+   from 1 px inward to 1.5 px outward
+   (:data:`~spindoctor.nav_model.silhouette_probe.PROBE_OFFSETS_PX`).
+2. Each probe is classified as inside or outside the region by evaluating the body
+   geometry at that exact line of sight, through an oops ``Backplane`` over a scattered
+   ``Meshgrid``. The limb probes the body-intercept silhouette. The terminator probes the
+   lit region.
+3. The vertex moves to the midpoint of the two probes that bracket the boundary, which
+   places it within 1/16 px of the boundary along its normal.
+
+The probing is purely geometric. It does not depend on the rendering oversample factor, so
+it stays accurate for bodies too large to render oversampled. The probes cost about 21
+lines of sight per vertex, which is small next to the silhouette render. Each vertex keeps
+the incidence and km/px sampled at its ridge pixel, because both vary smoothly at the
+pixel scale. A vertex whose boundary crossing is not found within the ladder, or whose
+offset or normal is not finite, keeps its ridge-pixel position.
+:mod:`spindoctor.nav_model.silhouette_probe` holds the ladder and the bracketing helpers.
+
+The simulated sibling,
+:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated`, does not
+refine its vertices. Its polylines stay on ridge-pixel centers.
 
 Per-vertex position covariance
 ------------------------------
@@ -686,8 +724,11 @@ Call path traced through
    true and the body has a ``geometric_albedo`` entry, the brightness image is multiplied by
    the albedo.
 5. Discrete masks are walked by the private polyline-sampler helper to produce per-vertex
-   polylines (vertex position, outward normal, incidence, km-per-pixel). The lit-and-in-FOV
-   pixels are counted to compute ``visible_lit_fraction`` and ``overflow_fraction``.
+   polylines (vertex position, outward normal, incidence, km-per-pixel). Each limb vertex
+   is then probed onto the body-intercept silhouette and each terminator vertex onto the
+   lit region's boundary, as described in "Sub-pixel boundary refinement". The
+   lit-and-in-FOV pixels are counted to compute ``visible_lit_fraction`` and
+   ``overflow_fraction``.
 6. :meth:`~spindoctor.nav_model.nav_model_body.NavModelBody.to_features` resolves the per-body
    :class:`~spindoctor.nav_model.body_shape.BodyShape` via
    :func:`~spindoctor.nav_model.body_shape.load_body_shape` and computes the limb-uncertainty
