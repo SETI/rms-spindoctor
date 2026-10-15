@@ -34,7 +34,10 @@ technique, the group of techniques whose offsets agree with that one, and keeps 
 whose confidences add up to the most. That is not always the group with the most members:
 one confident technique can outweigh several weaker ones that agree with each other. The
 techniques left outside the surviving group are set aside, and those inside it are
-combined by weighting each by how tightly its offset is determined. When a set-aside group
+combined by weighting each by how tightly its offset is determined. Two techniques that
+measured the same feature -- two star techniques locating the same star -- count as one
+witness, not two, and they agree only if they found it in the same place to within 1.5
+pixels (``orchestrator.ensemble.shared_feature_agreement_px``). When a set-aside group
 is close enough in summed confidence to stand as a rival answer, the image is reported as
 ``conflicted``. What comes out is one offset in pixels, one uncertainty, and one confidence
 for the image.

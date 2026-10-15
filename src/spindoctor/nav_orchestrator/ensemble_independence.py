@@ -9,7 +9,7 @@ over-tightens the combined covariance (so the reported sigma is too small and
 the tier too high) and lets a redundant member drag the fused offset.
 
 This module resolves a winning consensus group into the set of estimators the
-combine may treat as independent, correcting three known correlations:
+combine may treat as independent, correcting four known correlations:
 
 * **Seeded second-pass refine (R1).**  A pass-2 ``StarRefineNav`` searches a
   small window around the pass-1 prior, so its offset is conditionally
@@ -39,9 +39,20 @@ combine may treat as independent, correcting three known correlations:
   threshold, the disc and limb results on the same body are collapsed to a
   single representative.
 
+* **Two techniques on one feature (R4).**  Two results that consumed a common
+  feature measured the same thing: the three star techniques centroid the same
+  detections of the same catalog stars, so a one-star unique match and the
+  one-inlier refine of that star agree to the last digit because they are one
+  measurement reported twice, and a misidentified star moves both by the same
+  amount.  Any two results whose ``feature_ids`` share an entry are collapsed
+  to a single representative.  Every non-star technique consumes a feature type
+  no other technique reads, so in practice the rule acts on the star family; it
+  is stated over features rather than technique names so that it holds for any
+  technique that comes to share one.
+
 R1 is a directional drop (the descendant is subordinate to its seeds, which
-remain independent of one another); R2 and R3 are symmetric collapses (neither
-member is subordinate, so the pair is replaced by one representative).  The
+remain independent of one another); R2, R3, and R4 are symmetric collapses
+(neither member is subordinate, so the pair is replaced by one representative).  The
 representative of a collapsed set is its highest-positional-precision member,
 with a deterministic tie-break, so the fused offset is the single best view of
 the shared measurement rather than a spuriously tightened average of two.
@@ -52,6 +63,7 @@ from dataclasses import dataclass
 from spindoctor.nav_orchestrator.ensemble_observability import positional_precision
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
 from spindoctor.nav_technique.diagnostics import (
+    StarFieldDiagnostics,
     StarRefineDiagnostics,
     StarUniqueMatchDiagnostics,
 )
@@ -87,25 +99,29 @@ _SCATTER_SENSITIVE_BODY_TECHNIQUES = frozenset({'BodyDiscCorrelateNav', 'BodyLim
 def is_single_star_result(res: NavTechniqueResult) -> bool:
     """Return True when a result rests on a single star with no cross-check.
 
-    A one-star ``StarUniqueMatchNav`` match and a one-inlier
-    ``StarRefineNav`` refine each localize the offset from a single
-    detection: nothing in the solution corroborates the identification
-    itself.  Multi-star solutions and every non-star technique return False.
+    A one-star ``StarUniqueMatchNav`` match, a one-inlier ``StarRefineNav``
+    refine, and a one-inlier ``StarFieldFromCatalogNav`` lock each localize the
+    offset from a single detection: nothing in the solution corroborates the
+    identification itself.  Multi-star solutions and every non-star technique
+    return False.
 
     Parameters:
         res: The per-technique result to classify.
 
     Returns:
         True when ``res`` is a ``StarUniqueMatchNav`` result whose match mode
-        is ``'one_star'`` or a ``StarRefineNav`` result that used at most one
-        star; False for every other result, including multi-star star results
-        and all non-star techniques.
+        is ``'one_star'``, a ``StarRefineNav`` result that used at most one
+        star, or a ``StarFieldFromCatalogNav`` result with at most one inlier;
+        False for every other result, including multi-star star results and
+        all non-star techniques.
     """
     diag = res.diagnostics
     if isinstance(diag, StarUniqueMatchDiagnostics):
         return diag.mode == 'one_star'
     if isinstance(diag, StarRefineDiagnostics):
         return diag.n_stars_used <= 1
+    if isinstance(diag, StarFieldDiagnostics):
+        return diag.n_inliers <= 1
     return False
 
 
@@ -121,7 +137,7 @@ class IndependenceResolution:
         dropped_descendants: Seeded single-star refines removed by R1 (kept for
             logging / provenance; they cast no vote and lend no precision).
         collapsed_groups: One entry per correlated peer set that was collapsed
-            (R2 / R3), representative first, then the members it stood in for.
+            (R2 / R3 / R4), representative first, then the members it stood in for.
             Singletons are not listed.
     """
 
@@ -156,13 +172,15 @@ def _correlation_adjacency(
     *,
     scattered_light: bool,
 ) -> list[set[int]]:
-    """Return undirected correlation edges among group indices (R2 and R3).
+    """Return undirected correlation edges among group indices (R2, R3, and R4).
 
     Two results are joined by an edge when they are correlated witnesses of
     one shared error source: R2 joins any two ring techniques (both in
     ``_RING_TECHNIQUES``), which read one shared catalog model; R3 joins the
     disc and limb techniques (``_SCATTER_SENSITIVE_BODY_TECHNIQUES``) observing
-    a shared body, but only when ``scattered_light`` is True.
+    a shared body, but only when ``scattered_light`` is True; R4 joins any two
+    results whose ``feature_ids`` have an entry in common, since a feature both
+    consumed is one measurement whichever technique reports it.
 
     Parameters:
         group: The results to test pairwise, indexed positionally.
@@ -193,7 +211,9 @@ def _correlation_adjacency(
                 and ri.technique_name != rj.technique_name
                 and bool(ri.source_bodies & rj.source_bodies)
             )
-            if ring_pair or scatter_pair:
+            # R4: a feature both consumed is one measurement reported twice.
+            shared_feature = bool(set(ri.feature_ids) & set(rj.feature_ids))
+            if ring_pair or scatter_pair or shared_feature:
                 adj[i].add(j)
                 adj[j].add(i)
     return adj
@@ -287,7 +307,7 @@ def resolve_independent_estimators(
         survivors = list(group)
     dropped = [group[i] for i in sorted(dropped_idx)]
 
-    # R2 / R3: collapse each correlated peer set to a single representative.
+    # R2 / R3 / R4: collapse each correlated peer set to a single representative.
     score = image_classifier.background_gradient_score
     scattered_light = score is not None and score >= scattered_light_gradient_score
     adj = _correlation_adjacency(survivors, scattered_light=scattered_light)

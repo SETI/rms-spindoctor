@@ -22,6 +22,7 @@ from spindoctor.nav_technique.diagnostics import (
     NavTechniqueDiagnostics,
     RingAnnulusDiagnostics,
     RingEdgeDiagnostics,
+    StarFieldDiagnostics,
     StarRefineDiagnostics,
     StarUniqueMatchDiagnostics,
 )
@@ -1122,6 +1123,42 @@ def test_ensemble_two_single_star_members_still_cap_at_medium() -> None:
     )
     assert result.status == 'success'
     assert result.confidence_rank == 'medium'
+
+
+def test_ensemble_star_results_sharing_a_star_disagree_beyond_tolerance() -> None:
+    """Two star results on one star 4 px apart are not fused by the general pixel floor.
+
+    They found different detections of the same star, so one of them
+    misidentified it; the frame is reported conflicted rather than fused.
+    """
+    cov = np.eye(2, dtype=np.float64) * 0.09
+    field = dataclasses.replace(
+        _make_result(
+            technique_name='StarFieldFromCatalogNav',
+            offset=(3.85, -35.14),
+            cov=cov,
+            confidence=0.6,
+            diagnostics=StarFieldDiagnostics(n_inliers=3),
+        ),
+        feature_ids=('star:a', 'star:b', 'star:c'),
+    )
+    match = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(4.63, -30.68),
+            cov=cov,
+            confidence=0.69,
+            diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+        ),
+        feature_ids=('star:b', 'star:c'),
+    )
+    result = ensemble(
+        [field, match],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    assert result.status == 'conflicted'
 
 
 def test_ensemble_single_star_plus_body_technique_keeps_high() -> None:

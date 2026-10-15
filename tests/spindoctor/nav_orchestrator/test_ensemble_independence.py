@@ -1,11 +1,12 @@
 """Tests for the consensus-group independence resolution.
 
-Covers the three correlations the resolution corrects: a seeded single-star
-refine (R1), two ring techniques on one catalog (R2), and disc/limb on one
-scattered-light gradient (R3).
+Covers the four correlations the resolution corrects: a seeded single-star
+refine (R1), two ring techniques on one catalog (R2), disc/limb on one
+scattered-light gradient (R3), and two results that consumed a common feature
+(R4).
 """
 
-# R1 / R2 / R3 correspond to issues #222, #317, #339 respectively.
+# R1 / R2 / R3 / R4 correspond to issues #222, #317, #339, #623 respectively.
 
 import numpy as np
 import pytest
@@ -22,6 +23,7 @@ from spindoctor.nav_technique.diagnostics import (
     NavTechniqueDiagnostics,
     RingAnnulusDiagnostics,
     RingEdgeDiagnostics,
+    StarFieldDiagnostics,
     StarRefineDiagnostics,
     StarUniqueMatchDiagnostics,
 )
@@ -50,10 +52,11 @@ def _result(
     diagnostics: NavTechniqueDiagnostics | None = None,
     source_bodies: frozenset[str] = frozenset(),
     prior_sources: frozenset[str] = frozenset(),
+    feature_ids: tuple[str, ...] | None = None,
 ) -> NavTechniqueResult:
     return NavTechniqueResult(
         technique_name=technique_name,
-        feature_ids=(f'{technique_name}:f1',),
+        feature_ids=feature_ids if feature_ids is not None else (f'{technique_name}:f1',),
         offset_px=offset,
         covariance_px2=cov if cov is not None else np.eye(2, dtype=np.float64) * 0.25,
         confidence=confidence,
@@ -101,6 +104,16 @@ def test_is_single_star_result_variants() -> None:
         diagnostics=StarRefineDiagnostics(n_stars_used=6),
     )
     body = _result(technique_name='BodyLimbNav')
+    one_star_lock = _result(
+        technique_name='StarFieldFromCatalogNav',
+        diagnostics=StarFieldDiagnostics(n_inliers=1),
+    )
+    three_star_lock = _result(
+        technique_name='StarFieldFromCatalogNav',
+        diagnostics=StarFieldDiagnostics(n_inliers=3),
+    )
+    assert is_single_star_result(one_star_lock)
+    assert not is_single_star_result(three_star_lock)
     assert is_single_star_result(one_star)
     assert not is_single_star_result(two_star)
     assert is_single_star_result(one_inlier)
@@ -288,3 +301,59 @@ def test_estimators_preserve_input_order() -> None:
     res = _resolve([star, edge, annulus])
     assert res.estimators[0] == star
     assert len(res.estimators) == 2
+
+
+def test_r4_collapses_two_results_on_one_star() -> None:
+    """A one-star match and the one-inlier refine of that star are one witness."""
+    match = _result(
+        technique_name='StarUniqueMatchNav',
+        cov=np.eye(2, dtype=np.float64) * 900.0,
+        diagnostics=StarUniqueMatchDiagnostics(mode='one_star'),
+        feature_ids=('star:UCAC4:1',),
+    )
+    refine = _result(
+        technique_name='StarRefineNav',
+        cov=np.eye(2, dtype=np.float64) * 0.08,
+        diagnostics=StarRefineDiagnostics(n_stars_used=1),
+        prior_sources=frozenset({'StarUniqueMatchNav'}),
+        feature_ids=('star:UCAC4:1',),
+    )
+    res = _resolve([match, refine])
+    # The refine is the tighter centroid of the same detection, so it represents both.
+    assert res.estimators == [refine]
+    assert res.collapsed_groups == [[refine, match]]
+
+
+def test_r4_collapses_partly_overlapping_feature_sets() -> None:
+    """A two-star match and a three-star refine sharing both stars are one witness."""
+    match = _result(
+        technique_name='StarUniqueMatchNav',
+        cov=np.eye(2, dtype=np.float64) * 0.5,
+        diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+        feature_ids=('star:a', 'star:b'),
+    )
+    refine = _result(
+        technique_name='StarRefineNav',
+        cov=np.eye(2, dtype=np.float64) * 0.1,
+        diagnostics=StarRefineDiagnostics(n_stars_used=3),
+        feature_ids=('star:a', 'star:b', 'star:c'),
+    )
+    res = _resolve([match, refine])
+    assert res.estimators == [refine]
+
+
+def test_r4_keeps_results_on_disjoint_features() -> None:
+    """Two star results that measured different stars stay independent."""
+    first = _result(
+        technique_name='StarUniqueMatchNav',
+        diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+        feature_ids=('star:a', 'star:b'),
+    )
+    second = _result(
+        technique_name='StarFieldFromCatalogNav',
+        diagnostics=StarFieldDiagnostics(n_inliers=3),
+        feature_ids=('star:c', 'star:d', 'star:e'),
+    )
+    res = _resolve([first, second])
+    assert res.estimators == [first, second]
+    assert res.collapsed_groups == []

@@ -27,19 +27,20 @@ estimates become one offset.  Every step is honest:
    fusing (``resolve_independent_estimators``): drop a seeded single-star
    refine that only re-observes its own prior, and collapse correlated
    witnesses that share one error source (two ring techniques on one
-   catalog; disc and limb on one scattered-light gradient) to a single
-   representative.  The information-form merge assumes independence, so
+   catalog; disc and limb on one scattered-light gradient; any two results
+   that consumed a common feature, such as two star techniques centroiding
+   the same star) to a single representative.  The information-form merge assumes independence, so
    fusing correlated members would over-tighten the covariance, inflate the
    tier, and let a redundant member drag the offset.
 6. Combine offsets within the resolved subset via precision-weighted
    (Kalman-style) merging.
 7. Apply optional disagreement / conflict penalties.
 8. Cap the confidence tier at ``medium`` when the fused covariance is
-   rank-deficient (one translation axis unobservable) or when every
-   combined member is a single-star solution (a one-star unique match
-   or one-inlier refine) — neither an assumed axis nor an
-   un-cross-checked star is ``high``-tier evidence, however tight the
-   localization sigma.
+   rank-deficient (one translation axis unobservable), and at ``low``
+   with status reason ``single_star_only`` when the offset rests on one
+   matched star -- neither an assumed axis nor an un-cross-checked star
+   is the evidence those tiers describe, however tight the localization
+   sigma, and a one-star fit has no residual to measure its sigma from.
 9. Emit a NavResult carrying the excluded technique names.
 
 The ensemble is tested in isolation against synthetic per-technique results;
@@ -100,6 +101,13 @@ __all__ = [
 # Default constants used by the ensemble.  Configurable via ``EnsembleConfig``.
 DEFAULT_AGREEMENT_SIGMA = 2.0
 DEFAULT_AGREEMENT_PIXEL_FLOOR = 5.0
+# Translation distance (px) within which two results that consumed a common
+# feature agree.  Measured on the 1030 frames of ISS_006RI_LPHRLFMOV001_PRIME:
+# star results sharing a star whose answers both lie within 2 px of the
+# published F ring bundle never sit more than 1.27 px apart (1607 pairs, 99th
+# percentile 0.79 px), while a pair in which one result misidentified the star
+# sits at least 2.25 px apart.  Mirrored in config_540_orchestrator.yaml.
+DEFAULT_SHARED_FEATURE_AGREEMENT_PX = 1.5
 DEFAULT_AGREEMENT_GAP = 0.5
 DEFAULT_DISAGREEMENT_PENALTY = 0.7
 DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER = 0.3
@@ -172,6 +180,12 @@ class EnsembleConfig:
             without the floor, results agreeing visually to a few px
             register as hundreds of sigmas apart and never group.
             Set to ``0.0`` to disable the floor.
+        shared_feature_agreement_px: Translation distance (pixels) within
+            which two results that consumed a common feature agree.  Such a
+            pair is judged by this alone, not by ``agreement_sigma`` or
+            ``agreement_pixel_floor``: two results that found the same
+            detection of a shared feature agree to the centroid precision, and
+            two that did not have disagreed about which detection it is.
         agreement_gap: Minimum summed-confidence gap between best and
             runner-up groups before declaring a conflict.  Applied as an
             absolute gap when the runner-up has a quorum (two or more
@@ -229,6 +243,7 @@ class EnsembleConfig:
 
     agreement_sigma: float = DEFAULT_AGREEMENT_SIGMA
     agreement_pixel_floor: float = DEFAULT_AGREEMENT_PIXEL_FLOOR
+    shared_feature_agreement_px: float = DEFAULT_SHARED_FEATURE_AGREEMENT_PX
     agreement_gap: float = DEFAULT_AGREEMENT_GAP
     disagreement_penalty: float = DEFAULT_DISAGREEMENT_PENALTY
     conflicted_confidence_multiplier: float = DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER
@@ -267,6 +282,7 @@ class EnsembleConfig:
             'body_witness_disagreement_frac': self.body_witness_disagreement_frac,
             'body_witness_agreement_sigma': self.body_witness_agreement_sigma,
             'blob_star_disagreement_floor_px': self.blob_star_disagreement_floor_px,
+            'shared_feature_agreement_px': self.shared_feature_agreement_px,
         }
         for name, value in non_negative.items():
             if not math.isfinite(value):
@@ -828,6 +844,7 @@ def ensemble(
         viable,
         agreement_sigma=cfg.agreement_sigma,
         agreement_pixel_floor=cfg.agreement_pixel_floor,
+        shared_feature_agreement_px=cfg.shared_feature_agreement_px,
         rcond=cfg.pinvh_rcond,
         max_allowed_rotation_deg=cfg.max_allowed_rotation_deg,
     )
@@ -838,8 +855,9 @@ def ensemble(
     # Resolve the winning group into mutually independent estimators before
     # any fusion: drop a seeded single-star refine that only re-observes its
     # own prior (issue #222), and collapse correlated witnesses that share one
-    # error source -- two ring techniques reading one catalog (issue #317), or
-    # disc and limb on one scattered-light gradient (issue #339) -- to a single
+    # error source -- two ring techniques reading one catalog (issue #317),
+    # disc and limb on one scattered-light gradient (issue #339), or two results
+    # that consumed a common feature (issue #623) -- to a single
     # representative.  The information-form combine assumes independence, so
     # fusing correlated members would over-tighten the covariance and inflate
     # the tier, and a redundant member would drag the fused offset.
