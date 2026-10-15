@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from tests.spindoctor.nav_technique.conftest import DrawGaussianStarFactory
+from tests.spindoctor.nav_technique.conftest import DrawGaussianStarFactory, NavFeatureFactory
 
 from spindoctor.nav_technique._star_helpers import (
     _flank_outshines,
     _window_peaks,
     detection_peak_ratio,
     gaussian_psf_kernel,
+    isolated_response,
     isolation_radii,
     local_centroid,
     search_window_bounds,
+    third_star_votes,
 )
 
 # The library frame N1530185128_1 (Hyperion against stars): the prediction for its
@@ -383,3 +385,23 @@ def test_a_broad_source_just_past_the_window_leaves_it_no_peak() -> None:
 def test_the_isolation_annulus_moves_out_by_half_the_smear() -> None:
     """A star smeared over 8.5 px gets an annulus 5 px farther out."""
     assert isolation_radii(4, 6, 8.5) == (9, 11)
+
+
+def test_a_peak_on_a_raised_response_is_isolated() -> None:
+    """Isolation is judged above the annulus mean, so a uniform offset changes nothing."""
+    vv, uu = np.mgrid[-10:11, -10:11]
+    response = 10.0 + 5.0 * np.exp(-(vv * vv + uu * uu) / 2.0)
+    isolated = isolated_response(response, inner_px=4, outer_px=6, max_ratio=0.5)
+    assert bool(isolated[10, 10])
+
+
+def test_a_star_with_no_detection_casts_no_vote(
+    make_star_feature: NavFeatureFactory,
+) -> None:
+    """Stars whose windows hold nothing neither agree nor disagree."""
+    others = [
+        make_star_feature(f'star:UCAC4:{k}', predicted_vu=(50.0 * k, 50.0), predicted_snr=10.0)
+        for k in range(3)
+    ]
+    votes = third_star_votes(others, (2.0, -3.0), detect=lambda star: None, tolerance_px=2.4)
+    assert votes == (0, 0)

@@ -405,12 +405,17 @@ class StarUniqueMatchNav(NavTechnique):
         return chosen
 
     def _windows(self, context: NavContext) -> tuple[float, float]:
-        """Return the search half-width and the lone-star radius for this camera."""
-        return star_search_px_for_obs(
+        """Return the search half-width and the lone-star radius for this camera.
+
+        The radius never exceeds the half-width: a camera that narrows only its
+        window narrows the radius with it.
+        """
+        window_px, one_star_px = star_search_px_for_obs(
             context,
             window_px=self._search_window_px,
             one_star_px=self._inner_search_window_px,
         )
+        return window_px, min(one_star_px, window_px)
 
     def _isolated_detection(
         self,

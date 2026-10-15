@@ -317,3 +317,34 @@ def test_star_refine_measures_a_star_past_a_brighter_spike_in_its_window(
     result = StarRefineNav().navigate(features, context)
     assert isinstance(result.diagnostics, StarRefineDiagnostics)
     assert result.diagnostics.n_stars_used == 3
+
+
+def test_star_refine_drops_a_star_whose_window_is_outshone_from_outside(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A star that left its window is not replaced by a faint bump inside it.
+
+    Star D lies 8 px from its shifted prediction, outside the 6 px window, and its
+    flank outshines a faint source 2 px from the prediction, which a refinement that
+    took the window's best peak would measure as D.
+    """
+    image = np.zeros((260, 260), dtype=np.float64)
+    true_offset = (3.0, -2.0)
+    actual = [(60.0, 70.0), (160.0, 130.0), (110.0, 170.0)]
+    for center in actual:
+        draw_gaussian_star(image, center, peak_dn=200.0, sigma=1.2)
+    pred_d = (200.0, 60.0)
+    shifted_d = (pred_d[0] + true_offset[0], pred_d[1] + true_offset[1])
+    draw_gaussian_star(image, (shifted_d[0], shifted_d[1] + 8.0), peak_dn=1000.0, sigma=1.2)
+    draw_gaussian_star(image, (shifted_d[0], shifted_d[1] - 2.0), peak_dn=20.0, sigma=1.0)
+    preds = [(v - true_offset[0], u - true_offset[1]) for v, u in actual] + [pred_d]
+    features = [
+        make_star_feature(f'star:UCAC4:{i}', predicted_vu=pred, predicted_snr=30.0)
+        for i, pred in enumerate(preds)
+    ]
+    context = _attach_prior(make_nav_context(image), prior_offset_px=true_offset)
+    result = StarRefineNav().navigate(features, context)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    assert result.diagnostics.n_stars_used == 3

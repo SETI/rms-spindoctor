@@ -13,6 +13,7 @@ import pytest
 
 from spindoctor.nav_orchestrator.ensemble_independence import (
     IndependenceResolution,
+    blend_collapsed_confidence,
     is_single_star_result,
     matched_star_count_of,
     resolve_independent_estimators,
@@ -378,3 +379,16 @@ def test_matched_star_count_counts_only_star_techniques() -> None:
     )
     limb = _result(technique_name='BodyLimbNav', feature_ids=('limb_arc:MIMAS',))
     assert matched_star_count_of([match, refine, limb]) == 3
+
+
+def test_a_ring_collapse_keeps_its_representatives_confidence() -> None:
+    """Two ring techniques collapsed as one model's witnesses share no feature: no blend."""
+    edge = _result(technique_name='RingEdgeNav', confidence=0.9, diagnostics=RingEdgeDiagnostics())
+    annulus = _result(
+        technique_name='RingAnnulusNav',
+        confidence=0.3,
+        cov=np.eye(2, dtype=np.float64) * 4.0,
+        diagnostics=RingAnnulusDiagnostics(),
+    )
+    blended = blend_collapsed_confidence([edge], [[edge, annulus]], rcond=RCOND)
+    assert blended[0].confidence == pytest.approx(0.9)
