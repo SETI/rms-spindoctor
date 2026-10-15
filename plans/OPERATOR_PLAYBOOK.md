@@ -47,6 +47,12 @@ Each is a scope commitment the downstream work waits on:
   the one integration frame that would do it no longer navigates. Pick a
   frame that still navigates, or close it behind the image-library
   regression (#288).
+- **The star-frame library pins (ten frames, Section 1)**: the sparse-star-field
+  fixes moved ten star-frame outcomes without moving their offsets beyond
+  0.1 px, except `N1571691490_1`, where a three-star solution replaces the
+  body-blob answer the sidecar pins, 9.3 px away. Ratify the new tiers and
+  re-record `N1571691490_1`'s truth after checking its stars, or name the
+  tier changes you reject.
 - **#744 the two Galileo library frames' truth**: `C0059894800R` and
   `C0059899900R` record the rotation-fitted answer that #560 retired, so both
   are red against the translation `main` now reports. Re-record their truth
@@ -150,10 +156,10 @@ instrument.
 
 **Group 1 — evidence integrity.** Nothing above this in the whole project.
 
-1. **#288 resolution** — 11 of 75 frames are red on `main`, and every one is
-   attributed and owned. Two are the Galileo frames awaiting the #744 decision
-   (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
-   Group 2's #639; the other eight are under #288. Four are the coarse-lock
+1. **#288 resolution** — 20 of 75 frames are red on `main`, and every one is
+   attributed. Two are the Galileo frames awaiting the #744 decision
+   (Section 0.1); ten are star-frame pins the sparse-star-field fixes moved,
+   awaiting ratification (Section 0.1); the other eight are under #288. Four are the coarse-lock
    family (#346's three, plus `N1633925572_1`, whose fused sigma the wrong
    ring lock inflates past the `max_sigma_px` boundary and whose tier
    therefore drops); one is `N1853392805`, held out by the
@@ -174,19 +180,15 @@ shift), **#346** (three frames locked onto the wrong ring feature) and
 routing decision (annulus composite at and above 25 km/px radial resolution,
 per-edge fit below) reduces the family's exposure to the sub-25 km/px regime.
 
-*The sparse-star-field family:* **#621** (the acceptance gates refuse about
-half the frames that are demonstrably navigable by stars, because
-`pattern_match_min_inliers` exceeds the number of stars present on 99% of the
-frames that do navigate), **#622** (a one- or two-star solution accepted as
-`success` and landing 5 to 23 px wrong), **#623** (two techniques reading the
-same single star counted as two agreeing witnesses, reporting zero spread and
-a sharp sigma on a fit with no degrees of freedom) and **#639** (a centroid
-that takes the brightest pixel anywhere in a 61-pixel window, so a neighbor
-can win the star that was asked for). All four are measured against the
-published F ring bundle's own per-frame pointing, so each has an outside
-answer to fix against. #621 and #622 are one decision seen twice — where the
-line between "too little evidence to admit" and "refusing a solvable frame"
-sits — and are best scoped together.
+*The sparse-star-field family:* **#621** (star navigation navigates 72.2% of
+the F ring movie `ISS_006RI_LPHRLFMOV001_PRIME`, none of it wrong, against the
+published bundle's 96.6%, and the refusals still come in runs of up to 26
+frames; most remaining refused frames show one usable star or none) and
+**#639** (a centroid that takes the brightest pixel anywhere in its window, so
+a ring or a neighbor can win the star that was asked for; it alone blocks 79
+of the refused frames, which show two or more stars). Both are measured
+against the published F ring bundle's own per-frame pointing, so each has an
+outside answer to fix against.
 
 **Group 3 — parallel fill, any order, any number at once.**
 
@@ -251,10 +253,10 @@ is what makes Group 1 worth starting today.
 ## 1. The library regression, and the deliberately-red set
 
 **Read this before trusting a library run.** In the local integration
-environment 11 of 75 sidecars disagree on `main`: eight under #288, two
-under #744 and one under #639, and the eleven are exactly the table
-below, entry for entry. Every one is owned by an open issue. The two
-under #744 await your decision in Section 0.1. Three of the eight are
+environment 20 of 75 sidecars disagree on `main`: eight under #288, two
+under #744, and ten star-frame pins the sparse-star-field fixes moved, and
+the twenty are exactly the table below, entry for entry. The two under #744
+and the ten star pins await your decision in Section 0.1. Three of the eight are
 unresolved judgments rather than settled pins — the two
 `primary_technique` flips on #483, and `N1484593951`'s limb bias — which
 is why #288 is open, and why the gate a navigation-affecting branch
@@ -276,8 +278,11 @@ frame no longer navigates).
 | N1487595731_1 | expects BodyDiscCorrelateNav primary, gets BodyLimbNav; the pin is stale | #483 |
 | N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
 | N1633925572_1 | expects the medium tier, gets low: a 39 px RingEdgeNav fit inflates the fused sigma past `max_sigma_px` | #476 |
-| C0059894800R, C0059899900R | du error 5.594 px and dv error 3.620 px: the recorded truth is the rotation-fitted answer #560 retired | #744 |
-| N1530185128_1 | dv error 17.472 px: StarUniqueMatchNav is spurious and StarRefineNav seeds on another source; red since the star datum correction (#643) | #639 |
+| C0059894800R, C0059899900R | du error 5.709 px and dv error 3.051 px: the recorded truth is the rotation-fitted answer #560 retired | #744 |
+| N1461997416_1, N1555145539_1, W1449079117_1 | expects the medium tier, gets low: the offset rests on one star, so it is `single_star_only` and capped at low; offsets unchanged | Section 0.1 |
+| N1459552012_1 | expects high, gets medium: three star techniques on the same three stars are one witness, and that witness's own sigma (0.56 px) is over the high tier's 0.5; offset 0.23 px from truth | Section 0.1 |
+| N1483174087_1, N1486991973_1, N1572472169_1, N1806609736_1, W1444747627_1 | expects medium, gets high: the star techniques on shared stars collapse to the widest fit, which reports its own confidence; offsets within 0.1 px of `main` and within 1.1 px of truth | Section 0.1 |
+| N1571691490_1 | expects low at the body blob's offset, gets high 9.3 px away: three catalog stars sit on isolated point sources at the new offset and none at the pinned one, so the pinned truth looks wrong | Section 0.1 |
 
 `N1633925572_1` is not to be re-ratcheted; that is recorded in the sidecar
 itself, and the frame is the acceptance test for #476. The rest are pins, not
@@ -289,7 +294,7 @@ against the table:**
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
-# Expect, while #288 is open: the same red set as main — the eleven frames
+# Expect, while #288 is open: the same red set as main — the twenty frames
 # above. Any delta either way must be attributed in the merging PR.
 ```
 
@@ -466,15 +471,14 @@ Independent review before done; all CI gates; one PR."
   healthy frames it cites to the library first) and #749 (the multi-body
   exclusion counts bodies with results rather than bodies in the frame). #748
   is an operator decision first (Section 0.1).
-- **Sparse star fields, as one campaign**: #621 (the gates refuse about half
-  the frames that are navigable by stars), #622 (a one- or two-star solution
-  accepted as success, up to 23 px wrong), #623 (two techniques on one star
-  counted as independent corroboration) and #639 (the centroid can measure a
-  brighter neighbor). Scope #621 and #622 together: they are the same line
-  seen from two sides. The 260-frame block of
-  `ISS_006RI_LPHRLFMOV001_PRIME` named on each issue is the measurement
-  harness, and the published F ring bundle's per-frame pointing is the
-  outside answer, so a fix is verifiable without operator adjudication.
+- **Sparse star fields**: #639 (the centroid can measure a ring or a brighter
+  neighbor) first, then what is left of #621 (frames showing one usable star
+  or none, which need evidence beyond the frame). All 1030 frames of
+  `ISS_006RI_LPHRLFMOV001_PRIME` are the measurement harness, and the
+  published F ring bundle's per-frame pointing is the outside answer, so a
+  fix is verifiable without operator adjudication. A single-star rule
+  loosened to close #621 is where silent wrong answers come from; measure the
+  wrong count beside the rate.
 - **Results-index follow-ups** (the index shipped 2026-08-25; none of these
   blocks anything): #515 and #516 together (a cloud-share ingest can write
   another root's document into this root's rows, and the test that should
@@ -523,11 +527,9 @@ else. Applied to the open items:
   implemented it.
 - **Mid-tier drafts, top-tier adjudicates:** #310 (the boundary
   restructuring — the guard tests catch mechanical regressions, the review
-  catches new leak shapes); **#621 with #622** (where the line between too
-  little evidence and a solvable frame sits is a calibration judgment, and
-  moving either gate the wrong way trades a visible failure for a silent
-  one) and **#623** (what makes two techniques independent witnesses is the
-  same question the agreement study answers at scale).
+  catches new leak shapes); **#621** (where the line between too little
+  evidence and a solvable frame sits is a calibration judgment, and moving it
+  the wrong way trades a visible failure for a silent one).
 - **Mid-tier or below suffices:** library growth, the agreement study's
   bulk execution (once WS-0 hands it a proven estimator), #229, #311, #373,
   #130, #639, the PDS4 bundle items, the simulator scene-fidelity batch, the
@@ -542,8 +544,9 @@ with assignee rfrenchseti.
 
 **Evidence integrity (do first; everything else reads what these produce):**
 
-- **#288** 11 of 75 library sidecars disagree on `main` locally, all
-  attributed (two to #744, one to #639); what is left on it is two stale
+- **#288** 20 of 75 library sidecars disagree on `main` locally, all
+  attributed (two to #744, ten to the star-frame ratification in Section
+  0.1); what is left on it is two stale
   `primary_technique` pins on #483, one limb bias that stays red, and the
   frames owned by #346, #338 and #476; blocks #483 and #547
 - **#744** two Galileo library frames record the rotation-fitted answer #560
@@ -595,15 +598,11 @@ deferred until an instrument fits rotation again; a test fails if one does.
   fit an explicit cross-covariance once #225 measures real-frame rho
 - **#400** the ensemble merge and tier logic have never been exercised on the
   strongly anisotropic covariance the Titan haze fit reports
-- **#622** a one- or two-star solution is accepted as `success` and lands 5
-  to 23 px wrong; three such frames own 17% of a mosaic's longitude bins
-- **#623** two techniques consuming the same single star are counted as
-  independent corroboration, reporting 0.00 px spread and a sharp sigma on a
-  fit with no degrees of freedom
-- **#639** a star centroid takes the brightest pixel anywhere in a 61-pixel
-  window, so a brighter neighbor can win the star that was asked for
-- **#621** the star acceptance gates refuse about half the frames that are
-  demonstrably navigable by stars (the other side of #622's line)
+- **#639** a star centroid takes the brightest pixel anywhere in its window,
+  so a ring or a brighter neighbor can win the star that was asked for
+- **#621** star navigation still refuses 28% of the F ring movie it was
+  measured on, in runs of up to 26 frames; the frames show one usable star or
+  none, or are blocked by #639
 - **#591** the sparse 16x16 ring pre-check can skip a frame whose rings fall
   between its samples
 - **#747** the combined polarity gate keys on an LM convergence flag that most
@@ -768,7 +767,7 @@ these are what it owes and what generalizes it):**
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)
---- the confidently-wrong families: #476/#346/#373, and #621/#622/#623/#639
+--- the confidently-wrong families: #476/#346/#373, and #639
 --- then ---
 2.1 library growth (batch-006 + continued)   (agent session; your votes gate it)
 2.2 agreement study bulk   (after 2.1 cohorts; you approve frames)
