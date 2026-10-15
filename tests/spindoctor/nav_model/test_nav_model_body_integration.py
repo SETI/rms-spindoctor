@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from tests.shims import FakeObs, bare_nav_context
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import (
     BodyBlobFlags,
@@ -36,6 +37,8 @@ from spindoctor.nav_model.nav_model_body import (
     NavModelBody,
     _PolylineSampler,
 )
+
+_BLOB_MAX_OVERFLOW_FRACTION = float(DEFAULT_CONFIG.bodies.blob_max_overflow_fraction)
 
 
 def _make_polyline_sampler(*, n: int, km_per_pixel: float = 1.0) -> _PolylineSampler:
@@ -61,7 +64,7 @@ def _build_body(
     body_name: str = 'MIMAS',
     diameter_px: float = 30.0,
     visible_lit_fraction: float = 0.8,
-    overflow_fraction: float = 0.1,
+    overflow_fraction: float = 0.0,
     phase_factor: float = 0.5,
     km_per_pixel_at_limb: float = 1.0,
     limb_vertices: int = 40,
@@ -215,7 +218,6 @@ def test_to_features_co_emits_witness_blob_with_limb_and_disc(fake_obs: FakeObs)
         obs=fake_obs,
         km_per_pixel_at_limb=10.0,
         visible_lit_fraction=BODY_DISC_MIN_VISIBLE_LIT_FRACTION + 0.1,
-        overflow_fraction=BODY_DISC_MAX_OVERFLOW_FRACTION - 0.1,
     )
     types = {f.feature_type for f in model.to_features(bare_nav_context(fake_obs))}
     assert NavFeatureType.LIMB_ARC in types
@@ -232,6 +234,38 @@ def test_to_features_witness_blob_is_singular_with_limb(fake_obs: FakeObs) -> No
         if f.feature_type is NavFeatureType.BODY_BLOB
     ]
     assert len(blobs) == 1
+
+
+@pytest.mark.parametrize(
+    ('overflow_fraction', 'blob_emitted'),
+    [(_BLOB_MAX_OVERFLOW_FRACTION, True), (_BLOB_MAX_OVERFLOW_FRACTION + 0.01, False)],
+    ids=['at_limit', 'beyond_limit'],
+)
+def test_to_features_witness_blob_follows_overflow_limit(
+    fake_obs: FakeObs, overflow_fraction: float, blob_emitted: bool
+) -> None:
+    """The witness blob beside a limb is withheld only beyond the overflow limit.
+
+    The brightness centroid of a silhouette clipped by the frame edge does not locate
+    the body within the uncertainty it reports, so it must not be available to stand in
+    for a rejected limb fit.
+    """
+    model = _build_body(
+        obs=fake_obs, km_per_pixel_at_limb=10.0, overflow_fraction=overflow_fraction
+    )
+    types = {f.feature_type for f in model.to_features(bare_nav_context(fake_obs))}
+    assert (NavFeatureType.BODY_BLOB in types) is blob_emitted
+
+
+def test_to_features_withholds_lone_blob_beyond_overflow_limit(fake_obs: FakeObs) -> None:
+    """A body whose limb is unusable emits no blob when it overflows the frame."""
+    model = _build_body(
+        obs=fake_obs,
+        km_per_pixel_at_limb=0.001,
+        overflow_fraction=_BLOB_MAX_OVERFLOW_FRACTION + 0.01,
+    )
+    types = {f.feature_type for f in model.to_features(bare_nav_context(fake_obs))}
+    assert NavFeatureType.BODY_BLOB not in types
 
 
 def test_to_features_skips_disc_when_overflow_high(fake_obs: FakeObs) -> None:

@@ -11,6 +11,25 @@ bodies:
   curvature_threshold_pixels: 20
   limb_incidence_threshold: 1.53588974175501
   limb_incidence_frac: 0.4
+  # Maximum overflow fraction (share of the rendered silhouette lying outside the
+  # sensor) at which a body still emits BODY_BLOB, whether as its only feature or
+  # as the witness beside a limb.  The predicted lit-weighted centroid is taken
+  # over the whole rendered silhouette, but the image has no pixels outside the
+  # sensor, so the measured centroid of an overflowing body is displaced from the
+  # predicted one before any pointing error.  For a uniformly lit disc cut by one
+  # straight frame edge, with the cut-off segment holding fraction f of the
+  # silhouette, the displacement is f / (1 - f) times the segment-centroid
+  # distance, which is 0.047 R at f = 0.05 and 0.055 R at f = 0.06.  BodyBlobNav's
+  # covariance budgets 0.05 R for all centroid bias (model_error_size_frac in
+  # config_510_techniques.yaml), so beyond f = 0.05 the clipping bias alone
+  # exceeds the uncertainty the blob reports and its offset is not a measurement
+  # of the body's position.  Re-derive this value if that fraction changes.
+  # Image library at derivation: every blob-led answer has overflow 0.000 and
+  # the largest overflow on a blob within its sigma of truth is 0.009
+  # (N1637475277_1, Enceladus); the blobs at 0.216-0.587 overflow are 29-132 px
+  # off (N1484593951_2 Rhea, N1716186428_1 Tethys, N1816644691_1 Dione,
+  # N1483174087_1 Iapetus).
+  blob_max_overflow_fraction: 0.05
   surface_bumpiness:
     SATURN: 50.0
     PAN: 7.0

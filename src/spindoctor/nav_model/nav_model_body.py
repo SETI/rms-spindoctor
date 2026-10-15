@@ -23,13 +23,17 @@ The feature-by-feature emission rules:
 - ``LIMB_ARC`` is emitted when ``limb_uncertainty_px <=
   LIMB_ARC_MAX_UNCERTAINTY_PX`` and there are surviving limb vertices.
 - ``BODY_BLOB`` is emitted when the predicted disc diameter is at
-  least ``max(BODY_BLOB_MIN_DIAMETER_PX, shape.min_blob_diameter_px)``
-  *and* the limb uncertainty is too high for ``LIMB_ARC`` *and* the
-  rendered silhouette contains at least one lit pixel.  A body whose
-  silhouette is entirely in shadow has zero photometric signal to
-  centroid, so it emits no blob (only the geometric features, per the
-  dev guide's Restrictions).  The per-body shape floor can override
-  the global default upward but not downward.
+  least ``max(BODY_BLOB_MIN_DIAMETER_PX, shape.min_blob_diameter_px)``,
+  the rendered silhouette contains at least one lit pixel, and
+  ``overflow_fraction`` is at most the ``bodies`` configuration value
+  ``blob_max_overflow_fraction``.  It is the body's only shape feature
+  when the limb is unusable for ``LIMB_ARC`` and a witness beside the
+  limb otherwise.  A body whose silhouette is entirely in shadow has zero
+  photometric signal to centroid, so it emits no blob (only the geometric
+  features, per the dev guide's Restrictions).  A body whose
+  ``overflow_fraction`` exceeds that limit emits none either: its predicted
+  centroid spans pixels the image does not hold.  The per-body shape floor can override the global
+  default upward but not downward.
 - ``BODY_DISC`` is emitted alongside ``LIMB_ARC`` when the body fits
   inside the FOV with at least ``BODY_DISC_MIN_VISIBLE_LIT_FRACTION``
   of its lit side visible and ``overflow_fraction`` below
@@ -1172,7 +1176,11 @@ class NavModelBody(NavModelBodyBase):
                 )
             limb_arc_emitted = False
             blob_min_px = max(BODY_BLOB_MIN_DIAMETER_PX, shape.min_blob_diameter_px)
-            blob_gate_ok = self._predicted_diameter_px >= blob_min_px and self._lit_pixel_count > 0
+            blob_signal_ok = (
+                self._predicted_diameter_px >= blob_min_px and self._lit_pixel_count > 0
+            )
+            blob_overflow_ok = self._blob_overflow_ok()
+            blob_gate_ok = blob_signal_ok and blob_overflow_ok
             if (
                 not suppress_shape_features
                 and limb_vertices >= LIMB_ARC_MIN_VERTICES
@@ -1197,7 +1205,8 @@ class NavModelBody(NavModelBodyBase):
                 self._logger.debug(
                     'No limb/blob feature emitted: limb unusable (uncertainty %.3f vs '
                     'max %.3f, vertices %d vs min %d) and blob gate failed '
-                    '(predicted_diameter %.3f vs min %.3f, lit pixels %d)',
+                    '(predicted_diameter %.3f vs min %.3f, lit pixels %d, '
+                    'overflow %.3f vs max %.3f)',
                     limb_uncertainty_px,
                     LIMB_ARC_MAX_UNCERTAINTY_PX,
                     limb_vertices,
@@ -1205,6 +1214,19 @@ class NavModelBody(NavModelBodyBase):
                     self._predicted_diameter_px,
                     blob_min_px,
                     self._lit_pixel_count,
+                    self._overflow_fraction,
+                    self._blob_max_overflow_fraction(),
+                )
+            if blob_signal_ok and not blob_overflow_ok:
+                # The predicted centroid spans the whole rendered silhouette but the
+                # image holds only the in-sensor part, so a clipped body's centroid
+                # is displaced before any pointing error and must not answer for
+                # the body, as a lone feature or as the witness that survives a
+                # rejected limb fit (#746).
+                self._logger.info(
+                    'BODY_BLOB withheld: silhouette overflow %.3f exceeds %.3f',
+                    self._overflow_fraction,
+                    self._blob_max_overflow_fraction(),
                 )
 
             # Witness BODY_BLOB alongside a geometric limb (the disc, when
@@ -1247,6 +1269,18 @@ class NavModelBody(NavModelBodyBase):
         if self._km_per_pixel_at_limb <= 0.0:
             return float('inf')
         return shape.ellipsoid_rms_residual_km / self._km_per_pixel_at_limb
+
+    def _blob_max_overflow_fraction(self) -> float:
+        """Return the configured maximum overflow fraction for BODY_BLOB emission."""
+        return float(self._config.bodies.blob_max_overflow_fraction)
+
+    def _blob_overflow_ok(self) -> bool:
+        """Return True when the silhouette overflow permits BODY_BLOB emission.
+
+        The overflow fraction must be at or below the ``bodies`` configuration value
+        ``blob_max_overflow_fraction``.  A NaN on either side withholds the blob.
+        """
+        return self._overflow_fraction <= self._blob_max_overflow_fraction()
 
     def _should_emit_disc(self, limb_arc_emitted: bool) -> bool:
         """Return True when BODY_DISC should be emitted alongside other features."""

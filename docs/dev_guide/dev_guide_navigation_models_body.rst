@@ -253,14 +253,43 @@ the silhouette extraction:
   visible-lit fraction is at or above its minimum, and the
   overflow fraction is at or below its maximum.
 
-The :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` gate fires whenever the
-predicted diameter clears its minimum and the body has any lit signal, independent of the limb
-gate: on a small or high-uncertainty body the blob is the *only* body feature, while on a
+The :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` gate fires whenever
+the predicted diameter clears its minimum, the body has any lit signal, and the overflow
+fraction is at or below ``blob_max_overflow_fraction``, independent of the limb gate: on a
+small or high-uncertainty body the blob is the *only* body feature, while on a
 well-resolved body it is co-emitted **alongside** the limb (and disc) as a witness. The
-witness blob is superseded in the fuse by any non-spurious geometric result, so it does not
-dilute the geometric offset; the ensemble's body-witness veto reads it as an independent
-pose-free cross-check against a geometric technique locked onto a mismatched shape (see
-:doc:`dev_guide_orchestrator_ensemble`).
+witness blob is superseded in the fuse by any non-spurious geometric result, so it does
+not dilute the geometric offset; the ensemble's body-witness veto reads it as an
+independent pose-free cross-check against a geometric technique locked onto a mismatched
+shape (see :doc:`dev_guide_orchestrator_ensemble`).
+
+When every geometric result on the body is rejected, nothing supersedes the witness, and
+it carries the frame's answer. The overflow limit keeps that answer from being a centroid
+that cannot locate the body within the uncertainty it reports. The predicted lit-weighted
+centroid spans the whole rendered silhouette, but the image holds only the part inside the
+sensor, so the measured centroid of a body that overflows the frame is displaced before
+any pointing error. For a uniformly lit disc of radius :math:`R` cut by one straight frame
+edge, with the cut-off segment holding fraction :math:`f` of the silhouette at a centroid
+distance :math:`d` from the center, the displacement is :math:`f\,d / (1 - f)`. That is
+:math:`0.047\,R` at :math:`f = 0.05` and :math:`0.055\,R` at :math:`f = 0.06`. The blob
+covariance budgets :math:`0.05\,R` for all centroid bias (``model_error_size_frac`` in the
+:class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` tuning), so beyond
+:math:`f = 0.05` the clipping bias alone exceeds the uncertainty the blob reports.
+
+The fraction is measured on the silhouette clipped to the extended frame, as the share of
+that clipped silhouette lying in the margin, not as the share of the whole disc lying off
+the sensor. That is the quantity the displacement depends on: the predicted centroid also
+spans only the extended frame, so the part of the body beyond it moves neither centroid.
+It also means the limit reaches only bodies whose in-sensor part is shallow compared with
+the margin. Behind a straight edge the fraction is approximately :math:`m / (m + D)` for a
+margin of width :math:`m` and an in-sensor depth :math:`D`, so it exceeds 0.05 only when
+the body reaches less than :math:`19\,m` into the frame. With the Cassini ISS WAC margins
+of 5 and 10 px that is about 95 to 190 px, and a body covering the whole 1024-pixel WAC
+frame scores about 0.03, however much of it lies off the frame.
+
+On the image library every blob that leads a navigated answer has an overflow fraction of
+zero. The blobs on Rhea, Tethys, Dione, and Iapetus at overflow fractions from 0.22 to
+0.59 land 29 to 132 px from the operator-verified offset.
 
 The terminator polyline gates fire when the surviving vertex count is at or above the
 configured minimum and the phase factor :math:`\sin\phi` is at or above its minimum.
@@ -375,8 +404,8 @@ bodies block
 Every key under ``bodies`` is listed below. Several keys are not consumed by
 :class:`~spindoctor.nav_model.nav_model_body.NavModelBody` itself; the second column names the
 module that does consume each key. The grep
-``grep -c '^  [a-z_]\+:' src/spindoctor/config_files/config_040_bodies.yaml`` returns 30 keys, which
-matches the 30 bullets here.
+``grep -c '^  [a-z_]\+:' src/spindoctor/config_files/config_040_bodies.yaml`` returns 31 keys, which
+matches the 31 bullets here.
 
 - ``min_bounding_box_area`` — int, default ``9`` px². Recorded on the model's metadata as
   ``size_ok``; sub-threshold bounding boxes are flagged for reviewer awareness. Does not by
@@ -405,6 +434,13 @@ matches the 30 bullets here.
   the threshold. Not consumed by the current model.
 - ``limb_incidence_frac`` — float, default ``0.4`` (dimensionless). Reserved for the same
   shadow filter.
+- ``blob_max_overflow_fraction`` — float, default ``0.05`` (dimensionless). Maximum
+  overflow fraction at which the body emits
+  :attr:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB`, whether as its only
+  feature or as the witness beside the limb. The value is where the centroid displacement
+  that clipping alone produces reaches the centroid bias budget in the blob covariance
+  (see `Feature emission gates`_). Validated at load as a finite number within
+  ``[0, 1]``. Consumed by :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
 - ``surface_bumpiness`` — dict[str, float], per-body table (km). Reserved for a per-body
   surface-roughness estimate that would feed into the per-vertex sigma formula; not
   consumed (the equivalent quantity comes from
@@ -750,7 +786,11 @@ tests.
     :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_DISC` feature (the overflow fraction
     sits below
     :data:`~spindoctor.nav_model.nav_model_body.BODY_DISC_MAX_OVERFLOW_FRACTION`) and a
-    :data:`~spindoctor.feature.feature_type.NavFeatureType.TERMINATOR_ARC` feature.
+    :data:`~spindoctor.feature.feature_type.NavFeatureType.TERMINATOR_ARC` feature. It
+    emits no :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` witness,
+    because the overflow fraction exceeds ``blob_max_overflow_fraction``. Without that
+    limit, a rejected limb fit would leave the witness as the only surviving result,
+    about 100 px from the operator-verified offset.
     Operator-verified offset is :math:`(\Delta v, \Delta u) = (11.0, 29.5)` px.
 
 ``below_resolution_body`` (Cassini ISS NAC, image ``N1777325846_1``)

@@ -233,6 +233,15 @@ how large the body is, how it is lit, and how well its real form is known.
    blob is also emitted *alongside* a limb when both are available, as an independent
    cross-check that can catch a curve fit that locked onto the wrong outline.
 
+   No blob is emitted, in either role, for a body that overflows the image by more than
+   5 percent (``bodies.blob_max_overflow_fraction``). The predicted centroid covers the
+   whole body while the image records only the part inside the frame, so the measured
+   centroid of a body cut off by the frame edge lands farther from the prediction than
+   the uncertainty the blob reports. The fraction compares the part of the body in a
+   narrow border the model renders around the image with the part inside the image, so
+   a body that reaches well into the frame stays under the limit even when most of it
+   is off the edge.
+
 ``BODY_DISC``
    The rendered picture of the body itself, for brightness correlation. It is emitted only
    alongside ``LIMB_ARC``, never on its own, and only when the body sits well inside the

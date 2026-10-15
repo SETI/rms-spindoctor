@@ -17,6 +17,9 @@ from ruamel.yaml import YAML
 
 from spindoctor.support.attrdict import AttrDict
 
+_BLOB_MAX_OVERFLOW_KEY = 'blob_max_overflow_fraction'
+"""``bodies`` key holding the overflow limit for BODY_BLOB emission."""
+
 
 def _strip_underscore_keys(value: Any) -> Any:
     """Recursively drop mapping keys whose name starts with ``_``.
@@ -238,8 +241,9 @@ class Config:
 
         Raises:
             ValueError: If any registered NavTechnique's confidence spec
-                references an attribute the technique does not declare.
-                Validation runs once per ``read_config`` invocation.
+                references an attribute the technique does not declare, or if
+                ``bodies.blob_max_overflow_fraction`` is not a finite number within
+                ``[0, 1]``.  Validation runs once per ``read_config`` invocation.
         """
 
         if not reread and self._config_dict:
@@ -258,6 +262,7 @@ class Config:
             for filename in sorted(config_dir.glob('*.yaml')):
                 self.update_config(filename, read_default=False)
             self._validate_registered_techniques()
+            self._validate_bodies_block()
             return
 
         self._config_dict = self._load_yaml(config_path)
@@ -266,6 +271,30 @@ class Config:
         self._override_paths = [str(config_path)]
         self._update_attrdicts()
         self._validate_registered_techniques()
+        self._validate_bodies_block()
+
+    def _validate_bodies_block(self) -> None:
+        """Reject a ``bodies.blob_max_overflow_fraction`` that is not a fraction.
+
+        The value is the overflow limit above which a body emits no ``BODY_BLOB``.
+        A non-numeric, non-finite, or out-of-range value would silently disable or
+        invert that limit, so it is refused when the configuration is loaded.  A
+        configuration that carries no such key is left to fail where the key is read.
+
+        Raises:
+            ValueError: If the value is not a finite number within ``[0, 1]``; the
+                message names the key and the offending value.
+        """
+        bodies = self._config_dict.get('bodies')
+        if not isinstance(bodies, dict) or _BLOB_MAX_OVERFLOW_KEY not in bodies:
+            return
+        value = bodies[_BLOB_MAX_OVERFLOW_KEY]
+        is_number = isinstance(value, int | float) and not isinstance(value, bool)
+        # The chained comparison is False for NaN, so a NaN is refused with the rest.
+        if not is_number or not 0.0 <= float(value) <= 1.0:
+            raise ValueError(
+                f'bodies.{_BLOB_MAX_OVERFLOW_KEY} must be finite and within [0, 1]; got {value!r}'
+            )
 
     def _validate_registered_techniques(self) -> None:
         """Load + validate every registered NavTechnique's confidence spec.
@@ -325,6 +354,11 @@ class Config:
             config_path: Path to the configuration file containing update values.
             read_default: Whether to read the default configuration file if no config
                 has been previously read.
+
+        Raises:
+            ValueError: If a section in the file is not a mapping where the merged
+                configuration has one, or (when ``read_default`` is true) if the
+                merged configuration fails the validation :meth:`read_config` applies.
         """
 
         if read_default:
@@ -353,6 +387,7 @@ class Config:
         self._update_attrdicts()
         if read_default:
             self._validate_registered_techniques()
+            self._validate_bodies_block()
 
     @property
     def override_paths(self) -> tuple[str, ...]:
