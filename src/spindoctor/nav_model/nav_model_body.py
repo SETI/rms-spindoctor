@@ -1278,9 +1278,9 @@ class NavModelBody(NavModelBodyBase):
         """Return True when the silhouette overflow permits BODY_BLOB emission.
 
         The overflow fraction must be at or below the ``bodies`` configuration value
-        ``blob_max_overflow_fraction``.
+        ``blob_max_overflow_fraction``.  A NaN on either side withholds the blob.
         """
-        return not self._overflow_fraction > self._blob_max_overflow_fraction()
+        return self._overflow_fraction <= self._blob_max_overflow_fraction()
 
     def _should_emit_disc(self, limb_arc_emitted: bool) -> bool:
         """Return True when BODY_DISC should be emitted alongside other features."""
