@@ -7,10 +7,10 @@ Overview
 
 :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` is the pass-1
 1-star or 2-star unique-match technique. It searches a window around the prediction of
-each of the brightest predictable stars, takes the brightest peak above a noise threshold,
-and reports the translation implied by a cross-checked pair of stars (2-star path) or,
-when no pair cross-checks, by the brightest star alone (1-star path); the 1-star path
-additionally requires the star to be a configured magnitude margin brighter than every
+each of the brightest predictable stars, takes the strongest detection above a noise
+threshold, and reports the translation implied by a cross-checked pair of stars (2-star
+path) or, when no pair cross-checks, by the brightest star alone (1-star path); the 1-star
+path additionally requires the star to be a configured magnitude margin brighter than every
 other predictable star in the field. It runs without a prior — its job is to seed the pass-2
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` on scenes where the SPICE
 pointing error is small enough that the brightest predictable star sits inside the
@@ -25,7 +25,7 @@ Theory
 ======
 
 The technique exploits a structural fact: when one predictable star dominates the field's
-predicted SNR by a comfortable margin, the brightest peak inside a small search window
+predicted SNR by a comfortable margin, the strongest detection inside a small search window
 around that star's prediction is almost certainly the matched detection — there is no other
 predictable source bright enough to be confused with it. Two stars dominating the field
 similarly support a 2-star unique-match path that recovers translation plus rotation by
@@ -46,24 +46,72 @@ diagnostic only.
 Local centroid
 --------------
 
-For each candidate match, the technique slices a window of half-width ``search_window_px``
-around the predicted position, takes the brightest pixel above
-``detection_sigma * image_noise_sigma``, and fits a brightness-weighted moment over a
-``centroid_box_half_px``-half-width box around that peak to recover the sub-pixel centroid.
-A peak that fails the noise threshold collapses the candidate. So does a peak that is not
-an isolated point source of the image, by two tests. First, the window's brightest pixel
-must be a peak of the image: when something brighter than any star lies just outside the
-window -- a ring, a limb, a bright neighbor -- the brightest pixel inside is the edge of
-that object where the window cuts it, and a brighter pixel lies beside it beyond the
-window. On ``ISS_006RI_LPHRLFMOV001_PRIME`` such cut edges at the corners of two stars'
-windows formed a consistent pair and produced an answer 65 px wrong. Second, the peak must
-be isolated, by the test
-:class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav`
-applies to its sources (``source_isolation_inner_px``, ``source_isolation_outer_px``,
-``source_isolation_max_ratio``, over a matched filter of ``psf_sigma_px``): a ridge of a
-ring or a cosmic-ray track runs through the surrounding annulus. On the black-sky Galileo
-library frame ``C0164958500R`` two tracks at the same offset from two predictions formed a
-pair that passed its cross-check. The test costs one of the 1030 ``ISS_006RI`` frames.
+For each candidate match, the technique cuts a square window around the predicted
+position, matched-filters it, takes the strongest response peak inside it as the
+detection, and fits a brightness-weighted moment over a ``centroid_box_half_px``-half-width
+box around it to recover the sub-pixel centroid. The shared helper
+``local_centroid`` in ``_star_helpers`` does this for
+:class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` as well.
+
+- **The window** is centered on the pixel that holds the prediction and reaches
+  ``floor(search_window_px)`` whole pixels either side of it
+  (``search_window_bounds``), so it is always
+  ``2 * floor(search_window_px) + 1`` pixels on a side and its center is never more than
+  half a pixel from the prediction. A window whose edges are rounded outward from the
+  prediction instead is a pixel wider for a non-integer prediction and reaches farther on
+  one side than the other, with the longer side flipping as the prediction crosses a
+  pixel center, so a sub-pixel change of prediction admits or drops a whole row of
+  candidates. The peak-ratio gate below uses the same window.
+- **A detection is a peak inside the window**: a pixel whose response is the largest within
+  the kernel's footprint, judged with the image outside the window in view, the
+  local-maximum rule ``StarFieldFromCatalogNav`` uses. A window pixel on the flank of a
+  source outside the window is no peak, so a star whose own peak lies outside the window
+  is not measured. Taking the brightest pixel of the window instead measures such a star
+  through the light its flank spreads across the window's edge, with a centroid box that
+  reaches outside the window, and takes the edge of a ring or a limb where the window cuts
+  it: on ``ISS_006RI_LPHRLFMOV001_PRIME`` such cut edges at the corners of two stars'
+  windows formed a consistent pair and produced an answer 65 px wrong.
+- **The detection statistic** is the response to the Gaussian matched filter
+  ``StarFieldFromCatalogNav`` detects with (``psf_sigma_px``, side
+  ``2 * centroid_box_half_px + 1``). The response weighs a source by the light it spreads
+  over a PSF footprint and is zero over a uniform region, so a cosmic ray or hot pixel
+  does not outrank a star of greater flux merely by having the brightest single pixel.
+  On ``N1530185128_1`` a single-pixel cosmic ray 1.8 times the brighter star's peak sits
+  30.7 rows and 24 columns from that star's prediction; taking the brightest pixel
+  measured the ray, while the star's response is 1.35 times the ray's even when the ray
+  is inside the window. Preferring the qualifying peak nearest the prediction would not
+  help there, nor wherever the prior is tens of pixels off: noise peaks that clear the
+  threshold sit closer to the prediction than the star does.
+- **The threshold** applies to the brightest pixel of the detection's centroid box, which
+  must stand ``detection_sigma * image_noise_sigma`` above the box's median. A noise
+  bump on the floor of a saturated ring or body, which the response can make a peak,
+  stands nowhere near that far above its own surroundings and is no detection.
+- **The centroid** is the background-subtracted moment of the box, with the box
+  re-centered on its own centroid until it stops moving (at most five times). The
+  response peaks at the edge of a saturated core, where a box first straddles it; the
+  re-centering moves the box over the core. A core longer than the box is measured
+  wherever the box comes to rest inside it.
+- **The detection must be isolated**, by the test
+  :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav`
+  applies to its sources (``source_isolation_inner_px``, ``source_isolation_outer_px``,
+  and ``source_isolation_max_ratio``, over the same matched filter). A ridge of a ring or
+  a cosmic-ray track is a peak of the response but runs through the surrounding annulus.
+  On the black-sky Galileo library frame ``C0164958500R`` two tracks at the same offset
+  from two predictions formed a pair that passed its cross-check. The test refuses a
+  pair 19 px wrong on ``ISS_006RI_LPHRLFMOV001_PRIME`` and costs 4 of its 1030 frames.
+- **A window outshone from outside** is refused on the refinement path only: when the
+  window's brightest pixel lies at its edge, belongs to no peak inside the window, and is
+  brighter than the detection's own peak, the light of a source outside the window
+  outshines anything chosen inside it.
+  :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav`'s window is
+  6 px around a prediction already corrected by the pass-1 offset, so there it means
+  the star has left the window; without the refusal, a 2-degree roll of the simulated
+  star field had refinement accept noise peaks beside each displaced star and report a
+  zero roll. This technique's windows often cut a ring, whose flank would refuse a
+  correct window: with a 30 px window, refusing here lost 26 correct solutions in the
+  1030 frames of an F ring movie.
+
+A detection that fails the noise threshold or the isolation test collapses the candidate.
 On the 2-star path a best-assignment residual exceeding ``max_residual_px`` rejects the
 pair, and on the 1-star path a no-rival detection whose prediction-to-detection distance
 exceeds ``one_star_max_residual_px`` marks the result spurious.
@@ -82,9 +130,12 @@ detection, and the absolute ``detection_sigma`` threshold alone cannot enforce t
 maximum of the window's several thousand noise pixels sits at 3.5-4.5 sigma, so with a
 marginal star the brightest pixel is routinely a noise spike that clears the threshold.
 The detection therefore also passes a peak-to-runner-up ambiguity gate
-(``one_star_min_peak_ratio``): the background-subtracted peak must exceed the window's
-runner-up (outside the detection's own centroid box) by the configured ratio, or the
-result is spurious with an ``ambiguous_detection`` reason. A real star detection towers
+(``one_star_min_peak_ratio``): the detection's own background-subtracted peak must exceed
+the brightest pixel of the rest of the window (outside the detection's own centroid box)
+by the configured ratio, or the result is spurious with an ``ambiguous_detection`` reason.
+Because the detection is chosen by matched-filter response, the rest of the window can
+hold a single pixel brighter than the detection's peak; the ratio is then below 1 and the
+one-star match is refused, the safe answer for a match with no second star to check it. A real star detection towers
 over the window's noise order statistics while a matched spike sits within a few percent
 of its runner-up; the ratio is unit-free, so no DN-scale or photometric calibration enters
 the gate. The measured ratio is surfaced as the
@@ -121,23 +172,29 @@ from it. Two cross-checked answers that disagree mean at least one is a coincide
 which one cannot be told, so the technique reports spurious with an ``ambiguous_pairs``
 reason.
 
+The path applies no per-window ambiguity gate: a window won by something other than its
+star moves that star's offset away from the other's and the residual declines the pair,
+while the peak ratio would refuse correct pairs. On ``N1530185128_1`` the fainter star's
+window holds a single-pixel spike within 0.4 percent of the star's own peak, while the
+pair's residual is under half a pixel.
+
 Trying more than the brightest two matters when the brightest predicted star is not in the
 image. A star predicted inside the extended field of view may fall off the detector once
 the pointing error is applied, or under a ring's glare; with only the brightest two tried,
 its window holds no star, the pair fails, and the frame falls through to the 1-star path,
 whose brightness margin a field of comparable stars never clears. On
 ``ISS_006RI_LPHRLFMOV001_PRIME`` searching pairs among the brightest 3, 5, and 8 stars
-navigates 695, 744, and 750 of the 1030 frames, every one within 2 px of the published F
-ring bundle. The narrower window is searched as well because the brightest pixel of the
-wider one is more often something brighter than the star; with no narrower window the
-technique navigates 711 frames, none wrong.
+navigates 719, 773, and 779 of the 1030 frames, every one within 2 px of the published F
+ring bundle. The narrower window is searched as well because the strongest detection of
+the wider one is more often something brighter than the star; with no narrower window the
+technique navigates 747 frames, none wrong.
 
-The residual tolerance is measured. With it opened to 4 px, the 644 two-star matches on
-that observation that lie within 2 px of the bundle have residuals of median 0.09 px and
-95th percentile 0.31 px, while the 25 matches in which a star was paired with the wrong
-source start at 1.34 px. At 1.2 px, 636 of the 644 pass and none of the 25; 1.2 rather than
-1.0 admits the correct pair of library frame ``N1550270436``, whose residual is 1.04 px and
-whose fallback without it is a body centroid 15 px wrong. At 1.5 px two of the 25 pass.
+The residual tolerance is measured. With it opened to 4 px, the 703 two-star matches on
+that observation that lie within 2 px of the bundle have residuals of median 0.10 px and
+95th percentile 0.31 px, while the one match in which a star was paired with the wrong
+source has 3.37 px. At 1.2 px, 698 of the 703 pass; 1.2 rather than 1.0 admits the correct
+pair of library frame ``N1550270436``, whose residual is 1.04 px and whose fallback without
+it is a body centroid 15 px wrong.
 
 For each pair the fit is a Procrustes / similarity-transform fit on the two
 correspondences that reports the recovered translation plus rotation. The rotation
@@ -171,18 +228,18 @@ Restrictions and assumptions
   recovers their catalog magnitude difference. A wrong catalog magnitude shifts the
   brightness-margin computation and may erroneously accept or reject the match.
 - The search window assumes the SPICE pointing error is bounded by ``search_window_px``
-  (default 50 px). When the pointing error exceeds this width, the brightest peak in the
-  window is not the matched detection. On ``ISS_006RI_LPHRLFMOV001_PRIME`` the Cassini NAC
-  pointing error reaches 43 px, and a 30 px window put the stars of 191 of the 1030 frames
-  out of reach and produced one-star answers 36, 54, and 71 px wrong. A 1-star match is
-  accepted only within ``inner_search_window_px`` (30 px) of its prediction, while the whole window is still
-  searched so that a brighter source anywhere in it vetoes: nothing cross-checks a single
-  detection, and the wider the region it may come from, the likelier an artifact is the
-  brightest thing in it. On the black-sky Galileo library frame ``C0164392700R`` a lone
-  artifact lies 40 px from the one predicted star. On ``ISS_006RI`` the inner limit refuses
-  23 one-star frames whose star lies 30 to 43 px out; with it, windows of 40, 50, and 60 px
-  navigate 749, 744, and 740 frames, none wrong. Beyond the window is the regime where the
-  multi-star
+  (default 50 px). When the pointing error exceeds this width, the strongest detection in
+  the window is not the matched detection. On ``ISS_006RI_LPHRLFMOV001_PRIME`` the Cassini
+  NAC pointing error reaches 43 px, and a 30 px window puts the stars of 191 of the 1030
+  frames out of reach. A 1-star match is accepted only within ``inner_search_window_px``
+  (30 px) of its prediction, while the whole window is still searched so that a brighter
+  source anywhere in it vetoes: nothing cross-checks a single detection, and the wider the
+  region it may come from, the likelier an artifact is the brightest thing in it. On the
+  black-sky Galileo library frame ``C0164392700R`` a lone artifact lies 40 px from the one
+  predicted star. On ``ISS_006RI``, windows of 30, 40, 50, and
+  60 px navigate 758, 776, 773, and 764 frames, none wrong; the narrower ones leave the
+  stars of the frames whose error exceeds them out of reach, and the other gates refuse
+  those frames. Beyond the window is the regime where the multi-star
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` triplet
   matcher takes over.
 - Both paths assume the matched detection is unsaturated. A saturated star whose centroid
@@ -217,12 +274,15 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
   magnitude difference between the brightest predictable star and the next-brightest for
   the 1-star path to fire.
 - ``search_window_px`` — float, default ``50.0`` px. Half-width of the search window
-  around each prediction. Must bracket the SPICE pointing error.
+  around each prediction. Must bracket the SPICE pointing error: a star whose own peak lies
+  outside the window is not measured. The window is ``2 * floor(search_window_px) + 1``
+  pixels on a side, centered on the pixel holding the prediction.
 - ``inner_search_window_px`` — float, default ``30.0`` px. A second, narrower window in
   which the 2-star path also searches each pair. A 1-star detection farther than this from
   its prediction is refused with a ``one_star_detection_beyond_inner_window`` reason.
-- ``psf_sigma_px`` — float, default ``1.0`` px. Sigma of the matched-filter kernel the
-  isolation test uses.
+- ``psf_sigma_px`` — float, default ``1.0`` px. Gaussian sigma of the matched-filter kernel
+  that chooses the detection in each window and measures its isolation; the same value
+  ``StarFieldFromCatalogNav`` detects with.
 - ``source_isolation_inner_px``, ``source_isolation_outer_px`` — int, defaults ``4`` and
   ``6`` px. Radii of the annulus over which a detection's isolation is measured.
 - ``source_isolation_max_ratio`` — float, default ``0.5``. Largest allowed excess of the
@@ -231,12 +291,13 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``pair_search_stars`` — int, default ``5``. The 2-star path tries every pair among this
   many brightest usable stars.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
-  moment box around the brightness peak.
+  moment box around the detection, and of the matched-filter kernel.
 - ``max_residual_px`` — float, default ``1.2`` px. Maximum allowed best-assignment
   residual for a pair to pass the 2-star cross-check. Two passing pairs farther apart than
   twice this make the result spurious.
 - ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
-  multiplier on the per-image noise sigma.
+  multiplier on the per-image noise sigma; a detection's brightest pixel must stand this
+  many noise sigmas above the median of its centroid box.
 - ``one_star_confidence_cap`` — float, default ``0.7`` (dimensionless). Post-sigmoid
   confidence cap when the 1-star path fires. A single match cannot self-check.
 - ``two_star_confidence_cap`` — float, default ``0.8`` (dimensionless). Post-sigmoid
@@ -244,8 +305,8 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
   assignment.
 - ``one_star_min_peak_ratio`` — float, default ``1.5`` (dimensionless). Minimum
   background-subtracted peak-to-runner-up ratio for a 1-star detection; below it the
-  result is spurious with an ``ambiguous_detection`` reason. Values below 1 are invalid
-  (the peak is by definition at least the runner-up).
+  result is spurious with an ``ambiguous_detection`` reason. Values below 1 are invalid:
+  a ratio below 1 means the window holds a pixel brighter than the detection's own peak.
 - ``one_star_max_residual_px`` — float, default ``10.0`` px. Maximum
   prediction-to-detection distance accepted by the 1-star path when the peak-ratio gate
   is vacuous (its no-rival ``inf`` sentinel); beyond it the result is spurious with a
@@ -306,9 +367,10 @@ Source files:
   :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` and the
   brightness-margin / 1-star / 2-star helpers.
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — package-private helpers ``usable_stars``,
-  ``local_centroid``, ``is_image_peak``, ``is_isolated_point_source``,
-  ``isolated_response``, ``gaussian_kernel``, ``predicted_snr``, ``predicted_vu``,
-  ``brightness_margin_mag``, and ``similarity_transform_fit``.
+  ``search_window_bounds``, ``local_centroid``, ``detection_peak_ratio``,
+  ``is_isolated_point_source``, ``isolated_response``, ``gaussian_psf_kernel``,
+  ``predicted_snr``, ``predicted_vu``, ``brightness_margin_mag``, and
+  ``similarity_transform_fit``.
 - ``src/spindoctor/nav_technique/confidence.py`` — sigmoid-combination evaluator; documented at
   :doc:`dev_guide_techniques_confidence`.
 - ``src/spindoctor/nav_technique/diagnostics.py`` —

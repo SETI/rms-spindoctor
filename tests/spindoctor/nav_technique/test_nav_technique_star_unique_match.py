@@ -432,6 +432,57 @@ def test_star_unique_match_one_star_reports_unambiguous_peak_ratio(
     assert result.diagnostics.detection_peak_ratio >= 1.5
 
 
+def test_star_unique_match_two_star_measures_each_star_past_a_brighter_spike(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A single pixel outshining a star's peak does not take that star's window.
+
+    Mirrors N1530185128_1: a cosmic ray 1.8 times the peak of the brighter
+    star sits inside its search window.  Taking the brightest pixel measured
+    the ray, the pair's residual went to tens of pixels and the two-star
+    solution was declined; the star's light outweighs the ray's.
+    """
+    image = np.zeros((200, 200), dtype=np.float64)
+    actual_a = (60.0, 60.0)
+    actual_b = (140.0, 140.0)
+    draw_gaussian_star(image, actual_a, peak_dn=15.0, sigma=1.2)
+    draw_gaussian_star(image, actual_b, peak_dn=12.0, sigma=1.2)
+    image[35, 80] += 27.0
+    planted = (5.0, -2.0)
+    pred_a = (actual_a[0] - planted[0], actual_a[1] - planted[1])
+    pred_b = (actual_b[0] - planted[0], actual_b[1] - planted[1])
+    feat_a = make_star_feature('star:UCAC4:A', predicted_vu=pred_a, predicted_snr=60.0)
+    feat_b = make_star_feature('star:UCAC4:B', predicted_vu=pred_b, predicted_snr=40.0)
+    result = StarUniqueMatchNav().navigate([feat_a, feat_b], make_nav_context(image))
+    assert isinstance(result.diagnostics, StarUniqueMatchDiagnostics)
+    assert result.diagnostics.mode == 'two_star'
+    assert result.offset_px[0] == pytest.approx(planted[0], abs=0.4)
+    assert result.offset_px[1] == pytest.approx(planted[1], abs=0.4)
+
+
+def test_star_unique_match_one_star_refuses_a_window_with_a_brighter_spike(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """One star with a brighter single pixel in its window is not a unique match.
+
+    The one-star path has no second star to check its detection against, so a
+    window holding a pixel brighter than the detection's own peak is ambiguous
+    and the result is spurious, rather than a confident offset to the spike.
+    """
+    image = np.zeros((200, 200), dtype=np.float64)
+    draw_gaussian_star(image, (110.0, 100.0), peak_dn=15.0, sigma=1.2)
+    image[80, 118] += 27.0
+    feature = make_star_feature('star:UCAC4:1', predicted_vu=(100.0, 100.0), predicted_snr=40.0)
+    result = StarUniqueMatchNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is True
+    assert isinstance(result.diagnostics, StarUniqueMatchDiagnostics)
+    assert result.diagnostics.detection_peak_ratio < 1.0
+
+
 def test_star_unique_match_pair_search_skips_a_star_not_in_the_image(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
@@ -515,7 +566,11 @@ def test_star_unique_match_refuses_the_cut_edge_of_a_source_outside_the_window(
     draw_gaussian_star: DrawGaussianStarFactory,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A window whose brightest pixel is the wing of a source beyond its edge holds no star."""
+    """A window whose brightest pixel is the wing of a source beyond its edge holds no star.
+
+    The wing rises toward the window's edge, so it is no peak of the image and the window
+    holds no detection.
+    """
     image = np.zeros((300, 300), dtype=np.float64)
     technique = StarUniqueMatchNav()
     window_px = float(technique.tuning['search_window_px'])
@@ -524,7 +579,7 @@ def test_star_unique_match_refuses_the_cut_edge_of_a_source_outside_the_window(
     feature = make_star_feature('star:UCAC4:A', predicted_vu=pred, predicted_snr=60.0)
     result = technique.navigate([feature], make_nav_context(image))
     assert result.spurious is True
-    assert 'window_peak_not_a_point_source' in capsys.readouterr().out
+    assert 'no_detection_above_threshold' in capsys.readouterr().out
 
 
 def test_star_unique_match_refuses_a_pair_of_tracks(

@@ -286,3 +286,34 @@ def test_star_refine_3dof_single_inlier_unobservable(
     assert result.covariance_px2.shape == (3, 3)
     assert result.rotation_rad == 0.0
     assert result.covariance_px2[2, 2] == pytest.approx(ROTATION_UNOBSERVABLE_VARIANCE)
+
+
+def test_star_refine_measures_a_star_past_a_brighter_spike_in_its_window(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A single pixel outshining a star's peak does not take its refine window.
+
+    The spike sits 5.8 px from star A's shifted prediction, inside the 6 px
+    window and past the 4 px per-star residual limit, so a refinement that
+    measured it would drop star A.
+    """
+    image = np.zeros((220, 220), dtype=np.float64)
+    actual = [(60.0, 70.0), (160.0, 130.0), (110.0, 170.0)]
+    for center in actual:
+        draw_gaussian_star(image, center, peak_dn=15.0, sigma=1.2)
+    image[55, 73] += 27.0
+    true_offset = (3.0, -2.0)
+    features = [
+        make_star_feature(
+            f'star:UCAC4:{i}',
+            predicted_vu=(v - true_offset[0], u - true_offset[1]),
+            predicted_snr=30.0,
+        )
+        for i, (v, u) in enumerate(actual)
+    ]
+    context = _attach_prior(make_nav_context(image), prior_offset_px=true_offset)
+    result = StarRefineNav().navigate(features, context)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    assert result.diagnostics.n_stars_used == 3

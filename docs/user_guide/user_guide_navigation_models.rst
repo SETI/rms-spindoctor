@@ -571,19 +571,23 @@ star.
 With one star, it requires that star to be clearly the brightest thing the catalog
 predicts in the frame, by a margin over the next candidate of
 ``techniques.StarUniqueMatchNav.tuning.brightness_margin_to_next_catalog_star_mag``
-magnitudes, 1.5 by default. Then the brightest peak inside a search window around the
-prediction can only be that star, and the offset is simply the difference. Confidence is
-capped at 0.7, because a single match has nothing to check itself against. Guards exist
-against locking onto a noise spike or a hot pixel: the peak must stand clear of the
-window's background, and where there is no rival peak at all to measure against, the match
-is accepted only if it sits close to the predicted position.
+magnitudes, 1.5 by default. Then the strongest source inside a search window around the
+prediction can only be that star, and the offset is simply the difference. A source's
+strength is the light it spreads over a star's footprint (the width set by
+``techniques.StarUniqueMatchNav.tuning.psf_sigma_px``, 1 pixel by default), so a cosmic ray
+or hot pixel whose single pixel outshines the star's peak still loses to the star.
+Confidence is capped at 0.7, because a single match has nothing to check itself against.
+Guards exist against locking onto a noise spike or a hot pixel: the star's peak must stand
+clear of the window's background and of every other pixel in the window, and where there
+is no rival peak at all to measure against, the match is accepted only if it sits close to
+the predicted position.
 
 With two or more stars, the technique looks for a pair that checks itself. It tries every
 pair among the five brightest predicted stars
 (``techniques.StarUniqueMatchNav.tuning.pair_search_stars``), and for each pair both ways
 of assigning the two detections to the two predictions. A pair is accepted only when the
 two stars imply the same offset to within
-``techniques.StarUniqueMatchNav.tuning.max_residual_px``, 1 pixel by default; two
+``techniques.StarUniqueMatchNav.tuning.max_residual_px``, 1.2 pixels by default; two
 correctly matched stars agree to a few tenths of a pixel. Trying more than the brightest
 two matters because the brightest predicted star is often not in the image at all: it can
 fall just off the detector once the pointing error is applied, or under a ring's glare. If
@@ -592,26 +596,27 @@ between them and reports no answer. A cross-checked pair caps confidence a littl
 at 0.8.
 
 The search never covers the whole frame. It reaches
-``techniques.StarUniqueMatchNav.tuning.search_window_px`` pixels in each direction from
-each prediction, 50 by default, and pairs are also tried within 30 pixels
-(``techniques.StarUniqueMatchNav.tuning.inner_search_window_px``). The window must be
-larger than the pointing error: when a star lies outside it, the brightest thing inside is
-something else. On a Cassini narrow-angle F ring movie the pointing error reaches 43
-pixels. A single star, which nothing can check, is accepted only within 30 pixels of
-where it was predicted, although the whole window is still searched so that anything
-brighter in it stops the match. A detection counts only if it is a point source that stands alone, by the
-same test the star field uses, so the edge of a ring where the window cuts it, or a
-cosmic-ray track, is not taken for a star.
+``techniques.StarUniqueMatchNav.tuning.search_window_px`` whole pixels in each direction
+from the pixel holding each prediction, 50 by default, and pairs are also tried within 30
+pixels (``techniques.StarUniqueMatchNav.tuning.inner_search_window_px``). The window must
+be larger than the pointing error: a star whose center lies outside that reach is not
+found, even when some of its light falls inside it. On a Cassini narrow-angle F ring movie
+the pointing error reaches 43 pixels. A single star, which nothing can check, is accepted
+only within 30 pixels of where it was predicted, although the whole window is still
+searched so that anything brighter in it stops the match. A detection counts only if it
+is a point source that stands alone, by the same test the star field uses, so a ridge of a
+ring or a cosmic-ray track is not taken for a star.
 
 StarRefineNav
 ^^^^^^^^^^^^^
 
 This technique sharpens an answer that another technique already found, and runs only
 after a first round has produced an offset. It shifts every predicted star position by
-that offset, looks for a peak in a small window around each shifted prediction, measures
-its center, and averages the leftover residuals, weighting each star by how precisely it
-can be located. A star whose peak is too far from the shifted prediction is dropped as a
-wrong identification.
+that offset, looks for the strongest source in a small window around each shifted
+prediction, judged the same way as above, measures its center, and averages the leftover
+residuals, weighting each star by how precisely it can be located. A star whose peak is
+too far from the shifted prediction is dropped as a wrong identification, and so is a star
+whose small window is outshone by the edge of something brighter just outside it.
 
 What it reports is a correction to the offset it was given. With two or more stars it
 reports the measured scatter as its uncertainty; with a single star it falls back to the

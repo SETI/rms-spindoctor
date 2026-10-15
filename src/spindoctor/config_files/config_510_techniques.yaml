@@ -704,18 +704,18 @@ techniques:
       brightness_margin_to_next_catalog_star_mag: 1.5
       # Half-width of the search window around each prediction (px).
       # Must bracket the SPICE pointing error: when the star lies outside
-      # the window, the brightest peak inside it is something else and a
+      # the window, the strongest peak inside it is something else and a
       # one-star match is silently wrong.  On ISS_006RI_LPHRLFMOV001_PRIME
       # the NAC pointing error reaches 43 px (published F ring bundle); a
-      # 30 px window put the stars of 191 of its 1030 frames out of reach
-      # and produced one-star answers 36, 54, and 71 px wrong.  50 px
-      # brackets the error.  With inner_search_window_px below, 40, 50,
-      # and 60 px navigate 749, 744, and 740 frames, none wrong; 40 px
-      # leaves the stars of the frames whose error exceeds it outside the
-      # window, which the other gates then refuse.
+      # 30 px window puts the stars of 191 of its 1030 frames out of
+      # reach.  50 px brackets the error.  With inner_search_window_px
+      # below, 30, 40, 50, and 60 px navigate 758, 776, 773, and 764
+      # frames, none wrong; 30 and 40 px leave the stars of the frames
+      # whose error exceeds them outside the window, which the other
+      # gates then refuse.
       search_window_px: 50.0
       # A narrower window inside search_window_px.  The 2-star path also
-      # searches each pair in it, because the brightest pixel of the wider
+      # searches each pair in it, because the strongest peak of the wider
       # window is more often something brighter than the star (a ring, a
       # bright neighbor); a pair found in either window must agree with
       # every other pair found (see max_residual_px).  The 1-star path
@@ -726,34 +726,40 @@ techniques:
       # come from, the likelier an artifact is the brightest thing in it.
       # The black-sky library frame C0164392700R has a lone artifact
       # 40 px from its one predicted star.  On ISS_006RI an inner window
-      # of 30, 40, and 50 px (the last meaning none) navigates 744, 738,
-      # and 711 frames, none wrong; the 30 px one refuses 23 one-star
-      # frames whose star lies 30-43 px out.
+      # of 30, 40, and 50 px (the last meaning none) navigates 773, 772,
+      # and 747 frames, none wrong.
       inner_search_window_px: 30.0
+      # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
+      # detection inside each search window: the strongest local maximum
+      # of the response wins, not the brightest single pixel, so a cosmic
+      # ray or hot pixel does not outrank a star of greater flux, and the
+      # flank of a brighter source cut by the window edge is never taken.
+      # Same value as StarFieldFromCatalogNav's, so every star technique
+      # measures a source the same way.
+      psf_sigma_px: 1.0
       # Source isolation, as StarFieldFromCatalogNav: a detection counts
       # only when, over an annulus of these radii (px) around it, the
-      # brightest matched-filter response (Gaussian kernel of
-      # psf_sigma_px) exceeds the annulus mean by less than
-      # source_isolation_max_ratio of the detection's own height above
-      # that mean.  A ring ridge or a cosmic-ray track fails; on the
+      # brightest matched-filter response exceeds the annulus mean by less
+      # than source_isolation_max_ratio of the detection's own height
+      # above that mean.  A ring ridge or a cosmic-ray track fails; on the
       # black-sky library frame C0164958500R two such tracks formed a
-      # consistent pair.  It costs one of the 1030 ISS_006RI frames.
-      psf_sigma_px: 1.0
+      # consistent pair.  On ISS_006RI it refuses a pair 19 px wrong and
+      # costs 4 of the 1030 frames.
       source_isolation_inner_px: 4
       source_isolation_outer_px: 6
       source_isolation_max_ratio: 0.5
-      # Centroid box half-width around the brightness peak (px).
+      # Centroid box half-width around the detection's peak (px); also the
+      # half-width of the matched-filter kernel.
       centroid_box_half_px: 3
       # Maximum allowed best-assignment residual in the 2-star path (px).
       # The residual is half the difference between the two stars'
       # offsets.  On ISS_006RI_LPHRLFMOV001_PRIME, with the tolerance
-      # opened to 4 px, the 644 two-star matches within 2 px of the
-      # published bundle have residuals of median 0.09 px and 95th
-      # percentile 0.31 px, while the 25 matches in which a star was
-      # paired with the wrong source start at 1.34 px.  1.2 px keeps 636
-      # of the 644 and none of the 25, and admits the correct 1.04 px
-      # pair of library frame N1550270436, which 1.0 px refuses; 1.5 px
-      # admits two of the 25.  Two passing pairs whose offsets differ by
+      # opened to 4 px, the 703 two-star matches within 2 px of the
+      # published bundle have residuals of median 0.10 px and 95th
+      # percentile 0.31 px, while the one match in which a star was
+      # paired with the wrong source has 3.37 px.  1.2 px keeps 698 of
+      # the 703, and admits the correct 1.04 px pair of library frame
+      # N1550270436, which 1.0 px refuses.  Two passing pairs whose offsets differ by
       # more than twice this are ambiguous and the technique reports
       # spurious.
       max_residual_px: 1.2
@@ -761,11 +767,12 @@ techniques:
       # searches for a pair; every pair of them is tried.  Searching only
       # the brightest two refuses frames whose brightest predicted star is
       # not in the image (outside the detector, behind ring glare).  On
-      # ISS_006RI: 3 stars navigate 695 frames, 5 navigate 744, 8 navigate
-      # 750, all within 2 px of the bundle.
+      # ISS_006RI: 3 stars navigate 719 frames, 5 navigate 773, 8 navigate
+      # 779, all within 2 px of the bundle.
       pair_search_stars: 5
-      # Detection-threshold multiplier on image_noise_sigma; below this
-      # the brightest pixel inside the search window is considered noise.
+      # Detection-threshold multiplier on image_noise_sigma; a detection
+      # whose brightest pixel stands less than this many noise sigmas
+      # above the median of its centroid box is considered noise.
       detection_sigma: 4.0
       # Minimum background-subtracted peak-to-runner-up ratio for the
       # 1-star detection (#211).  The absolute detection_sigma test
@@ -844,12 +851,19 @@ techniques:
       # unique-match search window because the pass-1 prior already put
       # us within a few pixels of the right answer.
       refine_window_px: 6.0
-      # Centroid box half-width around the brightness peak (px).
+      # Centroid box half-width around the brightness peak (px); also the
+      # half-width of the matched-filter kernel.
       centroid_box_half_px: 3
+      # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
+      # detection inside each refine window; see StarUniqueMatchNav.
+      psf_sigma_px: 1.0
       # Drop a star whose detection sits more than this many pixels from
       # the prior-shifted prediction; almost certainly a wrong peak.
       max_per_star_residual_px: 4.0
-      # Detection-threshold multiplier on image_noise_sigma.
+      # Detection-threshold multiplier on image_noise_sigma; a detection
+      # must stand this many noise sigmas above the median of its centroid
+      # box.  A refine window whose brightest pixel is the edge-cut flank
+      # of a brighter source outside it is refused outright.
       detection_sigma: 4.0
       # Below this many surviving inliers the technique reports spurious.
       min_inliers: 1

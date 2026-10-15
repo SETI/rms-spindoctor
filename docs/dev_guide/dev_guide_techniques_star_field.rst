@@ -457,7 +457,8 @@ Source files:
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` and the
   hashing / RANSAC / fit helpers.
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — package-private helpers
-  ``usable_stars`` (filter), ``local_centroid`` (per-source centroid), and
+  ``usable_stars`` (filter), ``gaussian_psf_kernel`` (the matched-filter kernel every star
+  technique detects with), ``local_centroid`` (per-source centroid), and
   ``similarity_transform_fit`` (Kabsch / Procrustes solve).
 - ``src/spindoctor/nav_technique/confidence.py`` — sigmoid-combination evaluator; documented at
   :doc:`dev_guide_techniques_confidence`.

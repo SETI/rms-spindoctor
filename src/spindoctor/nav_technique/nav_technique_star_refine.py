@@ -5,8 +5,8 @@ moment centroids on every predicted catalog star.  For each STAR
 feature, the technique:
 
 1. Shifts the catalog prediction by the prior offset.
-2. Looks for a brightness peak inside a small refinement window
-   centered on that shifted prediction.
+2. Looks for the strongest matched-filter detection inside a small
+   refinement window centered on that shifted prediction.
 3. Fits a brightness-weighted moment around the peak to get a sub-pixel
    centroid.
 4. Computes per-star residuals (observed - shifted_prediction) and
@@ -141,6 +141,7 @@ class StarRefineNav(NavTechnique):
         self.config.read_config()  # ensure cls.tuning is populated
         self._refine_window_px = float(self.tuning['refine_window_px'])
         self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
+        self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
         self._max_per_star_residual_px = float(self.tuning['max_per_star_residual_px'])
         self._detection_sigma = float(self.tuning['detection_sigma'])
         self._min_inliers = int(self.tuning['min_inliers'])
@@ -372,8 +373,10 @@ class StarRefineNav(NavTechnique):
                 shifted_pred,
                 search_window_px=self._refine_window_px,
                 centroid_box_half_px=self._centroid_box_half_px,
+                psf_sigma_px=self._psf_sigma_px,
                 image_noise_sigma=noise_sigma,
                 detection_sigma=self._detection_sigma,
+                refuse_outshone=True,
             )
             if det is None:
                 self.logger.debug(

@@ -4,7 +4,7 @@ Two paths share one technique:
 
 - **One-star path.**  When the catalog reduction produces one star whose
   predicted brightness is at least ``brightness_margin_to_next_catalog_star_mag``
-  brighter than the next-brightest predictable star, the brightest
+  brighter than the next-brightest predictable star, the strongest
   detection inside its search window is unambiguously its match.  The
   offset is the centroid minus the prediction; confidence is capped at
   the configured one-star limit (default 0.7) because a single match
@@ -42,16 +42,21 @@ Two paths share one technique:
   image -- off the detector, or lost in a ring's glare.
 
 Local-window detection is intentional: the search window is sized to
-bracket the SPICE pointing error, so the star lies inside it.  No global
-star-detection pass is needed (and this technique is feasible even on
-images where multi-star detection would fail because the rest of the
-field is too faint or too crowded).  A window's brightest pixel that is
-not an isolated point source of the image -- the cut edge of something
-brighter just outside the window, a ridge of a ring, a cosmic-ray track
--- is not a detection, on either path.  A one-star detection is searched
-for in the whole window, so a brighter source anywhere in it vetoes a
-fainter one, but is accepted only within ``inner_search_window_px`` of the
-prediction.
+bracket the SPICE pointing error, so the star lies inside it, and the
+detection is the strongest matched-filter peak inside the window.  A peak
+is a local maximum of the image's response, so the flank of a brighter
+source just outside the window is never taken.  A detection must also be
+an isolated point source: a ridge of a ring or a cosmic-ray track is a
+peak but not a star, and a window whose strongest peak is one holds no
+detection.  The two-star path needs no other per-window ambiguity test: a
+window won by something other than its star moves that star's offset away
+from the other's, and the joint residual declines the pair.  A one-star
+detection is searched for in the whole window, so a brighter source
+anywhere in it vetoes a fainter one, but is accepted only within
+``inner_search_window_px`` of the prediction.  No global star-detection
+pass is needed (and this technique is feasible even on images where
+multi-star detection would fail because the rest of the field is too
+faint or too crowded).
 """
 
 from __future__ import annotations
@@ -69,7 +74,6 @@ from spindoctor.nav_technique._star_helpers import (
     SimilarityFit,
     brightness_margin_mag,
     detection_peak_ratio,
-    is_image_peak,
     is_isolated_point_source,
     local_centroid,
     predicted_snr,
@@ -183,13 +187,13 @@ class StarUniqueMatchNav(NavTechnique):
         )
         self._search_window_px = float(self.tuning['search_window_px'])
         self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
+        self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
         self._max_residual_px = float(self.tuning['max_residual_px'])
         self._pair_search_stars = int(self.tuning['pair_search_stars'])
         self._inner_search_window_px = float(self.tuning['inner_search_window_px'])
         self._pair_search_windows_px = sorted(
             {self._search_window_px, self._inner_search_window_px}
         )
-        self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
         self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
         self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
         self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
@@ -406,16 +410,20 @@ class StarUniqueMatchNav(NavTechnique):
             chosen[0].geometry.predicted_vu,  # type: ignore[union-attr]
             search_window_px=search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
+            psf_sigma_px=self._psf_sigma_px,
             image_noise_sigma=noise_sigma,
             detection_sigma=self._detection_sigma,
+            refuse_outshone=False,
         )
         det_b, peak_b = local_centroid(
             image_ext,
             chosen[1].geometry.predicted_vu,  # type: ignore[union-attr]
             search_window_px=search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
+            psf_sigma_px=self._psf_sigma_px,
             image_noise_sigma=noise_sigma,
             detection_sigma=self._detection_sigma,
+            refuse_outshone=False,
         )
         if det_a is None or det_b is None:
             self.logger.debug(
@@ -427,13 +435,11 @@ class StarUniqueMatchNav(NavTechnique):
             )
             return None
         if not (
-            self._is_point_source(image_ext, det_a, peak_a)
-            and self._is_point_source(image_ext, det_b, peak_b)
+            self._is_point_source(image_ext, det_a) and self._is_point_source(image_ext, det_b)
         ):
             self.logger.debug(
-                'Two-star path: a window peak is not an isolated point source (the cut '
-                'edge of something outside the window, or part of an extended one); '
-                'pair rejected'
+                'Two-star path: a window peak is not an isolated point source (part of '
+                'an extended source, or a cosmic-ray track); pair rejected'
             )
             return None
         # Overlapping search windows can return the SAME detection for
@@ -724,8 +730,10 @@ class StarUniqueMatchNav(NavTechnique):
             brightest.geometry.predicted_vu,  # type: ignore[union-attr]
             search_window_px=self._search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
+            psf_sigma_px=self._psf_sigma_px,
             image_noise_sigma=noise_sigma,
             detection_sigma=self._detection_sigma,
+            refuse_outshone=False,
         )
         if det is None:
             diagnostics = StarUniqueMatchDiagnostics(
@@ -742,10 +750,9 @@ class StarUniqueMatchNav(NavTechnique):
             )
         pred_v, pred_u = brightest.geometry.predicted_vu  # type: ignore[union-attr]
         refusal = None
-        if not self._is_point_source(image_ext, det, peak):
+        if not self._is_point_source(image_ext, det):
             refusal = (
-                'window_peak_not_a_point_source (the cut edge of something outside the '
-                'window, or part of an extended source)'
+                'window_peak_not_a_point_source (part of an extended source, or a cosmic-ray track)'
             )
         elif math.hypot(det[0] - pred_v, det[1] - pred_u) > self._inner_search_window_px:
             # The wider window is searched so that a brighter source in it vetoes
@@ -887,29 +894,23 @@ class StarUniqueMatchNav(NavTechnique):
         )
 
     def _is_point_source(
-        self, image_ext: NDArrayFloatType, detection_vu: tuple[float, float], peak_dn: float
+        self, image_ext: NDArrayFloatType, detection_vu: tuple[float, float]
     ) -> bool:
         """Return whether a window's detection is an isolated point source of the image.
 
-        Two tests, both of which a star passes.  The window's brightest pixel must
-        be a peak of the image (:func:`is_image_peak`): when something brighter
-        lies just outside the window, the brightest pixel inside is the edge of
-        it where the window cuts it.  And the peak must be isolated
-        (:func:`is_isolated_point_source`, the test the star field's source
-        detection applies): a ridge of a ring or a limb, or a cosmic-ray track,
-        is not a star.
+        The detection is already a matched-filter peak of the image (:func:`local_centroid`
+        takes only local maxima of the response), so the remaining test is isolation
+        (:func:`is_isolated_point_source`, the test the star field's source detection
+        applies): a ridge of a ring or a limb, or a cosmic-ray track, is a peak but not a
+        star.
 
         Parameters:
             image_ext: The extended-FOV image.
             detection_vu: ``(v, u)`` centroid :func:`local_centroid` returned.
-            peak_dn: The window's brightest value, as :func:`local_centroid`
-                returned it.
 
         Returns:
-            True when both tests pass.
+            True when the detection is isolated.
         """
-        if not is_image_peak(image_ext, detection_vu, peak_dn, half_px=self._centroid_box_half_px):
-            return False
         return is_isolated_point_source(
             image_ext,
             detection_vu,

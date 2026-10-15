@@ -35,13 +35,14 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 __all__ = [
     'SimilarityFit',
     'brightness_margin_mag',
-    'gaussian_kernel',
-    'is_image_peak',
+    'detection_peak_ratio',
+    'gaussian_psf_kernel',
     'is_isolated_point_source',
     'isolated_response',
     'local_centroid',
     'predicted_snr',
     'predicted_vu',
+    'search_window_bounds',
     'similarity_transform_fit',
     'star_features',
     'usable_stars',
@@ -248,29 +249,228 @@ def similarity_transform_fit(
     )
 
 
+def gaussian_psf_kernel(sigma_px: float, *, size: int) -> NDArrayFloatType:
+    """Return a normalized 2-D isotropic Gaussian matched-filter kernel.
+
+    Every star technique detects sources against this one kernel, so a star that
+    one technique measures is the same star another technique measures.
+
+    Parameters:
+        sigma_px: PSF sigma in pixels.  Must be strictly positive.
+        size: Side length of the (odd) square kernel.  Coerced up to
+            the next odd integer when even.
+
+    Returns:
+        ``(size, size)`` float64 array, sum-to-unity.
+
+    Raises:
+        ValueError: if ``sigma_px`` is not strictly positive.
+    """
+    if sigma_px <= 0.0:
+        raise ValueError(f'sigma_px must be > 0; got {sigma_px!r}')
+    if size % 2 == 0:
+        size += 1
+    half = size // 2
+    coords = np.arange(-half, half + 1, dtype=np.float64)
+    vv, uu = np.meshgrid(coords, coords, indexing='ij')
+    kernel = np.exp(-(vv * vv + uu * uu) / (2.0 * sigma_px * sigma_px))
+    kernel /= float(kernel.sum())
+    return kernel
+
+
+def search_window_bounds(
+    predicted_vu_pos: tuple[float, float],
+    search_window_px: float,
+    shape: tuple[int, ...],
+) -> tuple[int, int, int, int] | None:
+    """Return the ``(v_lo, v_hi, u_lo, u_hi)`` slice bounds of a star search window.
+
+    The window is centered on the pixel that contains the prediction (the working frame
+    is pixel-centric, so that is the prediction rounded to the nearest integer, halves
+    rounding up) and reaches ``floor(search_window_px)`` whole pixels either side of it,
+    so it is always ``2 * floor(search_window_px) + 1`` pixels on a side before clamping
+    and its center never sits more than half a pixel from the prediction.  A window
+    built from ``floor(v - W)`` and ``ceil(v + W)`` instead is one pixel wider than that
+    for a non-integer prediction and reaches farther on one side than the other, with
+    the longer side flipping as the prediction crosses an integer, so a sub-pixel change
+    of prediction can admit or drop a whole row or column of candidates.
+
+    Parameters:
+        predicted_vu_pos: ``(v, u)`` prediction at the center of the window.
+        search_window_px: Half-width of the window in pixels.
+        shape: Shape of the image the window is cut from; the bounds are clamped to it.
+
+    Returns:
+        ``(v_lo, v_hi, u_lo, u_hi)`` half-open slice bounds, or ``None`` when the clamped
+        window is empty (the prediction lies wholly off the image).
+    """
+    half = math.floor(search_window_px)
+    center_v = math.floor(predicted_vu_pos[0] + 0.5)
+    center_u = math.floor(predicted_vu_pos[1] + 0.5)
+    h, w = int(shape[0]), int(shape[1])
+    v_lo = max(0, center_v - half)
+    u_lo = max(0, center_u - half)
+    v_hi = min(h, center_v + half + 1)
+    u_hi = min(w, center_u + half + 1)
+    if v_hi <= v_lo or u_hi <= u_lo:
+        return None
+    return v_lo, v_hi, u_lo, u_hi
+
+
+def _window_peaks(
+    image_ext: NDArrayFloatType,
+    bounds: tuple[int, int, int, int],
+    *,
+    kernel: NDArrayFloatType,
+) -> NDArrayFloatType:
+    """Return the matched-filter response at the window's peaks, ``-inf`` elsewhere.
+
+    A peak is a pixel whose response is the largest within the kernel's footprint
+    around it, the local-maximum rule ``StarFieldFromCatalogNav`` detects with.  The
+    rule is judged with the image outside the window in view, so a pixel on the edge of
+    the window that lies on the flank of a source outside it is no peak: a source whose
+    own peak lies outside the window is not in it.  The response is computed on the
+    window padded by twice the kernel's half-width (clamped to the image), so every
+    response value the rule reads sees the neighborhood a whole-image filter would.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        bounds: ``(v_lo, v_hi, u_lo, u_hi)`` from :func:`search_window_bounds`.
+        kernel: Matched-filter kernel from :func:`gaussian_psf_kernel`.
+
+    Returns:
+        Array with the window's shape holding the response at each peak and ``-inf`` at
+        every other pixel.
+    """
+    v_lo, v_hi, u_lo, u_hi = bounds
+    h, w = image_ext.shape
+    size = kernel.shape[0]
+    pad = 2 * (size // 2)
+    pv_lo = max(0, v_lo - pad)
+    pu_lo = max(0, u_lo - pad)
+    pv_hi = min(h, v_hi + pad)
+    pu_hi = min(w, u_hi + pad)
+    padded = np.asarray(image_ext[pv_lo:pv_hi, pu_lo:pu_hi], np.float64)
+    response = matched_filter_image(padded, kernel=kernel)
+    local_max = maximum_filter(response, size=size, mode='nearest')
+    peaks = np.where(response == local_max, response, -np.inf)
+    return peaks[v_lo - pv_lo : v_hi - pv_lo, u_lo - pu_lo : u_hi - pu_lo]
+
+
+_MAX_RECENTER = 5
+
+
+def _box(image_ext: NDArrayFloatType, v: int, u: int, half: int) -> NDArrayFloatType:
+    """Return the ``(2 * half + 1)`` box around pixel ``(v, u)``, clamped to the image."""
+    h, w = image_ext.shape
+    return np.asarray(
+        image_ext[max(0, v - half) : min(h, v + half + 1), max(0, u - half) : min(w, u + half + 1)],
+        np.float64,
+    )
+
+
+def _box_centroid(
+    image_ext: NDArrayFloatType, v: int, u: int, half: int
+) -> tuple[float, float] | None:
+    """Return the background-subtracted brightness-weighted centroid of one box.
+
+    The background is the box median.  Returns ``None`` when nothing in the box rises
+    above it.
+    """
+    h, w = image_ext.shape
+    v_lo, u_lo = max(0, v - half), max(0, u - half)
+    v_hi, u_hi = min(h, v + half + 1), min(w, u + half + 1)
+    box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
+    weights = np.clip(box - float(np.median(box)), 0.0, None)
+    total = float(weights.sum())
+    if total <= 0.0:
+        return None
+    vs = np.arange(v_lo, v_hi, dtype=np.float64)
+    us = np.arange(u_lo, u_hi, dtype=np.float64)
+    return (
+        float(np.sum(vs[:, None] * weights) / total),
+        float(np.sum(us[None, :] * weights) / total),
+    )
+
+
+def _flank_outshines(
+    window: NDArrayFloatType,
+    peaks: NDArrayFloatType,
+    peak_dn: float,
+    *,
+    half: int,
+) -> bool:
+    """Return whether the window's brightest pixel is the flank of a source outside it.
+
+    The pixel counts as such a flank when it is brighter than the detection's own
+    peak, lies within ``half`` pixels of the window's edge, and has no peak of the
+    window within ``half`` pixels of it.  Light from a source whose peak lies outside
+    the window then outshines everything the window holds, and a detection taken
+    inside it is a weaker thing chosen in the shadow of a brighter one.
+
+    Parameters:
+        window: The search window's pixels.
+        peaks: The window's peak map from :func:`_window_peaks`.
+        peak_dn: The brightest DN of the chosen detection's centroid box.
+        half: Centroid-box (and kernel) half-width in pixels.
+
+    Returns:
+        ``True`` when the window should be refused.
+    """
+    flat_idx = int(np.argmax(window))
+    bv, bu = (int(x) for x in np.unravel_index(flat_idx, window.shape))
+    if float(window[bv, bu]) <= peak_dn:
+        return False
+    rows, cols = window.shape
+    on_edge = min(bv, bu, rows - 1 - bv, cols - 1 - bu) < half
+    if not on_edge:
+        return False
+    near = peaks[max(0, bv - half) : bv + half + 1, max(0, bu - half) : bu + half + 1]
+    return not bool(np.isfinite(near).any())
+
+
 def local_centroid(
     image_ext: NDArrayFloatType,
     predicted_vu_pos: tuple[float, float],
     *,
     search_window_px: float,
     centroid_box_half_px: int,
+    psf_sigma_px: float,
     image_noise_sigma: float,
     detection_sigma: float,
+    refuse_outshone: bool,
 ) -> tuple[tuple[float, float] | None, float]:
-    """Return the brightest local detection centroid + matched-filter peak.
+    """Return the strongest local detection's centroid and its peak DN.
 
     Implements a small DAOPHOT-style detection inside a search window
     centered on the prediction:
 
-    1. Slice the image to a ``(2 * search_window_px + 1)`` half-window
-       around the prediction (clamped to image bounds).
-    2. Take the brightest pixel inside the window — this is the
-       candidate peak.
-    3. Reject the candidate when its DN is below
-       ``detection_sigma * image_noise_sigma``.
-    4. Fit a brightness-weighted moment (Gaussian-equivalent for noise-
-       free fixtures) over a ``(2 * centroid_box_half_px + 1)`` box
-       around the candidate to pull a sub-pixel centroid.
+    1. Cut the window of :func:`search_window_bounds` around the prediction.
+    2. Matched-filter it against the Gaussian PSF kernel of
+       :func:`gaussian_psf_kernel` (``psf_sigma_px``, side
+       ``2 * centroid_box_half_px + 1``), the same detection statistic
+       ``StarFieldFromCatalogNav`` uses, and take as the candidate the
+       strongest response peak (a pixel whose response is the largest within
+       the kernel's footprint) lying inside the window.  A window pixel on the
+       flank of a source outside the window is no peak, so only a source
+       whose own peak lies in the window can be measured.  The response weighs a source by the light
+       it spreads over a PSF footprint, so a single-pixel spike (a cosmic
+       ray or hot pixel), which carries far less light than its one pixel
+       suggests, does not outrank a star of greater flux the way it does
+       when the brightest single pixel is taken; a uniform bright region
+       gives no response at all.
+    3. Reject the candidate when the brightest pixel of its centroid box
+       stands less than ``detection_sigma * image_noise_sigma`` above the
+       box's median, so a noise bump on the floor of a bright extended
+       region (a saturated ring or body) is no detection.
+    4. With ``refuse_outshone``, reject the window when its brightest pixel
+       is the edge-cut flank of a source outside it that outshines the
+       candidate (:func:`_flank_outshines`).
+    5. Fit a background-subtracted brightness-weighted moment over a
+       ``(2 * centroid_box_half_px + 1)`` box around the candidate, and
+       re-center the box on its own centroid until it stops moving (at
+       most five times), so a box that first caught a source by its edge,
+       as it does a saturated core, moves over the source.
 
     The star techniques use this purely-local fit rather than a global
     ``detect_sources`` call so they stay feasible on images where the
@@ -282,51 +482,66 @@ def local_centroid(
         predicted_vu_pos: ``(v, u)`` prediction at the center of the
             search window.
         search_window_px: Half-width of the search window in pixels.
-        centroid_box_half_px: Half-width of the centroid-fit box in
-            pixels.
+        centroid_box_half_px: Half-width of the centroid-fit box (and of
+            the matched-filter kernel) in pixels.
+        psf_sigma_px: PSF sigma in pixels for the matched-filter kernel.
         image_noise_sigma: Robust per-pixel noise sigma in DN units.
         detection_sigma: Threshold multiplier on
-            ``image_noise_sigma``; the brightest peak must clear
-            ``detection_sigma * image_noise_sigma`` to be accepted.
+            ``image_noise_sigma``; the candidate's brightest pixel must stand
+            ``detection_sigma * image_noise_sigma`` above its box's median to
+            be accepted.
+        refuse_outshone: Refuse a window outshone by a source outside it.
+            ``StarRefineNav`` sets it: its small window sits on a prediction
+            the pass-1 offset has already corrected, so light spilling in
+            from outside means the star has left the window.
+            ``StarUniqueMatchNav`` does not: its wide window often cuts a
+            ring, whose flank would refuse windows that hold their star.
 
     Returns:
         ``(centroid, peak_dn)`` where ``centroid`` is the
-        ``(v, u)`` sub-pixel center or ``None`` if no peak cleared
-        the threshold.  ``peak_dn`` is the brightest DN in the search
-        window regardless of whether the peak was accepted (handy for
-        diagnostics).
+        ``(v, u)`` sub-pixel center or ``None`` if the candidate was
+        rejected.  ``peak_dn`` is the brightest DN in the
+        candidate's centroid box regardless of whether the candidate was
+        accepted (handy for diagnostics), the brightest DN in the window when
+        the window holds no peak, or 0.0 when the window is empty.
     """
-    v0, u0 = predicted_vu_pos
-    h, w = image_ext.shape
-    v_lo = max(0, math.floor(v0 - search_window_px))
-    u_lo = max(0, math.floor(u0 - search_window_px))
-    v_hi = min(h, math.ceil(v0 + search_window_px) + 1)
-    u_hi = min(w, math.ceil(u0 + search_window_px) + 1)
-    if v_hi <= v_lo or u_hi <= u_lo:
+    bounds = search_window_bounds(predicted_vu_pos, search_window_px, image_ext.shape)
+    if bounds is None:
         return None, 0.0
-    window = image_ext[v_lo:v_hi, u_lo:u_hi]
-    flat_idx = int(np.argmax(window))
-    pv, pu = np.unravel_index(flat_idx, window.shape)
-    peak_dn = float(window[pv, pu])
-    if peak_dn < detection_sigma * image_noise_sigma:
-        return None, peak_dn
+    v_lo, v_hi, u_lo, u_hi = bounds
+    kernel = gaussian_psf_kernel(psf_sigma_px, size=2 * centroid_box_half_px + 1)
+    peaks = _window_peaks(image_ext, bounds, kernel=kernel)
+    flat_idx = int(np.argmax(peaks))
+    pv, pu = np.unravel_index(flat_idx, peaks.shape)
+    if not math.isfinite(float(peaks[pv, pu])):
+        # Every pixel of the window lies on the flank of something outside it.
+        window = image_ext[v_lo:v_hi, u_lo:u_hi]
+        return None, float(np.max(window))
     peak_v = v_lo + int(pv)
     peak_u = u_lo + int(pu)
-    box_v_lo = max(0, peak_v - centroid_box_half_px)
-    box_u_lo = max(0, peak_u - centroid_box_half_px)
-    box_v_hi = min(h, peak_v + centroid_box_half_px + 1)
-    box_u_hi = min(w, peak_u + centroid_box_half_px + 1)
-    box = image_ext[box_v_lo:box_v_hi, box_u_lo:box_u_hi]
-    bg = float(np.median(box))
-    weights = np.clip(box.astype(np.float64) - bg, 0.0, None)
-    total = float(weights.sum())
-    if total <= 0.0:
+    half = centroid_box_half_px
+    box = _box(image_ext, peak_v, peak_u, half)
+    peak_dn = float(box.max())
+    if peak_dn - float(np.median(box)) < detection_sigma * image_noise_sigma:
         return None, peak_dn
-    vs = np.arange(box_v_lo, box_v_hi, dtype=np.float64)
-    us = np.arange(box_u_lo, box_u_hi, dtype=np.float64)
-    centroid_v = float(np.sum(vs[:, None] * weights) / total)
-    centroid_u = float(np.sum(us[None, :] * weights) / total)
-    return (centroid_v, centroid_u), peak_dn
+    if refuse_outshone:
+        window = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
+        if _flank_outshines(window, peaks, peak_dn, half=half):
+            return None, peak_dn
+    # Re-center the box on its own centroid until it stops moving, so a box that
+    # caught a source by its edge (the response peaks at the edge of a saturated
+    # core) moves over the source.
+    centroid = _box_centroid(image_ext, peak_v, peak_u, half)
+    for _ in range(_MAX_RECENTER):
+        if centroid is None:
+            return None, peak_dn
+        next_v = math.floor(centroid[0] + 0.5)
+        next_u = math.floor(centroid[1] + 0.5)
+        if (next_v, next_u) == (peak_v, peak_u):
+            break
+        peak_v, peak_u = next_v, next_u
+        centroid = _box_centroid(image_ext, peak_v, peak_u, half)
+    return centroid, peak_dn
 
 
 def detection_peak_ratio(
@@ -350,6 +565,14 @@ def detection_peak_ratio(
     order statistics; a matched noise spike sits within a few percent of
     its runner-up.
 
+    The peak is the detection's own brightest pixel (inside its exclusion
+    box), and the runner-up is the brightest pixel of the rest of the
+    window.  :func:`local_centroid` chooses its detection by matched-filter
+    response, so the window can hold a single pixel brighter than the
+    detection's own peak; the ratio then falls below 1 and reports the
+    window as ambiguous, which is the safe answer for a match that has no
+    second star to check it against.
+
     Parameters:
         image_ext: 2-D extfov image array.
         predicted_vu_pos: ``(v, u)`` prediction at the center of the
@@ -366,100 +589,30 @@ def detection_peak_ratio(
         ``(peak - background) / (runner_up - background)`` with the
         window median as background, clamped to ``>= 0``; ``inf`` when
         the runner-up does not exceed the background.  0.0 when the
-        window is degenerate.
+        window is degenerate or the exclusion box misses it.
     """
-    v0, u0 = predicted_vu_pos
-    h, w = image_ext.shape
-    v_lo = max(0, math.floor(v0 - search_window_px))
-    u_lo = max(0, math.floor(u0 - search_window_px))
-    v_hi = min(h, math.ceil(v0 + search_window_px) + 1)
-    u_hi = min(w, math.ceil(u0 + search_window_px) + 1)
-    if v_hi <= v_lo or u_hi <= u_lo:
+    bounds = search_window_bounds(predicted_vu_pos, search_window_px, image_ext.shape)
+    if bounds is None:
         return 0.0
+    v_lo, v_hi, u_lo, u_hi = bounds
     window = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
     background = float(np.median(window))
-    peak = float(window.max()) - background
-    if peak <= 0.0:
-        return 0.0
-    masked = window.copy()
     det_v, det_u = detection_vu
     bv_lo = max(0, round(det_v) - exclude_half_px - v_lo)
     bu_lo = max(0, round(det_u) - exclude_half_px - u_lo)
     bv_hi = min(window.shape[0], round(det_v) + exclude_half_px + 1 - v_lo)
     bu_hi = min(window.shape[1], round(det_u) + exclude_half_px + 1 - u_lo)
-    if bv_hi > bv_lo and bu_hi > bu_lo:
-        masked[bv_lo:bv_hi, bu_lo:bu_hi] = background
+    if bv_hi <= bv_lo or bu_hi <= bu_lo:
+        return 0.0
+    peak = float(window[bv_lo:bv_hi, bu_lo:bu_hi].max()) - background
+    if peak <= 0.0:
+        return 0.0
+    masked = window.copy()
+    masked[bv_lo:bv_hi, bu_lo:bu_hi] = background
     runner_up = float(masked.max()) - background
     if runner_up <= 0.0:
         return math.inf
     return peak / runner_up
-
-
-def is_image_peak(
-    image_ext: NDArrayFloatType,
-    detection_vu: tuple[float, float],
-    peak_dn: float,
-    *,
-    half_px: int,
-) -> bool:
-    """Return whether a window's brightest pixel is a peak of the image itself.
-
-    :func:`local_centroid` takes the brightest pixel inside its search window.
-    When something brighter than any star lies just outside the window -- a
-    ring, a limb, a bright star -- the brightest pixel inside is the edge of
-    that object where the window cuts it, not a source inside the window, and
-    the centroid around it measures nothing.  Such a pixel is the window's
-    maximum without being the image's: a brighter pixel lies beside it beyond
-    the window edge.  This test looks at the image, not the window, in a box
-    around the detection and reports whether anything there outshines the
-    window's peak.
-
-    Parameters:
-        image_ext: 2-D extfov image array the detection was made in.
-        detection_vu: ``(v, u)`` centroid :func:`local_centroid` returned.
-        peak_dn: The brightest value inside the search window, as
-            :func:`local_centroid` returned it.
-        half_px: Half-width of the box examined around the rounded centroid;
-            the centroid box half-width, so the box always holds the peak
-            pixel the centroid was taken around.
-
-    Returns:
-        True when no pixel of the image within the box exceeds ``peak_dn``.
-    """
-    h, w = image_ext.shape
-    v_c = round(detection_vu[0])
-    u_c = round(detection_vu[1])
-    box = image_ext[
-        max(0, v_c - half_px) : min(h, v_c + half_px + 1),
-        max(0, u_c - half_px) : min(w, u_c + half_px + 1),
-    ]
-    return bool(float(np.max(box)) <= peak_dn)
-
-
-def gaussian_kernel(sigma_px: float, *, size: int) -> NDArrayFloatType:
-    """Return a normalized 2-D isotropic Gaussian matched-filter kernel.
-
-    Parameters:
-        sigma_px: PSF sigma in pixels.  Must be strictly positive.
-        size: Side length of the (odd) square kernel.  Coerced up to
-            the next odd integer when even.
-
-    Returns:
-        ``(size, size)`` float64 array, sum-to-unity.
-
-    Raises:
-        ValueError: If ``sigma_px`` is not positive.
-    """
-    if sigma_px <= 0.0:
-        raise ValueError(f'sigma_px must be > 0; got {sigma_px!r}')
-    if size % 2 == 0:
-        size += 1
-    half = size // 2
-    coords = np.arange(-half, half + 1, dtype=np.float64)
-    vv, uu = np.meshgrid(coords, coords, indexing='ij')
-    kernel = np.exp(-(vv * vv + uu * uu) / (2.0 * sigma_px * sigma_px))
-    kernel /= float(kernel.sum())
-    return kernel
 
 
 def _annulus_footprint(inner_px: int, outer_px: int) -> NDArrayBoolType:
@@ -562,7 +715,7 @@ def is_isolated_point_source(
         mode='reflect',
     )
     response = matched_filter_image(
-        patch, kernel=gaussian_kernel(sigma_px, size=2 * kernel_half_px + 1)
+        patch, kernel=gaussian_psf_kernel(sigma_px, size=2 * kernel_half_px + 1)
     )
     isolated = isolated_response(
         response, inner_px=inner_px, outer_px=outer_px, max_ratio=max_ratio

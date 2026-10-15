@@ -60,7 +60,7 @@ from spindoctor.nav_model.stars.detection import matched_filter_image
 from spindoctor.nav_technique._star_helpers import (
     SimilarityFit,
     brightness_margin_mag,
-    gaussian_kernel,
+    gaussian_psf_kernel,
     isolated_response,
     predicted_snr,
     predicted_vu,
@@ -311,7 +311,7 @@ def _detect_image_sources(
         descending.  May be empty when no peak clears the threshold.
     """
     kernel_size = 2 * centroid_box_half_px + 1
-    kernel = gaussian_kernel(sigma_px, size=kernel_size)
+    kernel = gaussian_psf_kernel(sigma_px, size=kernel_size)
     response = matched_filter_image(image, kernel=kernel)
     threshold = detection_sigma * image_noise_sigma
     local_max = maximum_filter(response, size=kernel_size, mode='reflect')
