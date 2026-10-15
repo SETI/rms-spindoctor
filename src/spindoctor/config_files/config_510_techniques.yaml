@@ -708,17 +708,39 @@ techniques:
       # one-star match is silently wrong.  On ISS_006RI_LPHRLFMOV001_PRIME
       # the NAC pointing error reaches 43 px (published F ring bundle); a
       # 30 px window put the stars of 191 of its 1030 frames out of reach
-      # and produced one-star answers 36, 54, and 71 px wrong.  Over those
-      # frames 40 px still admits one wrong answer, 50 and 60 px none
-      # (767 and 762 frames navigated).
+      # and produced one-star answers 36, 54, and 71 px wrong.  50 px
+      # brackets the error.  With inner_search_window_px below, 40, 50,
+      # and 60 px navigate 749, 744, and 740 frames, none wrong; 40 px
+      # leaves the stars of the frames whose error exceeds it outside the
+      # window, which the other gates then refuse.
       search_window_px: 50.0
-      # The 2-star path also searches each pair inside this narrower
-      # window.  The brightest pixel of the wider window is more often
-      # something brighter than the star (a ring, a bright neighbor), and
-      # a pair found in either window must agree with every other pair
-      # found (see max_residual_px).  On ISS_006RI the narrower window
-      # adds 56 navigated frames, none wrong.
-      pair_inner_search_window_px: 30.0
+      # A narrower window inside search_window_px.  The 2-star path also
+      # searches each pair in it, because the brightest pixel of the wider
+      # window is more often something brighter than the star (a ring, a
+      # bright neighbor); a pair found in either window must agree with
+      # every other pair found (see max_residual_px).  The 1-star path
+      # searches the wider window, so a brighter source anywhere in it
+      # vetoes, but accepts its lone detection only inside this one: nothing
+      # cross-checks a single detection, and the wider the region it may
+      # come from, the likelier an artifact is the brightest thing in it.
+      # The black-sky library frame C0164392700R has a lone artifact
+      # 40 px from its one predicted star.  On ISS_006RI an inner window
+      # of 30, 40, and 50 px (the last meaning none) navigates 744, 738,
+      # and 711 frames, none wrong; the 30 px one refuses 23 one-star
+      # frames whose star lies 30-43 px out.
+      inner_search_window_px: 30.0
+      # Source isolation, as StarFieldFromCatalogNav: a detection counts
+      # only when, over an annulus of these radii (px) around it, the
+      # brightest matched-filter response (Gaussian kernel of
+      # psf_sigma_px) exceeds the annulus mean by less than
+      # source_isolation_max_ratio of the detection's own height above
+      # that mean.  A ring ridge or a cosmic-ray track fails; on the
+      # black-sky library frame C0164958500R two such tracks formed a
+      # consistent pair.  It costs one of the 1030 ISS_006RI frames.
+      psf_sigma_px: 1.0
+      source_isolation_inner_px: 4
+      source_isolation_outer_px: 6
+      source_isolation_max_ratio: 0.5
       # Centroid box half-width around the brightness peak (px).
       centroid_box_half_px: 3
       # Maximum allowed best-assignment residual in the 2-star path (px).
@@ -765,10 +787,11 @@ techniques:
       # offset) must stay inside the pointing-prior core: 10 px, a third
       # of the 30 px window half-width it was set against, since an
       # uncorroborated no-rival detection far from the prediction is far
-      # more likely an artifact than a 2-3-sigma pointing error.  A finite peak ratio leaves
-      # acceptance to the measured #211 gate: operator-verified
-      # library matches carry genuine one-star offsets up to ~24 px,
-      # so no uniform residual cut can sit below the search window.
+      # more likely an artifact than a 2-3-sigma pointing error.  A
+      # finite peak ratio leaves acceptance to the measured #211 gate:
+      # operator-verified library matches carry genuine one-star offsets
+      # up to ~24 px, so this bound cannot hold every match; every one is
+      # held to inner_search_window_px instead.
       one_star_max_residual_px: 10.0
       # Per-mode caps applied post-sigmoid; the 1-star path cannot
       # self-check, so its cap is lower than the 2-star path's.
@@ -912,9 +935,9 @@ techniques:
       # the annulus at nearly the peak's height.  Without it the brightest
       # sources on a frame crossed by a ring are all ring pixels: on
       # ISS_006RI_LPHRLFMOV001_PRIME the stars rank 300th to 500th, the
-      # technique answers on none of 777 frames, and with it on 480.  The
+      # technique answers on none of 777 frames, and with it on 479.  The
       # outcome barely moves with the ratio: 0.3, 0.5, and 0.7 navigate
-      # 764, 767, and 766 of the 1030 frames, none wrong.
+      # 741, 744, and 743 of the 1030 frames, none wrong.
       source_isolation_inner_px: 4
       source_isolation_outer_px: 6
       source_isolation_max_ratio: 0.5

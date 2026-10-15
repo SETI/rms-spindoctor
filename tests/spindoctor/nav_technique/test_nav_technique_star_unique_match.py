@@ -12,6 +12,7 @@ from tests.spindoctor.nav_technique.conftest import (
     NavFeatureFactory,
 )
 
+from spindoctor.nav_technique._star_helpers import is_isolated_point_source
 from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.nav_technique import (
     ROTATION_UNOBSERVABLE_VARIANCE,
@@ -523,4 +524,59 @@ def test_star_unique_match_refuses_the_cut_edge_of_a_source_outside_the_window(
     feature = make_star_feature('star:UCAC4:A', predicted_vu=pred, predicted_snr=60.0)
     result = technique.navigate([feature], make_nav_context(image))
     assert result.spurious is True
-    assert 'window_peak_not_an_image_peak' in capsys.readouterr().out
+    assert 'window_peak_not_a_point_source' in capsys.readouterr().out
+
+
+def test_star_unique_match_refuses_a_pair_of_tracks(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+) -> None:
+    """Two cosmic-ray tracks at one offset from two predictions are not a star pair.
+
+    Each window's brightest pixel lies on a track, and the two tracks sit at the same
+    offset from their predictions, so the pair's residual is small; a track is not an
+    isolated point source.
+    """
+    image = np.zeros((300, 300), dtype=np.float64)
+    image[106, 90:110] = 300.0
+    image[206, 190:210] = 300.0
+    feat_a = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 95.0), predicted_snr=60.0)
+    feat_b = make_star_feature('star:UCAC4:B', predicted_vu=(200.0, 195.0), predicted_snr=58.0)
+    result = StarUniqueMatchNav().navigate([feat_a, feat_b], make_nav_context(image))
+    assert result.spurious is True
+
+
+def test_star_unique_match_refuses_a_lone_star_beyond_the_inner_window(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A lone detection inside the search window but beyond the inner window is refused."""
+    image = np.zeros((300, 300), dtype=np.float64)
+    technique = StarUniqueMatchNav()
+    inner_px = float(technique.tuning['inner_search_window_px'])
+    pred = (150.0, 150.0)
+    draw_gaussian_star(image, (pred[0], pred[1] + inner_px + 5.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (40.0, 40.0), peak_dn=20.0, sigma=1.2)
+    feature = make_star_feature('star:UCAC4:A', predicted_vu=pred, predicted_snr=60.0)
+    result = technique.navigate([feature], make_nav_context(image))
+    assert result.spurious is True
+    assert 'one_star_detection_beyond_inner_window' in capsys.readouterr().out
+
+
+def test_is_isolated_point_source_accepts_a_star_and_refuses_a_track(
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A Gaussian star is an isolated point source; a bright straight track is not."""
+    image = np.zeros((120, 120), dtype=np.float64)
+    draw_gaussian_star(image, (40.0, 40.0), peak_dn=100.0, sigma=1.2)
+    image[80, 60:90] = 100.0
+    star = is_isolated_point_source(
+        image, (40.0, 40.0), sigma_px=1.0, kernel_half_px=3, inner_px=4, outer_px=6, max_ratio=0.5
+    )
+    track = is_isolated_point_source(
+        image, (80.0, 75.0), sigma_px=1.0, kernel_half_px=3, inner_px=4, outer_px=6, max_ratio=0.5
+    )
+    assert star
+    assert not track

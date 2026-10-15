@@ -49,7 +49,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
-from scipy.ndimage import correlate, maximum_filter
+from scipy.ndimage import maximum_filter
 from scipy.optimize import linear_sum_assignment
 
 from spindoctor.config import Config
@@ -60,6 +60,8 @@ from spindoctor.nav_model.stars.detection import matched_filter_image
 from spindoctor.nav_technique._star_helpers import (
     SimilarityFit,
     brightness_margin_mag,
+    gaussian_kernel,
+    isolated_response,
     predicted_snr,
     predicted_vu,
     similarity_transform_fit,
@@ -79,7 +81,7 @@ from spindoctor.nav_technique.nav_technique import (
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+from spindoctor.support.types import NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from psfmodel import PSF
@@ -251,47 +253,6 @@ def _wide_offset_false_lock_expectation(
     return float(n_seeds) * tail
 
 
-def _gaussian_kernel(sigma_px: float, *, size: int) -> NDArrayFloatType:
-    """Return a normalized 2-D isotropic Gaussian matched-filter kernel.
-
-    Parameters:
-        sigma_px: PSF sigma in pixels.  Must be strictly positive.
-        size: Side length of the (odd) square kernel.  Coerced up to
-            the next odd integer when even.
-
-    Returns:
-        ``(size, size)`` float64 array, sum-to-unity.
-    """
-    if sigma_px <= 0.0:
-        raise ValueError(f'sigma_px must be > 0; got {sigma_px!r}')
-    if size % 2 == 0:
-        size += 1
-    half = size // 2
-    coords = np.arange(-half, half + 1, dtype=np.float64)
-    vv, uu = np.meshgrid(coords, coords, indexing='ij')
-    kernel = np.exp(-(vv * vv + uu * uu) / (2.0 * sigma_px * sigma_px))
-    kernel /= float(kernel.sum())
-    return kernel
-
-
-def _annulus_footprint(inner_px: int, outer_px: int) -> NDArrayBoolType:
-    """Return a boolean annulus footprint of radii ``[inner_px, outer_px]``.
-
-    Parameters:
-        inner_px: Inner radius in pixels (inclusive).
-        outer_px: Outer radius in pixels (inclusive); the footprint is
-            ``2 * outer_px + 1`` pixels square.
-
-    Returns:
-        A ``(2 * outer_px + 1, 2 * outer_px + 1)`` boolean array, True on the
-        annulus.
-    """
-    grid_v, grid_u = np.mgrid[-outer_px : outer_px + 1, -outer_px : outer_px + 1]
-    radius = np.hypot(grid_v, grid_u)
-    footprint: NDArrayBoolType = (radius >= inner_px) & (radius <= outer_px)
-    return footprint
-
-
 def _detect_image_sources(
     image: NDArrayFloatType,
     *,
@@ -350,19 +311,19 @@ def _detect_image_sources(
         descending.  May be empty when no peak clears the threshold.
     """
     kernel_size = 2 * centroid_box_half_px + 1
-    kernel = _gaussian_kernel(sigma_px, size=kernel_size)
+    kernel = gaussian_kernel(sigma_px, size=kernel_size)
     response = matched_filter_image(image, kernel=kernel)
-    annulus = _annulus_footprint(isolation_inner_px, isolation_outer_px)
-    annulus_mean = correlate(
-        response, annulus.astype(np.float64) / float(annulus.sum()), mode='reflect'
-    )
-    annulus_max = maximum_filter(response, footprint=annulus, mode='reflect')
     threshold = detection_sigma * image_noise_sigma
     local_max = maximum_filter(response, size=kernel_size, mode='reflect')
     candidate_mask = (
         (response == local_max)
         & (response > threshold)
-        & (annulus_max - annulus_mean < isolation_max_ratio * (response - annulus_mean))
+        & isolated_response(
+            response,
+            inner_px=isolation_inner_px,
+            outer_px=isolation_outer_px,
+            max_ratio=isolation_max_ratio,
+        )
     )
     h, w = image.shape
     out: list[_DetectedSource] = []

@@ -24,8 +24,9 @@ Two paths share one technique:
   lone detection is only promoted to an identification when it sits
   inside the pointing-prior core.  A finite peak ratio leaves
   acceptance to the measured ambiguity gate; genuine one-star matches with
-  offsets up to ~24 px exist in the operator-verified library, so no
-  uniform residual cut below the search window is possible.
+  offsets up to ~24 px exist in the operator-verified library, so the
+  10 px bound cannot hold every match.  Every one-star match is held
+  instead to ``inner_search_window_px``, above those offsets.
 
 - **Two-star path.**  Tried first whenever two or more stars are usable.
   Every pair among the ``pair_search_stars`` brightest usable stars is
@@ -45,8 +46,11 @@ bracket the SPICE pointing error, so the star lies inside it.  No global
 star-detection pass is needed (and this technique is feasible even on
 images where multi-star detection would fail because the rest of the
 field is too faint or too crowded).  A window's brightest pixel that is
-not a peak of the image itself -- the cut edge of something brighter
-just outside the window -- is not a detection, on either path.
+not an isolated point source of the image -- the cut edge of something
+brighter just outside the window, a ridge of a ring, a cosmic-ray track
+-- is not a detection, on either path.  A one-star detection is searched
+for in the whole window, so a brighter source anywhere in it vetoes a
+fainter one, but is accepted only inside ``inner_search_window_px``.
 """
 
 from __future__ import annotations
@@ -65,6 +69,7 @@ from spindoctor.nav_technique._star_helpers import (
     brightness_margin_mag,
     detection_peak_ratio,
     is_image_peak,
+    is_isolated_point_source,
     local_centroid,
     predicted_snr,
     similarity_transform_fit,
@@ -179,9 +184,14 @@ class StarUniqueMatchNav(NavTechnique):
         self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
         self._max_residual_px = float(self.tuning['max_residual_px'])
         self._pair_search_stars = int(self.tuning['pair_search_stars'])
+        self._inner_search_window_px = float(self.tuning['inner_search_window_px'])
         self._pair_search_windows_px = sorted(
-            {self._search_window_px, float(self.tuning['pair_inner_search_window_px'])}
+            {self._search_window_px, self._inner_search_window_px}
         )
+        self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
+        self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
+        self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
+        self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
         self._detection_sigma = float(self.tuning['detection_sigma'])
         self._one_star_confidence_cap = float(self.tuning['one_star_confidence_cap'])
         self._two_star_confidence_cap = float(self.tuning['two_star_confidence_cap'])
@@ -297,9 +307,9 @@ class StarUniqueMatchNav(NavTechnique):
         """Search pairs of the brightest usable stars for a cross-checked match.
 
         Every pair among the ``pair_search_stars`` brightest usable stars is tried
-        in each search window (the narrower ``pair_inner_search_window_px`` first,
+        in each search window (the narrower ``inner_search_window_px`` first,
         then ``search_window_px``), brightest pairs first.  A pair passes when both
-        stars yield a detection that is a peak of the image and the best
+        stars yield a detection that is an isolated peak of the image and the best
         assignment's residual is within ``max_residual_px``.  The first passing
         pair is the answer unless another passing pair puts the offset more than
         ``2 * max_residual_px`` away from it: two cross-checked answers that
@@ -386,8 +396,8 @@ class StarUniqueMatchNav(NavTechnique):
 
         Returns:
             The pair's result, or ``None`` when either star has no detection, a
-            detection is the cut edge of something outside its window, both stars
-            resolve to one detection, or the best assignment's residual exceeds
+            detection is not an isolated point source, both stars resolve to one
+            detection, or the best assignment's residual exceeds
             ``max_residual_px``.
         """
         det_a, peak_a = local_centroid(
@@ -416,12 +426,13 @@ class StarUniqueMatchNav(NavTechnique):
             )
             return None
         if not (
-            is_image_peak(image_ext, det_a, peak_a, half_px=self._centroid_box_half_px)
-            and is_image_peak(image_ext, det_b, peak_b, half_px=self._centroid_box_half_px)
+            self._is_point_source(image_ext, det_a, peak_a)
+            and self._is_point_source(image_ext, det_b, peak_b)
         ):
             self.logger.debug(
-                'Two-star path: a window peak is the cut edge of something brighter '
-                'outside the window, not a source inside it; pair rejected'
+                'Two-star path: a window peak is not an isolated point source (the cut '
+                'edge of something outside the window, or part of an extended one); '
+                'pair rejected'
             )
             return None
         # Overlapping search windows can return the SAME detection for
@@ -728,7 +739,24 @@ class StarUniqueMatchNav(NavTechnique):
                 reason=f'no_detection_above_threshold (peak {peak:.3f} DN)',
                 fit_rotation=bool(context.fit_camera_rotation),
             )
-        if not is_image_peak(image_ext, det, peak, half_px=self._centroid_box_half_px):
+        pred_v, pred_u = brightest.geometry.predicted_vu  # type: ignore[union-attr]
+        refusal = None
+        if not self._is_point_source(image_ext, det, peak):
+            refusal = (
+                'window_peak_not_a_point_source (the cut edge of something outside the '
+                'window, or part of an extended source)'
+            )
+        elif max(abs(det[0] - pred_v), abs(det[1] - pred_u)) > self._inner_search_window_px:
+            # The wider window is searched so that a brighter source in it vetoes
+            # a fainter one near the prediction; a lone detection is accepted
+            # only inside the inner window, since nothing cross-checks it and the
+            # wider the region it may come from, the likelier it is an artifact.
+            refusal = (
+                f'one_star_detection_beyond_inner_window (offset '
+                f'({det[0] - pred_v:.3f}, {det[1] - pred_u:.3f}) px outside '
+                f'+-{self._inner_search_window_px:.1f} px)'
+            )
+        if refusal is not None:
             diagnostics = StarUniqueMatchDiagnostics(
                 mode='one_star',
                 predicted_snr=brightest_snr,
@@ -738,10 +766,9 @@ class StarUniqueMatchNav(NavTechnique):
             return self._fail(
                 features=[brightest],
                 diagnostics=diagnostics,
-                reason='window_peak_not_an_image_peak (a brighter pixel lies outside the window)',
+                reason=refusal,
                 fit_rotation=bool(context.fit_camera_rotation),
             )
-        pred_v, pred_u = brightest.geometry.predicted_vu  # type: ignore[union-attr]
         # A detection that barely beats the window's noise order
         # statistics carries no positional information even though it
         # cleared the absolute detection threshold: with a marginal
@@ -787,8 +814,8 @@ class StarUniqueMatchNav(NavTechnique):
         # the detection sit inside the pointing-prior core bounded by
         # ``one_star_max_residual_px``.  A finite ratio keeps the
         # measured #211 gate authoritative: genuine library matches
-        # carry one-star offsets up to ~24 px, so no uniform residual
-        # cut below the search window is possible.
+        # carry one-star offsets up to ~24 px, so this bound cannot hold
+        # every match; every one is held to inner_search_window_px above.
         if not math.isfinite(peak_ratio) and residual_px > self._one_star_max_residual_px:
             diagnostics = StarUniqueMatchDiagnostics(
                 mode='one_star',
@@ -856,6 +883,40 @@ class StarUniqueMatchNav(NavTechnique):
             diagnostics=diagnostics,
             rotation_rad=0.0 if fit_rotation else None,
             sigma_rotation_rad=(rotation_unobservable_sigma_rad() if fit_rotation else None),
+        )
+
+    def _is_point_source(
+        self, image_ext: NDArrayFloatType, detection_vu: tuple[float, float], peak_dn: float
+    ) -> bool:
+        """Return whether a window's detection is an isolated point source of the image.
+
+        Two tests, both of which a star passes.  The window's brightest pixel must
+        be a peak of the image (:func:`is_image_peak`): when something brighter
+        lies just outside the window, the brightest pixel inside is the edge of
+        it where the window cuts it.  And the peak must be isolated
+        (:func:`is_isolated_point_source`, the test the star field's source
+        detection applies): a ridge of a ring or a limb, or a cosmic-ray track,
+        is not a star.
+
+        Parameters:
+            image_ext: The extended-FOV image.
+            detection_vu: ``(v, u)`` centroid :func:`local_centroid` returned.
+            peak_dn: The window's brightest value, as :func:`local_centroid`
+                returned it.
+
+        Returns:
+            True when both tests pass.
+        """
+        if not is_image_peak(image_ext, detection_vu, peak_dn, half_px=self._centroid_box_half_px):
+            return False
+        return is_isolated_point_source(
+            image_ext,
+            detection_vu,
+            sigma_px=self._psf_sigma_px,
+            kernel_half_px=self._centroid_box_half_px,
+            inner_px=self._isolation_inner_px,
+            outer_px=self._isolation_outer_px,
+            max_ratio=self._isolation_max_ratio,
         )
 
     def _evaluate_confidence(

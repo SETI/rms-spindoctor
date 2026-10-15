@@ -594,11 +594,14 @@ at 0.8.
 The search never covers the whole frame. It reaches
 ``techniques.StarUniqueMatchNav.tuning.search_window_px`` pixels in each direction from
 each prediction, 50 by default, and pairs are also tried within 30 pixels
-(``techniques.StarUniqueMatchNav.tuning.pair_inner_search_window_px``). The window must be
+(``techniques.StarUniqueMatchNav.tuning.inner_search_window_px``). The window must be
 larger than the pointing error: when a star lies outside it, the brightest thing inside is
-something else. On a Cassini narrow-angle F ring movie the pointing error reaches 43 pixels.
-A window's brightest pixel that sits beside something brighter just outside the window
--- the edge of a ring where the window cuts it -- is not taken for a star.
+something else. On a Cassini narrow-angle F ring movie the pointing error reaches 43
+pixels. A single star, which nothing can check, is accepted only within the inner 30
+pixels, although the whole window is still searched so that anything brighter in it
+stops the match. A detection counts only if it is a point source that stands alone, by the
+same test the star field uses, so the edge of a ring where the window cuts it, or a
+cosmic-ray track, is not taken for a star.
 
 StarRefineNav
 ^^^^^^^^^^^^^

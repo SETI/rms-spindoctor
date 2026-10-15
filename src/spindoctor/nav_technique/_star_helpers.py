@@ -23,17 +23,22 @@ from dataclasses import dataclass
 from typing import cast
 
 import numpy as np
+from scipy.ndimage import correlate, maximum_filter
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.geometry import StarGeometry
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.nav_model.stars.detection import matched_filter_image
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'SimilarityFit',
     'brightness_margin_mag',
+    'gaussian_kernel',
     'is_image_peak',
+    'is_isolated_point_source',
+    'isolated_response',
     'local_centroid',
     'predicted_snr',
     'predicted_vu',
@@ -429,3 +434,139 @@ def is_image_peak(
         max(0, u_c - half_px) : min(w, u_c + half_px + 1),
     ]
     return bool(float(np.max(box)) <= peak_dn)
+
+
+def gaussian_kernel(sigma_px: float, *, size: int) -> NDArrayFloatType:
+    """Return a normalized 2-D isotropic Gaussian matched-filter kernel.
+
+    Parameters:
+        sigma_px: PSF sigma in pixels.  Must be strictly positive.
+        size: Side length of the (odd) square kernel.  Coerced up to
+            the next odd integer when even.
+
+    Returns:
+        ``(size, size)`` float64 array, sum-to-unity.
+
+    Raises:
+        ValueError: If ``sigma_px`` is not positive.
+    """
+    if sigma_px <= 0.0:
+        raise ValueError(f'sigma_px must be > 0; got {sigma_px!r}')
+    if size % 2 == 0:
+        size += 1
+    half = size // 2
+    coords = np.arange(-half, half + 1, dtype=np.float64)
+    vv, uu = np.meshgrid(coords, coords, indexing='ij')
+    kernel = np.exp(-(vv * vv + uu * uu) / (2.0 * sigma_px * sigma_px))
+    kernel /= float(kernel.sum())
+    return kernel
+
+
+def _annulus_footprint(inner_px: int, outer_px: int) -> NDArrayBoolType:
+    """Return a boolean annulus footprint of radii ``[inner_px, outer_px]``.
+
+    Parameters:
+        inner_px: Inner radius in pixels (inclusive).
+        outer_px: Outer radius in pixels (inclusive); the footprint is
+            ``2 * outer_px + 1`` pixels square.
+
+    Returns:
+        A ``(2 * outer_px + 1, 2 * outer_px + 1)`` boolean array, True on the
+        annulus.
+    """
+    grid_v, grid_u = np.mgrid[-outer_px : outer_px + 1, -outer_px : outer_px + 1]
+    radius = np.hypot(grid_v, grid_u)
+    footprint: NDArrayBoolType = (radius >= inner_px) & (radius <= outer_px)
+    return footprint
+
+
+def isolated_response(
+    response: NDArrayFloatType,
+    *,
+    inner_px: int,
+    outer_px: int,
+    max_ratio: float,
+) -> NDArrayBoolType:
+    """Return where a matched-filter response is an isolated peak.
+
+    Over an annulus of radii ``[inner_px, outer_px]`` around each pixel, the
+    brightest response may exceed the annulus mean by less than ``max_ratio``
+    of the pixel's own height above that mean.  A point source falls to the
+    background well inside the annulus, so its annulus is flat; a ridge along a
+    ring or a limb, or a cosmic-ray track, crosses the annulus and lifts its
+    maximum to nearly the peak.
+
+    Parameters:
+        response: Matched-filter response image.
+        inner_px: Inner annulus radius in pixels.
+        outer_px: Outer annulus radius in pixels.
+        max_ratio: Largest allowed ratio of the annulus maximum's excess over
+            the annulus mean to the pixel's excess over it.
+
+    Returns:
+        Boolean array of ``response``'s shape, True where the pixel is isolated.
+    """
+    annulus = _annulus_footprint(inner_px, outer_px)
+    annulus_mean = correlate(
+        response, annulus.astype(np.float64) / float(annulus.sum()), mode='reflect'
+    )
+    annulus_max = maximum_filter(response, footprint=annulus, mode='reflect')
+    isolated: NDArrayBoolType = annulus_max - annulus_mean < max_ratio * (response - annulus_mean)
+    return isolated
+
+
+def is_isolated_point_source(
+    image_ext: NDArrayFloatType,
+    detection_vu: tuple[float, float],
+    *,
+    sigma_px: float,
+    kernel_half_px: int,
+    inner_px: int,
+    outer_px: int,
+    max_ratio: float,
+) -> bool:
+    """Return whether a detection is an isolated point source.
+
+    Applies :func:`isolated_response` to the matched-filter response of a patch
+    of the image around the detection, at the brightest response within a pixel
+    of the detection's centroid.  This is the test the star field's source
+    detection applies to every source, applied to one detection.
+
+    Parameters:
+        image_ext: 2-D extfov image array the detection was made in.
+        detection_vu: ``(v, u)`` centroid of the detection.
+        sigma_px: PSF sigma of the matched-filter kernel, in pixels.
+        kernel_half_px: Half-width of the matched-filter kernel, in pixels.
+        inner_px: Inner annulus radius in pixels.
+        outer_px: Outer annulus radius in pixels.
+        max_ratio: Largest allowed ratio of the annulus maximum's excess over
+            the annulus mean to the peak's excess over it.
+
+    Returns:
+        True when the detection's peak is isolated.
+    """
+    reach = outer_px + kernel_half_px + 2
+    h, w = image_ext.shape
+    v_c = min(max(round(detection_vu[0]), 0), h - 1)
+    u_c = min(max(round(detection_vu[1]), 0), w - 1)
+    v_lo, v_hi = max(0, v_c - reach), min(h, v_c + reach + 1)
+    u_lo, u_hi = max(0, u_c - reach), min(w, u_c + reach + 1)
+    # A detection near the array edge gets a patch completed by reflection, as
+    # the whole-image filter in the star field's detection does.
+    patch = np.pad(
+        np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64),
+        (
+            (v_lo - (v_c - reach), (v_c + reach + 1) - v_hi),
+            (u_lo - (u_c - reach), (u_c + reach + 1) - u_hi),
+        ),
+        mode='reflect',
+    )
+    response = matched_filter_image(
+        patch, kernel=gaussian_kernel(sigma_px, size=2 * kernel_half_px + 1)
+    )
+    isolated = isolated_response(
+        response, inner_px=inner_px, outer_px=outer_px, max_ratio=max_ratio
+    )
+    core = response[reach - 1 : reach + 2, reach - 1 : reach + 2]
+    dv, du = np.unravel_index(int(np.argmax(core)), core.shape)
+    return bool(isolated[reach - 1 + int(dv), reach - 1 + int(du)])

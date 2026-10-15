@@ -478,9 +478,9 @@ marked conditional.
 The status_reason vocabulary
 ----------------------------
 
-The full set of values. ``ok``, ``rank_1_only``, and ``single_star_only``
-accompany ``status`` ``success``. ``conflicted_techniques`` and ``body_shape_lock_suspect`` accompany
-``conflicted``. Every other value accompanies ``failed``.
+The full set of values. ``ok``, ``rank_1_only``, and ``single_star_only`` accompany
+``status`` ``success``. ``conflicted_techniques`` and ``body_shape_lock_suspect``
+accompany ``conflicted``. Every other value accompanies ``failed``.
 
 .. list-table::
    :header-rows: 1

@@ -68,13 +68,13 @@ is similarly capped.
 The isolation test is what lets the matcher see the stars on a frame crossed by a bright
 ring. On 16 F ring frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` examined in detail, every
 one of the 30 brightest local maxima lies on the ring or on the overexposed rings beside
-it, and the real stars rank between about 300th and 500th of the 12,000-odd local maxima. Among isolated
-sources the same stars rank in the first ten. Neither the wide-offset fallback nor the
-triplet search can match a star that is not among its detections: the technique ran on 777
-of those frames and answered on none of them without the test, and on 480 with it, 421 of
-them through the wide-offset fallback. The outcome is insensitive to the ratio: 0.3, 0.5,
-and 0.7 navigate 764, 767, and 766 of the 1030 frames, every one within 2 px of the
-published bundle.
+it, and the real stars rank between about 300th and 500th of the 12,000-odd local maxima.
+Among isolated sources the same stars rank in the first ten. Neither the wide-offset
+fallback nor the triplet search can match a star that is not among its detections: the
+technique ran on 777 of the observation's 1030 frames and answered on none of them without
+the test, and on 479 with it, 420 of them through the wide-offset fallback. The outcome is
+insensitive to the ratio: 0.3, 0.5, and 0.7 navigate 741, 744, and 743 of the 1030 frames,
+every one within 2 px of the published bundle.
 
 .. Source isolation: issue #621.
 
@@ -309,8 +309,9 @@ in ``src/spindoctor/config_files/config_510_techniques.yaml``.
 - ``source_isolation_outer_px`` — int, default ``6`` px. Outer radius of that annulus.
 - ``source_isolation_max_ratio`` — float, default ``0.5`` (dimensionless). Largest allowed
   excess of the annulus maximum over the annulus mean, as a fraction of the candidate's
-  own height above that mean. The matched-filter response to a star of sigma 1 px is under 2 percent of its
-  peak at 4 px, so a star's ratio is set by the noise; a ridge's is close to 1.
+  own height above that mean. The matched-filter response to a star of sigma 1 px is
+  under 2 percent of its peak at 4 px, so a star's ratio is set by the noise; a ridge's is
+  close to 1.
 - ``hash_match_tolerance`` — float, default ``0.05`` (dimensionless). Match radius in the
   (ratio, ratio, angle_rad) hash space; weighted Euclidean. Empirical default for centroid
   sigma ~0.1 px against typical triplet scales.
