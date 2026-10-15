@@ -606,6 +606,19 @@ techniques:
       spurious_waiver_sigma_floor_px: 3.0
       # See ``BodyLimbNav.spurious_max_lm_displacement_px``.
       spurious_max_lm_displacement_px: 4.0
+      # The median strength of the image edges a converged fit matched (the
+      # image gradient projected onto the model normal at each vertex within
+      # 1.5 px of a detected edge), as a fraction of the frame's strongest
+      # edges (the 99.9th percentile of the gradient magnitude inside the
+      # sensor), below which the fit is marked spurious.  When the
+      # cataloged edges lie outside the frame at the true pointing, the
+      # fit drags the model onto the faint contours a thresholded smooth
+      # glow leaves behind: ten Cassini NAC F ring movie frames at 9.9 km/px,
+      # every one wrong by 60 to 94 px, scored 0.0012 to 0.0022.  Fits on
+      # real ring edges scored 0.0096 to 1.04 (the library's ring frames
+      # from 0.050 up; F ring movie frames from 0.0096 up).  The floor sits
+      # near the geometric mean of the two nearest values.
+      spurious_min_edge_strength_fraction: 0.005
       # Localization sigma (px) of the image edge the fit measures
       # against, added in quadrature to each vertex's model sigma to form
       # the residual scale the robust fit actually uses.
@@ -649,6 +662,24 @@ techniques:
       # Rotation-axis ``at_edge`` fraction; see
       # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.
       rotation_at_edge_fraction: 0.95
+      # The coarse seed is the mask-overlap search's unless the image edges
+      # under it are clearly weaker than the strongest alignment in the
+      # search window (each model vertex on a detected edge weighted by the
+      # image gradient projected onto its normal).  Below this ratio of the
+      # strongest score the strongest alignment seeds the fit instead.
+      # Measured on Cassini NAC frames at 0.2 to 9 km/px: where the overlap
+      # seed was right along the edge normal the ratio ran 0.91 to 1.00 (the
+      # library's Keeler, Encke and Maxwell frames and two F ring movie
+      # frames); where it had locked onto ring texture or scattered-light
+      # contours 16 to 94 px off it ran 0.005 to 0.68.
+      coarse_strength_keep_ratio: 0.8
+      # Pixels inside the sensor boundary within which detected edges are
+      # left out of the edge-strength scores.  The step between the sensor
+      # and the zero-padded margin of the extended frame is usually the
+      # strongest edge in the frame; a ring edge running near the frame
+      # border would otherwise lock onto it.  Five pixels covers the reach
+      # of the 1.2 px gradient smoothing into the frame (about four sigma).
+      coarse_sensor_margin_px: 5
       # Shared DT fit-quality gates; see ``BodyLimbNav`` for the
       # rationale.  RingEdgeNav runs polarity-free (the ring catalog
       # does not yet encode lighting / gap-vs-ringlet polarity), so the

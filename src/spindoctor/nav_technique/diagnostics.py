@@ -238,8 +238,8 @@ class RingEdgeDiagnostics:
         coarse_peak_fraction: Shared DT gate diagnostic.  Unlike the polarity
             techniques, ``RingEdgeNav`` runs polarity-blind (ring-edge
             polarity is not predictable), so this is the plain mask-overlap
-            match fraction from
-            :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored`
+            match fraction at the shift chosen by
+            :func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored`
             rather than the polarity-weighted score described on
             ``BodyLimbDiagnostics``.
         sigma_orbit_radial_px: Effective fully-correlated radial

@@ -23,7 +23,7 @@ fields to match current behavior.
 
 Ordering within the track: the confidently-wrong defects (#346, #476, #350), because the agreement study consumes
 ensemble output at scale and several curated library frames pin these as
-standing red regressions. Then the coarse-lock calibration (#373), then the
+standing red regressions. Then the
 investigation/design items (#25, #128/#150), with the smaller decision items
 (#130, #239, #338) as fill.
 
@@ -184,13 +184,10 @@ bias into every limb answer and product, so it lands with #128 (below). The
 measurements are on #447, which stays open until then.
 
 What the work filed
-rather than fixed: RingEdgeNav is not
-shift-equivariant either and a planted shift re-locks it onto the wrong ring
-edge (#476, same family as #346 and #373 seen from the round-trip side, and
-now measured down to an alias lattice whose members score within 1% of each
-other and which polarity does not separate -- with exposure reduced to
-sub-25 km/px Saturn scenes now that coarser ones route to the annulus
-composite); `BodyDiscCorrelateNav` still misses by
+rather than fixed: RingEdgeNav's planted-shift round trip (#476, same
+family as #346; measured across the edge normal the technique is at the DT
+floor, and the ensemble's error is the rank-1 axis quantization described
+below); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
 moves need re-ratcheting when it lands (#483, which cannot be done honestly
 until #288 is reconciled).
@@ -218,12 +215,55 @@ Saturn-measured only. Two follow-ons are filed: recalibrating the annulus
 gates so more of its correct answers are accepted (#566 -- today they veto
 many right answers, which costs coverage, not correctness), and a hybrid in
 which the correlation fit picks the basin and the edge fit polishes within
-it (#567).
+it (#567). Measured as a basin selector below 25 km/px, the annulus
+correlation was right across the edge on F ring movie frames but 30 to 115 px
+wrong on N1492091163, N1467344214, N1867602424 and the Keeler gap frames,
+where the edge fit is right, so the hybrid as filed would regress them.
 
-- **#346** — three library frames (N1492091163, N1867601758, N1867602424)
-  lock confidently onto the wrong ring feature; standing library reds, tied
-  to the coarse-lock calibration (#373). Exposure is reduced to the
-  sub-25 km/px regime by the routing decision above.
+The lattice lock itself is addressed in the coarse seed. The mask-overlap
+seed counts every detected edge pixel alike, so where a ring's interior
+texture or a scattered-light glow's faint contours run parallel to the
+cataloged edge it settles on an alias; the seed is now checked against the
+strength of the edges under it, and the strongest alignment replaces it when
+the overlap seed sits on edges below 0.8 of that strength. A converged fit
+whose matched edges are under 0.005 of the frame's strongest is rejected as
+spurious, which catches frames whose cataloged edges lie outside the sensor at
+the true pointing. Measured against the published F ring bundle's per-frame
+pointing on a 229-frame sample: on ISS_059RF_FMOVIE002_VIMS the 98 comparable
+answers at a median 76 px became 40 answers all within 2 px (the wrong ring
+fits are now failures); on ISS_241RF_FMOVIE001_PRIME the median fell from 24 px
+to 7.3 px. The library's ring frames navigate exactly as before.
+
+What remains of the family:
+
+- **The rank-1 axis.** The rings model signs edge normals radially but
+  quantizes their direction to multiples of 45 degrees, and the rank-1 axis
+  is the dominant direction of those normals. For a straight edge at any
+  other orientation the axis is off by up to 22.5 degrees, so the ensemble's
+  minimum-norm representative carries part of the unobservable along-edge
+  component into the answer, and the consensus can exclude a correct body
+  fit as an outlier. Taking the axis from the edge's own vertices is
+  measured: the ensemble's planted-shift round trip across the edge falls
+  from a median 0.39 px (worst 17 px) to 0.02 px (worst 0.26 px), and the two
+  Encke gap frames of #346 navigate to their operator truth. It is held
+  because five `ring_only_flat` sidecars record the quantized angle as their
+  constraint normal (90 or 45 degrees for edges at about 68 and 51 degrees)
+  and would need re-pinning, and the two Encke gap frames then miss only
+  their tier pin (the orbit-channel sigma sits just over 2 px).
+- **Nearly straight edges.** An edge that is not flagged straight but barely
+  curves across the frame constrains the along-edge component only weakly,
+  and the reported covariance does not show it; on the F ring movie frames
+  the answer is right across the edge and off by 10 to 30 px along it on many
+  frames, which is most of ISS_241RF's remaining error.
+- **One strong step, two cataloged edges.** Where cataloged edges lie a few
+  tens of pixels apart, the strongest alignment can lay the wrong one on the
+  strong step (2 of 30 sampled F ring movie frames, about 45 px).
+
+- **#346** — three library frames (N1492091163, N1867601758, N1867602424).
+  N1492091163 now navigates to the right answer and its `failed` pin wants a
+  decision; the two Encke gap frames are the rank-1 axis above, not wrong
+  locks. Exposure is limited to the sub-25 km/px regime by the routing
+  decision above.
 
 ### #350 — post-recalibration resolved-body red
 
@@ -232,21 +272,6 @@ it (#567).
   the recalibration, while N1686349893's disagreement is a stale
   `primary_technique` pin on #483. One debugging session against the first
   frame; its sidecar pins it red until resolved.
-
-### #373 — DT coarse-prior search vs competing edge populations
-
-The coarse NCC search over the distance-transform image can lock onto the
-wrong edge population (e.g. a ring edge when fitting a limb) and hand the
-Levenberg-Marquardt refine an unrecoverable prior.
-`src/spindoctor/nav_technique/dt_fitting/coarse.py` (`coarse_ncc_search`). The
-polarity-weighted coarse seed already landed; what remains (#373) is making
-the RingEdgeNav coarse seed robust against competing edge populations even
-when polarity is blind — a calibration pass over the library that
-characterizes when the coarse search's top basins are ambiguous, and either
-widens the second-opinion gate to the other DT techniques or adds
-per-feature-type edge masking. Needs the library cohort; coordinate with
-Track A so the fix is measured, not guessed. #346 supplies the concrete
-wrong-lock datapoints.
 
 ### #621 / #622 / #623 — the star gates and what the ensemble counts
 

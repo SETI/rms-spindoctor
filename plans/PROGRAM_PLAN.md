@@ -234,7 +234,8 @@ its section names):
 
 **Confident-wrong families that poison the validation data** (they belong to
 Track B but gate the study, because it consumes navigator output at scale): the
-three frames that lock onto the wrong ring feature (#346), and the sparse
+ring-lock family (#346, #476), whose remaining error on flat ring frames is the
+rank-1 axis quantization, and the sparse
 star field family -- a one- or two-star solution accepted as success and
 landing up to 23 px wrong (#622), two techniques reading the same single star
 counted as independent corroboration (#623), and a centroid that can measure
@@ -268,32 +269,40 @@ navigator's output at scale) and are exactly what a user hits first.
 The known open defects:
 
 - **#346** — three library frames (N1492091163, N1867601758, N1867602424)
-  lock confidently onto the wrong ring feature. Standing library reds.
-  Exposure is reduced to sub-25 km/px Saturn scenes by the ring routing
+  that once locked confidently onto the wrong ring feature. The coarse seed
+  now checks the mask-overlap seed against the strength of the edges under
+  it, which removed the lattice lock on N1492091163 (it navigates to the
+  right answer; its `failed` pin wants a decision). The two Encke gap
+  frames were never wrong locks: RingEdgeNav is right across the edge to
+  0.8 and 0.2 px, and the error enters through the rank-1 axis, which the
+  ring model's 45-degree normal quantization tilts by up to 22.5 degrees.
+  Exposure is limited to sub-25 km/px Saturn scenes by the ring routing
   decision: at and above 25 km/px radial resolution the whole Saturn system
   feeds the annulus composite, which a 131-frame clean-truth head-to-head
   measured wrong on zero accepted answers while the per-edge fit ran
   5% / 13% / 56% / 100% wrong-when-accepted in the 300-1000 / 100-300 /
-  25-100 / 0-25 km/px bands; below 25 km/px the trusted evidence is three
-  frames validating neither technique, so the threshold stops where the
-  measurement stops.
+  25-100 / 0-25 km/px bands (measured before the edge-strength check).
   The annulus-gate recalibration (accepting more of its correct answers,
   #566) and a correlation-picks-basin / edge-polishes hybrid (#567) are
-  filed follow-ons.
-- **#476** — RingEdgeNav is not shift-equivariant either: a planted shift
-  re-locks onto the wrong ring edge. Same family as #346 and #373 seen
-  from the round-trip side; the coarse score surface is an alias lattice
-  whose members score within 1% of each other, and polarity does not
-  separate them. Same reduced sub-25 km/px exposure as #346.
+  filed follow-ons; measured as a basin selector below 25 km/px, the
+  annulus correlation was right across the edge on F ring movie frames but
+  30 to 115 px wrong on four of the library's ring frames, so the hybrid as
+  filed would regress them.
+- **#476** — RingEdgeNav's round trip under a planted shift. Across the edge
+  normal the technique itself is at the DT floor on the library's ring
+  frames (median 0.04 px); the large raw residuals are the unobservable
+  along-edge component of rank-1 fits. The ensemble's round trip is not
+  (median 0.39 px, worst 17 px), because its rank-1 axis is the quantized
+  one. A fix that takes the axis from the edge's own geometry brings the
+  ensemble to median 0.02 px and is held: five `ring_only_flat` constraint
+  pins record the quantized angle and would need re-pinning. Same reduced
+  sub-25 km/px exposure as #346.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix
   (#447) leaves once it closes the coarse-grid and boundary-pinning halves.
 - **#350** — N1484593951 misses the offset tolerance by ~2 px after the
   recalibration. The issue names a second frame, N1686349893, whose
   disagreement the measurement attributes to a stale pin on #483 instead.
-- **#373** — the RingEdgeNav coarse seed is not robust against competing
-  edge populations (polarity-blind); the coarse-lock family that a
-  calibration pass against the library must close.
 - **#128 / #150** — the strategic limb-navigation redesign and the ~0.1 px
   limb systematic (shared with Track A's WS-10; design first, validate
   against real images before touching). The measured bias attributes the
@@ -383,8 +392,8 @@ The known open defects:
   Merged alone it would put the bias into every limb answer, so it lands
   with #128. The rest of the work is filed as #476, #482 and #483.
 
-**Parallelism:** parallel with Track A, except that the coarse-lock family
-(#346, #476, #373) and the sparse-star-field family (#621, #622, #623, #639)
+**Parallelism:** parallel with Track A, except that the ring-lock family
+(#346, #476) and the sparse-star-field family (#621, #622, #623, #639)
 gate the agreement study -- a technique that reports a
 confidently wrong answer moves the cross-technique disagreement WS-1 measures
 -- and #288 gates reading any Track A cohort with confidence.
@@ -746,21 +755,21 @@ library votes and the decision gates, not by any implementation.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it: 305 issues
+Every open issue, listed exactly once by the track that owns it: 304 issues
 as of 2026-10-14. The count is given so a reader can tell a stale index from
 a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
 | A — validation & calibration | 67 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675, #727, #750, #751 |
-| B — navigation correctness | 37 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639, #747, #748, #749 |
+| B — navigation correctness | 36 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639, #747, #748, #749 |
 | C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
 | D — capability completion | 96 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720, #730, #731, #733, #734, #735, #736, #738 |
 | E — test & docs debt | 36 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #574, #576, #612, #712, #714, #715, #723, #725, #744 |
 | F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
-Priority census across all six tracks: no Critical, 29 Essential, 89
-Important, 133 Useful, 39 Minor, 15 Defer, which accounts for all 305. Every
+Priority census across all six tracks: no Critical, 29 Essential, 88
+Important, 133 Useful, 39 Minor, 15 Defer, which accounts for all 304. Every
 open issue carries exactly one Priority and one Effort label and at least one
 each of A-type and B-location.
 

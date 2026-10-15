@@ -740,17 +740,33 @@ real image gets brighter in the wrong direction can be discarded as a wrong matc
 ring edge it is not knowable from the catalog, because the same kind of edge can be the
 outer boundary of a bright ringlet, with brightness inside and darkness outside, or the
 inner boundary of a gap, with the opposite. Which one it is at a given illumination
-depends on information the ring catalog does not record. So the ring fit matches the
-curve's form alone, with one fewer way to tell a real edge from a plausible impostor than
-the body fits have.
+depends on information the ring catalog does not record.
+
+What the ring fit uses instead, in its coarse search, is **edge strength**. A close-range
+ring image is full of faint edges that run parallel to the cataloged one: the ringlets
+and density waves inside the ring, and the faint contours of scattered light beside it.
+Counting how many of the curve's vertices land on some edge cannot tell those apart from
+the real edge, since a curve slid across them keeps landing on one edge after another. So
+the ring fit also measures how strong the edges under the curve are. A cataloged gap edge
+or the outer edge of a ring is a large brightness step, and when the best-counting shift
+lands on edges much weaker than the strongest alignment available, the strongest alignment
+is used instead. Edges at the very border of the image are left out of that comparison,
+because the step from the image to the empty margin around it is the strongest edge in
+most frames.
+
+The same measure rejects a fit outright when the edges it matched are only a tiny
+fraction as strong as the strongest edges in the frame. That happens when the cataloged
+edges lie just outside the image: the fit then finds nothing but faint scattered-light
+contours, and the ring-edge answer is reported as spurious rather than used.
 
 This is the technique for close-range ring images. For Saturn it receives a frame only
 when the radial resolution is finer than 25 kilometers per pixel; everything coarser goes
-to ``RingAnnulusNav``. Note the caution that applies at the fine end: as resolution
-improves, the many similar concentric ringlet edges separate into distinct image edges,
-and a fit that matches form alone can lock onto a neighbor of the edge it meant to match.
-A ring-edge answer at that resolution that no other technique corroborates deserves a look
-before you rely on it.
+to ``RingAnnulusNav``. One caution remains at the fine end: the fit still assumes the
+cataloged edge is the strongest step in its neighborhood. Where an uncataloged edge
+nearby is stronger, or the catalog misplaces one of several edges by more than a few
+pixels, the fit can still settle a few pixels from the right answer. A ring-edge answer at
+that resolution that no other technique corroborates deserves a look before you rely on
+it.
 
 **Straight edges and unmeasured directions.** When every edge the technique was given is a
 straight line, the answer is genuinely incomplete, and the reason is geometric. Sliding a

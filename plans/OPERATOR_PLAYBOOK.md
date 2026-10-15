@@ -153,11 +153,13 @@ instrument.
 1. **#288 resolution** — 11 of 75 frames are red on `main`, and every one is
    attributed and owned. Two are the Galileo frames awaiting the #744 decision
    (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
-   Group 2's #639; the other eight are under #288. Four are the coarse-lock
-   family (#346's three, plus `N1633925572_1`, whose fused sigma the wrong
-   ring lock inflates past the `max_sigma_px` boundary and whose tier
-   therefore drops); one is `N1853392805`, held out by the
-   highly-irregular-body policy and owned by the #338 decision; one is
+   Group 2's #639; the other eight are under #288. Three are #346's ring
+   frames, now red on pins rather than on wrong ring locks (see the table
+   below); one is `N1633925572_1`, whose tier drops because the fused sigma of
+   its limb and one-star answers sits just past `max_sigma_px` (it no longer
+   runs RingEdgeNav at all, so its #476 attribution wants revisiting); one is
+   `N1853392805`, held out by the highly-irregular-body policy and owned by
+   the #338 decision; one is
    `N1484593951`, a real limb bias deliberately pinned red; and two are stale
    or wrong `primary_technique` pins batched onto #483. Nothing is
    unattributed, and no `expected.*` field is moved to match current behavior.
@@ -168,11 +170,18 @@ instrument.
 as one piece. Both gate the Track A study, which consumes ensemble output at
 scale.
 
-*The coarse-lock family:* **#476** (RingEdgeNav re-locking under a planted
-shift), **#346** (three frames locked onto the wrong ring feature) and
-**#373** (the coarse seed against competing edge populations). The Saturn
+*The ring-lock family:* **#476** (RingEdgeNav's round trip under a planted
+shift) and **#346** (three library frames once locked onto the wrong ring
+feature). The coarse seed now checks the overlap seed against edge strength
+and rejects fits on faint scattered-light contours, which removed the lattice
+locks; what remains of the family is the rank-1 axis error (the ring model
+quantizes edge normals to 45 degrees, so a tilted straight edge's reported
+axis is off by up to 22.5 degrees and the ensemble's representative carries
+the unobservable along-edge component into the answer), the along-edge
+component of nearly straight edges, and the pins that encode both. The fix
+for the axis is measured and held pending the re-pins it needs. The Saturn
 routing decision (annulus composite at and above 25 km/px radial resolution,
-per-edge fit below) reduces the family's exposure to the sub-25 km/px regime.
+per-edge fit below) limits the family's exposure to the sub-25 km/px regime.
 
 *The sparse-star-field family:* **#621** (the acceptance gates refuse about
 half the frames that are demonstrably navigable by stars, because
@@ -270,18 +279,21 @@ frame no longer navigates).
 
 | frame(s) | disagreement | owner |
 |---|---|---|
-| N1492091163, N1867601758, N1867602424 | wrong ring-feature locks | #346 |
-| N1853392805 | highly-irregular exclusion discards the terminator fit | #338 |
+| N1492091163 | expects `failed`; now navigates to (5.21, -26.02) at medium tier, 1.70 px in du from operator truth: the expectation predates a working ring fit | #346 |
+| N1867601758, N1867602424 | RingEdgeNav is right across the Encke gap edges (0.8 and 0.2 px) but the rank-1 axis error moves the fused answer and excludes the body blob; fixing the axis leaves only the tier pin (orbit-channel sigma just over 2 px) | #346 |
+| N1853392805 | highly-irregular exclusion discards the terminator fit; the ring fit is right across the edge but about 8 px off along it, so the ensemble reports `conflicted` | #338 |
 | N1484593951 | dv error 2.687 px, a limb bias pinned red on purpose | #350 |
 | N1487595731_1 | expects BodyDiscCorrelateNav primary, gets BodyLimbNav; the pin is stale | #483 |
 | N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
-| N1633925572_1 | expects the medium tier, gets low: a 39 px RingEdgeNav fit inflates the fused sigma past `max_sigma_px` | #476 |
+| N1633925572_1 | expects the medium tier, gets low: fused sigma 2.49 px from BodyLimbNav and a one-star StarUniqueMatchNav; RingEdgeNav no longer runs here (150.6 km/px routes to the annulus composite) | #476 (stale; wants a new owner) |
 | C0059894800R, C0059899900R | du error 5.594 px and dv error 3.620 px: the recorded truth is the rotation-fitted answer #560 retired | #744 |
 | N1530185128_1 | dv error 17.472 px: StarUniqueMatchNav is spurious and StarRefineNav seeds on another source; red since the star datum correction (#643) | #639 |
 
 `N1633925572_1` is not to be re-ratcheted; that is recorded in the sidecar
-itself, and the frame is the acceptance test for #476. The rest are pins, not
-regressions; do not re-ratchet them until the owning issue closes.
+itself. It was the acceptance test for #476, but since the Saturn routing
+decision it no longer runs RingEdgeNav, so it cannot test that fix. The rest
+are pins, not regressions; do not re-ratchet them until the owning issue
+closes.
 
 **After any navigation-affecting merge, compare against `main` rather than
 against the table:**
@@ -429,9 +441,6 @@ Independent review before done; all CI gates; one PR."
   #447 fix held as #128's base, and lands it: the edge-offset correction, the
   simulated body model adopting the same sub-pixel vertex rule, and the pins
   the fix moves, which go to #483. The measurements are on #447.
-- **#373 (coarse-lock calibration pass)**: "Make the RingEdgeNav coarse
-  seed robust against competing edge populations per #373, folding in the
-  wrong-lock datapoints from #346."
 - **#130**: "Calibrate the star limiting-magnitude model against real
   fields per #130."
 - **#394 (shape-lock veto residual)**: the veto is suppressed when a trusted
@@ -453,13 +462,15 @@ Independent review before done; all CI gates; one PR."
   reconstructed Cassini kernels, with an orphan branch behind it) and #468
   (the New Horizons pointing family) are operator decisions, not
   dispatchable work — Section 0.1.
-- **Navigation correctness, in order**: #476 (RingEdgeNav
-  re-locks onto the wrong ring edge under a planted shift), which belongs
-  with #346 and #373 as one coarse-lock family, now scoped to sub-25 km/px
-  Saturn scenes by the routing decision. `N1633925572_1_CALIB` is the
-  cleanest reproducer in the library: two techniques agree to 0.08 px while
-  RingEdgeNav lands 39 px away on 6.7% of its points, so a fix is verifiable
-  without operator adjudication and the frame's tier returns on its own.
+- **Navigation correctness, in order**: #476 (RingEdgeNav's round trip
+  under a planted shift), which belongs with #346 as one ring-lock family,
+  scoped to sub-25 km/px Saturn scenes by the routing decision. Measured
+  across the edge normal, RingEdgeNav's own round trip on the library's ring
+  frames is already at the DT floor (median 0.04 px); the ensemble's is not
+  (median 0.39 px, worst 17 px) because of the rank-1 axis error. The axis
+  fix brings the ensemble to median 0.02 px and moves five `ring_only_flat`
+  constraint pins whose recorded normal angle is itself the quantized axis
+  (an operator re-pin decision).
 - **Gates and the body-witness veto**: #747 (the combined polarity gate keys
   on an LM convergence flag that reads false on most healthy fits; re-derive
   its discriminant against labeled healthy and mis-locked fits, adding the
@@ -529,7 +540,7 @@ else. Applied to the open items:
   one) and **#623** (what makes two techniques independent witnesses is the
   same question the agreement study answers at scale).
 - **Mid-tier or below suffices:** library growth, the agreement study's
-  bulk execution (once WS-0 hands it a proven estimator), #229, #311, #373,
+  bulk execution (once WS-0 hands it a proven estimator), #229, #311,
   #130, #639, the PDS4 bundle items, the simulator scene-fidelity batch, the
   logging follow-ups (#418, #423, #424, #429, #731), and the
   documentation/engineering items.
@@ -579,13 +590,15 @@ deferred until an instrument fits rotation again; a test fails if one does.
 
 **Confident-wrong / ensemble honesty (sequence with #230/WS-5):**
 
-- **#346** three library frames lock confidently onto the wrong ring feature
-  (owns the N1492091163 / N1867601758 / N1867602424 red pins)
-- **#476** RingEdgeNav is not shift-equivariant: a planted shift re-locks it
-  onto the wrong ring edge — the same coarse-lock family as #346 and #373,
-  seen from the round-trip side; measured as an alias lattice that polarity
-  does not break, so it waits on #373; exposure is limited to sub-25 km/px
-  Saturn scenes by the routing decision
+- **#346** three library frames once locked onto the wrong ring feature
+  (owns the N1492091163 / N1867601758 / N1867602424 red pins); the lattice
+  lock on N1492091163 is gone and its pin wants a decision, and the two Encke
+  gap frames are the rank-1 axis error rather than a wrong lock
+- **#476** RingEdgeNav's round trip under a planted shift: across the edge
+  normal the technique is at the DT floor, and the ensemble's error is the
+  rank-1 axis quantization; the measured axis fix waits on re-pinning five
+  `ring_only_flat` constraints; exposure is limited to sub-25 km/px Saturn
+  scenes by the routing decision
 - **#482** BodyDiscCorrelateNav misses by up to ~1 px on a weakly-constrained
   axis, the residual the #447 fix leaves (held on `rf_shift_equivariance_v2`
   for #128)
@@ -768,7 +781,7 @@ these are what it owes and what generalizes it):**
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)
---- the confidently-wrong families: #476/#346/#373, and #621/#622/#623/#639
+--- the confidently-wrong families: #476/#346, and #621/#622/#623/#639
 --- then ---
 2.1 library growth (batch-006 + continued)   (agent session; your votes gate it)
 2.2 agreement study bulk   (after 2.1 cohorts; you approve frames)
