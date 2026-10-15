@@ -296,6 +296,26 @@ reaches 14 px. The WAC navigates 386 of its 794 tuning frames within 2 px
 (340 on `main`) and 13 of its 113 held-out frames (8 on `main`); 97 of those
 113 have no usable catalog star, the same limiting-magnitude cause as above.
 
+The Galileo SSI black-sky frames (507 star-calibration frames of `GO_0008`
+and `GO_0009`) have no outside pointing, so each answer was tested directly:
+at its offset, how many catalog stars sit on an isolated point source found
+with a filter sized to the SSI point-spread function (sigma 3 px). `main`
+navigates 265 of them, of which 49 are supported by two or more stars, 197 by
+one and 19 by none; this code navigates 206, of which 51 are supported by two
+or more and 155 by one (capped at the low tier), and the two agree within
+0.64 px wherever both have a well-supported answer. Of the 71 frames `main`
+navigates and this code does not, 65 rest on one star or none. The other six
+are well-supported answers lost to detection scales measured on Cassini:
+Galileo's stars are broad (sigma 3 px) and often saturated, so the 4-6 px
+isolation annulus crosses the star's own light, the box-median threshold
+finds no contrast inside a flat saturated core, and two techniques measuring
+the same broad star land up to 1.8 px apart, beyond the 1.5 px the ensemble
+allows (two of the six report conflicted rather than an answer). Eight
+well-supported answers are gained that `main` misses. Sizing the detection
+filter, centroid box, isolation annulus and shared-star agreement to each
+instrument's point-spread function is the fix, and it needs Galileo frames
+with an outside answer to set and check it (#753).
+
 One residual is known: a coincidental pair among few stars. On the held-out
 frame `N1760833094` two of four predicted stars agree to 0.75 px at an offset
 35.7 px wrong, reported at the medium tier; the brightest star is detected
