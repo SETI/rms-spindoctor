@@ -54,10 +54,29 @@ Source detection
 ----------------
 
 Detections come from a matched-filter search over the extfov image: the image is correlated
-with a Gaussian PSF kernel of the configured ``psf_sigma_px``, peaks above
-``detection_sigma * image_noise_sigma`` are kept, and a brightness-weighted moment around
-each peak gives the sub-pixel centroid. Up to ``max_sources`` brightest detections feed the
-hash-space search; the catalog side is similarly capped.
+with a Gaussian PSF kernel of the configured ``psf_sigma_px``, and local maxima of the
+response above ``detection_sigma * image_noise_sigma`` are candidates. A candidate is kept
+only when it is isolated: over an annulus of radii ``source_isolation_inner_px`` to
+``source_isolation_outer_px`` around it, the brightest response exceeds the annulus mean by
+less than ``source_isolation_max_ratio`` of the candidate's own height above that mean. A
+star's light falls to the background well inside the annulus, so its annulus is flat; a
+ridge along a ring or a limb runs through the annulus at nearly the peak's height and is
+refused. A brightness-weighted moment around each kept peak gives the sub-pixel centroid,
+and up to ``max_sources`` brightest detections feed the hash-space search; the catalog side
+is similarly capped.
+
+The isolation test is what lets the matcher see the stars on a frame crossed by a bright
+ring. On 16 F ring frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` examined in detail, every
+one of the 30 brightest local maxima lies on the ring or on the overexposed rings beside
+it, and the real stars rank between about 300th and 500th of the 12,000-odd local maxima. Among isolated
+sources the same stars rank in the first ten. Neither the wide-offset fallback nor the
+triplet search can match a star that is not among its detections: the technique ran on 777
+of those frames and answered on none of them without the test, and on 480 with it, 421 of
+them through the wide-offset fallback. The outcome is insensitive to the ratio: 0.3, 0.5,
+and 0.7 navigate 764, 767, and 766 of the 1030 frames, every one within 2 px of the
+published bundle.
+
+.. Source isolation: issue #621.
 
 Hash-space match
 ----------------
@@ -285,6 +304,13 @@ in ``src/spindoctor/config_files/config_510_techniques.yaml``.
   loosen this once the integration library exercises the full instrument set.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
   moment box around each accepted peak.
+- ``source_isolation_inner_px`` — int, default ``4`` px. Inner radius of the annulus over
+  which a candidate source's isolation is measured.
+- ``source_isolation_outer_px`` — int, default ``6`` px. Outer radius of that annulus.
+- ``source_isolation_max_ratio`` — float, default ``0.5`` (dimensionless). Largest allowed
+  excess of the annulus maximum over the annulus mean, as a fraction of the candidate's
+  own height above that mean. The matched-filter response to a star of sigma 1 px is under 2 percent of its
+  peak at 4 px, so a star's ratio is set by the noise; a ridge's is close to 1.
 - ``hash_match_tolerance`` — float, default ``0.05`` (dimensionless). Match radius in the
   (ratio, ratio, angle_rad) hash space; weighted Euclidean. Empirical default for centroid
   sigma ~0.1 px against typical triplet scales.

@@ -525,8 +525,12 @@ StarFieldFromCatalogNav
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 This is the technique for a genuine star field, and it needs no idea in advance of how
-large the pointing error is. It detects bright sources in the image, then recognizes the
-pattern they form.
+large the pointing error is. It detects bright point sources in the image, then recognizes
+the pattern they form. A source counts only if it stands alone: the brightness around it,
+four to six pixels out, must fall well below its own peak. A star passes; a pixel on a
+bright ring or a limb does not, because the ring continues through that surrounding circle
+at nearly the same brightness. On a frame crossed by a ring, every one of the brightest
+local peaks lies on the ring, so without this test the stars never reach the matcher.
 
 Recognition works on triangles. For every set of three detected sources, the technique
 computes a description of the triangle, using only ratios of side lengths and one

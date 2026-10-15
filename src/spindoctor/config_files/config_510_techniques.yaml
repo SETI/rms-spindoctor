@@ -877,6 +877,21 @@ techniques:
       psf_sigma_px: 1.0
       # Centroid box half-width around each detection peak (px).
       centroid_box_half_px: 3
+      # Source isolation.  A detection is kept only when, over an annulus
+      # of these radii (px) around it, the brightest matched-filter
+      # response exceeds the annulus mean by less than
+      # source_isolation_max_ratio of the detection's own height above
+      # that mean.  The response to a star of sigma ~1 px is under 2% of
+      # its peak by 4 px, while a ridge of a ring or a limb runs through
+      # the annulus at nearly the peak's height.  Without it the brightest
+      # sources on a frame crossed by a ring are all ring pixels: on
+      # ISS_006RI_LPHRLFMOV001_PRIME the stars rank 300th to 500th, the
+      # technique answers on none of 777 frames, and with it on 480.  The
+      # outcome barely moves with the ratio: 0.3, 0.5, and 0.7 navigate
+      # 764, 767, and 766 of the 1030 frames, none wrong.
+      source_isolation_inner_px: 4
+      source_isolation_outer_px: 6
+      source_isolation_max_ratio: 0.5
       # Match radius in the (ratio, ratio, angle_rad) hash
       # space; weighted Euclidean.  0.05 is the empirical default for
       # centroid sigma ~0.1 px against typical triplet scales (Part 3

@@ -105,6 +105,9 @@ def test_detect_image_sources_finds_planted_stars(
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=30,
+        isolation_inner_px=4,
+        isolation_outer_px=6,
+        isolation_max_ratio=0.5,
     )
     assert len(detected) == 3
     detected_centers = sorted((s.v, s.u) for s in detected)
@@ -133,6 +136,9 @@ def test_detect_image_sources_caps_at_max_sources(
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=4,
+        isolation_inner_px=4,
+        isolation_outer_px=6,
+        isolation_max_ratio=0.5,
     )
     assert len(detected) == 4
     assert all(s.peak_dn >= detected[-1].peak_dn for s in detected)
@@ -148,8 +154,42 @@ def test_detect_image_sources_returns_empty_when_blank() -> None:
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=30,
+        isolation_inner_px=4,
+        isolation_outer_px=6,
+        isolation_max_ratio=0.5,
     )
     assert detected == []
+
+
+def test_detect_image_sources_ranks_a_star_above_a_brighter_ridge(
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A faint star outranks a bright ridge, whose pixels are not isolated sources.
+
+    The ridge stands for a ring crossing the frame: every pixel along it is a
+    local maximum far brighter than the star, so ranking by raw response would
+    fill the source list with it.
+
+    Parameters:
+        draw_gaussian_star: Stamps a Gaussian source onto a frame in place.
+    """
+    image = np.zeros((120, 120), dtype=np.float64)
+    image[:, 80:83] = 1000.0
+    draw_gaussian_star(image, (40.0, 30.0), peak_dn=50.0, sigma=1.2)
+    detected = _detect_image_sources(
+        image,
+        image_noise_sigma=1.0,
+        sigma_px=1.2,
+        detection_sigma=4.0,
+        centroid_box_half_px=3,
+        max_sources=30,
+        isolation_inner_px=4,
+        isolation_outer_px=6,
+        isolation_max_ratio=0.5,
+    )
+    assert len(detected) == 1
+    assert detected[0].v == pytest.approx(40.0, abs=0.01)
+    assert detected[0].u == pytest.approx(30.0, abs=0.01)
 
 
 # ---------------------------------------------------------------------------

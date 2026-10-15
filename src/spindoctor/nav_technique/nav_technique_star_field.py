@@ -49,7 +49,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
-from scipy.ndimage import maximum_filter
+from scipy.ndimage import correlate, maximum_filter
 from scipy.optimize import linear_sum_assignment
 
 from spindoctor.config import Config
@@ -79,7 +79,7 @@ from spindoctor.nav_technique.nav_technique import (
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from psfmodel import PSF
@@ -274,6 +274,24 @@ def _gaussian_kernel(sigma_px: float, *, size: int) -> NDArrayFloatType:
     return kernel
 
 
+def _annulus_footprint(inner_px: int, outer_px: int) -> NDArrayBoolType:
+    """Return a boolean annulus footprint of radii ``[inner_px, outer_px]``.
+
+    Parameters:
+        inner_px: Inner radius in pixels (inclusive).
+        outer_px: Outer radius in pixels (inclusive); the footprint is
+            ``2 * outer_px + 1`` pixels square.
+
+    Returns:
+        A ``(2 * outer_px + 1, 2 * outer_px + 1)`` boolean array, True on the
+        annulus.
+    """
+    grid_v, grid_u = np.mgrid[-outer_px : outer_px + 1, -outer_px : outer_px + 1]
+    radius = np.hypot(grid_v, grid_u)
+    footprint: NDArrayBoolType = (radius >= inner_px) & (radius <= outer_px)
+    return footprint
+
+
 def _detect_image_sources(
     image: NDArrayFloatType,
     *,
@@ -282,10 +300,13 @@ def _detect_image_sources(
     detection_sigma: float,
     centroid_box_half_px: int,
     max_sources: int,
+    isolation_inner_px: int,
+    isolation_outer_px: int,
+    isolation_max_ratio: float,
 ) -> list[_DetectedSource]:
-    """Detect bright local-max sources in ``image`` and return the brightest set.
+    """Detect bright isolated point sources in ``image`` and return the brightest set.
 
-    Three-stage pipeline:
+    Four-stage pipeline:
 
     1. Matched-filter the image against a Gaussian kernel sized by
        ``sigma_px``; the response peak amplitude at each pixel is the
@@ -293,11 +314,20 @@ def _detect_image_sources(
     2. Find pixels that are local maxima within a
        ``(2 * centroid_box_half_px + 1)`` window AND clear
        ``detection_sigma * image_noise_sigma``.
-    3. For each surviving peak, fit a brightness-weighted moment in a
+    3. Keep only *isolated* peaks.  Over an annulus of radii
+       ``[isolation_inner_px, isolation_outer_px]`` around the peak, the
+       brightest response may exceed the annulus mean by less than
+       ``isolation_max_ratio`` of the peak's own height above that mean.  A
+       point source falls to the background well inside the annulus, so its
+       annulus is flat; a ridge along a ring or a limb crosses the annulus and
+       lifts its maximum to nearly the peak.  Without this, every pixel along a
+       bright ring is a local maximum brighter than any star, and the
+       ``max_sources`` brightest detections are all ring.
+    4. For each surviving peak, fit a brightness-weighted moment in a
        small box around the peak to pull a sub-pixel centroid.
 
     Detections are ranked by ``(peak_dn descending, v ascending,
-    u ascending)`` and the first ``max_sources`` are returned — the
+    u ascending)`` and the first ``max_sources`` are returned -- the
     triplet matcher is M^3 in the input count, so 30 is the typical
     cap (Part 3 §"Determinism in RANSAC").
 
@@ -310,6 +340,10 @@ def _detect_image_sources(
         centroid_box_half_px: Half-width of the centroid box (and of
             the local-max window).
         max_sources: Maximum number of detections to return.
+        isolation_inner_px: Inner radius of the isolation annulus (px).
+        isolation_outer_px: Outer radius of the isolation annulus (px).
+        isolation_max_ratio: Largest allowed ratio of the annulus maximum's
+            excess over the annulus mean to the peak's excess over it.
 
     Returns:
         List of ``_DetectedSource`` records, ordered by brightness
@@ -318,9 +352,18 @@ def _detect_image_sources(
     kernel_size = 2 * centroid_box_half_px + 1
     kernel = _gaussian_kernel(sigma_px, size=kernel_size)
     response = matched_filter_image(image, kernel=kernel)
+    annulus = _annulus_footprint(isolation_inner_px, isolation_outer_px)
+    annulus_mean = correlate(
+        response, annulus.astype(np.float64) / float(annulus.sum()), mode='reflect'
+    )
+    annulus_max = maximum_filter(response, footprint=annulus, mode='reflect')
     threshold = detection_sigma * image_noise_sigma
     local_max = maximum_filter(response, size=kernel_size, mode='reflect')
-    candidate_mask = (response == local_max) & (response > threshold)
+    candidate_mask = (
+        (response == local_max)
+        & (response > threshold)
+        & (annulus_max - annulus_mean < isolation_max_ratio * (response - annulus_mean))
+    )
     h, w = image.shape
     out: list[_DetectedSource] = []
     for v_idx, u_idx in np.argwhere(candidate_mask):
@@ -660,6 +703,9 @@ class StarFieldFromCatalogNav(NavTechnique):
         self._detection_sigma = float(self.tuning['detection_sigma'])
         self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
         self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
+        self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
+        self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
+        self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
         self._hash_match_tolerance = float(self.tuning['hash_match_tolerance'])
         self._hash_ratio_weight = float(self.tuning['hash_ratio_weight'])
         self._hash_angle_weight = float(self.tuning['hash_angle_weight'])
@@ -815,6 +861,9 @@ class StarFieldFromCatalogNav(NavTechnique):
                 detection_sigma=self._detection_sigma,
                 centroid_box_half_px=self._centroid_box_half_px,
                 max_sources=self._max_sources,
+                isolation_inner_px=self._isolation_inner_px,
+                isolation_outer_px=self._isolation_outer_px,
+                isolation_max_ratio=self._isolation_max_ratio,
             )
             n_detected_sources = len(detected)
             self.logger.info(
