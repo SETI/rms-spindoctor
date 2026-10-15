@@ -151,14 +151,14 @@ rest on samples too narrow to carry them. Widen the cohorts, and state each
 verdict's sampling in the report so a mission-wide result is distinguishable
 from a single-sequence one. Gated on #434 for the reason above.
 
-### #447 — the round-trip residual (PR #484 open)
+### #447 — the round-trip residual (fixed on a held branch; lands with #128)
 
 A technique re-measuring a frame whose pointing was corrected by its own
 previous answer should measure zero, and the body techniques do not:
 `BodyLimbNav` fell 0.14 px short on `W1637520502_1_CALIB` and
-`BodyDiscCorrelateNav` 0.50 px short on `C3446143_GEOMED`. PR #484 measures
+`BodyDiscCorrelateNav` 0.50 px short on `C3446143_GEOMED`. The fix measures
 the non-equivariance across the whole library with a sweep harness
-(`util/calibration/shift_equivariance.py`, baseline committed), then fixes
+(`util/calibration/shift_equivariance.py`, baseline committed), then removes
 both body-side causes: a sub-pixel silhouette probe
 (`src/spindoctor/nav_model/silhouette_probe.py`) that stops the discrete
 polyline extraction from re-rasterizing a ridge instead of translating it,
@@ -166,8 +166,24 @@ and a per-axis NCC-quadratic fallback in `evaluate_candidate` for the case
 where the upsampled-DFT refinement argmax lands on the window boundary and
 the old code reported a pinned +-0.5 px.
 
-The PR conflicts with `main` and is 291 commits behind it, so the first step
-in picking it up is a rebase. What it filed
+The fix is ported onto `main` as the branch `rf_shift_equivariance_v2` (head
+519250b4) and held there, by operator ruling, as the base for #128; it is not
+merged on its own. Over 66 library frames with six planted shifts each it
+cuts `BodyLimbNav`'s median round-trip residual from 0.118 / 0.082 px to
+0.051 / 0.047 px (v / u), and `BodyDiscCorrelateNav`'s reference offsets stop
+landing on exact half pixels (13 of 21 on `main`, none on the branch). Ring,
+star and blob techniques are bit-identical between the two trees. The cost is
+absolute accuracy at the limb: on the five library frames that have both an
+independent star-only answer and a limb result, the limb answer moves inward
+along the lit-limb direction by 0.21 to 0.41 px (mean 0.27 px) and ends
+farther from the stars on four of them. The probe moves the model's lit-limb
+vertices outward by 0.11 to 0.18 px, onto the geometric limb, and the image
+edge sits inside that limb (#150); `main`'s ridge-center vertices sat inside
+it too and partly canceled the offset. Merged alone, the fix would put that
+bias into every limb answer and product, so it lands with #128 (below). The
+measurements are on #447, which stays open until then.
+
+What the work filed
 rather than fixed: RingEdgeNav is not
 shift-equivariant either and a planted shift re-locks it onto the wrong ring
 edge (#476, same family as #346 and #373 seen from the round-trip side, and
@@ -176,8 +192,8 @@ other and which polarity does not separate -- with exposure reduced to
 sub-25 km/px Saturn scenes now that coarser ones route to the annulus
 composite); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
-moves need re-ratcheting (#483, which cannot be done honestly until #288 is
-reconciled).
+moves need re-ratcheting when it lands (#483, which cannot be done honestly
+until #288 is reconciled).
 
 ### The ring routing decision, and #346 — the remaining confident-wrong ring-lock
 
@@ -276,6 +292,20 @@ spacecraft-position / ephemeris error dominates (0.4-1.7 px), so the
 higher-leverage pointing-kernel side (#50) was built first and is
 delivered. #128 is the fuller redesign (all body types and illuminations)
 and starts with a design document, not code.
+
+**#128 now carries landing the held #447 fix.** The redesign starts from
+`rf_shift_equivariance_v2` rather than from `main`, and landing that branch
+takes three things from it: the model-side correction for the image edge
+offset (#150), so the limb answer's absolute position improves rather than
+worsens; the simulated body model adopting the same sub-pixel vertex rule,
+since `NavModelBodySimulated` still places limb and terminator vertices at
+ridge-pixel centers and the limb-bias study, the calibration campaign, and the
+limb and terminator sim scenes would otherwise stop describing the production
+model (the probe's bracketing helpers are geometry-agnostic, and the simulated
+model supplies the inside/outside classifier from its own predicted geometry,
+never the planted truth); and the tier and primary-technique pins the fix
+moves (`N1572105349_1`, `N1488823805_1`, `N1855878123_1`, `N1487595731_1`),
+which are #483's.
 
 **#646 gates the measurement.** The harness that exists to calibrate the limb
 bias puts its simulated limb ridge in a different place from the catalog model
@@ -401,6 +431,34 @@ than the fitter. Fix it before reading any number it produces.
   extreme-phase edge (#401), and opaque-ring masking that refuses frames
   visible through the C ring or the gaps (#402). The ensemble has never been
   exercised on the oblique covariance the fit reports (#400).
+- **#747** — `lm_unconverged_with_polarity_rejection` hard-rejects a
+  `BodyLimbNav` or `BodyTerminatorNav` fit when `LMRefineResult.converged` is
+  False and the polarity rejection fraction is at least 0.10, and below 0.35
+  rejection the convergence flag is the only discriminant. The flag is set
+  only by an accepted LM step below 1e-3 px, so at a non-smooth minimum of the
+  bilinear-sampled DT cost every trial is rejected, the 30-iteration cap is
+  reached, and a stationary fit reads unconverged: on `main` 17 of 48 library
+  DT fits report converged though 44 are stationary, and the flag flips in
+  both directions with sub-pixel model details. Counting a rejected trial step
+  below tolerance as convergence would disarm the gate on four fits it rejects
+  today, so the discriminant has to be re-derived against labeled healthy and
+  mis-locked fits; the healthy frames the gate cites (`N1702389073`,
+  `N1702389662`, `N1702390017`) have to join the library first.
+- **#748** — decision: a body's witness blob serves the body-witness veto as
+  well as standing as an answer, and the veto's 2-sigma tolerance survives
+  more clipping than the answer's 0.05 R centroid-bias allowance. On a
+  constructed case (R = 200 px, a limb locked 30 px wrong, 72 directions) a
+  witness kept up to an overflow fraction of about 0.105 still catches the
+  wrong limb, and above that its own bias raises false conflicts. Decide
+  whether the witness role takes its own overflow limit, derived from the
+  veto's tolerance, separate from `bodies.blob_max_overflow_fraction`. No
+  library frame falls in the band with a running blob.
+- **#749** — the ensemble's multi-body exclusion asks `_distinct_body_count`,
+  which counts bodies that have results rather than bodies in the frame. A
+  body that yields no result reads as absent, a two-body frame reads as
+  single-body, and the shape-lock veto can fire on the companion although the
+  other body still corrupts its centroid. Count the bodies the models placed
+  in the field of view instead. No library frame is known to reach it.
 
 ## Track C — Statistics and QA
 
@@ -577,6 +635,20 @@ photometry:
 - **#718** — `--zoom` names two different operations: the ring path averages
   sub-samples of the output grid, the body path interpolates the source
   image. Decide whether one flag should mean one thing.
+- **#733** — `sd_mosaic` is written for an optional navigation results root
+  (`str | None` annotations and two `is not None` guards in
+  `src/spindoctor/cli/sd_mosaic.py`), but `get_nav_results_root` raises when
+  no root is set and never returns `None`, so those branches are unreachable.
+  Decide whether a mosaic on uncorrected pointing should be possible: if so,
+  catch the refusal and leave the path `None`; if not, remove the `None`
+  handling. Either way, move the call inside the
+  `reporting_configuration_errors()` block, so an unset root prints the
+  one-line message rather than a `ValueError` traceback.
+- **#738** — `--resolution-threshold` takes any float
+  (`src/spindoctor/cli/reproj/args.py`), and `BodyMosaic.add` applies it
+  unchecked, although its contract says the value should be at least 1.0.
+  Below 1.0 a coarser pixel can replace a finer one. Refuse the value where it
+  is parsed, naming the option and the bound.
 - **#493** — `sd_mosaic` reports a lost results index as N failed images
   rather than as one run-level condition (see the cloud items below).
 
@@ -608,7 +680,8 @@ The round trip also measured something that belongs to Track B rather than
 here: a technique re-measuring a corrected frame does not return exactly
 the negative of the shift it was given, which costs up to 0.49 px on frames
 carried by the correlation and distance-transform body techniques (#447).
-PR #484 fixes both body-side causes and is open.
+The fix for both body-side causes is held on `rf_shift_equivariance_v2` to
+land with the limb redesign (#128).
 
 Two of the plan's follow-ups turned out to be navigator defects rather than
 kernel work. Rotation fitting is now off for Galileo SSI, so no instrument
@@ -684,7 +757,13 @@ Its follow-ups, none blocking:
   the index as it navigates (#486); and an index that can say whether a
   root's rows were pruned (#542); and a URL with no scheme taken to mean a
   local SQLite file, so that `--results-index-db nav_index.sqlite3` means what
-  it looks like it means rather than being refused (#572).
+  it looks like it means rather than being refused (#572); and
+  `--results-index-db` declared by the three programs that take the results
+  filters without it -- `sd_create_bundle`, `sd_consolidate_metadata`, and
+  `sd_backplane_viewer` -- so their filters can read a results index rather
+  than always walking the tree (#736). The fix is for each program to declare
+  the option; the seam must not start reading `NAV_RESULTS_INDEX_DB` on their
+  behalf.
 - **Operational questions with a decision in them:** a documented workflow
   for getting the index to cloud workers (#466 -- publish the SQLite file to
   the results bucket, or run PostgreSQL); and the lockability probe that
@@ -717,6 +796,37 @@ holding more than a thousand objects lists short and says nothing
 (SETI/rms-filecache#65). The seam's completeness guarantee assumes a listing
 is complete or raises, and there is deliberately no workaround here. GS
 auto-paginates and is unaffected.
+
+### Metadata document precision (#730, a decision)
+
+`src/spindoctor/nav_orchestrator/curator.py` rounds as it assembles the
+metadata document: `PIXEL_DECIMALS = 4` for offsets, sigmas, and covariance
+entries, `CONFIDENCE_DECIMALS = 3` for confidences, reliability components, and
+classifier scores, and `ET_DECIMALS = 6` for `provenance.image_et`. The
+top-level `offset` and `confidence`, the C-matrices, and `times.start_et`,
+`times.stop_et`, and `times.midtime_et` are written unrounded, so `navigation_result.offset_px` and the top-level `offset` can
+disagree in the last place. The operator decides whether every stored value
+is written at full precision with rounding left to reports and logs, or names
+what makes a rounded value different. Whatever is decided, the two fields
+holding one quantity agree, and the rounding table in
+`docs/user_guide/user_guide_metadata.rst` changes with it.
+
+### Command-line consistency
+
+- **#734** — `--profile` is declared by three programs and works in one.
+  `sd_mosaic` prints its profile; `sd_offset` starts a profiler and never
+  stops or reports it, so a run pays the overhead for nothing; and
+  `sd_backplanes` declares the flag and never reads it. One small context
+  manager shared by all three, printing on exit or writing to a named file,
+  keeps a fourth program from acquiring the flag without the report.
+- **#735** — `sd_create_ck` selects only by `--start-time` / `--stop-time`,
+  and `sd_stats_report` by its own `--instrument`, `--start-date`,
+  `--min-image`, and `--max-image`; neither takes the volume, image-list, and
+  image-number options the other six programs share through
+  `add_selection_arguments`. For `sd_create_ck` adding them is additive; for
+  `sd_stats_report` it carries a choice between aliasing and replacing its own
+  spellings. Writing kernels or a report for one volume is the commonest
+  request neither program can serve today.
 
 ### Capability matrix (#231)
 
@@ -812,6 +922,12 @@ asserts the generated half matches the registries.
   already-processed collection, not per-image work suited to a task queue;
   the module is unwired for logging and leaks to the worker terminal, and
   fixing it would be maintaining something that should not exist.
+- **#731** — log file names are stamped in UTC (`run_timestamp()` in
+  `src/spindoctor/config/logging_config.py`) while the records inside them
+  are stamped in naive local time by pdslogger, and nothing in the file says
+  which clock each half is on. Stamping the records in UTC as well, through a
+  pdslogger change or a formatter installed here, is the option that makes a
+  log comparable against other timestamped records.
 - **#411** — migrate the technique config keys to snake_case, so the
   configuration spells component names the way `log_key_for` and the rest
   of the config system already do.
@@ -939,8 +1055,9 @@ asserts the generated half matches the registries.
   and confirming the test fails; a test that stays green against a
   deliberately broken implementation is a defect in the test and is reported
   as one.
-- **#483** — re-ratchet the library pins the shift-equivariance fix (#447 /
-  PR #484) moves. Gated on #288: pins cannot be re-ratcheted honestly
+- **#483** — re-ratchet the library pins the shift-equivariance fix (#447)
+  moves. Those deltas arrive with `rf_shift_equivariance_v2` when #128 lands
+  it. Gated on #288: pins cannot be re-ratcheted honestly
   against a baseline that is itself 10/75 red.
 - **#524** — consolidate `test_record_source.py` onto the shared
   results-index fixtures, which already exist and are built by the writer
@@ -953,8 +1070,10 @@ asserts the generated half matches the registries.
   so a fixture that looks self-consistent is not.
 - **#438** — the Sphinx nitpicky gate is required by the project rules and
   is not run; pairs with #129, which is the work of getting to zero.
-- **#545** — the README names two of fourteen command-line programs and
-  links to no guide. Cheap, and it is the first page anyone reads.
+- **#545** — the README's Features entries carry no link to the user-guide
+  chapter behind each. The program mentions and the Quick Start invocations
+  the issue also asked for are in place. Cheap, and it is the first page
+  anyone reads.
 - **#549** — four technique guides name a `dt_fitting.py` that is a package.
 - **#470 / #471** — config placeholder comments and config placeholders
   themselves still carry an internal phase codename; documentation and
@@ -972,6 +1091,16 @@ asserts the generated half matches the registries.
 - **#576** — `mypy warn_unreachable` would have caught a `continue` left
   behind after a `raise`, at the cost of seven suppressions elsewhere.
   Decide whether the trade is worth taking.
+- **#723** — the rules in `.cursor/rules/` came from the `rms-devenv`
+  repository template, which has moved on. Some of the differences contradict
+  this repository's own configuration or its other rules, some are checks the
+  template runs and this repository does not, and the rest is improved rule
+  text; the issue carries the checklist.
+- **#725** — `spindoctor/nav_records/descriptors.py` raises the open-file
+  limit and clamps `retrieve_threads` and `retrieve_batch_size` because
+  `FileCache.retrieve()` holds a lock file for every path in a batch until the
+  last download finishes. Remove the module once filecache bounds its own lock
+  batches (SETI/rms-filecache#67).
 - **#443** — decide whether `spindoctor.cli` subpackages belong in the API
   reference at all. It is what decides whether the C-kernel writer package
   gets an autodoc page rather than the nitpick-ignore every other
