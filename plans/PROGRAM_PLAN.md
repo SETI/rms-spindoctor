@@ -68,13 +68,12 @@ instruments (see Track D).
 Two facts about the evidence behind that health are worth stating plainly,
 because both are load-bearing and neither is comfortable. Suite coverage is
 79%, not the 90% two shipped plans' acceptance criteria claim, and nothing
-enforces any floor (#548). And 21 of 75 curated library frames disagree with
+enforces any floor (#548). And 19 of 75 curated library frames disagree with
 their sidecars in the local integration environment: eight under #288, the two
 Galileo frames whose recorded truth is the rotation-fitted answer that the
-change in #560 retired (#744), `N1530185128_1`, whose star centroid lands on a
-neighbor (#639), and ten star frames whose tier the
-sparse-star-field fixes moved, awaiting the operator's ratification. Every one
-of the 21 is attributed, so
+change in #560 retired (#744), and nine star frames whose tier the
+sparse-star-field and star-centroid fixes moved, awaiting the operator's
+ratification. Every one of the 19 is attributed, so
 the regression instrument reads as a known state rather than an unknown one;
 but three of the eight under #288, and both under #744, are judgments still
 owed rather than settled pins, so "no new failures against `main`" remains the
@@ -236,9 +235,7 @@ its section names):
 
 **Confident-wrong families that poison the validation data** (they belong to
 Track B but gate the study, because it consumes navigator output at scale): the
-three frames that lock onto the wrong ring feature (#346), and a star
-centroid that can measure a ring or a brighter neighbor instead of the star it
-was asked for (#639). The
+three frames that lock onto the wrong ring feature (#346). The
 body-witness-veto
 family -- a high-phase haze crescent returning a gate-passing success ~30 px
 wrong (#328) and the disc technique locking on at extreme shape mismatch (#291)
@@ -326,12 +323,9 @@ The known open defects:
   synchronous rotators, or shape models (#23).
 - **Sparse star fields** — measured on all 1030 frames of a Cassini F ring
   movie against the published bundle's own per-frame pointing. Star
-  navigation navigates 72.2% of them, none more than 2 px wrong, against the
-  bundle's 96.6%, and the refusals come in runs of up to 26 frames (#621);
-  most refused frames show one usable star or none. A star centroid takes the
-  brightest pixel anywhere in its window, so a ring or a brighter neighbor
-  can win the star that was asked for and move the measured position by
-  their separation (#639); it alone blocks 79 of the refused frames.
+  navigation navigates 74.9% of them, none more than 2 px wrong, against the
+  bundle's 96.6%, and the refusals come in runs of up to 25 frames (#621);
+  most refused frames show one usable star or none.
 - **#130** — star limiting-magnitude calibration against real fields
   (coordinate with #233's measured-SNR work — same frames, same tooling).
 - **#591** — the sparse 16x16 ring pre-check can skip a frame whose rings
@@ -378,7 +372,7 @@ The known open defects:
   with #128. The rest of the work is filed as #476, #482 and #483.
 
 **Parallelism:** parallel with Track A, except that the coarse-lock family
-(#346, #476, #373) and the sparse-star-field family (#621, #639)
+(#346, #476, #373) and the sparse-star-field family (#621)
 gate the agreement study -- a technique that reports a
 confidently wrong answer moves the cross-technique disagreement WS-1 measures
 -- and #288 gates reading any Track A cohort with confidence.
@@ -564,17 +558,17 @@ cannot follow.
 - Summary-PNG unit tests (#177).
 - The image-library regression reconciliation (#288). In the local
   integration environment it is not reduced to the deliberately-red pins:
-  21 of 75 frames disagree, each attributed, which is the
+  19 of 75 frames disagree, each attributed, which is the
   state Track A's evidence has to be read against, and it is what blocks the
   only place a built product is compared between the results tree and the
-  index (#547). Two of the twenty-one are Galileo frames whose recorded truth is
+  index (#547). Two of the nineteen are Galileo frames whose recorded truth is
   the rotation-fitted answer that #560 retired; re-recording that truth from
   an outside measurement, or pinning both red under #434, is an operator
-  decision (#744). One more, `N1530185128_1`, went red with the star datum
-  correction (#643) and is owned by the centroid defect in #639. Ten are star frames whose tier the sparse-star-field fixes
-  moved -- one-star solutions capped at low, shared stars counted once -- and
-  one of them, `N1571691490_1`, now navigates on three stars 9.3 px from its
-  pinned body-blob truth; ratifying those is an operator decision too.
+  decision (#744). Nine are star frames whose tier the sparse-star-field and
+  star-centroid fixes moved -- one-star solutions capped at low, shared stars
+  counted once, refinement on fewer stars -- and one of them, `N1571691490_1`,
+  now navigates on two stars 9.4 px from its pinned body-blob truth;
+  ratifying those is an operator decision too.
 - Suite coverage is 79% and unenforced against a stated 90% (#548). The
   shortfall is almost entirely PyQt6 widget code. This is an operator call
   before it is an implementer's: raise the number, or ratify a lower floor
@@ -646,8 +640,8 @@ star-navigation bug fixes (#19, #18) can start any time.
 
 ## 5. Suggested global order
 
-0. **First:** the sparse-star-field family (#639, then #621): #639 is a
-   measured confident-wrong source, and like the coarse-lock family it moves
+0. **First:** what is left of the sparse-star-field family (#621): frames
+   showing one usable star or none, and like the coarse-lock family it moves
    what the agreement study measures.
 1. **Then, in parallel:** Track A items 1-4 (library growth, sim
    realism campaign, agreement-estimator real-frame follow-ups, distortion
@@ -743,27 +737,27 @@ library votes and the decision gates, not by any implementation.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it: 303 issues
+Every open issue, listed exactly once by the track that owns it: 302 issues
 as of 2026-10-14. The count is given so a reader can tell a stale index from
 a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
 | A — validation & calibration | 67 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675, #727, #750, #751 |
-| B — navigation correctness | 35 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #639, #747, #748, #749 |
+| B — navigation correctness | 34 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #747, #748, #749 |
 | C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
 | D — capability completion | 96 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720, #730, #731, #733, #734, #735, #736, #738 |
 | E — test & docs debt | 36 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #574, #576, #612, #712, #714, #715, #723, #725, #744 |
 | F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
-Priority census across all six tracks: no Critical, 27 Essential, 89
-Important, 133 Useful, 39 Minor, 15 Defer, which accounts for all 303. Every
+Priority census across all six tracks: no Critical, 26 Essential, 89
+Important, 133 Useful, 39 Minor, 15 Defer, which accounts for all 302. Every
 open issue carries exactly one Priority and one Effort label and at least one
 each of A-type and B-location.
 
 Cross-listed items (listed once above, noted here): #150/#128 sit in Track B
 and also serve Track A's limb-bias workstream (WS-10); the confident-wrong
-ring-lock family (#346, #476) and the sparse-star-field family (#621, #639)
+ring-lock family (#346, #476) and the sparse-star-field family (#621)
 sit in Track B but gate the Track A
 study; #103/#134/#126 serve both Track D performance and Track F
 hardening; #513 and #520 are results-index work in Track D that lands in the kernel

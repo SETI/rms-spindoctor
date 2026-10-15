@@ -253,35 +253,44 @@ wrong-lock datapoints.
 Measured on all 1030 frames of the `ISS_006RI_LPHRLFMOV001_PRIME` F ring
 movie, where stars are the only technique that can navigate at all (the ring
 catalogs carry no F ring), against the published F ring bundle's per-frame
-pointing. Star navigation navigates 744 frames (72.2%, from 424), every one
-within 2 px of the bundle, against the bundle's 96.6%. Two causes of refusal
-are fixed: the star field's detections were ring pixels until isolated
-sources were required, and the unique match tried only the brightest two
-predictions inside a window smaller than the 43 px pointing error. A
-one-star solution is now marked `single_star_only` and a shared star counts
-as one witness, which closed #622 and #623.
+pointing. Star navigation navigates 771 frames (74.9%, from 424), every one
+within 2 px of the bundle, against the bundle's 96.6%. The causes of refusal
+fixed so far: the star field's detections were ring pixels until isolated
+sources were required; the unique match tried only the brightest two
+predictions inside a window smaller than the 43 px pointing error; and its
+centroid took the brightest pixel of the window, so a ring, a neighbor, or a
+cosmic ray won the star's window (#639). A one-star solution is marked
+`single_star_only` and capped at the low tier, and a shared star counts as one
+witness (#622, #623).
 
-What is left is coverage, and it is in runs: 48 refusal runs, the longest 26,
-24, 20, and 20 frames (164 refusals in runs of ten or more), worst in the
-last tenth of the movie (44% navigated). Checked against the bundle's
-pointing, the 286 refused frames divide three ways:
+The same code was measured on every star-navigated frame of the published F
+ring bundle (305 observations), with one third of the observations held out
+before any tuning. On the held-out Cassini NAC frames it navigates 2595 of
+4205 within 2 px (from 1744 on `main`) and 16 more than 2 px wrong (from 64);
+on the frames tuning was done on, 6945 of 10362 (from 4206) and 66 wrong (from
+231); 49 of those 66 rest on one star and carry the low tier.
+The refused held-out NAC frames divide by what the image holds at the
+bundle's pointing:
 
-- 199 show no usable catalog star (47) or one (152) as an isolated point
-  source at its true position. A single star cannot check its own
-  identification, so the unique match refuses it unless it outshines every
-  other predicted star by 1.5 mag and lies within 30 px of its prediction;
-  23 of the 152 are refused only for lying 30 to 43 px out, the limit that
-  keeps a lone artifact on a black-sky Galileo frame from being accepted.
-  Loosening either rule is where silent wrong answers come from. These
-  frames need evidence beyond one frame: fainter stars (#130, the limiting
-  magnitude), or a prior from neighboring frames.
-- 79 show two or more stars, but in at least one star's search window the
-  brightest pixel is something brighter than the star -- the ring, or the
-  overexposed rings beside it -- so the window's brightest pixel is not the
-  star and the pair never forms. That is #639's defect, and a selection that
-  finds the star would admit them.
-- 8 show two or more stars that the search windows do find, and are refused
-  for reasons not yet examined.
+- 590 have no catalog star brighter than the limiting magnitude at all. The
+  limit (`star_max_usable_vmag`) is conservative for short exposures: a
+  0.26 s NAC frame gets a limit of 9.0, where stars 3 mag fainter are visible
+  (#130).
+- 575 show one usable star as an isolated point source and 270 none. A single
+  star cannot check its own identification, so the unique match refuses it
+  unless it outshines every other predicted star by 1.5 mag and lies within
+  30 px of its prediction. These frames need evidence beyond one frame: the
+  fainter stars above, or a prior from neighboring frames.
+- 156 show two or more stars, but a window's strongest detection is not one
+  of them.
+- 19 show two or more stars that the windows do find, refused for reasons not
+  yet examined.
+
+The Cassini WAC frames lose ground: 307 of 794 tuning frames navigate within
+2 px against 340 on `main`. Their pointing error is under 15 px, and the 50 px
+window the NAC needs lets a brighter source veto a lone WAC star; a 15 px
+window for the WAC navigates 380 of the 794. 97 of the 113 held-out WAC frames
+have no usable catalog star, the same limiting-magnitude cause as above.
 
 ### #128 / #150 — Limb navigation redesign and the ~0.1 px systematic
 
@@ -360,12 +369,15 @@ than the fitter. Fix it before reading any number it produces.
   the datum times a star weight that can only be reconstructed, and
   N1633925572, whose sidecar carries an operator ruling not to re-ratchet.
   W1444747627 was pinned by hand against an overlay the notes describe as star
-  and body together, so which half the drag followed is not recorded. One
-  consequence remains open: N1530185128 flips to a different star lock
-  (18.2 px -> 1.2 px, confidence 0.72 -> 0.40) because
-  `StarUniqueMatchNav`'s 30-px search window takes the brightest peak inside a
-  slab whose integer bounds move with the prediction — a fragility the datum
-  change tips rather than causes.
+  and body together, so which half the drag followed is not recorded.
+  N1530185128 flipped to a different lock (18.2 px -> 1.2 px, confidence
+  0.72 -> 0.40) because `StarUniqueMatchNav`'s search window took the
+  brightest pixel inside a slab whose integer bounds moved with the
+  prediction, and a single-pixel cosmic ray on the row the datum added won it
+  -- a fragility the datum change tipped rather than caused. The window is
+  now centered and odd-width, its detection is the strongest matched-filter
+  peak that is not sharper than a star, and the isolation test allows for a
+  star's smear; the frame commits its two-star fix 0.1 px from truth again.
 - **#641** — a simulator scene states every position that places something in
   it as a pixel corner, which is the same oops uv a star record carries, so
   the record builder copies a scene position through. The shipped scenes moved
@@ -380,8 +392,9 @@ than the fitter. Fix it before reading any number it produces.
   center as far from it, so the one shipped scene with a roll moved its whole
   star field by 0.0169 px and the other 63 render byte-identical. That scene's
   baseline flipped from `conflicted` to `success`: `StarUniqueMatchNav` had been
-  confidently answering it 11 px wrong and now declines, which is the #639
-  window fragility tipping on a 0.01 px render change in either direction, not a
+  confidently answering it 11 px wrong and now declines, which is the
+  brightest-pixel window fragility (#639) tipping on a 0.01 px render change in
+  either direction, not a
   navigation improvement this earned. One finding from the same audit is filed
   and left out of that change: a roll rotates positions and poses but not a
   star's smear vector, a companion's position angle, or the background sky field
@@ -496,8 +509,8 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 21 of 75 library frames red locally (#288, #744, #639, and
-  ten star-frame pins awaiting ratification),
+  degraded: with 19 of 75 library frames red locally (#288, #744, and
+  nine star-frame pins awaiting ratification),
   a cross-check can only be read as "no *new* deltas against `main`".
 
 ## Track D — Capability completion
@@ -995,16 +1008,15 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 20
+  debt with the widest blast radius. In the local integration environment 19
   of 75 sidecars disagree, each one attributed and owned, but the set is
   still wider than the deliberately-pinned one below, so the regression
-  instrument cannot yet be read as clean. Two of the twenty-one, the Galileo
+  instrument cannot yet be read as clean. Two of the nineteen, the Galileo
   frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
   answer that the change in #560 retired; re-recording their truth from an
   outside measurement, or pinning them red under #434, is the operator
-  decision in #744. Another, `N1530185128_1`, is owned by the star-centroid
-  defect in #639. Ten are star-frame tiers the sparse-star-field fixes
-  moved, awaiting the operator's ratification. Two consequences to hold
+  decision in #744. Nine are star-frame tiers the sparse-star-field and
+  star-centroid fixes moved, awaiting the operator's ratification. Two consequences to hold
   onto: a navigation-affecting branch can only be gated on *no new failures against `main`*, and #547
   (the one place a built product is compared between the results tree and
   the results index) is blocked because the frame it needs no longer
@@ -1016,9 +1028,10 @@ asserts the generated half matches the registries.
   open navigation issue (#338, #346, #350). W1444747627 (#352) is re-ratcheted
   to success/medium and green: the star-navigation hardening locks it.
   N1530185128 was re-ratcheted to success/medium under #351, once the ensemble
-  blob-outlier drop let the multi-star fix commit, but it has been red since
-  the star datum correction (#643), with a dv error of 17.472 px, and is owned
-  by the star-centroid defect in #639. N1806609736 (#392) is green as well:
+  blob-outlier drop let the multi-star fix commit; the star datum correction
+  (#643) turned it red with a dv error of 17.472 px, and it is green again
+  since the star centroid measures the star its window asks for (#639) and
+  the isolation test allows for its 8.5 px smear. N1806609736 (#392) is green as well:
   the shape-lock veto no longer misfires when a star fix corroborates the
   limb. N1572105349's pin was owned by #222 (now closed by the independence
   resolution); its autonomous regression should flip green on the next
