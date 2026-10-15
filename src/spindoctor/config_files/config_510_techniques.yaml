@@ -749,17 +749,19 @@ techniques:
       # opened to 4 px, the 644 two-star matches within 2 px of the
       # published bundle have residuals of median 0.09 px and 95th
       # percentile 0.31 px, while the 25 matches in which a star was
-      # paired with the wrong source start at 1.34 px.  1.0 px keeps 633
-      # of the 644 and none of the 25; 1.5 px admits two of them.  Two
-      # passing pairs whose offsets differ by more than twice this are
-      # ambiguous and the technique reports spurious.
-      max_residual_px: 1.0
+      # paired with the wrong source start at 1.34 px.  1.2 px keeps 636
+      # of the 644 and none of the 25, and admits the correct 1.04 px
+      # pair of library frame N1550270436, which 1.0 px refuses; 1.5 px
+      # admits two of the 25.  Two passing pairs whose offsets differ by
+      # more than twice this are ambiguous and the technique reports
+      # spurious.
+      max_residual_px: 1.2
       # Number of brightest usable stars among which the 2-star path
       # searches for a pair; every pair of them is tried.  Searching only
       # the brightest two refuses frames whose brightest predicted star is
       # not in the image (outside the detector, behind ring glare).  On
-      # ISS_006RI: 3 stars navigate 717 frames, 5 navigate 767, 8 navigate
-      # 773, all within 2 px of the bundle.
+      # ISS_006RI: 3 stars navigate 695 frames, 5 navigate 744, 8 navigate
+      # 750, all within 2 px of the bundle.
       pair_search_stars: 5
       # Detection-threshold multiplier on image_noise_sigma; below this
       # the brightest pixel inside the search window is considered noise.

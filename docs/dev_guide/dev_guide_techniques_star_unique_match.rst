@@ -135,7 +135,9 @@ technique navigates 711 frames, none wrong.
 The residual tolerance is measured. With it opened to 4 px, the 644 two-star matches on
 that observation that lie within 2 px of the bundle have residuals of median 0.09 px and
 95th percentile 0.31 px, while the 25 matches in which a star was paired with the wrong
-source start at 1.34 px. At 1.0 px, 633 of the 644 pass and none of the 25.
+source start at 1.34 px. At 1.2 px, 636 of the 644 pass and none of the 25; 1.2 rather than
+1.0 admits the correct pair of library frame ``N1550270436``, whose residual is 1.04 px and
+whose fallback without it is a body centroid 15 px wrong. At 1.5 px two of the 25 pass.
 
 For each pair the fit is a Procrustes / similarity-transform fit on the two
 correspondences that reports the recovered translation plus rotation. The rotation
@@ -231,7 +233,7 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
   many brightest usable stars.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
   moment box around the brightness peak.
-- ``max_residual_px`` — float, default ``1.0`` px. Maximum allowed best-assignment
+- ``max_residual_px`` — float, default ``1.2`` px. Maximum allowed best-assignment
   residual for a pair to pass the 2-star cross-check. Two passing pairs farther apart than
   twice this make the result spurious.
 - ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
