@@ -96,15 +96,6 @@ gh issue comment 730 --body "Decision: <store full precision | keep rounding for
   binds across the cohort and what the tiers would look like at other
   saturation points; choosing the point is yours.
 
-### 0.1b Rebase or close the one open pull request
-
-PR #484 (#447, the round-trip residual) has been open since 2026-08-09 and
-last saw a commit on 2026-08-10. It carries nine commits, conflicts with
-`main`, and is 291 commits behind it; the pixel-convention work on `main`
-touches the same silhouette code it changes, so this is a review of the fix
-against current code rather than a merge. Dispatch the rebase, or close it
-and refile the two body-side fixes against `main`. Nothing else is in flight.
-
 ### 0.1c Labels and assignees: check five inferred priorities
 
 The tracker is fully labeled. Every open issue carries exactly one Priority
@@ -410,7 +401,10 @@ Independent review before done; all CI gates; one PR."
   implementation until the design is operator-approved; validation must be
   against real images per WS-10. Address whether the same model-vs-image
   bias applies to non-step (gradual / shouldered) ring edges, not only the
-  limb."
+  limb." The implementation starts from `rf_shift_equivariance_v2`, the
+  #447 fix held as #128's base, and lands it: the edge-offset correction, the
+  simulated body model adopting the same sub-pixel vertex rule, and the pins
+  the fix moves, which go to #483. The measurements are on #447.
 - **#373 (coarse-lock calibration pass)**: "Make the RingEdgeNav coarse
   seed robust against competing edge populations per #373, folding in the
   wrong-lock datapoints from #346."
@@ -562,7 +556,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   does not break, so it waits on #373; exposure is limited to sub-25 km/px
   Saturn scenes by the routing decision
 - **#482** BodyDiscCorrelateNav misses by up to ~1 px on a weakly-constrained
-  axis, the residual left after PR #484 closes #447
+  axis, the residual the #447 fix leaves (held on `rf_shift_equivariance_v2`
+  for #128)
 - **#394** shape-lock veto suppression trusts a star fix that could itself be
   wrong-locked, turning a safe `conflicted` into a confident-wrong `success`
 - **#380** correlated-witness fusion collapses to a representative at rho=1;
@@ -666,7 +661,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
 - **#483** two `primary_technique` pins name a technique the current code
   correctly declines to prefer (N1487595731_1, N1686349893_1); re-ratchet
   them, or stop asserting `primary_technique` where two techniques agree
-  within tolerance
+  within tolerance; the pins the #447 fix moves arrive with
+  `rf_shift_equivariance_v2` when #128 lands it
 
 **PDS4 bundle (the Cassini path runs end to end over the synthetic cohort;
 these are what it owes and what generalizes it):**
@@ -730,7 +726,6 @@ these are what it owes and what generalizes it):**
 ```text
 0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #557,
     #600, #720, #677, #730)                                     (operator, minutes)
-0.1b rebase or close PR #484                                    (operator, minutes)
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)

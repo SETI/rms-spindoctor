@@ -151,14 +151,14 @@ rest on samples too narrow to carry them. Widen the cohorts, and state each
 verdict's sampling in the report so a mission-wide result is distinguishable
 from a single-sequence one. Gated on #434 for the reason above.
 
-### #447 — the round-trip residual (PR #484 open)
+### #447 — the round-trip residual (fixed on a held branch; lands with #128)
 
 A technique re-measuring a frame whose pointing was corrected by its own
 previous answer should measure zero, and the body techniques do not:
 `BodyLimbNav` fell 0.14 px short on `W1637520502_1_CALIB` and
-`BodyDiscCorrelateNav` 0.50 px short on `C3446143_GEOMED`. PR #484 measures
+`BodyDiscCorrelateNav` 0.50 px short on `C3446143_GEOMED`. The fix measures
 the non-equivariance across the whole library with a sweep harness
-(`util/calibration/shift_equivariance.py`, baseline committed), then fixes
+(`util/calibration/shift_equivariance.py`, baseline committed), then removes
 both body-side causes: a sub-pixel silhouette probe
 (`src/spindoctor/nav_model/silhouette_probe.py`) that stops the discrete
 polyline extraction from re-rasterizing a ridge instead of translating it,
@@ -166,8 +166,24 @@ and a per-axis NCC-quadratic fallback in `evaluate_candidate` for the case
 where the upsampled-DFT refinement argmax lands on the window boundary and
 the old code reported a pinned +-0.5 px.
 
-The PR conflicts with `main` and is 291 commits behind it, so the first step
-in picking it up is a rebase. What it filed
+The fix is ported onto `main` as the branch `rf_shift_equivariance_v2` (head
+519250b4) and held there, by operator ruling, as the base for #128; it is not
+merged on its own. Over 66 library frames with six planted shifts each it
+cuts `BodyLimbNav`'s median round-trip residual from 0.118 / 0.082 px to
+0.051 / 0.047 px (v / u), and `BodyDiscCorrelateNav`'s reference offsets stop
+landing on exact half pixels (13 of 21 on `main`, none on the branch). Ring,
+star and blob techniques are bit-identical between the two trees. The cost is
+absolute accuracy at the limb: on the five library frames that have both an
+independent star-only answer and a limb result, the limb answer moves inward
+along the lit-limb direction by 0.21 to 0.41 px (mean 0.27 px) and ends
+farther from the stars on four of them. The probe moves the model's lit-limb
+vertices outward by 0.11 to 0.18 px, onto the geometric limb, and the image
+edge sits inside that limb (#150); `main`'s ridge-center vertices sat inside
+it too and partly canceled the offset. Merged alone, the fix would put that
+bias into every limb answer and product, so it lands with #128 (below). The
+measurements are on #447, which stays open until then.
+
+What the work filed
 rather than fixed: RingEdgeNav is not
 shift-equivariant either and a planted shift re-locks it onto the wrong ring
 edge (#476, same family as #346 and #373 seen from the round-trip side, and
@@ -176,8 +192,8 @@ other and which polarity does not separate -- with exposure reduced to
 sub-25 km/px Saturn scenes now that coarser ones route to the annulus
 composite); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
-moves need re-ratcheting (#483, which cannot be done honestly until #288 is
-reconciled).
+moves need re-ratcheting when it lands (#483, which cannot be done honestly
+until #288 is reconciled).
 
 ### The ring routing decision, and #346 — the remaining confident-wrong ring-lock
 
@@ -276,6 +292,20 @@ spacecraft-position / ephemeris error dominates (0.4-1.7 px), so the
 higher-leverage pointing-kernel side (#50) was built first and is
 delivered. #128 is the fuller redesign (all body types and illuminations)
 and starts with a design document, not code.
+
+**#128 now carries landing the held #447 fix.** The redesign starts from
+`rf_shift_equivariance_v2` rather than from `main`, and landing that branch
+takes three things from it: the model-side correction for the image edge
+offset (#150), so the limb answer's absolute position improves rather than
+worsens; the simulated body model adopting the same sub-pixel vertex rule,
+since `NavModelBodySimulated` still places limb and terminator vertices at
+ridge-pixel centers and the limb-bias study, the calibration campaign, and the
+limb and terminator sim scenes would otherwise stop describing the production
+model (the probe's bracketing helpers are geometry-agnostic, and the simulated
+model supplies the inside/outside classifier from its own predicted geometry,
+never the planted truth); and the tier and primary-technique pins the fix
+moves (`N1572105349_1`, `N1488823805_1`, `N1855878123_1`, `N1487595731_1`),
+which are #483's.
 
 **#646 gates the measurement.** The harness that exists to calibrate the limb
 bias puts its simulated limb ridge in a different place from the catalog model
@@ -622,7 +652,8 @@ The round trip also measured something that belongs to Track B rather than
 here: a technique re-measuring a corrected frame does not return exactly
 the negative of the shift it was given, which costs up to 0.49 px on frames
 carried by the correlation and distance-transform body techniques (#447).
-PR #484 fixes both body-side causes and is open.
+The fix for both body-side causes is held on `rf_shift_equivariance_v2` to
+land with the limb redesign (#128).
 
 Two of the plan's follow-ups turned out to be navigator defects rather than
 kernel work. Rotation fitting is now off for Galileo SSI, so no instrument
@@ -996,8 +1027,9 @@ asserts the generated half matches the registries.
   and confirming the test fails; a test that stays green against a
   deliberately broken implementation is a defect in the test and is reported
   as one.
-- **#483** — re-ratchet the library pins the shift-equivariance fix (#447 /
-  PR #484) moves. Gated on #288: pins cannot be re-ratcheted honestly
+- **#483** — re-ratchet the library pins the shift-equivariance fix (#447)
+  moves. Those deltas arrive with `rf_shift_equivariance_v2` when #128 lands
+  it. Gated on #288: pins cannot be re-ratcheted honestly
   against a baseline that is itself 10/75 red.
 - **#524** — consolidate `test_record_source.py` onto the shared
   results-index fixtures, which already exist and are built by the writer

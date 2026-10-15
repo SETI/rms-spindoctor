@@ -277,8 +277,8 @@ The known open defects:
   whose members score within 1% of each other, and polarity does not
   separate them. Same reduced sub-25 km/px exposure as #346.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
-  weakly-constrained axis. The residual left after the shift-equivariance
-  fix (#447) closes the coarse-grid and boundary-pinning halves.
+  weakly-constrained axis. It is the residual the shift-equivariance fix
+  (#447) leaves once it closes the coarse-grid and boundary-pinning halves.
 - **#350** — N1484593951 misses the offset tolerance by ~2 px after the
   recalibration. The issue names a second frame, N1686349893, whose
   disagreement the measurement attributes to a stale pin on #483 instead.
@@ -296,7 +296,10 @@ The known open defects:
   illuminations. On real frames the fitter contributes only ~0.1 px while
   spacecraft-position / ephemeris error dominates (0.4-1.7 px), so the
   higher-leverage pointing-kernel side (Track D #50) was built first and is
-  delivered.
+  delivered. #128 also carries landing the held shift-equivariance fix
+  (#447): the edge-offset correction that keeps its limb answers from moving
+  inward, the simulated body model adopting the same sub-pixel vertex rule,
+  and the library pins the fix moves (#483).
 - **#282** — a ~0.05 px, one-pixel-period sub-pixel ripple rides on top of
   the directional bias; a higher-order / matched-filter sub-pixel edge
   estimator would remove it. Precision refinement, secondary to #150.
@@ -350,13 +353,19 @@ The known open defects:
   a strongly anisotropic covariance; the haze fit reports a 0.36 px by
   1.02 px oblique ellipse whose orientation varies with the sun direction.
 - **#447** — body techniques do not return the shift they are given, which is
-  the round-trip residual every corrected-pointing consumer inherits. This is
-  the one piece of open work in flight: PR #484 fixes both body-side causes
+  the round-trip residual every corrected-pointing consumer inherits. The fix
   (a sub-pixel silhouette probe, and a per-axis NCC-quadratic fallback for
-  saturated refinement) and files the rest as #476, #482 and #483. It carries
-  nine commits, conflicts with `main`, and is 291 commits behind it; the
-  pixel-convention work since then touches the same silhouette code, so
-  rebasing it is a review, not a merge.
+  saturated refinement) is ported onto `main` as the branch
+  `rf_shift_equivariance_v2` and held there, by operator ruling, as the base
+  for #128 rather than merged. Over 66 library frames it cuts
+  `BodyLimbNav`'s median round-trip residual from 0.118 / 0.082 px to
+  0.051 / 0.047 px (v / u). But on the five library frames that have both an
+  independent star answer and a limb result, it moves the limb answer inward
+  by a mean 0.27 px and farther from the stars on four of them. The model
+  limb now sits on the geometric limb, and the image edge sits inside it
+  (#150); `main`'s whole-pixel vertices were partly canceling that offset.
+  Merged alone it would put the bias into every limb answer, so it lands
+  with #128. The rest of the work is filed as #476, #482 and #483.
 
 **Parallelism:** parallel with Track A, except that the coarse-lock family
 (#346, #476, #373) and the sparse-star-field family (#621, #622, #623, #639)
@@ -554,9 +563,10 @@ cannot follow.
   shortfall is almost entirely PyQt6 widget code. This is an operator call
   before it is an implementer's: raise the number, or ratify a lower floor
   and gate on that one.
-- Tests that cannot fail, which this project has now hit
-  repeatedly: #516 asserts on the row a root-blind write would keep, and re-ratcheting
-  the library pins the shift-equivariance fix moves is #483.
+- Tests that cannot fail, which this project has now hit repeatedly: #516
+  asserts on the row a root-blind write would keep. Re-ratcheting the library
+  pins the shift-equivariance fix moves is #483; those deltas arrive with the
+  held fix branch when #128 lands it.
 - Test-suite hygiene: seventeen test modules over the 1000-line cap (#525),
   POSIX-only constructs behind a Windows-support claim (#473), fixture clock
   seconds that do not follow from their epochs (#530), consolidating
@@ -620,12 +630,9 @@ star-navigation bug fixes (#19, #18) can start any time.
 
 ## 5. Suggested global order
 
-0. **First:** settle PR #484 (#447, the round-trip residual) — rebase it onto
-   `main`, 291 commits and one pixel-convention sweep later, or close it and
-   refile the two body-side fixes. Alongside it, the sparse-star-field family
-   (#621, #622, #623, #639): it is the largest measured confident-wrong
-   family open, and like the coarse-lock family it moves what the agreement
-   study measures.
+0. **First:** the sparse-star-field family (#621, #622, #623, #639): it is
+   the largest measured confident-wrong family open, and like the coarse-lock
+   family it moves what the agreement study measures.
 1. **Then, in parallel:** Track A items 1-4 (library growth, sim
    realism campaign, agreement-estimator real-frame follow-ups, distortion
    feed-in), with the gates above respected -- the coarse-lock family before
@@ -700,16 +707,13 @@ library votes and the decision gates, not by any implementation.
     that did not navigate, #720 one with no backplanes, #677 which kernels
     the metakernel lists) — three scope commitments that decide what the
     generalization to the other three instruments is generalizing.
-12. **PR #484 (#447)** — open since 2026-08-09, nine commits, conflicting
-    with `main` and 291 commits behind it. Rebase it or close it; it cannot
-    stay as it is.
-13. **Metadata document precision (#730)** — whether the metadata document
+12. **Metadata document precision (#730)** — whether the metadata document
     should round any value at all. Today pixel values are stored to four
     decimal places and confidences to three, while the top-level offset beside
     them is stored at full precision, so two fields holding one quantity can
     disagree in the last place. Decide whether every value is stored at full
     precision, with rounding left to reports and logs.
-14. Recurring: library batch votes; agreement-study frame selection; tier
+13. Recurring: library batch votes; agreement-study frame selection; tier
     re-blessing after #230.
 
 ## 7. Issue index (open work by track)

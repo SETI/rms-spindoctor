@@ -1211,7 +1211,23 @@ partial-arc limb fits carry an inward radial bias of about 2 px (#321), which is
 the size of the library's standing `N1484593951_2_CALIB` failure rather than the
 0.1 px this diagnosis explains.
 
+**The shift-equivariance fix is held for this workstream.** The #447 fix, which
+moves the deployed model's limb and terminator vertices to sub-pixel positions
+on the geometric limb, is ported onto `main` as `rf_shift_equivariance_v2` and
+held there as the base for #128 rather than merged. On the five library frames
+that have both an independent star-only answer and a limb result, it moves the
+limb answer inward by a mean 0.27 px and farther from the stars on four of
+them, because the image edge sits inside the geometric limb by more than the
+roughly 0.1 px the simulator measured. Its landing therefore carries the
+model-side edge-offset correction with it, and the simulated body model
+adopting the same sub-pixel vertex rule.
+
 **Tasks.**
+- Land `rf_shift_equivariance_v2` with the redesign: correct the model-side
+ edge offset (#150) so the limb answer's absolute position improves rather
+ than worsens, give `NavModelBodySimulated` the same sub-pixel vertex rule
+ (its inside/outside classifier taken from its own predicted geometry, never
+ the planted truth), and re-ratchet the pins the fix moves (#483).
 - Reconcile the harness's limb ridge with the deployed model's and remove or
  justify the simulated 60-degree phase gate (#646), then re-measure, since the
  ranking below rests on those numbers.
