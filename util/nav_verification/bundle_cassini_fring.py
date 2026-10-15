@@ -48,7 +48,9 @@ __all__ = [
 # to matter to an absolute scale, not to the pixel differences measured here.
 NAC_PLATE_SCALE_URAD = 5.9946
 
-DEFAULT_BUNDLE_DIR = FCPath('/data/fring-bundles/pds4/data_reproj_img')
+DEFAULT_BUNDLE_DIR = FCPath(
+    '/data/fring-bundles/cassini_iss_fring_mosaics_rsfrench2025/data_reproj_img'
+)
 
 _RA = re.compile(r'Navigated Boresight RA\s*=\s*([-\d.]+)')
 _DEC = re.compile(r'Navigated Boresight Dec\s*=\s*([-\d.]+)')
