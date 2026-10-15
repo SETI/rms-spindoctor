@@ -236,20 +236,16 @@ to 7.3 px. The library's ring frames navigate exactly as before.
 
 What remains of the family:
 
-- **The rank-1 axis.** The rings model signs edge normals radially but
-  quantizes their direction to multiples of 45 degrees, and the rank-1 axis
-  is the dominant direction of those normals. For a straight edge at any
-  other orientation the axis is off by up to 22.5 degrees, so the ensemble's
-  minimum-norm representative carries part of the unobservable along-edge
-  component into the answer, and the consensus can exclude a correct body
-  fit as an outlier. Taking the axis from the edge's own vertices is
-  measured: the ensemble's planted-shift round trip across the edge falls
-  from a median 0.39 px (worst 17 px) to 0.02 px (worst 0.26 px), and the two
-  Encke gap frames of #346 navigate to their operator truth. It is held
-  because five `ring_only_flat` sidecars record the quantized angle as their
-  constraint normal (90 or 45 degrees for edges at about 68 and 51 degrees)
-  and would need re-pinning, and the two Encke gap frames then miss only
-  their tier pin (the orbit-channel sigma sits just over 2 px).
+- **The rank-1 axis (fixed).** The rings model signs edge normals radially
+  but quantizes their direction to multiples of 45 degrees, and the rank-1
+  axis was the dominant direction of those normals, off by up to 22.5 degrees
+  for a straight edge at any other orientation. It now comes from the line's
+  own vertices: the ensemble's planted-shift round trip across the edge fell
+  from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px), and the two
+  Encke gap frames of #346 navigate to their operator truth. Five
+  `ring_only_flat` sidecars record the quantized angle as their constraint
+  normal and go red until re-pinned (the proposed values are in the
+  Operator Playbook), and the two Encke gap frames miss only their tier pin.
 - **Nearly straight edges.** An edge that is not flagged straight but barely
   curves across the frame constrains the along-edge component only weakly,
   and the reported covariance does not show it; on the F ring movie frames

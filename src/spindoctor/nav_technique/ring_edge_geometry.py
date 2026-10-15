@@ -118,6 +118,39 @@ def _is_rank_1(covariance: NDArrayFloatType) -> bool:
     return smallest / largest < _RANK1_NULL_RELATIVE_THRESHOLD
 
 
+def _straight_edge_normals(
+    vertices_vu: NDArrayFloatType, normals_vu: NDArrayFloatType
+) -> NDArrayFloatType:
+    """Replace a straight edge's per-vertex normals with the normal of the line itself.
+
+    The rings model takes each vertex's normal from which of its pixel
+    neighbors lie off the edge, so a normal can only point along one of the
+    eight directions a pixel's neighbors make: multiples of 45 degrees.  For a
+    straight edge at any other orientation every one of those normals is off
+    by up to 22.5 degrees, and so is anything built from them -- above all
+    the rank-1 axis, along which the ensemble places its minimum-norm answer,
+    so the off-axis part of the free slide along the edge leaks into the
+    reported offset.  The line's own direction is the principal axis of its
+    vertices; the returned normal is perpendicular to it, in the sense the
+    sum of the original normals points, so the radial outward convention the
+    orbit channel relies on is kept.
+
+    Parameters:
+        vertices_vu: ``(N, 2)`` vertices of one straight edge, ``N >= 2``.
+        normals_vu: ``(N, 2)`` the model's per-vertex normals for that edge.
+
+    Returns:
+        ``(N, 2)`` copies of the line's unit normal.
+    """
+    centered = vertices_vu - vertices_vu.mean(axis=0)
+    _eigvals, eigvecs = np.linalg.eigh(centered.T @ centered)
+    tangent = eigvecs[:, -1]
+    line_normal = np.array([-tangent[1], tangent[0]])
+    if float(line_normal @ normals_vu.sum(axis=0)) < 0.0:
+        line_normal = -line_normal
+    return cast(NDArrayFloatType, np.tile(line_normal, (normals_vu.shape[0], 1)))
+
+
 def _aggregate_normal_orientation(polarity_normals: NDArrayFloatType) -> NDArrayFloatType:
     """Return the dominant unit-normal orientation of the aggregated edges.
 

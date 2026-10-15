@@ -166,7 +166,19 @@ contract explicitly: when every consumed edge is straight (or the raw covariance
 fails the relative-eigenvalue rank test), the translation covariance is rebuilt as the
 exactly singular ``sigma_n^2 n n^T``, where ``n`` is the dominant eigenvector of the
 per-vertex normals' outer-product sum (polarity-sign-independent) and ``sigma_n^2`` the raw
-covariance's marginal variance along it. Exact singularity is the representation the
+covariance's marginal variance along it.
+
+The per-vertex normals of a straight edge are replaced by the line's own normal before
+any of this. The rings model takes each vertex's normal from which of its pixel neighbors
+lie off the edge, so a model normal can only point along one of eight directions, the
+multiples of 45 degrees. On a straight edge at any other orientation every one of them is
+off by up to 22.5 degrees, and an axis built from them puts the ensemble's minimum-norm
+answer on the wrong line: the part of the free slide along the edge that the tilted axis
+does not cancel leaks into the reported offset. The line's direction is the principal
+axis of its vertices, and the normal perpendicular to it is used for every vertex, signed
+the way the model's normals summed. On the library's Keeler gap frames (edges at about 68
+and 51 degrees, reported at 90 and 45) this moved the ensemble's planted-shift round trip
+across the edge from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px). Exact singularity is the representation the
 ensemble is built around: ``pinvh`` keeps the normal-axis measurement when forming the
 information matrix, the combine's rank-deficiency test fires, and the unobservable axis is
 reported through the
@@ -301,11 +313,9 @@ Restrictions and assumptions
   does not show how weak that constraint is. On the same F ring movie frames the answer
   across the edge is within about 2 px of independent pointing while the along-edge
   component is off by 10 to 30 px on some frames.
-- The rank-1 axis is the dominant direction of the per-vertex normals, which the rings
-  model quantizes to multiples of 45 degrees. For a straight edge at any other
-  orientation the axis is off by up to 22.5 degrees, so the minimum-norm representative
-  the ensemble reports carries part of the unobservable along-edge component into the
-  reported offset.
+- A curved edge keeps the model's quantized per-vertex normals. They enter the
+  edge-strength weights and the orbit channel, where a 22.5-degree error costs little;
+  only the straight-edge rank-1 axis takes the line's own normal.
 
 Sources of uncertainty
 ----------------------

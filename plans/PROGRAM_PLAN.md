@@ -292,10 +292,10 @@ The known open defects:
   normal the technique itself is at the DT floor on the library's ring
   frames (median 0.04 px); the large raw residuals are the unobservable
   along-edge component of rank-1 fits. The ensemble's round trip is not
-  (median 0.39 px, worst 17 px), because its rank-1 axis is the quantized
-  one. A fix that takes the axis from the edge's own geometry brings the
-  ensemble to median 0.02 px and is held: five `ring_only_flat` constraint
-  pins record the quantized angle and would need re-pinning. Same reduced
+  (median 0.39 px, worst 17 px), because its rank-1 axis was the quantized
+  one. The axis now comes from the edge's own geometry, which brings the
+  ensemble to median 0.04 px; five `ring_only_flat` constraint pins record
+  the quantized angle and await an operator re-pin. Same reduced
   sub-25 km/px exposure as #346.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix

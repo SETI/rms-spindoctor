@@ -48,6 +48,7 @@ from spindoctor.nav_technique.ring_edge_geometry import (
     _is_rank_1,
     _orbit_inflated_covariance,
     _rank1_projected_covariance,
+    _straight_edge_normals,
 )
 from spindoctor.nav_technique.ring_edge_stats import (
     _EdgeFitStat,
@@ -107,7 +108,14 @@ def _aggregate_ring_edges(
         # (``dot(model, image_gradient) > 0``) accepts edges whose image
         # gradient points across the edge in the same sense as the
         # negated normal.
-        normal_chunks.append(-feat.geometry.normals_vu.astype(np.float64))
+        edge_normals: NDArrayFloatType = feat.geometry.normals_vu.astype(np.float64)
+        if feat.geometry.is_straight_line and feat.geometry.vertices_vu.shape[0] >= 2:
+            # A straight edge's quantized per-vertex normals are replaced by the
+            # line's own normal; see ``_straight_edge_normals``.
+            edge_normals = _straight_edge_normals(
+                feat.geometry.vertices_vu.astype(np.float64), edge_normals
+            )
+        normal_chunks.append(-edge_normals)
         sigma_chunks.append(feat.geometry.sigma_radial_per_vertex_px.astype(np.float64))
         ids.append(feat.feature_id)
     empty_2 = np.empty((0, 2), np.float64)

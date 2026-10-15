@@ -174,12 +174,12 @@ scale.
 shift) and **#346** (three library frames once locked onto the wrong ring
 feature). The coarse seed now checks the overlap seed against edge strength
 and rejects fits on faint scattered-light contours, which removed the lattice
-locks; what remains of the family is the rank-1 axis error (the ring model
-quantizes edge normals to 45 degrees, so a tilted straight edge's reported
-axis is off by up to 22.5 degrees and the ensemble's representative carries
-the unobservable along-edge component into the answer), the along-edge
-component of nearly straight edges, and the pins that encode both. The fix
-for the axis is measured and held pending the re-pins it needs. The Saturn
+locks. The rank-1 axis now comes from a straight edge's own line rather than
+the ring model's 45-degree per-vertex normals, which removes the along-edge
+leak into the ensemble's answer on flat ring frames; the five
+`ring_only_flat` pins that recorded the old axis are listed for re-pinning
+below. What remains is the along-edge component of nearly straight edges.
+The Saturn
 routing decision (annulus composite at and above 25 km/px radial resolution,
 per-edge fit below) limits the family's exposure to the sub-25 km/px regime.
 
@@ -294,6 +294,34 @@ itself. It was the acceptance test for #476, but since the Saturn routing
 decision it no longer runs RingEdgeNav, so it cannot test that fix. The rest
 are pins, not regressions; do not re-ratchet them until the owning issue
 closes.
+
+**Proposed re-pins for the rank-1 axis fix (operator decision; no sidecar has
+been edited).** RingEdgeNav now takes a straight ring edge's rank-1 axis from
+the line itself instead of the rings model's 45-degree per-vertex normals. Five
+`ring_only_flat` sidecars record the quantized angle as their constraint
+normal, so their pins encode the old axis, and the answer `main` reports on
+four of them is 14 to 19 px off across the real edge. The proposed values keep
+the raw fit each frame was verified at and re-express it along the line's own
+normal (from the fixed `aggregate_edge_normal_angle_deg`; regenerated
+independently by the reviewer to within 0.004 px). The original votes were
+cast on overlays rendered at the old representative point, 14 to 19 px off
+the edge, so each new value wants a fresh operator check at the raw fit.
+
+| frame | pinned normal / along-normal | proposed normal / along-normal | branch answer vs proposal |
+|---|---|---|---|
+| N1863267861_1 | 45.0 deg / -27.4128 px | 50.69 deg / -23.2398 px | 0.003 px |
+| N1863268207_1 | 90.0 deg / -20.4941 px | 68.38 deg / -36.1736 px | 0.014 px |
+| N1863269418_1 | 90.0 deg / -3.5032 px | 69.24 deg / -19.0444 px | 0.010 px |
+| N1863269466_1 | 90.0 deg / 1.5777 px | 68.77 deg / -12.8190 px | 0.001 px |
+| N1863269574_1 | 90.0 deg / 4.4777 px | 67.49 deg / -14.8007 px | 0.004 px |
+
+The two Encke gap frames of #346 move the other way: with the axis fixed the
+ensemble keeps the body blob and lands on operator truth (N1867601758_1 at
+(2.90, -0.39) against (2.96, -0.80); N1867602424_1 at (2.48, 11.48) against
+(2.50, 11.34)), and each then misses only its `medium` tier pin, at `low`
+because the ring orbit channel puts the fused sigma just over 2 px.
+N1867602424's own sidecar note predicts exactly that and asks for a
+deliberate re-pin.
 
 **After any navigation-affecting merge, compare against `main` rather than
 against the table:**
@@ -467,10 +495,10 @@ Independent review before done; all CI gates; one PR."
   scoped to sub-25 km/px Saturn scenes by the routing decision. Measured
   across the edge normal, RingEdgeNav's own round trip on the library's ring
   frames is already at the DT floor (median 0.04 px); the ensemble's is not
-  (median 0.39 px, worst 17 px) because of the rank-1 axis error. The axis
-  fix brings the ensemble to median 0.02 px and moves five `ring_only_flat`
-  constraint pins whose recorded normal angle is itself the quantized axis
-  (an operator re-pin decision).
+  (median 0.39 px, worst 17 px) because of the rank-1 axis error; with the
+  axis taken from the line it is 0.04 px (worst 0.31 px). The five
+  `ring_only_flat` constraint pins whose recorded normal angle is the old
+  quantized axis are listed above for an operator re-pin decision.
 - **Gates and the body-witness veto**: #747 (the combined polarity gate keys
   on an LM convergence flag that reads false on most healthy fits; re-derive
   its discriminant against labeled healthy and mis-locked fits, adding the
@@ -596,8 +624,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   gap frames are the rank-1 axis error rather than a wrong lock
 - **#476** RingEdgeNav's round trip under a planted shift: across the edge
   normal the technique is at the DT floor, and the ensemble's error is the
-  rank-1 axis quantization; the measured axis fix waits on re-pinning five
-  `ring_only_flat` constraints; exposure is limited to sub-25 km/px Saturn
+  rank-1 axis quantization, now fixed; the five `ring_only_flat` re-pins it
+  needs are an operator decision; exposure is limited to sub-25 km/px Saturn
   scenes by the routing decision
 - **#482** BodyDiscCorrelateNav misses by up to ~1 px on a weakly-constrained
   axis, the residual the #447 fix leaves (held on `rf_shift_equivariance_v2`
