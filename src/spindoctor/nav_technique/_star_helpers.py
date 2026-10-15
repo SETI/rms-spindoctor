@@ -33,6 +33,7 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = [
     'SimilarityFit',
     'brightness_margin_mag',
+    'is_image_peak',
     'local_centroid',
     'predicted_snr',
     'predicted_vu',
@@ -387,3 +388,44 @@ def detection_peak_ratio(
     if runner_up <= 0.0:
         return math.inf
     return peak / runner_up
+
+
+def is_image_peak(
+    image_ext: NDArrayFloatType,
+    detection_vu: tuple[float, float],
+    peak_dn: float,
+    *,
+    half_px: int,
+) -> bool:
+    """Return whether a window's brightest pixel is a peak of the image itself.
+
+    :func:`local_centroid` takes the brightest pixel inside its search window.
+    When something brighter than any star lies just outside the window -- a
+    ring, a limb, a bright star -- the brightest pixel inside is the edge of
+    that object where the window cuts it, not a source inside the window, and
+    the centroid around it measures nothing.  Such a pixel is the window's
+    maximum without being the image's: a brighter pixel lies beside it beyond
+    the window edge.  This test looks at the image, not the window, in a box
+    around the detection and reports whether anything there outshines the
+    window's peak.
+
+    Parameters:
+        image_ext: 2-D extfov image array the detection was made in.
+        detection_vu: ``(v, u)`` centroid :func:`local_centroid` returned.
+        peak_dn: The brightest value inside the search window, as
+            :func:`local_centroid` returned it.
+        half_px: Half-width of the box examined around the rounded centroid;
+            the centroid box half-width, so the box always holds the peak
+            pixel the centroid was taken around.
+
+    Returns:
+        True when no pixel of the image within the box exceeds ``peak_dn``.
+    """
+    h, w = image_ext.shape
+    v_c = round(detection_vu[0])
+    u_c = round(detection_vu[1])
+    box = image_ext[
+        max(0, v_c - half_px) : min(h, v_c + half_px + 1),
+        max(0, u_c - half_px) : min(w, u_c + half_px + 1),
+    ]
+    return bool(float(np.max(box)) <= peak_dn)

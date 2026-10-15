@@ -578,14 +578,27 @@ against locking onto a noise spike or a hot pixel: the peak must stand clear of 
 window's background, and where there is no rival peak at all to measure against, the match
 is accepted only if it sits close to the predicted position.
 
-With two stars, the technique tries both ways of assigning the two detections to the two
-predictions and keeps the assignment with the smaller combined residual. That comparison
-is a real check, so confidence is capped a little higher, at 0.8.
+With two or more stars, the technique looks for a pair that checks itself. It tries every
+pair among the five brightest predicted stars
+(``techniques.StarUniqueMatchNav.tuning.pair_search_stars``), and for each pair both ways
+of assigning the two detections to the two predictions. A pair is accepted only when the
+two stars imply the same offset to within
+``techniques.StarUniqueMatchNav.tuning.max_residual_px``, 1 pixel by default; two
+correctly matched stars agree to a few tenths of a pixel. Trying more than the brightest
+two matters because the brightest predicted star is often not in the image at all: it can
+fall just off the detector once the pointing error is applied, or under a ring's glare. If
+two different pairs pass and disagree about the offset, the technique does not choose
+between them and reports no answer. A cross-checked pair caps confidence a little higher,
+at 0.8.
 
 The search never covers the whole frame. It reaches
 ``techniques.StarUniqueMatchNav.tuning.search_window_px`` pixels in each direction from
-each prediction, 30 by default, which is what makes this technique work on images where a
-field-wide detection pass would find nothing.
+each prediction, 50 by default, and pairs are also tried within 30 pixels
+(``techniques.StarUniqueMatchNav.tuning.pair_inner_search_window_px``). The window must be
+larger than the pointing error: when a star lies outside it, the brightest thing inside is
+something else. On a Cassini narrow-angle F ring movie the pointing error reaches 43 pixels.
+A window's brightest pixel that sits beside something brighter just outside the window
+-- the edge of a ring where the window cuts it -- is not taken for a star.
 
 StarRefineNav
 ^^^^^^^^^^^^^

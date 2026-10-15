@@ -1,4 +1,4 @@
-"""``StarUniqueMatchNav`` — translation fit when 1 or 2 stars are uniquely matched.
+"""``StarUniqueMatchNav`` — translation fit from one star or a cross-checked pair.
 
 Two paths share one technique:
 
@@ -27,21 +27,31 @@ Two paths share one technique:
   offsets up to ~24 px exist in the operator-verified library, so no
   uniform residual cut below the search window is possible.
 
-- **Two-star path.**  With two predictable stars, the technique tries
-  both detection-to-prediction assignments and picks the one whose
-  joint residual is smaller.  The residual cross-checks the assignment;
-  confidence is capped at the configured two-star limit (default 0.8).
+- **Two-star path.**  Tried first whenever two or more stars are usable.
+  Every pair among the ``pair_search_stars`` brightest usable stars is
+  matched, in a narrow and a wide search window; for each pair the
+  technique tries both detection-to-prediction assignments and keeps the
+  one whose joint residual is smaller.  The residual cross-checks the
+  assignment, so a pair passes only when it is within
+  ``max_residual_px``; confidence is capped at the configured two-star
+  limit (default 0.8).  The first passing pair, brightest stars first,
+  is the answer, unless another passing pair disagrees with it, in which
+  case the result is spurious.  Searching beyond the brightest two is what
+  lets a frame navigate when its brightest predicted star is not in the
+  image -- off the detector, or lost in a ring's glare.
 
 Local-window detection is intentional: the search window is sized to
-the per-instrument SPICE pointing-error envelope, so a brightest peak
-inside the window is the matched detection.  No global star-detection
-pass is needed (and this technique is feasible even on images where
-multi-star detection would fail because the rest of the field is too
-faint or too crowded).
+bracket the SPICE pointing error, so the star lies inside it.  No global
+star-detection pass is needed (and this technique is feasible even on
+images where multi-star detection would fail because the rest of the
+field is too faint or too crowded).  A window's brightest pixel that is
+not a peak of the image itself -- the cut edge of something brighter
+just outside the window -- is not a detection, on either path.
 """
 
 from __future__ import annotations
 
+import itertools
 import math
 from typing import TYPE_CHECKING
 
@@ -54,6 +64,7 @@ from spindoctor.nav_technique._star_helpers import (
     SimilarityFit,
     brightness_margin_mag,
     detection_peak_ratio,
+    is_image_peak,
     local_centroid,
     predicted_snr,
     similarity_transform_fit,
@@ -167,6 +178,10 @@ class StarUniqueMatchNav(NavTechnique):
         self._search_window_px = float(self.tuning['search_window_px'])
         self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
         self._max_residual_px = float(self.tuning['max_residual_px'])
+        self._pair_search_stars = int(self.tuning['pair_search_stars'])
+        self._pair_search_windows_px = sorted(
+            {self._search_window_px, float(self.tuning['pair_inner_search_window_px'])}
+        )
         self._detection_sigma = float(self.tuning['detection_sigma'])
         self._one_star_confidence_cap = float(self.tuning['one_star_confidence_cap'])
         self._two_star_confidence_cap = float(self.tuning['two_star_confidence_cap'])
@@ -205,7 +220,11 @@ class StarUniqueMatchNav(NavTechnique):
         return NavFeasibilityReport(feasible=True, reason='ok', consumed_feature_count=consumed)
 
     def navigate(self, features: list[NavFeature], context: NavContext) -> NavTechniqueResult:
-        """Recover translation from the 1- or 2-star uniquely-bright match.
+        """Recover translation from a cross-checked star pair or a uniquely bright star.
+
+        The pair search runs first (see :meth:`_try_pairs`); the 1-star path runs
+        only when no pair passes.  Passing pairs that disagree make the result
+        spurious without trying the 1-star path.
 
         Parameters:
             features: STAR features (the orchestrator pre-filters by type).
@@ -262,12 +281,86 @@ class StarUniqueMatchNav(NavTechnique):
             image_ext = np.asarray(context.image_ext, np.float64)
             noise_sigma = float(max(context.image_noise_sigma, 1e-9))
             if len(ranked) >= 2:
-                two_star_result = self._try_two_star(
-                    ranked[:2], ranked[2:], image_ext, noise_sigma, context
-                )
-                if two_star_result is not None:
-                    return two_star_result
+                pair_result = self._try_pairs(ranked, features, image_ext, noise_sigma, context)
+                if pair_result is not None:
+                    return pair_result
             return self._try_one_star(ranked[0], ranked[1:], image_ext, noise_sigma, context)
+
+    def _try_pairs(
+        self,
+        ranked: list[NavFeature],
+        features: list[NavFeature],
+        image_ext: NDArrayFloatType,
+        noise_sigma: float,
+        context: NavContext,
+    ) -> NavTechniqueResult | None:
+        """Search pairs of the brightest usable stars for a cross-checked match.
+
+        Every pair among the ``pair_search_stars`` brightest usable stars is tried
+        in each search window (the narrower ``pair_inner_search_window_px`` first,
+        then ``search_window_px``), brightest pairs first.  A pair passes when both
+        stars yield a detection that is a peak of the image and the best
+        assignment's residual is within ``max_residual_px``.  The first passing
+        pair is the answer unless another passing pair puts the offset more than
+        ``2 * max_residual_px`` away from it: two cross-checked answers that
+        disagree mean at least one is a coincidence, and which one cannot be told,
+        so the technique reports spurious.
+
+        Parameters:
+            ranked: Usable star features, brightest predicted SNR first.
+            features: Every feature offered, for the spurious result's IDs.
+            image_ext: The extended-FOV image.
+            noise_sigma: Image noise sigma used by the detection threshold.
+            context: Per-image NavContext.
+
+        Returns:
+            The first passing pair's result, a spurious result when passing pairs
+            disagree, or ``None`` when no pair passes (the caller then tries the
+            1-star path).
+        """
+        n_search = min(len(ranked), self._pair_search_stars)
+        passing: list[NavTechniqueResult] = []
+        n_tried = 0
+        for window_px in self._pair_search_windows_px:
+            for i, j in itertools.combinations(range(n_search), 2):
+                n_tried += 1
+                rest = [f for k, f in enumerate(ranked) if k not in (i, j)]
+                result = self._try_two_star(
+                    [ranked[i], ranked[j]],
+                    rest,
+                    image_ext,
+                    noise_sigma,
+                    context,
+                    search_window_px=window_px,
+                )
+                if result is not None:
+                    passing.append(result)
+        self.logger.info(
+            'Two-star path: %d of %d star pair(s) passed the residual cross-check',
+            len(passing),
+            n_tried,
+        )
+        if not passing:
+            return None
+        chosen = passing[0]
+        tolerance_px = 2.0 * self._max_residual_px
+        chosen_v, chosen_u = chosen.offset_px
+        rivals = [
+            r
+            for r in passing[1:]
+            if math.hypot(r.offset_px[0] - chosen_v, r.offset_px[1] - chosen_u) > tolerance_px
+        ]
+        if rivals:
+            return self._fail(
+                features=features,
+                diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+                reason=(
+                    f'ambiguous_pairs: {len(rivals)} passing star pair(s) put the offset '
+                    f'more than {tolerance_px:.1f} px from the first passing pair'
+                ),
+                fit_rotation=bool(context.fit_camera_rotation),
+            )
+        return chosen
 
     def _try_two_star(
         self,
@@ -276,12 +369,31 @@ class StarUniqueMatchNav(NavTechnique):
         image_ext: NDArrayFloatType,
         noise_sigma: float,
         context: NavContext,
+        *,
+        search_window_px: float,
     ) -> NavTechniqueResult | None:
-        """Attempt the 2-star path; return ``None`` when both detections fail."""
+        """Attempt the 2-star path on one pair of stars.
+
+        Parameters:
+            chosen: The two star features to match.
+            rest: The other usable stars, brightest first, for the
+                brightness-margin diagnostic.
+            image_ext: The extended-FOV image.
+            noise_sigma: Image noise sigma used by the detection threshold.
+            context: Per-image NavContext.
+            search_window_px: Half-width of the window searched around each
+                prediction.
+
+        Returns:
+            The pair's result, or ``None`` when either star has no detection, a
+            detection is the cut edge of something outside its window, both stars
+            resolve to one detection, or the best assignment's residual exceeds
+            ``max_residual_px``.
+        """
         det_a, peak_a = local_centroid(
             image_ext,
             chosen[0].geometry.predicted_vu,  # type: ignore[union-attr]
-            search_window_px=self._search_window_px,
+            search_window_px=search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
             image_noise_sigma=noise_sigma,
             detection_sigma=self._detection_sigma,
@@ -289,7 +401,7 @@ class StarUniqueMatchNav(NavTechnique):
         det_b, peak_b = local_centroid(
             image_ext,
             chosen[1].geometry.predicted_vu,  # type: ignore[union-attr]
-            search_window_px=self._search_window_px,
+            search_window_px=search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
             image_noise_sigma=noise_sigma,
             detection_sigma=self._detection_sigma,
@@ -301,6 +413,15 @@ class StarUniqueMatchNav(NavTechnique):
                 'back to one-star path',
                 peak_a,
                 peak_b,
+            )
+            return None
+        if not (
+            is_image_peak(image_ext, det_a, peak_a, half_px=self._centroid_box_half_px)
+            and is_image_peak(image_ext, det_b, peak_b, half_px=self._centroid_box_half_px)
+        ):
+            self.logger.debug(
+                'Two-star path: a window peak is the cut edge of something brighter '
+                'outside the window, not a source inside it; pair rejected'
             )
             return None
         # Overlapping search windows can return the SAME detection for
@@ -369,7 +490,7 @@ class StarUniqueMatchNav(NavTechnique):
             sim_chosen = None
             rotation_rad = None
         if residual_px > self._max_residual_px:
-            self.logger.info(
+            self.logger.debug(
                 'Two-star path: best-assignment residual %.3f px exceeds '
                 'max_residual_px %.3f; falling back to one-star path',
                 residual_px,
@@ -605,6 +726,19 @@ class StarUniqueMatchNav(NavTechnique):
                 features=[brightest],
                 diagnostics=diagnostics,
                 reason=f'no_detection_above_threshold (peak {peak:.3f} DN)',
+                fit_rotation=bool(context.fit_camera_rotation),
+            )
+        if not is_image_peak(image_ext, det, peak, half_px=self._centroid_box_half_px):
+            diagnostics = StarUniqueMatchDiagnostics(
+                mode='one_star',
+                predicted_snr=brightest_snr,
+                brightness_margin_mag=margin_mag,
+                residual_px=0.0,
+            )
+            return self._fail(
+                features=[brightest],
+                diagnostics=diagnostics,
+                reason='window_peak_not_an_image_peak (a brighter pixel lies outside the window)',
                 fit_rotation=bool(context.fit_camera_rotation),
             )
         pred_v, pred_u = brightest.geometry.predicted_vu  # type: ignore[union-attr]
