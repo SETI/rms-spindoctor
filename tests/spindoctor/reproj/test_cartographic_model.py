@@ -55,11 +55,12 @@ def _make_mosaic(
     lat_max = lat_min + (n_lat - 1) * _LAT_RES
     lon_max = lon_min + (n_lon - 1) * _LON_RES
 
-    if np.isscalar(img_values):
-        scalar_val = img_values if isinstance(img_values, float) else float(img_values)  # type: ignore[arg-type]
-        img_data = np.full(shape, scalar_val, dtype=np.float32)
-    else:
+    # Dispatch on the declared types rather than np.isscalar, whose stub narrows
+    # differently across numpy releases (#741).
+    if isinstance(img_values, np.ndarray):
         img_data = np.asarray(img_values, dtype=np.float32)
+    else:
+        img_data = np.full(shape, img_values, dtype=np.float32)
 
     img_mask = np.ones(shape, dtype=bool) if mask_all else np.zeros(shape, dtype=bool)
     data_mask = np.zeros(shape, dtype=bool)
