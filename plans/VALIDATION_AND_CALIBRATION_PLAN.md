@@ -568,9 +568,9 @@ which was chosen.
 
 The ring locks are not the only contributor of that shape, and the star side
 matters more here than the ring side because Route 3 spends stars as the
-inertial anchor. Star navigation still refuses 25% of the F ring frames it
-was first measured on, in runs (#621), which selects
-the star cohort on something other than the scene. An offset that rests on one
+inertial anchor. Star navigation still refuses 25% of the F ring frames in
+the runs where it was first measured (#621), so a cohort drawn from the frames
+star navigation accepts is selected on something other than the scene. An offset that rests on one
 star carries the status reason `single_star_only` and `matched_star_count` 1:
 its sigma is predicted rather than measured, so a cohort that reads sigma as a
 measurement must exclude it. Each is a reason a frame's disagreement describes

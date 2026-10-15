@@ -353,8 +353,9 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``one_star_max_residual_px`` — float, default ``10.0`` px. Maximum
   prediction-to-detection distance accepted by the 1-star path when the peak-ratio gate
   is vacuous (its no-rival ``inf`` sentinel); beyond it the result is spurious with a
-  ``no_rival_detection`` reason. Default is one third of ``search_window_px`` (the
-  ~1-sigma core of the pointing envelope the 30 px window it was set against brackets).
+  ``no_rival_detection`` reason. Default is one third of the 30 px
+  ``inner_search_window_px`` it was set against (the ~1-sigma core of the pointing
+  envelope that window brackets).
   Not consulted when the peak ratio is finite. Values at or below 0 are invalid.
 - ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
   distance from any search-window axis bound falls within this tolerance is flagged
