@@ -73,7 +73,9 @@ from spindoctor.nav_orchestrator.ensemble_consensus import (
 )
 from spindoctor.nav_orchestrator.ensemble_independence import (
     STAR_CONSENSUS_TECHNIQUES,
+    blend_collapsed_confidence,
     is_single_star_result,
+    matched_star_count_of,
     resolve_independent_estimators,
 )
 from spindoctor.nav_orchestrator.ensemble_observability import (
@@ -430,26 +432,6 @@ def _drop_blob_outlier_against_star_consensus(
             continue
         kept.append(r)
     return kept
-
-
-def _matched_star_count(group: list[NavTechniqueResult]) -> int:
-    """Return how many distinct catalog stars a group of results matched.
-
-    Parameters:
-        group: The results whose consumed features are counted.
-
-    Returns:
-        The number of distinct ``feature_ids`` across the group's star-technique
-        results; ``0`` when none of them is a star technique.
-    """
-    return len(
-        {
-            feature_id
-            for r in group
-            if r.technique_name in STAR_CONSENSUS_TECHNIQUES
-            for feature_id in r.feature_ids
-        }
-    )
 
 
 def _translation_distance_px(a: NavTechniqueResult, b: NavTechniqueResult) -> float:
@@ -887,7 +869,9 @@ def ensemble(
         scattered_light_gradient_score=cfg.scattered_light_gradient_score,
         rcond=cfg.pinvh_rcond,
     )
-    combine_set = resolution.estimators
+    combine_set = blend_collapsed_confidence(
+        resolution.estimators, resolution.collapsed_groups, rcond=cfg.pinvh_rcond
+    )
     for dropped in resolution.dropped_descendants:
         IMAGE_LOGGER.info(
             'Dropping seeded single-star refine %s from the combine: it '
@@ -996,7 +980,7 @@ def ensemble(
                 consensus_techniques=consensus_names,
                 model_metadata=md,
                 annotations=ann,
-                matched_star_count=_matched_star_count(best_group),
+                matched_star_count=matched_star_count_of(best_group),
             )
         IMAGE_LOGGER.info(
             'Excluded %d result(s) from consensus as outlier(s): %s '
@@ -1084,7 +1068,7 @@ def ensemble(
             status_reason=NavStatusReason.BODY_SHAPE_LOCK_SUSPECT,
             model_metadata=md,
             annotations=ann,
-            matched_star_count=_matched_star_count(best_group),
+            matched_star_count=matched_star_count_of(best_group),
         )
     cov = combined.covariance_px2
     sigma_dv = float(math.sqrt(max(cov[0, 0], 0.0)))
@@ -1107,7 +1091,7 @@ def ensemble(
             '(one translation axis unobservable)'
         )
         rank = 'medium'
-    matched_star_count = _matched_star_count(best_group)
+    matched_star_count = matched_star_count_of(best_group)
     # An offset resting on one matched star has no residual: the star's two
     # coordinates fix the two offset parameters exactly.  Its sigma is the
     # centroid precision the feature predicted, not a measured scatter, and a
@@ -1126,6 +1110,15 @@ def ensemble(
             ', '.join(r.technique_name for r in combine_set),
         )
         rank = 'low'
+    elif rank == 'high' and all(is_single_star_result(r) for r in combine_set):
+        # Single-star results on different stars do cross-check each other, but each
+        # rests on one detection whose sigma is predicted; together they top out at
+        # medium (issue #263).
+        IMAGE_LOGGER.info(
+            'Tier capped at medium: every independent estimator is a single-star solution (%s)',
+            ', '.join(r.technique_name for r in combine_set),
+        )
+        rank = 'medium'
     if rank == 'failed':
         # Confidence + sigma combination doesn't earn any tier.  Distinguish the
         # two causes: if the combined confidence cleared the *lowest* tier's

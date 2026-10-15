@@ -14,6 +14,7 @@ import pytest
 from spindoctor.nav_orchestrator.ensemble_independence import (
     IndependenceResolution,
     is_single_star_result,
+    matched_star_count_of,
     resolve_independent_estimators,
 )
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
@@ -361,3 +362,19 @@ def test_r4_keeps_results_on_disjoint_features() -> None:
     res = _resolve([first, second])
     assert res.estimators == [first, second]
     assert res.collapsed_groups == []
+
+
+def test_matched_star_count_counts_only_star_techniques() -> None:
+    """Features a non-star technique consumed are not stars, and the count skips them."""
+    match = _result(
+        technique_name='StarUniqueMatchNav',
+        diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+        feature_ids=('star:a', 'star:b'),
+    )
+    refine = _result(
+        technique_name='StarRefineNav',
+        diagnostics=StarRefineDiagnostics(n_stars_used=3),
+        feature_ids=('star:a', 'star:b', 'star:c'),
+    )
+    limb = _result(technique_name='BodyLimbNav', feature_ids=('limb_arc:MIMAS',))
+    assert matched_star_count_of([match, refine, limb]) == 3

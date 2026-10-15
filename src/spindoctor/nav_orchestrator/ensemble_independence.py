@@ -61,6 +61,7 @@ most features, which holds every measurement the others made; a fit to fewer
 stars can carry the tighter covariance without being the better view.
 """
 
+import dataclasses
 from dataclasses import dataclass
 
 from spindoctor.nav_orchestrator.ensemble_observability import positional_precision
@@ -75,7 +76,9 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 __all__ = [
     'STAR_CONSENSUS_TECHNIQUES',
     'IndependenceResolution',
+    'blend_collapsed_confidence',
     'is_single_star_result',
+    'matched_star_count_of',
     'resolve_independent_estimators',
 ]
 
@@ -355,3 +358,72 @@ def resolve_independent_estimators(
         dropped_descendants=dropped,
         collapsed_groups=collapsed_groups,
     )
+
+
+def matched_star_count_of(group: list[NavTechniqueResult]) -> int:
+    """Return how many distinct catalog stars a group of results matched.
+
+    Parameters:
+        group: The results whose consumed features are counted.
+
+    Returns:
+        The number of distinct ``feature_ids`` across the group's star-technique
+        results; ``0`` when none of them is a star technique.
+    """
+    return len(
+        {
+            feature_id
+            for r in group
+            if r.technique_name in STAR_CONSENSUS_TECHNIQUES
+            for feature_id in r.feature_ids
+        }
+    )
+
+
+def blend_collapsed_confidence(
+    estimators: list[NavTechniqueResult],
+    collapsed_groups: list[list[NavTechniqueResult]],
+    *,
+    rcond: float,
+) -> list[NavTechniqueResult]:
+    """Give each representative of a shared-feature set the set's blended confidence.
+
+    A set of results that consumed common features is one measurement, and its
+    representative stands in for all of them.  The representative's covariance is
+    its own; its confidence is replaced by the precision-weighted mean of the
+    members' confidences -- the average the information-form combine would have
+    taken over the members had they been independent, without the agreement boost
+    their shared measurement does not earn.  Using the representative's own
+    confidence instead would let the most confident view of one measurement set
+    the tier alone.  Sets collapsed for another reason (two ring techniques, disc
+    and limb under scattered light) keep their representative's confidence.
+
+    Parameters:
+        estimators: The independent estimators, representatives included.
+        collapsed_groups: Each collapsed set, representative first.
+        rcond: rcond for the precision weights.
+
+    Returns:
+        The estimators in the same order, with each shared-feature representative
+        replaced by a copy carrying the blended confidence.
+    """
+    blended: dict[int, float] = {}
+    for group in collapsed_groups:
+        shares_features = any(
+            set(a.feature_ids) & set(b.feature_ids)
+            for i, a in enumerate(group)
+            for b in group[i + 1 :]
+        )
+        if not shares_features:
+            continue
+        weights = [positional_precision(r.covariance_px2, rcond=rcond) for r in group]
+        total = sum(weights)
+        if total <= 0.0:
+            continue
+        blended[id(group[0])] = (
+            sum(w * r.confidence for w, r in zip(weights, group, strict=True)) / total
+        )
+    return [
+        dataclasses.replace(r, confidence=blended[id(r)]) if id(r) in blended else r
+        for r in estimators
+    ]

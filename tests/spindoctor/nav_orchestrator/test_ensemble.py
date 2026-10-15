@@ -1101,8 +1101,9 @@ def test_ensemble_two_results_on_one_star_are_one_witness() -> None:
     """A one-star match and the refine of the same star are one witness, not two.
 
     They share the star, so they are collapsed: the fused sigma is the refine's
-    own, not the tighter sigma an independent pair would earn, the agreement
-    boost does not apply, and the result is single_star_only.
+    own, not the tighter sigma an independent pair would earn, the confidence is
+    the members' precision-weighted blend with no agreement boost, and the result
+    is single_star_only.
     """
     match = dataclasses.replace(
         _make_result(
@@ -1134,12 +1135,13 @@ def test_ensemble_two_results_on_one_star_are_one_witness() -> None:
     assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
     assert result.confidence_rank == 'low'
     assert result.sigma_px == pytest.approx((math.sqrt(0.08), math.sqrt(0.08)))
-    assert result.confidence == pytest.approx(0.5)
+    blend = (0.58 / 900.0 + 0.5 / 0.08) / (1 / 900.0 + 1 / 0.08)
+    assert result.confidence == pytest.approx(blend)
     assert result.matched_star_count == 1
 
 
 def test_ensemble_two_single_star_results_on_different_stars_are_two_stars() -> None:
-    """Two agreeing single-star results on different stars corroborate each other."""
+    """Single-star results on two different stars are not single_star_only but stay medium."""
     cov = np.eye(2, dtype=np.float64) * 0.01
     first = dataclasses.replace(
         _make_result(
@@ -1169,6 +1171,7 @@ def test_ensemble_two_single_star_results_on_different_stars_are_two_stars() -> 
     )
     assert result.status_reason == NavStatusReason.OK
     assert result.matched_star_count == 2
+    assert result.confidence_rank == 'medium'
 
 
 def test_ensemble_star_results_sharing_a_star_disagree_beyond_tolerance() -> None:
@@ -1948,3 +1951,53 @@ def test_config_rejects_inverted_phase_window() -> None:
             body_witness_shape_lock_max_phase_deg=95.0,
             body_witness_collapse_min_phase_deg=90.0,
         )
+
+
+def test_ensemble_collapsed_star_set_reports_the_blended_confidence() -> None:
+    """Collapsing results on shared stars cannot raise the tier above the members' blend.
+
+    The seven-star refine represents the set, but the set's confidence is the
+    precision-weighted mean of the members' confidences, as the fusion of the members
+    would give before any agreement boost; the refine's own 0.95 alone would earn high.
+    """
+    stars = tuple(f'star:{i}' for i in range(7))
+    field = dataclasses.replace(
+        _make_result(
+            technique_name='StarFieldFromCatalogNav',
+            offset=(3.0, -1.0),
+            cov=np.eye(2, dtype=np.float64) * 0.09,
+            confidence=0.6,
+            diagnostics=StarFieldDiagnostics(n_inliers=7),
+        ),
+        feature_ids=stars,
+    )
+    match = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(3.1, -1.1),
+            cov=np.eye(2, dtype=np.float64) * 0.05,
+            confidence=0.8,
+            diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+        ),
+        feature_ids=stars[:2],
+    )
+    refine = dataclasses.replace(
+        _make_result(
+            technique_name='StarRefineNav',
+            offset=(3.05, -1.05),
+            cov=np.eye(2, dtype=np.float64) * 0.09,
+            confidence=0.95,
+            diagnostics=StarRefineDiagnostics(n_stars_used=7),
+        ),
+        feature_ids=stars,
+    )
+    result = ensemble(
+        [field, match, refine],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    weights = (1 / 0.09, 1 / 0.05, 1 / 0.09)
+    blend = (weights[0] * 0.6 + weights[1] * 0.8 + weights[2] * 0.95) / sum(weights)
+    assert result.confidence == pytest.approx(blend)
+    assert result.confidence_rank == 'medium'

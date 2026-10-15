@@ -85,7 +85,6 @@ percentile 0.79 px), while a pair in which one result misidentified the star sit
 2.25 px apart. Under the 5 px floor such a pair fused, and the result landed 4.4 px wrong;
 under the shared-feature test it is two answers, and the frame is reported conflicted.
 
-.. Shared-feature agreement: issue #623.
 
 Both distances are measured **only in the intersection of the two results' observable
 subspaces**, not in the full parameter space. A rank-deficient result (a flat-ring
@@ -198,6 +197,12 @@ measurement the others made: a two-star match carries the centroid bound its sta
 and can report a tighter covariance than the seven-star refine that measured the same two
 stars and five more. On the Voyager library frame ``C1205021_GEOMED`` choosing by
 precision alone reported the two-star answer, at a lower tier, over the seven-star fit.
+The representative keeps its own covariance, but its confidence is replaced by the
+members' precision-weighted mean -- the average the information-form combine would take
+over them, without the agreement boost one measurement does not earn -- so collapsing a
+set can lower its tier and never raise it. Taking the representative's own confidence
+instead lets the most confident view of one measurement set the tier alone: on five
+library frames whose offsets did not move it lifted the tier from medium to high.
 The full consensus membership is reported on
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.consensus_techniques` for
 transparency, while the resolved set of independent witnesses drives the
@@ -257,12 +262,12 @@ score:
   result cross-checked by a non-star technique, or two single-star results on different
   stars, is not marked.
 
-A one-star frame typically reports a confidence of exactly 0.500, and that number is a
-cap rather than a measurement. The one-star match and the refine of its star collapse to
-the refine, whose covariance is the tighter by a factor of about ten thousand, and a
-one-inlier refine's confidence is held at its ``single_inlier_confidence_cap`` of 0.5.
+A one-star frame typically reports a confidence of 0.500, and that number is a cap rather
+than a measurement. The one-star match and the refine of its star collapse to the refine,
+whose covariance is the tighter by a factor of about ten thousand, so the blended
+confidence is the refine's, and a one-inlier refine's confidence is held at its
+``single_inlier_confidence_cap`` of 0.5.
 
-.. Single-star marking: issues #263, #622, #623.
 
 Confident-wrong results: what the tiers price and what they cannot
 ------------------------------------------------------------------
