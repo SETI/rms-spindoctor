@@ -265,7 +265,9 @@ witness (#622, #623).
 
 The same code was measured on every star-navigated frame of the published F
 ring bundle (305 observations), with one third of the observations held out
-before any tuning. On the held-out Cassini NAC frames it navigates 2595 of
+before any tuning. Every parameter was derived on the other two thirds; the
+held-out numbers below are the last of four looks at the held-out third
+during development, so they are not a single blind test. On the held-out Cassini NAC frames it navigates 2595 of
 4205 within 2 px (from 1744 on `main`) and 16 more than 2 px wrong (from 64);
 on the frames tuning was done on, 6945 of 10362 (from 4206) and 66 wrong (from
 231); 49 of those 66 rest on one star and carry the low tier.

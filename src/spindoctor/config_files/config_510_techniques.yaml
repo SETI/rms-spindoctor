@@ -704,8 +704,7 @@ techniques:
       brightness_margin_to_next_catalog_star_mag: 1.5
       # Half-width of the search window around each prediction (px), for
       # a camera whose instrument configuration names no
-      # star_search_window_px (Cassini's cameras name theirs, measured
-      # from their own pointing error).  Must bracket the SPICE pointing
+      # star_search_window_px.  Must bracket the SPICE pointing
       # error: when the star lies outside
       # the window, the strongest peak inside it is something else and a
       # one-star match is silently wrong.  On ISS_006RI_LPHRLFMOV001_PRIME
