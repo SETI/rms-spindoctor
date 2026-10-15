@@ -129,7 +129,7 @@ Public fields (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
   1-sigma rotation uncertainty.
 - :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.matched_star_count` — how many
   distinct catalog stars the star techniques among the consensus matched to the image;
-  ``0`` when the offset rests on no star and ``None`` on failure. Emitted in the metadata
+  ``0`` when the offset rests on no star and ``None`` on failure or for a manual alignment. Emitted in the metadata
   JSON as ``matched_star_count``. A value of 1 marks a result with no residual degrees of
   freedom; see :doc:`dev_guide_orchestrator_ensemble`.
 

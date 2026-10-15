@@ -433,7 +433,8 @@ marked conditional.
      - How many different catalog stars the star techniques that formed the
        reported offset matched to the image. ``1`` means the offset rests on a
        single star; see `Single-star results`_. ``0`` when the offset rests on
-       no star, and ``null`` on a failed navigation. A frame can carry more
+       no star, and ``null`` on a failed navigation and on an offset an operator
+       chose by hand. A frame can carry more
        star features than this, because a star that is predicted but not
        found, or found by a technique whose answer was set aside, is not
        counted.
@@ -649,7 +650,6 @@ A consumer that cannot tolerate an occasional wrong frame -- a mosaic in which o
 frame alone covers a stretch of longitude, for instance -- should leave these results
 out or check them against neighboring frames.
 
-.. Single-star marking: issues #622 and #623.
 
 Per-technique entries
 ---------------------

@@ -145,7 +145,8 @@ class NavResult:
             techniques among ``consensus_techniques`` matched to the image,
             counted over every consensus result and so over every star the
             reported offset rests on.  ``0`` when the offset rests on no star;
-            ``None`` when no offset was reported.
+            ``None`` when no offset was reported, or when the offset was not
+            formed by the navigation techniques (a manual alignment).
     """
 
     status: Status
@@ -307,7 +308,7 @@ class NavResult:
         annotations: Annotations | None = None,
         rotation_rad: float | None = None,
         sigma_rotation_rad: float | None = None,
-        matched_star_count: int = 0,
+        matched_star_count: int | None = 0,
     ) -> 'NavResult':
         """Construct a NavResult for a successful navigation.
 

@@ -300,6 +300,8 @@ def run_manual_nav(
         provenance=prep.provenance,
         model_metadata=prep.model_metadata,
         annotations=prep.annotations,
+        # No navigation technique matched stars; the operator aligned the frame.
+        matched_star_count=None,
     )
     # Operator-picked offsets are the highest-quality pointing in the corpus,
     # so they carry the same recorded attitude an autonomous result does; the
