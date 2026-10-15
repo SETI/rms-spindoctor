@@ -261,6 +261,15 @@ score:
   :attr:`~spindoctor.support.status_reason.NavStatusReason.SINGLE_STAR_ONLY`. A single-star
   result cross-checked by a non-star technique, or two single-star results on different
   stars, is not marked.
+- **Two stars or single-star results only.** A result whose independent estimators are
+  all star techniques is capped at ``'medium'`` when they matched two stars or fewer, or
+  when every one of them is a single-star solution. Two stars are the least that checks
+  itself, and nothing checks the pair: a unique-match pair caps its own confidence for
+  that reason, and a refine that consumed the same two stars is no second witness
+  however sharp its own sigma and confidence. Before this cap, a one-star match whose
+  refine kept two inliers reached ``'high'`` on the refine's confidence alone (frame
+  ``N1492074698``, among 16 such answers in the F ring movies set aside for tuning and
+  11 held out). A third star, or a technique of another kind, earns ``'high'``.
 
 A one-star frame typically reports a confidence of 0.500, and that number is a cap rather
 than a measurement. The one-star match and the refine of its star collapse to the refine,

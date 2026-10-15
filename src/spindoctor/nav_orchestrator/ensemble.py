@@ -1119,6 +1119,23 @@ def ensemble(
             ', '.join(r.technique_name for r in combine_set),
         )
         rank = 'medium'
+    elif (
+        rank == 'high'
+        and matched_star_count <= 2
+        and all(r.technique_name in STAR_CONSENSUS_TECHNIQUES for r in combine_set)
+    ):
+        # Two stars are the least that checks itself: their offsets agree or they
+        # do not, and nothing checks the pair.  A unique-match pair caps itself at
+        # medium for that reason, and a star result that consumed the same two
+        # stars in another technique is no second witness, however sharp its own
+        # sigma and confidence.  Only a third star, or a technique of another
+        # kind, earns high.
+        IMAGE_LOGGER.info(
+            'Tier capped at medium: the star estimators rest on %d matched star(s) (%s)',
+            matched_star_count,
+            ', '.join(r.technique_name for r in combine_set),
+        )
+        rank = 'medium'
     if rank == 'failed':
         # Confidence + sigma combination doesn't earn any tier.  Distinguish the
         # two causes: if the combined confidence cleared the *lowest* tier's
