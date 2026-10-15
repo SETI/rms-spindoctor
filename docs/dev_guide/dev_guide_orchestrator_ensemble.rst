@@ -227,22 +227,37 @@ The fused confidence and the per-axis sigma are mapped to a five-bucket rank
 ``min_confidence`` / ``max_sigma_px`` thresholds. Below the ``min_confidence`` floor the
 ensemble returns ``status='failed'``.
 
-Two honesty guards then cap the tier at ``'medium'`` regardless of how well the
-confidence and sigma score:
+Two honesty guards then cap the tier regardless of how well the confidence and sigma
+score:
 
 - **Rank-deficient fused covariance.** When one translation axis is unobservable, the
   observable axis may be pinned precisely but the other is an assumption, not a
-  measurement, so the result is not a ``'high'``-tier absolute fix. The
+  measurement, so the result is not a ``'high'``-tier absolute fix and is capped at
+  ``'medium'``. The
   :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.sigma_along_unobservable_px`
   field carries the same verdict to the metadata.
-- **Single-star consensus.** When every combined member is a single-star solution — a
-  one-star :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
-  match or a one-inlier
-  :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` refine —
-  there is no independent cross-check, so it tops out at ``'medium'`` even when the
-  single-inlier confidence cap sits exactly on the ``'high'`` boundary and the star
-  centroid's CRLB sigma is tight. A single-star result cross-checked by a non-star
-  technique can still earn ``'high'``.
+- **Single-star result.** When the offset rests on one matched star --
+  :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.matched_star_count` is 1 and
+  every independent estimator is a single-star solution (a one-star
+  :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
+  match, a one-inlier
+  :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` refine, or a
+  one-inlier :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav`
+  lock) -- the fit has zero residual degrees of freedom. The star's two coordinates fix the
+  two offset parameters exactly, so the reported sigma is the centroid precision the
+  feature predicted rather than a measured scatter, and a misidentified star is
+  indistinguishable from a correct one. The ``'medium'`` and ``'high'`` tiers both require
+  a sigma, so the result is capped at ``'low'`` and its status reason is
+  :attr:`~spindoctor.support.status_reason.NavStatusReason.SINGLE_STAR_ONLY`. A single-star
+  result cross-checked by a non-star technique, or two single-star results on different
+  stars, is not marked.
+
+A one-star frame typically reports a confidence of exactly 0.500, and that number is a
+cap rather than a measurement. The one-star match and the refine of its star collapse to
+the refine, whose covariance is the tighter by a factor of about ten thousand, and a
+one-inlier refine's confidence is held at its ``single_inlier_confidence_cap`` of 0.5.
+
+.. Single-star marking: issues #263, #622, #623.
 
 Confident-wrong results: what the tiers price and what they cannot
 ------------------------------------------------------------------

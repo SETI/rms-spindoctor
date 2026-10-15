@@ -158,6 +158,7 @@ def cassini_star_and_limb() -> dict[str, Any]:
             extractors=('body:IAPETUS', 'stars'),
         ),
         consensus_techniques=['StarFieldFromCatalogNav', 'BodyLimbNav'],
+        matched_star_count=len(per_technique[0].feature_ids),
     )
     result = with_pointing(
         result,

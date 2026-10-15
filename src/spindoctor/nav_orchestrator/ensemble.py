@@ -432,6 +432,26 @@ def _drop_blob_outlier_against_star_consensus(
     return kept
 
 
+def _matched_star_count(group: list[NavTechniqueResult]) -> int:
+    """Return how many distinct catalog stars a group of results matched.
+
+    Parameters:
+        group: The results whose consumed features are counted.
+
+    Returns:
+        The number of distinct ``feature_ids`` across the group's star-technique
+        results; ``0`` when none of them is a star technique.
+    """
+    return len(
+        {
+            feature_id
+            for r in group
+            if r.technique_name in STAR_CONSENSUS_TECHNIQUES
+            for feature_id in r.feature_ids
+        }
+    )
+
+
 def _translation_distance_px(a: NavTechniqueResult, b: NavTechniqueResult) -> float:
     """Return the Euclidean ``(dv, du)`` distance between two results in pixels.
 
@@ -976,6 +996,7 @@ def ensemble(
                 consensus_techniques=consensus_names,
                 model_metadata=md,
                 annotations=ann,
+                matched_star_count=_matched_star_count(best_group),
             )
         IMAGE_LOGGER.info(
             'Excluded %d result(s) from consensus as outlier(s): %s '
@@ -1063,6 +1084,7 @@ def ensemble(
             status_reason=NavStatusReason.BODY_SHAPE_LOCK_SUSPECT,
             model_metadata=md,
             annotations=ann,
+            matched_star_count=_matched_star_count(best_group),
         )
     cov = combined.covariance_px2
     sigma_dv = float(math.sqrt(max(cov[0, 0], 0.0)))
@@ -1085,21 +1107,25 @@ def ensemble(
             '(one translation axis unobservable)'
         )
         rank = 'medium'
-    if rank == 'high' and all(is_single_star_result(r) for r in combine_set):
-        # A single-star solution's confidence is deliberately capped to say
-        # "weak, no cross-check" (the one-inlier refine caps at exactly the
-        # high tier's confidence boundary), and its localization sigma is
-        # CRLB-tight, so it would otherwise clear the high gates.  A result
-        # whose every combined member rests on one star tops out at medium
-        # (issue #263).  Judged over the independent estimators, so a dropped
-        # seeded single-star refine does not force the cap on an otherwise
-        # multi-star consensus.
+    matched_star_count = _matched_star_count(best_group)
+    # An offset resting on one matched star has no residual: the star's two
+    # coordinates fix the two offset parameters exactly.  Its sigma is the
+    # centroid precision the feature predicted, not a measured scatter, and a
+    # misidentified star looks exactly like a correct one (issues #263, #622,
+    # #623).  Such a result can earn no tier whose gate reads sigma, so it
+    # tops out at low and says why.  Judged over the independent estimators,
+    # so a dropped seeded single-star refine does not mark an otherwise
+    # multi-star consensus.
+    single_star_only = matched_star_count == 1 and all(
+        is_single_star_result(r) for r in combine_set
+    )
+    if single_star_only and rank in ('high', 'medium'):
         IMAGE_LOGGER.info(
-            'Tier capped at medium: every consensus member is a single-star '
-            'solution with no independent cross-check (%s)',
+            'Tier capped at low: the offset rests on one matched star (%s), whose '
+            'sigma is predicted rather than measured',
             ', '.join(r.technique_name for r in combine_set),
         )
-        rank = 'medium'
+        rank = 'low'
     if rank == 'failed':
         # Confidence + sigma combination doesn't earn any tier.  Distinguish the
         # two causes: if the combined confidence cleared the *lowest* tier's
@@ -1132,9 +1158,12 @@ def ensemble(
             model_metadata=md,
             annotations=ann,
         )
-    status_reason = (
-        NavStatusReason.RANK_1_ONLY if combined.is_rank_deficient else NavStatusReason.OK
-    )
+    if combined.is_rank_deficient:
+        status_reason = NavStatusReason.RANK_1_ONLY
+    elif single_star_only:
+        status_reason = NavStatusReason.SINGLE_STAR_ONLY
+    else:
+        status_reason = NavStatusReason.OK
     sigma_rotation_rad: float | None = None
     if combined.rotation_rad is not None and cov.shape == (3, 3):
         sigma_rotation_rad = float(math.sqrt(max(cov[2, 2], 0.0)))
@@ -1155,4 +1184,5 @@ def ensemble(
         annotations=ann,
         rotation_rad=combined.rotation_rad,
         sigma_rotation_rad=sigma_rotation_rad,
+        matched_star_count=matched_star_count,
     )

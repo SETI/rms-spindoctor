@@ -428,6 +428,15 @@ marked conditional.
        the answers were combined: outliers rejected against a consensus of
        several techniques, or the runner-up answer on a conflicted result.
        Empty when every usable answer contributed.
+   * - ``matched_star_count``
+     - integer or null
+     - How many different catalog stars the star techniques that formed the
+       reported offset matched to the image. ``1`` means the offset rests on a
+       single star; see `Single-star results`_. ``0`` when the offset rests on
+       no star, and ``null`` on a failed navigation. A frame can carry more
+       star features than this, because a star that is predicted but not
+       found, or found by a technique whose answer was set aside, is not
+       counted.
    * - ``feature_count_by_type``
      - object
      - Map from feature-type name (see `Feature inventory entries`_) to the
@@ -469,8 +478,8 @@ marked conditional.
 The status_reason vocabulary
 ----------------------------
 
-The full set of values. ``ok`` and ``rank_1_only`` accompany ``status``
-``success``. ``conflicted_techniques`` and ``body_shape_lock_suspect`` accompany
+The full set of values. ``ok``, ``rank_1_only``, and ``single_star_only``
+accompany ``status`` ``success``. ``conflicted_techniques`` and ``body_shape_lock_suspect`` accompany
 ``conflicted``. Every other value accompanies ``failed``.
 
 .. list-table::
@@ -486,6 +495,10 @@ The full set of values. ``ok`` and ``rank_1_only`` accompany ``status``
        unmeasured -- a flat ring edge that has no other feature crossing it,
        for example. ``sigma_along_unobservable_px`` is set. See `One-axis
        results`_.
+   * - ``single_star_only``
+     - Success whose offset rests on one matched star. ``sigma_px`` is the
+       predicted precision of that star's position, nothing measured it, and
+       a misidentified star would look the same. See `Single-star results`_.
    * - ``conflicted_techniques``
      - Multiple agreement groups existed and the best-vs-runner-up
        summed-confidence gap fell below the configured ``agreement_gap``;
@@ -609,6 +622,34 @@ incomplete. One that only needs the measured direction -- a ring radius scale, f
 instance -- can use it as it stands. A second feature that runs across the first,
 such as a body limb or a single identified star, is enough to make both directions
 measurable, and then ``sigma_along_unobservable_px`` is ``null``.
+
+.. _single-star-results:
+
+Single-star results
+-------------------
+
+A star field fixes the pointing correction by matching catalog stars to the stars in
+the image. With two or more stars, each star's position checks the others: if one is
+matched to the wrong source, the stars disagree and the match is refused or reported
+``conflicted``. With one star there is nothing to check against. The star's two image
+coordinates determine the two numbers of the correction exactly, so the fit has no
+residual left to measure its uncertainty from, and a star matched to the wrong source
+produces a result that looks exactly like a correct one.
+
+Such a navigation is still reported as a success, because on the frames measured it is
+almost always right, but the metadata document marks it in three places:
+
+* ``status_reason`` is ``single_star_only``.
+* ``matched_star_count`` is ``1``.
+* ``confidence_rank`` is capped at ``low``. The ``medium`` and ``high`` tiers require
+  a measured uncertainty, and ``sigma_px`` on such a result is the precision the star's
+  brightness predicts for its centroid, not a measurement.
+
+A consumer that cannot tolerate an occasional wrong frame -- a mosaic in which one
+frame alone covers a stretch of longitude, for instance -- should leave these results
+out or check them against neighboring frames.
+
+.. Single-star marking: issues #622 and #623.
 
 Per-technique entries
 ---------------------
@@ -1126,6 +1167,7 @@ entries, four are shown; the two ``TERMINATOR_ARC`` entries follow the same form
         "covariance_px2": [[6.8142, -0.0001], [-0.0001, 6.8185]],
         "techniques_used": ["BodyBlobNav", "BodyLimbNav"],
         "excluded_from_consensus": [],
+        "matched_star_count": 0,
         "feature_count_by_type": {
           "LIMB_ARC": 2,
           "BODY_BLOB": 2,
@@ -1367,6 +1409,7 @@ block follow the same form as the success example and are shortened here.
         "covariance_px2": null,
         "techniques_used": [],
         "excluded_from_consensus": [],
+        "matched_star_count": null,
         "feature_count_by_type": {},
         "per_technique": [],
         "feature_inventory": [],

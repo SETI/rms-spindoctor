@@ -134,7 +134,9 @@ does not:
    * - ``low``
      - Confidence at least 0.35 with no limit on the uncertainty. The offset is
        probably right in direction, but read the reported uncertainty before relying
-       on its size.
+       on its size. An offset that rests on a single star is never placed higher
+       than this, because one star leaves nothing to measure its uncertainty
+       against; its status reason is ``single_star_only``.
    * - ``conflicted``
      - Techniques genuinely disagreed. An offset is reported, and it is suspect.
    * - ``failed``

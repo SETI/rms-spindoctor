@@ -1,6 +1,7 @@
 """Tests for ``spindoctor.nav_orchestrator.ensemble.ensemble`` and helpers."""
 
 import dataclasses
+import math
 
 import numpy as np
 import pytest
@@ -32,6 +33,7 @@ from spindoctor.nav_technique.nav_technique import (
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.exceptions import NavContractError
+from spindoctor.support.status_reason import NavStatusReason
 
 
 def _classifier(*, background_gradient_score: float | None = None) -> NavImageClassifierResult:
@@ -1050,13 +1052,12 @@ def test_ensemble_lone_vs_lone_comparable_confidence_still_conflicts() -> None:
     assert result.confidence_rank == 'conflicted'
 
 
-def test_ensemble_single_inlier_refine_tier_caps_at_medium() -> None:
-    """A lone one-inlier refine never earns the high tier.
+def test_ensemble_single_inlier_refine_is_single_star_only() -> None:
+    """A lone one-inlier refine is marked single_star_only and capped at low.
 
-    The confidence is set above the high tier's min_confidence boundary
-    and the refine's localization sigma is CRLB-tight, so without the
-    single-inlier guard the result would earn high; the guard alone
-    holds it at medium.
+    The confidence is set above the high tier's min_confidence boundary and
+    the refine's localization sigma is CRLB-tight, so without the mark the
+    result would earn high.
     """
     res = _make_result(
         technique_name='StarRefineNav',
@@ -1072,15 +1073,12 @@ def test_ensemble_single_inlier_refine_tier_caps_at_medium() -> None:
         provenance=_provenance(),
     )
     assert result.status == 'success'
-    assert result.confidence_rank == 'medium'
+    assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
+    assert result.confidence_rank == 'low'
 
 
-def test_ensemble_one_star_unique_match_tier_caps_at_medium() -> None:
-    """A lone one-star unique match with tight sigma also tops out at medium.
-
-    The confidence clears the high tier's 0.85 boundary, so the medium
-    outcome isolates the single-star cap rather than the boundary.
-    """
+def test_ensemble_one_star_unique_match_is_single_star_only() -> None:
+    """A lone one-star unique match with tight sigma is single_star_only at low."""
     res = _make_result(
         technique_name='StarUniqueMatchNav',
         offset=(3.06, -0.02),
@@ -1094,26 +1092,38 @@ def test_ensemble_one_star_unique_match_tier_caps_at_medium() -> None:
         image_classifier=_classifier(),
         provenance=_provenance(),
     )
-    assert result.status == 'success'
-    assert result.confidence_rank == 'medium'
+    assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
+    assert result.confidence_rank == 'low'
+    assert result.matched_star_count == 1
 
 
-def test_ensemble_two_single_star_members_still_cap_at_medium() -> None:
-    """Two agreeing single-star results are not an independent cross-check."""
-    cov = np.eye(2, dtype=np.float64) * 0.01
-    match = _make_result(
-        technique_name='StarUniqueMatchNav',
-        offset=(3.06, -0.02),
-        cov=cov,
-        confidence=0.9,
-        diagnostics=StarUniqueMatchDiagnostics(mode='one_star'),
+def test_ensemble_two_results_on_one_star_are_one_witness() -> None:
+    """A one-star match and the refine of the same star are one witness, not two.
+
+    They share the star, so they are collapsed: the fused sigma is the refine's
+    own, not the tighter sigma an independent pair would earn, the agreement
+    boost does not apply, and the result is single_star_only.
+    """
+    match = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(3.06, -0.02),
+            cov=np.eye(2, dtype=np.float64) * 900.0,
+            confidence=0.58,
+            diagnostics=StarUniqueMatchDiagnostics(mode='one_star'),
+        ),
+        feature_ids=('star:UCAC4:1',),
     )
-    refine = _make_result(
-        technique_name='StarRefineNav',
-        offset=(3.10, -0.05),
-        cov=cov,
-        confidence=0.9,
-        diagnostics=StarRefineDiagnostics(n_stars_used=1),
+    refine = dataclasses.replace(
+        _make_result(
+            technique_name='StarRefineNav',
+            offset=(3.06, -0.02),
+            cov=np.eye(2, dtype=np.float64) * 0.08,
+            confidence=0.5,
+            diagnostics=StarRefineDiagnostics(n_stars_used=1),
+        ),
+        feature_ids=('star:UCAC4:1',),
+        prior_source_techniques=frozenset({'StarUniqueMatchNav'}),
     )
     result = ensemble(
         [match, refine],
@@ -1121,8 +1131,44 @@ def test_ensemble_two_single_star_members_still_cap_at_medium() -> None:
         image_classifier=_classifier(),
         provenance=_provenance(),
     )
-    assert result.status == 'success'
-    assert result.confidence_rank == 'medium'
+    assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
+    assert result.confidence_rank == 'low'
+    assert result.sigma_px == pytest.approx((math.sqrt(0.08), math.sqrt(0.08)))
+    assert result.confidence == pytest.approx(0.5)
+    assert result.matched_star_count == 1
+
+
+def test_ensemble_two_single_star_results_on_different_stars_are_two_stars() -> None:
+    """Two agreeing single-star results on different stars corroborate each other."""
+    cov = np.eye(2, dtype=np.float64) * 0.01
+    first = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(3.06, -0.02),
+            cov=cov,
+            confidence=0.9,
+            diagnostics=StarUniqueMatchDiagnostics(mode='one_star'),
+        ),
+        feature_ids=('star:UCAC4:1',),
+    )
+    second = dataclasses.replace(
+        _make_result(
+            technique_name='StarRefineNav',
+            offset=(3.10, -0.05),
+            cov=cov,
+            confidence=0.9,
+            diagnostics=StarRefineDiagnostics(n_stars_used=1),
+        ),
+        feature_ids=('star:UCAC4:2',),
+    )
+    result = ensemble(
+        [first, second],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    assert result.status_reason == NavStatusReason.OK
+    assert result.matched_star_count == 2
 
 
 def test_ensemble_star_results_sharing_a_star_disagree_beyond_tolerance() -> None:
