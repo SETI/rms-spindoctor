@@ -3,7 +3,7 @@
 *The top-level plan of record for all remaining work. It is written to be
 readable without knowledge of the code internals or the statistical
 methodology; the detail lives in the three sub-plans it points to. Last
-reconciled 2026-09-21.*
+reconciled 2026-10-14.*
 
 **Document map** (what to read for what):
 
@@ -142,40 +142,42 @@ its section names):
 1. **Grow the image library** (#172 first stage, #235 growth; WS-3) —
    continuous background work: automated candidate discovery, operator
    votes in batches, sidecar generation. Feeds everything below.
-2. **Prove the simulator realistic** (#227, with #223, #153, #84; WS-2) —
-   the de-circularization is done and on main: an independent forward model,
-   the truth/idealized information partition with an import-graph guard,
-   model-error sweep axes, full detector noise including the I/F path, and
-   the rewritten simulator report. #227 stays open only for the *realism*
+2. **Prove the simulator realistic** (#227, with #223, #153, #84; WS-2) — the
+   de-circularization is done and on main: an independent forward model, the
+   truth/idealized information partition with an import-graph guard,
+   model-error sweep axes, full detector noise including the I/F path, and the
+   rewritten simulator report. #227 stays open only for the *realism*
    residual: the calibration is not yet fitted on the realism-anchored
    renderer configuration, so the realism evidence does not underwrite the
    shipped calibration (#309, the biggest calibration-credibility win
    available); the terminator deliverable is degenerate with no realism
-   verdict (#223); and realism is Cassini-only with the authored scene
-   mixture unvalidated (#309, #341). Closing #227 is the operator's
-   realism-verdict gate, itself gated on #309. The cataloged
-   simulator-fidelity gaps feed #309: stars shining through dark limbs
-   (#325), the 1-LSB calibrated-product floor (#329), zero cosmic-ray
-   transients (#330), per-scene rather than per-detector hot pixels (#331),
-   one PSF kernel per instrument (#332), four unmodeled physical error axes
-   (#333), the render-time budget on oversampled grids (#290), single-annulus
-   rings vs realistic nested ringlets (#377), the placeholder
-   `star_psf_sigma` (#342), the possibly registration-absorbing NAC PSF wing
-   (#343), the constant haze brightness (#344), the truth-side-noise echo
-   into `instrument_config` (#345). Four scene features render something
-   other than what they name -- `limb_relief_rms` carves radial wedges out of
-   the disc (#625), `polyhedral_mesh` bodies render as banded shells (#626),
-   the two haze terms seam the halo at the equator (#627), and a planted roll
-   turns positions but not smear, companions or sky field (#644) -- and the
-   limb-bias harness measures a simulated ridge half a pixel from the
-   deployed one (#646). The scene language itself still has keys that do not
-   say what they mean: stars on pixel indices beside bodies on pixel corners
-   (#641, with the unification in #409), one key naming three quantities
-   (#629), a fluence documented per pixel (#630), a Voyager scene in I/F
-   under a raw-DN marker (#631), ring keys without units (#632), and an
-   editor that authors scenes its own validator refuses (#633). The
-   structural information-boundary guard (#310) and the sim-navigator
-   mirror-parity guard (#311) harden the partition.
+   verdict (#223); and realism is Cassini-only with the authored scene mixture
+   unvalidated (#309, #341). Closing #227 is the operator's realism-verdict
+   gate, itself gated on #309. The cataloged simulator-fidelity gaps feed
+   #309: stars shining through dark limbs (#325), the 1-LSB calibrated-product
+   floor (#329), zero cosmic-ray transients (#330), per-scene rather than
+   per-detector hot pixels (#331), one PSF kernel per instrument (#332), four
+   unmodeled physical error axes (#333), the render-time budget on oversampled
+   grids (#290), single-annulus rings vs realistic nested ringlets (#377), the
+   placeholder `star_psf_sigma` (#342), the possibly registration-absorbing
+   NAC PSF wing (#343), the constant haze brightness (#344), the
+   truth-side-noise echo into `instrument_config` (#345). Four scene features
+   render something other than what they name -- `limb_relief_rms` carves
+   radial wedges out of the disc (#625), `polyhedral_mesh` bodies render as
+   banded shells (#626), the two haze terms seam the halo at the equator
+   (#627), and a planted roll turns positions but not smear, companions or sky
+   field (#644) -- and the limb-bias harness measures a simulated ridge half a
+   pixel from the deployed one (#646). The simulated body model has no
+   silhouette overflow handling, so in most of the calibration's limb scenes
+   it keeps a disc and a witness blob that the production model withholds
+   (#750). The scene language itself still has keys that do not say what they
+   mean: stars on pixel indices beside bodies on pixel corners (#641, with the
+   unification in #409), one key naming three quantities (#629), a fluence
+   documented per pixel (#630), a Voyager scene in I/F under a raw-DN marker
+   (#631), ring keys without units (#632), and an editor that authors scenes
+   its own validator refuses (#633). The structural information-boundary guard
+   (#310) and the sim-navigator mirror-parity guard (#311) harden the
+   partition.
 3. **The agreement-estimator residual** (WS-0) — the estimator, the
    identifiability map, and the known-truth validation are delivered and on
    main under `util/agreement/`. Findings that constrain item 5: the
@@ -220,7 +222,11 @@ its section names):
    fix (#317) is done, so the recalibration no longer trains against those
    rows; the ring orbit-uncertainty severity decision (#316) still sequences
    before it, since it pushes tier boundaries the wrong way, and adopt the
-   calibration's armed falsification criterion (#334).
+   calibration's armed falsification criterion (#334). Whether the low tier
+   carries a sigma ceiling is an operator decision calibrated with it (#751):
+   today any answer that clears the low tier's confidence floor is reported
+   `success` however large its uncertainty, while legitimate blob-only answers
+   on irregular bodies reach a sigma of 18.85 px.
 8. **Close the accuracy tail** (#233 measured star SNR and constant
    sensitivity, WS-9; #150/#128 the known ~0.1 px limb bias, WS-10; #234
    realistic noise for calibrated images, WS-13; #232 end-product
@@ -280,8 +286,8 @@ The known open defects:
   whose members score within 1% of each other, and polarity does not
   separate them. Same reduced sub-25 km/px exposure as #346.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
-  weakly-constrained axis. The residual left after the shift-equivariance
-  fix (#447) closes the coarse-grid and boundary-pinning halves.
+  weakly-constrained axis. It is the residual the shift-equivariance fix
+  (#447) leaves once it closes the coarse-grid and boundary-pinning halves.
 - **#350** — N1484593951 misses the offset tolerance by ~2 px after the
   recalibration. The issue names a second frame, N1686349893, whose
   disagreement the measurement attributes to a stale pin on #483 instead.
@@ -299,7 +305,10 @@ The known open defects:
   illuminations. On real frames the fitter contributes only ~0.1 px while
   spacecraft-position / ephemeris error dominates (0.4-1.7 px), so the
   higher-leverage pointing-kernel side (Track D #50) was built first and is
-  delivered.
+  delivered. #128 also carries landing the held shift-equivariance fix
+  (#447): the edge-offset correction that keeps its limb answers from moving
+  inward, the simulated body model adopting the same sub-pixel vertex rule,
+  and the library pins the fix moves (#483).
 - **#282** — a ~0.05 px, one-pixel-period sub-pixel ripple rides on top of
   the directional bias; a higher-order / matched-filter sub-pixel edge
   estimator would remove it. Precision refinement, secondary to #150.
@@ -349,17 +358,30 @@ The known open defects:
   opaque, refusing frames visible through the C ring or the gaps (#402). The
   symmetry axis is found by searching a backplane for the sunward direction
   where it can be computed (#594).
+- **Gates and the body-witness veto** — the combined polarity gate keys on an
+  LM convergence flag that reads false on most healthy fits and flips with
+  sub-pixel details of the model, so it rejects or keeps fits on an
+  effectively arbitrary signal (#747); the multi-body exclusion counts bodies
+  that have results rather than bodies in the frame (#749); and whether a
+  body's witness blob needs its own overflow limit, separate from its limit as
+  an answer, is a decision (#748).
 - **#400** — the ensemble merge and tier logic have never been exercised on
   a strongly anisotropic covariance; the haze fit reports a 0.36 px by
   1.02 px oblique ellipse whose orientation varies with the sun direction.
 - **#447** — body techniques do not return the shift they are given, which is
-  the round-trip residual every corrected-pointing consumer inherits. This is
-  the one piece of open work in flight: PR #484 fixes both body-side causes
+  the round-trip residual every corrected-pointing consumer inherits. The fix
   (a sub-pixel silhouette probe, and a per-axis NCC-quadratic fallback for
-  saturated refinement) and files the rest as #476, #482 and #483. It carries
-  nine commits, conflicts with `main`, and is 291 commits behind it; the
-  pixel-convention work since then touches the same silhouette code, so
-  rebasing it is a review, not a merge.
+  saturated refinement) is ported onto `main` as the branch
+  `rf_shift_equivariance_v2` and held there, by operator ruling, as the base
+  for #128 rather than merged. Over 66 library frames it cuts
+  `BodyLimbNav`'s median round-trip residual from 0.118 / 0.082 px to
+  0.051 / 0.047 px (v / u). But on the five library frames that have both an
+  independent star answer and a limb result, it moves the limb answer inward
+  by a mean 0.27 px and farther from the stars on four of them. The model
+  limb now sits on the geometric limb, and the image edge sits inside it
+  (#150); `main`'s whole-pixel vertices were partly canceling that offset.
+  Merged alone it would put the bias into every limb answer, so it lands
+  with #128. The rest of the work is filed as #476, #482 and #483.
 
 **Parallelism:** parallel with Track A, except that the coarse-lock family
 (#346, #476, #373) and the sparse-star-field family (#621, #622, #623, #639)
@@ -398,18 +420,20 @@ refinement stage (#398).
 
 Logging is delivered across every pipeline program: one main logger per
 program run and one image logger per image, per-module levels, four
-independently-controlled sinks, and one identical flag set whose defaults
-also live in the configuration file, so learning the logging surface for one
+independently-controlled sinks, and one identical flag set whose defaults also
+live in the configuration file, so learning the logging surface for one
 program teaches it for all of them. Cloud-task workers are silent at the
 terminal and complete in their log files. Three defects the work surfaced are
 open: a mosaic cloud task still reports success when every image in it failed
 (#418), the GUI viewers print library log records to stdout through
 pdslogger's handler-less fallback (#423), and `sd_create_bundle_cloud_tasks`
-is unwired and should be removed rather than fixed (#424). Three follow-ups
-the design deferred are also open: the config namespace that `logging` was
-lifted out of is still organized on no stated axis (#427), an upstream
-registry-eviction request to `rms-pdslogger` (#428), and extending the same
-surface to the `util/` tooling (#429).
+is unwired and should be removed rather than fixed (#424). A log's file name
+is stamped in UTC while the records inside it are stamped in local time, and
+nothing in the file says so (#731). Three follow-ups the design deferred are
+also open: the config namespace that `logging` was lifted out of is still
+organized on no stated axis (#427), an upstream registry-eviction request to
+`rms-pdslogger` (#428), and extending the same surface to the `util/` tooling
+(#429).
 
 The headline capability item is delivered in both halves: the navigator
 records each image's corrected attitude as a C-matrix and `sd_create_ck`
@@ -439,22 +463,23 @@ rebuildable index over the results tree, so programs stop reading one JSON
 document per image on a cloud root, and no program requires it: a run that
 names none reads the tree exactly as it always has. What it actually changed
 is broader than the index — every program that reads a navigation record now
-reads it through one seam over both storages, with one rebuild, one opener
-and one enumerated list of where the two storages answer differently. The
-design is archived at `plans/archive/RESULTS_INDEX_PLAN_2026-08-04.md`;
-current behavior is `docs/user_guide/user_guide_results_index.rst` and its
-dev-guide companion. Its follow-ups divide into three groups: capability
-extensions nobody is blocked on (a document column for bundle
-generation #464, a schema wide enough for the curation triage tool #465, a `--since`
-selector #467, `sd_offset` writing its own rows #486, a pruned-rows
-question #542), operational questions with a decision in them (a documented workflow
+reads it through one seam over both storages, with one rebuild, one opener and
+one enumerated list of where the two storages answer differently. The design
+is archived at `plans/archive/RESULTS_INDEX_PLAN_2026-08-04.md`; current
+behavior is `docs/user_guide/user_guide_results_index.rst` and its dev-guide
+companion. Its follow-ups divide into three groups: capability extensions
+nobody is blocked on (a document column for bundle generation #464, a schema
+wide enough for the curation triage tool #465, a `--since` selector #467,
+`sd_offset` writing its own rows #486, a pruned-rows question #542, and the
+three programs that take the results filters but cannot name a results index
+#736), operational questions with a decision in them (a documented workflow
 for getting the index to cloud workers #466, the consumer open that takes a
-write lock it never needs #462), and correctness or hygiene items
-(#472, #493, #496, #497, #501, #512, #514, #515, #516, #528,
-and #531, #533, #534, #536, #538, #540, #541, plus a stale index that passes
-the version gate and fails on the first read #587, a results tree reached
-through a symlink getting a different stub on each pass #578, and a URL with
-no scheme that should mean a local SQLite file #572).
+write lock it never needs #462), and correctness or hygiene items (#472, #493,
+#496, #497, #501, #512, #514, #515, #516, #528, and #531, #533, #534, #536,
+#538, #540, #541, plus a stale index that passes the version gate and fails on
+the first read #587, a results tree reached through a symlink getting a
+different stub on each pass #578, and a URL with no scheme that should mean a
+local SQLite file #572).
 
 Some items start with an operator decision, because each is a scope
 commitment:
@@ -462,6 +487,7 @@ commitment:
 | Decision | Then the work is |
 |---|---|
 | **Backplane content** (#28 family): finalize the backplane set and formats | #55, #54, #57, #77, then the generator hardening (including the product-correctness defects #251, #252, #253 found by the #241 test suite). |
+| **Metadata document precision** (#730): whether any value is rounded when the metadata document is written | Store every value at full precision and leave rounding to reports and logs, or name what makes a rounded value different; either way the two fields holding the offset agree, and the metadata chapter's rounding table changes with the answer. |
 
 **PDS4 output bundles are required for all four instruments** — not a
 scope decision. The Cassini ISS path runs end to end over a synthetic
@@ -507,19 +533,26 @@ images because phase is not modeled and nothing levels the seams (#616), the
 Minnaert exponent is fixed at 0.5 where the icy satellites need another value
 (#617), each planet's ring target is a literal rather than configuration
 (#618), the products record sub-solar and sub-observer longitude west while
-their grid is east (#634), reading a product from remote storage never
-fetches it (#638), body backplanes read silhouette or visible extent
-depending on which truth field is present (#701), and ring `--zoom` averages
-sub-samples of the output grid where body `--zoom` interpolates the source
-image (#718).
+their grid is east (#634), reading a product from remote storage never fetches
+it (#638), body backplanes read silhouette or visible extent depending on
+which truth field is present (#701), and ring `--zoom` averages sub-samples of
+the output grid where body `--zoom` interpolates the source image (#718).
+`sd_mosaic` carries handling for a missing navigation results root that it can
+never reach, and an unset root ends in a traceback rather than the one-line
+message the configuration-error reporting exists to print (#733); and
+`--resolution-threshold` accepts a value below the 1.0 its contract states as
+the minimum (#738).
 
 Plus, not gated on decisions: the capability matrix itself (#231),
 cloud-operation audit (#108, #67, #141, #142, and the cloud-task items the
-logging work left open, #418 and #424), performance and safe
-parallelism for campaign scale (#236, #103, #134, #126), and config
-validation (#118, which should follow the namespace reorganization #427
-rather than freeze the current grouping into a schema). The user-guide
-completion items are delivered.
+logging work left open, #418 and #424), performance and safe parallelism for
+campaign scale (#236, #103, #134, #126), and config validation (#118, which
+should follow the namespace reorganization #427 rather than freeze the current
+grouping into a schema), and two command-line inconsistencies: `--profile`
+produces no profile in `sd_offset` and does nothing in `sd_backplanes` (#734),
+and `sd_create_ck` and `sd_stats_report` cannot select images with the options
+the other six programs share (#735). The user-guide completion items are
+delivered.
 
 **Parallelism:** decisions can be made any time; the resulting work is
 independent of Tracks A-B except that #232 (end-product accuracy) wants
@@ -549,9 +582,10 @@ cannot follow.
   shortfall is almost entirely PyQt6 widget code. This is an operator call
   before it is an implementer's: raise the number, or ratify a lower floor
   and gate on that one.
-- Tests that cannot fail, which this project has now hit
-  repeatedly: #516 asserts on the row a root-blind write would keep, and re-ratcheting
-  the library pins the shift-equivariance fix moves is #483.
+- Tests that cannot fail, which this project has now hit repeatedly: #516
+  asserts on the row a root-blind write would keep. Re-ratcheting the library
+  pins the shift-equivariance fix moves is #483; those deltas arrive with the
+  held fix branch when #128 lands it.
 - Test-suite hygiene: seventeen test modules over the 1000-line cap (#525),
   POSIX-only constructs behind a Windows-support claim (#473), fixture clock
   seconds that do not follow from their epochs (#530), consolidating
@@ -560,24 +594,25 @@ cannot follow.
   `warn_unreachable` is worth its seven suppressions (#576).
 - Docs: Sphinx nitpicky-clean CI (#129, with the gate the rules already
   require but nothing runs, #438) and terminator-doc verification (#122).
-  Smaller doc defects: the README names two of fourteen command-line
-  programs and links to no guide (#545), four technique guides name a
-  `dt_fitting.py` that is a package (#549), and config placeholder comments
-  still carry an internal codename (#470, #471). Python source carries em
-  dashes and arrows the docstring rule prohibits with nothing gating them
-  (#714), the Qt modules document 7% of their method arguments where the rest
-  of `src` documents 65% (#715), 62 of 64 dev-guide chapters lack the class
-  diagram the rules require (#562), and `library_entry` resolves the PDS3
-  holdings root in a different order than `DataSetPDS3` while saying it does
-  not (#612). Renumbering the configuration
+  Smaller doc defects: the README's Features entries link to no guide (#545),
+  four technique guides name a `dt_fitting.py` that is a package (#549), and
+  config placeholder comments still carry an internal codename (#470, #471).
+  Python source carries em dashes and arrows the docstring rule prohibits with
+  nothing gating them (#714), the Qt modules document 7% of their method
+  arguments where the rest of `src` documents 65% (#715), 62 of 64 dev-guide
+  chapters lack the class diagram the rules require (#562), and
+  `library_entry` resolves the PDS3 holdings root in a different order than
+  `DataSetPDS3` while saying it does not (#612). Renumbering the configuration
   files, whose numbering has grown with odd gaps, is left for later discussion
-  (#712). The per-instrument
-  chapters are written, one per instrument in
-  each guide, as is the metadata-JSON format chapter
-  (docs/user_guide/user_guide_metadata.rst, with a staleness-guard test),
-  along with the filters / uncertainty / troubleshooting dev-guide pages,
-  the mosaic-viewer API-reference pages, and the curation-tooling language
-  pass.
+  (#712). The project rules and checks have fallen behind the `rms-devenv`
+  template they came from, and some now contradict this repository's own
+  configuration (#723). The open-file clamp on a retrieval batch is a
+  workaround to remove once filecache bounds its own lock batches (#725). The
+  per-instrument chapters are written, one per instrument in each guide, as is
+  the metadata-JSON format chapter (docs/user_guide/user_guide_metadata.rst,
+  with a staleness-guard test), along with the filters / uncertainty /
+  troubleshooting dev-guide pages, the mosaic-viewer API-reference pages, and
+  the curation-tooling language pass.
 - Tooling parity: give the `util/` programs the logging surface the
   pipeline programs now have (#429) — several run for hours and report
   through bare `print()`.
@@ -614,12 +649,9 @@ star-navigation bug fixes (#19, #18) can start any time.
 
 ## 5. Suggested global order
 
-0. **First:** settle PR #484 (#447, the round-trip residual) — rebase it onto
-   `main`, 291 commits and one pixel-convention sweep later, or close it and
-   refile the two body-side fixes. Alongside it, the sparse-star-field family
-   (#621, #622, #623, #639): it is the largest measured confident-wrong
-   family open, and like the coarse-lock family it moves what the agreement
-   study measures.
+0. **First:** the sparse-star-field family (#621, #622, #623, #639): it is
+   the largest measured confident-wrong family open, and like the coarse-lock
+   family it moves what the agreement study measures.
 1. **Then, in parallel:** Track A items 1-4 (library growth, sim
    realism campaign, agreement-estimator real-frame follow-ups, distortion
    feed-in), with the gates above respected -- the coarse-lock family before
@@ -694,32 +726,43 @@ library votes and the decision gates, not by any implementation.
     that did not navigate, #720 one with no backplanes, #677 which kernels
     the metakernel lists) — three scope commitments that decide what the
     generalization to the other three instruments is generalizing.
-12. **PR #484 (#447)** — open since 2026-08-09, nine commits, conflicting
-    with `main` and 291 commits behind it. Rebase it or close it; it cannot
-    stay as it is.
-13. Recurring: library batch votes; agreement-study frame selection; tier
+12. **Metadata document precision (#730)** — whether the metadata document
+    should round any value at all. Today pixel values are stored to four
+    decimal places and confidences to three, while the top-level offset beside
+    them is stored at full precision, so two fields holding one quantity can
+    disagree in the last place. Decide whether every value is stored at full
+    precision, with rounding left to reports and logs.
+13. **The witness blob's overflow limit (#748)** — whether a body's witness
+    blob in the body-witness veto keeps its own overflow limit, derived from
+    the veto's tolerance, separate from the limit that withholds it as an
+    answer.
+14. **A sigma ceiling on the low tier (#751)** — whether the lowest confidence
+    tier carries a sigma ceiling, and at what value. It is a calibration
+    choice rather than a derivation, between the 18.85 px that legitimate
+    blob-only answers on irregular bodies reach and the far-off blobs a
+    rejected limb would expose, and it interacts with WS-5.
+15. Recurring: library batch votes; agreement-study frame selection; tier
     re-blessing after #230.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it: 295 issues
-as of 2026-09-28. The count is given so a reader can tell a stale index from
+Every open issue, listed exactly once by the track that owns it: 305 issues
+as of 2026-10-14. The count is given so a reader can tell a stale index from
 a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
-| A — validation & calibration | 65 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675, #727 |
-| B — navigation correctness | 34 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639 |
-| C — statistics & QA | 5 | #240, #340, #533, #535, #724 (plus the standing cross-check and campaign-report practice) |
-| D — capability completion | 89 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720 |
-| E — test & docs debt | 37 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #574, #576, #612, #712, #714, #715, #723, #725, #728, #744 |
+| A — validation & calibration | 67 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675, #727, #750, #751 |
+| B — navigation correctness | 37 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639, #747, #748, #749 |
+| C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
+| D — capability completion | 96 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720, #730, #731, #733, #734, #735, #736, #738 |
+| E — test & docs debt | 36 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #574, #576, #612, #712, #714, #715, #723, #725, #744 |
 | F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
-Priority census across all six tracks: no Critical, 30 Essential, 83
-Important, 127 Useful, 39 Minor, 15 Defer. That accounts for 294 of the 295;
-#723 carries no labels at all and is the one exception to every open issue
-carrying exactly one Priority and one Effort label and at least one each of
-A-type and B-location.
+Priority census across all six tracks: no Critical, 29 Essential, 89
+Important, 133 Useful, 39 Minor, 15 Defer, which accounts for all 305. Every
+open issue carries exactly one Priority and one Effort label and at least one
+each of A-type and B-location.
 
 Cross-listed items (listed once above, noted here): #150/#128 sit in Track B
 and also serve Track A's limb-bias workstream (WS-10); the confident-wrong

@@ -1,7 +1,6 @@
 # SpinDoctor
 
 <!-- pyml disable MD025 -->
-
 [![GitHub release; latest by date](https://img.shields.io/github/v/release/SETI/rms-spindoctor)](https://github.com/SETI/rms-spindoctor/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/SETI/rms-spindoctor)](https://github.com/SETI/rms-spindoctor/releases)
 [![Test Status](https://img.shields.io/github/actions/workflow/status/SETI/rms-spindoctor/run-tests.yml?branch=main)](https://github.com/SETI/rms-spindoctor/actions)

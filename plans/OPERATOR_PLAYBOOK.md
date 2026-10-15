@@ -2,7 +2,7 @@
 
 *Explicit operator instructions — commands to run, files to modify, and
 prompts to hand to agent sessions — for every next step in
-`plans/PROGRAM_PLAN.md` as of 2026-09-21. Work through Section 0 first; after
+`plans/PROGRAM_PLAN.md` as of 2026-10-14. Work through Section 0 first; after
 it, independent and unblocked work can be dispatched in parallel as agent
 sessions. Where a section states an order or a dependency -- Section 0.3's
 groups, or anything gated on #288 -- that order governs.
@@ -69,6 +69,22 @@ Each is a scope commitment the downstream work waits on:
   the results bucket and have each worker download it once, or run a
   PostgreSQL instance. This one also decides whether #464's document column
   is affordable, since it roughly doubles the index size.
+- **#730 whether the metadata document rounds anything**: pixel values are
+  stored to four decimal places and confidences to three, while the top-level
+  offset beside them is stored at full precision, so two fields holding one
+  quantity can disagree in the last place. Store every value at full
+  precision and leave rounding to reports and logs, or say what makes a
+  rounded value different.
+- **#748 the witness blob's overflow limit**: a body's witness blob is
+  withheld above the overflow fraction derived for its role as an answer,
+  while its role as a witness in the body-witness veto survives more
+  clipping. Keep one limit, or give the witness its own, derived from the
+  veto's tolerance.
+- **#751 a sigma ceiling on the low tier**: any answer that clears the low
+  tier's confidence floor is reported `success` however large its
+  uncertainty. Legitimate blob-only answers on irregular bodies reach 18.85
+  px, so any ceiling is a calibration choice; it interacts with the #230
+  recalibration.
 
 ```bash
 gh issue comment 316 --body "Decision: <ship default | ratchet fraction | wander decomposition>"
@@ -83,6 +99,9 @@ gh issue comment 466 --body "Decision: <ship the SQLite file | run PostgreSQL>"
 gh issue comment 600 --body "Decision: <per the enumerated options>"
 gh issue comment 720 --body "Decision: <per the enumerated options>"
 gh issue comment 677 --body "Decision: <per the enumerated options>"
+gh issue comment 748 --body "Decision: <one limit | a separate witness limit derived from the veto tolerance>"
+gh issue comment 751 --body "Decision: <no ceiling | ceiling of <N> px on the low tier>"
+gh issue comment 730 --body "Decision: <store full precision | keep rounding for <values>, because <reason>>"
 ```
 
 - **#557 where the confidence scale should saturate**: the combined
@@ -95,15 +114,6 @@ gh issue comment 677 --body "Decision: <per the enumerated options>"
   not something calibration settles later. An agent can measure where the cap
   binds across the cohort and what the tiers would look like at other
   saturation points; choosing the point is yours.
-
-### 0.1b Rebase or close the one open pull request
-
-PR #484 (#447, the round-trip residual) has been open since 2026-08-09 and
-last saw a commit on 2026-08-10. It carries nine commits, conflicts with
-`main`, and is 291 commits behind it; the pixel-convention work on `main`
-touches the same silhouette code it changes, so this is a review of the fix
-against current code rather than a merge. Dispatch the rebase, or close it
-and refile the two body-side fixes against `main`. Nothing else is in flight.
 
 ### 0.1c Labels and assignees: check five inferred priorities
 
@@ -185,7 +195,8 @@ sits — and are best scoped together.
   batch; #528 with #531 as a metadata-provenance pair; #493 and #496 (run-level
   conditions reported per image); #587 and #578 (a stale index that passes
   the version gate, and a symlinked tree that gets a different stub on each
-  pass); then the tail #472, #497, #524, #572,
+  pass); #736 (three programs that take the results filters cannot name a
+  results index); then the tail #472, #497, #524, #572,
   and #533, #534, #535, #538, #540, #541.
 - **PDS4 bundle:** #717 (fill the Cassini mission area from the observation
   block; it is empty today because fourteen of the names it maps are not
@@ -200,14 +211,18 @@ sits — and are best scoped together.
   disc), #626 (`polyhedral_mesh` bodies render as banded shells), #627 (the
   two haze terms seam the halo at the equator) and #644 (a planted roll turns
   positions but not smear, companions or sky field) — plus #646 (the
-  limb-bias harness measures a ridge half a pixel from the deployed one) and
-  the scene-language batch #629, #630, #631, #632, #633, #641 with #409.
+  limb-bias harness measures a ridge half a pixel from the deployed one), #750
+  (the simulated body model keeps the disc and witness blob that production
+  withholds on a body overflowing the frame), and the scene-language batch
+  #629, #630, #631, #632, #633, #641 with #409.
 - **Reprojection and mosaic products:** #634 (longitudes recorded west on an
   east grid), #638 (a remote product is never fetched), #701 (body backplanes
   read silhouette or visible extent depending on which truth field is
   present), #617 (Minnaert k fixed at 0.5), #618 (ring target from
   configuration), #616 (unleveled mosaic seams), #718 (the two `--zoom`
-  meanings).
+  meanings), #733 (`sd_mosaic`'s unreachable handling of a missing navigation
+  results root, and the traceback that an unset root produces), #738
+  (`--resolution-threshold` accepts a value below 1.0).
 - **Test debt:** #241 and #242 first, because the plan wants tested ground
   under any serious PDS4 or backplane work; then #243, #177, #524,
   #525, #530, #473.
@@ -217,6 +232,10 @@ sits — and are best scoped together.
   turn `main` red on its own.
 - **Products:** #520 (move the pointing selection out of the reprojection
   CLI package); #495 (raw-product dataset names for Cassini ISS).
+- **Command-line programs:** #734 (`--profile` produces no profile in
+  `sd_offset` and does nothing in `sd_backplanes`); #735 (`sd_create_ck` and
+  `sd_stats_report` cannot take the image-selection options the other six
+  programs share).
 - **Docs and cleanup:** #545, #549, #470, #471, #494, #518, #714, #715,
   #562, #612.
 
@@ -274,7 +293,7 @@ pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
 # above. Any delta either way must be attributed in the merging PR.
 ```
 
-The thread pins are not optional and are set nowhere in the repository —
+The thread pins are not optional and are not set anywhere in the repository —
 not in `setup.sh`, not in `conftest.py`, not in CI, not in
 `scripts/run-all-checks.sh` — so every script and every session exports them
 itself. Without them a parallel run saturates the machine.
@@ -406,7 +425,10 @@ Independent review before done; all CI gates; one PR."
   implementation until the design is operator-approved; validation must be
   against real images per WS-10. Address whether the same model-vs-image
   bias applies to non-step (gradual / shouldered) ring edges, not only the
-  limb."
+  limb." The implementation starts from `rf_shift_equivariance_v2`, the
+  #447 fix held as #128's base, and lands it: the edge-offset correction, the
+  simulated body model adopting the same sub-pixel vertex rule, and the pins
+  the fix moves, which go to #483. The measurements are on #447.
 - **#373 (coarse-lock calibration pass)**: "Make the RingEdgeNav coarse
   seed robust against competing edge populations per #373, folding in the
   wrong-lock datapoints from #346."
@@ -438,6 +460,12 @@ Independent review before done; all CI gates; one PR."
   cleanest reproducer in the library: two techniques agree to 0.08 px while
   RingEdgeNav lands 39 px away on 6.7% of its points, so a fix is verifiable
   without operator adjudication and the frame's tier returns on its own.
+- **Gates and the body-witness veto**: #747 (the combined polarity gate keys
+  on an LM convergence flag that reads false on most healthy fits; re-derive
+  its discriminant against labeled healthy and mis-locked fits, adding the
+  healthy frames it cites to the library first) and #749 (the multi-body
+  exclusion counts bodies with results rather than bodies in the frame). #748
+  is an operator decision first (Section 0.1).
 - **Sparse star fields, as one campaign**: #621 (the gates refuse about half
   the frames that are navigable by stars), #622 (a one- or two-star solution
   accepted as success, up to 23 px wrong), #623 (two techniques on one star
@@ -462,7 +490,8 @@ Independent review before done; all CI gates; one PR."
   before it is a coding one); #423 (the GUI viewers print library log
   records to stdout; about ten tests capture that fallback and need their
   capture strategy changed first); #429 (give the `util/` tooling the same
-  logging surface). #427 (reorganize the config namespace) is larger and
+  logging surface); #731 (log file names are stamped in UTC and log records
+  in local time). #427 (reorganize the config namespace) is larger and
   should precede #118.
 - **Sim realism residual (#227)**: the de-circularization is done and on
   main; #227 stays open only for the realism proof and closes at the
@@ -502,7 +531,7 @@ else. Applied to the open items:
 - **Mid-tier or below suffices:** library growth, the agreement study's
   bulk execution (once WS-0 hands it a proven estimator), #229, #311, #373,
   #130, #639, the PDS4 bundle items, the simulator scene-fidelity batch, the
-  logging follow-ups (#418, #423, #424, #429), and the
+  logging follow-ups (#418, #423, #424, #429, #731), and the
   documentation/engineering items.
 
 ## 3c. Tracking-issue register
@@ -544,6 +573,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   where the image was cached rather than where it came from
 - **#462, #466** decisions (Section 0.1)
 - **#464, #465, #467, #486, #542** capability extensions, schedule on demand
+- **#736** three programs that take the results filters cannot name a results
+  index, so their filters always walk the tree
 - **#472, #497, #524, #533, #534, #535, #538, #540, #541** the small tail
 
 **Confident-wrong / ensemble honesty (sequence with #230/WS-5):**
@@ -556,7 +587,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   does not break, so it waits on #373; exposure is limited to sub-25 km/px
   Saturn scenes by the routing decision
 - **#482** BodyDiscCorrelateNav misses by up to ~1 px on a weakly-constrained
-  axis, the residual left after PR #484 closes #447
+  axis, the residual the #447 fix leaves (held on `rf_shift_equivariance_v2`
+  for #128)
 - **#394** shape-lock veto suppression trusts a star fix that could itself be
   wrong-locked, turning a safe `conflicted` into a confident-wrong `success`
 - **#380** correlated-witness fusion collapses to a representative at rho=1;
@@ -574,6 +606,12 @@ deferred until an instrument fits rotation again; a test fails if one does.
   demonstrably navigable by stars (the other side of #622's line)
 - **#591** the sparse 16x16 ring pre-check can skip a frame whose rings fall
   between its samples
+- **#747** the combined polarity gate keys on an LM convergence flag that most
+  healthy fits fail, so it rejects or keeps fits on an arbitrary signal
+- **#749** the multi-body exclusion counts bodies that have results rather
+  than bodies in the frame
+- **#748**, **#751** decisions (Section 0.1): the witness blob's own overflow
+  limit, and a sigma ceiling on the low tier
 
 **Simulator fidelity gaps (feed #309 and the sim follow-ups in Section 3):**
 
@@ -603,6 +641,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   positions but not smear, companions or sky field
 - **#646** the limb-bias harness measures a simulated ridge half a pixel from
   the deployed one
+- **#750** the simulated body model has no silhouette overflow handling, so it
+  keeps the disc and witness blob that production withholds
 - **#641** with **#409** stars sit on pixel indices beside bodies on pixel
   corners; **#629** one artifact key names three quantities; **#630** a
   fluence per cm^2 is documented per pixel; **#631** a Voyager scene renders
@@ -648,6 +688,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   before #118
 - **#428** upstream registry-eviction request to `rms-pdslogger`
 - **#429** give the `util/` tooling the same logging surface
+- **#731** log file names are stamped in UTC while the records inside them are
+  stamped in local time
 
 **Library-frame reds and decisions (Section 1):**
 
@@ -658,7 +700,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
 - **#483** two `primary_technique` pins name a technique the current code
   correctly declines to prefer (N1487595731_1, N1686349893_1); re-ratchet
   them, or stop asserting `primary_technique` where two techniques agree
-  within tolerance
+  within tolerance; the pins the #447 fix moves arrive with
+  `rf_shift_equivariance_v2` when #128 lands it
 
 **PDS4 bundle (the Cassini path runs end to end over the synthetic cohort;
 these are what it owes and what generalizes it):**
@@ -721,8 +764,7 @@ these are what it owes and what generalizes it):**
 
 ```text
 0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #557,
-    #600, #720, #677, #744)                                     (operator, minutes)
-0.1b rebase or close PR #484                                    (operator, minutes)
+    #600, #720, #677, #730, #744, #748, #751)                   (operator, minutes)
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)
