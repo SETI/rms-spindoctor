@@ -286,11 +286,24 @@ bundle's pointing:
 - 19 show two or more stars that the windows do find, refused for reasons not
   yet examined.
 
-The Cassini WAC frames lose ground: 307 of 794 tuning frames navigate within
-2 px against 340 on `main`. Their pointing error is under 15 px, and the 50 px
-window the NAC needs lets a brighter source veto a lone WAC star; a 15 px
-window for the WAC navigates 380 of the 794. 97 of the 113 held-out WAC frames
-have no usable catalog star, the same limiting-magnitude cause as above.
+The search window and the radius within which a lone star is believed are
+set per camera from that camera's pointing error on the tuning frames: the
+NAC's 50 and 30 px hold 98.7% of its frames on each axis and 90.9% radially,
+and the WAC's 13 and 9 px hold the same fractions of its frames, whose error
+reaches 14 px. The WAC navigates 386 of its 794 tuning frames within 2 px
+(340 on `main`) and 13 of its 113 held-out frames (8 on `main`); 97 of those
+113 have no usable catalog star, the same limiting-magnitude cause as above.
+
+One residual is known: a coincidental pair among few stars. On the held-out
+frame `N1760833094` two of four predicted stars agree to 0.75 px at an offset
+35.7 px wrong, reported at the medium tier; the brightest star is detected
+elsewhere and the fourth not at all, so no rule that refuses a pair the other
+stars contradict can see it without also refusing correct pairs. Requiring
+every other searched star to be found and to disagree costs 8 correct
+two-star answers on the tuning frames and catches none there; capping
+two-star answers over a 0.7 px residual at the low tier lowers 43 correct
+ones and catches one answer 2.7 px wrong. It is the only answer more than
+3 px wrong among the 2338 two-star answers measured, tuning and held-out.
 
 ### #128 / #150 — Limb navigation redesign and the ~0.1 px systematic
 
