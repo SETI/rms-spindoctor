@@ -325,10 +325,14 @@ def test_r4_collapses_two_results_on_one_star() -> None:
 
 
 def test_r4_collapses_partly_overlapping_feature_sets() -> None:
-    """A two-star match and a three-star refine sharing both stars are one witness."""
+    """A two-star match and a three-star refine sharing both stars are one witness.
+
+    The refine consumed every star the match did and one more, so it represents the
+    pair even though the match reports the tighter covariance.
+    """
     match = _result(
         technique_name='StarUniqueMatchNav',
-        cov=np.eye(2, dtype=np.float64) * 0.5,
+        cov=np.eye(2, dtype=np.float64) * 0.05,
         diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
         feature_ids=('star:a', 'star:b'),
     )

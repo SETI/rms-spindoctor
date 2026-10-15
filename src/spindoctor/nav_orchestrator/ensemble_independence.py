@@ -55,7 +55,10 @@ remain independent of one another); R2, R3, and R4 are symmetric collapses
 (neither member is subordinate, so the pair is replaced by one representative).  The
 representative of a collapsed set is its highest-positional-precision member,
 with a deterministic tie-break, so the fused offset is the single best view of
-the shared measurement rather than a spuriously tightened average of two.
+the shared measurement rather than a spuriously tightened average of two.  A set
+joined by shared features is represented first by the member that consumed the
+most features, which holds every measurement the others made; a fit to fewer
+stars can carry the tighter covariance without being the better view.
 """
 
 from dataclasses import dataclass
@@ -319,11 +322,23 @@ def resolve_independent_estimators(
         if len(comp) == 1:
             keep.add(comp[0])
             continue
-        # Representative: highest positional precision, then a deterministic
-        # tie-break so the choice never depends on input order or hashing.
+        # Representative: in a set joined by shared features (R4), the member
+        # that consumed the most features, since it holds every measurement the
+        # others made and more; then the highest positional precision; then a
+        # deterministic tie-break so the choice never depends on input order or
+        # hashing.  Feature count comes first because a fit to fewer stars can
+        # report the tighter covariance -- a two-star match carries the
+        # predicted centroid bound, a seven-star fit its measured scatter.
+        shares_features = any(
+            set(survivors[i].feature_ids) & set(survivors[j].feature_ids)
+            for i in comp
+            for j in comp
+            if i < j
+        )
         rep_idx = max(
             comp,
             key=lambda i: (
+                len(set(survivors[i].feature_ids)) if shares_features else 0,
                 positional_precision(survivors[i].covariance_px2, rcond=rcond),
                 survivors[i].technique_name,
                 survivors[i].feature_ids,

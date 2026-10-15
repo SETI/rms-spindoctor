@@ -192,11 +192,16 @@ correcting four known correlations:
 
 The representative of a collapsed set is its highest-positional-precision member (with a
 deterministic tie-break), so the fused offset is the single best view of the shared
-measurement, not a spuriously tightened average of two. The full consensus membership is
-reported on
+measurement, not a spuriously tightened average of two. A set joined by a shared feature
+is represented first by the member that consumed the most features, which holds every
+measurement the others made: a two-star match carries the centroid bound its stars predict
+and can report a tighter covariance than the seven-star refine that measured the same two
+stars and five more. On the Voyager library frame ``C1205021_GEOMED`` choosing by
+precision alone reported the two-star answer, at a lower tier, over the seven-star fit.
+The full consensus membership is reported on
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.consensus_techniques` for
-transparency, while the resolved set of independent witnesses drives the precision-weighted
-fusion, the agreement boost, the quorum count, and the vote mass.
+transparency, while the resolved set of independent witnesses drives the
+precision-weighted fusion, the agreement boost, the quorum count, and the vote mass.
 
 Step 6 — precision-weighted merge
 ---------------------------------
