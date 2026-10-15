@@ -156,9 +156,10 @@ instrument.
 
 **Group 1 — evidence integrity.** Nothing above this in the whole project.
 
-1. **#288 resolution** — 20 of 75 frames are red on `main`, and every one is
+1. **#288 resolution** — 21 of 75 frames are red on `main`, and every one is
    attributed. Two are the Galileo frames awaiting the #744 decision
-   (Section 0.1); ten are star-frame pins the sparse-star-field fixes moved,
+   (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
+   Group 2's #639; ten are star-frame pins the sparse-star-field fixes moved,
    awaiting ratification (Section 0.1); the other eight are under #288. Four are the coarse-lock
    family (#346's three, plus `N1633925572_1`, whose fused sigma the wrong
    ring lock inflates past the `max_sigma_px` boundary and whose tier
@@ -253,9 +254,9 @@ is what makes Group 1 worth starting today.
 ## 1. The library regression, and the deliberately-red set
 
 **Read this before trusting a library run.** In the local integration
-environment 20 of 75 sidecars disagree on `main`: eight under #288, two
-under #744, and ten star-frame pins the sparse-star-field fixes moved, and
-the twenty are exactly the table below, entry for entry. The two under #744
+environment 21 of 75 sidecars disagree on `main`: eight under #288, two
+under #744, one under #639, and ten star-frame pins the sparse-star-field
+fixes moved, and the twenty-one are exactly the table below, entry for entry. The two under #744
 and the ten star pins await your decision in Section 0.1. Three of the eight are
 unresolved judgments rather than settled pins — the two
 `primary_technique` flips on #483, and `N1484593951`'s limb bias — which
@@ -279,6 +280,7 @@ frame no longer navigates).
 | N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
 | N1633925572_1 | expects the medium tier, gets low: a 39 px RingEdgeNav fit inflates the fused sigma past `max_sigma_px` | #476 |
 | C0059894800R, C0059899900R | du error 5.709 px and dv error 3.051 px: the recorded truth is the rotation-fitted answer #560 retired | #744 |
+| N1530185128_1 | dv error 17.472 px: StarUniqueMatchNav is spurious and StarRefineNav seeds on another source; red since the star datum correction (#643) | #639 |
 | N1461997416_1, N1555145539_1, W1449079117_1 | expects the medium tier, gets low: the offset rests on one star, so it is `single_star_only` and capped at low; offsets unchanged | Section 0.1 |
 | N1459552012_1 | expects high, gets medium: three star techniques on the same three stars are one witness, and that witness's own sigma (0.56 px) is over the high tier's 0.5; offset 0.23 px from truth | Section 0.1 |
 | N1483174087_1, N1486991973_1, N1572472169_1, N1806609736_1, W1444747627_1 | expects medium, gets high: the star techniques on shared stars collapse to the widest fit, which reports its own confidence; offsets within 0.1 px of `main` and within 1.1 px of truth | Section 0.1 |
@@ -294,7 +296,7 @@ against the table:**
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
-# Expect, while #288 is open: the same red set as main — the twenty frames
+# Expect, while #288 is open: the same red set as main — the twenty-one frames
 # above. Any delta either way must be attributed in the merging PR.
 ```
 
@@ -544,8 +546,8 @@ with assignee rfrenchseti.
 
 **Evidence integrity (do first; everything else reads what these produce):**
 
-- **#288** 20 of 75 library sidecars disagree on `main` locally, all
-  attributed (two to #744, ten to the star-frame ratification in Section
+- **#288** 21 of 75 library sidecars disagree on `main` locally, all
+  attributed (two to #744, one to #639, ten to the star-frame ratification in Section
   0.1); what is left on it is two stale
   `primary_technique` pins on #483, one limb bias that stays red, and the
   frames owned by #346, #338 and #476; blocks #483 and #547

@@ -68,12 +68,13 @@ instruments (see Track D).
 Two facts about the evidence behind that health are worth stating plainly,
 because both are load-bearing and neither is comfortable. Suite coverage is
 79%, not the 90% two shipped plans' acceptance criteria claim, and nothing
-enforces any floor (#548). And 20 of 75 curated library frames disagree with
+enforces any floor (#548). And 21 of 75 curated library frames disagree with
 their sidecars in the local integration environment: eight under #288, the two
 Galileo frames whose recorded truth is the rotation-fitted answer that the
-change in #560 retired (#744), and ten star frames whose tier the
+change in #560 retired (#744), `N1530185128_1`, whose star centroid lands on a
+neighbor (#639), and ten star frames whose tier the
 sparse-star-field fixes moved, awaiting the operator's ratification. Every one
-of the 20 is attributed, so
+of the 21 is attributed, so
 the regression instrument reads as a known state rather than an unknown one;
 but three of the eight under #288, and both under #744, are judgments still
 owed rather than settled pins, so "no new failures against `main`" remains the
@@ -563,13 +564,14 @@ cannot follow.
 - Summary-PNG unit tests (#177).
 - The image-library regression reconciliation (#288). In the local
   integration environment it is not reduced to the deliberately-red pins:
-  20 of 75 frames disagree, each attributed, which is the
+  21 of 75 frames disagree, each attributed, which is the
   state Track A's evidence has to be read against, and it is what blocks the
   only place a built product is compared between the results tree and the
-  index (#547). Two of the twenty are Galileo frames whose recorded truth is
+  index (#547). Two of the twenty-one are Galileo frames whose recorded truth is
   the rotation-fitted answer that #560 retired; re-recording that truth from
   an outside measurement, or pinning both red under #434, is an operator
-  decision (#744). Ten are star frames whose tier the sparse-star-field fixes
+  decision (#744). One more, `N1530185128_1`, went red with the star datum
+  correction (#643) and is owned by the centroid defect in #639. Ten are star frames whose tier the sparse-star-field fixes
   moved -- one-star solutions capped at low, shared stars counted once -- and
   one of them, `N1571691490_1`, now navigates on three stars 9.3 px from its
   pinned body-blob truth; ratifying those is an operator decision too.

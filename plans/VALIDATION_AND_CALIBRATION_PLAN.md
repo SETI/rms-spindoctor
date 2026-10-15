@@ -66,13 +66,14 @@ on that baseline; each has a tracking issue (cross-map below).
 rather than methodology, and it silently corrupts what every workstream below
 reads:
 
-- **#288** — 20 of the 75 curated library sidecars disagree with `main` in the
+- **#288** — 21 of the 75 curated library sidecars disagree with `main` in the
   local integration environment, so the regression instrument that is supposed
   to detect a navigation change cannot currently do so. Until it is reconciled,
   a navigation-affecting change can only be gated on *no new failures against
   `main`*, and the library's own tiers cannot be read as verified
   expectations. Two are the Galileo frames whose recorded truth is the
-  rotation-fitted answer that #560 retired, an operator decision in #744, and
+  rotation-fitted answer that #560 retired, an operator decision in #744,
+  one, `N1530185128_1`, is owned by the star-centroid defect in #639, and
   ten are star-frame tiers the sparse-star-field fixes moved, awaiting the
   operator's ratification. The other eight are attributed rather than
   mysterious: three are the
@@ -154,7 +155,7 @@ carry the methodology and acceptance criteria):
 | WS-1b | #226 | Reprojection consistency. |
 | WS-2 | #227 (+ #223, #309, #341, #377, #409, #625, #626, #627, #629, #630, #631, #632, #633, #641, #644, #750) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, the scene-coordinate convention split #409 where stars are the outlier, and the scene-authoring defects that make a rendered scene not the scene its keys describe). |
 | WS-17 | #355, #561 | Distortion measured from star fields; the residuals are the per-camera Voyager sim split and the single-sequence cohorts behind the twist verdicts (#561). |
-| WS-3 | #172, #174, #235, #288, #483 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 20 of the 75 sidecars disagree with `main` locally (two of them the Galileo frames of #744, and ten star-frame tiers awaiting ratification), so the library's tiers are not currently verified expectations, and two of the eight under #288 are pins awaiting the operator call in #483. |
+| WS-3 | #172, #174, #235, #288, #483 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 21 of the 75 sidecars disagree with `main` locally (two of them the Galileo frames of #744, one owned by #639, and ten star-frame tiers awaiting ratification), so the library's tiers are not currently verified expectations, and two of the eight under #288 are pins awaiting the operator call in #483. |
 | WS-4 | #229, #426, #324, #336, #335, #340, #548 | CI integration tiers, plus what does not run in Actions today: the agreement-estimator tests (#324), the data-independent simulator suites (#336), the committed sim baselines that have no canonical environment (#335), the cross-check's yes/no primary-technique flag (#340), and the measured 79% line coverage that nothing enforces (#548). |
 | WS-5 | #230, #176, #557, #558, #751 | Real-anchored recalibration once WS-1 anchors exist; the confidence axis is censored from above (#557), the anchor is contaminated until #558 is closed, and whether the low tier carries a sigma ceiling is an operator decision (#751). |
 | WS-6 | #231 | Capability matrix. |

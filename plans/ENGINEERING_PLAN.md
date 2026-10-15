@@ -365,9 +365,7 @@ than the fitter. Fix it before reading any number it produces.
   (18.2 px -> 1.2 px, confidence 0.72 -> 0.40) because
   `StarUniqueMatchNav`'s 30-px search window takes the brightest peak inside a
   slab whose integer bounds move with the prediction — a fragility the datum
-  change tips rather than causes. The pair search of the sparse-star-field
-  fixes navigates it again, 0.4 px from its truth, on a pair the rival does
-  not touch; the fragility itself is #639's.
+  change tips rather than causes.
 - **#641** — a simulator scene states every position that places something in
   it as a pixel corner, which is the same oops uv a star record carries, so
   the record builder copies a scene position through. The shipped scenes moved
@@ -498,8 +496,8 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 20 of 75 library frames red locally (#288, #744, and ten
-  star-frame pins awaiting ratification),
+  degraded: with 21 of 75 library frames red locally (#288, #744, #639, and
+  ten star-frame pins awaiting ratification),
   a cross-check can only be read as "no *new* deltas against `main`".
 
 ## Track D — Capability completion
@@ -1000,13 +998,14 @@ asserts the generated half matches the registries.
   debt with the widest blast radius. In the local integration environment 20
   of 75 sidecars disagree, each one attributed and owned, but the set is
   still wider than the deliberately-pinned one below, so the regression
-  instrument cannot yet be read as clean. Two of the twenty, the Galileo
+  instrument cannot yet be read as clean. Two of the twenty-one, the Galileo
   frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
   answer that the change in #560 retired; re-recording their truth from an
   outside measurement, or pinning them red under #434, is the operator
-  decision in #744. Ten are star-frame tiers the sparse-star-field fixes
-  moved, awaiting the operator's ratification. Two consequences to hold onto: a navigation-affecting
-  branch can only be gated on *no new failures against `main`*, and #547
+  decision in #744. Another, `N1530185128_1`, is owned by the star-centroid
+  defect in #639. Ten are star-frame tiers the sparse-star-field fixes
+  moved, awaiting the operator's ratification. Two consequences to hold
+  onto: a navigation-affecting branch can only be gated on *no new failures against `main`*, and #547
   (the one place a built product is compared between the results tree and
   the results index) is blocked because the frame it needs no longer
   navigates. Reconciling this is prerequisite to #483's re-ratchet and to
@@ -1017,9 +1016,9 @@ asserts the generated half matches the registries.
   open navigation issue (#338, #346, #350). W1444747627 (#352) is re-ratcheted
   to success/medium and green: the star-navigation hardening locks it.
   N1530185128 was re-ratcheted to success/medium under #351, once the ensemble
-  blob-outlier drop let the multi-star fix commit; it went red with the star
-  datum correction (#643) and is green again since the sparse-star-field
-  fixes, whose pair search avoids the rival star #639 describes. N1806609736 (#392) is green as well:
+  blob-outlier drop let the multi-star fix commit, but it has been red since
+  the star datum correction (#643), with a dv error of 17.472 px, and is owned
+  by the star-centroid defect in #639. N1806609736 (#392) is green as well:
   the shape-lock veto no longer misfires when a star fix corroborates the
   limb. N1572105349's pin was owned by #222 (now closed by the independence
   resolution); its autonomous regression should flip green on the next
