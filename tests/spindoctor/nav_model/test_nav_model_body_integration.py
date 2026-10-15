@@ -218,7 +218,6 @@ def test_to_features_co_emits_witness_blob_with_limb_and_disc(fake_obs: FakeObs)
         obs=fake_obs,
         km_per_pixel_at_limb=10.0,
         visible_lit_fraction=BODY_DISC_MIN_VISIBLE_LIT_FRACTION + 0.1,
-        overflow_fraction=_BLOB_MAX_OVERFLOW_FRACTION,
     )
     types = {f.feature_type for f in model.to_features(bare_nav_context(fake_obs))}
     assert NavFeatureType.LIMB_ARC in types
@@ -248,7 +247,8 @@ def test_to_features_witness_blob_follows_overflow_limit(
     """The witness blob beside a limb is withheld only beyond the overflow limit.
 
     The brightness centroid of a silhouette clipped by the frame edge does not locate
-    the body, so it must not be available to stand in for a rejected limb fit.
+    the body within the uncertainty it reports, so it must not be available to stand in
+    for a rejected limb fit.
     """
     model = _build_body(
         obs=fake_obs, km_per_pixel_at_limb=10.0, overflow_fraction=overflow_fraction
