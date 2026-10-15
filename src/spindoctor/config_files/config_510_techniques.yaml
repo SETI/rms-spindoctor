@@ -702,8 +702,11 @@ techniques:
       # Minimum magnitude difference to the next-brightest predictable
       # star for the 1-star path to fire.
       brightness_margin_to_next_catalog_star_mag: 1.5
-      # Half-width of the search window around each prediction (px).
-      # Must bracket the SPICE pointing error: when the star lies outside
+      # Half-width of the search window around each prediction (px), for
+      # a camera whose instrument configuration names no
+      # star_search_window_px (Cassini's cameras name theirs, measured
+      # from their own pointing error).  Must bracket the SPICE pointing
+      # error: when the star lies outside
       # the window, the strongest peak inside it is something else and a
       # one-star match is silently wrong.  On ISS_006RI_LPHRLFMOV001_PRIME
       # the NAC pointing error reaches 43 px (published F ring bundle); a
@@ -714,7 +717,9 @@ techniques:
       # whose error exceeds them outside the window, which the other
       # gates then refuse.
       search_window_px: 50.0
-      # A narrower window inside search_window_px.  The 2-star path also
+      # A narrower window inside search_window_px, for a camera whose
+      # instrument configuration names no star_one_star_radius_px.  The
+      # 2-star path also
       # searches each pair in it, because the strongest peak of the wider
       # window is more often something brighter than the star (a ring, a
       # bright neighbor); a pair found in either window must agree with

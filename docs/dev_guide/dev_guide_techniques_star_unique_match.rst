@@ -307,6 +307,16 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``inner_search_window_px`` — float, default ``30.0`` px. A second, narrower window in
   which the 2-star path also searches each pair. A 1-star detection farther than this from
   its prediction is refused with a ``one_star_detection_beyond_inner_window`` reason.
+
+  Pointing error belongs to a camera, so both values are defaults: a camera whose instrument
+  configuration names ``star_search_window_px`` and ``star_one_star_radius_px`` uses its
+  own (:func:`~spindoctor.nav_technique.nav_technique.star_search_px_for_obs`). Cassini's
+  cameras name theirs from their pointing error against the published F ring bundle, on the
+  movies set aside for tuning: the NAC's 50 and 30 px hold 98.7% of its 10362 star frames on
+  each axis and 90.9% radially, and the WAC's 13 and 9 px hold the same fractions of its 794,
+  whose error reaches 14 px. With the NAC's values the WAC navigates 307 of those frames
+  within 2 px of the bundle; with its own, 386.
+
 - ``psf_sigma_px`` — float, default ``1.0`` px. Gaussian sigma of the matched-filter
   kernel that chooses the detection in each window and measures its isolation; the same
   value ``StarFieldFromCatalogNav`` detects with.

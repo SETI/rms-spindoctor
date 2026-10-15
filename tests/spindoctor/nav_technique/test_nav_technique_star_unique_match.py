@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import math
+from typing import cast
 
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import (
     DrawGaussianStarFactory,
+    FakeObs,
     NavContextFactory,
     NavFeatureFactory,
 )
@@ -698,6 +700,46 @@ def test_star_unique_match_disagreeing_pairs_do_not_fall_back_to_one_star(
         draw_gaussian_star(image, (pred[0] + offset[0], pred[1] + offset[1]), peak_dn=200.0)
         features.append(make_star_feature(star_id, predicted_vu=pred, predicted_snr=snr))
     result = StarUniqueMatchNav().navigate(features, make_nav_context(image))
+    assert result.spurious is True
+
+
+@pytest.mark.parametrize(
+    ('inst_config', 'accepted'), [(None, True), ({'star_one_star_radius_px': 9.0}, False)]
+)
+def test_star_unique_match_believes_a_lone_star_within_the_cameras_radius(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    inst_config: dict[str, float] | None,
+    accepted: bool,
+) -> None:
+    """A lone star 9.6 px off is believed under the technique's radius, not a 9 px camera's."""
+    image = np.zeros((300, 300), dtype=np.float64)
+    draw_gaussian_star(image, (159.6, 150.0), peak_dn=200.0, sigma=1.2)
+    feature = make_star_feature('star:UCAC4:A', predicted_vu=(150.0, 150.0), predicted_snr=60.0)
+    context = make_nav_context(image)
+    cast(FakeObs, context.obs).inst_config = inst_config
+    result = StarUniqueMatchNav().navigate([feature], context)
+    assert (result.spurious is False) is accepted
+
+
+def test_star_unique_match_searches_the_cameras_window(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A pair 20 px from its predictions lies beyond a camera's 13 px window."""
+    image = np.zeros((300, 300), dtype=np.float64)
+    draw_gaussian_star(image, (120.0, 100.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (220.0, 200.0), peak_dn=190.0, sigma=1.2)
+    feat_a = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
+    feat_b = make_star_feature('star:UCAC4:B', predicted_vu=(200.0, 200.0), predicted_snr=58.0)
+    context = make_nav_context(image)
+    cast(FakeObs, context.obs).inst_config = {
+        'star_search_window_px': 13.0,
+        'star_one_star_radius_px': 9.0,
+    }
+    result = StarUniqueMatchNav().navigate([feat_a, feat_b], context)
     assert result.spurious is True
 
 

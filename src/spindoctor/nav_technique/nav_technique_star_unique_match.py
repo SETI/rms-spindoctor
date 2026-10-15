@@ -96,6 +96,7 @@ from spindoctor.nav_technique.nav_technique import (
     reported_position_vu,
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
+    star_search_px_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.types import NDArrayFloatType
@@ -198,9 +199,6 @@ class StarUniqueMatchNav(NavTechnique):
         self._pair_search_stars = int(self.tuning['pair_search_stars'])
         self._pair_contradiction_stars = int(self.tuning['pair_contradiction_stars'])
         self._inner_search_window_px = float(self.tuning['inner_search_window_px'])
-        self._pair_search_windows_px = sorted(
-            {self._search_window_px, self._inner_search_window_px}
-        )
         self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
         self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
         self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
@@ -345,7 +343,7 @@ class StarUniqueMatchNav(NavTechnique):
         n_search = min(len(ranked), self._pair_search_stars)
         passing: list[tuple[NavTechniqueResult, float]] = []
         n_tried = 0
-        for window_px in self._pair_search_windows_px:
+        for window_px in sorted(set(self._windows(context))):
             for i, j in itertools.combinations(range(n_search), 2):
                 n_tried += 1
                 rest = [f for k, f in enumerate(ranked) if k not in (i, j)]
@@ -405,6 +403,14 @@ class StarUniqueMatchNav(NavTechnique):
                 fit_rotation=bool(context.fit_camera_rotation),
             )
         return chosen
+
+    def _windows(self, context: NavContext) -> tuple[float, float]:
+        """Return the search half-width and the lone-star radius for this camera."""
+        return star_search_px_for_obs(
+            context,
+            window_px=self._search_window_px,
+            one_star_px=self._inner_search_window_px,
+        )
 
     def _isolated_detection(
         self,
@@ -735,6 +741,7 @@ class StarUniqueMatchNav(NavTechnique):
         there; a finite ratio was measured against real background
         statistics and acceptance stays with the ambiguity gate.
         """
+        search_window_px, one_star_px = self._windows(context)
         brightest_snr = predicted_snr(brightest)
         next_snr = predicted_snr(rest[0]) if rest else 0.0
         margin_mag = brightness_margin_mag(brightest_snr, next_snr)
@@ -757,7 +764,7 @@ class StarUniqueMatchNav(NavTechnique):
         det, peak = local_centroid(
             image_ext,
             brightest.geometry.predicted_vu,  # type: ignore[union-attr]
-            search_window_px=self._search_window_px,
+            search_window_px=search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
             psf_sigma_px=self._psf_sigma_px,
             max_peak_sharpness=self._max_peak_sharpness,
@@ -784,7 +791,7 @@ class StarUniqueMatchNav(NavTechnique):
             refusal = (
                 'window_peak_not_a_point_source (part of an extended source, or a cosmic-ray track)'
             )
-        elif math.hypot(det[0] - pred_v, det[1] - pred_u) > self._inner_search_window_px:
+        elif math.hypot(det[0] - pred_v, det[1] - pred_u) > one_star_px:
             # The wider window is searched so that a brighter source in it vetoes
             # a fainter one near the prediction; a lone detection is accepted
             # only inside the inner window, since nothing cross-checks it and the
@@ -792,7 +799,7 @@ class StarUniqueMatchNav(NavTechnique):
             refusal = (
                 f'one_star_detection_beyond_inner_window (offset '
                 f'({det[0] - pred_v:.3f}, {det[1] - pred_u:.3f}) px, more than '
-                f'{self._inner_search_window_px:.1f} px from the prediction)'
+                f'{one_star_px:.1f} px from the prediction)'
             )
         if refusal is not None:
             diagnostics = StarUniqueMatchDiagnostics(
@@ -818,7 +825,7 @@ class StarUniqueMatchNav(NavTechnique):
             image_ext,
             (pred_v, pred_u),
             det,
-            search_window_px=self._search_window_px,
+            search_window_px=search_window_px,
             exclude_half_px=self._centroid_box_half_px + 2,
         )
         if peak_ratio < self._one_star_min_peak_ratio:

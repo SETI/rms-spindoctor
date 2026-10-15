@@ -604,7 +604,9 @@ at 0.8.
 The search never covers the whole frame. It reaches
 ``techniques.StarUniqueMatchNav.tuning.search_window_px`` whole pixels in each direction
 from the pixel holding each prediction, 50 by default, and pairs are also tried within 30
-pixels (``techniques.StarUniqueMatchNav.tuning.inner_search_window_px``). The window must
+pixels (``techniques.StarUniqueMatchNav.tuning.inner_search_window_px``). A camera's own
+configuration can set both to match that camera's pointing error, as the instrument
+chapters describe. The window must
 be larger than the pointing error: a star whose center lies outside that reach is not
 found, even when some of its light falls inside it. On a Cassini narrow-angle F ring movie
 the pointing error reaches 43 pixels. A single star, which nothing can check, is accepted
