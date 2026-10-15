@@ -185,6 +185,23 @@ frames, and a margin that is right for one is wrong for the other:
      - ``[50, 140]``
      - ``[5, 10]``
 
+**Star search reach.** A star's search window reaches 50 pixels either side of its
+predicted position for the narrow angle camera and 13 for the wide angle camera, and a
+lone star with nothing to check it against is believed within 30 and 9 pixels
+respectively. Each pair of values comes from that camera's own pointing error, measured
+against the published F ring bundle: on the frames used to set them, the window holds
+98.7% of the frames on each axis and the radius holds 90.9%. The narrow angle camera's
+error reaches 82 pixels, the wide angle camera's 14. The values are
+``star_search_window_px`` and ``star_one_star_radius_px`` in each camera's block.
+
+**Sharp narrow angle stars.** A narrow angle star's image (point-spread sigma 0.54
+pixels) is sharper than the footprint over which the star techniques weigh a source, so
+a single-pixel cosmic ray or hot pixel outshines it once the spike reaches about 1.7
+times the star's peak, or 2.5 times when the star sits on a pixel corner. The
+techniques pass over a peak sharper than any star; at the positions of 6322 catalog
+stars in narrow angle F ring frames, that limit passed over two sources, one of them a hot
+pixel.
+
 **Camera rotation.** Rotation fitting is off for both cameras. Offsets are
 two degrees of freedom, ``(dv, du)``, and no rotation is reported. That is a
 measured decision rather than a default: the twist is one common value, so

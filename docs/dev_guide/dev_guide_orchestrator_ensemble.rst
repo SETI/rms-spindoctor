@@ -72,6 +72,20 @@ per-technique covariances are CRLB-tight — well below the actual position unce
 driven by model error — so results agreeing visually to a few pixels can register as
 hundreds of sigmas apart.
 
+Two results that consumed a common feature are judged differently: they agree when their
+translation distance is at most ``shared_feature_agreement_px`` (default 1.5 px), and
+neither the Mahalanobis test nor the pixel floor applies. Both located the same feature in
+the same image. If they found the same detection of it, their answers coincide to the
+centroid precision; if they did not, one of them has misidentified it, and no covariance
+can tell the two cases apart (a one-star unique match reports its travel distance from the
+prediction as its uncertainty, which lets it agree with anything). On the 1030 frames of
+``ISS_006RI_LPHRLFMOV001_PRIME``, star results sharing a star whose answers are both within
+2 px of the published F ring bundle never sit more than 1.27 px apart (1607 pairs, 99th
+percentile 0.79 px), while a pair in which one result misidentified the star sits at least
+2.25 px apart. Under the 5 px floor such a pair fused, and the result landed 4.4 px wrong;
+under the shared-feature test it is two answers, and the frame is reported conflicted.
+
+
 Both distances are measured **only in the intersection of the two results' observable
 subspaces**, not in the full parameter space. A rank-deficient result (a flat-ring
 rank-1 fit, or a rotation-unobservable star result) carries meaningless values along
@@ -140,7 +154,7 @@ error source, and fusing them anyway over-tightens the covariance (inflating the
 spuriously boosts the confidence, and lets a redundant member drag the offset. Before the
 merge, :func:`~spindoctor.nav_orchestrator.ensemble_independence.resolve_independent_estimators`
 resolves the winning subset into the set of estimators the merge may treat as independent,
-correcting three known correlations:
+correcting four known correlations:
 
 - **Seeded single-star refine.** A one-inlier
   :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` seeded by a
@@ -163,14 +177,36 @@ correcting three known correlations:
   rather than the body, correlating their errors; the disc and limb results on one body are
   then collapsed to a single representative. On a clean frame (score below the threshold)
   they remain two independent witnesses.
+- **Two results on one feature.** Two results whose
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.feature_ids` share an
+  entry measured that feature twice. The three star techniques centroid the same detections
+  of the same catalog stars: a one-star unique match and the one-inlier refine of that star
+  agree to the last digit because they are one measurement, and a misidentified star moves
+  both by the same amount. Such results are collapsed to a single representative. Every
+  non-star technique consumes a feature type no other technique reads, so the rule acts on
+  the star family in practice; it is stated over features so that it holds for any
+  technique that comes to share one. Fusing the pair as two witnesses is what reported
+  a 0.3 px sigma, with no spread between the techniques, on one-star frames that were 36
+  and 54 px wrong.
 
 The representative of a collapsed set is its highest-positional-precision member (with a
 deterministic tie-break), so the fused offset is the single best view of the shared
-measurement, not a spuriously tightened average of two. The full consensus membership is
-reported on
+measurement, not a spuriously tightened average of two. A set joined by a shared feature
+is represented first by the member that consumed the most features, which holds every
+measurement the others made: a two-star match carries the centroid bound its stars predict
+and can report a tighter covariance than the seven-star refine that measured the same two
+stars and five more. On the Voyager library frame ``C1205021_GEOMED`` choosing by
+precision alone reported the two-star answer, at a lower tier, over the seven-star fit.
+The representative keeps its own covariance, but its confidence is replaced by the
+members' precision-weighted mean -- the average the information-form combine would take
+over them, without the agreement boost one measurement does not earn -- so collapsing a
+set can lower its tier and never raise it. Taking the representative's own confidence
+instead lets the most confident view of one measurement set the tier alone: on five
+library frames whose offsets did not move it lifted the tier from medium to high.
+The full consensus membership is reported on
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.consensus_techniques` for
-transparency, while the resolved set of independent witnesses drives the precision-weighted
-fusion, the agreement boost, the quorum count, and the vote mass.
+transparency, while the resolved set of independent witnesses drives the
+precision-weighted fusion, the agreement boost, the quorum count, and the vote mass.
 
 Step 6 — precision-weighted merge
 ---------------------------------
@@ -201,22 +237,46 @@ The fused confidence and the per-axis sigma are mapped to a five-bucket rank
 ``min_confidence`` / ``max_sigma_px`` thresholds. Below the ``min_confidence`` floor the
 ensemble returns ``status='failed'``.
 
-Two honesty guards then cap the tier at ``'medium'`` regardless of how well the
-confidence and sigma score:
+Two honesty guards then cap the tier regardless of how well the confidence and sigma
+score:
 
 - **Rank-deficient fused covariance.** When one translation axis is unobservable, the
   observable axis may be pinned precisely but the other is an assumption, not a
-  measurement, so the result is not a ``'high'``-tier absolute fix. The
+  measurement, so the result is not a ``'high'``-tier absolute fix and is capped at
+  ``'medium'``. The
   :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.sigma_along_unobservable_px`
   field carries the same verdict to the metadata.
-- **Single-star consensus.** When every combined member is a single-star solution — a
-  one-star :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
-  match or a one-inlier
-  :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` refine —
-  there is no independent cross-check, so it tops out at ``'medium'`` even when the
-  single-inlier confidence cap sits exactly on the ``'high'`` boundary and the star
-  centroid's CRLB sigma is tight. A single-star result cross-checked by a non-star
-  technique can still earn ``'high'``.
+- **Single-star result.** When the offset rests on one matched star --
+  :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.matched_star_count` is 1 and
+  every independent estimator is a single-star solution (a one-star
+  :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
+  match, a one-inlier
+  :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` refine, or a
+  one-inlier :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav`
+  lock) -- the fit has zero residual degrees of freedom. The star's two coordinates fix the
+  two offset parameters exactly, so the reported sigma is the centroid precision the
+  feature predicted rather than a measured scatter, and a misidentified star is
+  indistinguishable from a correct one. The ``'medium'`` and ``'high'`` tiers both require
+  a sigma, so the result is capped at ``'low'`` and its status reason is
+  :attr:`~spindoctor.support.status_reason.NavStatusReason.SINGLE_STAR_ONLY`. A single-star
+  result cross-checked by a non-star technique, or two single-star results on different
+  stars, is not marked.
+- **Two stars or single-star results only.** A result whose independent estimators are
+  all star techniques is capped at ``'medium'`` when they matched two stars or fewer, or
+  when every one of them is a single-star solution. Two stars are the least that checks
+  itself, and nothing checks the pair: a unique-match pair caps its own confidence for
+  that reason, and a refine that consumed the same two stars is no second witness
+  however sharp its own sigma and confidence. Before this cap, a one-star match whose
+  refine kept two inliers reached ``'high'`` on the refine's confidence alone (frame
+  ``N1492074698``, among 16 such answers in the F ring movies set aside for tuning and
+  11 held out). A third star, or a technique of another kind, earns ``'high'``.
+
+A one-star frame typically reports a confidence of 0.500, and that number is a cap rather
+than a measurement. The one-star match and the refine of its star collapse to the refine,
+whose covariance is the tighter by a factor of about ten thousand, so the blended
+confidence is the refine's, and a one-inlier refine's confidence is held at its
+``single_inlier_confidence_cap`` of 0.5.
+
 
 Confident-wrong results: what the tiers price and what they cannot
 ------------------------------------------------------------------
@@ -407,6 +467,9 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_pixel_floor` — float,
   default ``5.0``. Euclidean translation-distance fallback for grouping: two results
   agree when either distance test passes (see Step 3). ``0.0`` disables the floor.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.shared_feature_agreement_px` —
+  float, default ``1.5``. Translation distance within which two results that consumed a
+  common feature agree; such a pair is judged by this alone (see Step 3).
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_gap` — float, default
   ``0.5``. Minimum summed-confidence gap between best and runner-up groups before
   declaring a conflict. Applied as an absolute gap when the runner-up has a quorum; in a

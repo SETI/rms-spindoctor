@@ -330,6 +330,7 @@ def build_metadata_dict(result: NavResult) -> dict[str, Any]:
         'covariance_px2': _round_matrix(result.covariance_px2),
         'techniques_used': sorted({r.technique_name for r in result.per_technique}),
         'excluded_from_consensus': sorted(result.excluded_from_consensus),
+        'matched_star_count': result.matched_star_count,
         'feature_count_by_type': feature_count_by_type,
         'per_technique': [_curate_technique_result(r) for r in result.per_technique],
         'feature_inventory': [_curate_feature_summary(s) for s in result.feature_inventory],

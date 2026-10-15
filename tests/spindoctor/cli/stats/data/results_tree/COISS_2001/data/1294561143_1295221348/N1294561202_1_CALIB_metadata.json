@@ -129,6 +129,7 @@
       "StarFieldFromCatalogNav"
     ],
     "excluded_from_consensus": [],
+    "matched_star_count": 6,
     "feature_count_by_type": {
       "STAR": 6,
       "BODY_DISC": 1,

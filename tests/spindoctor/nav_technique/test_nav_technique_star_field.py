@@ -105,6 +105,9 @@ def test_detect_image_sources_finds_planted_stars(
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=30,
+        isolation_inner_px=4,
+        isolation_outer_px=6,
+        isolation_max_ratio=0.5,
     )
     assert len(detected) == 3
     detected_centers = sorted((s.v, s.u) for s in detected)
@@ -133,6 +136,9 @@ def test_detect_image_sources_caps_at_max_sources(
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=4,
+        isolation_inner_px=4,
+        isolation_outer_px=6,
+        isolation_max_ratio=0.5,
     )
     assert len(detected) == 4
     assert all(s.peak_dn >= detected[-1].peak_dn for s in detected)
@@ -148,8 +154,42 @@ def test_detect_image_sources_returns_empty_when_blank() -> None:
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=30,
+        isolation_inner_px=4,
+        isolation_outer_px=6,
+        isolation_max_ratio=0.5,
     )
     assert detected == []
+
+
+def test_detect_image_sources_ranks_a_star_above_a_brighter_ridge(
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A faint star outranks a bright ridge, whose pixels are not isolated sources.
+
+    The ridge stands for a ring crossing the frame: every pixel along it is a
+    local maximum far brighter than the star, so ranking by raw response would
+    fill the source list with it.
+
+    Parameters:
+        draw_gaussian_star: Stamps a Gaussian source onto a frame in place.
+    """
+    image = np.zeros((120, 120), dtype=np.float64)
+    image[:, 80:83] = 1000.0
+    draw_gaussian_star(image, (40.0, 30.0), peak_dn=50.0, sigma=1.2)
+    detected = _detect_image_sources(
+        image,
+        image_noise_sigma=1.0,
+        sigma_px=1.2,
+        detection_sigma=4.0,
+        centroid_box_half_px=3,
+        max_sources=30,
+        isolation_inner_px=4,
+        isolation_outer_px=6,
+        isolation_max_ratio=0.5,
+    )
+    assert len(detected) == 1
+    assert detected[0].v == pytest.approx(40.0, abs=0.01)
+    assert detected[0].u == pytest.approx(30.0, abs=0.01)
 
 
 # ---------------------------------------------------------------------------
@@ -425,6 +465,37 @@ def test_star_field_recovers_planted_offset(
     assert result.offset_px[1] == pytest.approx(planted[1], abs=0.5)
     assert isinstance(result.diagnostics, StarFieldDiagnostics)
     assert result.diagnostics.n_inliers >= 6
+
+
+@pytest.mark.parametrize(('smear_px', 'recovers'), [(8.5, True), (0.0, False)])
+def test_star_field_isolates_smeared_stars_at_their_smear(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    smear_px: float,
+    recovers: bool,
+) -> None:
+    """A field streaked over 8 rows is detected when its stars carry that smear."""
+    centers = [
+        (60.0, 80.0),
+        (110.0, 130.0),
+        (180.0, 90.0),
+        (220.0, 200.0),
+        (90.0, 240.0),
+        (250.0, 70.0),
+    ]
+    image = np.zeros((320, 320), dtype=np.float64)
+    for cv, cu in centers:
+        for step in np.linspace(-4.0, 4.0, 17):
+            draw_gaussian_star(image, (cv + step, cu), peak_dn=25.0, sigma=1.0)
+    planted = (3.0, -2.5)
+    features = [
+        replace(f, flags=replace(cast(StarFlags, f.flags), smear_length_px=smear_px))
+        for f in _make_star_field_features(centers, make_feature=make_star_feature, offset=planted)
+    ]
+    context = make_nav_context(image, extfov_margin_vu=(32, 32))
+    result = StarFieldFromCatalogNav().navigate(features, context)
+    assert (result.spurious is False) is recovers
 
 
 def test_star_field_is_deterministic_across_two_invocations(

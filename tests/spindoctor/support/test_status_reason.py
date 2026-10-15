@@ -8,6 +8,7 @@ _TAXONOMY = frozenset(
     {
         'OK',
         'RANK_1_ONLY',
+        'SINGLE_STAR_ONLY',
         'CONFLICTED_TECHNIQUES',
         'BODY_SHAPE_LOCK_SUSPECT',
         'LONE_BLOB_IN_COLLAPSED_REGIME',
@@ -42,6 +43,7 @@ def test_navstatusreason_members_are_exactly_the_taxonomy() -> None:
     [
         (NavStatusReason.OK, 'ok'),
         (NavStatusReason.RANK_1_ONLY, 'rank_1_only'),
+        (NavStatusReason.SINGLE_STAR_ONLY, 'single_star_only'),
         (NavStatusReason.UNOBSERVABLE_OFFSET, 'unobservable_offset'),
         (NavStatusReason.INTERNAL_ERROR, 'internal_error'),
         (NavStatusReason.ALL_FEATURES_GATED, 'all_features_gated'),
