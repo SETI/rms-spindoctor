@@ -295,10 +295,11 @@ analyses never run per-PR.
 A sixth stream runs alongside rather than after: the library that exists is
 red. Eleven of the 75 frames disagree with their sidecars in the local
 integration environment (#288, #744, #639), which makes "no new failures
-against `main`" the only gate a navigation-affecting branch can clear, and
-several of the reds are curation decisions rather than code defects: those
-of #346, #350, #483 and #744. Reconciling them is curation work and belongs
-to this plan.
+against `main`" the only gate a navigation-affecting branch can clear. Some of
+the reds are curation decisions: the pins awaiting the call in #483, and the
+Galileo truth in #744. Reconciling those is curation work and belongs to this
+plan. The rest are navigation defects owned by their issues (#346, #350,
+and #639).
 
 Checkpoint with the operator between numbered steps, not within them.
 
