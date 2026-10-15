@@ -36,8 +36,9 @@ Two paths share one technique:
   assignment, so a pair passes only when it is within
   ``max_residual_px``; confidence is capped at the configured two-star
   limit (default 0.8).  The first passing pair, brightest stars first,
-  is the answer, unless another passing pair disagrees with it, in which
-  case the result is spurious.  Searching beyond the brightest two is what
+  is the answer, unless another passing pair disagrees with it, or three
+  other stars are found in the image and all of them away from the pair's
+  offset; either way the result is spurious.  Searching beyond the brightest two is what
   lets a frame navigate when its brightest predicted star is not in the
   image -- off the detector, or lost in a ring's glare.
 
@@ -78,6 +79,7 @@ from spindoctor.nav_technique._star_helpers import (
     local_centroid,
     predicted_snr,
     similarity_transform_fit,
+    third_star_votes,
     usable_stars,
 )
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
@@ -191,6 +193,7 @@ class StarUniqueMatchNav(NavTechnique):
         self._max_peak_sharpness = float(self.tuning['max_peak_sharpness'])
         self._max_residual_px = float(self.tuning['max_residual_px'])
         self._pair_search_stars = int(self.tuning['pair_search_stars'])
+        self._pair_contradiction_stars = int(self.tuning['pair_contradiction_stars'])
         self._inner_search_window_px = float(self.tuning['inner_search_window_px'])
         self._pair_search_windows_px = sorted(
             {self._search_window_px, self._inner_search_window_px}
@@ -320,7 +323,9 @@ class StarUniqueMatchNav(NavTechnique):
         pair is the answer unless another passing pair puts the offset more than
         ``2 * max_residual_px`` away from it: two cross-checked answers that
         disagree mean at least one is a coincidence, and which one cannot be told,
-        so the technique reports spurious.
+        so the technique reports spurious.  It is spurious too when at least
+        ``pair_contradiction_stars`` of the other searched stars are detected in
+        the pair's window and every one of them away from the pair's offset.
 
         Parameters:
             ranked: Usable star features, brightest predicted SNR first.
@@ -331,11 +336,11 @@ class StarUniqueMatchNav(NavTechnique):
 
         Returns:
             The first passing pair's result, a spurious result when passing pairs
-            disagree, or ``None`` when no pair passes (the caller then tries the
-            1-star path).
+            disagree or the other stars contradict the pair, or ``None`` when no
+            pair passes (the caller then tries the 1-star path).
         """
         n_search = min(len(ranked), self._pair_search_stars)
-        passing: list[NavTechniqueResult] = []
+        passing: list[tuple[NavTechniqueResult, float]] = []
         n_tried = 0
         for window_px in self._pair_search_windows_px:
             for i, j in itertools.combinations(range(n_search), 2):
@@ -350,7 +355,7 @@ class StarUniqueMatchNav(NavTechnique):
                     search_window_px=window_px,
                 )
                 if result is not None:
-                    passing.append(result)
+                    passing.append((result, window_px))
         self.logger.info(
             'Two-star path: %d of %d star pair(s) passed the residual cross-check',
             len(passing),
@@ -358,25 +363,69 @@ class StarUniqueMatchNav(NavTechnique):
         )
         if not passing:
             return None
-        chosen = passing[0]
+        chosen, chosen_window_px = passing[0]
         tolerance_px = 2.0 * self._max_residual_px
         chosen_v, chosen_u = chosen.offset_px
         rivals = [
             r
-            for r in passing[1:]
+            for r, _ in passing[1:]
             if math.hypot(r.offset_px[0] - chosen_v, r.offset_px[1] - chosen_u) > tolerance_px
         ]
+        reason = None
         if rivals:
+            reason = (
+                f'ambiguous_pairs: {len(rivals)} passing star pair(s) put the offset '
+                f'more than {tolerance_px:.1f} px from the first passing pair'
+            )
+        else:
+            # A pair that agrees by coincidence is contradicted by the other stars
+            # that are in the image: each is found somewhere else.
+            others = [f for f in ranked[:n_search] if f.feature_id not in chosen.feature_ids]
+            agree, disagree = third_star_votes(
+                others,
+                chosen.offset_px,
+                detect=lambda pred: self._isolated_detection(
+                    image_ext, pred, noise_sigma, search_window_px=chosen_window_px
+                ),
+                tolerance_px=tolerance_px,
+            )
+            if agree == 0 and disagree >= self._pair_contradiction_stars:
+                reason = (
+                    f'pair_contradicted: {disagree} other star(s) detected away from the '
+                    f"pair's offset and none at it"
+                )
+        if reason is not None:
             return self._fail(
                 features=features,
                 diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
-                reason=(
-                    f'ambiguous_pairs: {len(rivals)} passing star pair(s) put the offset '
-                    f'more than {tolerance_px:.1f} px from the first passing pair'
-                ),
+                reason=reason,
                 fit_rotation=bool(context.fit_camera_rotation),
             )
         return chosen
+
+    def _isolated_detection(
+        self,
+        image_ext: NDArrayFloatType,
+        pred: tuple[float, float],
+        noise_sigma: float,
+        *,
+        search_window_px: float,
+    ) -> tuple[float, float] | None:
+        """Return the window's detection when it is an isolated point source, else None."""
+        det, _peak = local_centroid(
+            image_ext,
+            pred,
+            search_window_px=search_window_px,
+            centroid_box_half_px=self._centroid_box_half_px,
+            psf_sigma_px=self._psf_sigma_px,
+            max_peak_sharpness=self._max_peak_sharpness,
+            image_noise_sigma=noise_sigma,
+            detection_sigma=self._detection_sigma,
+            refuse_outshone=False,
+        )
+        if det is None or not self._is_point_source(image_ext, det):
+            return None
+        return det
 
     def _try_two_star(
         self,
@@ -406,43 +455,23 @@ class StarUniqueMatchNav(NavTechnique):
             detection, or the best assignment's residual exceeds
             ``max_residual_px``.
         """
-        det_a, peak_a = local_centroid(
+        det_a = self._isolated_detection(
             image_ext,
             chosen[0].geometry.predicted_vu,  # type: ignore[union-attr]
+            noise_sigma,
             search_window_px=search_window_px,
-            centroid_box_half_px=self._centroid_box_half_px,
-            psf_sigma_px=self._psf_sigma_px,
-            max_peak_sharpness=self._max_peak_sharpness,
-            image_noise_sigma=noise_sigma,
-            detection_sigma=self._detection_sigma,
-            refuse_outshone=False,
         )
-        det_b, peak_b = local_centroid(
+        det_b = self._isolated_detection(
             image_ext,
             chosen[1].geometry.predicted_vu,  # type: ignore[union-attr]
+            noise_sigma,
             search_window_px=search_window_px,
-            centroid_box_half_px=self._centroid_box_half_px,
-            psf_sigma_px=self._psf_sigma_px,
-            max_peak_sharpness=self._max_peak_sharpness,
-            image_noise_sigma=noise_sigma,
-            detection_sigma=self._detection_sigma,
-            refuse_outshone=False,
         )
         if det_a is None or det_b is None:
             self.logger.debug(
-                'Two-star path: at least one of the two predictions had no '
-                'usable detection (peak_a=%.3f DN, peak_b=%.3f DN); falling '
-                'back to one-star path',
-                peak_a,
-                peak_b,
-            )
-            return None
-        if not (
-            self._is_point_source(image_ext, det_a) and self._is_point_source(image_ext, det_b)
-        ):
-            self.logger.debug(
-                'Two-star path: a window peak is not an isolated point source (part of '
-                'an extended source, or a cosmic-ray track); pair rejected'
+                'Two-star path: a prediction has no detection that is an isolated point '
+                'source (none above the threshold, part of an extended source, or a '
+                'cosmic-ray track); pair rejected'
             )
             return None
         # Overlapping search windows can return the SAME detection for

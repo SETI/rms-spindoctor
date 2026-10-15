@@ -701,6 +701,39 @@ def test_star_unique_match_disagreeing_pairs_do_not_fall_back_to_one_star(
     assert result.spurious is True
 
 
+@pytest.mark.parametrize(('n_elsewhere', 'spurious'), [(3, True), (2, False)])
+def test_star_unique_match_refuses_a_pair_the_other_stars_contradict(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    capsys: pytest.CaptureFixture[str],
+    n_elsewhere: int,
+    spurious: bool,
+) -> None:
+    """Two stars that agree are refused when three others are all found elsewhere.
+
+    The brightest two stars sit at one offset; the other searched stars sit at offsets
+    of their own, as a catalog off by several pixels per star puts them.  Two such
+    stars do not outvote the pair.
+    """
+    image = np.zeros((500, 500), dtype=np.float64)
+    pair_offset = (2.0, -3.0)
+    stars = [
+        ((80.0, 80.0), pair_offset, 60.0),
+        ((80.0, 400.0), pair_offset, 58.0),
+        ((400.0, 80.0), (-15.0, 10.0), 50.0),
+        ((400.0, 400.0), (12.0, 14.0), 48.0),
+        ((240.0, 240.0), (-8.0, -20.0), 46.0),
+    ][: 2 + n_elsewhere]
+    features = []
+    for k, (pred, offset, snr) in enumerate(stars):
+        draw_gaussian_star(image, (pred[0] + offset[0], pred[1] + offset[1]), peak_dn=200.0)
+        features.append(make_star_feature(f'star:UCAC4:{k}', predicted_vu=pred, predicted_snr=snr))
+    result = StarUniqueMatchNav().navigate(features, make_nav_context(image))
+    assert result.spurious is spurious
+    assert ('pair_contradicted' in capsys.readouterr().out) is spurious
+
+
 def test_star_unique_match_inner_window_is_a_radius(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,

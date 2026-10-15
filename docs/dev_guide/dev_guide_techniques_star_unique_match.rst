@@ -185,7 +185,15 @@ pair passes only when it is within ``max_residual_px``. The first passing pair i
 answer, unless another passing pair puts the offset more than twice ``max_residual_px``
 from it. Two cross-checked answers that disagree mean at least one is a coincidence, and
 which one cannot be told, so the technique reports spurious with an ``ambiguous_pairs``
-reason.
+reason. The first passing pair is refused in the same way, with a ``pair_contradicted``
+reason, when at least ``pair_contradiction_stars`` of the other searched stars have an
+isolated detection in the pair's window and every one of those detections lies more than
+twice ``max_residual_px`` from the pair's offset. Two stars can agree by coincidence; three
+more stars that are in the image and found elsewhere say they did. A simulated six-star
+field whose catalog positions each scatter by 6 or 8 px has two stars agreeing to 0.8 and
+1.1 px, reported 5 and 7 px wrong without the refusal. Of the 6098 two-star answers in the
+F ring movies set aside for tuning, none has three such stars and 32 have two, all of them
+correct.
 
 The path applies no per-window ambiguity gate: a window won by something other than its
 star moves that star's offset away from the other's and the residual declines the pair,
@@ -309,6 +317,9 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
   that mean.
 - ``pair_search_stars`` — int, default ``5``. The 2-star path tries every pair among this
   many brightest usable stars.
+- ``pair_contradiction_stars`` — int, default ``3``. The 2-star path refuses its first
+  passing pair when at least this many of the other searched stars are detected, all away
+  from the pair's offset.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
   moment box around the detection, and of the matched-filter kernel.
 - ``max_residual_px`` — float, default ``1.2`` px. Maximum allowed best-assignment

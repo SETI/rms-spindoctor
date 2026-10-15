@@ -19,6 +19,7 @@ are not part of the package's public API.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
@@ -699,6 +700,45 @@ def detection_peak_ratio(
     if runner_up <= 0.0:
         return math.inf
     return peak / runner_up
+
+
+def third_star_votes(
+    others: list[NavFeature],
+    offset_vu: tuple[float, float],
+    *,
+    detect: Callable[[tuple[float, float]], tuple[float, float] | None],
+    tolerance_px: float,
+) -> tuple[int, int]:
+    """Return how many other stars' detections agree and disagree with an offset.
+
+    Each other star is searched for around its own prediction with ``detect``; a star
+    with a detection agrees when the detection's offset from the prediction lies within
+    ``tolerance_px`` of ``offset_vu`` and disagrees otherwise.  A star with no detection
+    casts no vote.
+
+    Parameters:
+        others: Star features other than the two the offset rests on.
+        offset_vu: ``(dv, du)`` offset the votes are cast on.
+        detect: Returns the detection centroid for a prediction, or ``None``.
+        tolerance_px: Largest offset difference that agrees.
+
+    Returns:
+        ``(agree, disagree)`` counts.
+    """
+    agree = disagree = 0
+    for feature in others:
+        pred = predicted_vu(feature)
+        det = detect(pred)
+        if det is None:
+            continue
+        if (
+            math.hypot(det[0] - pred[0] - offset_vu[0], det[1] - pred[1] - offset_vu[1])
+            <= tolerance_px
+        ):
+            agree += 1
+        else:
+            disagree += 1
+    return agree, disagree
 
 
 def _annulus_footprint(inner_px: int, outer_px: int) -> NDArrayBoolType:

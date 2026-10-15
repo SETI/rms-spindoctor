@@ -783,6 +783,17 @@ techniques:
       # ISS_006RI: 3 stars navigate 719 frames, 5 navigate 773, 8 navigate
       # 779, all within 2 px of the bundle.
       pair_search_stars: 5
+      # A passing pair is refused (spurious) when at least this many of the
+      # other pair_search_stars brightest stars have an isolated detection
+      # in the pair's window and every one of them lies more than twice
+      # max_residual_px from the pair's offset: two stars can agree by
+      # coincidence, three that are in the image and found elsewhere say
+      # they did.  A simulated six-star field whose catalog positions each
+      # scatter by 6 or 8 px has two stars agreeing to 0.8 and 1.1 px,
+      # reported 5 and 7 px wrong without this.  Of the 6098 two-star
+      # answers in the F ring movies set aside for tuning, none has three
+      # such stars and 32 have two (all correct), so 3 refuses none of them.
+      pair_contradiction_stars: 3
       # Detection-threshold multiplier on image_noise_sigma; a detection
       # whose brightest pixel stands less than this many noise sigmas
       # above the median of its centroid box is considered noise.

@@ -595,7 +595,10 @@ correctly matched stars agree to a few tenths of a pixel. Trying more than the b
 two matters because the brightest predicted star is often not in the image at all: it can
 fall just off the detector once the pointing error is applied, or under a ring's glare. If
 two different pairs pass and disagree about the offset, the technique does not choose
-between them and reports no answer. A cross-checked pair caps confidence a little higher,
+between them and reports no answer. Two stars can agree by coincidence when the catalog
+places each of them several pixels off, so a pair is also refused when three of the other
+stars searched are found in the image and every one of them at a different offset
+(``techniques.StarUniqueMatchNav.tuning.pair_contradiction_stars``). A cross-checked pair caps confidence a little higher,
 at 0.8.
 
 The search never covers the whole frame. It reaches
