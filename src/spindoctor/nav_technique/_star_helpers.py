@@ -358,6 +358,7 @@ def _window_peaks(
 
 
 _MAX_RECENTER = 5
+_MAX_CANDIDATES = 16
 
 
 def _box(image_ext: NDArrayFloatType, v: int, u: int, half: int) -> NDArrayFloatType:
@@ -367,6 +368,58 @@ def _box(image_ext: NDArrayFloatType, v: int, u: int, half: int) -> NDArrayFloat
         image_ext[max(0, v - half) : min(h, v + half + 1), max(0, u - half) : min(w, u + half + 1)],
         np.float64,
     )
+
+
+def _too_sharp(
+    image_ext: NDArrayFloatType,
+    v: int,
+    u: int,
+    *,
+    half: int,
+    max_sharpness: float,
+    noise_sigma: float,
+    detection_sigma: float,
+) -> bool:
+    """Return whether the brightest pixel of a candidate's box is sharper than a star.
+
+    The brightest pixel of the box around ``(v, u)`` is compared with the mean of its
+    four edge neighbors, both above the box median.  A star spreads its light over its
+    neighbors by at least what the narrowest point-spread function allows; a cosmic ray
+    or hot pixel puts nearly all of it in one pixel.  The candidate is too sharp when the
+    pixel's excess exceeds ``max_sharpness`` times the neighbors' excess by more than
+    ``detection_sigma`` times the noise of that difference.  A pixel on the image's edge
+    has no complete set of neighbors and is never judged too sharp.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        v: Row of the candidate.
+        u: Column of the candidate.
+        half: Half-width of the candidate's box in pixels.
+        max_sharpness: Largest ratio of a star's peak excess to its neighbors' mean
+            excess.
+        noise_sigma: Robust per-pixel noise sigma in DN units.
+        detection_sigma: Noise multiplier the difference must exceed.
+
+    Returns:
+        True when the candidate is too sharp to be a star.
+    """
+    h, w = image_ext.shape
+    v_lo, u_lo = max(0, v - half), max(0, u - half)
+    box = np.asarray(image_ext[v_lo : min(h, v + half + 1), u_lo : min(w, u + half + 1)])
+    bv, bu = (int(x) for x in np.unravel_index(int(np.argmax(box)), box.shape))
+    pv, pu = v_lo + bv, u_lo + bu
+    if not (0 < pv < h - 1 and 0 < pu < w - 1):
+        return False
+    background = float(np.median(box))
+    peak = float(image_ext[pv, pu]) - background
+    neighbors = (
+        float(image_ext[pv - 1, pu])
+        + float(image_ext[pv + 1, pu])
+        + float(image_ext[pv, pu - 1])
+        + float(image_ext[pv, pu + 1])
+    ) / 4.0 - background
+    noise = noise_sigma * math.sqrt(1.0 + max_sharpness * max_sharpness / 4.0)
+    return peak - max_sharpness * neighbors > detection_sigma * noise
 
 
 def _box_centroid(
@@ -436,6 +489,7 @@ def local_centroid(
     search_window_px: float,
     centroid_box_half_px: int,
     psf_sigma_px: float,
+    max_peak_sharpness: float,
     image_noise_sigma: float,
     detection_sigma: float,
     refuse_outshone: bool,
@@ -449,28 +503,35 @@ def local_centroid(
     2. Matched-filter it against the Gaussian PSF kernel of
        :func:`gaussian_psf_kernel` (``psf_sigma_px``, side
        ``2 * centroid_box_half_px + 1``), the same detection statistic
-       ``StarFieldFromCatalogNav`` uses, and take as the candidate the
-       strongest response peak (a pixel whose response is the largest within
-       the kernel's footprint) lying inside the window.  A window pixel on the
-       flank of a source outside the window is no peak, so only a source
-       whose own peak lies in the window can be measured.  The response weighs a source by the light
-       it spreads over a PSF footprint, so a single-pixel spike (a cosmic
-       ray or hot pixel), which carries far less light than its one pixel
-       suggests, does not outrank a star of greater flux the way it does
-       when the brightest single pixel is taken; a uniform bright region
-       gives no response at all.
-    3. Reject the candidate when the brightest pixel of its centroid box
+       ``StarFieldFromCatalogNav`` uses, and take the response peaks (pixels
+       whose response is the largest within the kernel's footprint) lying
+       inside the window.  A window pixel on the flank of a source outside
+       the window is no peak, so only a source whose own peak lies in the
+       window can be measured.  The response weighs a source by the light it
+       spreads over a PSF footprint and gives a uniform bright region no
+       response at all.
+    3. Take the strongest peak that is not sharper than a star
+       (``max_peak_sharpness``, see :func:`_too_sharp`).  The response alone
+       does not keep a single-pixel spike (a cosmic ray or hot pixel) from
+       outranking a star whose point-spread function is narrower than the
+       kernel: against a star of sigma 0.54 px a spike wins once it exceeds
+       about 1.7 times the star's peak.  The sharpness test skips such a spike,
+       so the star it would have outranked is measured.
+    4. Reject the candidate when the brightest pixel of its centroid box
        stands less than ``detection_sigma * image_noise_sigma`` above the
        box's median, so a noise bump on the floor of a bright extended
        region (a saturated ring or body) is no detection.
-    4. With ``refuse_outshone``, reject the window when its brightest pixel
+    5. With ``refuse_outshone``, reject the window when its brightest pixel
        is the edge-cut flank of a source outside it that outshines the
        candidate (:func:`_flank_outshines`).
-    5. Fit a background-subtracted brightness-weighted moment over a
+    6. Fit a background-subtracted brightness-weighted moment over a
        ``(2 * centroid_box_half_px + 1)`` box around the candidate, and
        re-center the box on its own centroid until it stops moving (at
        most five times), so a box that first caught a source by its edge,
-       as it does a saturated core, moves over the source.
+       as it does a saturated core, moves over the source.  A box that
+       moves more than ``centroid_box_half_px`` from the candidate, or whose
+       center leaves the window, has walked onto another source, and the
+       window holds no detection.
 
     The star techniques use this purely-local fit rather than a global
     ``detect_sources`` call so they stay feasible on images where the
@@ -485,6 +546,9 @@ def local_centroid(
         centroid_box_half_px: Half-width of the centroid-fit box (and of
             the matched-filter kernel) in pixels.
         psf_sigma_px: PSF sigma in pixels for the matched-filter kernel.
+        max_peak_sharpness: Largest ratio of a star's brightest-pixel excess
+            to the mean excess of its four edge neighbors; a sharper peak is a
+            cosmic ray or hot pixel and is skipped.
         image_noise_sigma: Robust per-pixel noise sigma in DN units.
         detection_sigma: Threshold multiplier on
             ``image_noise_sigma``; the candidate's brightest pixel must stand
@@ -503,23 +567,37 @@ def local_centroid(
         rejected.  ``peak_dn`` is the brightest DN in the
         candidate's centroid box regardless of whether the candidate was
         accepted (handy for diagnostics), the brightest DN in the window when
-        the window holds no peak, or 0.0 when the window is empty.
+        the window holds no candidate, or 0.0 when the window is empty.
     """
     bounds = search_window_bounds(predicted_vu_pos, search_window_px, image_ext.shape)
     if bounds is None:
         return None, 0.0
     v_lo, v_hi, u_lo, u_hi = bounds
-    kernel = gaussian_psf_kernel(psf_sigma_px, size=2 * centroid_box_half_px + 1)
+    half = centroid_box_half_px
+    kernel = gaussian_psf_kernel(psf_sigma_px, size=2 * half + 1)
     peaks = _window_peaks(image_ext, bounds, kernel=kernel)
-    flat_idx = int(np.argmax(peaks))
-    pv, pu = np.unravel_index(flat_idx, peaks.shape)
-    if not math.isfinite(float(peaks[pv, pu])):
-        # Every pixel of the window lies on the flank of something outside it.
+    order = np.argsort(-peaks, axis=None, kind='stable')[:_MAX_CANDIDATES]
+    candidate: tuple[int, int] | None = None
+    for flat_idx in order:
+        pv, pu = (int(x) for x in np.unravel_index(int(flat_idx), peaks.shape))
+        if not math.isfinite(float(peaks[pv, pu])):
+            break
+        if not _too_sharp(
+            image_ext,
+            v_lo + pv,
+            u_lo + pu,
+            half=half,
+            max_sharpness=max_peak_sharpness,
+            noise_sigma=image_noise_sigma,
+            detection_sigma=detection_sigma,
+        ):
+            candidate = (v_lo + pv, u_lo + pu)
+            break
+    if candidate is None:
+        # No peak in the window, or none that is not a single-pixel spike.
         window = image_ext[v_lo:v_hi, u_lo:u_hi]
         return None, float(np.max(window))
-    peak_v = v_lo + int(pv)
-    peak_u = u_lo + int(pu)
-    half = centroid_box_half_px
+    peak_v, peak_u = candidate
     box = _box(image_ext, peak_v, peak_u, half)
     peak_dn = float(box.max())
     if peak_dn - float(np.median(box)) < detection_sigma * image_noise_sigma:
@@ -530,7 +608,9 @@ def local_centroid(
             return None, peak_dn
     # Re-center the box on its own centroid until it stops moving, so a box that
     # caught a source by its edge (the response peaks at the edge of a saturated
-    # core) moves over the source.
+    # core) moves over the source.  A box that walks farther than its own
+    # half-width, or out of the window, has left the candidate for another source.
+    start_v, start_u = peak_v, peak_u
     centroid = _box_centroid(image_ext, peak_v, peak_u, half)
     for _ in range(_MAX_RECENTER):
         if centroid is None:
@@ -539,6 +619,12 @@ def local_centroid(
         next_u = math.floor(centroid[1] + 0.5)
         if (next_v, next_u) == (peak_v, peak_u):
             break
+        if (
+            abs(next_v - start_v) > half
+            or abs(next_u - start_u) > half
+            or not (v_lo <= next_v < v_hi and u_lo <= next_u < u_hi)
+        ):
+            return None, peak_dn
         peak_v, peak_u = next_v, next_u
         centroid = _box_centroid(image_ext, peak_v, peak_u, half)
     return centroid, peak_dn

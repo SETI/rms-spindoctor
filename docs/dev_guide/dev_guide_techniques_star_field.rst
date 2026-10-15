@@ -53,17 +53,17 @@ index.
 Source detection
 ----------------
 
-Detections come from a matched-filter search over the extfov image: the image is correlated
-with a Gaussian PSF kernel of the configured ``psf_sigma_px``, and local maxima of the
-response above ``detection_sigma * image_noise_sigma`` are candidates. A candidate is kept
-only when it is isolated: over an annulus of radii ``source_isolation_inner_px`` to
-``source_isolation_outer_px`` around it, the brightest response exceeds the annulus mean by
-less than ``source_isolation_max_ratio`` of the candidate's own height above that mean. A
-star's light falls to the background well inside the annulus, so its annulus is flat; a
-ridge along a ring or a limb runs through the annulus at nearly the peak's height and is
-refused. A brightness-weighted moment around each kept peak gives the sub-pixel centroid,
-and up to ``max_sources`` brightest detections feed the hash-space search; the catalog side
-is similarly capped.
+Detections come from a matched-filter search over the extfov image: the image is
+correlated with a Gaussian PSF kernel of the configured ``psf_sigma_px``, and local maxima
+of the response above ``detection_sigma * image_noise_sigma`` are candidates. A candidate
+is kept only when it is isolated: over an annulus of radii ``source_isolation_inner_px``
+to ``source_isolation_outer_px`` around it, the brightest response exceeds the annulus
+mean by less than ``source_isolation_max_ratio`` of the candidate's own height above that
+mean. A star's light falls to the background well inside the annulus, so its annulus is
+flat; a ridge along a ring or a limb runs through the annulus at nearly the peak's height
+and is refused. A brightness-weighted moment around each kept peak gives the sub-pixel
+centroid, and up to ``max_sources`` brightest detections feed the hash-space search; the
+catalog side is similarly capped.
 
 The isolation test is what lets the matcher see the stars on a frame crossed by a bright
 ring. On 16 F ring frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` examined in detail, every

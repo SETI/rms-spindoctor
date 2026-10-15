@@ -142,6 +142,7 @@ class StarRefineNav(NavTechnique):
         self._refine_window_px = float(self.tuning['refine_window_px'])
         self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
         self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
+        self._max_peak_sharpness = float(self.tuning['max_peak_sharpness'])
         self._max_per_star_residual_px = float(self.tuning['max_per_star_residual_px'])
         self._detection_sigma = float(self.tuning['detection_sigma'])
         self._min_inliers = int(self.tuning['min_inliers'])
@@ -374,6 +375,7 @@ class StarRefineNav(NavTechnique):
                 search_window_px=self._refine_window_px,
                 centroid_box_half_px=self._centroid_box_half_px,
                 psf_sigma_px=self._psf_sigma_px,
+                max_peak_sharpness=self._max_peak_sharpness,
                 image_noise_sigma=noise_sigma,
                 detection_sigma=self._detection_sigma,
                 refuse_outshone=True,

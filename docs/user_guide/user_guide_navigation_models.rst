@@ -574,13 +574,16 @@ predicts in the frame, by a margin over the next candidate of
 magnitudes, 1.5 by default. Then the strongest source inside a search window around the
 prediction can only be that star, and the offset is simply the difference. A source's
 strength is the light it spreads over a star's footprint (the width set by
-``techniques.StarUniqueMatchNav.tuning.psf_sigma_px``, 1 pixel by default), so a cosmic ray
-or hot pixel whose single pixel outshines the star's peak still loses to the star.
-Confidence is capped at 0.7, because a single match has nothing to check itself against.
-Guards exist against locking onto a noise spike or a hot pixel: the star's peak must stand
-clear of the window's background and of every other pixel in the window, and where there
-is no rival peak at all to measure against, the match is accepted only if it sits close to
-the predicted position.
+``techniques.StarUniqueMatchNav.tuning.psf_sigma_px``, 1 pixel by default). A source whose
+brightest pixel stands far above its four neighbors, more than
+``techniques.StarUniqueMatchNav.tuning.max_peak_sharpness`` times (8 by default), is a
+cosmic ray or hot pixel and is passed over, since no star concentrates its light that
+much; otherwise such a spike outshines a sharp star of the narrow-angle camera once its
+single pixel is about twice the star's peak. Confidence is capped at 0.7, because a single
+match has nothing to check itself against. Guards exist against locking onto a noise spike
+or a hot pixel: the star's peak must stand clear of the window's background and of every
+other pixel in the window, and where there is no rival peak at all to measure against, the
+match is accepted only if it sits close to the predicted position.
 
 With two or more stars, the technique looks for a pair that checks itself. It tries every
 pair among the five brightest predicted stars
@@ -603,9 +606,11 @@ be larger than the pointing error: a star whose center lies outside that reach i
 found, even when some of its light falls inside it. On a Cassini narrow-angle F ring movie
 the pointing error reaches 43 pixels. A single star, which nothing can check, is accepted
 only within 30 pixels of where it was predicted, although the whole window is still
-searched so that anything brighter in it stops the match. A detection counts only if it
-is a point source that stands alone, by the same test the star field uses, so a ridge of a
-ring or a cosmic-ray track is not taken for a star.
+searched so that anything brighter in it stops the match. A detection counts only if it is
+a point source that stands alone, by the same test the star field uses, so a ridge of a
+ring or a cosmic-ray track is not taken for a star. Measuring a star's center moves a
+small box onto the star's light; a box that wanders farther than its own half-width, or
+out of the search window, has found something else, and the window yields nothing.
 
 StarRefineNav
 ^^^^^^^^^^^^^

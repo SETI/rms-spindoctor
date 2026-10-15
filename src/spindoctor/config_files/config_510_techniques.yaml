@@ -731,12 +731,25 @@ techniques:
       inner_search_window_px: 30.0
       # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
       # detection inside each search window: the strongest local maximum
-      # of the response wins, not the brightest single pixel, so a cosmic
-      # ray or hot pixel does not outrank a star of greater flux, and the
-      # flank of a brighter source cut by the window edge is never taken.
+      # of the response wins, not the brightest single pixel, so the flank
+      # of a brighter source cut by the window edge is never taken.  The
+      # response favors a star over a single-pixel spike of the same peak,
+      # but not one much brighter (see max_peak_sharpness).
       # Same value as StarFieldFromCatalogNav's, so every star technique
       # measures a source the same way.
       psf_sigma_px: 1.0
+      # Largest ratio of a detection's brightest-pixel excess to the mean
+      # excess of its four edge neighbors (both above the centroid box's
+      # median); a sharper peak, by more than detection_sigma times the
+      # noise of that difference, is a cosmic ray or hot pixel and the next
+      # strongest peak is taken.  The response alone does not protect a
+      # star narrower than the kernel: a single pixel outranks a Cassini
+      # NAC star (PSF sigma 0.54 px) once it exceeds about 1.7 times the
+      # star's peak.  Of 6322 sources at catalog stars' positions under the
+      # published bundle's pointing, in 2500 frames of the F ring movies set
+      # aside for tuning, this limit skips two: a hot pixel (ratio over 10^5) and a
+      # star of ratio 8.4.
+      max_peak_sharpness: 8.0
       # Source isolation, as StarFieldFromCatalogNav: a detection counts
       # only when, over an annulus of these radii (px) around it, the
       # brightest matched-filter response exceeds the annulus mean by less
@@ -857,6 +870,8 @@ techniques:
       # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
       # detection inside each refine window; see StarUniqueMatchNav.
       psf_sigma_px: 1.0
+      # Largest peak-to-neighbor sharpness of a star; see StarUniqueMatchNav.
+      max_peak_sharpness: 8.0
       # Drop a star whose detection sits more than this many pixels from
       # the prior-shifted prediction; almost certainly a wrong peak.
       max_per_star_residual_px: 4.0
