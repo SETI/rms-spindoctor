@@ -69,6 +69,16 @@ Each is a scope commitment the downstream work waits on:
   quantity can disagree in the last place. Store every value at full
   precision and leave rounding to reports and logs, or say what makes a
   rounded value different.
+- **#748 the witness blob's overflow limit**: a body's witness blob is
+  withheld above the overflow fraction derived for its role as an answer,
+  while its role as a witness in the body-witness veto survives more
+  clipping. Keep one limit, or give the witness its own, derived from the
+  veto's tolerance.
+- **#751 a sigma ceiling on the low tier**: any answer that clears the low
+  tier's confidence floor is reported `success` however large its
+  uncertainty. Legitimate blob-only answers on irregular bodies reach 18.85
+  px, so any ceiling is a calibration choice; it interacts with the #230
+  recalibration.
 
 ```bash
 gh issue comment 316 --body "Decision: <ship default | ratchet fraction | wander decomposition>"
@@ -82,6 +92,8 @@ gh issue comment 466 --body "Decision: <ship the SQLite file | run PostgreSQL>"
 gh issue comment 600 --body "Decision: <per the enumerated options>"
 gh issue comment 720 --body "Decision: <per the enumerated options>"
 gh issue comment 677 --body "Decision: <per the enumerated options>"
+gh issue comment 748 --body "Decision: <one limit | a separate witness limit derived from the veto tolerance>"
+gh issue comment 751 --body "Decision: <no ceiling | ceiling of <N> px on the low tier>"
 gh issue comment 730 --body "Decision: <store full precision | keep rounding for <values>, because <reason>>"
 ```
 
@@ -193,8 +205,10 @@ sits — and are best scoped together.
   disc), #626 (`polyhedral_mesh` bodies render as banded shells), #627 (the
   two haze terms seam the halo at the equator) and #644 (a planted roll turns
   positions but not smear, companions or sky field) — plus #646 (the
-  limb-bias harness measures a ridge half a pixel from the deployed one) and
-  the scene-language batch #629, #630, #631, #632, #633, #641 with #409.
+  limb-bias harness measures a ridge half a pixel from the deployed one), #750
+  (the simulated body model keeps the disc and witness blob that production
+  withholds on a body overflowing the frame), and the scene-language batch
+  #629, #630, #631, #632, #633, #641 with #409.
 - **Reprojection and mosaic products:** #634 (longitudes recorded west on an
   east grid), #638 (a remote product is never fetched), #701 (body backplanes
   read silhouette or visible extent depending on which truth field is
@@ -436,6 +450,12 @@ Independent review before done; all CI gates; one PR."
   cleanest reproducer in the library: two techniques agree to 0.08 px while
   RingEdgeNav lands 39 px away on 6.7% of its points, so a fix is verifiable
   without operator adjudication and the frame's tier returns on its own.
+- **Gates and the body-witness veto**: #747 (the combined polarity gate keys
+  on an LM convergence flag that reads false on most healthy fits; re-derive
+  its discriminant against labeled healthy and mis-locked fits, adding the
+  healthy frames it cites to the library first) and #749 (the multi-body
+  exclusion counts bodies with results rather than bodies in the frame). #748
+  is an operator decision first (Section 0.1).
 - **Sparse star fields, as one campaign**: #621 (the gates refuse about half
   the frames that are navigable by stars), #622 (a one- or two-star solution
   accepted as success, up to 23 px wrong), #623 (two techniques on one star
@@ -575,6 +595,12 @@ deferred until an instrument fits rotation again; a test fails if one does.
   demonstrably navigable by stars (the other side of #622's line)
 - **#591** the sparse 16x16 ring pre-check can skip a frame whose rings fall
   between its samples
+- **#747** the combined polarity gate keys on an LM convergence flag that most
+  healthy fits fail, so it rejects or keeps fits on an arbitrary signal
+- **#749** the multi-body exclusion counts bodies that have results rather
+  than bodies in the frame
+- **#748**, **#751** decisions (Section 0.1): the witness blob's own overflow
+  limit, and a sigma ceiling on the low tier
 
 **Simulator fidelity gaps (feed #309 and the sim follow-ups in Section 3):**
 
@@ -604,6 +630,8 @@ deferred until an instrument fits rotation again; a test fails if one does.
   positions but not smear, companions or sky field
 - **#646** the limb-bias harness measures a simulated ridge half a pixel from
   the deployed one
+- **#750** the simulated body model has no silhouette overflow handling, so it
+  keeps the disc and witness blob that production withholds
 - **#641** with **#409** stars sit on pixel indices beside bodies on pixel
   corners; **#629** one artifact key names three quantities; **#630** a
   fluence per cm^2 is documented per pixel; **#631** a Voyager scene renders
@@ -725,7 +753,7 @@ these are what it owes and what generalizes it):**
 
 ```text
 0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #557,
-    #600, #720, #677, #730)                                     (operator, minutes)
+    #600, #720, #677, #730, #748, #751)                         (operator, minutes)
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)

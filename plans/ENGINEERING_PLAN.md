@@ -431,6 +431,34 @@ than the fitter. Fix it before reading any number it produces.
   extreme-phase edge (#401), and opaque-ring masking that refuses frames
   visible through the C ring or the gaps (#402). The ensemble has never been
   exercised on the oblique covariance the fit reports (#400).
+- **#747** — `lm_unconverged_with_polarity_rejection` hard-rejects a
+  `BodyLimbNav` or `BodyTerminatorNav` fit when `LMRefineResult.converged` is
+  False and the polarity rejection fraction is at least 0.10, and below 0.35
+  rejection the convergence flag is the only discriminant. The flag is set
+  only by an accepted LM step below 1e-3 px, so at a non-smooth minimum of the
+  bilinear-sampled DT cost every trial is rejected, the 30-iteration cap is
+  reached, and a stationary fit reads unconverged: on `main` 17 of 48 library
+  DT fits report converged though 44 are stationary, and the flag flips in
+  both directions with sub-pixel model details. Counting a rejected trial step
+  below tolerance as convergence would disarm the gate on four fits it rejects
+  today, so the discriminant has to be re-derived against labeled healthy and
+  mis-locked fits; the healthy frames the gate cites (`N1702389073`,
+  `N1702389662`, `N1702390017`) have to join the library first.
+- **#748** — decision: a body's witness blob serves the body-witness veto as
+  well as standing as an answer, and the veto's 2-sigma tolerance survives
+  more clipping than the answer's 0.05 R centroid-bias allowance. On a
+  constructed case (R = 200 px, a limb locked 30 px wrong, 72 directions) a
+  witness kept up to an overflow fraction of about 0.105 still catches the
+  wrong limb, and above that its own bias raises false conflicts. Decide
+  whether the witness role takes its own overflow limit, derived from the
+  veto's tolerance, separate from `bodies.blob_max_overflow_fraction`. No
+  library frame falls in the band with a running blob.
+- **#749** — the ensemble's multi-body exclusion asks `_distinct_body_count`,
+  which counts bodies that have results rather than bodies in the frame. A
+  body that yields no result reads as absent, a two-body frame reads as
+  single-body, and the shape-lock veto can fire on the companion although the
+  other body still corrupts its centroid. Count the bodies the models placed
+  in the field of view instead. No library frame is known to reach it.
 
 ## Track C — Statistics and QA
 

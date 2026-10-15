@@ -148,11 +148,11 @@ carry the methodology and acceptance criteria):
 | WS-0 | #358, #359, #360, #361 | Estimator proven on sims (identifiability + bias-independence); residual is the real-frame reliability-vs-error coupling and PSF-coupling probes feeding WS-1. |
 | WS-1 | #225 (+ #558, #346, #476, #621, #622, #623, #639) | The agreement study. The statistics system reports metadata statistics and consumes WS-1's per-frame disagreement metric; it is not the agreement study. The trailing issues are confidently-wrong contributors that move the anchor before it is measured. |
 | WS-1b | #226 | Reprojection consistency. |
-| WS-2 | #227 (+ #223, #309, #341, #377, #409, #625, #626, #627, #629, #630, #631, #632, #633, #641, #644) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, the scene-coordinate convention split #409 where stars are the outlier, and the scene-authoring defects that make a rendered scene not the scene its keys describe). |
+| WS-2 | #227 (+ #223, #309, #341, #377, #409, #625, #626, #627, #629, #630, #631, #632, #633, #641, #644, #750) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, the scene-coordinate convention split #409 where stars are the outlier, and the scene-authoring defects that make a rendered scene not the scene its keys describe). |
 | WS-17 | #355, #561 | Distortion measured from star fields; the residuals are the per-camera Voyager sim split and the single-sequence cohorts behind the twist verdicts (#561). |
 | WS-3 | #172, #174, #235, #288, #483 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 8 of the 75 sidecars disagree with `main` locally, so the library's tiers are not currently verified expectations, and two of the eight are pins awaiting the operator call in #483. |
 | WS-4 | #229, #426, #324, #336, #335, #340, #548 | CI integration tiers, plus what does not run in Actions today: the agreement-estimator tests (#324), the data-independent simulator suites (#336), the committed sim baselines that have no canonical environment (#335), the cross-check's yes/no primary-technique flag (#340), and the measured 79% line coverage that nothing enforces (#548). |
-| WS-5 | #230, #176, #557, #558 | Real-anchored recalibration once WS-1 anchors exist; the confidence axis is censored from above (#557) and the anchor is contaminated until #558 is closed. |
+| WS-5 | #230, #176, #557, #558, #751 | Real-anchored recalibration once WS-1 anchors exist; the confidence axis is censored from above (#557), the anchor is contaminated until #558 is closed, and whether the low tier carries a sigma ceiling is an operator decision (#751). |
 | WS-6 | #231 | Capability matrix. |
 | WS-7 | #397, #398, #399, #400, #401, #402, #403, #404, #405, #407 | Titan haze navigation delivered and validated (#60 closed); open items are the deferred refinements and the operator ratification bundle (#407). |
 | WS-8 | #53, #67, #677, #687 | Output bundles for all four instruments (required). The Cassini ISS Saturn path is complete and schema-validated; Voyager, Galileo and NH remain. PDS4 input (#34) is availability-contingent and not required for completion. |
@@ -646,6 +646,19 @@ Each is a way the model-mismatch sweep axes sweep something other than the
 quantity they are labeled with, so the mismatch curves cannot be read as
 accuracy until they are settled.
 
+**The simulated body model must withhold what production withholds.**
+`NavModelBodySimulated` renders only inside the sensor and hard-codes its
+silhouette overflow fraction to 0.0, so it emits `BODY_DISC` and `BODY_BLOB`
+however much of the body falls outside the frame, while the production model
+gates both on that fraction (#750). About 93% of the calibration's limb scenes
+(`util/calibration/scene_gen.py`, `gen_limb`, including its confidently-wrong
+limb slice) overflow past 0.05 as production computes it, so in those scenes
+the calibration measures an ensemble that keeps a disc and a witness blob
+production would drop, including how often the body-witness veto catches a
+wrong limb. Compute the fraction from the simulated model's own predicted
+geometry, never the planted truth, apply the same gates, then re-run the
+limb-scene calibration and re-ratchet whatever moves.
+
 **Approach for the residual.** The navigator uses its *best available* model — do
 **not** preserve a known-worse model just to manufacture a gap. The image side is
 made *more* realistic, and the residual recovery error is the genuine model error
@@ -1122,6 +1135,14 @@ calibration).
  Refusing to emit 1.0 is defensible -- confidence is a proxy, not a probability --
  but a scale that saturates on the ordinary good case carries no information above
  the cap, and gives no credit for a third or fourth corroborating technique.
+- **Decide whether the low tier carries a sigma ceiling** (#751). The low
+ tier's `max_sigma_px` is null, so `FINAL_SIGMA_ABOVE_THRESHOLD` can never fire
+ for it and any answer that clears its 0.35 confidence floor is reported
+ `success`, however large its uncertainty. Legitimate blob-only answers on
+ irregular bodies (`N1669606966_1`, `N1506381259_1`, `N1828122657_1`) reach a
+ sigma of 18.85 px, while far-off blobs on `main` sit 37 to 76 px wrong and are
+ only superseded or outvoted today. A ceiling between those is a calibration
+ choice the operator makes with this workstream.
 - **Measure star SNR from the image, not the magnitude.** Replace (or cross-check)
  the synthesized `snr_eff = SNR_REF * 2.512**(mag_limit - vmag)` with a
  photometrically measured per-star SNR from the actual frame for gating and

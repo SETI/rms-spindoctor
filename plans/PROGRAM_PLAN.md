@@ -139,40 +139,42 @@ its section names):
 1. **Grow the image library** (#172 first stage, #235 growth; WS-3) —
    continuous background work: automated candidate discovery, operator
    votes in batches, sidecar generation. Feeds everything below.
-2. **Prove the simulator realistic** (#227, with #223, #153, #84; WS-2) —
-   the de-circularization is done and on main: an independent forward model,
-   the truth/idealized information partition with an import-graph guard,
-   model-error sweep axes, full detector noise including the I/F path, and
-   the rewritten simulator report. #227 stays open only for the *realism*
+2. **Prove the simulator realistic** (#227, with #223, #153, #84; WS-2) — the
+   de-circularization is done and on main: an independent forward model, the
+   truth/idealized information partition with an import-graph guard,
+   model-error sweep axes, full detector noise including the I/F path, and the
+   rewritten simulator report. #227 stays open only for the *realism*
    residual: the calibration is not yet fitted on the realism-anchored
    renderer configuration, so the realism evidence does not underwrite the
    shipped calibration (#309, the biggest calibration-credibility win
    available); the terminator deliverable is degenerate with no realism
-   verdict (#223); and realism is Cassini-only with the authored scene
-   mixture unvalidated (#309, #341). Closing #227 is the operator's
-   realism-verdict gate, itself gated on #309. The cataloged
-   simulator-fidelity gaps feed #309: stars shining through dark limbs
-   (#325), the 1-LSB calibrated-product floor (#329), zero cosmic-ray
-   transients (#330), per-scene rather than per-detector hot pixels (#331),
-   one PSF kernel per instrument (#332), four unmodeled physical error axes
-   (#333), the render-time budget on oversampled grids (#290), single-annulus
-   rings vs realistic nested ringlets (#377), the placeholder
-   `star_psf_sigma` (#342), the possibly registration-absorbing NAC PSF wing
-   (#343), the constant haze brightness (#344), the truth-side-noise echo
-   into `instrument_config` (#345). Four scene features render something
-   other than what they name -- `limb_relief_rms` carves radial wedges out of
-   the disc (#625), `polyhedral_mesh` bodies render as banded shells (#626),
-   the two haze terms seam the halo at the equator (#627), and a planted roll
-   turns positions but not smear, companions or sky field (#644) -- and the
-   limb-bias harness measures a simulated ridge half a pixel from the
-   deployed one (#646). The scene language itself still has keys that do not
-   say what they mean: stars on pixel indices beside bodies on pixel corners
-   (#641, with the unification in #409), one key naming three quantities
-   (#629), a fluence documented per pixel (#630), a Voyager scene in I/F
-   under a raw-DN marker (#631), ring keys without units (#632), and an
-   editor that authors scenes its own validator refuses (#633). The
-   structural information-boundary guard (#310) and the sim-navigator
-   mirror-parity guard (#311) harden the partition.
+   verdict (#223); and realism is Cassini-only with the authored scene mixture
+   unvalidated (#309, #341). Closing #227 is the operator's realism-verdict
+   gate, itself gated on #309. The cataloged simulator-fidelity gaps feed
+   #309: stars shining through dark limbs (#325), the 1-LSB calibrated-product
+   floor (#329), zero cosmic-ray transients (#330), per-scene rather than
+   per-detector hot pixels (#331), one PSF kernel per instrument (#332), four
+   unmodeled physical error axes (#333), the render-time budget on oversampled
+   grids (#290), single-annulus rings vs realistic nested ringlets (#377), the
+   placeholder `star_psf_sigma` (#342), the possibly registration-absorbing
+   NAC PSF wing (#343), the constant haze brightness (#344), the
+   truth-side-noise echo into `instrument_config` (#345). Four scene features
+   render something other than what they name -- `limb_relief_rms` carves
+   radial wedges out of the disc (#625), `polyhedral_mesh` bodies render as
+   banded shells (#626), the two haze terms seam the halo at the equator
+   (#627), and a planted roll turns positions but not smear, companions or sky
+   field (#644) -- and the limb-bias harness measures a simulated ridge half a
+   pixel from the deployed one (#646). The simulated body model has no
+   silhouette overflow handling, so in most of the calibration's limb scenes
+   it keeps a disc and a witness blob that the production model withholds
+   (#750). The scene language itself still has keys that do not say what they
+   mean: stars on pixel indices beside bodies on pixel corners (#641, with the
+   unification in #409), one key naming three quantities (#629), a fluence
+   documented per pixel (#630), a Voyager scene in I/F under a raw-DN marker
+   (#631), ring keys without units (#632), and an editor that authors scenes
+   its own validator refuses (#633). The structural information-boundary guard
+   (#310) and the sim-navigator mirror-parity guard (#311) harden the
+   partition.
 3. **The agreement-estimator residual** (WS-0) — the estimator, the
    identifiability map, and the known-truth validation are delivered and on
    main under `util/agreement/`. Findings that constrain item 5: the
@@ -217,7 +219,11 @@ its section names):
    fix (#317) is done, so the recalibration no longer trains against those
    rows; the ring orbit-uncertainty severity decision (#316) still sequences
    before it, since it pushes tier boundaries the wrong way, and adopt the
-   calibration's armed falsification criterion (#334).
+   calibration's armed falsification criterion (#334). Whether the low tier
+   carries a sigma ceiling is an operator decision calibrated with it (#751):
+   today any answer that clears the low tier's confidence floor is reported
+   `success` however large its uncertainty, while legitimate blob-only answers
+   on irregular bodies reach a sigma of 18.85 px.
 8. **Close the accuracy tail** (#233 measured star SNR and constant
    sensitivity, WS-9; #150/#128 the known ~0.1 px limb bias, WS-10; #234
    realistic noise for calibrated images, WS-13; #232 end-product
@@ -349,6 +355,13 @@ The known open defects:
   opaque, refusing frames visible through the C ring or the gaps (#402). The
   symmetry axis is found by searching a backplane for the sunward direction
   where it can be computed (#594).
+- **Gates and the body-witness veto** — the combined polarity gate keys on an
+  LM convergence flag that reads false on most healthy fits and flips with
+  sub-pixel details of the model, so it rejects or keeps fits on an
+  effectively arbitrary signal (#747); the multi-body exclusion counts bodies
+  that have results rather than bodies in the frame (#749); and whether a
+  body's witness blob needs its own overflow limit, separate from its limit as
+  an answer, is a decision (#748).
 - **#400** — the ensemble merge and tier logic have never been exercised on
   a strongly anisotropic covariance; the haze fit reports a 0.36 px by
   1.02 px oblique ellipse whose orientation varies with the sun direction.
@@ -713,26 +726,35 @@ library votes and the decision gates, not by any implementation.
     them is stored at full precision, so two fields holding one quantity can
     disagree in the last place. Decide whether every value is stored at full
     precision, with rounding left to reports and logs.
-13. Recurring: library batch votes; agreement-study frame selection; tier
+13. **The witness blob's overflow limit (#748)** — whether a body's witness
+    blob in the body-witness veto keeps its own overflow limit, derived from
+    the veto's tolerance, separate from the limit that withholds it as an
+    answer.
+14. **A sigma ceiling on the low tier (#751)** — whether the lowest confidence
+    tier carries a sigma ceiling, and at what value. It is a calibration
+    choice rather than a derivation, between the 18.85 px that legitimate
+    blob-only answers on irregular bodies reach and the far-off blobs a
+    rejected limb would expose, and it interacts with WS-5.
+15. Recurring: library batch votes; agreement-study frame selection; tier
     re-blessing after #230.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it: 300 issues
+Every open issue, listed exactly once by the track that owns it: 305 issues
 as of 2026-10-14. The count is given so a reader can tell a stale index from
 a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
-| A — validation & calibration | 65 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675, #727 |
-| B — navigation correctness | 34 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639 |
+| A — validation & calibration | 67 | #84, #153, #172, #174, #176, #223, #225, #226, #227, #229, #230, #232, #233, #234, #235, #290, #309, #310, #311, #316, #319, #321, #322, #324, #325, #329, #330, #331, #332, #333, #334, #335, #336, #341, #342, #343, #344, #345, #355, #358, #359, #360, #361, #377, #380, #399, #405, #407, #409, #426, #561, #625, #626, #627, #629, #630, #631, #632, #633, #637, #641, #644, #646, #675, #727, #750, #751 |
+| B — navigation correctness | 37 | #25, #128, #130, #150, #239, #282, #283, #338, #346, #350, #373, #394, #400, #401, #402, #403, #404, #447, #476, #482, #521, #557, #558, #566, #567, #577, #579, #585, #591, #594, #621, #622, #623, #639, #747, #748, #749 |
 | C — statistics & QA | 4 | #240, #340, #533, #535 (plus the standing cross-check and campaign-report practice) |
 | D — capability completion | 96 | #28, #30, #53, #54, #55, #57, #63, #67, #77, #79, #108, #118, #126, #141, #142, #231, #236, #251, #252, #253, #397, #398, #411, #418, #424, #427, #433, #434, #435, #436, #437, #440, #444, #448, #455, #459, #462, #464, #465, #466, #467, #468, #472, #486, #493, #495, #496, #497, #501, #512, #513, #514, #515, #520, #528, #531, #534, #536, #538, #540, #541, #542, #572, #578, #587, #595, #596, #597, #598, #599, #600, #609, #611, #614, #616, #617, #618, #634, #638, #677, #687, #701, #705, #708, #710, #716, #717, #718, #720, #730, #731, #733, #734, #735, #736, #738 |
 | E — test & docs debt | 36 | #122, #129, #177, #241, #242, #243, #288, #379, #391, #429, #438, #443, #446, #470, #471, #473, #483, #516, #524, #525, #530, #545, #547, #548, #549, #554, #562, #563, #574, #576, #612, #712, #714, #715, #723, #725 |
 | F — instruments, features, hardening | 65 | #2, #15, #18, #19, #21, #22, #23, #27, #33, #34, #38, #39, #65, #78, #81, #82, #83, #92, #96, #97, #98, #99, #100, #101, #102, #103, #105, #107, #109, #110, #119, #134, #135, #137, #138, #140, #143, #144, #147, #151, #152, #155, #157, #158, #181, #182, #183, #184, #185, #186, #187, #212, #388, #423, #428, #494, #518, #552, #584, #590, #604, #628, #706, #709, #711 |
 
-Priority census across all six tracks: no Critical, 30 Essential, 85
-Important, 131 Useful, 39 Minor, 15 Defer, which accounts for all 300. Every
+Priority census across all six tracks: no Critical, 30 Essential, 88
+Important, 133 Useful, 39 Minor, 15 Defer, which accounts for all 305. Every
 open issue carries exactly one Priority and one Effort label and at least one
 each of A-type and B-location.
 
