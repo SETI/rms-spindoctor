@@ -30,9 +30,9 @@ The feature-by-feature emission rules:
   when the limb is unusable for ``LIMB_ARC`` and a witness beside the
   limb otherwise.  A body whose silhouette is entirely in shadow has zero
   photometric signal to centroid, so it emits no blob (only the geometric
-  features, per the dev guide's Restrictions).  A body that overflows the
-  sensor emits none either: its predicted centroid spans pixels the image
-  does not hold.  The per-body shape floor can override the global
+  features, per the dev guide's Restrictions).  A body whose
+  ``overflow_fraction`` exceeds that limit emits none either: its predicted
+  centroid spans pixels the image does not hold.  The per-body shape floor can override the global
   default upward but not downward.
 - ``BODY_DISC`` is emitted alongside ``LIMB_ARC`` when the body fits
   inside the FOV with at least ``BODY_DISC_MIN_VISIBLE_LIT_FRACTION``
