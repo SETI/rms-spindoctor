@@ -702,11 +702,37 @@ def detection_peak_ratio(
     return peak / runner_up
 
 
+def smear_length_px(feature: NavFeature) -> float:
+    """Return a STAR feature's expected smear length in pixels (0.0 without star flags)."""
+    flags = feature.flags
+    return float(flags.smear_length_px) if isinstance(flags, StarFlags) else 0.0
+
+
+def isolation_radii(inner_px: int, outer_px: int, smear_px: float) -> tuple[int, int]:
+    """Return the isolation annulus radii widened for a smeared star.
+
+    A star smeared over ``smear_px`` pixels reaches half that length either side of
+    its center, so the annulus moves out by that much: the star's own streak does not
+    cross it, while a ridge of a ring or a cosmic-ray track crosses an annulus of any
+    radius.
+
+    Parameters:
+        inner_px: Inner radius for an unsmeared star, in pixels.
+        outer_px: Outer radius for an unsmeared star, in pixels.
+        smear_px: Expected smear length in pixels.
+
+    Returns:
+        ``(inner, outer)`` radii in whole pixels.
+    """
+    margin = math.ceil(max(smear_px, 0.0) / 2.0)
+    return inner_px + margin, outer_px + margin
+
+
 def third_star_votes(
     others: list[NavFeature],
     offset_vu: tuple[float, float],
     *,
-    detect: Callable[[tuple[float, float]], tuple[float, float] | None],
+    detect: Callable[[NavFeature], tuple[float, float] | None],
     tolerance_px: float,
 ) -> tuple[int, int]:
     """Return how many other stars' detections agree and disagree with an offset.
@@ -719,7 +745,7 @@ def third_star_votes(
     Parameters:
         others: Star features other than the two the offset rests on.
         offset_vu: ``(dv, du)`` offset the votes are cast on.
-        detect: Returns the detection centroid for a prediction, or ``None``.
+        detect: Returns the detection centroid for a star, or ``None``.
         tolerance_px: Largest offset difference that agrees.
 
     Returns:
@@ -728,7 +754,7 @@ def third_star_votes(
     agree = disagree = 0
     for feature in others:
         pred = predicted_vu(feature)
-        det = detect(pred)
+        det = detect(feature)
         if det is None:
             continue
         if (

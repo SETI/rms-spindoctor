@@ -62,9 +62,11 @@ from spindoctor.nav_technique._star_helpers import (
     brightness_margin_mag,
     gaussian_psf_kernel,
     isolated_response,
+    isolation_radii,
     predicted_snr,
     predicted_vu,
     similarity_transform_fit,
+    smear_length_px,
     usable_stars,
 )
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
@@ -815,6 +817,12 @@ class StarFieldFromCatalogNav(NavTechnique):
                 )
             image_ext = np.asarray(context.image_ext, np.float64)
             noise_sigma = float(max(context.image_noise_sigma, 1e-9))
+            # Every star of one frame smears alike; the median serves them all.
+            isolation_inner_px, isolation_outer_px = isolation_radii(
+                self._isolation_inner_px,
+                self._isolation_outer_px,
+                float(np.median([smear_length_px(f) for f in usable])),
+            )
             detected = _detect_image_sources(
                 image_ext,
                 image_noise_sigma=noise_sigma,
@@ -822,8 +830,8 @@ class StarFieldFromCatalogNav(NavTechnique):
                 detection_sigma=self._detection_sigma,
                 centroid_box_half_px=self._centroid_box_half_px,
                 max_sources=self._max_sources,
-                isolation_inner_px=self._isolation_inner_px,
-                isolation_outer_px=self._isolation_outer_px,
+                isolation_inner_px=isolation_inner_px,
+                isolation_outer_px=isolation_outer_px,
                 isolation_max_ratio=self._isolation_max_ratio,
             )
             n_detected_sources = len(detected)

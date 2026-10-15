@@ -467,6 +467,37 @@ def test_star_field_recovers_planted_offset(
     assert result.diagnostics.n_inliers >= 6
 
 
+@pytest.mark.parametrize(('smear_px', 'recovers'), [(8.5, True), (0.0, False)])
+def test_star_field_isolates_smeared_stars_at_their_smear(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    smear_px: float,
+    recovers: bool,
+) -> None:
+    """A field streaked over 8 rows is detected when its stars carry that smear."""
+    centers = [
+        (60.0, 80.0),
+        (110.0, 130.0),
+        (180.0, 90.0),
+        (220.0, 200.0),
+        (90.0, 240.0),
+        (250.0, 70.0),
+    ]
+    image = np.zeros((320, 320), dtype=np.float64)
+    for cv, cu in centers:
+        for step in np.linspace(-4.0, 4.0, 17):
+            draw_gaussian_star(image, (cv + step, cu), peak_dn=25.0, sigma=1.0)
+    planted = (3.0, -2.5)
+    features = [
+        replace(f, flags=replace(cast(StarFlags, f.flags), smear_length_px=smear_px))
+        for f in _make_star_field_features(centers, make_feature=make_star_feature, offset=planted)
+    ]
+    context = make_nav_context(image, extfov_margin_vu=(32, 32))
+    result = StarFieldFromCatalogNav().navigate(features, context)
+    assert (result.spurious is False) is recovers
+
+
 def test_star_field_is_deterministic_across_two_invocations(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,

@@ -701,6 +701,36 @@ def test_star_unique_match_disagreeing_pairs_do_not_fall_back_to_one_star(
     assert result.spurious is True
 
 
+@pytest.mark.parametrize(('smear_px', 'two_star'), [(8.5, True), (0.0, False)])
+def test_star_unique_match_a_smeared_pair_is_isolated_at_its_smear(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    smear_px: float,
+    two_star: bool,
+) -> None:
+    """Two stars streaked over 8 rows pair up when their features carry that smear.
+
+    A streak crosses the isolation annulus of an unsmeared star, as on the library
+    frame N1530185128_1; the annulus moved out by half the expected smear clears it.
+    """
+    image = np.zeros((300, 300), dtype=np.float64)
+    planted = (2.0, -3.0)
+    preds = ((100.0, 100.0), (200.0, 200.0))
+    for pv, pu in preds:
+        for step in np.linspace(-4.0, 4.0, 17):
+            draw_gaussian_star(image, (pv + planted[0] + step, pu + planted[1]), 25.0, 1.0)
+    features = [
+        make_star_feature(
+            f'star:UCAC4:{k}', predicted_vu=pred, predicted_snr=60.0 - k, smear_length_px=smear_px
+        )
+        for k, pred in enumerate(preds)
+    ]
+    result = StarUniqueMatchNav().navigate(features, make_nav_context(image))
+    assert isinstance(result.diagnostics, StarUniqueMatchDiagnostics)
+    assert (result.diagnostics.mode == 'two_star') is two_star
+
+
 @pytest.mark.parametrize(('n_elsewhere', 'spurious'), [(3, True), (2, False)])
 def test_star_unique_match_refuses_a_pair_the_other_stars_contradict(
     make_nav_context: NavContextFactory,

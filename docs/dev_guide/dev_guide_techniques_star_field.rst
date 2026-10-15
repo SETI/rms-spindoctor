@@ -61,9 +61,11 @@ to ``source_isolation_outer_px`` around it, the brightest response exceeds the a
 mean by less than ``source_isolation_max_ratio`` of the candidate's own height above that
 mean. A star's light falls to the background well inside the annulus, so its annulus is
 flat; a ridge along a ring or a limb runs through the annulus at nearly the peak's height
-and is refused. A brightness-weighted moment around each kept peak gives the sub-pixel
-centroid, and up to ``max_sources`` brightest detections feed the hash-space search; the
-catalog side is similarly capped.
+and is refused. Both radii move out by half the frame's median expected star smear, so a
+star streaked by the spacecraft's motion does not cross its own annulus. A
+brightness-weighted moment around each kept peak gives the sub-pixel centroid, and up to
+``max_sources`` brightest detections feed the hash-space search; the catalog side is
+similarly capped.
 
 The isolation test is what lets the matcher see the stars on a frame crossed by a bright
 ring. On 16 F ring frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` examined in detail, every

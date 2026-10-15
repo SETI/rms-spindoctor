@@ -112,8 +112,11 @@ shared helper ``local_centroid`` in ``_star_helpers`` does this for
   and ``source_isolation_max_ratio``, over the same matched filter). A ridge of a ring or
   a cosmic-ray track is a peak of the response but runs through the surrounding annulus.
   On the black-sky Galileo library frame ``C0164958500R`` two tracks at the same offset
-  from two predictions formed a pair that passed its cross-check. The test refuses a
-  pair 19 px wrong on ``ISS_006RI_LPHRLFMOV001_PRIME`` and costs 4 of its 1030 frames.
+  from two predictions formed a pair that passed its cross-check. Without the test, 3 more
+  of the 1030 frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` navigate, none wrong. Both radii
+  move out by half the star's expected smear length: on the library frame
+  ``N1530185128_1`` the spacecraft's motion streaks every star over 8.5 px, each streak
+  crosses an unsmeared star's annulus, and no pair would pass.
 - **A window outshone from outside** is refused on the refinement path only: when the
   window's brightest pixel lies at its edge, belongs to no peak inside the window, and is
   brighter than the detection's own peak, the light of a source outside the window
@@ -178,8 +181,8 @@ is held instead to ``inner_search_window_px`` (30 px), above those offsets.
 
 When at least two usable stars exist, the technique first attempts the 2-star path. Every
 pair among the ``pair_search_stars`` brightest usable stars is tried, brightest pairs
-first, in two windows: ``inner_search_window_px`` and then ``search_window_px``. For
-each pair both detection-to-prediction assignments are tried and the one with the smaller
+first, in two windows: ``inner_search_window_px`` and then ``search_window_px``. For each
+pair both detection-to-prediction assignments are tried and the one with the smaller
 residual kept; the residual is half the difference between the two stars' offsets, and a
 pair passes only when it is within ``max_residual_px``. The first passing pair is the
 answer, unless another passing pair puts the offset more than twice ``max_residual_px``
@@ -188,12 +191,12 @@ which one cannot be told, so the technique reports spurious with an ``ambiguous_
 reason. The first passing pair is refused in the same way, with a ``pair_contradicted``
 reason, when at least ``pair_contradiction_stars`` of the other searched stars have an
 isolated detection in the pair's window and every one of those detections lies more than
-twice ``max_residual_px`` from the pair's offset. Two stars can agree by coincidence; three
-more stars that are in the image and found elsewhere say they did. A simulated six-star
-field whose catalog positions each scatter by 6 or 8 px has two stars agreeing to 0.8 and
-1.1 px, reported 5 and 7 px wrong without the refusal. Of the 6098 two-star answers in the
-F ring movies set aside for tuning, none has three such stars and 32 have two, all of them
-correct.
+twice ``max_residual_px`` from the pair's offset. Two stars can agree by coincidence;
+three more stars that are in the image and found elsewhere say they did. A simulated
+six-star field whose catalog positions each scatter by 6 or 8 px has two stars agreeing to
+0.8 and 1.1 px, reported 5 and 7 px wrong without the refusal. Of the 6098 two-star
+answers in the F ring movies set aside for tuning, none has three such stars and 32 have
+two, all of them correct.
 
 The path applies no per-window ambiguity gate: a window won by something other than its
 star moves that star's offset away from the other's and the residual declines the pair,
@@ -207,17 +210,17 @@ the pointing error is applied, or under a ring's glare; with only the brightest 
 its window holds no star, the pair fails, and the frame falls through to the 1-star path,
 whose brightness margin a field of comparable stars never clears. On
 ``ISS_006RI_LPHRLFMOV001_PRIME`` searching pairs among the brightest 3, 5, and 8 stars
-navigates 719, 773, and 779 of the 1030 frames, every one within 2 px of the published F
+navigates 710, 771, and 777 of the 1030 frames, every one within 2 px of the published F
 ring bundle. The narrower window is searched as well because the strongest detection of
 the wider one is more often something brighter than the star; with no narrower window the
-technique navigates 747 frames, none wrong.
+technique navigates 750 frames, none wrong.
 
-The residual tolerance is measured. With it opened to 4 px, the 703 two-star matches on
+The residual tolerance is measured. With it opened to 4 px, the 704 two-star matches on
 that observation that lie within 2 px of the bundle have residuals of median 0.10 px and
-95th percentile 0.31 px, while the one match in which a star was paired with the wrong
-source has 3.37 px. At 1.2 px, 698 of the 703 pass; 1.2 rather than 1.0 admits the correct
-pair of library frame ``N1550270436``, whose residual is 1.04 px and whose fallback
-without it is a body centroid 15 px wrong.
+95th percentile 0.30 px, and no star is paired with the wrong source. At 1.2 px, 701 of
+the 704 pass; 1.2 rather than 1.0 admits the correct pair of library frame
+``N1550270436``, whose residual is 1.04 px and whose fallback without it is a body
+centroid 15 px wrong.
 
 For each pair the fit is a Procrustes / similarity-transform fit on the two
 correspondences that reports the recovered translation plus rotation. The rotation
@@ -260,7 +263,7 @@ Restrictions and assumptions
   region it may come from, the likelier an artifact is the brightest thing in it. On the
   black-sky Galileo library frame ``C0164392700R`` a lone artifact lies 40 px from the one
   predicted star. On ``ISS_006RI``, windows of 30, 40, 50, and
-  60 px navigate 758, 776, 773, and 764 frames, none wrong; the narrower ones leave the
+  60 px navigate 753, 774, 771, and 762 frames, none wrong; the narrower ones leave the
   stars of the frames whose error exceeds them out of reach, and the other gates refuse
   those frames. Beyond the window is the regime where the multi-star
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` triplet

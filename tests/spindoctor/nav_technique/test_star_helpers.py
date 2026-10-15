@@ -11,6 +11,7 @@ from spindoctor.nav_technique._star_helpers import (
     _window_peaks,
     detection_peak_ratio,
     gaussian_psf_kernel,
+    isolation_radii,
     local_centroid,
     search_window_bounds,
 )
@@ -377,3 +378,8 @@ def test_a_broad_source_just_past_the_window_leaves_it_no_peak() -> None:
     assert bounds is not None
     peaks = _window_peaks(image, bounds, kernel=gaussian_psf_kernel(1.0, size=7))
     assert not np.isfinite(peaks).any()
+
+
+def test_the_isolation_annulus_moves_out_by_half_the_smear() -> None:
+    """A star smeared over 8.5 px gets an annulus 5 px farther out."""
+    assert isolation_radii(4, 6, 8.5) == (9, 11)

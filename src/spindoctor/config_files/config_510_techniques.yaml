@@ -709,7 +709,7 @@ techniques:
       # the NAC pointing error reaches 43 px (published F ring bundle); a
       # 30 px window puts the stars of 191 of its 1030 frames out of
       # reach.  50 px brackets the error.  With inner_search_window_px
-      # below, 30, 40, 50, and 60 px navigate 758, 776, 773, and 764
+      # below, 30, 40, 50, and 60 px navigate 753, 774, 771, and 762
       # frames, none wrong; 30 and 40 px leave the stars of the frames
       # whose error exceeds them outside the window, which the other
       # gates then refuse.
@@ -726,8 +726,8 @@ techniques:
       # come from, the likelier an artifact is the brightest thing in it.
       # The black-sky library frame C0164392700R has a lone artifact
       # 40 px from its one predicted star.  On ISS_006RI an inner window
-      # of 30, 40, and 50 px (the last meaning none) navigates 773, 772,
-      # and 747 frames, none wrong.
+      # of 30, 40, and 50 px (the last meaning none) navigates 771, 772,
+      # and 750 frames, none wrong.
       inner_search_window_px: 30.0
       # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
       # detection inside each search window: the strongest local maximum
@@ -756,8 +756,11 @@ techniques:
       # than source_isolation_max_ratio of the detection's own height
       # above that mean.  A ring ridge or a cosmic-ray track fails; on the
       # black-sky library frame C0164958500R two such tracks formed a
-      # consistent pair.  On ISS_006RI it refuses a pair 19 px wrong and
-      # costs 4 of the 1030 frames.
+      # consistent pair.  Without it 3 more of the 1030 ISS_006RI frames
+      # navigate, none wrong.  Both
+      # radii move out by half a star's expected smear length, so a star
+      # streaked by the spacecraft's motion (8.5 px on the library frame
+      # N1530185128_1) does not cross its own annulus.
       source_isolation_inner_px: 4
       source_isolation_outer_px: 6
       source_isolation_max_ratio: 0.5
@@ -767,12 +770,11 @@ techniques:
       # Maximum allowed best-assignment residual in the 2-star path (px).
       # The residual is half the difference between the two stars'
       # offsets.  On ISS_006RI_LPHRLFMOV001_PRIME, with the tolerance
-      # opened to 4 px, the 703 two-star matches within 2 px of the
+      # opened to 4 px, the 704 two-star matches within 2 px of the
       # published bundle have residuals of median 0.10 px and 95th
-      # percentile 0.31 px, while the one match in which a star was
-      # paired with the wrong source has 3.37 px.  1.2 px keeps 698 of
-      # the 703, and admits the correct 1.04 px pair of library frame
-      # N1550270436, which 1.0 px refuses.  Two passing pairs whose offsets differ by
+      # percentile 0.30 px, and no star is paired with the wrong source.
+      # 1.2 px keeps 701 of the 704, and admits the correct 1.04 px pair
+      # of library frame N1550270436, which 1.0 px refuses.  Two passing pairs whose offsets differ by
       # more than twice this are ambiguous and the technique reports
       # spurious.
       max_residual_px: 1.2
@@ -780,8 +782,8 @@ techniques:
       # searches for a pair; every pair of them is tried.  Searching only
       # the brightest two refuses frames whose brightest predicted star is
       # not in the image (outside the detector, behind ring glare).  On
-      # ISS_006RI: 3 stars navigate 719 frames, 5 navigate 773, 8 navigate
-      # 779, all within 2 px of the bundle.
+      # ISS_006RI: 3 stars navigate 710 frames, 5 navigate 771, 8 navigate
+      # 777, all within 2 px of the bundle.
       pair_search_stars: 5
       # A passing pair is refused (spurious) when at least this many of the
       # other pair_search_stars brightest stars have an isolated detection

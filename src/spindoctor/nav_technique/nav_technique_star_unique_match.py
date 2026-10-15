@@ -76,9 +76,12 @@ from spindoctor.nav_technique._star_helpers import (
     brightness_margin_mag,
     detection_peak_ratio,
     is_isolated_point_source,
+    isolation_radii,
     local_centroid,
     predicted_snr,
+    predicted_vu,
     similarity_transform_fit,
+    smear_length_px,
     third_star_votes,
     usable_stars,
 )
@@ -384,8 +387,8 @@ class StarUniqueMatchNav(NavTechnique):
             agree, disagree = third_star_votes(
                 others,
                 chosen.offset_px,
-                detect=lambda pred: self._isolated_detection(
-                    image_ext, pred, noise_sigma, search_window_px=chosen_window_px
+                detect=lambda star: self._isolated_detection(
+                    image_ext, star, noise_sigma, search_window_px=chosen_window_px
                 ),
                 tolerance_px=tolerance_px,
             )
@@ -406,15 +409,15 @@ class StarUniqueMatchNav(NavTechnique):
     def _isolated_detection(
         self,
         image_ext: NDArrayFloatType,
-        pred: tuple[float, float],
+        star: NavFeature,
         noise_sigma: float,
         *,
         search_window_px: float,
     ) -> tuple[float, float] | None:
-        """Return the window's detection when it is an isolated point source, else None."""
+        """Return a star's window detection when it is an isolated point source, else None."""
         det, _peak = local_centroid(
             image_ext,
-            pred,
+            predicted_vu(star),
             search_window_px=search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
             psf_sigma_px=self._psf_sigma_px,
@@ -423,7 +426,7 @@ class StarUniqueMatchNav(NavTechnique):
             detection_sigma=self._detection_sigma,
             refuse_outshone=False,
         )
-        if det is None or not self._is_point_source(image_ext, det):
+        if det is None or not self._is_point_source(image_ext, det, smear_px=smear_length_px(star)):
             return None
         return det
 
@@ -456,16 +459,10 @@ class StarUniqueMatchNav(NavTechnique):
             ``max_residual_px``.
         """
         det_a = self._isolated_detection(
-            image_ext,
-            chosen[0].geometry.predicted_vu,  # type: ignore[union-attr]
-            noise_sigma,
-            search_window_px=search_window_px,
+            image_ext, chosen[0], noise_sigma, search_window_px=search_window_px
         )
         det_b = self._isolated_detection(
-            image_ext,
-            chosen[1].geometry.predicted_vu,  # type: ignore[union-attr]
-            noise_sigma,
-            search_window_px=search_window_px,
+            image_ext, chosen[1], noise_sigma, search_window_px=search_window_px
         )
         if det_a is None or det_b is None:
             self.logger.debug(
@@ -783,7 +780,7 @@ class StarUniqueMatchNav(NavTechnique):
             )
         pred_v, pred_u = brightest.geometry.predicted_vu  # type: ignore[union-attr]
         refusal = None
-        if not self._is_point_source(image_ext, det):
+        if not self._is_point_source(image_ext, det, smear_px=smear_length_px(brightest)):
             refusal = (
                 'window_peak_not_a_point_source (part of an extended source, or a cosmic-ray track)'
             )
@@ -927,7 +924,7 @@ class StarUniqueMatchNav(NavTechnique):
         )
 
     def _is_point_source(
-        self, image_ext: NDArrayFloatType, detection_vu: tuple[float, float]
+        self, image_ext: NDArrayFloatType, detection_vu: tuple[float, float], *, smear_px: float
     ) -> bool:
         """Return whether a window's detection is an isolated point source of the image.
 
@@ -935,22 +932,27 @@ class StarUniqueMatchNav(NavTechnique):
         takes only local maxima of the response), so the remaining test is isolation
         (:func:`is_isolated_point_source`, the test the star field's source detection
         applies): a ridge of a ring or a limb, or a cosmic-ray track, is a peak but not a
-        star.
+        star.  The annulus moves out by half the star's expected smear
+        (:func:`isolation_radii`), so a smeared star's own streak does not fail it.
 
         Parameters:
             image_ext: The extended-FOV image.
             detection_vu: ``(v, u)`` centroid :func:`local_centroid` returned.
+            smear_px: The star's expected smear length in pixels.
 
         Returns:
             True when the detection is isolated.
         """
+        inner_px, outer_px = isolation_radii(
+            self._isolation_inner_px, self._isolation_outer_px, smear_px
+        )
         return is_isolated_point_source(
             image_ext,
             detection_vu,
             sigma_px=self._psf_sigma_px,
             kernel_half_px=self._centroid_box_half_px,
-            inner_px=self._isolation_inner_px,
-            outer_px=self._isolation_outer_px,
+            inner_px=inner_px,
+            outer_px=outer_px,
             max_ratio=self._isolation_max_ratio,
         )
 
