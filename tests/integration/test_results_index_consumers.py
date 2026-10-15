@@ -15,7 +15,8 @@ failure this is looking for, and a tolerance would hide it.
 Both a frame whose record carries a corrected attitude and one whose navigation
 fitted a camera rotation are run, since the two take different mechanisms and
 the second is the case that distinguishes a missing pointing block from a
-missing corrected attitude.
+missing corrected attitude.  No packaged configuration fits a rotation, so the
+second frame is navigated with rotation fitting turned on for it alone.
 """
 
 import math
@@ -61,6 +62,7 @@ from spindoctor.cli.reproj.pointing_source import (  # noqa: E402  (guarded impo
     PointingSource,
 )
 from spindoctor.cli.results_index import ingest_metadata_files  # noqa: E402  (guarded import)
+from spindoctor.config import Config  # noqa: E402  (guarded import)
 from spindoctor.dataset.dataset import ImageFile, ImageFiles  # noqa: E402  (guarded import)
 from spindoctor.nav_records import TreeTuning  # noqa: E402  (guarded import)
 from spindoctor.navigate_image_files import (  # noqa: E402  (guarded import)
@@ -90,10 +92,11 @@ from tests.integration.ck_round_trip import (  # noqa: E402  (guarded import)
 # it carries a recorded corrected attitude and has ring content to reproject.
 _RING_FRAME = 'N1863267861_1_CALIB'
 
-# A Galileo SSI frame the library records as navigating successfully.  Galileo
-# fits a camera rotation, so its record carries a baseline and no corrected
-# attitude, which is the row shape one column alone cannot tell from a record
-# with no pointing block at all.
+# A Galileo SSI frame the library records as navigating successfully.  It is
+# navigated here with rotation fitting turned on, which no packaged
+# configuration does, so that its real record fits a camera rotation and
+# carries a baseline and no corrected attitude: the row shape one column alone
+# cannot tell from a record with no pointing block at all.
 _GALILEO_FRAME = 'C0059894800R'
 
 _MISSION_TO_OBS_CLASS: dict[str, type[ObsSnapshotInst]] = {
@@ -110,11 +113,15 @@ _RING_RADIUS_RESOLUTION_KM = 25.0
 _RING_LONGITUDE_RESOLUTION_RAD = 0.1 * math.pi / 180.0
 
 
-def _image_files_for(image_id: str) -> tuple[type[ObsSnapshotInst], ImageFiles]:
+def _image_files_for(
+    image_id: str, *, config: Config | None = None
+) -> tuple[type[ObsSnapshotInst], ImageFiles]:
     """Resolve one library image into its observation class and file batch.
 
     Parameters:
         image_id: The library's id for the image.
+        config: The configuration the image's observation is built with; the
+            default configuration when None.
 
     Returns:
         The instrument's observation class and the one-image batch.
@@ -122,8 +129,16 @@ def _image_files_for(image_id: str) -> tuple[type[ObsSnapshotInst], ImageFiles]:
     sidecar = sidecar_for(image_id)
     obs_class = _MISSION_TO_OBS_CLASS[sidecar.mission]
     url = holdings_url(sidecar)
+    extra_params: dict[str, Any] = {} if config is None else {'config': config}
     return obs_class, ImageFiles(
-        image_files=[ImageFile(image_file_url=url, label_file_url=url, results_path_stub=image_id)]
+        image_files=[
+            ImageFile(
+                image_file_url=url,
+                label_file_url=url,
+                results_path_stub=image_id,
+                extra_params=extra_params,
+            )
+        ]
     )
 
 
@@ -139,10 +154,35 @@ def navigated() -> dict[str, Path]:
     return {}
 
 
+def _navigate_into_root(
+    image_id: str, tmp_path_factory: pytest.TempPathFactory, *, config: Config | None = None
+) -> tuple[Path, dict[str, Any]]:
+    """Navigate one frame into a results root of its own.
+
+    Parameters:
+        image_id: The library's id for the image.
+        tmp_path_factory: Where the navigation may write.
+        config: The configuration the image's observation is built with; the
+            default configuration when None.
+
+    Returns:
+        Tuple of the results root holding that frame's navigation document and the
+        navigation metadata.
+    """
+    obs_class, image_files = _image_files_for(image_id, config=config)
+    root = tmp_path_factory.mktemp(f'nav_{image_id}')
+    success, metadata = navigate_image_files(
+        obs_class, image_files, FCPath(str(root)), write_output_files=True
+    )
+    assert success, f'{image_id} did not navigate; the comparison has nothing to read'
+    assert metadata.get('status') == 'success'
+    return root, metadata
+
+
 def _nav_root(
     image_id: str, cache: dict[str, Path], tmp_path_factory: pytest.TempPathFactory
 ) -> Path:
-    """Navigate one frame into a results root of its own, or return the one it has.
+    """Navigate one frame with the default configuration, or return the root it has.
 
     Parameters:
         image_id: The library's id for the image.
@@ -153,14 +193,7 @@ def _nav_root(
         The results root holding that frame's navigation document.
     """
     if image_id not in cache:
-        obs_class, image_files = _image_files_for(image_id)
-        root = tmp_path_factory.mktemp(f'nav_{image_id}')
-        success, metadata = navigate_image_files(
-            obs_class, image_files, FCPath(str(root)), write_output_files=True
-        )
-        assert success, f'{image_id} did not navigate; the comparison has nothing to read'
-        assert metadata.get('status') == 'success'
-        cache[image_id] = root
+        cache[image_id], _metadata = _navigate_into_root(image_id, tmp_path_factory)
     return cache[image_id]
 
 
@@ -259,25 +292,30 @@ def ring_backplanes(
 
 @pytest.fixture(scope='module')
 def galileo_selections(
-    navigated: dict[str, Path], tmp_path_factory: pytest.TempPathFactory
+    rotation_fitting_config: Config, tmp_path_factory: pytest.TempPathFactory
 ) -> dict[str, Any]:
     """Classify the fitted-rotation frame's real record through both sources.
 
     The frame is an Earth-system image, for which no ring backplane exists, so
     what is compared is the classification and the values a product would be
     built from rather than a product.  What it contributes is the row shape:
-    a real record from a host whose navigation fits a camera rotation, stored
-    by the real ingest, is the case a NULL ``cmatrix`` alone cannot tell from a
-    record that carried no pointing block.
+    a real record of a navigation that fitted a camera rotation, stored by the
+    real ingest, is the case a NULL ``cmatrix`` alone cannot tell from a record
+    that carried no pointing block.
 
     Parameters:
-        navigated: The cache of navigated results roots.
-        tmp_path_factory: Where the index is written.
+        rotation_fitting_config: The configuration that turns rotation fitting on.
+        tmp_path_factory: Where the navigation and the index are written.
 
     Returns:
         The two selections and the row the index holds.
     """
-    root = _nav_root(_GALILEO_FRAME, navigated, tmp_path_factory)
+    root, metadata = _navigate_into_root(
+        _GALILEO_FRAME, tmp_path_factory, config=rotation_fitting_config
+    )
+    assert 'rotation_deg' in metadata['navigation_result'], (
+        f'{_GALILEO_FRAME} fitted no rotation; there is no fitted-rotation record to read'
+    )
     work = tmp_path_factory.mktemp('sel_galileo')
     _obs_class, image_files = _image_files_for(_GALILEO_FRAME)
     image_file = image_files.image_files[0]

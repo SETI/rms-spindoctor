@@ -484,8 +484,8 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 8 of 75 library frames red locally (#288), a cross-check
-  can only be read as "no *new* deltas against `main`".
+  degraded: with 11 of 75 library frames red locally (#288, #744, #639),
+  a cross-check can only be read as "no *new* deltas against `main`".
 
 ## Track D — Capability completion
 
@@ -982,28 +982,35 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 8
+  debt with the widest blast radius. In the local integration environment 11
   of 75 sidecars disagree, each one attributed and owned, but the set is
   still wider than the deliberately-pinned one below, so the regression
-  instrument cannot yet be read as clean. Two consequences to hold
-  onto: a navigation-affecting branch can only be gated on *no new failures
-  against `main`*, and #547 (the one place a built product is compared
-  between the results tree and the results index) is blocked because the
-  frame it needs no longer navigates. Reconciling this is prerequisite
-  to #483's re-ratchet and to reading the Track A cohorts with confidence.
+  instrument cannot yet be read as clean. Two of the eleven, the Galileo
+  frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
+  answer that the change in #560 retired; re-recording their truth from an
+  outside measurement, or pinning them red under #434, is the operator
+  decision in #744. Another, `N1530185128_1`, is owned by the star-centroid
+  defect in #639. Two consequences to hold onto: a navigation-affecting
+  branch can only be gated on *no new failures against `main`*, and #547
+  (the one place a built product is compared between the results tree and
+  the results index) is blocked because the frame it needs no longer
+  navigates. Reconciling this is prerequisite to #483's re-ratchet and to
+  reading the Track A cohorts with confidence.
 
   The intended steady state, and what the pins mean when it is reached: the
-  standing red set reduced to the deliberately-pinned frames, each owned by
-  an open navigation issue (#338, #346, #350). N1530185128 (#351) and W1444747627
-  (#352) are now re-ratcheted to success/medium and green: the ensemble
-  blob-outlier drop lets the multi-star fix commit on the former, and the
-  star-navigation hardening already locks the latter. N1806609736 (#392) is
-  green as well: the shape-lock veto no longer misfires when a star fix
-  corroborates the limb. N1572105349's pin was
-  owned by #222 (now closed by the independence resolution); its autonomous
-  regression should flip green on the next integration run against real
-  holdings (that suite does not run in PR CI). Keep the pins accurate as
-  issues close and re-ratchet only what they authorize.
+  standing red set reduced to the deliberately-pinned frames, each owned by an
+  open navigation issue (#338, #346, #350). W1444747627 (#352) is re-ratcheted
+  to success/medium and green: the star-navigation hardening locks it.
+  N1530185128 was re-ratcheted to success/medium under #351, once the ensemble
+  blob-outlier drop let the multi-star fix commit, but it has been red since
+  the star datum correction (#643), with a dv error of 17.472 px, and is owned
+  by the star-centroid defect in #639. N1806609736 (#392) is green as well:
+  the shape-lock veto no longer misfires when a star fix corroborates the
+  limb. N1572105349's pin was owned by #222 (now closed by the independence
+  resolution); its autonomous regression should flip green on the next
+  integration run against real holdings (that suite does not run in PR CI).
+  Keep the pins accurate as issues close and re-ratchet only what they
+  authorize.
 - **#243** — direct tests for `nav_model/stars/conflicts.py`
   (`_check_one_star`, `mark_body_and_ring_conflicts`) with synthetic
   geometry; the existing per-pixel occlusion tests cover only the

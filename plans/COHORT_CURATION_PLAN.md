@@ -34,7 +34,7 @@ is untouched for three of the four instruments.
 | **B — triage** | Done, reusable | Nothing structural; the ten-glob-per-frame results-tree scan is the pain the results index does not yet serve (#465) |
 | **C — review** | Done, reusable | Batch 006's seven manual-nav follow-ups are still queued (`_work/cohort_curation/batch_006_followups.yaml`), with three class reassignments to apply during that pass |
 | **D — sidecars** | Partly done | 75 sidecars committed; `faint_stars` is empty and `body_mostly_offscreen` holds 1 of its 4 (#172), and the per-class minima are not enforced by any test (#240) |
-| **E — baselines and consumption** | Partly done | Baselines exist and are re-ratcheted per change, but eight of the 75 frames disagree with their sidecars locally (#288); no consumer study has been run (#230, #225, #355) |
+| **E — baselines and consumption** | Partly done | Baselines exist and are re-ratcheted per change, but eleven of the 75 frames disagree with their sidecars locally (#288, #744, #639); no consumer study has been run (#230, #225, #355) |
 
 **Library state.** `tests/integration/image_library/images/` holds 75
 sidecars. Per class against the first-stage budget in the appendix:
@@ -293,11 +293,13 @@ analyses never run per-PR.
    can be fully automated).
 
 A sixth stream runs alongside rather than after: the library that exists is
-red. Eight of the 75 frames disagree with their sidecars in the local
-integration environment (#288), which makes "no new failures against `main`"
-the only gate a navigation-affecting branch can clear, and several of the
-reds are curation decisions rather than code defects (#346, #350, #483,
-#563). Reconciling them is curation work and belongs to this plan.
+red. Eleven of the 75 frames disagree with their sidecars in the local
+integration environment (#288, #744, #639), which makes "no new failures
+against `main`" the only gate a navigation-affecting branch can clear. Some of
+the reds are curation decisions: the pins awaiting the call in #483, and the
+Galileo truth in #744. Reconciling those is curation work and belongs to this
+plan. The rest are navigation defects owned by their issues (#346, #350,
+and #639).
 
 Checkpoint with the operator between numbered steps, not within them.
 
@@ -318,8 +320,7 @@ Checkpoint with the operator between numbered steps, not within them.
   verifies pixel-level alignment, and sub-pixel systematics are exactly what
   WS-1/WS-2 measure — record `offset_uncertainty_px` honestly (1.0 px
   default, 2.0 px for soft features), never 0.1 px.
-- Voyager: only geometrically corrected products; Galileo/Voyager carry
-  camera-rotation fitting (slow) — budget triage time accordingly.
+- Voyager: only geometrically corrected products.
 
 ## 7. Open issues this plan carries
 
@@ -328,11 +329,11 @@ Checkpoint with the operator between numbered steps, not within them.
 | #172 | First-stage budget of 47 images across 17 scene classes | Order of work step 1 |
 | #235 | Growth to >=20 per instrument / >=120 total | Order of work steps 3-4 |
 | #240 | Coverage-matrix and per-class-minimum invariants in the structural test | Appendix budget table |
-| #288 | Eight of the 75 frames disagree with their sidecars locally | Order of work, the sixth stream |
+| #288 | Eight of the 75 frames disagree with their sidecars locally, beside the two of #744 | Order of work, the sixth stream |
 | #346 | Three library frames lock confidently onto the wrong ring feature | Same |
 | #350 | A resolved-body frame misses offset tolerance by ~2 px | Same |
 | #483 | Re-ratchet library pins moved by the shift-equivariance fix | Same |
-| #563 | A Galileo frame's offset moved 5.6 px, with two reader tests | Same |
+| #744 | Two Galileo frames record the rotation-fitted answer #560 retired | Same |
 | #239 | Decision: sub-5 px bodies — relaxed disc or expected-failure curation | Class assignment for `below_resolution_body` / `negative_cases` |
 | #319 | Opposed-ansae ring geometry has no library coverage | A wide-field Cassini WAC both-ansae sweep, Stage A |
 | #399 | Voyager ISS validation cohort for the haze-symmetry fit | Titan curation |
@@ -443,13 +444,16 @@ expected primary technique and record the judgment in the sidecar `notes`.
 - **New Horizons LORRI:** strong star-cal coverage (panchromatic, filter slot
   `1`); Pluto/Charon for body classes; `raw_dn` only.
 - **Galileo SSI:** the canonical source of `faint_stars` and
-  `scattered_light`; carries camera-rotation fitting
-  (`fit_camera_rotation: true`), which makes triage slower — budget for it.
+  `scattered_light`. Its frames carry a real twist of a few tenths of a
+  degree that navigation does not fit (`fit_camera_rotation: false`), so the
+  reported offset is a translation that cannot match every star in the frame.
+  What truth to record for such a frame is open (#744, #434).
 - **Voyager ISS:** the second source of `faint_stars` / `scattered_light`;
   must be navigated against the geometrically corrected (GEOMED) products
-  because raw Voyager frames carry uncorrected distortion; also
-  rotation-fitting. Usable epochs are constrained by the fixed SPICE coverage
-  windows (`util/cohort_curation/spice_coverage.json`).
+  because raw Voyager frames carry uncorrected distortion. Navigation does
+  not fit its camera rotation (`fit_camera_rotation: false`). Usable epochs
+  are constrained by the fixed SPICE coverage windows
+  (`util/cohort_curation/spice_coverage.json`).
 
 Aim for all four missions across the full library so the calibration never
 silently overfits one camera.

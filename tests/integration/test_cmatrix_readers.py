@@ -67,6 +67,7 @@ from spindoctor.cli.reproj.offsets import (  # noqa: E402  (guarded import)
 from spindoctor.cli.reproj.pointing_source import (  # noqa: E402  (guarded import)
     FilePointingSource,
 )
+from spindoctor.config import Config  # noqa: E402  (guarded import)
 from spindoctor.dataset.dataset import ImageFile, ImageFiles  # noqa: E402  (guarded import)
 from spindoctor.navigate_image_files import navigate_image_files  # noqa: E402  (guarded import)
 from spindoctor.obs import ObsSnapshotInst  # noqa: E402  (guarded import)
@@ -90,9 +91,10 @@ _CASSINI_WAC_BODY = 'W1637520502_1_CALIB'
 
 _COHORT = (_CASSINI_NAC, _CASSINI_WAC, _VOYAGER_NAC, _LORRI, _CASSINI_WAC_BODY)
 
-# A Galileo SSI frame the library records as navigating successfully.  Galileo
-# fits a camera rotation, so its record carries no cmatrix and it pins the
-# offset-path fallback rather than the comparison.
+# A Galileo SSI frame the library records as navigating successfully.  It is
+# navigated here with rotation fitting turned on, which no packaged
+# configuration does, so that its real record fits a camera rotation, carries
+# no cmatrix, and pins the offset-path fallback rather than the comparison.
 _GALILEO_SSI = 'C0059894800R'
 
 # The ring-content frame the ring-reprojection comparison runs on: a Cassini
@@ -237,11 +239,15 @@ def _measure_k_inst(fov: Any) -> float:
     return worst
 
 
-def _image_files_for(image_id: str) -> tuple[type[ObsSnapshotInst], ImageFiles]:
+def _image_files_for(
+    image_id: str, *, config: Config | None = None
+) -> tuple[type[ObsSnapshotInst], ImageFiles]:
     """Resolve one library image into its observation class and file batch.
 
     Parameters:
         image_id: The library's id for the image.
+        config: The configuration the image's observation is built with; the
+            default configuration when None.
 
     Returns:
         The instrument's observation class and the one-image batch.
@@ -249,8 +255,16 @@ def _image_files_for(image_id: str) -> tuple[type[ObsSnapshotInst], ImageFiles]:
     sidecar = sidecar_for(image_id)
     obs_class = _MISSION_TO_OBS_CLASS[sidecar.mission]
     url = holdings_url(sidecar)
+    extra_params: dict[str, Any] = {} if config is None else {'config': config}
     return obs_class, ImageFiles(
-        image_files=[ImageFile(image_file_url=url, label_file_url=url, results_path_stub=image_id)]
+        image_files=[
+            ImageFile(
+                image_file_url=url,
+                label_file_url=url,
+                results_path_stub=image_id,
+                extra_params=extra_params,
+            )
+        ]
     )
 
 
@@ -300,10 +314,35 @@ def navigations() -> dict[str, dict[str, Any]]:
     return {}
 
 
+def _navigate(
+    image_id: str, tmp_path_factory: pytest.TempPathFactory, *, config: Config | None = None
+) -> dict[str, Any]:
+    """Navigate one frame in-process.
+
+    Parameters:
+        image_id: The library's id for the image.
+        tmp_path_factory: Where the navigation may write its outputs.
+        config: The configuration the image's observation is built with; the
+            default configuration when None.
+
+    Returns:
+        The image's navigation metadata.
+    """
+    obs_class, image_files = _image_files_for(image_id, config=config)
+    work = tmp_path_factory.mktemp(f'nav_{image_id}')
+    _success, metadata = navigate_image_files(
+        obs_class, image_files, FCPath(str(work)), write_output_files=False
+    )
+    assert metadata.get('status') == 'success', (
+        f'{image_id} did not navigate; the comparison has no measurement to read'
+    )
+    return metadata
+
+
 def _navigated(
     image_id: str, cache: dict[str, dict[str, Any]], tmp_path_factory: pytest.TempPathFactory
 ) -> dict[str, Any]:
-    """Navigate one frame in-process, or return what it already measured.
+    """Navigate one frame with the default configuration, or return what it measured.
 
     Parameters:
         image_id: The library's id for the image.
@@ -314,15 +353,7 @@ def _navigated(
         The image's navigation metadata.
     """
     if image_id not in cache:
-        obs_class, image_files = _image_files_for(image_id)
-        work = tmp_path_factory.mktemp(f'nav_{image_id}')
-        _success, metadata = navigate_image_files(
-            obs_class, image_files, FCPath(str(work)), write_output_files=False
-        )
-        assert metadata.get('status') == 'success', (
-            f'{image_id} did not navigate; the comparison has no measurement to read'
-        )
-        cache[image_id] = metadata
+        cache[image_id] = _navigate(image_id, tmp_path_factory)
     return cache[image_id]
 
 
@@ -903,14 +934,22 @@ def test_the_backplane_geometry_agrees_within_the_bound(
 
 @pytest.fixture(scope='module')
 def galileo_metadata(
-    navigations: dict[str, dict[str, Any]], tmp_path_factory: pytest.TempPathFactory
+    rotation_fitting_config: Config, tmp_path_factory: pytest.TempPathFactory
 ) -> dict[str, Any]:
-    """Navigate the Galileo frame, whose record carries no corrected attitude.
+    """Navigate the Galileo frame fitting a rotation, so its record carries no cmatrix.
+
+    Parameters:
+        rotation_fitting_config: The configuration that turns rotation fitting on.
+        tmp_path_factory: Where the navigation may write its outputs.
 
     Returns:
         The image's navigation metadata.
     """
-    return _navigated(_GALILEO_SSI, navigations, tmp_path_factory)
+    metadata = _navigate(_GALILEO_SSI, tmp_path_factory, config=rotation_fitting_config)
+    assert 'rotation_deg' in metadata['navigation_result'], (
+        f'{_GALILEO_SSI} fitted no rotation; there is no fitted-rotation record to read'
+    )
+    return metadata
 
 
 def test_a_galileo_record_selects_the_offset_path(galileo_metadata: dict[str, Any]) -> None:
