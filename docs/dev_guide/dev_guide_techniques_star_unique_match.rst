@@ -151,7 +151,6 @@ where :math:`L` is the catalog-pair angular separation and the per-axis sigmas a
 average of the two stars' CRLB floors. When no pair passes, the technique falls back to
 the 1-star path.
 
-.. Pair search, residual tolerance, and cut-edge test: issues #621 and #622.
 
 Per-mode confidence cap
 -----------------------
@@ -176,7 +175,7 @@ Restrictions and assumptions
   window is not the matched detection. On ``ISS_006RI_LPHRLFMOV001_PRIME`` the Cassini NAC
   pointing error reaches 43 px, and a 30 px window put the stars of 191 of the 1030 frames
   out of reach and produced one-star answers 36, 54, and 71 px wrong. A 1-star match is
-  accepted only inside ``inner_search_window_px`` (30 px), while the whole window is still
+  accepted only within ``inner_search_window_px`` (30 px) of its prediction, while the whole window is still
   searched so that a brighter source anywhere in it vetoes: nothing cross-checks a single
   detection, and the wider the region it may come from, the likelier an artifact is the
   brightest thing in it. On the black-sky Galileo library frame ``C0164392700R`` a lone
@@ -220,8 +219,8 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``search_window_px`` — float, default ``50.0`` px. Half-width of the search window
   around each prediction. Must bracket the SPICE pointing error.
 - ``inner_search_window_px`` — float, default ``30.0`` px. A second, narrower window in
-  which the 2-star path also searches each pair, and outside which a 1-star detection is
-  refused with a ``one_star_detection_beyond_inner_window`` reason.
+  which the 2-star path also searches each pair. A 1-star detection farther than this from
+  its prediction is refused with a ``one_star_detection_beyond_inner_window`` reason.
 - ``psf_sigma_px`` — float, default ``1.0`` px. Sigma of the matched-filter kernel the
   isolation test uses.
 - ``source_isolation_inner_px``, ``source_isolation_outer_px`` — int, defaults ``4`` and

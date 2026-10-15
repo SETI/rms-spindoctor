@@ -720,7 +720,8 @@ techniques:
       # bright neighbor); a pair found in either window must agree with
       # every other pair found (see max_residual_px).  The 1-star path
       # searches the wider window, so a brighter source anywhere in it
-      # vetoes, but accepts its lone detection only inside this one: nothing
+      # vetoes, but accepts its lone detection only within this distance of
+      # the prediction (a radius, not the window's half-width): nothing
       # cross-checks a single detection, and the wider the region it may
       # come from, the likelier an artifact is the brightest thing in it.
       # The black-sky library frame C0164392700R has a lone artifact

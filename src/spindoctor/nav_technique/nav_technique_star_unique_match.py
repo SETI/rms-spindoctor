@@ -50,7 +50,8 @@ not an isolated point source of the image -- the cut edge of something
 brighter just outside the window, a ridge of a ring, a cosmic-ray track
 -- is not a detection, on either path.  A one-star detection is searched
 for in the whole window, so a brighter source anywhere in it vetoes a
-fainter one, but is accepted only inside ``inner_search_window_px``.
+fainter one, but is accepted only within ``inner_search_window_px`` of the
+prediction.
 """
 
 from __future__ import annotations
@@ -746,15 +747,15 @@ class StarUniqueMatchNav(NavTechnique):
                 'window_peak_not_a_point_source (the cut edge of something outside the '
                 'window, or part of an extended source)'
             )
-        elif max(abs(det[0] - pred_v), abs(det[1] - pred_u)) > self._inner_search_window_px:
+        elif math.hypot(det[0] - pred_v, det[1] - pred_u) > self._inner_search_window_px:
             # The wider window is searched so that a brighter source in it vetoes
             # a fainter one near the prediction; a lone detection is accepted
             # only inside the inner window, since nothing cross-checks it and the
             # wider the region it may come from, the likelier it is an artifact.
             refusal = (
                 f'one_star_detection_beyond_inner_window (offset '
-                f'({det[0] - pred_v:.3f}, {det[1] - pred_u:.3f}) px outside '
-                f'+-{self._inner_search_window_px:.1f} px)'
+                f'({det[0] - pred_v:.3f}, {det[1] - pred_u:.3f}) px, more than '
+                f'{self._inner_search_window_px:.1f} px from the prediction)'
             )
         if refusal is not None:
             diagnostics = StarUniqueMatchDiagnostics(

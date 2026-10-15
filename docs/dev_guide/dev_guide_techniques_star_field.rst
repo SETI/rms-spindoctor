@@ -76,7 +76,6 @@ the test, and on 479 with it, 420 of them through the wide-offset fallback. The 
 insensitive to the ratio: 0.3, 0.5, and 0.7 navigate 741, 744, and 743 of the 1030 frames,
 every one within 2 px of the published bundle.
 
-.. Source isolation: issue #621.
 
 Hash-space match
 ----------------
