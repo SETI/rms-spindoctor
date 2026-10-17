@@ -18,6 +18,12 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__: list[str] = []
 
+# Distance (px) within which a model vertex counts as on a detected edge pixel when
+# measuring matched edge strength.
+_EDGE_STRENGTH_MATCH_RADIUS_PX = 1.5
+# Percentile of the in-frame gradient magnitude taken as the frame's strongest structure.
+_EDGE_STRENGTH_REFERENCE_PERCENTILE = 99.9
+
 
 def _per_edge_rms_summed(features: list[NavFeature], residuals: NDArrayFloatType) -> float:
     """Sum each consumed edge's UNWEIGHTED RMS DT residual.
@@ -186,7 +192,7 @@ def _matched_edge_strength_fraction(
     offset_vu: tuple[float, float],
     *,
     valid_mask: NDArrayBoolType,
-    match_radius_px: float = 1.5,
+    match_radius_px: float = _EDGE_STRENGTH_MATCH_RADIUS_PX,
 ) -> float:
     """Return how strong the edges under a fit are, relative to the frame's strongest.
 
@@ -231,7 +237,7 @@ def _matched_edge_strength_fraction(
     magnitude = np.hypot(gradient_vu[:, :, 0], gradient_vu[:, :, 1])[valid_mask]
     if not matched.any() or magnitude.size == 0:
         return 0.0
-    reference = float(np.percentile(magnitude, 99.9))
+    reference = float(np.percentile(magnitude, _EDGE_STRENGTH_REFERENCE_PERCENTILE))
     if reference <= 0.0:
         return 0.0
     projected = np.abs(

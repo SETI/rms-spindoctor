@@ -580,8 +580,12 @@ def coarse_edge_strength_search_scored(
     is skipped, and ties go to the smaller ``(|dv| + |du|, |dv|, dv, du)``.
     The reported :attr:`CoarseSearchResult.score` is the winning shift's
     plain per-vertex match fraction (the fraction of its in-bounds vertices
-    on a detected edge pixel), so the shared coarse-peak gate reads the same
-    quantity whichever search chose the shift.
+    on a detected edge pixel).  It is not strength-weighted, so it measures
+    the same thing as :func:`coarse_ncc_search_scored`'s score, but over
+    vertices rather than distinct rasterized pixels: the two differ where
+    several vertices round to one pixel, so the shared coarse-peak gate reads
+    a related quantity, not an identical one, depending on which search chose
+    the shift.
 
     Parameters:
         edge_mask: ``(H, W)`` boolean image edge map.
