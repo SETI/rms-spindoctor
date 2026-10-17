@@ -186,8 +186,8 @@ measurements are on #447, which stays open until then.
 What the work filed
 rather than fixed: RingEdgeNav's planted-shift round trip (#476, same
 family as #346; measured across the edge normal the technique is at the DT
-floor, and the ensemble's error is the rank-1 axis quantization described
-below); `BodyDiscCorrelateNav` still misses by
+floor, the ensemble's error there was the rank-1 axis quantization fixed
+below, and the along-edge part is open); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
 moves need re-ratcheting when it lands (#483, which cannot be done honestly
 until #288 is reconciled).
@@ -229,10 +229,15 @@ the overlap seed sits on edges below 0.8 of that strength. A converged fit
 whose matched edges are under 0.005 of the frame's strongest is rejected as
 spurious, which catches frames whose cataloged edges lie outside the sensor at
 the true pointing. Measured against the published F ring bundle's per-frame
-pointing on a 229-frame sample: on ISS_059RF_FMOVIE002_VIMS the 98 comparable
-answers at a median 76 px became 40 answers all within 2 px (the wrong ring
-fits are now failures); on ISS_241RF_FMOVIE001_PRIME the median fell from 24 px
-to 7.3 px. The library's ring frames navigate exactly as before.
+pointing on 1,041 held-out frames below 25 km/px: right answers (within 2 px)
+went from 692 to 877, wrong answers from 283 to 129, refusals from 66 to 35,
+and the median error from 0.84 to 0.69 px. No frame `main` answers right is
+answered wrong; six frames `main` refuses are answered wrong, all of them
+along the edge (2.0 to 19 px). On the 263-frame tuning sample the counts went
+from 147 right and 94 wrong to 179 and 68. The axis fix below changes none of
+those answers (no held-out frame has an all-straight edge set). On the
+library the seed check alone leaves the ring frames' answers where they were
+except N1492091163 (below); the axis fix is what moves seven of them.
 
 What remains of the family:
 
@@ -246,20 +251,67 @@ What remains of the family:
   `ring_only_flat` sidecars record the quantized angle as their constraint
   normal and go red until re-pinned (the proposed values are in the
   Operator Playbook), and the two Encke gap frames miss only their tier pin.
-- **Nearly straight edges.** An edge that is not flagged straight but barely
-  curves across the frame constrains the along-edge component only weakly,
-  and the reported covariance does not show it; on the F ring movie frames
-  the answer is right across the edge and off by 10 to 30 px along it on many
-  frames, which is most of ISS_241RF's remaining error.
-- **One strong step, two cataloged edges.** Where cataloged edges lie a few
-  tens of pixels apart, the strongest alignment can lay the wrong one on the
-  strong step (2 of 30 sampled F ring movie frames, about 45 px).
+- **Along-edge error on nearly straight edges (open).** An edge that is not
+  flagged straight but barely curves across the frame constrains the
+  along-edge component only weakly, and the reported covariance does not show
+  it. On the 1,041 held-out frames, 115 RingEdgeNav-carried answers are within
+  1.4 px of the published pointing across the edge and more than 2 px off
+  along it: median 3.0 px, 90th percentile 12 px, worst 36 px
+  (N1851237981). 113 of them are reported at the medium tier and 107 with a
+  sigma under 1 px. Two remedies were measured on the tuning sample and
+  failed, so neither is shipped. Choosing, on a reseed, the member of the
+  strength band nearest the prediction instead of the strongest cost
+  RingEdgeNav right answers on the 60 reseeded frames (34 to 28; 11 right to
+  wrong against 5 wrong to right). Inflating the along-edge variance by the
+  vertex-scatter eigenvalue ratio in the covariance the ensemble fuses cut
+  wrong answers at medium or high from 66 to 20, but demoted 75 answers that
+  were right on both runs to low (right answers at medium or high fell from
+  178 to 91), and turned 8 right answers wrong where a star or body-blob
+  answer took over the along-edge component (5 went wrong to right).
+  Together the sample went from 179 right and 68 wrong to 170 and 80. The
+  untried design keeps the ensemble covariance as it is and lowers only
+  RingEdgeNav's own confidence on a nearly straight edge; a follow-up issue
+  for it is drafted.
+- **One strong step, two cataloged edges (open).** Where cataloged edges lie
+  a few tens of pixels apart, the strongest alignment can lay the wrong one
+  on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
+  edge (N1851240381 at 49 px), all at the medium tier.
+- **Few stars against a ring edge (for the sparse-star work).** Three F ring
+  movie frames the published bundle navigated on stars (N1746561771,
+  N1538201454, N1579830292, from a separate reviewer sample) are
+  `conflicted` on `main`, where the one- or two-star answer is 0.04 to
+  0.26 px from the published pointing. With the seed check RingEdgeNav
+  returns an answer 2.6 to 4.6 px from the star answer instead of an alias,
+  and the ensemble reports a success 2.7 to 4.7 px from the published
+  pointing, N1746561771 at the high tier: one or two stars do not outweigh
+  the ring-edge answer. This belongs with #621/#622/#623 and with the
+  along-edge item above.
 
-- **#346** — three library frames (N1492091163, N1867601758, N1867602424).
-  N1492091163 now navigates to the right answer and its `failed` pin wants a
-  decision; the two Encke gap frames are the rank-1 axis above, not wrong
-  locks. Exposure is limited to the sub-25 km/px regime by the routing
-  decision above.
+- **#346** — three library frames (N1492091163, N1867601758, N1867602424),
+  all still red, none on a wrong lock. N1492091163's 94 px alias is gone:
+  RingEdgeNav converges 1.1 px from operator truth, and a two-star
+  StarRefineNav then moves the fused answer 0.7 px in du, to 1.70 px in du
+  from truth at the medium tier (the sparse-star family's behavior); its
+  `failed` pin wants a decision. The two Encke gap frames are the rank-1 axis
+  above: their offsets now land on operator truth and only the `medium` tier
+  pin fails. The issue's three frames are therefore no longer wrong locks,
+  but none is green. Exposure is limited to the sub-25 km/px regime by the
+  routing decision above.
+- **#476** — its acceptance criterion reads: "any fix should drive the
+  RingEdgeNav rows of the shift-equivariance sweep toward the DT-technique
+  floor (~0.06 px) on the `ring_only_*` and `ring_plus_body` library sets,
+  using the committed baseline as the before-measurement". Across the edge it
+  is met: on those frames RingEdgeNav's round trip along the edge normal is a
+  median 0.03 px (worst 0.31 px), and the ensemble's 0.04 px (worst 0.31 px).
+  The raw rows are not: RingEdgeNav's median |residual| is still 4.2 / 1.7 px
+  (v/u), against 3.6 / 1.6 px on `main`. Every frame in those rows has a
+  straight or nearly straight edge set, and the remainder lies along the edge,
+  where a straight edge carries no information and a nearly straight one very
+  little. The criterion as written measures the whole residual, so the
+  along-edge part is within it even though the issue's diagnosis is
+  across-edge misassignment. #476 stays open until the operator restates the
+  criterion as the across-edge component (which is met) or the along-edge
+  follow-up lands.
 
 ### #350 — post-recalibration resolved-body red
 
@@ -505,7 +557,8 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 11 of 75 library frames red locally (#288, #744, #639),
+  degraded: with 16 of 75 library frames red locally (#288, #744, #639, and
+  five ring-edge pins awaiting the re-pin decision under #476),
   a cross-check can only be read as "no *new* deltas against `main`".
 
 ## Track D — Capability completion
@@ -1003,10 +1056,12 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 11
+  debt with the widest blast radius. In the local integration environment 16
   of 75 sidecars disagree, each one attributed and owned, but the set is
   still wider than the deliberately-pinned one below, so the regression
-  instrument cannot yet be read as clean. Two of the eleven, the Galileo
+  instrument cannot yet be read as clean. Five are `ring_only_flat` frames
+  whose pins record the old quantized rank-1 axis; their proposed re-pins are
+  an operator decision in the Operator Playbook. Two, the Galileo
   frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
   answer that the change in #560 retired; re-recording their truth from an
   outside measurement, or pinning them red under #434, is the operator

@@ -761,12 +761,16 @@ contours, and the ring-edge answer is reported as spurious rather than used.
 
 This is the technique for close-range ring images. For Saturn it receives a frame only
 when the radial resolution is finer than 25 kilometers per pixel; everything coarser goes
-to ``RingAnnulusNav``. One caution remains at the fine end: the fit still assumes the
-cataloged edge is the strongest step in its neighborhood. Where an uncataloged edge
-nearby is stronger, or the catalog misplaces one of several edges by more than a few
-pixels, the fit can still settle a few pixels from the right answer. A ring-edge answer at
-that resolution that no other technique corroborates deserves a look before you rely on
-it.
+to ``RingAnnulusNav``. Two cautions remain at the fine end. First, the fit still assumes
+the cataloged edge is the strongest step in its neighborhood. Where two cataloged edges
+lie a few tens of pixels apart, the strong step can be matched by the wrong one of them,
+and the answer is then off by tens of pixels across the edge. Second, an edge that is
+nearly straight across the frame fixes the pointing across itself but only weakly along
+itself, and the reported uncertainty does not show that weakness. When such an answer is
+off along the edge, it is usually off by a few pixels and sometimes by tens of pixels,
+while it is still reported at the ``medium`` tier with an uncertainty under a pixel. A
+ring-edge answer at that resolution that no other technique corroborates deserves a look
+before you rely on it.
 
 **Straight edges and unmeasured directions.** When every edge the technique was given is a
 straight line, the answer is genuinely incomplete, and the reason is geometric. Sliding a

@@ -68,14 +68,16 @@ instruments (see Track D).
 Two facts about the evidence behind that health are worth stating plainly,
 because both are load-bearing and neither is comfortable. Suite coverage is
 79%, not the 90% two shipped plans' acceptance criteria claim, and nothing
-enforces any floor (#548). And 11 of 75 curated library frames disagree with
+enforces any floor (#548). And 16 of 75 curated library frames disagree with
 their sidecars in the local integration environment: eight under #288, the two
 Galileo frames whose recorded truth is the rotation-fitted answer that the
-change in #560 retired (#744), and `N1530185128_1`, whose star centroid lands
-on a neighbor (#639). Every one of the 11 is attributed to an open issue, so
-the regression instrument reads as a known state rather than an unknown one;
-but three of the eight under #288, and both under #744, are judgments still
-owed rather than settled pins, so "no new failures against `main`" remains the
+change in #560 retired (#744), `N1530185128_1`, whose star centroid lands
+on a neighbor (#639), and five `ring_only_flat` frames whose pins record the
+old quantized rank-1 axis of a straight ring edge (#476; the proposed re-pins
+are in the Operator Playbook). Every one of the 16 is attributed to an open
+issue, so the regression instrument reads as a known state rather than an
+unknown one; but three of the eight under #288, both under #744, and the five
+re-pins are judgments still owed rather than settled pins, so "no new failures against `main`" remains the
 only gate a navigation-affecting branch can honestly clear.
 
 The single largest remaining block is Track A: **the validation program is
@@ -234,8 +236,9 @@ its section names):
 
 **Confident-wrong families that poison the validation data** (they belong to
 Track B but gate the study, because it consumes navigator output at scale): the
-ring-lock family (#346, #476), whose remaining error on flat ring frames is the
-rank-1 axis quantization, and the sparse
+ring-lock family (#346, #476), whose remaining error is along nearly straight
+ring edges (a few pixels, reported at the medium tier with a sub-pixel sigma)
+and, on a few frames, a seed on the neighboring cataloged edge, and the sparse
 star field family -- a one- or two-star solution accepted as success and
 landing up to 23 px wrong (#622), two techniques reading the same single star
 counted as independent corroboration (#623), and a centroid that can measure
@@ -269,34 +272,50 @@ navigator's output at scale) and are exactly what a user hits first.
 The known open defects:
 
 - **#346** — three library frames (N1492091163, N1867601758, N1867602424)
-  that once locked confidently onto the wrong ring feature. The coarse seed
-  now checks the mask-overlap seed against the strength of the edges under
-  it, which removed the lattice lock on N1492091163 (it navigates to the
-  right answer; its `failed` pin wants a decision). The two Encke gap
-  frames were never wrong locks: RingEdgeNav is right across the edge to
-  0.8 and 0.2 px, and the error enters through the rank-1 axis, which the
-  ring model's 45-degree normal quantization tilts by up to 22.5 degrees.
+  that once locked confidently onto the wrong ring feature. None is a wrong
+  lock any longer, and none is green. The coarse seed now checks the
+  mask-overlap seed against the strength of the edges under it, which removed
+  the 94 px lattice lock on N1492091163: RingEdgeNav converges 1.1 px from
+  operator truth, and a two-star StarRefineNav moves the fused answer to
+  1.70 px in du from truth (the sparse-star family's behavior); its `failed`
+  pin wants a decision. The two Encke gap frames were never wrong locks: the
+  error entered through the rank-1 axis, which the ring model's 45-degree
+  normal quantization tilted by up to 22.5 degrees; with the axis taken from
+  the line they land on operator truth and fail only their `medium` tier pin.
   Exposure is limited to sub-25 km/px Saturn scenes by the ring routing
   decision: at and above 25 km/px radial resolution the whole Saturn system
   feeds the annulus composite, which a 131-frame clean-truth head-to-head
   measured wrong on zero accepted answers while the per-edge fit ran
   5% / 13% / 56% / 100% wrong-when-accepted in the 300-1000 / 100-300 /
   25-100 / 0-25 km/px bands (measured before the edge-strength check).
-  The annulus-gate recalibration (accepting more of its correct answers,
-  #566) and a correlation-picks-basin / edge-polishes hybrid (#567) are
-  filed follow-ons; measured as a basin selector below 25 km/px, the
-  annulus correlation was right across the edge on F ring movie frames but
-  30 to 115 px wrong on four of the library's ring frames, so the hybrid as
-  filed would regress them.
-- **#476** — RingEdgeNav's round trip under a planted shift. Across the edge
-  normal the technique itself is at the DT floor on the library's ring
-  frames (median 0.04 px); the large raw residuals are the unobservable
-  along-edge component of rank-1 fits. The ensemble's round trip is not
-  (median 0.39 px, worst 17 px), because its rank-1 axis was the quantized
-  one. The axis now comes from the edge's own geometry, which brings the
-  ensemble to median 0.04 px; five `ring_only_flat` constraint pins record
-  the quantized angle and await an operator re-pin. Same reduced
-  sub-25 km/px exposure as #346.
+  Below 25 km/px, against the published F ring bundle's pointing on 1,041
+  held-out frames, the seed check took right answers from 692 to 877 and
+  wrong ones from 283 to 129; the 129 left are mostly along nearly straight
+  edges (115, median 3.0 px, almost all at the medium tier) and 5 seeds on
+  the neighboring cataloged edge (7 to 49 px). Two remedies for the
+  along-edge error (a nearest-prediction seed band, and inflating the
+  along-edge variance in the covariance the ensemble fuses) failed on the
+  263-frame tuning sample, taking it from 179 right and 68 wrong to 170 and
+  80; the untried alternative, lowering only RingEdgeNav's own confidence, is
+  drafted as a follow-up issue. The annulus-gate recalibration (accepting
+  more of its correct answers, #566) and a correlation-picks-basin /
+  edge-polishes hybrid (#567) are filed follow-ons; measured as a basin
+  selector below 25 km/px, the annulus correlation was right across the edge
+  on F ring movie frames but 30 to 115 px wrong on four of the library's ring
+  frames, so the hybrid as filed would regress them.
+- **#476** — RingEdgeNav's round trip under a planted shift. Its criterion is
+  to drive the RingEdgeNav rows of the shift-equivariance sweep toward the
+  DT-technique floor (~0.06 px) on the `ring_only_*` and `ring_plus_body`
+  library sets. Across the edge normal that is met: RingEdgeNav's own round
+  trip is a median 0.03 px and, with the rank-1 axis taken from the line,
+  the ensemble's is 0.04 px (it was 0.39 px, worst 17 px). The raw rows are
+  not (median 4.2 / 1.7 px v/u): every frame in them has a straight or
+  nearly straight edge set and the remainder lies along the edge, which the
+  criterion as written includes. The issue stays open until the operator
+  restates the criterion as the across-edge component or the along-edge
+  follow-up lands. Five `ring_only_flat` constraint pins record the quantized
+  angle and await an operator re-pin. Same reduced sub-25 km/px exposure as
+  #346.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix
   (#447) leaves once it closes the coarse-grid and boundary-pinning halves.
@@ -579,10 +598,12 @@ cannot follow.
 - Summary-PNG unit tests (#177).
 - The image-library regression reconciliation (#288). In the local
   integration environment it is not reduced to the deliberately-red pins:
-  11 of 75 frames disagree, each attributed to an open issue, which is the
+  16 of 75 frames disagree, each attributed to an open issue, which is the
   state Track A's evidence has to be read against, and it is what blocks the
   only place a built product is compared between the results tree and the
-  index (#547). Two of the eleven are Galileo frames whose recorded truth is
+  index (#547). Five of the sixteen are `ring_only_flat` frames whose pins
+  record the old quantized rank-1 axis, awaiting an operator re-pin (#476).
+  Two are Galileo frames whose recorded truth is
   the rotation-fitted answer that #560 retired; re-recording that truth from
   an outside measurement, or pinning both red under #434, is an operator
   decision (#744). One more, `N1530185128_1`, went red with the star datum

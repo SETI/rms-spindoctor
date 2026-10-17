@@ -305,14 +305,17 @@ Restrictions and assumptions
 - The edge-strength check assumes the cataloged edges are the strongest steps near the
   prediction. When two cataloged edges lie a few tens of pixels apart, one strong step can
   be matched by the wrong one of them: on Cassini NAC F ring movie frames at 5 km/px the
-  strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge,
-  about 45 px across the edge from the right answer (2 of 30 frames in one measured
-  sample).
+  strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge.
+  Against the published F ring bundle's per-frame pointing on 1,041 held-out frames below
+  25 km/px, 5 answers are wrong this way, 7 to 49 px across the edge (41 to 51 px on four
+  of them), all reported at the ``medium`` tier.
 - An edge that is nearly straight across the frame but not flagged straight constrains
   the along-edge component only through its slight curvature, and the reported covariance
-  does not show how weak that constraint is. On the same F ring movie frames the answer
-  across the edge is within about 2 px of independent pointing while the along-edge
-  component is off by 10 to 30 px on some frames.
+  does not show how weak that constraint is. On the same 1,041 held-out frames, 115
+  answers carried by this technique are within 1.4 px of the published pointing across
+  the edge and more than 2 px off along it: a median of 3.0 px, a 90th percentile of
+  12 px, and 36 px at worst. Of those, 113 are reported at the ``medium`` tier, and 107
+  report a sigma under 1 px on both axes (a median of 0.28 px on the larger one).
 - A curved edge keeps the model's quantized per-vertex normals. They enter the
   edge-strength weights and the orbit channel, where a 22.5-degree error costs little;
   only the straight-edge rank-1 axis takes the line's own normal.
@@ -589,9 +592,10 @@ Examples
     A high-curvature single-edge scene with no other ring features in the FOV. The rings
     model emits one ``RING_EDGE`` polyline whose curvature lifts the rank-1 degeneracy.
     :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav` converges to
-    :math:`(\Delta v, \Delta u) \approx (5.00, -25.00)` px against an operator-verified
-    ground truth of ``(4.92, -24.32)`` px — sub-pixel agreement on a single curved edge.
-    The technique reports a sub-pixel final DT residual; the
+    :math:`(\Delta v, \Delta u) = (5.35, -25.32)` px against an operator-verified ground
+    truth of ``(4.92, -24.32)`` px, 1.1 px away and about the 1 px uncertainty of that truth.
+    A two-star ``StarRefineNav`` then moves the fused answer 0.7 px in :math:`u`, to
+    ``(5.21, -26.02)`` px. The technique reports a sub-pixel final DT residual; the
     :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.is_rank_1` flag is False
     because the per-edge curvature exceeds
     :data:`~spindoctor.nav_model.nav_model_rings.FLAT_CURVATURE_THRESHOLD_PX`.

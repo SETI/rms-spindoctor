@@ -66,17 +66,20 @@ on that baseline; each has a tracking issue (cross-map below).
 rather than methodology, and it silently corrupts what every workstream below
 reads:
 
-- **#288** — 11 of the 75 curated library sidecars disagree with `main` in the
+- **#288** — 16 of the 75 curated library sidecars disagree with `main` in the
   local integration environment, so the regression instrument that is supposed
   to detect a navigation change cannot currently do so. Until it is reconciled,
   a navigation-affecting change can only be gated on *no new failures against
   `main`*, and the library's own tiers cannot be read as verified
   expectations. Two are the Galileo frames whose recorded truth is the
   rotation-fitted answer that #560 retired, an operator decision in #744, and
-  one, `N1530185128_1`, is owned by the star-centroid defect in #639. The
-  other eight are attributed rather than mysterious: three are #346's ring
-  frames, now red on pins (one `failed` expectation predating a working ring
-  fit, and two Encke gap frames moved by the rank-1 axis error), two pin `primary_technique` to a
+  one, `N1530185128_1`, is owned by the star-centroid defect in #639. Five
+  are `ring_only_flat` frames whose pins record the old quantized rank-1 axis
+  of a straight ring edge and await an operator re-pin (#476). The other
+  eight are attributed rather than mysterious: three are #346's ring frames,
+  now red on pins (one `failed` expectation predating a working ring fit, and
+  two Encke gap frames that land on operator truth but miss their `medium`
+  tier pin), two pin `primary_technique` to a
   technique the code correctly declines to prefer and await an operator call
   (#483), one is the ~2.7 px `dv` limb bias on a partially overflowing limb arc
   that WS-10 owns, one is the standing highly-irregular exclusion of #338, and
