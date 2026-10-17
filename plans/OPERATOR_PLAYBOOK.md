@@ -173,17 +173,20 @@ as one piece. Both gate the Track A study, which consumes ensemble output at
 scale.
 
 *The ring-lock family:* **#476** (RingEdgeNav's round trip under a planted
-shift) and **#346** (three library frames once locked onto the wrong ring
-feature). The coarse seed now checks the overlap seed against edge strength
-and rejects fits on faint scattered-light contours, which removed the lattice
-locks. The rank-1 axis now comes from a straight edge's own line rather than
+shift), **#346** (three library frames once locked onto the wrong ring
+feature) and **#373** (the coarse seed against competing edge populations).
+The coarse seed now checks the overlap seed against edge strength
+and rejects fits on faint scattered-light contours, which removed most of the
+lattice locks (alias locks across the edge went from 188 to 4 of 1,041
+held-out F ring frames). The rank-1 axis now comes from a straight edge's own line rather than
 the ring model's 45-degree per-vertex normals, which removes the along-edge
 leak into the ensemble's answer on flat ring frames; the five
 `ring_only_flat` pins that recorded the old axis are listed for re-pinning
 below. What remains is the along-edge error of nearly straight edges (115 of
 1,041 held-out F ring frames, a median 3.0 px along the edge, almost all
-reported at the medium tier with a sub-pixel sigma) and a seed on the
-neighboring cataloged edge (5 of the 1,041, 7 to 49 px). Two remedies for
+reported at the medium tier with a sub-pixel sigma), a seed on the
+neighboring cataloged edge (5 of the 1,041, 7 to 49 px), and the 4 alias
+locks left (3.8 to 45 px, under #373). Two remedies for
 the first were measured on the tuning sample and failed; the untried one,
 lowering only RingEdgeNav's own confidence on such an edge, is tracked as
 #755. #476's criterion is met across the edge but not in the raw
@@ -480,6 +483,13 @@ Independent review before done; all CI gates; one PR."
   #447 fix held as #128's base, and lands it: the edge-offset correction, the
   simulated body model adopting the same sub-pixel vertex rule, and the pins
   the fix moves, which go to #483. The measurements are on #447.
+- **#373 (coarse-lock remainder)**: "Make the RingEdgeNav coarse seed
+  robust against competing edge populations per #373 where the edge-strength
+  check does not reach: a competitor stronger than the cataloged edge, such
+  as a body limb in the search window, and the held-out frames still wrong
+  across the edge (5 neighboring-edge locks; 4 alias locks, N1492091385,
+  N1851236541, N1492064782 and N1851226701). Re-measure `N1467344214_2`
+  against the issue's gate."
 - **#130**: "Calibrate the star limiting-magnitude model against real
   fields per #130."
 - **#394 (shape-lock veto residual)**: the veto is suppressed when a trusted
@@ -502,8 +512,8 @@ Independent review before done; all CI gates; one PR."
   (the New Horizons pointing family) are operator decisions, not
   dispatchable work — Section 0.1.
 - **Navigation correctness, in order**: #476 (RingEdgeNav's round trip
-  under a planted shift), which belongs with #346 as one ring-lock family,
-  scoped to sub-25 km/px Saturn scenes by the routing decision. Measured
+  under a planted shift), which belongs with #346 and #373 as one ring-lock
+  family, scoped to sub-25 km/px Saturn scenes by the routing decision. Measured
   across the edge normal, RingEdgeNav's own round trip on the library's ring
   frames is at the DT floor (median 0.03 px), and with the rank-1 axis taken
   from the line so is the ensemble's (0.04 px, worst 0.31 px; it was 0.39 px,
@@ -582,7 +592,7 @@ else. Applied to the open items:
   one) and **#623** (what makes two techniques independent witnesses is the
   same question the agreement study answers at scale).
 - **Mid-tier or below suffices:** library growth, the agreement study's
-  bulk execution (once WS-0 hands it a proven estimator), #229, #311,
+  bulk execution (once WS-0 hands it a proven estimator), #229, #311, #373,
   #130, #639, the PDS4 bundle items, the simulator scene-fidelity batch, the
   logging follow-ups (#418, #423, #424, #429, #731), and the
   documentation/engineering items.
@@ -827,7 +837,7 @@ these are what it owes and what generalizes it):**
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)
---- the confidently-wrong families: #476/#346, and #621/#622/#623/#639
+--- the confidently-wrong families: #476/#346/#373/#755, and #621/#622/#623/#639
 --- then ---
 2.1 library growth (batch-006 + continued)   (agent session; your votes gate it)
 2.2 agreement study bulk   (after 2.1 cohorts; you approve frames)

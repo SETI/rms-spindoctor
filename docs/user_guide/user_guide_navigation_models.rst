@@ -761,16 +761,20 @@ contours, and the ring-edge answer is reported as spurious rather than used.
 
 This is the technique for close-range ring images. For Saturn it receives a frame only
 when the radial resolution is finer than 25 kilometers per pixel; everything coarser goes
-to ``RingAnnulusNav``. Two cautions remain at the fine end. First, the fit still assumes
-the cataloged edge is the strongest step in its neighborhood. Where two cataloged edges
-lie a few tens of pixels apart, the strong step can be matched by the wrong one of them,
-and the answer is then off by tens of pixels across the edge. Second, an edge that is
+to ``RingAnnulusNav``. Edge strength keeps the fit off most steps across the edge that are
+not cataloged edges: on 1,041 Cassini F ring movie frames finer than 25 kilometers per
+pixel, it takes the answers locked onto such a step from 188 to 4. Three cautions remain
+there. First, the 4 locks left lie 4 to 45 pixels across the edge and are reported at the
+``medium`` tier. Second, the fit still assumes the cataloged edge is the strongest step in
+its neighborhood. Where two cataloged edges lie a few tens of pixels apart, the strong
+step can be matched by the wrong one of them, and the answer is then off by tens of pixels
+across the edge; 5 of the same 1,041 frames are wrong this way. Third, an edge that is
 nearly straight across the frame fixes the pointing across itself but only weakly along
 itself, and the reported uncertainty does not show that weakness. When such an answer is
 off along the edge, it is usually off by a few pixels and sometimes by tens of pixels,
-while it is still reported at the ``medium`` tier with an uncertainty under a pixel. A
-ring-edge answer at that resolution that no other technique corroborates deserves a look
-before you rely on it.
+while it is still reported at the ``medium`` tier with an uncertainty under a pixel; 115
+of the same frames are wrong this way. A ring-edge answer at that resolution that no other
+technique corroborates deserves a look before you rely on it.
 
 **Straight edges and unmeasured directions.** When every edge the technique was given is a
 straight line, the answer is genuinely incomplete, and the reason is geometric. Sliding a

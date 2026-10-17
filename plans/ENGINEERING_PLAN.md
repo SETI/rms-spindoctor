@@ -23,7 +23,7 @@ fields to match current behavior.
 
 Ordering within the track: the confidently-wrong defects (#346, #476, #350), because the agreement study consumes
 ensemble output at scale and several curated library frames pin these as
-standing red regressions. Then the
+standing red regressions. Then the coarse-lock remainder (#373), then the
 investigation/design items (#25, #128/#150), with the smaller decision items
 (#130, #239, #338) as fill.
 
@@ -185,7 +185,7 @@ measurements are on #447, which stays open until then.
 
 What the work filed
 rather than fixed: RingEdgeNav's planted-shift round trip (#476, same
-family as #346; measured across the edge normal the technique is at the DT
+family as #346 and #373; measured across the edge normal the technique is at the DT
 floor, the ensemble's error there was the rank-1 axis quantization fixed
 below, and the along-edge part is open); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
@@ -230,8 +230,12 @@ whose matched edges are under 0.005 of the frame's strongest is rejected as
 spurious, which catches frames whose cataloged edges lie outside the sensor at
 the true pointing. Measured against the published F ring bundle's per-frame
 pointing on 1,041 held-out frames below 25 km/px: right answers (within 2 px)
-went from 692 to 877, wrong answers from 283 to 129, refusals from 66 to 35,
-and the median error from 0.84 to 0.69 px. No frame `main` answers right is
+went from 692 to 877, wrong answers from 283 to 129 (alias locks across the
+edge from 188 to 4), refusals from 66 to 35, and the median error from 0.84
+to 0.69 px. A same-code control, `main` rerun on 150 of those frames,
+reproduced the earlier `main` run exactly (status, tier and every fused and
+per-technique offset identical on all 150), so these counts carry no
+run-to-run noise. No frame `main` answers right is
 answered wrong; six frames `main` refuses are answered wrong, all of them
 along the edge (2.0 to 19 px). On the 263-frame tuning sample the counts went
 from 147 right and 94 wrong to 179 and 68. The axis fix below changes none of
@@ -276,6 +280,13 @@ What remains of the family:
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
   edge (N1851240381 at 49 px), all at the medium tier.
+- **Alias locks across the edge (open, #373).** Answers displaced across the
+  edge by a distance that matches no spacing between cataloged edges went
+  from 188 to 4 on the 1,041 held-out frames: N1492091385 (45.0 px),
+  N1851236541 (43.8 px), N1492064782 (34.4 px) and N1851226701 (3.8 px),
+  all at the medium tier. With the 115 along-edge answers, the 5
+  neighboring-edge locks and 5 answers carried by star techniques, they are
+  all 129 wrong answers.
 - **Few stars against a ring edge (for the sparse-star work).** Three F ring
   movie frames the published bundle navigated on stars (N1746561771,
   N1538201454, N1579830292, from a separate reviewer sample) are
@@ -320,6 +331,31 @@ What remains of the family:
   the recalibration, while N1686349893's disagreement is a stale
   `primary_technique` pin on #483. One debugging session against the first
   frame; its sidecar pins it red until resolved.
+
+### #373 — DT coarse-prior search vs competing edge populations
+
+The coarse NCC search over the distance-transform image can lock onto the
+wrong edge population and hand the Levenberg-Marquardt refine an
+unrecoverable prior (`src/spindoctor/nav_technique/dt_fitting/coarse.py`).
+The polarity-weighted seed serves the techniques whose polarity is
+predictable; RingEdgeNav stays polarity-blind. Its seed is checked
+against edge strength (above): the mask-overlap seed is kept unless the edges
+under it are below 0.8 of the strongest alignment in the window, and a fit
+whose matched edges are under 0.005 of the frame's strongest is spurious.
+That covers competing populations weaker than the cataloged edge -- a ring's
+interior texture and a scattered-light glow's faint contours -- which were
+most of the lattice locks (alias locks across the edge from 188 to 4 on the
+1,041 held-out frames). What remains:
+
+- a competing population stronger than the cataloged edge, such as a body
+  limb in the search window: the check prefers the strongest step whatever
+  produced it, so it does not separate them;
+- the held-out frames still wrong across the edge: 5 neighboring-edge locks
+  (7 to 49 px) and 4 alias locks (N1492091385, N1851236541, N1492064782,
+  N1851226701; 3.8 to 45 px), all at the medium tier;
+- the issue's own calibration datapoint, `N1467344214_2`, has not been
+  re-measured against the issue's gate (the #179 no-net-new-failures gate
+  over the `ring_only_*` library set).
 
 ### #621 / #622 / #623 — the star gates and what the ensemble counts
 

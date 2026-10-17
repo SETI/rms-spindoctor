@@ -178,10 +178,10 @@ does not cancel leaks into the reported offset. The line's direction is the prin
 axis of its vertices, and the normal perpendicular to it is used for every vertex, signed
 the way the model's normals summed. On the library's Keeler gap frames (edges at about 68
 and 51 degrees, reported at 90 and 45) this moved the ensemble's planted-shift round trip
-across the edge from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px). Exact singularity is the representation the
-ensemble is built around: ``pinvh`` keeps the normal-axis measurement when forming the
-information matrix, the combine's rank-deficiency test fires, and the unobservable axis is
-reported through the
+across the edge from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px). Exact
+singularity is the representation the ensemble is built around: ``pinvh`` keeps the
+normal-axis measurement when forming the information matrix, the combine's rank-deficiency
+test fires, and the unobservable axis is reported through the
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.sigma_along_unobservable_px`
 sentinel rather than an inflated per-axis sigma.
 
@@ -303,19 +303,24 @@ Restrictions and assumptions
   exceeds the per-instrument search-window margin the seed lands on a wrong edge and the
   LM converges to a wrong local minimum.
 - The edge-strength check assumes the cataloged edges are the strongest steps near the
-  prediction. When two cataloged edges lie a few tens of pixels apart, one strong step can
-  be matched by the wrong one of them: on Cassini NAC F ring movie frames at 5 km/px the
-  strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge.
-  Against the published F ring bundle's per-frame pointing on 1,041 held-out frames below
-  25 km/px, 5 answers are wrong this way, 7 to 49 px across the edge (41 to 51 px on four
-  of them), all reported at the ``medium`` tier.
-- An edge that is nearly straight across the frame but not flagged straight constrains
-  the along-edge component only through its slight curvature, and the reported covariance
-  does not show how weak that constraint is. On the same 1,041 held-out frames, 115
-  answers carried by this technique are within 1.4 px of the published pointing across
-  the edge and more than 2 px off along it: a median of 3.0 px, a 90th percentile of
-  12 px, and 36 px at worst. Of those, 113 are reported at the ``medium`` tier, and 107
-  report a sigma under 1 px on both axes (a median of 0.28 px on the larger one).
+  prediction. Against the published F ring bundle's per-frame pointing on 1,041 held-out
+  frames below 25 km/px, it cuts the alias locks across the edge, answers displaced across
+  the edge by a distance that matches no spacing between cataloged edges, from 188 to 4:
+  N1492091385 at 45 px, N1851236541 at 44 px, N1492064782 at 34 px, and N1851226701 at
+  3.8 px. When two cataloged edges lie a few tens of pixels apart, one strong step can be
+  matched by the wrong one of them: on Cassini NAC F ring movie frames at 5 km/px the
+  strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge. On
+  the same frames 5 answers are wrong this way, 7 to 49 px across the edge (41 to 51 px on
+  four of them). All nine are reported at the ``medium`` tier.
+- An edge that is nearly straight across the frame but not flagged straight constrains the
+  along-edge component only through its slight curvature, and the reported covariance does
+  not show how weak that constraint is. On the same 1,041 held-out frames, 115 answers
+  carried by this technique are within 1.4 px of the published pointing across the edge
+  and more than 2 px off along it: a median of 3.0 px, a 90th percentile of 12 px, and
+  36 px at worst. Of those, 113 are reported at the ``medium`` tier, and 107 report a
+  sigma under 1 px on both axes (a median of 0.28 px on the larger one). The rest of the
+  129 answers more than 2 px off on those frames are the nine locks of the previous item
+  and 5 answers carried by the star techniques.
 - A curved edge keeps the model's quantized per-vertex normals. They enter the
   edge-strength weights and the orbit channel, where a 22.5-degree error costs little;
   only the straight-edge rank-1 axis takes the line's own normal.
