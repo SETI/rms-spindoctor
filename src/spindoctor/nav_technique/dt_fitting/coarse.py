@@ -19,9 +19,11 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 __all__ = [
     'CoarseSearchResult',
     'build_polyline_mask',
+    'coarse_edge_strength_search_scored',
     'coarse_ncc_search',
     'coarse_ncc_search_scored',
     'coarse_polarity_search_scored',
+    'edge_strength_score',
     'polarity_filter',
 ]
 
@@ -399,6 +401,264 @@ def coarse_polarity_search_scored(
                 best_dv = dv
                 best_du = du
     return CoarseSearchResult(offset_vu=(best_dv, best_du), score=max(best_score, 0.0))
+
+
+@dataclass(frozen=True)
+class _EdgeStrengthTerms:
+    """Validated, precomputed inputs shared by the edge-strength scorers.
+
+    Parameters:
+        base_v: ``(N,)`` rounded vertex rows.
+        base_u: ``(N,)`` rounded vertex columns.
+        unit_n_v: ``(N,)`` unit-normal row components (zero for a zero normal).
+        unit_n_u: ``(N,)`` unit-normal column components.
+        strength_v: ``(H, W)`` gradient row component at counted edge pixels, zero
+            elsewhere.
+        strength_u: ``(H, W)`` gradient column component at counted edge pixels,
+            zero elsewhere.
+    """
+
+    base_v: np.ndarray
+    base_u: np.ndarray
+    unit_n_v: NDArrayFloatType
+    unit_n_u: NDArrayFloatType
+    strength_v: NDArrayFloatType
+    strength_u: NDArrayFloatType
+
+
+def _edge_strength_terms(
+    edge_mask: NDArrayBoolType,
+    image_gradient_vu: NDArrayFloatType,
+    vertices_vu: NDArrayFloatType,
+    normals_vu: NDArrayFloatType,
+    *,
+    valid_mask: NDArrayBoolType | None,
+) -> _EdgeStrengthTerms:
+    """Validate the edge-strength inputs and precompute what every shift reuses.
+
+    Parameters:
+        edge_mask: ``(H, W)`` boolean image edge map.
+        image_gradient_vu: ``(H, W, 2)`` per-pixel gradient vector.
+        vertices_vu: ``(N, 2)`` model vertex positions.
+        normals_vu: ``(N, 2)`` model normals, either sign, any length.
+        valid_mask: Optional ``(H, W)`` mask of pixels whose edges may count.
+
+    Returns:
+        The precomputed terms.
+
+    Raises:
+        ValueError: if any array has the wrong dimensions or disagrees with
+            ``edge_mask``.
+    """
+    if edge_mask.ndim != 2:
+        raise ValueError(f'edge_mask must be 2-D; got ndim={edge_mask.ndim}')
+    if image_gradient_vu.ndim != 3 or image_gradient_vu.shape[2] != 2:
+        raise ValueError(
+            f'image_gradient_vu must have shape (H, W, 2); got {image_gradient_vu.shape}'
+        )
+    if image_gradient_vu.shape[:2] != edge_mask.shape:
+        raise ValueError(
+            f'shape mismatch: edge_mask {edge_mask.shape} vs '
+            f'image_gradient_vu {image_gradient_vu.shape[:2]}'
+        )
+    if valid_mask is not None and valid_mask.shape != edge_mask.shape:
+        raise ValueError(
+            f'shape mismatch: edge_mask {edge_mask.shape} vs valid_mask {valid_mask.shape}'
+        )
+    verts = np.asarray(vertices_vu, np.float64)
+    norms = np.asarray(normals_vu, np.float64)
+    if verts.ndim != 2 or verts.shape[1] != 2:
+        raise ValueError(f'vertices_vu must have shape (N, 2); got {verts.shape}')
+    if norms.shape != verts.shape:
+        raise ValueError(f'normals_vu must match vertices_vu shape; got {norms.shape}')
+    norm_len = np.hypot(norms[:, 0], norms[:, 1])
+    safe_len = np.where(norm_len > 0.0, norm_len, 1.0)
+    # Fold the edge mask and the valid mask into the gradient once, so each
+    # shift costs two gathers: a pixel that is not a counted edge carries a
+    # zero gradient and contributes nothing.
+    counted = edge_mask if valid_mask is None else edge_mask & valid_mask
+    return _EdgeStrengthTerms(
+        base_v=np.rint(verts[:, 0]).astype(np.int64),
+        base_u=np.rint(verts[:, 1]).astype(np.int64),
+        unit_n_v=norms[:, 0] / safe_len,
+        unit_n_u=norms[:, 1] / safe_len,
+        strength_v=np.where(counted, image_gradient_vu[:, :, 0], 0.0),
+        strength_u=np.where(counted, image_gradient_vu[:, :, 1], 0.0),
+    )
+
+
+def edge_strength_score(
+    edge_mask: NDArrayBoolType,
+    image_gradient_vu: NDArrayFloatType,
+    vertices_vu: NDArrayFloatType,
+    normals_vu: NDArrayFloatType,
+    offset_vu: tuple[int, int],
+    *,
+    valid_mask: NDArrayBoolType | None = None,
+) -> float:
+    """Return the edge-strength score of one integer shift.
+
+    The same quantity :func:`coarse_edge_strength_search_scored` maximizes: the
+    sum over model vertices landing on a counted edge pixel of ``|g . n|``,
+    divided by the total vertex count.  A caller uses it to ask how strong the
+    edges under a seed chosen some other way are, against the strongest the
+    search window offers.
+
+    Parameters:
+        edge_mask: ``(H, W)`` boolean image edge map.
+        image_gradient_vu: ``(H, W, 2)`` per-pixel gradient vector.
+        vertices_vu: ``(N, 2)`` model vertex positions.
+        normals_vu: ``(N, 2)`` model normals, either sign, any length.
+        offset_vu: ``(dv, du)`` integer shift to score.
+        valid_mask: Optional ``(H, W)`` mask of pixels whose edges may count.
+
+    Returns:
+        The score, ``0.0`` for an empty polyline.
+
+    Raises:
+        ValueError: under the same conditions as
+            :func:`coarse_edge_strength_search_scored`.
+    """
+    terms = _edge_strength_terms(
+        edge_mask, image_gradient_vu, vertices_vu, normals_vu, valid_mask=valid_mask
+    )
+    n_vertices = int(terms.base_v.size)
+    if n_vertices == 0:
+        return 0.0
+    height, width = edge_mask.shape
+    shifted_v = terms.base_v + int(offset_vu[0])
+    shifted_u = terms.base_u + int(offset_vu[1])
+    valid = (shifted_v >= 0) & (shifted_v < height) & (shifted_u >= 0) & (shifted_u < width)
+    sv = shifted_v[valid]
+    su = shifted_u[valid]
+    projected = (
+        terms.unit_n_v[valid] * terms.strength_v[sv, su]
+        + terms.unit_n_u[valid] * terms.strength_u[sv, su]
+    )
+    return float(np.abs(projected).sum()) / float(n_vertices)
+
+
+def coarse_edge_strength_search_scored(
+    edge_mask: NDArrayBoolType,
+    image_gradient_vu: NDArrayFloatType,
+    vertices_vu: NDArrayFloatType,
+    normals_vu: NDArrayFloatType,
+    search_window_vu: tuple[int, int],
+    *,
+    valid_mask: NDArrayBoolType | None = None,
+    min_support_fraction: float = DEFAULT_COARSE_MIN_SUPPORT_FRACTION,
+) -> CoarseSearchResult:
+    """Integer coarse search scored by the strength of the edges the model lands on.
+
+    The binary overlap search (:func:`coarse_ncc_search_scored`) counts every
+    detected edge pixel alike, so where the image holds many weak edges -- the
+    density-wave and ringlet texture of a ring's interior, or the faint
+    contours a thresholded smooth brightness gradient leaves behind -- a shift
+    that lays the model across that population scores as well as, or better
+    than, the shift that lays it on the one strong brightness step the catalog
+    actually describes.  Orientation does not separate them: ring texture is
+    concentric, so it runs parallel to the modeled edge everywhere.  What does
+    separate them is how strong each step is.
+
+    This search therefore weights each model vertex that lands on a detected
+    edge pixel by ``|g . n|``, the image gradient sampled there projected onto
+    the vertex's unit normal.  The absolute value keeps the search
+    polarity-blind (a ring edge can be brighter on either side), the projection
+    discounts an edge crossing the model at an angle, and the magnitude lets
+    the cataloged step outweigh any number of faint texture edges.  The score
+    of a shift is the sum of those weights divided by the total vertex count,
+    so a shift that pushes model vertices off the image or off ``valid_mask``
+    simply loses their contribution.
+
+    ``valid_mask`` excludes pixels whose gradient is not a property of the
+    scene: the boundary between the sensor and the zero-padded margin of the
+    extended frame is the strongest step in most frames, and a model edge
+    parallel to it would otherwise lock onto the frame border.
+
+    Eligibility and tie-breaking follow :func:`coarse_ncc_search`: a shift that
+    keeps fewer than ``min_support_fraction`` of the vertices inside the array
+    is skipped, and ties go to the smaller ``(|dv| + |du|, |dv|, dv, du)``.
+    The reported :attr:`CoarseSearchResult.score` is the winning shift's
+    plain per-vertex match fraction (the fraction of its in-bounds vertices
+    on a detected edge pixel).  It is not strength-weighted, so it measures
+    the same thing as :func:`coarse_ncc_search_scored`'s score, but over
+    vertices rather than distinct rasterized pixels: the two differ where
+    several vertices round to one pixel, so the shared coarse-peak gate reads
+    a related quantity, not an identical one, depending on which search chose
+    the shift.
+
+    Parameters:
+        edge_mask: ``(H, W)`` boolean image edge map.
+        image_gradient_vu: ``(H, W, 2)`` per-pixel gradient vector aligned to
+            ``edge_mask``.
+        vertices_vu: ``(N, 2)`` model polyline vertex positions in ``(v, u)``.
+        normals_vu: ``(N, 2)`` model normal at each vertex; either sign, need
+            not be unit length.  A zero normal never contributes.
+        search_window_vu: ``(margin_v, margin_u)`` non-negative integers
+            bounding the search range in v and u.
+        valid_mask: Optional ``(H, W)`` boolean mask of pixels whose edges may
+            contribute; ``None`` admits every pixel.
+        min_support_fraction: Minimum fraction of the vertices that must stay
+            inside the array for a shift to be eligible.  See
+            :func:`coarse_ncc_search`.
+
+    Returns:
+        :class:`CoarseSearchResult` with the peak integer offset and its plain
+        match fraction.
+
+    Raises:
+        TypeError: if either entry of ``search_window_vu`` is not an int.
+        ValueError: if array shapes disagree, ``search_window_vu`` is not a
+            length-2 sequence of non-negative ints, or ``min_support_fraction``
+            is outside ``[0, 1]``.
+    """
+    terms = _edge_strength_terms(
+        edge_mask, image_gradient_vu, vertices_vu, normals_vu, valid_mask=valid_mask
+    )
+    margin_v, margin_u = _validate_search_window(search_window_vu)
+    if not 0.0 <= min_support_fraction <= 1.0:
+        raise ValueError(f'min_support_fraction must be in [0, 1]; got {min_support_fraction!r}')
+    height, width = edge_mask.shape
+    n_vertices = int(terms.base_v.size)
+    if n_vertices == 0:
+        return CoarseSearchResult(offset_vu=(0, 0), score=0.0)
+    base_v, base_u = terms.base_v, terms.base_u
+    unit_n_v, unit_n_u = terms.unit_n_v, terms.unit_n_u
+    strength_v, strength_u = terms.strength_v, terms.strength_u
+    min_support = min_support_fraction * float(n_vertices)
+    best_dv = 0
+    best_du = 0
+    best_score = -1.0
+    best_key = (math.inf, math.inf, math.inf, math.inf)
+    for dv in range(-margin_v, margin_v + 1):
+        shifted_v = base_v + dv
+        valid_v = (shifted_v >= 0) & (shifted_v < height)
+        if not valid_v.any():
+            continue
+        for du in range(-margin_u, margin_u + 1):
+            shifted_u = base_u + du
+            valid = valid_v & (shifted_u >= 0) & (shifted_u < width)
+            if not valid.any():
+                continue
+            sv = shifted_v[valid]
+            su = shifted_u[valid]
+            if float(sv.size) < min_support:
+                continue
+            projected = unit_n_v[valid] * strength_v[sv, su] + unit_n_u[valid] * strength_u[sv, su]
+            score = float(np.abs(projected).sum()) / float(n_vertices)
+            key = (abs(dv) + abs(du), abs(dv), dv, du)
+            if score > best_score or (score == best_score and key < best_key):
+                best_score = score
+                best_key = key
+                best_dv = dv
+                best_du = du
+    if best_score < 0.0:
+        return CoarseSearchResult(offset_vu=(0, 0), score=0.0)
+    win_v = base_v + best_dv
+    win_u = base_u + best_du
+    in_bounds = (win_v >= 0) & (win_v < height) & (win_u >= 0) & (win_u < width)
+    match_fraction = float(edge_mask[win_v[in_bounds], win_u[in_bounds]].mean())
+    return CoarseSearchResult(offset_vu=(best_dv, best_du), score=match_fraction)
 
 
 def build_polyline_mask(

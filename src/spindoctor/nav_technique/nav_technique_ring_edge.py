@@ -16,6 +16,7 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+from scipy.ndimage import binary_erosion
 
 from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature
@@ -25,8 +26,11 @@ from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig, evaluate_dt_fit_gates
 from spindoctor.nav_technique.dt_fitting import (
+    CoarseSearchResult,
     build_polyline_mask,
+    coarse_edge_strength_search_scored,
     coarse_ncc_search_scored,
+    edge_strength_score,
     lm_subpixel_refine,
 )
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
@@ -44,15 +48,17 @@ from spindoctor.nav_technique.ring_edge_geometry import (
     _is_rank_1,
     _orbit_inflated_covariance,
     _rank1_projected_covariance,
+    _straight_edge_normals,
 )
 from spindoctor.nav_technique.ring_edge_stats import (
     _EdgeFitStat,
+    _matched_edge_strength_fraction,
     _per_edge_fit_stats,
     _per_edge_median_max,
     _per_edge_rms_summed,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
@@ -102,7 +108,14 @@ def _aggregate_ring_edges(
         # (``dot(model, image_gradient) > 0``) accepts edges whose image
         # gradient points across the edge in the same sense as the
         # negated normal.
-        normal_chunks.append(-feat.geometry.normals_vu.astype(np.float64))
+        edge_normals: NDArrayFloatType = feat.geometry.normals_vu.astype(np.float64)
+        if feat.geometry.is_straight_line and feat.geometry.vertices_vu.shape[0] >= 2:
+            # A straight edge's quantized per-vertex normals are replaced by the
+            # line's own normal; see ``_straight_edge_normals``.
+            edge_normals = _straight_edge_normals(
+                feat.geometry.vertices_vu.astype(np.float64), edge_normals
+            )
+        normal_chunks.append(-edge_normals)
         sigma_chunks.append(feat.geometry.sigma_radial_per_vertex_px.astype(np.float64))
         ids.append(feat.feature_id)
     empty_2 = np.empty((0, 2), np.float64)
@@ -190,6 +203,26 @@ class RingEdgeNav(NavTechnique):
         self._lm_tikhonov_alpha = float(self.tuning['lm_tikhonov_alpha'])
         self._gradient_ridge_refine = bool(self.tuning['gradient_ridge_refine'])
         self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
+        self._coarse_sensor_margin_px = int(self.tuning['coarse_sensor_margin_px'])
+        if self._coarse_sensor_margin_px < 0:
+            raise ValueError(
+                'RingEdgeNav.coarse_sensor_margin_px must be a non-negative integer; '
+                f'got {self._coarse_sensor_margin_px!r}'
+            )
+        self._spurious_min_edge_strength_fraction = float(
+            self.tuning['spurious_min_edge_strength_fraction']
+        )
+        if not 0.0 <= self._spurious_min_edge_strength_fraction <= 1.0:
+            raise ValueError(
+                'RingEdgeNav.spurious_min_edge_strength_fraction must lie in [0, 1]; '
+                f'got {self._spurious_min_edge_strength_fraction!r}'
+            )
+        self._coarse_strength_keep_ratio = float(self.tuning['coarse_strength_keep_ratio'])
+        if not 0.0 <= self._coarse_strength_keep_ratio <= 1.0:
+            raise ValueError(
+                'RingEdgeNav.coarse_strength_keep_ratio must lie in [0, 1]; '
+                f'got {self._coarse_strength_keep_ratio!r}'
+            )
         self._dt_gate_config = DTFitGateConfig.from_tuning(self.tuning)
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
@@ -262,7 +295,6 @@ class RingEdgeNav(NavTechnique):
             edge_dt = context.image_edge_dt_ext
             gradient_vu = context.image_gradient_vu_ext
             edge_mask = edge_dt <= 0.5
-            polyline_mask = build_polyline_mask(vertices, edge_dt.shape[:2])
             margin_v, margin_u = search_window_for_obs(context)
             model_sigma_min = float(sigmas.min()) if sigmas.size else 0.0
             model_sigma_max = float(sigmas.max()) if sigmas.size else 0.0
@@ -289,23 +321,23 @@ class RingEdgeNav(NavTechnique):
                 margin_v,
                 margin_u,
             )
-            coarse = coarse_ncc_search_scored(
+            # Edges near the sensor boundary are left out of every edge-strength
+            # measure: the step onto the zero-padded margin is usually the
+            # strongest edge in the frame and says nothing about the rings.
+            sensor_interior = (
+                binary_erosion(context.sensor_mask_ext, iterations=self._coarse_sensor_margin_px)
+                if self._coarse_sensor_margin_px > 0
+                else context.sensor_mask_ext
+            )
+            coarse = self._coarse_seed(
                 edge_mask,
-                polyline_mask,
+                gradient_vu,
+                vertices,
+                polarity_normals,
                 (margin_v, margin_u),
+                valid_mask=sensor_interior,
             )
             coarse_dv, coarse_du = coarse.offset_vu
-            self.logger.debug(
-                'Coarse NCC offset: (%d, %d), peak match fraction %.3f',
-                coarse_dv,
-                coarse_du,
-                coarse.score,
-            )
-            # Ring-edge polarity prediction depends on lighting / gap-vs-ringlet
-            # context the catalog does not encode today, so this technique keeps
-            # the polarity-blind coarse seed (coarse_ncc_search_scored above)
-            # rather than the polarity-weighted acquisition the limb / terminator
-            # techniques use; making the ring seed robust is tracked in #373.
             fit_rotation = bool(context.fit_camera_rotation)
             pivot_vu = (float(vertices[:, 0].mean()), float(vertices[:, 1].mean()))
             pivot_distance = (
@@ -494,8 +526,34 @@ class RingEdgeNav(NavTechnique):
                     gate_verdict.coarse_peak_fraction,
                     gate_verdict.lm_converged,
                 )
+            # A fit whose matched edges are a tiny fraction of the frame's
+            # strongest has found the faint contours of a smooth glow, not a
+            # ring edge: the cataloged edges lie outside the frame at the true
+            # pointing and the search dragged the model onto whatever the
+            # thresholded image offered.
+            edge_strength_fraction = _matched_edge_strength_fraction(
+                edge_dt,
+                gradient_vu,
+                vertices,
+                polarity_normals,
+                (dv_final, du_final),
+                valid_mask=sensor_interior,
+            )
+            faint_edge_veto = edge_strength_fraction < self._spurious_min_edge_strength_fraction
+            self.logger.debug(
+                "Matched edge strength is %.4f of the frame's strongest edges",
+                edge_strength_fraction,
+            )
+            if faint_edge_veto:
+                self.logger.info(
+                    "Matched edges are %.4f as strong as the frame's strongest, below "
+                    'the %.4f floor: the fit found no ring edge; marking it spurious',
+                    edge_strength_fraction,
+                    self._spurious_min_edge_strength_fraction,
+                )
             spurious = (
-                result.degenerate
+                faint_edge_veto
+                or result.degenerate
                 or result.rms_px
                 > max(
                     self._spurious_dt_floor_px,
@@ -657,6 +715,81 @@ class RingEdgeNav(NavTechnique):
                 rotation_rad=rotation_rad,
                 sigma_rotation_rad=sigma_rotation_rad,
             )
+
+    def _coarse_seed(
+        self,
+        edge_mask: NDArrayBoolType,
+        gradient_vu: NDArrayFloatType,
+        vertices: NDArrayFloatType,
+        normals: NDArrayFloatType,
+        search_window_vu: tuple[int, int],
+        *,
+        valid_mask: NDArrayBoolType,
+    ) -> CoarseSearchResult:
+        """Choose the integer seed the refinement starts from.
+
+        The mask-overlap search counts every detected edge pixel alike.  A
+        ring's interior texture and the faint contours of a smooth glow are
+        dense populations of weak edges running parallel to the model, so on a
+        close-range frame that search can settle on any member of a lattice of
+        aliases, the cataloged step being only one of them.  The strength of
+        the edges under the model is what separates them: the cataloged gap
+        edge or ring edge is a large brightness step and the texture is not.
+
+        The overlap seed is kept unless the edges it lands on are clearly
+        weaker than the strongest alignment in the search window: when its
+        edge-strength score falls below ``coarse_strength_keep_ratio`` times
+        the best score, the strongest alignment replaces it.
+
+        Parameters:
+            edge_mask: Binary image edge mask.
+            gradient_vu: ``(H, W, 2)`` image gradient.
+            vertices: ``(N, 2)`` model vertices.
+            normals: ``(N, 2)`` model normals, either sign.
+            search_window_vu: ``(margin_v, margin_u)`` search window.
+            valid_mask: Pixels whose edges may count toward the strength
+                scores: the sensor interior.
+
+        Returns:
+            The chosen seed and its plain match fraction.
+        """
+        overlap = coarse_ncc_search_scored(
+            edge_mask, build_polyline_mask(vertices, edge_mask.shape), search_window_vu
+        )
+        valid = valid_mask
+        strongest = coarse_edge_strength_search_scored(
+            edge_mask, gradient_vu, vertices, normals, search_window_vu, valid_mask=valid
+        )
+        overlap_strength = edge_strength_score(
+            edge_mask, gradient_vu, vertices, normals, overlap.offset_vu, valid_mask=valid
+        )
+        best_strength = edge_strength_score(
+            edge_mask, gradient_vu, vertices, normals, strongest.offset_vu, valid_mask=valid
+        )
+        ratio = overlap_strength / best_strength if best_strength > 0.0 else 1.0
+        self.logger.debug(
+            'Coarse overlap seed (%d, %d), match fraction %.3f; strongest-edge seed '
+            '(%d, %d); edge strength under the overlap seed is %.3f of the strongest',
+            overlap.offset_vu[0],
+            overlap.offset_vu[1],
+            overlap.score,
+            strongest.offset_vu[0],
+            strongest.offset_vu[1],
+            ratio,
+        )
+        if ratio >= self._coarse_strength_keep_ratio:
+            return overlap
+        self.logger.info(
+            'Coarse overlap seed (%d, %d) lies on edges %.2f as strong as the strongest '
+            'alignment (%d, %d), below the %.2f keep ratio; seeding from the strongest',
+            overlap.offset_vu[0],
+            overlap.offset_vu[1],
+            ratio,
+            strongest.offset_vu[0],
+            strongest.offset_vu[1],
+            self._coarse_strength_keep_ratio,
+        )
+        return strongest
 
 
 class _RingEdgeConfidenceContext:

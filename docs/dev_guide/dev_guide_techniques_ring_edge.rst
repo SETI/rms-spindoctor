@@ -9,8 +9,9 @@ Overview
 from one or more ring-edge polylines by aligning each polyline against the image's
 edge-distance-transform. The technique consumes every offered
 :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_EDGE` feature, weights its vertices by
-the prior precision derived from the per-edge sigma, and runs the same coarse-NCC plus
-Tukey-reweighted Levenberg-Marquardt refinement that
+the prior precision derived from the per-edge sigma, seeds the fit with an integer search
+checked against the strength of the image edges the model lands on (see
+`The coarse seed`_), and runs the Tukey-reweighted Levenberg-Marquardt refinement that
 :doc:`dev_guide_techniques_dt_fitting` describes.
 
 When every consumed ring edge is flagged straight-line the combined Jacobian is rank-
@@ -47,8 +48,9 @@ rather than claim superiority for either side there: its trustworthy evidence is
 frames on which neither technique is validated -- the edge path re-locked catastrophically
 on all three (the 100% above), the annulus near-missed twice and failed once -- so the
 threshold marks the bottom of the measured regime, not a regime where this technique is
-known good, and a sub-25 km/px ring-edge answer still carries the known wrong-lock
-exposure.
+known good. Those rates were measured with the mask-overlap seed alone; the edge-strength
+check described in `The coarse seed`_ addresses the lattice locks behind them, and the
+remaining sub-25 km/px exposure is described under `Restrictions and assumptions`_.
 
 Theory
 ======
@@ -57,6 +59,66 @@ The technique fits a per-image translation by minimizing the weighted squared di
 the model ring-edge polylines to the image edges, exactly as the limb fit does — see
 :doc:`dev_guide_techniques_dt_fitting` for the cost function, the LM mechanics, and the
 Tukey biweight (the polarity filter is disabled for ring edges; see below).
+
+The coarse seed
+---------------
+
+The refinement polishes whatever basin the integer seed puts it in: the trust region keeps
+it within about a pixel of the seed. Choosing the basin is therefore the coarse search's
+job, and for rings the mask-overlap score the other DT techniques started from is the wrong
+score. It counts a model vertex as matched whenever it lands on any detected edge pixel. A
+ring's interior is full of detected edges -- density waves, ringlets, and the texture of
+the material itself -- and so is a smooth scattered-light glow once its faint contours are
+thresholded. Those edges run parallel to the modeled edge, so translating the model across
+them keeps nearly every vertex on *some* edge. At fine radial resolution the overlap score
+is flat across a lattice of such aliases, and the search returns whichever one its
+tie-break or noise favors. Orientation does not separate them, because ring texture is
+concentric with the cataloged edge. Polarity does not either, which is why a seed weighted
+by model-predicted polarity moved none of the affected frames.
+
+What separates the cataloged edge from the texture is how strong a brightness step it is.
+The technique therefore checks the overlap seed against edge strength. The edge-strength
+score of a shift
+(:func:`~spindoctor.nav_technique.dt_fitting.edge_strength_score`) sums, over the model
+vertices that land on a detected edge pixel, :math:`|g \cdot n|`, the image gradient there
+projected onto the vertex normal, and divides by the vertex count. The absolute value keeps
+it polarity-blind, the projection discounts an edge that crosses the model at an angle, and
+the magnitude lets one strong step outweigh any number of faint texture edges.
+:func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored` finds the
+shift that maximizes it. The overlap seed is kept when its own edge-strength score is at
+least ``coarse_strength_keep_ratio`` of that maximum, and the strongest alignment seeds
+the fit otherwise. Edges within ``coarse_sensor_margin_px`` of the sensor boundary are left
+out of both scores: the step from the image onto the zero-padded margin of the extended
+frame is usually the strongest edge present, and a ring edge running near the frame border
+would otherwise lock onto it. The score reported to the coarse-acquisition gate is the
+plain match fraction at whichever shift was chosen.
+
+Keeping the overlap seed whenever it sits on comparably strong edges is deliberate. On a
+straight or nearly straight edge the strength score is almost flat along the edge, so its
+maximum lands at an arbitrary position along it, while the overlap search's tie-break
+returns the position nearest the prediction. Where both agree on the basin across the
+edge, replacing one with the other would move only the unobservable along-edge component,
+and on a frame that is only weakly curved that component is what the reported answer
+carries. The check changes the seed only where the overlap seed is clearly on weaker
+edges, which is the alias case.
+
+Measured on Cassini NAC frames, the edge strength under the overlap seed was 0.91 to 1.00
+of the strongest wherever that seed was right across the edge (the library's Keeler gap,
+Encke gap, and Maxwell ringlet frames at 0.2 to 0.4 km/px, and two F ring movie frames at
+5.5 km/px), and 0.005 to 0.68 wherever it had locked onto ring texture or scattered-light
+contours 16 to 94 px off. On the latter frames the strongest alignment put the model within
+about 2 px of independent pointing across the edge.
+
+A frame can also hold no cataloged edge at all at the true pointing: the edges lie in the
+extended margin outside the sensor, and the search drags the model onto whatever the
+thresholded image offers inside it, which in an F ring movie frame is the faint contour
+lattice of the scattered-light glow. No seed can be right there. The fit is instead
+rejected after convergence when the edges it matched are too faint to be a ring edge: the
+median of :math:`|g \cdot n|` over the vertices within 1.5 px of a detected edge, divided
+by the 99.9th percentile of the gradient magnitude inside the sensor, must reach
+``spurious_min_edge_strength_fraction``. Ten such F ring movie frames at 9.9 km/px, each
+wrong by 60 to 94 px, scored 0.0012 to 0.0022; fits on real ring edges scored from 0.0096
+(F ring movie frames) and from 0.050 (the library's ring frames) up to about 1.
 
 The residual scale
 ------------------
@@ -76,7 +138,7 @@ a residual scale but a claim the measurement cannot support, and the consequence
 mechanical: the Tukey redescender's rejection radius becomes
 :math:`4.685 \times 0.001 = 0.005` px, so the only vertices it keeps are the ones sitting
 exactly on a mask pixel where the DT is zero. That set is reachable only at an integer
-offset, so the fit never leaves its integer coarse-NCC seed, the gradient-ridge pass finds
+offset, so the fit never leaves its integer coarse seed, the gradient-ridge pass finds
 no vertex it is allowed to move, the reported sigma comes back in the thousandths of a
 pixel, and the inlier fraction the spurious gate reads measures sub-pixel phase rather
 than model agreement.
@@ -104,10 +166,22 @@ contract explicitly: when every consumed edge is straight (or the raw covariance
 fails the relative-eigenvalue rank test), the translation covariance is rebuilt as the
 exactly singular ``sigma_n^2 n n^T``, where ``n`` is the dominant eigenvector of the
 per-vertex normals' outer-product sum (polarity-sign-independent) and ``sigma_n^2`` the raw
-covariance's marginal variance along it. Exact singularity is the representation the
-ensemble is built around: ``pinvh`` keeps the normal-axis measurement when forming the
-information matrix, the combine's rank-deficiency test fires, and the unobservable axis is
-reported through the
+covariance's marginal variance along it.
+
+The per-vertex normals of a straight edge are replaced by the line's own normal before
+any of this. The rings model takes each vertex's normal from which of its pixel neighbors
+lie off the edge, so a model normal can only point along one of eight directions, the
+multiples of 45 degrees. On a straight edge at any other orientation every one of them is
+off by up to 22.5 degrees, and an axis built from them puts the ensemble's minimum-norm
+answer on the wrong line: the part of the free slide along the edge that the tilted axis
+does not cancel leaks into the reported offset. The line's direction is the principal
+axis of its vertices, and the normal perpendicular to it is used for every vertex, signed
+the way the model's normals summed. On the library's Keeler gap frames (edges at about 68
+and 51 degrees, reported at 90 and 45) this moved the ensemble's planted-shift round trip
+across the edge from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px). Exact
+singularity is the representation the ensemble is built around: ``pinvh`` keeps the
+normal-axis measurement when forming the information matrix, the combine's rank-deficiency
+test fires, and the unobservable axis is reported through the
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.sigma_along_unobservable_px`
 sentinel rather than an inflated per-axis sigma.
 
@@ -224,10 +298,32 @@ Restrictions and assumptions
 - Ring edges that have collapsed to a sub-pixel radial extent are emitted by the upstream
   model as ``RING_ANNULUS`` templates instead, so the technique never sees them. See
   :doc:`dev_guide_techniques_ring_annulus`.
-- The fit assumes the per-image SPICE pose is good enough that the integer NCC seed lands
+- The fit assumes the per-image SPICE pose is good enough that the integer seed lands
   in the basin of attraction of the correct ring edge. When the SPICE pointing error
   exceeds the per-instrument search-window margin the seed lands on a wrong edge and the
   LM converges to a wrong local minimum.
+- The edge-strength check assumes the cataloged edges are the strongest steps near the
+  prediction. Against the published F ring bundle's per-frame pointing on 1,041 held-out
+  frames below 25 km/px, it cuts the alias locks across the edge, answers displaced across
+  the edge by a distance that matches no spacing between cataloged edges, from 188 to 4:
+  N1492091385 at 45 px, N1851236541 at 44 px, N1492064782 at 34 px, and N1851226701 at
+  3.8 px. When two cataloged edges lie a few tens of pixels apart, one strong step can be
+  matched by the wrong one of them: on Cassini NAC F ring movie frames at 5 km/px the
+  strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge. On
+  the same frames 5 answers are wrong this way, 7 to 49 px across the edge (41 to 51 px on
+  four of them). All nine are reported at the ``medium`` tier.
+- An edge that is nearly straight across the frame but not flagged straight constrains the
+  along-edge component only through its slight curvature, and the reported covariance does
+  not show how weak that constraint is. On the same 1,041 held-out frames, 115 answers
+  carried by this technique are within 1.4 px of the published pointing across the edge
+  and more than 2 px off along it: a median of 3.0 px, a 90th percentile of 12 px, and
+  36 px at worst. Of those, 113 are reported at the ``medium`` tier, and 107 report a
+  sigma under 1 px on both axes (a median of 0.28 px on the larger one). The rest of the
+  129 answers more than 2 px off on those frames are the nine locks of the previous item
+  and 5 answers carried by the star techniques.
+- A curved edge keeps the model's quantized per-vertex normals. They enter the
+  edge-strength weights and the orbit channel, where a 22.5-degree error costs little;
+  only the straight-edge rank-1 axis takes the line's own normal.
 
 Sources of uncertainty
 ----------------------
@@ -305,14 +401,14 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   catalog sigma alone is not a usable scale. Must be a finite number greater than zero;
   construction raises otherwise.
 - ``spurious_max_lm_displacement_px`` — float, default ``4.0`` px. If the LM moves more
-  than this many pixels from the integer coarse-NCC seed, flag spurious. Defensive: with
+  than this many pixels from the integer coarse seed, flag spurious. Defensive: with
   the trust region below the LM cannot leave the coarse basin, so this guard normally
   never fires; it catches any future regression that bypasses the trust region.
 - ``lm_trust_region_px`` — float, default ``1.0`` px. Maximum LM displacement from the
-  integer coarse-NCC seed; the LM rejects any trial step that would land outside this
+  integer coarse seed; the LM rejects any trial step that would land outside this
   radius. See :doc:`dev_guide_techniques_dt_fitting`.
 - ``lm_tikhonov_alpha`` — float, default ``0.0`` (dimensionless). Tikhonov anchor strength
-  toward the coarse-NCC seed; 0 disables the anchor (the trust region is the harder
+  toward the coarse seed; 0 disables the anchor (the trust region is the harder
   bound).
 - ``gradient_ridge_refine`` — int flag, default ``1`` (ON). Final continuous
   gradient-ridge sub-pixel refinement after the DT LM converges. The binary edge mask
@@ -328,6 +424,18 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it crosses
   this fraction of the per-image
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` cap.
+- ``coarse_strength_keep_ratio`` — float, default ``0.8``. The overlap seed is kept when
+  the edge-strength score under it is at least this fraction of the strongest alignment in
+  the search window; otherwise the strongest alignment seeds the fit (see
+  `The coarse seed`_). Must lie in ``[0, 1]``; construction raises otherwise.
+- ``coarse_sensor_margin_px`` — int, default ``5`` px. Detected edges within this many
+  pixels of the sensor boundary are left out of the edge-strength scores (see
+  `The coarse seed`_). Five pixels covers the reach of the 1.2 px gradient smoothing into
+  the frame. Must be a non-negative integer; construction raises otherwise.
+- ``spurious_min_edge_strength_fraction`` — float, default ``0.005``. A converged fit
+  whose matched edges have a median projected gradient below this fraction of the frame's
+  99.9th-percentile gradient magnitude is marked spurious (see `The coarse seed`_). Must
+  lie in ``[0, 1]``; construction raises otherwise.
 - ``lm_unconverged_confidence_cap``, ``spurious_max_polarity_rejection_fraction``,
   ``spurious_unconverged_polarity_rejection_fraction``,
   ``spurious_min_coarse_peak_fraction`` — the shared DT fit-quality gate thresholds,
@@ -375,7 +483,7 @@ Source files:
 
 - ``src/spindoctor/nav_technique/nav_technique_ring_edge.py`` —
   :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav`.
-- ``src/spindoctor/nav_technique/dt_fitting.py`` — shared coarse-NCC and LM-refinement helpers;
+- ``src/spindoctor/nav_technique/dt_fitting.py`` — shared coarse-search and LM-refinement helpers;
   documented at :doc:`dev_guide_techniques_dt_fitting`.
 - ``src/spindoctor/nav_orchestrator/image_derivatives.py`` — image-side derivatives;
   documented at :doc:`dev_guide_techniques_image_derivatives`.
@@ -438,9 +546,13 @@ Call path traced through
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.image_gradient_vu_ext` is missing.
 2. Filter the offered features to ``RING_EDGE`` entries with non-empty polylines and
    concatenate the per-feature vertex / normal / sigma arrays.
-3. Build the binary polyline mask and pull the search-window margin off the observation via
-   :func:`~spindoctor.nav_technique.nav_technique.search_window_for_obs`. Run
-   :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search` for the integer seed.
+3. Pull the search-window margin off the observation via
+   :func:`~spindoctor.nav_technique.nav_technique.search_window_for_obs` and erode the
+   sensor mask by ``coarse_sensor_margin_px``. Run
+   :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored` for the overlap
+   seed and :func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored`
+   for the strongest alignment, and keep the overlap seed unless its edge-strength score
+   falls below ``coarse_strength_keep_ratio`` of the strongest.
 4. Read :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` and set the
    rotation pivot to the centroid of the concatenated vertices when rotation is fit.
 5. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine` and capture the converged
@@ -461,7 +573,8 @@ Call path traced through
      :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.covariance_px2` is the
      (3, 3) translation + rotation information matrix.
 
-8. Apply the at-edge tests and the spurious tests on RMS / inlier-count.
+8. Apply the at-edge tests and the spurious tests on RMS / inlier-count, and the floor on
+   the strength of the matched edges relative to the frame's strongest.
 9. Build a :class:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics`, evaluate the
    confidence spec, log the breakdown, and assemble the
    :class:`~spindoctor.nav_technique.technique_result.NavTechniqueResult`.
@@ -484,9 +597,10 @@ Examples
     A high-curvature single-edge scene with no other ring features in the FOV. The rings
     model emits one ``RING_EDGE`` polyline whose curvature lifts the rank-1 degeneracy.
     :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav` converges to
-    :math:`(\Delta v, \Delta u) \approx (5.00, -25.00)` px against an operator-verified
-    ground truth of ``(4.92, -24.32)`` px — sub-pixel agreement on a single curved edge.
-    The technique reports a sub-pixel final DT residual; the
+    :math:`(\Delta v, \Delta u) = (5.35, -25.32)` px against an operator-verified ground
+    truth of ``(4.92, -24.32)`` px, 1.1 px away and about the 1 px uncertainty of that truth.
+    A two-star ``StarRefineNav`` then moves the fused answer 0.7 px in :math:`u`, to
+    ``(5.21, -26.02)`` px. The technique reports a sub-pixel final DT residual; the
     :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.is_rank_1` flag is False
     because the per-edge curvature exceeds
     :data:`~spindoctor.nav_model.nav_model_rings.FLAT_CURVATURE_THRESHOLD_PX`.

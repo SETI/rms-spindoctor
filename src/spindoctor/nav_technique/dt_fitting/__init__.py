@@ -48,9 +48,11 @@ from spindoctor.nav_technique.dt_fitting.basin import (
 from spindoctor.nav_technique.dt_fitting.coarse import (
     CoarseSearchResult,
     build_polyline_mask,
+    coarse_edge_strength_search_scored,
     coarse_ncc_search,
     coarse_ncc_search_scored,
     coarse_polarity_search_scored,
+    edge_strength_score,
     polarity_filter,
 )
 from spindoctor.nav_technique.dt_fitting.constants import (
@@ -103,9 +105,11 @@ __all__ = [
     'RidgeRefineResult',
     'SecondaryBasin',
     'build_polyline_mask',
+    'coarse_edge_strength_search_scored',
     'coarse_ncc_search',
     'coarse_ncc_search_scored',
     'coarse_polarity_search_scored',
+    'edge_strength_score',
     'find_secondary_dt_minimum',
     'gradient_ridge_refine',
     'information_matrix_to_covariance',

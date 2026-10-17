@@ -66,21 +66,26 @@ on that baseline; each has a tracking issue (cross-map below).
 rather than methodology, and it silently corrupts what every workstream below
 reads:
 
-- **#288** — 11 of the 75 curated library sidecars disagree with `main` in the
+- **#288** — 16 of the 75 curated library sidecars disagree with `main` in the
   local integration environment, so the regression instrument that is supposed
   to detect a navigation change cannot currently do so. Until it is reconciled,
   a navigation-affecting change can only be gated on *no new failures against
   `main`*, and the library's own tiers cannot be read as verified
   expectations. Two are the Galileo frames whose recorded truth is the
   rotation-fitted answer that #560 retired, an operator decision in #744, and
-  one, `N1530185128_1`, is owned by the star-centroid defect in #639. The
-  other eight are attributed rather than mysterious: three are the
-  confidently-wrong ring locks (#346), two pin `primary_technique` to a
+  one, `N1530185128_1`, is owned by the star-centroid defect in #639. Five
+  are `ring_only_flat` frames whose pins record the old quantized rank-1 axis
+  of a straight ring edge and await an operator re-pin (#476). The other
+  eight are attributed rather than mysterious: three are #346's ring frames,
+  now red on pins (one `failed` expectation predating a working ring fit, and
+  two Encke gap frames that land on operator truth but miss their `medium`
+  tier pin), two pin `primary_technique` to a
   technique the code correctly declines to prefer and await an operator call
   (#483), one is the ~2.7 px `dv` limb bias on a partially overflowing limb arc
   that WS-10 owns, one is the standing highly-irregular exclusion of #338, and
   one is a tier move the operator has ruled is not to be re-ratcheted, routed
-  to #476 as an acceptance test. That
+  to #476, though the frame no longer runs RingEdgeNav since the Saturn
+  routing decision. That
   count predates the pixel-convention corrections, so it wants re-measuring
   before it is quoted again.
 
@@ -555,7 +560,7 @@ need.
 workstream's product is cross-technique *disagreement*, and a technique that
 reports a confidently wrong answer contributes a disagreement that is a property of
 the defect rather than of the scene. The confidently-wrong ring locks
-(#346, #476) are the measured case: on `N1633925572_1_CALIB`, measured 2026-08-26, a body fit
+(#346, #476) were the measured case: on `N1633925572_1_CALIB`, measured 2026-08-26, a body fit
 and a star fit agree to 0.08 px while `RingEdgeNav` converges 39 px away on 452 of
 6786 inliers, is not flagged spurious, and enters the combine. Feeding that frame to
 this workstream does not merely add noise -- it moves the anchor WS-5 then
