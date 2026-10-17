@@ -185,8 +185,8 @@ below. What remains is the along-edge error of nearly straight edges (115 of
 reported at the medium tier with a sub-pixel sigma) and a seed on the
 neighboring cataloged edge (5 of the 1,041, 7 to 49 px). Two remedies for
 the first were measured on the tuning sample and failed; the untried one,
-lowering only RingEdgeNav's own confidence on such an edge, is drafted as a
-follow-up issue. #476's criterion is met across the edge but not in the raw
+lowering only RingEdgeNav's own confidence on such an edge, is tracked as
+#755. #476's criterion is met across the edge but not in the raw
 sweep rows, which include the along-edge part; whether to restate it is
 yours to decide.
 The Saturn
@@ -510,7 +510,7 @@ Independent review before done; all CI gates; one PR."
   worst 17 px). The raw sweep rows are not (median 4.2 / 1.7 px v/u), the
   remainder lying along straight or nearly straight edges; the issue's
   criterion as written includes that part, so it stays open until you
-  restate the criterion or the along-edge follow-up lands. The five
+  restate the criterion or #755 lands. The five
   `ring_only_flat` constraint pins whose recorded normal angle is the old
   quantized axis are listed above for an operator re-pin decision.
 - **Gates and the body-witness veto**: #747 (the combined polarity gate keys
@@ -642,7 +642,7 @@ deferred until an instrument fits rotation again; a test fails if one does.
   normal the technique and the ensemble are at the DT floor (the ensemble's
   rank-1 axis quantization is fixed); the raw sweep rows still carry the
   along-edge part, which the criterion as written includes, so it stays open
-  pending a restated criterion or the along-edge follow-up; the five
+  pending a restated criterion or #755; the five
   `ring_only_flat` re-pins it needs are an operator decision; exposure is
   limited to sub-25 km/px Saturn scenes by the routing decision
 - **#482** BodyDiscCorrelateNav misses by up to ~1 px on a weakly-constrained

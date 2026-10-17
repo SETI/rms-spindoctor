@@ -270,8 +270,8 @@ What remains of the family:
   answer took over the along-edge component (5 went wrong to right).
   Together the sample went from 179 right and 68 wrong to 170 and 80. The
   untried design keeps the ensemble covariance as it is and lowers only
-  RingEdgeNav's own confidence on a nearly straight edge; a follow-up issue
-  for it is drafted.
+  RingEdgeNav's own confidence on a nearly straight edge, and is tracked
+  as #755.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the

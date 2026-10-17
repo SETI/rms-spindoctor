@@ -297,7 +297,7 @@ The known open defects:
   along-edge variance in the covariance the ensemble fuses) failed on the
   263-frame tuning sample, taking it from 179 right and 68 wrong to 170 and
   80; the untried alternative, lowering only RingEdgeNav's own confidence, is
-  drafted as a follow-up issue. The annulus-gate recalibration (accepting
+  tracked as #755. The annulus-gate recalibration (accepting
   more of its correct answers, #566) and a correlation-picks-basin /
   edge-polishes hybrid (#567) are filed follow-ons; measured as a basin
   selector below 25 km/px, the annulus correlation was right across the edge
