@@ -35,8 +35,10 @@ from util.nav_verification.boresight import vector_from_ra_dec
 __all__ = [
     'DEFAULT_BUNDLE_DIR',
     'NAC_PLATE_SCALE_URAD',
+    'WAC_PLATE_SCALE_URAD',
     'BundlePointing',
     'bundle_image_names',
+    'plate_scale_urad',
     'read_bundle_pointing',
     'suppl_path',
 ]
@@ -48,6 +50,14 @@ __all__ = [
 # to matter to an absolute scale, not to the pixel differences measured here.
 NAC_PLATE_SCALE_URAD = 5.9946
 
+# Cassini ISS wide angle camera, microradians per pixel: the field-center scale of the
+# instrument kernel's FOV as oops reads it, the mean of its two axes.
+WAC_PLATE_SCALE_URAD = 59.7165
+
+# Each frame width a Cassini ISS summing mode produces (full frame, 2x2, 4x4), against
+# its summing factor: a summed frame's pixels are proportionally wider.
+_SUMMING_BY_COLUMNS = {1024: 1, 512: 2, 256: 4}
+
 DEFAULT_BUNDLE_DIR = FCPath('/data/fring-bundles/pds4/data_reproj_img')
 
 _RA = re.compile(r'Navigated Boresight RA\s*=\s*([-\d.]+)')
@@ -56,6 +66,30 @@ _TYPE = re.compile(r'Navigation Type\s*=\s*(.+)')
 _CMATRIX = re.compile(
     r'C-Matrix\s*=\s*' + r'\s+'.join([r'([-\d.eE+]+)'] * 9),
 )
+
+
+def plate_scale_urad(camera: str, columns: int) -> float:
+    """The angle one pixel of a Cassini ISS frame spans.
+
+    Parameters:
+        camera: ``NAC`` or ``WAC``.
+        columns: How many columns the frame has; a summed frame has fewer, and
+            each of its pixels spans proportionally more sky.
+
+    Returns:
+        The plate scale in microradians per pixel.
+
+    Raises:
+        ValueError: If the camera is neither of the two, or the column count is
+            not one a summing mode produces.
+    """
+    full = {'NAC': NAC_PLATE_SCALE_URAD, 'WAC': WAC_PLATE_SCALE_URAD}.get(camera)
+    if full is None:
+        raise ValueError(f'a Cassini ISS camera is NAC or WAC, not {camera!r}')
+    summing = _SUMMING_BY_COLUMNS.get(columns)
+    if summing is None:
+        raise ValueError(f'no summing mode leaves a frame {columns} columns wide')
+    return full * summing
 
 
 def _number(text: str) -> float:
