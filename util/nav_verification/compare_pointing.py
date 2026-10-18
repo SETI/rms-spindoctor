@@ -61,8 +61,8 @@ from util.nav_verification.boresight import (  # noqa: E402
 )
 from util.nav_verification.bundle_cassini_fring import (  # noqa: E402
     DEFAULT_BUNDLE_DIR,
-    NAC_PLATE_SCALE_URAD,
     bundle_image_names,
+    plate_scale_urad,
     read_bundle_pointing,
     suppl_path,
 )
@@ -262,7 +262,8 @@ def compare_record(
     row.bundle_from_cmatrix = independent.from_cmatrix
     cmatrix = (navigation.get('pointing') or {}).get('cmatrix')
     if cmatrix:
-        scale = NAC_PLATE_SCALE_URAD
+        observation = record.metadata['observation']
+        scale = plate_scale_urad(observation['camera'], int(observation['image_shape'][1]))
         row.error_px = separation_px(
             boresight_from_cmatrix(cmatrix),
             independent.boresight,

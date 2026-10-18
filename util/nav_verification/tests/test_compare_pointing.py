@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from util.nav_verification.bundle_cassini_fring import NAC_PLATE_SCALE_URAD
+from util.nav_verification.bundle_cassini_fring import NAC_PLATE_SCALE_URAD, WAC_PLATE_SCALE_URAD
 from util.nav_verification.compare_pointing import (
     COMMON_OFFSET_TOLERANCE_PX,
     FrameComparison,
@@ -364,3 +364,56 @@ def test_an_answer_behind_the_camera_is_still_measured(tmp_path: Path) -> None:
     )
     assert rows[0].error_px == pytest.approx(math.pi / (NAC_PLATE_SCALE_URAD * 1e-6))
     assert rows[0].error_x_px is None
+
+
+def one_pixel_apart(tmp_path: Path, image: str, camera: str, columns: int) -> FrameComparison:
+    """Compare a record against a bundle answer one microradian from it.
+
+    Parameters:
+        tmp_path: The directory to write the tree and the collection under.
+        image: The image name.
+        camera: The camera the record names.
+        columns: The frame's width in pixels.
+    """
+    document = {
+        'status': 'success',
+        'observation': {
+            'image_name': f'{image}_1_CALIB',
+            'camera': camera,
+            'image_shape': [columns, columns],
+        },
+        'navigation_result': {
+            'pointing': {'cmatrix': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]},
+        },
+    }
+    record = tmp_path / 'nav' / f'VOL/{image}_1_CALIB{METADATA_SUFFIX}'
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps(document), encoding='utf-8')
+    collection = bundle(tmp_path, [image])
+    angle = 1e-6
+    (
+        collection / OBSERVATION.lower() / f'{image[1:]}{image[0].lower()}_reproj_img_suppl.txt'
+    ).write_text(
+        'Navigation Type = Stars\n'
+        'C-Matrix =\n'
+        f'  {math.cos(angle):.15f} 0.0 {-math.sin(angle):.15f}\n'
+        '  0.0 1.0 0.0\n'
+        f'  {math.sin(angle):.15f} 0.0 {math.cos(angle):.15f}\n',
+        encoding='utf-8',
+    )
+    rows, _, _ = compare(
+        tmp_path / 'nav', observation_id=OBSERVATION, bundle_dir=collection, images=None
+    )
+    return rows[0]
+
+
+def test_a_wac_frame_is_measured_in_wac_pixels(tmp_path: Path) -> None:
+    """The same angle is a tenth as many pixels on the wide angle camera."""
+    row = one_pixel_apart(tmp_path, 'W1000000001', 'WAC', 1024)
+    assert row.error_px == pytest.approx(1.0 / WAC_PLATE_SCALE_URAD, rel=1e-6)
+
+
+def test_a_summed_frame_is_measured_in_its_own_pixels(tmp_path: Path) -> None:
+    """A frame summed two by two has pixels twice as wide."""
+    row = one_pixel_apart(tmp_path, 'N1000000001', 'NAC', 512)
+    assert row.error_px == pytest.approx(1.0 / (2.0 * NAC_PLATE_SCALE_URAD), rel=1e-6)

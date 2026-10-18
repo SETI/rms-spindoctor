@@ -8,7 +8,9 @@ import pytest
 from util.nav_verification.boresight import separation_px
 from util.nav_verification.bundle_cassini_fring import (
     NAC_PLATE_SCALE_URAD,
+    WAC_PLATE_SCALE_URAD,
     bundle_image_names,
+    plate_scale_urad,
     read_bundle_pointing,
     suppl_path,
 )
@@ -147,3 +149,25 @@ def test_a_pair_holding_no_finite_number_is_no_answer(tmp_path: Path) -> None:
     path = tmp_path / 'suppl.txt'
     path.write_text(SUPPL.split('C-Matrix')[0].replace('83.9924', '83.99.24'))
     assert read_bundle_pointing(path) is None
+
+
+def test_a_full_frame_wac_pixel_is_the_wac_scale() -> None:
+    """A full-frame WAC pixel spans the WAC plate scale."""
+    assert plate_scale_urad('WAC', 1024) == WAC_PLATE_SCALE_URAD
+
+
+def test_a_summed_pixel_spans_the_summing_factor() -> None:
+    """A frame summed four by four has pixels four times as wide."""
+    assert plate_scale_urad('NAC', 256) == pytest.approx(4.0 * NAC_PLATE_SCALE_URAD)
+
+
+def test_an_unknown_camera_is_refused() -> None:
+    """Only the two Cassini ISS cameras have a scale here."""
+    with pytest.raises(ValueError, match='NAC or WAC'):
+        plate_scale_urad('HRI', 1024)
+
+
+def test_a_width_no_summing_mode_produces_is_refused() -> None:
+    """A frame 300 columns wide is not a summed Cassini ISS frame."""
+    with pytest.raises(ValueError, match='300 columns'):
+        plate_scale_urad('NAC', 300)
