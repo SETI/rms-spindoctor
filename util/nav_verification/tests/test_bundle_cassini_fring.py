@@ -171,3 +171,9 @@ def test_a_width_no_summing_mode_produces_is_refused() -> None:
     """A frame 300 columns wide is not a summed Cassini ISS frame."""
     with pytest.raises(ValueError, match='300 columns'):
         plate_scale_urad('NAC', 300)
+
+
+def test_a_width_that_divides_the_frame_but_no_mode_produces_is_refused() -> None:
+    """A 128-column frame would be 8x8 summing, which Cassini ISS does not have."""
+    with pytest.raises(ValueError, match='128 columns'):
+        plate_scale_urad('NAC', 128)

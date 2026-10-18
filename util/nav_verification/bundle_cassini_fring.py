@@ -54,9 +54,9 @@ NAC_PLATE_SCALE_URAD = 5.9946
 # instrument kernel's FOV as oops reads it, the mean of its two axes.
 WAC_PLATE_SCALE_URAD = 59.7165
 
-# Both cameras' full-frame width in pixels; a summed frame is narrower by its
-# summing factor and each of its pixels proportionally wider.
-_FULL_FRAME_COLUMNS = 1024
+# Each frame width a Cassini ISS summing mode produces (full frame, 2x2, 4x4), against
+# its summing factor: a summed frame's pixels are proportionally wider.
+_SUMMING_BY_COLUMNS = {1024: 1, 512: 2, 256: 4}
 
 DEFAULT_BUNDLE_DIR = FCPath('/data/fring-bundles/pds4/data_reproj_img')
 
@@ -86,9 +86,10 @@ def plate_scale_urad(camera: str, columns: int) -> float:
     full = {'NAC': NAC_PLATE_SCALE_URAD, 'WAC': WAC_PLATE_SCALE_URAD}.get(camera)
     if full is None:
         raise ValueError(f'a Cassini ISS camera is NAC or WAC, not {camera!r}')
-    if columns <= 0 or _FULL_FRAME_COLUMNS % columns:
+    summing = _SUMMING_BY_COLUMNS.get(columns)
+    if summing is None:
         raise ValueError(f'no summing mode leaves a frame {columns} columns wide')
-    return full * (_FULL_FRAME_COLUMNS // columns)
+    return full * summing
 
 
 def _number(text: str) -> float:

@@ -129,8 +129,8 @@ def offset_in_camera_px(
     answer's direction onto the camera's own axes, where the boresight is the
     third axis and the first two are the detector.  The result is signed, which
     is the point: an offset that keeps its sign and its size across every frame
-    of every observation says the two are working in different pixel coordinate
-    systems rather than disagreeing about pointing.
+    of every observation is the same pointing difference on all of them, which
+    is what a coordinate defect inside one of the two pipelines produces.
 
     The axes are the camera frame's, not the detector's rows and columns.  A
     constant common to a whole run is visible either way, which is what this is

@@ -410,6 +410,10 @@ def report(
         agree_px: Within this many pixels a frame agrees.
         wrong_px: Beyond this many pixels a frame is wrong; between the two it
             is marginal.
+
+    Raises:
+        ValueError: If either bound is not a finite distance, or agreement is
+            looser than wrong, since a frame could then be both.
         bundle_frames: How many frames the bundle holds for this observation,
             so that frames the pass never attempted are counted rather than
             silently improving the rate.
@@ -418,6 +422,10 @@ def report(
             not got is one record to compare.
         unreadable: Files under the root that were not records at all.
     """
+    if not (math.isfinite(agree_px) and math.isfinite(wrong_px) and 0.0 <= agree_px <= wrong_px):
+        raise ValueError(
+            f'the bounds are distances with agreement inside wrong, not {agree_px} and {wrong_px}'
+        )
     navigated = [r for r in rows if r.status == 'success']
     failed = [r for r in rows if r.status != 'success']
     compared = [r for r in rows if r.error_px is not None]

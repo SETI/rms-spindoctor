@@ -162,6 +162,20 @@ def test_a_frame_beyond_the_wrong_bound_is_wrong(capsys: pytest.CaptureFixture[s
     assert 'WRONG (over 2.0 px): 1' in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    ('agree', 'wrong'),
+    [
+        pytest.param(1.0, 0.5, id='agreement-looser-than-wrong'),
+        pytest.param(1.0, math.nan, id='wrong-not-a-number'),
+        pytest.param(-1.0, 2.0, id='agreement-negative'),
+    ],
+)
+def test_bounds_that_overlap_or_are_not_distances_are_refused(agree: float, wrong: float) -> None:
+    """A frame could otherwise be counted as agreeing and wrong at once."""
+    with pytest.raises(ValueError, match='the bounds are distances'):
+        report([comparison(0.5, 0.0, 0.5)], common=None, agree_px=agree, wrong_px=wrong)
+
+
 def test_a_shared_difference_is_not_excused(capsys: pytest.CaptureFixture[str]) -> None:
     """Frames that all share a 1.5 px difference are all marginal, whatever they share."""
     rows = [comparison(1.5, 0.0, 1.5) for _ in range(10)]
