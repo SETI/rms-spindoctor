@@ -33,36 +33,39 @@ python util/nav_verification/compare_pointing.py \
     --output /tmp/iss_006ri_verification.json
 ```
 
-The report gives, per frame, the angle to the bundle's answer in NAC pixels beside
-the quantities that might have predicted a bad one -- the reported sigma, the
-spread between the techniques that formed the answer, how many star features the
-models emitted, and how many features the most confident technique consumed -- and
-then lists every frame worse than the tolerance. Those columns are the point: they
-are what tells you whether a pass's own numbers separate its good answers from its
-bad ones, and on the observations checked so far they do not.
+The report gives, per frame, the angle to the bundle's answer in pixels of that
+frame (the camera's plate scale times its summing factor) beside the quantities
+that might have predicted a bad one -- the reported sigma, the spread between
+the techniques that formed the answer, how many star features the models
+emitted, and how many features the most confident technique consumed -- and then
+lists every frame more than 1 px off. A frame within 1 px agrees, one more than
+2 px off is wrong, and one in between is marginal; `--agree-px` and `--wrong-px`
+move the two bounds. Those columns are the point: they are what tells you
+whether a pass's own numbers separate its good answers from its bad ones, and on
+the observations checked so far they do not.
 
-### The constant comes out first
+### A difference every frame shares
 
-Two pipelines can disagree by the same small vector on every frame, which is not a
-disagreement about pointing at all but about where each side puts the whole numbers
-of its pixel coordinates. On this bundle that constant is real and it is large
-enough to matter: `+0.494, +0.491` px on ISS_006RI, and within a hundredth of that
-on four other observations spanning the mission. Those components are resolved onto
-the camera frame's axes, not the detector's rows and columns, so what they establish
-is a constant of about half a pixel in magnitude; which way to correct it is a
-separate question, settled by the pipeline's own arithmetic and then confirmed by
-re-measuring. Left in, it sits inside every number the report
-prints and makes a good pass look ten times worse than it is.
+A C-matrix is an absolute attitude, so a difference between two of them is a
+difference in where the camera pointed, whether it varies from frame to frame or
+is the same on all of them. Every number the report prints is the difference as
+measured, with nothing taken out.
 
-So the difference is resolved onto the camera's axes, the part common to the run is
-measured as a median over the frames that already agree -- where a handful of badly
-navigated frames cannot move it -- and what is left is the per-frame disagreement.
-Both are printed. On ISS_006RI the raw median is 0.70 px and the median after the
-constant is **0.07 px**, with 243 of 417 frames inside a tenth of a pixel.
+A difference shared by every frame is what a coordinate defect inside one of the
+two pipelines looks like, so the report measures it on its own: the median signed
+difference over the frames that agree, resolved onto the camera's axes. One over
+0.1 px in either axis is called out as a defect.
 
-The constant itself is worth chasing rather than discarding: a half-pixel in both
-axes is what a pixel-center-versus-corner convention difference looks like, and only
-one of the two pipelines can be right.
+The F ring bundle showed one. Our attitudes differed from its by `+0.494, +0.491`
+px on ISS_006RI and within a hundredth of that on four other observations spanning
+the mission. The defect was ours: the star model predicted each star's position
+with whole numbers on pixel corners, as the geometry library does, while the star
+techniques measured each centroid with whole numbers on pixel centers, as an array
+index does, and the offset is the difference of the two. A perfectly pointed frame
+came out shifted by half a pixel in each axis, and the attitude written from that
+offset was rotated by the same amount. With the star model's positions converted
+before the comparison, the shared difference on the same frames is `+0.005,
+-0.013` px and the scatter about it is unchanged.
 
 ## Measuring the mosaic instead
 

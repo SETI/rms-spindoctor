@@ -9,11 +9,10 @@ another.
 
 A separation also has a direction, and the direction is what tells a systematic
 apart from a mistake.  Two pipelines that disagree by the same small vector on
-every frame of every observation are not disagreeing about where the camera
-looked; the two are working in different pixel coordinate systems.  So the
-difference is also
-offered resolved onto the camera's own axes, where a constant is visible as a
-constant.
+every frame of every observation disagree about where the camera looked on every
+frame by that much, which is what a coordinate defect inside one of them looks
+like.  So the difference is also offered resolved onto the camera's own axes,
+where a constant is visible as a constant.
 
 Nothing here is mission-specific.  The caller supplies the plate scale of the
 camera whose frame is being compared.

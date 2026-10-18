@@ -13,18 +13,18 @@ reports a tight sigma whatever it is pointing at, so the only way to learn
 which of a pass's confident answers are wrong is to hold them against an answer
 the pass did not produce.
 
-Two pipelines can also disagree by the same small vector on every frame, which
-is not a disagreement about pointing at all but about where each side puts the
-whole numbers of its pixel coordinates.  A constant like that would otherwise
-sit inside every number here and make a pass look worse than it is, so the
-disagreement is resolved onto the camera's axes, the constant part is measured
-and reported on its own, and what is left is the per-frame disagreement.
+A C-matrix is an absolute attitude, so any difference between two of them is a
+difference in where the two answers say the camera pointed.  A frame is judged
+on that difference as measured, with nothing subtracted: within ``AGREE_PX`` it
+agrees, beyond ``WRONG_PX`` it is wrong, and between the two it is marginal.
 
-Because the per-frame numbers are defined to have that constant taken out, the
-line it is reported on is the only place a coordinate system error can show, so
-a constant larger than a tenth of a pixel in either axis is called out there as
-loudly as a wrong frame is, and a run with too few agreeing frames to measure
-one says so rather than leaving the line's absence to read as a zero.
+A difference shared by every frame is still worth measuring on its own, because
+it is what a coordinate defect inside one of the two pipelines looks like: such
+a pipeline places every answer it writes a fixed fraction of a pixel away from
+where the camera pointed.  The median signed difference over the agreeing frames
+is therefore reported, and one larger than ``COMMON_OFFSET_TOLERANCE_PX`` in
+either axis is called out as a defect in one of the two pipelines.  It is never
+removed from the per-frame numbers, which would hide exactly that defect.
 
 Run after ``source /seti/newnav/setup.sh``, from the repository root::
 
@@ -74,24 +74,23 @@ from spindoctor.nav_records import (  # noqa: E402
     UnreadableFile,
 )
 
-TOLERANCE_PX = 2.0
+# Within this many pixels a frame agrees with the bundle; beyond WRONG_PX it is wrong,
+# and between the two it is marginal.
+AGREE_PX = 1.0
+WRONG_PX = 2.0
 
-# How large the constant common to the whole run may be, in either axis, before
-# the report calls it out.  Two pipelines that agree about where the whole
-# numbers of their pixel coordinates fall agree about it on every frame, so all
-# that is left in the median over the agreeing frames is the estimator's own
-# noise: the per-frame scatter measured on this bundle is about 0.1 px per axis,
-# which puts the standard error of that median at 0.06 px over the fewest frames
-# it is ever taken on and under 0.02 px over a few hundred.  A number above this
-# is not a pointing disagreement.  It is one side putting its pixel coordinate
-# system half a pixel, or a pixel, away from the other's, and the only way that
-# ever shows is here, because the per-frame numbers are defined to have it
-# removed.  The constant measured on the Cassini F ring bundle was +0.494, +0.491
-# px, five times this, and it was a real defect in one of the two pipelines.
+# How large the median signed difference over the agreeing frames may be, in either
+# axis, before the report calls it out.  Two pipelines that place the camera correctly
+# leave only the estimator's own noise in that median: the per-frame scatter measured
+# on this bundle is about 0.1 px per axis, which puts the standard error of the median
+# at 0.06 px over the fewest frames it is ever taken on and under 0.02 px over a few
+# hundred.  A larger number is one pipeline writing every attitude rotated by the same
+# amount.  Measured against the Cassini F ring bundle it was +0.494, +0.491 px, which
+# was this pipeline's star navigation mixing two pixel coordinate systems (fixed).
 COMMON_OFFSET_TOLERANCE_PX = 0.1
 
-# Below this many agreeing frames a median offset is not a constant, it is a
-# few numbers, so the common part is left in rather than fitted to noise.
+# Below this many agreeing frames a median is a few numbers rather than a measurement,
+# so none is reported.
 MIN_FRAMES_FOR_COMMON_OFFSET = 5
 
 
@@ -127,8 +126,6 @@ class FrameComparison:
             None when the independent answer lies behind the camera, where it
             has no place on the detector.
         error_y_px: The same along the camera's second axis.
-        residual_px: What is left of ``error_px`` once the offset common to the
-            whole run is removed, filled in by ``remove_common_offset``.
         bundle_navigation_type: How the independent answer was itself
             navigated, which says how much to believe it.
         bundle_from_cmatrix: Whether that answer was read at full precision.
@@ -151,7 +148,6 @@ class FrameComparison:
     error_px: float | None = None
     error_x_px: float | None = None
     error_y_px: float | None = None
-    residual_px: float | None = None
     bundle_navigation_type: str | None = None
     bundle_from_cmatrix: bool | None = None
 
@@ -266,16 +262,17 @@ def compare_record(
     row.bundle_from_cmatrix = independent.from_cmatrix
     cmatrix = (navigation.get('pointing') or {}).get('cmatrix')
     if cmatrix:
+        scale = NAC_PLATE_SCALE_URAD
         row.error_px = separation_px(
             boresight_from_cmatrix(cmatrix),
             independent.boresight,
-            plate_scale_urad=NAC_PLATE_SCALE_URAD,
+            plate_scale_urad=scale,
         )
         # An answer behind the camera has no place on the detector, so it gets no
         # axis values; its separation alone still marks the frame wrong.
         with contextlib.suppress(ValueError):
             row.error_x_px, row.error_y_px = offset_in_camera_px(
-                cmatrix, independent.boresight, plate_scale_urad=NAC_PLATE_SCALE_URAD
+                cmatrix, independent.boresight, plate_scale_urad=scale
             )
     return row
 
@@ -335,53 +332,44 @@ def compare(
     return [compared[image] for image in sorted(compared)], sorted(duplicated), unreadable
 
 
-def remove_common_offset(
-    rows: list[FrameComparison], *, tolerance_px: float = TOLERANCE_PX
+def measure_common_offset(
+    rows: list[FrameComparison], *, agree_px: float = AGREE_PX
 ) -> tuple[float, float] | None:
-    """Measure the offset common to the whole run and fill in what is left.
+    """Measure the signed difference the agreeing frames share.
 
-    The constant is taken as the median over the frames that already agree, so
-    that a handful of badly navigated frames cannot move it.
+    The median over the frames that already agree, so that a handful of badly
+    navigated frames cannot move it.  It is a measurement only: nothing is taken
+    out of any frame's difference.
 
     Parameters:
-        rows: The comparisons, annotated in place with ``residual_px``.
-        tolerance_px: How close a frame must already be to help measure the
-            constant.
+        rows: The comparisons.
+        agree_px: How close a frame must be to help measure it.
 
     Returns:
-        The constant along the camera's two axes, or None when too few frames
-        agree for a median to mean anything, in which case each residual is
-        just its own error.
+        The median difference along the camera's two axes, or None when too few
+        frames agree for a median to mean anything.
 
     Raises:
         ValueError: If the tolerance is not a distance, since a negative or
             NaN one is a tolerance no frame is inside and every statistic
             drawn from it would be nonsense rather than empty.
     """
-    if not math.isfinite(tolerance_px) or tolerance_px < 0.0:
-        raise ValueError(f'a tolerance is a distance in pixels, not {tolerance_px}')
+    if not math.isfinite(agree_px) or agree_px < 0.0:
+        raise ValueError(f'a tolerance is a distance in pixels, not {agree_px}')
     agreeing = [
         r
         for r in rows
         if r.error_px is not None
         and r.error_x_px is not None
         and r.error_y_px is not None
-        and r.error_px <= tolerance_px
+        and r.error_px <= agree_px
     ]
-    common: tuple[float, float] | None = None
-    if len(agreeing) >= MIN_FRAMES_FOR_COMMON_OFFSET:
-        common = (
-            float(np.median([r.error_x_px for r in agreeing])),
-            float(np.median([r.error_y_px for r in agreeing])),
-        )
-    for row in rows:
-        if row.error_px is None:
-            continue
-        if common is None or row.error_x_px is None or row.error_y_px is None:
-            row.residual_px = row.error_px
-        else:
-            row.residual_px = math.hypot(row.error_x_px - common[0], row.error_y_px - common[1])
-    return common
+    if len(agreeing) < MIN_FRAMES_FOR_COMMON_OFFSET:
+        return None
+    return (
+        float(np.median([r.error_x_px for r in agreeing])),
+        float(np.median([r.error_y_px for r in agreeing])),
+    )
 
 
 def _px(value: float | None, width: int, places: int) -> str:
@@ -402,7 +390,8 @@ def report(
     rows: list[FrameComparison],
     *,
     common: tuple[float, float] | None,
-    tolerance_px: float = TOLERANCE_PX,
+    agree_px: float = AGREE_PX,
+    wrong_px: float = WRONG_PX,
     bundle_frames: int | None = None,
     duplicated: list[str] | None = None,
     unreadable: list[str] | None = None,
@@ -410,14 +399,16 @@ def report(
     """Print what the comparison found.
 
     Parameters:
-        rows: The comparisons, already annotated by ``remove_common_offset``.
-        common: The offset common to the whole run, as that call measured it,
-            or None when too few frames agreed to measure one.  Either way it
-            is reported: one above ``COMMON_OFFSET_TOLERANCE_PX`` in an axis is
-            called out the way a wrong frame is, and one that could not be
-            measured is said to be unmeasured rather than left to read as zero.
-        tolerance_px: How far from the independent answer a frame may be before
-            it is called wrong.
+        rows: The comparisons.
+        common: The signed difference the agreeing frames share, as
+            ``measure_common_offset`` measured it, or None when too few frames
+            agreed to measure one.  Either way it is reported: one above
+            ``COMMON_OFFSET_TOLERANCE_PX`` in an axis is called out the way a
+            wrong frame is, and one that could not be measured is said to be
+            unmeasured rather than left to read as zero.
+        agree_px: Within this many pixels a frame agrees.
+        wrong_px: Beyond this many pixels a frame is wrong; between the two it
+            is marginal.
         bundle_frames: How many frames the bundle holds for this observation,
             so that frames the pass never attempted are counted rather than
             silently improving the rate.
@@ -428,13 +419,12 @@ def report(
     """
     navigated = [r for r in rows if r.status == 'success']
     failed = [r for r in rows if r.status != 'success']
-    compared = [r for r in rows if r.residual_px is not None]
-    wrong = sorted(
-        (r for r in compared if (r.residual_px or 0.0) > tolerance_px),
-        key=lambda r: -(r.residual_px or 0.0),
+    compared = [r for r in rows if r.error_px is not None]
+    off = sorted(
+        (r for r in compared if (r.error_px or 0.0) > agree_px),
+        key=lambda r: -(r.error_px or 0.0),
     )
-    residuals = np.array([r.residual_px for r in compared], dtype=float)
-    raw = np.array([r.error_px for r in compared], dtype=float)
+    errors = np.array([r.error_px for r in compared], dtype=float)
 
     excluded = duplicated or []
     if bundle_frames is not None:
@@ -453,78 +443,55 @@ def report(
     if unreadable:
         print(f'  not a record    {len(unreadable)} (outside this observation as well as in it)')
 
-    if residuals.size:
+    if errors.size:
         rounded = sum(1 for r in compared if r.bundle_from_cmatrix is False)
         print(
             f'  comparable      {len(compared)}'
             + (f' ({rounded} against a rounded boresight)' if rounded else '')
         )
 
-    datum_wrong = common is not None and (
-        max(abs(common[0]), abs(common[1])) > COMMON_OFFSET_TOLERANCE_PX
-    )
-    if common is not None and residuals.size:
-        print(f'\ncommon offset     {common[0]:+.3f}, {common[1]:+.3f} px along the camera axes')
+    if common is not None and errors.size:
+        print(f'\nshared difference {common[0]:+.3f}, {common[1]:+.3f} px along the camera axes')
+        print('                  the median signed difference over the agreeing frames; it is')
+        print('                  included in every number below, never subtracted')
+        if max(abs(common[0]), abs(common[1])) > COMMON_OFFSET_TOLERANCE_PX:
+            print(f'  WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis): one of the two')
+            print('                  pipelines writes every attitude rotated by this amount')
+    elif errors.size:
         print(
-            '                  measured as the median over the frames already agreeing; a constant'
+            f'\nshared difference not measured: fewer than {MIN_FRAMES_FOR_COMMON_OFFSET} '
+            'frames agree'
         )
-        print('                  over the tolerance in either axis is called out below, and the')
-        print('                  same constant in both is the signature of two answers working')
-        print('                  in different pixel coordinate systems rather than disagreeing')
-        print('                  about pointing')
-        if datum_wrong:
-            print(
-                f'  WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis): this is a coordinate'
-            )
-            print('                  system one of the two sides has put in the wrong place, not')
-            print('                  a pass that navigated badly, and every per-frame number')
-            print('                  below has it taken out')
-    elif residuals.size:
-        print(
-            f'\ncommon offset     not measured: fewer than {MIN_FRAMES_FOR_COMMON_OFFSET} '
-            'frames agree, which is too'
-        )
-        print('                  few for a median to mean anything, so a constant common to the')
-        print('                  run is still inside every number below rather than shown to be')
-        print('                  absent from them')
 
-    if residuals.size:
-        if common is None:
-            qualifier = ':'
-        elif datum_wrong:
-            qualifier = ', less a constant that should not be there:'
-        else:
-            qualifier = ', less that constant:'
-        print('\ndisagreement with the independent answer' + qualifier)
+    if errors.size:
+        marginal = sum(1 for r in off if (r.error_px or 0.0) <= wrong_px)
+        print('\ndifference from the independent answer:')
         print(
-            f'  median {np.median(residuals):.2f} px, 90th {np.percentile(residuals, 90):.2f}, '
-            f'max {residuals.max():.2f}'
+            f'  median {np.median(errors):.2f} px, 90th {np.percentile(errors, 90):.2f}, '
+            f'max {errors.max():.2f}'
         )
-        for threshold in (0.1, 0.5, 1.0, 2.0, 5.0, 20.0):
-            within = int((residuals <= threshold).sum())
-            print(f'    within {threshold:5.1f} px: {within:4d}/{len(residuals)}')
-        if common is not None:
-            print(
-                f'  before removing it: median {np.median(raw):.2f} px, '
-                f'90th {np.percentile(raw, 90):.2f}, max {raw.max():.2f}'
-            )
-        print(f'  WRONG (over {tolerance_px} px): {len(wrong)}')
+        for threshold in (0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 20.0):
+            within = int((errors <= threshold).sum())
+            print(f'    within {threshold:5.2f} px: {within:4d}/{len(errors)}')
+        print(f'  agree (within {agree_px} px): {len(compared) - len(off)}')
+        print(f'  marginal ({agree_px}-{wrong_px} px): {marginal}')
+        print(f'  WRONG (over {wrong_px} px): {len(off) - marginal}')
 
     if failed:
         print('\nfailure reasons:')
         for reason, count in Counter(r.reason for r in failed).most_common():
             print(f'  {count:5d}  {reason}')
 
-    if wrong:
-        print(f'\nevery frame worse than {tolerance_px} px:')
+    if off:
+        print(f'\nevery frame more than {agree_px} px off:')
         print(
             f'  {"image":16s} {"err px":>7s} {"sigma":>6s} {"spread":>7s} {"conf":>6s} '
             f'{"stars":>5s} {"used":>4s} {"n_cons":>6s}  '
             f'most confident technique / bundle navigation type'
         )
-        for r in wrong:
+        for r in off:
             print(
-                f'  {r.image:16s} {_px(r.residual_px, 7, 2)} {_px(r.sigma_px, 6, 2)} '
+                f'  {r.image:16s} {_px(r.error_px, 7, 2)} {_px(r.sigma_px, 6, 2)} '
                 f'{r.technique_spread_px:7.2f} {_px(r.confidence, 6, 3)} '
                 f'{r.stars_emitted:5d} {r.features_used:4d} {r.n_consensus:6d}  '
                 f'{r.top_technique} / {r.bundle_navigation_type}'
@@ -554,11 +521,17 @@ def main() -> None:
         f'(default {DEFAULT_BUNDLE_DIR})',
     )
     parser.add_argument(
-        '--tolerance-px',
+        '--agree-px',
         type=float,
-        default=TOLERANCE_PX,
-        help='how far from the bundle a frame may be before it is '
-        f'called wrong (default {TOLERANCE_PX})',
+        default=AGREE_PX,
+        help=f'within this many pixels a frame agrees (default {AGREE_PX})',
+    )
+    parser.add_argument(
+        '--wrong-px',
+        type=float,
+        default=WRONG_PX,
+        help=f'beyond this many pixels a frame is wrong; between the two it is '
+        f'marginal (default {WRONG_PX})',
     )
     parser.add_argument(
         '--output',
@@ -583,13 +556,14 @@ def main() -> None:
         bundle_dir=args.bundle_dir,
         images=images,
     )
-    common = remove_common_offset(rows, tolerance_px=args.tolerance_px)
+    common = measure_common_offset(rows, agree_px=args.agree_px)
 
     print(f'=== {args.observation} ===')
     report(
         rows,
         common=common,
-        tolerance_px=args.tolerance_px,
+        agree_px=args.agree_px,
+        wrong_px=args.wrong_px,
         bundle_frames=bundle_frames,
         duplicated=duplicated,
         unreadable=unreadable,

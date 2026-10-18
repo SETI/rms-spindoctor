@@ -14,7 +14,7 @@ from util.nav_verification.compare_pointing import (
     FrameComparison,
     compare,
     consensus_spread,
-    remove_common_offset,
+    measure_common_offset,
     report,
 )
 
@@ -97,63 +97,30 @@ def comparison(x: float, y: float, error: float) -> FrameComparison:
     return FrameComparison(image='N1', error_px=error, error_x_px=x, error_y_px=y)
 
 
-def test_a_constant_offset_is_measured_and_removed() -> None:
-    """A difference every frame shares is a constant, and comes out of the errors."""
+def test_a_shared_difference_is_measured() -> None:
+    """A difference every agreeing frame shares is measured as their median."""
     rows = [comparison(0.5, 0.5, 0.707) for _ in range(10)]
-    common = remove_common_offset(rows, tolerance_px=2.0)
-    assert common == pytest.approx((0.5, 0.5))
+    assert measure_common_offset(rows, agree_px=1.0) == pytest.approx((0.5, 0.5))
 
 
-def test_what_is_left_after_a_constant_is_the_per_frame_difference() -> None:
-    """A frame that carries only the constant disagrees by nothing."""
+def test_measuring_a_shared_difference_leaves_every_frame_alone() -> None:
+    """The shared difference is a measurement, never subtracted from a frame."""
     rows = [comparison(0.5, 0.5, 0.707) for _ in range(10)]
-    remove_common_offset(rows, tolerance_px=2.0)
-    assert rows[0].residual_px == pytest.approx(0.0, abs=1e-9)
+    measure_common_offset(rows, agree_px=1.0)
+    assert rows[0].error_px == pytest.approx(0.707)
 
 
-def test_a_badly_navigated_frame_does_not_move_the_constant() -> None:
-    """The constant is a median over frames that already agree."""
-    rows = [comparison(0.5, 0.5, 0.707) for _ in range(10)]
-    rows.append(comparison(60.0, 60.0, 84.85))
-    common = remove_common_offset(rows, tolerance_px=2.0)
-    assert common == pytest.approx((0.5, 0.5))
-
-
-def test_a_badly_navigated_frame_keeps_its_error() -> None:
-    """Removing the constant does not excuse a frame that is genuinely wrong."""
+def test_a_badly_navigated_frame_does_not_move_the_shared_difference() -> None:
+    """The median is over frames that already agree."""
     rows = [comparison(0.5, 0.5, 0.707) for _ in range(10)]
     rows.append(comparison(60.0, 60.0, 84.85))
-    remove_common_offset(rows, tolerance_px=2.0)
-    assert rows[-1].residual_px == pytest.approx(84.15, rel=1e-3)
+    assert measure_common_offset(rows, agree_px=1.0) == pytest.approx((0.5, 0.5))
 
 
-def test_too_few_agreeing_frames_measure_no_constant() -> None:
-    """A median over three numbers is three numbers, not a constant."""
+def test_too_few_agreeing_frames_measure_no_shared_difference() -> None:
+    """A median over three numbers is three numbers, not a measurement."""
     rows = [comparison(0.5, 0.5, 0.707) for _ in range(3)]
-    assert remove_common_offset(rows, tolerance_px=2.0) is None
-
-
-def test_with_no_constant_the_residual_is_the_error() -> None:
-    """A run too small to measure a constant reports what it measured."""
-    rows = [comparison(0.5, 0.5, 0.707) for _ in range(3)]
-    remove_common_offset(rows, tolerance_px=2.0)
-    assert rows[0].residual_px == pytest.approx(0.707)
-
-
-def test_a_frame_with_nothing_to_compare_gets_no_residual() -> None:
-    """A frame the bundle holds no answer for is left alone."""
-    rows = [comparison(0.5, 0.5, 0.707) for _ in range(10)]
-    rows.append(FrameComparison(image='N2'))
-    remove_common_offset(rows, tolerance_px=2.0)
-    assert rows[-1].residual_px is None
-
-
-def test_a_frame_with_no_axis_values_keeps_its_error_as_its_residual() -> None:
-    """An answer behind the camera is still counted, and still wrong."""
-    rows = [comparison(0.5, 0.5, 0.707) for _ in range(10)]
-    rows.append(FrameComparison(image='N2', error_px=500000.0))
-    remove_common_offset(rows, tolerance_px=2.0)
-    assert rows[-1].residual_px == 500000.0
+    assert measure_common_offset(rows, agree_px=1.0) is None
 
 
 @pytest.mark.parametrize(
@@ -162,45 +129,70 @@ def test_a_frame_with_no_axis_values_keeps_its_error_as_its_residual() -> None:
 def test_a_tolerance_that_is_not_a_distance_is_refused(tolerance: float) -> None:
     """No frame is inside such a tolerance, so every statistic drawn from it is nonsense."""
     with pytest.raises(ValueError, match='a tolerance is a distance in pixels'):
-        remove_common_offset([comparison(0.5, 0.5, 0.707)], tolerance_px=tolerance)
+        measure_common_offset([comparison(0.5, 0.5, 0.707)], agree_px=tolerance)
 
 
 def reported(rows: list[FrameComparison]) -> None:
-    """Measure the constant over the given comparisons and print the report.
+    """Measure the shared difference over the given comparisons and print the report.
 
     The caller reads what was printed from ``capsys``.
 
     Parameters:
         rows: The comparisons to report on.
     """
-    common = remove_common_offset(rows, tolerance_px=2.0)
-    report(rows, common=common, tolerance_px=2.0)
+    common = measure_common_offset(rows, agree_px=1.0)
+    report(rows, common=common, agree_px=1.0, wrong_px=2.0)
 
 
-def test_a_constant_larger_than_the_tolerance_is_called_out(
+def test_a_frame_within_the_agreement_bound_agrees(capsys: pytest.CaptureFixture[str]) -> None:
+    """A frame 0.9 px off is counted as agreeing."""
+    reported([comparison(0.9, 0.0, 0.9)])
+    assert 'agree (within 1.0 px): 1' in capsys.readouterr().out
+
+
+def test_a_frame_between_the_bounds_is_marginal(capsys: pytest.CaptureFixture[str]) -> None:
+    """A frame 1.5 px off is neither agreeing nor wrong."""
+    reported([comparison(1.5, 0.0, 1.5)])
+    assert 'marginal (1.0-2.0 px): 1' in capsys.readouterr().out
+
+
+def test_a_frame_beyond_the_wrong_bound_is_wrong(capsys: pytest.CaptureFixture[str]) -> None:
+    """A frame 2.5 px off is wrong."""
+    reported([comparison(2.5, 0.0, 2.5)])
+    assert 'WRONG (over 2.0 px): 1' in capsys.readouterr().out
+
+
+def test_a_shared_difference_is_not_excused(capsys: pytest.CaptureFixture[str]) -> None:
+    """Frames that all share a 1.5 px difference are all marginal, whatever they share."""
+    rows = [comparison(1.5, 0.0, 1.5) for _ in range(10)]
+    common = measure_common_offset(rows, agree_px=2.0)
+    report(rows, common=common, agree_px=1.0, wrong_px=2.0)
+    assert 'marginal (1.0-2.0 px): 10' in capsys.readouterr().out
+
+
+def test_a_shared_difference_over_the_tolerance_is_called_out(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A run-wide constant is a coordinate system error, and reads as loudly as a wrong frame."""
+    """A difference every frame shares reads as loudly as a wrong frame."""
     step = COMMON_OFFSET_TOLERANCE_PX * 2.0
     reported([comparison(step, 0.0, step) for _ in range(10)])
     assert f'WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis)' in capsys.readouterr().out
 
 
-def test_the_constant_measured_on_the_f_ring_bundle_is_called_out(
+def test_the_difference_measured_on_the_f_ring_bundle_is_called_out(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The half pixel this tool actually found on ISS_006RI must not pass unremarked.
+    """The half pixel this tool found on ISS_006RI must not pass unremarked.
 
-    It is the only constant of this kind anyone has measured with this tool, so
-    it is what the tolerance has to be small enough to catch; the numbers are the
-    ones the run reported, +0.494 and +0.491 px along the camera's two axes.
+    The numbers are the ones the run reported before the star model's positions
+    were corrected, +0.494 and +0.491 px along the camera's two axes.
     """
     rows = [comparison(0.494, 0.491, math.hypot(0.494, 0.491)) for _ in range(10)]
     reported(rows)
     assert f'WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis)' in capsys.readouterr().out
 
 
-def test_a_constant_in_one_axis_alone_is_called_out(
+def test_a_shared_difference_in_one_axis_alone_is_called_out(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """One axis is enough: a row-versus-column error moves only one of them."""
@@ -209,38 +201,21 @@ def test_a_constant_in_one_axis_alone_is_called_out(
     assert f'WRONG (over {COMMON_OFFSET_TOLERANCE_PX} px in an axis)' in capsys.readouterr().out
 
 
-def test_a_constant_inside_the_tolerance_is_not_called_out(
+def test_a_shared_difference_inside_the_tolerance_is_not_called_out(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The median of a run that shares a coordinate system lands inside its own noise."""
+    """The median of a run whose pipelines agree lands inside its own noise."""
     step = COMMON_OFFSET_TOLERANCE_PX / 2.0
     reported([comparison(step, step, step * math.sqrt(2.0)) for _ in range(10)])
-    assert 'WRONG (over' not in capsys.readouterr().out.split('disagreement with')[0]
+    assert 'in an axis' not in capsys.readouterr().out
 
 
-def test_a_called_out_constant_qualifies_the_summary_line(
+def test_an_unmeasured_shared_difference_is_said_to_be_unmeasured(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The line the report leads with says the constant it removed should not be there."""
-    step = COMMON_OFFSET_TOLERANCE_PX * 2.0
-    reported([comparison(step, 0.0, step) for _ in range(10)])
-    assert 'less a constant that should not be there' in capsys.readouterr().out
-
-
-def test_an_unmeasured_constant_is_said_to_be_unmeasured(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Too few agreeing frames prints no constant, which must not read as a zero one."""
+    """Too few agreeing frames prints no shared difference, which must not read as zero."""
     reported([comparison(0.5, 0.5, 0.707) for _ in range(3)])
-    assert 'common offset     not measured' in capsys.readouterr().out
-
-
-def test_an_unmeasured_constant_says_it_is_still_in_the_numbers(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A run too small to measure a constant still carries one in every residual."""
-    reported([comparison(0.5, 0.5, 0.707) for _ in range(3)])
-    assert 'still inside every number below' in capsys.readouterr().out
+    assert 'shared difference not measured' in capsys.readouterr().out
 
 
 def results_tree(root: Path, stubs: dict[str, str]) -> Path:
@@ -365,7 +340,11 @@ def test_an_answer_behind_the_camera_is_still_measured(tmp_path: Path) -> None:
     """A bundle answer pointing the other way is a wrong frame, not a reason to stop."""
     document = {
         'status': 'success',
-        'observation': {'image_name': 'N1000000001_1_CALIB'},
+        'observation': {
+            'image_name': 'N1000000001_1_CALIB',
+            'camera': 'NAC',
+            'image_shape': [1024, 1024],
+        },
         'navigation_result': {
             'pointing': {'cmatrix': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]},
         },
