@@ -97,15 +97,17 @@ plane, keeps the normal its edge-mask pixel neighbors give: the side with no mas
 one of eight directions, signed toward the larger of the ring radii one pixel to either
 side.
 
-Every vertex's pixel-neighbor normal is also computed and kept, because two sets of
-thresholds were measured with it. The annulus emission gate (the resolvability pass above)
+Every vertex's pixel-neighbor normal is also computed and kept, because the emission gate
+and the ring-edge fit were measured with it. The annulus emission gate (the resolvability pass above)
 measures an edge's radial extent along those normals, by projecting onto their MEAN, which
 is sign-sensitive, so a half turn of arc returns the ring radius. Along the true radial
 normals a long, gently curved arc measures only its sagitta, a few pixels, and would route
 to the annulus composite, whose correlation is no better placed along such an arc than the
-edge fit. And the ring-edge fit's edge-strength scores, which check its coarse seed and
-reject a fit to faint edges, read them from
-:attr:`~spindoctor.feature.geometry.RingEdgePolyline.pixel_normals_vu`.
+edge fit. And the ring-edge fit reads them from
+:attr:`~spindoctor.feature.geometry.RingEdgePolyline.pixel_normals_vu` for its edge-strength
+scores, which check its coarse seed and reject a fit to faint edges, and for its
+gradient-ridge pass (see :doc:`dev_guide_techniques_ring_edge` for what that keeps
+unchanged).
 
 Each polyline vertex carries two per-vertex sigma values: a radial sigma along the
 outward normal (the constrainable axis) and an along-edge sigma along the polyline
@@ -166,7 +168,8 @@ brightness at each pixel is the sum of the per-ring-edge contributions.
 
 The annulus feature also carries the same coherent orbit-uncertainty channel as the per-edge
 path, so the correlation technique can price a misplaced catalog orbit rather than reporting
-a tight lock on it. The constituent edges' outward normals are concatenated onto
+a tight lock on it. The constituent edges' outward normals, the same radius-gradient
+normals the per-edge path emits (see `Per-vertex covariance`_), are concatenated onto
 :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.orbit_normals_vu`, and their per-edge
 orbit sigmas (each the catalog RMS, or ``rings.default_orbit_radial_sigma_km`` in its absence,
 scaled by ``rings.orbit_radial_sigma_correlated_fraction`` and converted at the edge's own

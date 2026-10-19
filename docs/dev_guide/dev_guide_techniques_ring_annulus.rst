@@ -124,8 +124,9 @@ consequently price the same declared hazard, which is what lets the fused radial
 cover the residual bias rather than being carried by whichever member left it un-widened.
 
 The absorbed direction comes from the annulus fit's own radial geometry: the outward normals
-of the constituent ring edges painted into the composite template, which the upstream rings
-model concatenates onto
+of the constituent ring edges painted into the composite template (the gradient of the
+ring-radius backplane at each edge pixel, the true radial direction; see
+:doc:`dev_guide_navigation_models_ring`), which the upstream rings model concatenates onto
 :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.orbit_normals_vu` with an effective
 :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.sigma_orbit_radial_px`. The technique
 feeds those normals through the same absorbed-translation solve the ring-edge fit runs on its

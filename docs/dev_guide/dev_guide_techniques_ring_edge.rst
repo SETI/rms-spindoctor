@@ -25,6 +25,12 @@ reported as the minimum-norm representative along the edge and the unobservable 
 surfaced through
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.sigma_along_unobservable_px`.
 
+An edge that curves only gently across the frame constrains the along-edge component only
+through that curvature, and the technique reports how weak that constraint is (see
+`Along-edge uncertainty`_): its covariance carries several pixels of sigma along such an
+edge, so the ensemble takes the along-edge component from any independent witness and the
+radial one from the ring.
+
 Feasibility passes when at least one offered ``RING_EDGE`` has a non-empty polyline. A single
 non-empty edge is sufficient — even an all-flat scene produces a useful rank-1 constraint.
 Feasibility fails when every offered ``RING_EDGE`` is empty (a ring system entirely outside the
@@ -169,16 +175,17 @@ per-vertex normals' outer-product sum (polarity-sign-independent) and ``sigma_n^
 covariance's marginal variance along it.
 
 The per-vertex normals of a straight edge are replaced by the line's own normal before
-any of this. The rings model takes each vertex's normal from which of its pixel neighbors
-lie off the edge, so a model normal can only point along one of eight directions, the
-multiples of 45 degrees. On a straight edge at any other orientation every one of them is
-off by up to 22.5 degrees, and an axis built from them puts the ensemble's minimum-norm
-answer on the wrong line: the part of the free slide along the edge that the tilted axis
-does not cancel leaks into the reported offset. The line's direction is the principal
-axis of its vertices, and the normal perpendicular to it is used for every vertex, signed
-the way the model's normals summed. On the library's Keeler gap frames (edges at about 68
-and 51 degrees, reported at 90 and 45) this moved the ensemble's planted-shift round trip
-across the edge from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px). Exact
+any of this, so the rank-1 axis is exactly one direction. The line's direction is the
+principal axis of its vertices, and the normal perpendicular to it is used for every
+vertex, signed the way the model's normals summed. The model's normals are the ring-radius
+gradient (see `Along-edge uncertainty`_), but a vertex where that gradient cannot be formed
+falls back to the edge mask's pixel-neighbor normal, which can only point along one of
+eight directions; an axis built from such normals puts the ensemble's minimum-norm answer
+on the wrong line, and the part of the free slide along the edge that the tilted axis does
+not cancel leaks into the reported offset. On the library's Keeler gap frames (edges at
+about 68 and 51 degrees, whose pixel-neighbor normals read 90 and 45) taking the axis from
+the line puts the ensemble's planted-shift round trip across the edge at a median 0.04 px
+(worst 0.31 px) where the pixel-neighbor axis gave 0.39 px (worst 17 px). Exact
 singularity is the representation the ensemble is built around: ``pinvh`` keeps the
 normal-axis measurement when forming the information matrix, the combine's rank-deficiency
 test fires, and the unobservable axis is reported through the
@@ -191,6 +198,103 @@ when at least two non-parallel edges contribute. The technique reports an
 :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.is_rank_1` flag that the curator
 surfaces; downstream consumers (the ensemble combine, the operator's per-image log) can
 distinguish a rank-1 ring-edge result from a full-rank one.
+
+Along-edge uncertainty
+----------------------
+
+A ring edge that curves gently across the frame is not straight enough to be flagged
+rank-1, yet it constrains its along-edge position only through how its normals turn. A
+slide of one pixel along an arc of radius of curvature :math:`R` moves a vertex a distance
+:math:`s` from the arc's middle by :math:`s/R` across the edge. On a Cassini NAC F ring
+movie frame at 5.9 km/px the A ring's outer edge crosses about 1,100 px of the frame with
+:math:`R` near 12,000 px, so a one pixel slide moves the ends of the arc by 0.05 px. Three
+parts of the technique keep that weakness visible.
+
+**Normals from the ring geometry.** The rings model emits each vertex's normal as the
+gradient of the ring-radius backplane, the true outward radial direction, rather than the
+direction its edge-mask pixel neighbors suggest (see
+:doc:`dev_guide_navigation_models_ring`). The reported covariance, the correlated-shape
+term below, the rank-1 axis, and the orbit channel use these.
+
+The fit itself keeps the pixel-neighbor normals the model also carries
+(:attr:`~spindoctor.feature.geometry.RingEdgePolyline.pixel_normals_vu`): the edge-strength
+scores of `The coarse seed`_ read them, because their thresholds were measured with them,
+and the gradient-ridge pass steps along them, so the converged offset is the one the fit
+reached before. Both choices were measured on the F ring sample described below. Scored
+with the radius-gradient normals, edge strengths that sit near ``coarse_strength_keep_ratio``
+or ``spurious_min_edge_strength_fraction`` crossed them in both directions (one frame went
+from a right answer to a 36 px alias seed). Stepped along them, the fit moved the
+along-edge position of a gently curved edge by a median 0.4 px (90th percentile 1.4 px).
+That move brought RingEdgeNav closer to ring-navigated reference pointing (within 1 px on
+296 of 391 frames, against 244) but not to star-confirmed pointing (129 of 627, against
+138), and on frames that only the ring navigates it moved 23 answers that were within a
+pixel out of it while moving 59 in. An along-edge position that the edge itself barely
+constrains is not worth moving answers back and forth across a pixel, so only the
+reported information changes.
+
+**Information measured only across the edge.** The fit's residual is the distance from a
+vertex to the nearest pixel of a binary edge mask, and that distance transform is a
+staircase along any edge that is not axis-aligned. Its finite-difference gradient
+therefore carries a component along the edge that the edge itself does not have, and
+summed over a long arc that component reported the along-edge position as better
+determined than the radial one: the information matrix put a sigma of about 0.08 px along
+the A ring edge above, where ideal geometric normals give about 0.5 px. The technique
+passes its radius-gradient normals to
+:func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine` as
+``covariance_normals_vu``, which forms the covariance from each vertex's translation row
+projected onto its own normal, :math:`(J_i \cdot n_i)\, n_i`.
+
+**A correlated-shape term.** The statistical covariance assumes independent vertices, but
+the error that matters along such an arc is common to all of them: a radial model error
+that varies along the arc (an orbit wrong by more at one end than the other, an
+uncorrected twist, a distortion residual) tilts the residuals exactly as an along-edge
+slide does, and the fit absorbs it as a slide of :math:`R/s` times the tilt. The technique
+models a radial error field that varies linearly across the fitted vertices, in any image
+direction, with root-mean-square :math:`\sigma_{\mathrm{shape}}` over them
+(``shape_sigma_px``). The translation the fit absorbs from it is
+:math:`t = M^{+} B a \, \sigma_{\mathrm{shape}} / \rho` for a gradient along the unit
+direction :math:`a`, with :math:`M = \sum_i w_i n_i n_i^{T}`,
+:math:`B = \sum_i w_i n_i d_i^{T}`, :math:`d_i` each vertex's offset from the weighted
+centroid, and :math:`\rho` the weighted RMS of :math:`\lVert d_i \rVert`. Summed over two
+orthogonal directions, independent of the image axes,
+
+.. math::
+
+    \Sigma \mathrel{+}= \frac{\sigma_{\mathrm{shape}}^{2}}{\rho^{2}}\, M^{+} B B^{T} M^{+}.
+
+A gently curved arc of length :math:`L` gets about
+:math:`\sigma_{\mathrm{shape}}\sqrt{12}\, R / L` along the edge and almost nothing
+across it; a full ring gets :math:`\sigma_{\mathrm{shape}}` in every direction, since a
+field that pushes one side of a ring out and the other in is exactly a translation; a
+straight edge gets nothing, because a tilt across a line is a rotation, and its along-edge
+axis is reported unobservable by the rank-1 path instead. The major-axis sigma of the term
+is recorded on
+:attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.sigma_shape_major_px`.
+
+The ensemble needs nothing special for this: an independent witness such as a star fix
+sets the along-edge component through the ordinary precision-weighted combine, the ring
+sets the radial one, and their pairwise agreement is judged with the ring's own wide
+along-edge sigma. A frame that has only the ring keeps the fit's along-edge position,
+reported with its several pixels of sigma, which places it in the ``low`` tier. The fit's
+along-edge position is better than the prediction's on such frames: on F ring frames whose
+bundle pointing came from stars, the RingEdgeNav answers that no star technique
+corroborated were a median 4.1 px from that pointing where the SPICE prediction was
+11.5 px off.
+
+Measured on a stratified sample of 1,614 Cassini ISS F ring bundle frames against the
+bundle's per-frame pointing, with and without the three parts above: on the 1,310 NAC
+frames, answers within 1 px went from 554 to 775, answers more than 2 px off from 317 to
+243, and refusals from 295 to 157; answers more than 2 px off at the ``medium`` or ``high``
+tier went from 313 to 58. Every WAC verdict was unchanged, since the WAC frames take the
+annulus route. Six NAC answers within 1 px moved past it, by 0.1 to 2.9 px. On each an
+independent witness (a star fix, or a body brightness center) sets the along-edge
+component, and the reference pointing it is measured against was itself navigated on the
+rings or by hand: on N1848873462 a two-star fix and a moon's brightness center agree with
+each other to about a pixel and lie 4 px along the edge from a ring-navigated reference
+that the ring fit matches. On the 424 NAC frames that only the ring navigates, every
+offset and every verdict is unchanged, and 39 of their answers within 1 px move to the
+``low`` tier, 36 of them from ``medium``. Across all NAC frames, answers within 1 px at the
+``medium`` or ``high`` tier went from 540 to 699.
 
 Radial orbit-uncertainty channel
 --------------------------------
@@ -312,25 +416,21 @@ Restrictions and assumptions
   strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge. On
   the same frames 5 answers are wrong this way, 7 to 49 px across the edge (41 to 51 px on
   four of them). All nine are reported at the ``medium`` tier.
-- An edge that is nearly straight across the frame but not flagged straight constrains the
-  along-edge component only through its slight curvature, and the reported covariance does
-  not show how weak that constraint is. On the same 1,041 held-out frames, 115 answers
-  carried by this technique are within 1.4 px of the published pointing across the edge
-  and more than 2 px off along it: a median of 3.0 px, a 90th percentile of 12 px, and
-  36 px at worst. Of those, 113 are reported at the ``medium`` tier, and 107 report a
-  sigma under 1 px on both axes (a median of 0.28 px on the larger one). The rest of the
-  129 answers more than 2 px off on those frames are the nine locks of the previous item
-  and 5 answers carried by the star techniques.
-- A curved edge keeps the model's quantized per-vertex normals. They enter the
-  edge-strength weights and the orbit channel, where a 22.5-degree error costs little;
-  only the straight-edge rank-1 axis takes the line's own normal.
+- The coarse search still chooses the along-edge position of a gently curved edge, and the
+  refinement's trust region keeps it there: seeded at the bundle pointing on seven
+  F ring frames the fit stays within about a pixel of it, and seeded normally it lands
+  0.8 to 9 px away along the edge. The covariance reports that weakness (see
+  `Along-edge uncertainty`_), so another witness sets the component where one exists; a
+  frame that has only the ring carries the coarse search's choice, in the ``low`` tier.
 
 Sources of uncertainty
 ----------------------
 
 The reported covariance is the Moore-Penrose pseudoinverse of the M-estimator information
-matrix at convergence; the rank-1 case is projected to an exactly singular covariance whose
-only non-null axis is the aggregate edge normal (see above). When the converged offset sits
+matrix at convergence, formed from the normal-projected Jacobian; the rank-1 case is
+projected to an exactly singular covariance whose only non-null axis is the aggregate edge
+normal (see above). Every other result adds the correlated-shape term of
+`Along-edge uncertainty`_, and every result adds the radial orbit-uncertainty channel. When the converged offset sits
 within the at-edge tolerance of any axis bound,
 or when the rotation parameter is at the configured fraction of its cap, the result is
 flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
@@ -400,6 +500,11 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   the binary edge mask's own quantization. See `The residual scale`_ for why a ring's
   catalog sigma alone is not a usable scale. Must be a finite number greater than zero;
   construction raises otherwise.
+- ``shape_sigma_px`` — float, default ``0.15`` px. Root-mean-square, over the
+  fitted vertices, of a radial model error that varies linearly across them; the
+  translation the fit would absorb from it is added to the reported covariance (see
+  `Along-edge uncertainty`_). Must be a finite number of at least zero; construction
+  raises otherwise.
 - ``spurious_max_lm_displacement_px`` — float, default ``4.0`` px. If the LM moves more
   than this many pixels from the integer coarse seed, flag spurious. Defensive: with
   the trust region below the LM cannot leave the coarse basin, so this guard normally
@@ -534,6 +639,9 @@ Diagnostics
   ``RING_EDGE`` features fused.
 - :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.is_rank_1` — True when every
   consumed ring-edge feature was straight-line and the combined covariance is rank-1.
+- :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.sigma_shape_major_px` —
+  major-axis sigma (px) of the correlated-shape term added to the covariance; along the
+  edge, and many times ``shape_sigma_px``, on a gently curved arc. Zero on a rank-1 result.
 
 Call path
 ---------
@@ -555,7 +663,9 @@ Call path traced through
    falls below ``coarse_strength_keep_ratio`` of the strongest.
 4. Read :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` and set the
    rotation pivot to the centroid of the concatenated vertices when rotation is fit.
-5. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine` and capture the converged
+5. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine`, with the
+   pixel-neighbor normals for the ridge pass and the radius-gradient normals as
+   ``covariance_normals_vu``, and capture the converged
    :class:`~spindoctor.nav_technique.dt_fitting.LMRefineResult`.
 6. Detect the rank-1 condition: every consumed ``RING_EDGE`` flagged
    ``is_straight_line`` collapses the joint Jacobian to rank-1. The flag is recorded in
@@ -574,7 +684,9 @@ Call path traced through
      (3, 3) translation + rotation information matrix.
 
 8. Apply the at-edge tests and the spurious tests on RMS / inlier-count, and the floor on
-   the strength of the matched edges relative to the frame's strongest.
+   the strength of the matched edges relative to the frame's strongest. Add the
+   correlated-shape term to a full-rank covariance, then the radial orbit-uncertainty
+   channel.
 9. Build a :class:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics`, evaluate the
    confidence spec, log the breakdown, and assemble the
    :class:`~spindoctor.nav_technique.technique_result.NavTechniqueResult`.

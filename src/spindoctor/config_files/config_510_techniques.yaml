@@ -644,6 +644,26 @@ techniques:
       # and pole uncertainty, which measure 0.5 to 3 px on real frames
       # and so already exceed what the mask can resolve.
       edge_localization_sigma_px: 0.5
+      # RMS (px) over the fitted vertices of a radial model error that varies
+      # linearly across them -- a catalog orbit wrong by more at one end of
+      # an arc than the other, an uncorrected twist, a distortion residual.
+      # The error is common to every vertex, so the fit's statistical
+      # covariance cannot see it, and a nearly straight arc absorbs it as an
+      # along-edge slide of about sqrt(12) * R / L times this value (R the
+      # arc's radius of curvature, L its length); on a full ring it is a
+      # translation of this size.  The reported covariance carries the
+      # absorbed translation, so the ensemble lets an independent witness set
+      # the axis the rings barely constrain.  Calibrated on the 408 Cassini
+      # NAC frames of a 1,614-frame F ring bundle sample whose bundle pointing
+      # a star technique confirms to 0.5 px: at 0.22 the fit's along-edge
+      # errors are a median 0.68 times the reported along-edge sigma and 30%
+      # exceed it, where a correctly sized Gaussian sigma gives 0.67 and 32%.
+      # At 0.15 they were a median 0.99 times it (49% beyond); 0.30 matches
+      # the tail beyond twice the sigma instead (5.4%, Gaussian 4.6%) but
+      # makes the core too wide (median 0.51).  The tail beyond twice the
+      # sigma is 8.8% at 0.22: catalog orbit errors and alias seeds, which no
+      # Gaussian width describes.
+      shape_sigma_px: 0.22
       # See ``BodyLimbNav.lm_trust_region_px``.
       lm_trust_region_px: 1.0
       # See ``BodyLimbNav.lm_tikhonov_alpha``.

@@ -165,9 +165,9 @@ class RingEdgePolyline:
             mask's pixel neighbors, each along one of the eight directions a
             pixel's neighbors make, signed outward where the radius allows.
             ``RingEdgeNav``'s edge-strength scores (the coarse seed check and
-            the faint-edge veto) read these, because their thresholds were
-            measured with them; ``None`` means those scores read
-            ``normals_vu``.
+            the faint-edge veto) and its gradient-ridge pass read these, so its
+            thresholds keep the inputs they were measured with and its fit
+            keeps its trajectory; ``None`` means they read ``normals_vu``.
     """
 
     vertices_vu: NDArrayFloatType

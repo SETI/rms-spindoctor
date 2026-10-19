@@ -599,6 +599,7 @@ def cassini_ring_edges() -> dict[str, Any]:
                 lm_converged=True,
                 coarse_peak_fraction=0.812,
                 sigma_orbit_radial_px=0.031,
+                sigma_shape_major_px=0.27,
             ),
         )
     ]
