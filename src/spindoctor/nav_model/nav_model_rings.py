@@ -47,6 +47,7 @@ from spindoctor.nav_model.ring_polyline import (
     _composite_ring_renderings,
     _is_straight_line,
     _mask_bbox,
+    _mask_neighbor_polyline,
     _median_radial_scale,
     _polyline_from_edge_mask,
     _radial_extent_px,
@@ -493,9 +494,11 @@ class NavModelRings(NavModelRingsBase):
         # whole-image mean above is only appropriate for the per-vertex
         # statistical sigma.
         self._radial_resolution_ext = resolutions
-        # Retained so the emitted edge normals can be signed radially outward
-        # (see _polyline_from_edge_mask): the mask-neighbor test alone cannot
-        # tell the high-radius side from the low-radius side.
+        # Retained so each emitted edge normal is the true outward radial
+        # direction, the gradient of this backplane (see
+        # _polyline_from_edge_mask): the edge mask's own pixel neighbors give
+        # only one of eight directions and cannot tell the high-radius side
+        # from the low-radius side.
         self._ring_radius_ext = np.asarray(bp_radii.mvals.filled(np.nan), dtype=np.float64)
 
         def min_res_at_radius(a: float) -> float | None:
@@ -897,7 +900,16 @@ class NavModelRings(NavModelRingsBase):
                     )
                     if vertices_vu.shape[0] == 0:
                         continue
-                    radial_extent_px = _radial_extent_px(vertices_vu, normals_vu)
+                    # The edge/annulus emission gate below, and RingEdgeNav's
+                    # edge-strength scores, were measured with the edge mask's
+                    # pixel-neighbor normals and stay on them.  Along the true
+                    # radial normals a long, gently curved arc measures only its
+                    # sagitta and would route to the annulus composite, whose
+                    # correlation is just as blind along such an arc (#755).
+                    _, neighbor_normals_vu = _mask_neighbor_polyline(
+                        edge_mask, self._ring_radius_ext
+                    )
+                    radial_extent_px = _radial_extent_px(vertices_vu, neighbor_normals_vu)
                     straight = _is_straight_line(vertices_vu)
                     # The coherent displacement bound is a property of THIS edge's
                     # own orbit solution, not the feature-level max the per-vertex
@@ -946,6 +958,7 @@ class NavModelRings(NavModelRingsBase):
                                 planet=self._planet or '',
                                 vertices_vu=vertices_vu,
                                 normals_vu=normals_vu,
+                                pixel_normals_vu=neighbor_normals_vu,
                                 uncertainty_km=uncertainty_km,
                                 orbit_sigma_km=orbit_sigma_km,
                                 km_per_pixel_radial=max(self._km_per_pixel_radial, 1.0),

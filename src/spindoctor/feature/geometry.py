@@ -161,6 +161,13 @@ class RingEdgePolyline:
             ``RingEdgeNav`` adds this term in quadrature to its reported
             covariance along the fit's radial direction so a tight lock on
             an uncertain orbit is not reported as a tight pointing fix.
+        pixel_normals_vu: Optional ``(N, 2)`` normals taken from the edge
+            mask's pixel neighbors, each along one of the eight directions a
+            pixel's neighbors make, signed outward where the radius allows.
+            ``RingEdgeNav``'s edge-strength scores (the coarse seed check and
+            the faint-edge veto) read these, because their thresholds were
+            measured with them; ``None`` means those scores read
+            ``normals_vu``.
     """
 
     vertices_vu: NDArrayFloatType
@@ -170,6 +177,7 @@ class RingEdgePolyline:
     is_straight_line: bool
     bbox_extfov_vu: tuple[int, int, int, int]
     sigma_orbit_radial_px: float = 0.0
+    pixel_normals_vu: NDArrayFloatType | None = None
 
 
 @dataclass(frozen=True, eq=False)

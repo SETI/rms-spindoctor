@@ -80,17 +80,23 @@ def _aggregate_ring_edges(
     NDArrayFloatType,
     list[str],
     bool,
+    NDArrayFloatType,
 ]:
     """Concatenate vertices, polarity normals, and per-vertex sigmas for ring edges.
 
     Returns:
         ``(vertices, polarity_normals, sigmas, feature_ids,
-        every_edge_is_straight)``.  ``every_edge_is_straight`` is True
-        when every input edge has ``is_straight_line=True``; the
+        every_edge_is_straight, strength_normals)``.  ``every_edge_is_straight``
+        is True when every input edge has ``is_straight_line=True``; the
         technique uses it to drive the rank-1 covariance path.
+        ``strength_normals`` are the normals the edge-strength scores read: each
+        edge's ``pixel_normals_vu`` where it carries them and its
+        ``normals_vu`` otherwise, with a straight edge's replaced by the line's
+        normal exactly as for ``polarity_normals``.
     """
     vert_chunks: list[NDArrayFloatType] = []
     normal_chunks: list[NDArrayFloatType] = []
+    strength_chunks: list[NDArrayFloatType] = []
     sigma_chunks: list[NDArrayFloatType] = []
     ids: list[str] = []
     every_straight = True
@@ -109,13 +115,20 @@ def _aggregate_ring_edges(
         # gradient points across the edge in the same sense as the
         # negated normal.
         edge_normals: NDArrayFloatType = feat.geometry.normals_vu.astype(np.float64)
+        strength_normals: NDArrayFloatType = (
+            edge_normals
+            if feat.geometry.pixel_normals_vu is None
+            else feat.geometry.pixel_normals_vu.astype(np.float64)
+        )
         if feat.geometry.is_straight_line and feat.geometry.vertices_vu.shape[0] >= 2:
-            # A straight edge's quantized per-vertex normals are replaced by the
-            # line's own normal; see ``_straight_edge_normals``.
+            # A straight edge's per-vertex normals are replaced by the line's
+            # own normal; see ``_straight_edge_normals``.
             edge_normals = _straight_edge_normals(
                 feat.geometry.vertices_vu.astype(np.float64), edge_normals
             )
+            strength_normals = edge_normals
         normal_chunks.append(-edge_normals)
+        strength_chunks.append(-strength_normals)
         sigma_chunks.append(feat.geometry.sigma_radial_per_vertex_px.astype(np.float64))
         ids.append(feat.feature_id)
     empty_2 = np.empty((0, 2), np.float64)
@@ -123,7 +136,8 @@ def _aggregate_ring_edges(
     vertices = np.concatenate(vert_chunks, axis=0) if vert_chunks else empty_2
     normals = np.concatenate(normal_chunks, axis=0) if normal_chunks else empty_2
     sigmas = np.concatenate(sigma_chunks, axis=0) if sigma_chunks else empty_1
-    return vertices, normals, sigmas, ids, (every_straight if seen_any else False)
+    strength = np.concatenate(strength_chunks, axis=0) if strength_chunks else empty_2
+    return vertices, normals, sigmas, ids, (every_straight if seen_any else False), strength
 
 
 class RingEdgeNav(NavTechnique):
@@ -285,6 +299,7 @@ class RingEdgeNav(NavTechnique):
                 sigmas,
                 feature_ids,
                 every_straight,
+                strength_normals,
             ) = _aggregate_ring_edges(features)
             self.logger.info(
                 'Consuming %d RING_EDGE features (out of %d offered); every_straight=%s',
@@ -329,11 +344,13 @@ class RingEdgeNav(NavTechnique):
                 if self._coarse_sensor_margin_px > 0
                 else context.sensor_mask_ext
             )
+            # The edge-strength scores read the normals their thresholds were
+            # measured with (see ``RingEdgePolyline.pixel_normals_vu``).
             coarse = self._coarse_seed(
                 edge_mask,
                 gradient_vu,
                 vertices,
-                polarity_normals,
+                strength_normals,
                 (margin_v, margin_u),
                 valid_mask=sensor_interior,
             )
@@ -535,7 +552,7 @@ class RingEdgeNav(NavTechnique):
                 edge_dt,
                 gradient_vu,
                 vertices,
-                polarity_normals,
+                strength_normals,
                 (dv_final, du_final),
                 valid_mask=sensor_interior,
             )
@@ -830,7 +847,7 @@ def aggregate_edge_normal_angle_deg(features: list[NavFeature]) -> float | None:
         straight — the constraint direction is only meaningful for a rank-1
         scene.
     """
-    _vertices, normals, _sigmas, ids, every_straight = _aggregate_ring_edges(features)
+    _vertices, normals, _sigmas, ids, every_straight, _strength = _aggregate_ring_edges(features)
     if not ids or not every_straight:
         return None
     n_hat = _aggregate_normal_orientation(normals)
