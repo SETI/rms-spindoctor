@@ -187,7 +187,7 @@ What the work filed
 rather than fixed: RingEdgeNav's planted-shift round trip (#476, same
 family as #346 and #373; measured across the edge normal the technique is at the DT
 floor, the ensemble's error there was the rank-1 axis quantization fixed
-below, and the along-edge part is open); `BodyDiscCorrelateNav` still misses by
+below, and the along-edge part is reported honestly but not reduced); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
 moves need re-ratcheting when it lands (#483, which cannot be done honestly
 until #288 is reconciled).
@@ -245,9 +245,9 @@ except N1492091163 (below); the axis fix is what moves seven of them.
 
 What remains of the family:
 
-- **The rank-1 axis (fixed).** The rings model signs edge normals radially
-  but quantizes their direction to multiples of 45 degrees, and the rank-1
-  axis was the dominant direction of those normals, off by up to 22.5 degrees
+- **The rank-1 axis (fixed).** The rank-1 axis was the dominant direction
+  of the rings model's pixel-neighbor normals, which point along multiples of
+  45 degrees, off by up to 22.5 degrees
   for a straight edge at any other orientation. It now comes from the line's
   own vertices: the ensemble's planted-shift round trip across the edge fell
   from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px), and the two
@@ -255,27 +255,26 @@ What remains of the family:
   `ring_only_flat` sidecars record the quantized angle as their constraint
   normal and go red until re-pinned (the proposed values are in the
   Operator Playbook), and the two Encke gap frames miss only their tier pin.
-- **Along-edge error on nearly straight edges (open).** An edge that is not
-  flagged straight but barely curves across the frame constrains the
-  along-edge component only weakly, and the reported covariance does not show
-  it. On the 1,041 held-out frames, 115 RingEdgeNav-carried answers are within
-  1.4 px of the published pointing across the edge and more than 2 px off
-  along it: median 3.0 px, 90th percentile 12 px, worst 36 px
-  (N1851237981). 113 of them are reported at the medium tier and 107 with a
-  sigma under 1 px. Two remedies were measured on the tuning sample and
-  failed, so neither is shipped. Choosing, on a reseed, the member of the
-  strength band nearest the prediction instead of the strongest cost
-  RingEdgeNav right answers on the 60 reseeded frames (34 to 28; 11 right to
-  wrong against 5 wrong to right). Inflating the along-edge variance by the
-  vertex-scatter eigenvalue ratio in the covariance the ensemble fuses cut
-  wrong answers at medium or high from 66 to 20, but demoted 75 answers that
-  were right on both runs to low (right answers at medium or high fell from
-  178 to 91), and turned 8 right answers wrong where a star or body-blob
-  answer took over the along-edge component (5 went wrong to right).
-  Together the sample went from 179 right and 68 wrong to 170 and 80. The
-  untried design keeps the ensemble covariance as it is and lowers only
-  RingEdgeNav's own confidence on a nearly straight edge, and is tracked
-  as #755.
+- **Along-edge position of gently curved edges (#755, open).**
+  RingEdgeNav's covariance carries the weakness (several pixels along such
+  an edge), so a star fix sets that component, a ring-only answer is
+  reported at the low tier, and the ensemble refuses rather than averages a
+  ring answer and an equally vague witness far from it (the compromise
+  test). But the position the coarse seed picks is unchanged: ring-only
+  answers keep their 2 to 9 px along-edge errors on the F ring diagnosis
+  frames. Against the bundle pointing on the 1,614-frame F ring sample, 11
+  answers became worse; star centroids measured in the image show the
+  reference wrong on 7 of them, and N1802002665 (0.95 to 1.07 px, its star
+  0.13 px from the reference), N1493649156 (0.42 to 1.26 px, no star),
+  W1763501382 (0.92 to 1.31 px, no star), and N1851235341 (0.70 to 1.04 px,
+  one star that disagrees with the reference) are not shown better, so the
+  issue stays open. Stepping the fit along the radius-gradient normals
+  (Jacobian and gradient-ridge pass) was measured on the 1,614-frame F ring
+  sample and not shipped: it brought RingEdgeNav within 1 px of the
+  ring-navigated reference on 296 of 391 frames against 244, but not of
+  star-confirmed pointing (129 of 627 against 138), and moved 23 ring-only
+  answers out of 1 px for 59 in. A future attempt at the position itself
+  starts from that measurement.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
@@ -284,19 +283,20 @@ What remains of the family:
   edge by a distance that matches no spacing between cataloged edges went
   from 188 to 4 on the 1,041 held-out frames: N1492091385 (45.0 px),
   N1851236541 (43.8 px), N1492064782 (34.4 px) and N1851226701 (3.8 px),
-  all at the medium tier. With the 115 along-edge answers, the 5
-  neighboring-edge locks and 5 answers carried by star techniques, they are
-  all 129 wrong answers.
-- **Few stars against a ring edge (for the sparse-star work).** Three F ring
-  movie frames the published bundle navigated on stars (N1746561771,
-  N1538201454, N1579830292, from a separate reviewer sample) are
-  `conflicted` on `main`, where the one- or two-star answer is 0.04 to
-  0.26 px from the published pointing. With the seed check RingEdgeNav
-  returns an answer 2.6 to 4.6 px from the star answer instead of an alias,
-  and the ensemble reports a success 2.7 to 4.7 px from the published
-  pointing, N1746561771 at the high tier: one or two stars do not outweigh
-  the ring-edge answer. This belongs with #621/#622/#623 and with the
-  along-edge item above.
+  all at the medium tier. Of the 14 frames the along-edge diagnosis used,
+  two stay `conflicted` on a radial lock: N1492071146 (a 42 px alias of
+  this kind) and N1601496278 (6 px, the rev 087 A ring outer edge catalog
+  error, #761).
+- **Few stars against a ring edge (for the sparse-star work).** With the
+  along-edge covariance honest, N1746561771 and N1579830292 (F ring movie
+  frames the bundle navigated on stars) land 0.08 and 0.44 px from the
+  published pointing. N1538201454 is still 4.4 px off, at the low tier: its
+  one-star answer carries a sigma of its own offset size and lies within
+  the 5 px grouping floor of the ring answer, so the ring edge, 2.7 px
+  uncertain along itself, sets the position. Where the single star is the
+  right one but lies farther than that from a ring answer as vague as it
+  is, the frame is now refused rather than averaged (N1596689242,
+  N1789926660, N1866222516). These belong with #621/#622/#623.
 
 - **#346** — three library frames (N1492091163, N1867601758, N1867602424),
   all still red, none on a wrong lock. N1492091163's 94 px alias is gone:
@@ -320,9 +320,10 @@ What remains of the family:
   where a straight edge carries no information and a nearly straight one very
   little. The criterion as written measures the whole residual, so the
   along-edge part is within it even though the issue's diagnosis is
-  across-edge misassignment. #476 stays open until the operator restates the
-  criterion as the across-edge component (which is met) or the along-edge
-  follow-up lands.
+  across-edge misassignment. The along-edge follow-up (#755) makes the
+  reported covariance honest along the edge but leaves the offsets, and so
+  these rows, unchanged; #476 stays open until the operator restates the
+  criterion as the across-edge component (which is met).
 
 ### #350 — post-recalibration resolved-body red
 

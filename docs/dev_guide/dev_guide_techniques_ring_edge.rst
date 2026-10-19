@@ -219,8 +219,9 @@ term below, the rank-1 axis, and the orbit channel use these.
 The fit itself keeps the pixel-neighbor normals the model also carries
 (:attr:`~spindoctor.feature.geometry.RingEdgePolyline.pixel_normals_vu`): the edge-strength
 scores of `The coarse seed`_ read them, because their thresholds were measured with them,
-and the gradient-ridge pass steps along them, so the converged offset is the one the fit
-reached before. Both choices were measured on the F ring sample described below. Scored
+and the gradient-ridge pass steps along them, so where the fit converges depends on the
+pixel-neighbor normals alone. Both choices were measured on the F ring sample described
+below. Scored
 with the radius-gradient normals, edge strengths that sit near ``coarse_strength_keep_ratio``
 or ``spurious_min_edge_strength_fraction`` crossed them in both directions (one frame went
 from a right answer to a 36 px alias seed). Stepped along them, the fit moved the
@@ -255,8 +256,13 @@ direction, with root-mean-square :math:`\sigma_{\mathrm{shape}}` over them
 :math:`t = M^{+} B a \, \sigma_{\mathrm{shape}} / \rho` for a gradient along the unit
 direction :math:`a`, with :math:`M = \sum_i w_i n_i n_i^{T}`,
 :math:`B = \sum_i w_i n_i d_i^{T}`, :math:`d_i` each vertex's offset from the weighted
-centroid, and :math:`\rho` the weighted RMS of :math:`\lVert d_i \rVert`. Summed over two
-orthogonal directions, independent of the image axes,
+centroid, and :math:`\rho` the weighted RMS of :math:`\lVert d_i \rVert`. The weight
+:math:`w_i` is the fit's final robust weight of vertex :math:`i`, so the term covers the
+vertices the fit used, each as fully as the fit trusted it. It is not the information
+weight :math:`w_i (J_i \cdot n_i)^2`: the distance transform's gradient along the normal
+falls toward zero on the edge pixel itself, so that product varies from vertex to vertex
+with where each one sits inside its pixel, which says nothing about how the arc's geometry
+absorbs a tilt. Summed over two orthogonal directions, independent of the image axes,
 
 .. math::
 
@@ -271,10 +277,15 @@ axis is reported unobservable by the rank-1 path instead. The major-axis sigma o
 is recorded on
 :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.sigma_shape_major_px`.
 
-The ensemble needs nothing special for this: an independent witness such as a star fix
-sets the along-edge component through the ordinary precision-weighted combine, the ring
-sets the radial one, and their pairwise agreement is judged with the ring's own wide
-along-edge sigma. A frame that has only the ring keeps the fit's along-edge position,
+An independent witness such as a star fix then sets the along-edge component through
+the ordinary precision-weighted combine, and the ring sets the radial one; their pairwise
+agreement is judged with the ring's own wide along-edge sigma. A witness as vague along the
+edge as the ring is does not average with it: the ensemble counts two results that agree
+only statistically, from farther apart than its pixel floor, as agreeing only when their
+fusion takes each direction, to within a pixel, from the one that is precise along it (see
+:doc:`dev_guide_orchestrator_ensemble`),
+so a ring answer tens of pixels along the edge and a one-star match whose sigma is the size
+of its offset are a disagreement rather than a compromise between them. A frame that has only the ring keeps the fit's along-edge position,
 reported with its several pixels of sigma, which places it in the ``low`` tier. The fit's
 along-edge position is better than the prediction's on such frames: on F ring frames whose
 bundle pointing came from stars, the RingEdgeNav answers that no star technique
@@ -282,19 +293,27 @@ corroborated were a median 4.1 px from that pointing where the SPICE prediction 
 11.5 px off.
 
 Measured on a stratified sample of 1,614 Cassini ISS F ring bundle frames against the
-bundle's per-frame pointing, with and without the three parts above: on the 1,310 NAC
-frames, answers within 1 px went from 554 to 775, answers more than 2 px off from 317 to
-243, and refusals from 295 to 157; answers more than 2 px off at the ``medium`` or ``high``
-tier went from 313 to 58. Every WAC verdict was unchanged, since the WAC frames take the
-annulus route. Six NAC answers within 1 px moved past it, by 0.1 to 2.9 px. On each an
-independent witness (a star fix, or a body brightness center) sets the along-edge
-component, and the reference pointing it is measured against was itself navigated on the
-rings or by hand: on N1848873462 a two-star fix and a moon's brightness center agree with
-each other to about a pixel and lie 4 px along the edge from a ring-navigated reference
-that the ring fit matches. On the 424 NAC frames that only the ring navigates, every
-offset and every verdict is unchanged, and 39 of their answers within 1 px move to the
-``low`` tier, 36 of them from ``medium``. Across all NAC frames, answers within 1 px at the
-``medium`` or ``high`` tier went from 540 to 699.
+bundle's per-frame pointing, with and without the three parts above, the ensemble's
+compromise test (see :doc:`dev_guide_orchestrator_ensemble`), and the body brightness
+center's phase and shape uncertainty (see :doc:`dev_guide_techniques_body_blob`): on the
+1,310 NAC frames, answers within 1 px went from 554 to 805, answers more than 2 px off from
+317 to 230, and refusals from 295 to 135; answers more than 2 px off at the ``medium`` or
+``high`` tier went from 313 to 28. Ten NAC answers became worse against the bundle
+pointing. On seven of them the catalog stars measured in the image lie within 0.3 px of
+the new answer and 1.1 to 4.1 px from the bundle pointing, so the reference is what is
+wrong: N1848873462, for instance, has two stars 0.15 and 0.21 px from the answer and 4.1 px
+from a ring-navigated reference that the ring fit matches. N1802002665 is a real loss: its
+one star lies 0.13 px from the bundle pointing, and the answer moved from 0.95 to 1.07 px
+from it. N1493649156 has no star; its answer moved from 0.42 to 1.26 px as a Prometheus
+brightness center took over the along-edge component. On N1851235341 one Tycho-2 star lies
+3.5 px from the bundle pointing and 2.6 px from the answer, which went from 0.70 to 1.04 px
+from the pointing; one star does not settle which is right. The 304 WAC frames take the
+annulus route and changed only through the brightness center's wider uncertainty: five
+answers more than 2 px off came within 2 px, two came within 1 px, and one, W1763501382,
+which has no star, moved from 0.92 to 1.31 px. On the 424 NAC frames that only
+the ring navigates, every offset and every verdict is unchanged, and 68 of their answers
+within 1 px move to the ``low`` tier, 65 of them from ``medium``. Across all NAC frames,
+answers within 1 px at the ``medium`` or ``high`` tier went from 540 to 689.
 
 Radial orbit-uncertainty channel
 --------------------------------
@@ -500,11 +519,15 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   the binary edge mask's own quantization. See `The residual scale`_ for why a ring's
   catalog sigma alone is not a usable scale. Must be a finite number greater than zero;
   construction raises otherwise.
-- ``shape_sigma_px`` — float, default ``0.15`` px. Root-mean-square, over the
+- ``shape_sigma_px`` — float, default ``0.22`` px. Root-mean-square, over the
   fitted vertices, of a radial model error that varies linearly across them; the
   translation the fit would absorb from it is added to the reported covariance (see
-  `Along-edge uncertainty`_). Must be a finite number of at least zero; construction
-  raises otherwise.
+  `Along-edge uncertainty`_). On the 408 Cassini NAC F ring frames of the sample below
+  whose bundle pointing a star technique confirms to 0.5 px, the fit's along-edge errors
+  at this value are a median 0.68 times the reported along-edge sigma and 30% exceed it,
+  as 0.67 and 32% do for a correctly sized Gaussian; the 9% beyond twice the sigma are
+  catalog orbit errors and alias seeds, which no Gaussian width describes. Must be a
+  finite number of at least zero; construction raises otherwise.
 - ``spurious_max_lm_displacement_px`` — float, default ``4.0`` px. If the LM moves more
   than this many pixels from the integer coarse seed, flag spurious. Defensive: with
   the trust region below the LM cannot leave the coarse basin, so this guard normally

@@ -29,9 +29,14 @@ recognizing a star pattern, and so on. Each technique that runs reports its own 
 its own uncertainty, and its own confidence -- a number saying how much its answer should
 be trusted, described under `Confidence`_.
 
-Fourth, the results are reconciled into a single answer. SpinDoctor forms, around each
-technique, the group of techniques whose offsets agree with that one, and keeps the group
-whose confidences add up to the most. That is not always the group with the most members:
+Fourth, the results are reconciled into a single answer. Two techniques agree when their
+offsets lie within a few pixels of each other, or within their combined uncertainty. Two
+that are each uncertain by many pixels in the same direction can lie far apart and still
+be within their combined uncertainty. They agree only when, in every direction, one of
+them is precise enough that combining them lands within a pixel of it, since otherwise the
+combination would be a point between two answers that neither supports. SpinDoctor forms, around each technique, the group of
+techniques whose offsets agree with that one, and keeps the group whose confidences add up
+to the most. That is not always the group with the most members:
 one confident technique can outweigh several weaker ones that agree with each other. The
 techniques left outside the surviving group are set aside, and those inside it are
 combined by weighting each by how tightly its offset is determined. When a set-aside group
@@ -679,6 +684,14 @@ where its light is centered. This technique measures a brightness-weighted cente
 maps the predicted centers onto the measured ones. With two or more bodies the problem is
 over-determined, which makes it tolerant of a poor center on any one of them.
 
+The predicted center already allows for the body's phase: a partly lit body's light is
+centered toward the Sun. How far it shifts depends on how the real surface scatters light
+and on the body's real shape, which the prediction knows only approximately, so the
+reported uncertainty grows with phase and with how irregular the body is. A small,
+irregular moon seen as a crescent is uncertain by a large fraction of its radius: Atlas at
+135 degrees phase, 7.5 pixels across, carries an uncertainty of about 2 pixels. The phase
+part is ``techniques.BodyBlobNav.tuning.phase_centroid_error_frac``.
+
 Its confidence is capped at 0.4 by design. A brightness center is much weaker evidence
 than a fitted limb, so even a perfect blob match should not be allowed to outweigh a limb
 or disc answer. Its role is to provide something where nothing better exists, and to act
@@ -768,13 +781,15 @@ there. First, the 4 locks left lie 4 to 45 pixels across the edge and are report
 ``medium`` tier. Second, the fit still assumes the cataloged edge is the strongest step in
 its neighborhood. Where two cataloged edges lie a few tens of pixels apart, the strong
 step can be matched by the wrong one of them, and the answer is then off by tens of pixels
-across the edge; 5 of the same 1,041 frames are wrong this way. Third, an edge that is
-nearly straight across the frame fixes the pointing across itself but only weakly along
-itself, and the reported uncertainty does not show that weakness. When such an answer is
-off along the edge, it is usually off by a few pixels and sometimes by tens of pixels,
-while it is still reported at the ``medium`` tier with an uncertainty under a pixel; 115
-of the same frames are wrong this way. A ring-edge answer at that resolution that no other
-technique corroborates deserves a look before you rely on it.
+across the edge; 5 of the same 1,041 frames are wrong this way. Third, an edge that
+curves only gently across the frame fixes the pointing across itself far better than
+along itself, and the reported uncertainty says so: such an answer carries an
+uncertainty of several pixels along the edge, and often tens. Where a star fix or another
+technique in the same image measures that direction, it sets the position along the edge
+and the ring edge sets the position across it. When the only other technique is as
+uncertain along the edge, such as a match to a single star, and the two lie far apart, the
+image is reported as ``conflicted``. An answer that rests on such an edge alone is usually
+off by a few pixels along it, and is reported at the ``low`` tier.
 
 **Straight edges and unmeasured directions.** When every edge the technique was given is a
 straight line, the answer is genuinely incomplete, and the reason is geometric. Sliding a
