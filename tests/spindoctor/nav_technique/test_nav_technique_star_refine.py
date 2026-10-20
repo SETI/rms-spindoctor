@@ -106,6 +106,65 @@ def test_star_refine_drops_outlier_star(
     assert result.diagnostics.n_stars_used == 2
 
 
+@pytest.mark.parametrize(
+    ('actual_vu', 'predicted_vu'),
+    [
+        ((33.0, 100.0), (30.0, 100.0)),
+        ((186.0, 100.0), (189.0, 100.0)),
+        ((100.0, 33.0), (100.0, 30.0)),
+        ((100.0, 186.0), (100.0, 189.0)),
+    ],
+    ids=['top', 'bottom', 'left', 'right'],
+)
+def test_star_refine_drops_a_star_whose_centroid_box_the_frame_edge_cuts(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    actual_vu: tuple[float, float],
+    predicted_vu: tuple[float, float],
+) -> None:
+    """A star predicted beyond the frame edge cannot be centroided, so it is dropped.
+
+    The default fake obs pads 32 px on each side of a 220 px array, so the data area is
+    rows and columns 32 to 187.  Star C lies in the padding; its refine window reaches
+    the outermost data pixels, where a star sits whose centroid box the edge cuts.
+    """
+    image = np.zeros((220, 220), dtype=np.float64)
+    draw_gaussian_star(image, (60.0, 70.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (160.0, 130.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, actual_vu, peak_dn=200.0, sigma=1.2)
+    features = [
+        make_star_feature('star:UCAC4:A', predicted_vu=(60.0, 70.0), predicted_snr=30.0),
+        make_star_feature('star:UCAC4:B', predicted_vu=(160.0, 130.0), predicted_snr=30.0),
+        make_star_feature('star:UCAC4:C', predicted_vu=predicted_vu, predicted_snr=300.0),
+    ]
+    context = _attach_prior(make_nav_context(image), prior_offset_px=(0.0, 0.0))
+    result = StarRefineNav().navigate(features, context)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    assert result.diagnostics.n_stars_used == 2
+
+
+def test_star_refine_keeps_a_star_whose_centroid_box_just_fits(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A star whose 3 px centroid box reaches exactly the last data row is measured."""
+    image = np.zeros((220, 220), dtype=np.float64)
+    draw_gaussian_star(image, (60.0, 70.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (160.0, 130.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (184.0, 100.0), peak_dn=200.0, sigma=1.2)
+    features = [
+        make_star_feature('star:UCAC4:A', predicted_vu=(60.0, 70.0), predicted_snr=30.0),
+        make_star_feature('star:UCAC4:B', predicted_vu=(160.0, 130.0), predicted_snr=30.0),
+        make_star_feature('star:UCAC4:C', predicted_vu=(184.0, 100.0), predicted_snr=30.0),
+    ]
+    context = _attach_prior(make_nav_context(image), prior_offset_px=(0.0, 0.0))
+    result = StarRefineNav().navigate(features, context)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    assert result.diagnostics.n_stars_used == 3
+
+
 def test_star_refine_requires_prior(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,

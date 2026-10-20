@@ -591,7 +591,8 @@ after a first round has produced an offset. It shifts every predicted star posit
 that offset, looks for a peak in a small window around each shifted prediction, measures
 its center, and averages the leftover residuals, weighting each star by how precisely it
 can be located. A star whose peak is too far from the shifted prediction is dropped as a
-wrong identification.
+wrong identification, and so is one whose peak lies too close to the edge of the frame to
+be measured whole.
 
 What it reports is a correction to the offset it was given. With two or more stars it
 reports the measured scatter as its uncertainty; with a single star it falls back to the

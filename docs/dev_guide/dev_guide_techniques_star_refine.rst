@@ -263,8 +263,12 @@ Call path traced through
 3. Read the prior offset, the extfov image, and the per-image noise sigma off the context.
    Loop over the usable stars: for each, call
    ``local_centroid`` against the shifted prediction; drop
-   stars with no peak above the detection threshold or whose centroid sits more than
-   ``max_per_star_residual_px`` from the shifted prediction. Compute the per-star residuals
+   stars with no peak above the detection threshold, whose centroid box (the detection
+   rounded to a pixel, plus ``centroid_box_half_px`` on each side) is not wholly inside the
+   frame's data area (the extfov image less ``obs.extfov_margin_vu`` on each side), or
+   whose centroid sits more than ``max_per_star_residual_px`` from the shifted prediction.
+   The padding beyond the frame holds no starlight, so a box it cuts measures a truncated
+   star, or the frame's edge pixels when the star itself lies outside the frame. Compute the per-star residuals
    and inverse-trace weights.
 4. **Too few inliers.**  When the surviving inlier count is below ``min_inliers``, return a
    spurious zero-confidence result via ``_fail``.

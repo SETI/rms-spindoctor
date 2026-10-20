@@ -199,7 +199,12 @@ class StarRefineNav(NavTechnique):
             image_ext = np.asarray(context.image_ext, np.float64)
             noise_sigma = float(max(context.image_noise_sigma, 1e-9))
             inliers, per_star_residuals_v, per_star_residuals_u, weights = self._collect_residuals(
-                usable, image_ext, noise_sigma, prior_v, prior_u
+                usable,
+                image_ext,
+                noise_sigma,
+                prior_v,
+                prior_u,
+                data_margin_vu=search_window_for_obs(context),
             )
             if len(inliers) < self._min_inliers:
                 return self._fail(
@@ -351,13 +356,25 @@ class StarRefineNav(NavTechnique):
         noise_sigma: float,
         prior_v: float,
         prior_u: float,
+        *,
+        data_margin_vu: tuple[int, int],
     ) -> tuple[
         list[NavFeature],
         NDArrayFloatType,
         NDArrayFloatType,
         NDArrayFloatType,
     ]:
-        """Per-star centroid residuals around the shifted predictions."""
+        """Per-star centroid residuals around the shifted predictions.
+
+        A detection whose centroid box, ``centroid_box_half_px`` either side of the
+        centroid, is not wholly inside the image's data area (the extended-FOV array less
+        ``data_margin_vu`` on each side) is dropped: the padding
+        beyond the frame holds no starlight, so a box it cuts measures a truncated star,
+        or the frame's edge pixels when the star itself lies outside the frame.
+        """
+        box = self._centroid_box_half_px
+        v_bounds = (data_margin_vu[0] + box, image_ext.shape[0] - data_margin_vu[0] - box - 1)
+        u_bounds = (data_margin_vu[1] + box, image_ext.shape[1] - data_margin_vu[1] - box - 1)
         inliers: list[NavFeature] = []
         residuals_v: list[float] = []
         residuals_u: list[float] = []
@@ -381,6 +398,15 @@ class StarRefineNav(NavTechnique):
                     star.feature_id,
                     self._detection_sigma,
                     peak,
+                )
+                continue
+            if not (v_bounds[0] <= det[0] <= v_bounds[1] and u_bounds[0] <= det[1] <= u_bounds[1]):
+                self.logger.debug(
+                    'Star %s: detection (%.2f, %.2f) has its centroid box cut by the frame '
+                    'edge; dropped',
+                    star.feature_id,
+                    det[0],
+                    det[1],
                 )
                 continue
             res_v = det[0] - shifted_pred[0]
