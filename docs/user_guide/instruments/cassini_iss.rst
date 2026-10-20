@@ -154,6 +154,16 @@ overexposed.
 **Corrections applied at load.** None beyond what the host reader does. The
 data array is used as the archive supplies it.
 
+**Faintest star used.** The faintest catalog star a frame uses is worked out
+from how much light a star sends through the frame's filter pair in its
+exposure at its gain state, against the least signal a star needs to be seen,
+and the search then reaches one magnitude fainter. Through the two clear
+filters at the usual gain, a 1 s exposure reaches magnitude 14.75 on the narrow
+angle camera and 11.65 on the wide angle camera, and each factor of 2.512 more
+exposure reaches one magnitude fainter. A colored or polarizing filter pair
+passes less light, so the same exposure does not reach as faint. The
+cataloged stars that fall behind the main rings are still set aside.
+
 **Provisional values.** The calibrated block's blank and noisy thresholds, the
 expected-noise and read-noise figures in the raw block, and the
 magnitude-offset table are all placeholders awaiting calibration. They are

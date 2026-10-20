@@ -187,8 +187,9 @@ or DN-to-image-unit scaling enters the decision. The catalog reduction applies t
 magnitude cap, so the gate in the model is mostly a self-contained re-check that also
 handles the missing-magnitude case.
 
-Each per-instrument :meth:`star_max_usable_vmag()
-<spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>` follows the form
+The :meth:`star_max_usable_vmag()
+<spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>` of Galileo SSI, Voyager ISS, and New
+Horizons LORRI follows the form
 
 .. math::
 
@@ -196,7 +197,12 @@ Each per-instrument :meth:`star_max_usable_vmag()
         \mathrm{anchor} + \frac{\log t_{\mathrm{exp}}}{\log 2.512},
 
 where ``anchor`` is the limiting magnitude at a one-second exposure and each Pogson factor
-of exposure time buys one more magnitude of depth.
+of exposure time buys one more magnitude of depth.  Cassini ISS computes its limit
+photometrically from the filter pair, the exposure, and the gain state, and
+searches one magnitude past the dimmest visible star (see :doc:`instruments/cassini_iss`).
+Its limit sits where a star's peak is about twice the dark-sky noise, the matched-filter
+boundary the simulator's limit uses, so ``SNR_REF`` at the limit carries the same meaning
+on both.
 
 Magnitude-margin effective SNR
 ------------------------------
