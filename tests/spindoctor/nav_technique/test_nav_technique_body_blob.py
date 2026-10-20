@@ -117,6 +117,8 @@ def test_the_blob_line_states_both_positions_in_the_image_frame(
         image_signal=np.clip(image, 0.0, None),
         margin_vu=(32, 32),
         prior_offset_vu=None,
+        max_gyration_radius_frac=0.88,
+        max_edge_signal_frac=0.2,
     )
     args = logger.debug_calls[-1][1]
     assert args[1:3] == (68.5, 68.5)
@@ -210,6 +212,87 @@ def test_body_blob_rejects_a_bad_along_sun_fraction(
     bad_tuning['along_sun_frac_regular'] = frac
     monkeypatch.setattr(BodyBlobNav, 'tuning', bad_tuning)
     with pytest.raises(ValueError, match='along_sun_frac_regular must be finite and >= 0'):
+        BodyBlobNav()
+
+
+def _band_image(shape: tuple[int, int], rows: tuple[int, int]) -> np.ndarray:
+    """A dark frame crossed by a uniformly bright horizontal band (a ring-like structure)."""
+    image = np.zeros(shape, dtype=np.float64)
+    image[rows[0] : rows[1], :] = 50.0
+    return image
+
+
+def test_body_blob_drops_a_blob_locked_on_something_larger(
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A lone blob whose box lies inside a bright band is not its body: the result is spurious."""
+    image = _band_image((200, 200), (60, 140))
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.0, 100.0), predicted_diameter_px=8.0
+    )
+    result = BodyBlobNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is True
+
+
+def test_body_blob_keeps_the_body_when_another_blob_is_dropped(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """With one blob on a bright band and one on its body, the body sets the offset alone."""
+    image = _band_image((220, 220), (150, 210)) + disc_image((220, 220), (60.0, 70.0), 6.0)
+    features = [
+        _make_blob_feature('moonA', predicted_center_vu=(59.0, 68.5), predicted_diameter_px=12.0),
+        _make_blob_feature('moonB', predicted_center_vu=(180.0, 110.0), predicted_diameter_px=8.0),
+    ]
+    result = BodyBlobNav().navigate(features, make_nav_context(image))
+    assert result.feature_ids == ('body_blob:moonA',)
+
+
+def test_body_blob_keeps_a_disc_filling_its_box(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A body that fills its unpadded box spreads like a disc and is kept.
+
+    A disc of radius 8 under a predicted 14 px diameter with no padding lights the whole
+    box, so over a fifth of its signal lies on the box edge and the edge test alone
+    would fire; its gyration radius (0.81 of the predicted radius) keeps it.
+    """
+    image = disc_image((200, 200), (100.0, 100.0), 8.0)
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.0, 100.0), predicted_diameter_px=14.0, bbox_pad=0
+    )
+    result = BodyBlobNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is False
+
+
+def test_body_blob_keeps_a_bright_rim_inside_its_box(
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A limb-bright ring the size of the body spreads widely but stays off the box edge.
+
+    The gyration-radius test alone would fire (0.94 of the radius); with no signal on
+    the box edge the blob is kept.
+    """
+    vv, uu = np.mgrid[0:200, 0:200]
+    rr = np.hypot(vv - 100.0, uu - 100.0)
+    image = np.where((rr > 7.0) & (rr < 8.0), 50.0, 0.0)
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.0, 100.0), predicted_diameter_px=16.0
+    )
+    result = BodyBlobNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is False
+
+
+@pytest.mark.parametrize('key', ['max_gyration_radius_frac', 'max_edge_signal_frac'])
+def test_body_blob_rejects_a_non_positive_lock_threshold(
+    key: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A zero lock-test threshold fails at construction, naming the key."""
+    bad_tuning = dict(BodyBlobNav.tuning)
+    bad_tuning[key] = 0.0
+    monkeypatch.setattr(BodyBlobNav, 'tuning', bad_tuning)
+    with pytest.raises(ValueError, match=f'{key} must be finite and > 0'):
         BodyBlobNav()
 
 

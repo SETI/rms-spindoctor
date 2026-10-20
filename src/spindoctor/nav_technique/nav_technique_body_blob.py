@@ -360,13 +360,32 @@ def _shift_bbox(
     return (v_min + dv, u_min + du, v_max + dv, u_max + du)
 
 
+@dataclass(frozen=True)
+class _BlobCentroid:
+    """A blob's brightness-weighted centroid and the shape of its lit region.
+
+    ``centroid_vu`` is ``None`` when the (shifted) box holds no signal above the
+    threshold; the other statistics are then zero.  ``gyration_radius_px`` is the
+    signal-weighted RMS distance of the lit pixels from the centroid, and
+    ``edge_signal_frac`` the fraction of the lit signal on the box's outermost rows and
+    columns.
+    """
+
+    centroid_vu: tuple[float, float] | None
+    mean_signal: float
+    n_lit: int
+    clamped_bbox: tuple[int, int, int, int]
+    gyration_radius_px: float = 0.0
+    edge_signal_frac: float = 0.0
+
+
 def _brightness_weighted_centroid(
     image_ext: NDArrayFloatType,
     image_noise_sigma: float,
     geometry: BodyBlobGeometry,
     background: float,
     coarse_offset_vu: tuple[int, int] = (0, 0),
-) -> tuple[tuple[float, float] | None, float, int, tuple[int, int, int, int]]:
+) -> _BlobCentroid:
     """Return the brightness-weighted centroid + signal stats for one blob.
 
     The centroid is computed over every above-background pixel inside the
@@ -388,34 +407,46 @@ def _brightness_weighted_centroid(
     joint fit and still log its bbox in the per-blob rejection line.
 
     Returns:
-        ``(centroid_vu, mean_signal_above_background, n_lit_pixels,
-        clamped_bbox)``.  ``centroid_vu`` is ``None`` when the blob has
-        no usable signal.  The centroid is in absolute extfov coordinates,
-        so the caller's ``observed - predicted`` residual already includes
-        the coarse offset.
+        The centroid, the mean signal above background over the lit pixels, the
+        lit-pixel count, the clamped box, and the lit region's gyration radius and
+        edge-signal fraction (see :class:`_BlobCentroid`).  ``centroid_vu`` is
+        ``None`` when the blob has no usable signal.  The centroid is in absolute
+        extfov coordinates, so the caller's ``observed - predicted`` residual
+        already includes the coarse offset.
     """
     extfov_shape = (image_ext.shape[0], image_ext.shape[1])
     shifted_bbox = _shift_bbox(geometry.bbox_extfov_vu, coarse_offset_vu[0], coarse_offset_vu[1])
     clamped_bbox = _clamp_bbox(shifted_bbox, extfov_shape)
     v_min, u_min, v_max, u_max = clamped_bbox
     if v_max <= v_min or u_max <= u_min:
-        return None, 0.0, 0, clamped_bbox
+        return _BlobCentroid(None, 0.0, 0, clamped_bbox)
     patch = image_ext[v_min:v_max, u_min:u_max]
     noise_threshold = background + _BLOB_NOISE_THRESHOLD_SIGMA * max(image_noise_sigma, 1e-9)
     signal_mask: NDArrayBoolType = patch > noise_threshold
     n_lit = int(signal_mask.sum())
     if n_lit == 0:
-        return None, 0.0, 0, clamped_bbox
+        return _BlobCentroid(None, 0.0, 0, clamped_bbox)
     signal = np.where(signal_mask, patch - background, 0.0)
     total_weight = float(signal.sum())
     if total_weight <= 0.0:
-        return None, 0.0, 0, clamped_bbox
+        return _BlobCentroid(None, 0.0, 0, clamped_bbox)
     vs = np.arange(v_min, v_max, dtype=np.float64)
     us = np.arange(u_min, u_max, dtype=np.float64)
     centroid_v = float(np.sum(signal * vs[:, None]) / total_weight)
     centroid_u = float(np.sum(signal * us[None, :]) / total_weight)
     mean_signal = float(signal[signal_mask].mean())
-    return (centroid_v, centroid_u), mean_signal, n_lit, clamped_bbox
+    spread_sq = (vs[:, None] - centroid_v) ** 2 + (us[None, :] - centroid_u) ** 2
+    gyration_radius_px = math.sqrt(float(np.sum(signal * spread_sq)) / total_weight)
+    interior = float(signal[1:-1, 1:-1].sum())
+    edge_signal_frac = (total_weight - interior) / total_weight
+    return _BlobCentroid(
+        (centroid_v, centroid_u),
+        mean_signal,
+        n_lit,
+        clamped_bbox,
+        gyration_radius_px=gyration_radius_px,
+        edge_signal_frac=edge_signal_frac,
+    )
 
 
 def _collect_per_blob_residuals(
@@ -428,6 +459,8 @@ def _collect_per_blob_residuals(
     image_signal: NDArrayFloatType,
     margin_vu: tuple[int, int],
     prior_offset_vu: tuple[float, float] | None,
+    max_gyration_radius_frac: float,
+    max_edge_signal_frac: float,
 ) -> _BlobResiduals:
     """Extract the per-blob ``observed - predicted`` residuals + weights.
 
@@ -441,7 +474,11 @@ def _collect_per_blob_residuals(
     bounding box (a few pixels) to the full extfov window; without it the
     centroid silently clips and biases once the body leaves the predicted
     box.  Blobs with no above-background signal in their (shifted) bbox are
-    dropped (and logged at DEBUG).  The remaining blobs contribute to the
+    dropped (and logged at DEBUG).  So is a blob whose lit region is larger than the
+    body it should be -- its gyration radius over ``max_gyration_radius_frac`` of the
+    predicted radius and over ``max_edge_signal_frac`` of its signal on the box edge
+    -- since the coarse stage then locked onto something bigger, such as a ring arc
+    or another body's limb (logged at INFO).  The remaining blobs contribute to the
     joint fit with weight ``N_lit * SNR^2 / radius_px^2`` per the BODY_BLOB
     centroid CRLB.
     """
@@ -491,8 +528,14 @@ def _collect_per_blob_residuals(
             )
         else:
             coarse_offset = (0, 0)
-        centroid, mean_signal, n_lit, clamped_bbox = _brightness_weighted_centroid(
+        measured = _brightness_weighted_centroid(
             image_ext, image_noise_sigma, feature.geometry, background, coarse_offset
+        )
+        centroid, mean_signal, n_lit, clamped_bbox = (
+            measured.centroid_vu,
+            measured.mean_signal,
+            measured.n_lit,
+            measured.clamped_bbox,
         )
         if centroid is None:
             logger.debug(
@@ -502,6 +545,23 @@ def _collect_per_blob_residuals(
                 clamped_bbox,
                 background,
                 background + _BLOB_NOISE_THRESHOLD_SIGMA * max(image_noise_sigma, 1e-9),
+            )
+            continue
+        radius_px = feature.geometry.predicted_diameter_px / 2.0
+        if (
+            measured.gyration_radius_px > max_gyration_radius_frac * radius_px
+            and measured.edge_signal_frac > max_edge_signal_frac
+        ):
+            logger.info(
+                'Blob %s: lit region at coarse offset (%d, %d) spreads %.2f px from its '
+                'centroid (%.2f of the predicted radius) with %.2f of its signal on the box '
+                'edge; it is not this body, dropping',
+                feature.feature_id,
+                coarse_offset[0],
+                coarse_offset[1],
+                measured.gyration_radius_px,
+                measured.gyration_radius_px / radius_px,
+                measured.edge_signal_frac,
             )
             continue
         pred_v, pred_u = feature.geometry.predicted_center_vu
@@ -514,7 +574,6 @@ def _collect_per_blob_residuals(
         # emission gate guarantees ``predicted_diameter_px >= 8``,
         # so the radius_px denominator is bounded away from zero
         # and no floor is needed.
-        radius_px = feature.geometry.predicted_diameter_px / 2.0
         radius_sq = radius_px * radius_px
         weight = float(n_lit) * snr * snr / radius_sq
         consumed.append(feature)
@@ -641,6 +700,16 @@ class BodyBlobNav(NavTechnique):
         # :class:`BlobCentroidBiasModel`.
         self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
         self._bias_model = load_blob_bias_model(self.tuning)
+        # A blob whose lit region is wider than the body (it spills to the box edge)
+        # is a lock on something else; see _collect_per_blob_residuals.
+        self._max_gyration_radius_frac = float(self.tuning['max_gyration_radius_frac'])
+        self._max_edge_signal_frac = float(self.tuning['max_edge_signal_frac'])
+        for name, value in (
+            ('max_gyration_radius_frac', self._max_gyration_radius_frac),
+            ('max_edge_signal_frac', self._max_edge_signal_frac),
+        ):
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f'BodyBlobNav.{name} must be finite and > 0; got {value!r}')
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable BODY_BLOB feature.
@@ -749,6 +818,8 @@ class BodyBlobNav(NavTechnique):
                 image_signal=image_signal,
                 margin_vu=(margin_v, margin_u),
                 prior_offset_vu=prior_offset_vu,
+                max_gyration_radius_frac=self._max_gyration_radius_frac,
+                max_edge_signal_frac=self._max_edge_signal_frac,
             )
             if not residuals.consumed:
                 return self._fail_no_signal(
@@ -825,7 +896,10 @@ class BodyBlobNav(NavTechnique):
     def _fail_no_signal(
         self, *, features: list[NavFeature], noise_sigma: float, fit_rotation: bool
     ) -> NavTechniqueResult:
-        """Return a zero-confidence spurious result when no blob carries signal.
+        """Return a zero-confidence spurious result when no blob is left to fit.
+
+        Every candidate either carried no above-noise signal in its predicted box or
+        was dropped as a lock on something larger than its body.
 
         Parameters:
             features: Candidate BODY_BLOB features that all failed the
@@ -853,7 +927,7 @@ class BodyBlobNav(NavTechnique):
             residual_px=0.0,
         )
         self.logger.info(
-            'No BODY_BLOB feature carried above-noise signal in its predicted bbox '
+            'No BODY_BLOB feature carried above-noise signal of its own body '
             '(noise threshold = %.4f DN, %d candidate blob(s)); reporting spurious result',
             3.0 * noise_sigma,
             len(features),

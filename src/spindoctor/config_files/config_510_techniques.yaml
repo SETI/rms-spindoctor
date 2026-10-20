@@ -266,6 +266,18 @@ techniques:
       regular_irregularity_max: 0.02
       irregular_irregularity_min: 0.05
       bias_radius_cap_px: 10.0
+      # A blob is dropped as a lock on something other than its body -- a
+      # ring arc, another body's limb -- when its lit region spreads more
+      # than max_gyration_radius_frac of the predicted radius from its
+      # centroid (a uniform disc spreads 0.71) and more than
+      # max_edge_signal_frac of its signal lies on the box's outer rows and
+      # columns.  Over 1,242 F ring bundle and library blobs: the 954 within
+      # 5 px of truth reach at most 0.84 and never both; of the 219 more
+      # than max(10 px, a diameter) off, 157 exceed both (median 0.94 and
+      # 0.31).  The rest are crescents past 110 deg phase whose lit arcs
+      # spread like a correct crescent.
+      max_gyration_radius_frac: 0.88
+      max_edge_signal_frac: 0.2
 
   BodyLimbNav:
     # Sim campaign (seed 20260718, full-truth-axis renderer): n=461
