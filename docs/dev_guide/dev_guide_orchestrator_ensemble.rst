@@ -72,6 +72,29 @@ per-technique covariances are CRLB-tight — well below the actual position unce
 driven by model error — so results agreeing visually to a few pixels can register as
 hundreds of sigmas apart.
 
+A Mahalanobis agreement between results farther apart than the pixel floor counts only
+when their information-form fusion takes each direction from the result that is precise
+along it, to within ``agreement_compromise_px`` (default 1 px). Along one direction the
+fusion of two estimates with variances :math:`s_{a}^{2}` and :math:`s_{b}^{2}` lies
+:math:`\delta\, s_{a}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`a` and
+:math:`\delta\, s_{b}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`b`. The separation is
+resolved onto the principal axes of :math:`\Sigma_{a} + \Sigma_{b}`, the smaller of the two
+distances is kept on each axis, and the compromise is the length of those parts together
+(:func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`). A precise
+result beside a vague one scores near zero, and so do two that complement each other: a
+ring edge precise across itself and a body brightness center precise along the edge each
+set their own axis. When both are about equally vague along the separation, they are
+statistically consistent however far apart they lie, yet their fusion is a point between
+two answers at most one of which is right. On a Cassini F ring movie frame a ring-edge
+answer 38 px along a gently curved edge (sigma 15 px along it) and a one-star match (sigma
+14.5 px, the size of its own offset) are 1.8 sigma apart; their fusion lies 18 px from the
+star, which the star centroids in the image place within 0.1 px of the truth. Such a pair
+is a disagreement, and Step 4 decides between them. On a 1,614-frame sample of those
+frames, 375 pairs on 158 frames agreed by Mahalanobis distance alone from more than 5 px
+apart: every pair compromising by at most 0.85 px took each axis from its precise member,
+and the 9 frames with a pair at 1.03 px or more were compromises 1.4 to 18 px from the
+reference pointing.
+
 Both distances are measured **only in the intersection of the two results' observable
 subspaces**, not in the full parameter space. A rank-deficient result (a flat-ring
 rank-1 fit, or a rotation-unobservable star result) carries meaningless values along
@@ -407,6 +430,11 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_pixel_floor` — float,
   default ``5.0``. Euclidean translation-distance fallback for grouping: two results
   agree when either distance test passes (see Step 3). ``0.0`` disables the floor.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_compromise_px` — float,
+  default ``1.0``. Largest compromise (px) the fusion of two results that agree by
+  Mahalanobis distance alone, from farther apart than the pixel floor, may make; beyond it
+  the pair disagrees (see Step 3). One pixel is the scale at which an answer is judged
+  right. ``0.0`` disables the test.
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_gap` — float, default
   ``0.5``. Minimum summed-confidence gap between best and runner-up groups before
   declaring a conflict. Applied as an absolute gap when the runner-up has a quorum; in a
@@ -494,7 +522,8 @@ The ensemble is split across the following modules under ``src/spindoctor/nav_or
 - ``ensemble_consensus.py`` — consensus-subset selection:
   :func:`~spindoctor.nav_orchestrator.ensemble_consensus.consensus_selection`,
   :func:`~spindoctor.nav_orchestrator.ensemble_consensus.corroborating_members`,
-  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.corroborating_confidence`, and
+  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.corroborating_confidence`,
+  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`, and
   :func:`~spindoctor.nav_orchestrator.ensemble_consensus.result_param_vector`.
 - ``ensemble_independence.py`` — the independence-resolution step that collapses
   correlated witnesses before the merge:

@@ -3,10 +3,12 @@
 Given the viable per-technique results, decide which subset the ensemble
 fuses and which results are outliers.  Every result sponsors the subset
 that agrees with it pairwise (Mahalanobis distance or pixel floor, both
-measured only in the observable-subspace intersection); the highest
-summed-confidence subset wins.  This machinery lives apart from
-``ensemble`` so that module stays under the 1000-line limit; ``ensemble``
-imports :func:`consensus_selection` and :func:`result_param_vector`.
+measured only in the observable-subspace intersection, with a Mahalanobis
+agreement past the pixel floor kept only when fusing the pair would not
+compromise between them); the highest summed-confidence subset wins.  This
+machinery lives apart from ``ensemble`` so that module stays under the
+1000-line limit; ``ensemble`` imports :func:`consensus_selection` and
+:func:`result_param_vector`.
 """
 
 import math
@@ -28,6 +30,7 @@ __all__ = [
     'consensus_selection',
     'corroborating_confidence',
     'corroborating_members',
+    'fusion_compromise_px',
     'result_param_vector',
 ]
 
@@ -102,11 +105,53 @@ class ConsensusSelection:
     runner_up_has_quorum: bool
 
 
+def fusion_compromise_px(
+    delta_vu: NDArrayFloatType, cov_a: NDArrayFloatType, cov_b: NDArrayFloatType
+) -> float:
+    """How far the fusion of two estimates lies from what either one supports, in pixels.
+
+    Along a single direction the information-form fusion of two estimates
+    ``a`` and ``b`` lies ``delta * s_a**2 / (s_a**2 + s_b**2)`` from ``a`` and
+    ``delta * s_b**2 / (s_a**2 + s_b**2)`` from ``b``: on the more precise one
+    when the two differ, halfway between them when they are equally vague.
+    The separation is resolved onto the principal axes of ``C_a + C_b`` (the
+    axes along which the pair's disagreement is measured), each axis is
+    treated as such a one-dimensional fusion using the two estimates'
+    variances along it, the smaller of the two distances is kept per axis,
+    and the result is the length of those parts together.
+
+    So a precise estimate beside a vague one scores near zero, and so do two
+    that complement each other, each precise along an axis where the other is
+    vague (a ring edge fixing the radial direction and a body centroid the
+    direction along the edge); two that are both vague along their separation
+    score about half of it.
+
+    Parameters:
+        delta_vu: ``(k,)`` separation ``b - a`` expressed in a basis both
+            estimates observe.
+        cov_a: ``(k, k)`` covariance of ``a`` in that basis.
+        cov_b: ``(k, k)`` covariance of ``b`` in that basis.
+
+    Returns:
+        The compromise in pixels.
+    """
+    _, axes = np.linalg.eigh(cov_a + cov_b)
+    along = axes.T @ delta_vu
+    var_a = np.einsum('ik,ij,jk->k', axes, cov_a, axes)
+    var_b = np.einsum('ik,ij,jk->k', axes, cov_b, axes)
+    total = var_a + var_b
+    nearer = np.where(
+        total > 0.0, np.minimum(var_a, var_b) / np.where(total > 0.0, total, 1.0), 0.0
+    )
+    return float(np.linalg.norm(along * nearer))
+
+
 def _agreement_adjacency(
     results: list[NavTechniqueResult],
     *,
     agreement_sigma: float,
     agreement_pixel_floor: float,
+    agreement_compromise_px: float,
     rcond: float,
 ) -> NDArrayBoolType:
     """Pairwise agreement matrix: Mahalanobis threshold with a pixel-floor fallback.
@@ -115,6 +160,17 @@ def _agreement_adjacency(
     at most ``agreement_sigma`` *or* their Euclidean translation distance
     (in pixels, ignoring the rotation component for 3-DoF results) is at
     most ``agreement_pixel_floor``.
+
+    A Mahalanobis agreement between results farther apart than the pixel
+    floor is kept only when, along each principal axis of the pair, fusing the
+    two would land on whichever is the more precise there, to within
+    ``agreement_compromise_px`` over all axes (see :func:`fusion_compromise_px`).
+    Two results that are each uncertain by tens of pixels along their
+    separation are statistically consistent however far apart they lie, yet
+    their fusion is a compromise between two answers at most one of which is
+    right; such a pair is a disagreement.  A precise result beside a vague
+    one passes, and so do two that complement each other, each precise where
+    the other is vague.
 
     The Mahalanobis distance differences the rotation component of two
     3-DoF results linearly; that is correct here because every input
@@ -132,6 +188,9 @@ def _agreement_adjacency(
         agreement_sigma: Maximum pairwise Mahalanobis distance for agreement.
         agreement_pixel_floor: Maximum pairwise Euclidean translation
             distance (in pixels) for agreement; ``0.0`` disables.
+        agreement_compromise_px: Largest compromise (pixels, see
+            :func:`fusion_compromise_px`) the fusion of a Mahalanobis-agreeing
+            pair past the pixel floor may make; ``0.0`` disables the test.
         rcond: rcond passed to ``pinvh``.
 
     Returns:
@@ -167,8 +226,16 @@ def _agreement_adjacency(
             basis_t = observable_intersection_basis(
                 np.ascontiguousarray(cov_i[:2, :2]), np.ascontiguousarray(cov_j[:2, :2])
             )
-            pixel_dist = float(np.linalg.norm(basis_t.T @ translation_delta))
+            delta_t = basis_t.T @ translation_delta
+            pixel_dist = float(np.linalg.norm(delta_t))
             pixel_match = agreement_pixel_floor > 0.0 and pixel_dist <= agreement_pixel_floor
+            if mahal_match and not pixel_match and agreement_compromise_px > 0.0:
+                compromise = fusion_compromise_px(
+                    delta_t,
+                    basis_t.T @ cov_i[:2, :2] @ basis_t,
+                    basis_t.T @ cov_j[:2, :2] @ basis_t,
+                )
+                mahal_match = compromise <= agreement_compromise_px
             if mahal_match or pixel_match:
                 adj[i, j] = True
                 adj[j, i] = True
@@ -213,6 +280,7 @@ def consensus_selection(
     *,
     agreement_sigma: float,
     agreement_pixel_floor: float,
+    agreement_compromise_px: float,
     rcond: float,
     max_allowed_rotation_deg: float,
 ) -> ConsensusSelection:
@@ -220,7 +288,9 @@ def consensus_selection(
 
     Every result sponsors a candidate subset -- the results that agree
     with it pairwise (Mahalanobis distance within ``agreement_sigma`` or
-    translation distance within ``agreement_pixel_floor``).  The subset
+    translation distance within ``agreement_pixel_floor``, a Mahalanobis
+    agreement past the floor counting only when the pair's fusion compromises
+    by at most ``agreement_compromise_px``; see :func:`fusion_compromise_px`).  The subset
     with the highest summed confidence wins; results outside it are
     excluded from the combine rather than forcing a conflict, and the
     strongest consensus formable among the excluded results alone is
@@ -237,6 +307,10 @@ def consensus_selection(
         agreement_sigma: Maximum pairwise Mahalanobis distance for agreement.
         agreement_pixel_floor: Maximum pairwise Euclidean translation
             distance (in pixels) for agreement; ``0.0`` disables.
+        agreement_compromise_px: Largest compromise (pixels, see
+            :func:`fusion_compromise_px`) a Mahalanobis-agreeing pair's fusion
+            may make when they are farther apart than the pixel floor;
+            ``0.0`` disables.
         rcond: rcond passed to ``pinvh``.
         max_allowed_rotation_deg: Small-angle bound; each 3-DoF input's
             ``rotation_rad`` magnitude must stay strictly below this many
@@ -282,6 +356,7 @@ def consensus_selection(
         results,
         agreement_sigma=agreement_sigma,
         agreement_pixel_floor=agreement_pixel_floor,
+        agreement_compromise_px=agreement_compromise_px,
         rcond=rcond,
     )
     best_indices = _best_neighborhood(results, adj, list(range(n)))

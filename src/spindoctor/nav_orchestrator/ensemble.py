@@ -9,8 +9,12 @@ estimates become one offset.  Every step is honest:
    that agree with it pairwise (Mahalanobis distance or pixel floor,
    both measured only in the intersection of the two results' observable
    subspaces, so a rank-1 flat-ring measurement and a full-rank absolute
-   fix that agree radially can group and fuse); the subset with the
-   highest summed confidence wins.
+   fix that agree radially can group and fuse); a Mahalanobis agreement
+   between results farther apart than the pixel floor counts only when
+   their fusion would take each axis from the member precise along it, so
+   two vague results tens of pixels apart are a disagreement rather than a
+   compromise; the subset
+   with the highest summed confidence wins.
 4. Exclude results outside the consensus from the combine.  A lone
    dissenter against a multi-technique consensus is outlier-rejected;
    only a genuine alternative can force the conflicted branch: a
@@ -100,6 +104,12 @@ __all__ = [
 # Default constants used by the ensemble.  Configurable via ``EnsembleConfig``.
 DEFAULT_AGREEMENT_SIGMA = 2.0
 DEFAULT_AGREEMENT_PIXEL_FLOOR = 5.0
+# Largest compromise (px, see ``fusion_compromise_px``) the fusion of two
+# results that agree only statistically, from farther apart than the pixel
+# floor, may make.  One pixel is the scale at which an answer is right; a
+# fusion farther than that from what either member supports is a compromise
+# neither supports.  Mirrored in config_540_orchestrator.yaml.
+DEFAULT_AGREEMENT_COMPROMISE_PX = 1.0
 DEFAULT_AGREEMENT_GAP = 0.5
 DEFAULT_DISAGREEMENT_PENALTY = 0.7
 DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER = 0.3
@@ -172,6 +182,19 @@ class EnsembleConfig:
             without the floor, results agreeing visually to a few px
             register as hundreds of sigmas apart and never group.
             Set to ``0.0`` to disable the floor.
+        agreement_compromise_px: Largest compromise (px) the information-form
+            fusion of two results that agree by Mahalanobis distance alone,
+            from farther apart than ``agreement_pixel_floor``, may make;
+            beyond it the pair is a disagreement.  Along each principal axis
+            of the pair the fusion should land on the member precise along
+            it; the compromise is how far it lies from that, over both axes
+            (see ``ensemble_consensus.fusion_compromise_px``).  Two results
+            each uncertain by tens of pixels along their separation are
+            statistically consistent however far apart they lie, but their
+            fusion is a point between two answers at most one of which is
+            right.  A precise result beside a vague one, or two that are each
+            precise where the other is vague, are unaffected.  Set to ``0.0``
+            to disable.
         agreement_gap: Minimum summed-confidence gap between best and
             runner-up groups before declaring a conflict.  Applied as an
             absolute gap when the runner-up has a quorum (two or more
@@ -229,6 +252,7 @@ class EnsembleConfig:
 
     agreement_sigma: float = DEFAULT_AGREEMENT_SIGMA
     agreement_pixel_floor: float = DEFAULT_AGREEMENT_PIXEL_FLOOR
+    agreement_compromise_px: float = DEFAULT_AGREEMENT_COMPROMISE_PX
     agreement_gap: float = DEFAULT_AGREEMENT_GAP
     disagreement_penalty: float = DEFAULT_DISAGREEMENT_PENALTY
     conflicted_confidence_multiplier: float = DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER
@@ -257,16 +281,17 @@ class EnsembleConfig:
         ``blob_star_disagreement_floor_px`` would drop every blob.
 
         Raises:
-            ValueError: if any body-witness or blob/star tolerance is
-                non-finite or negative, a body-witness phase falls outside
-                ``[0, 180]``, or the shape-lock ceiling is not below the
-                collapse floor.
+            ValueError: if any body-witness or blob/star tolerance, or the
+                compromise distance, is non-finite or negative, a body-witness
+                phase falls outside ``[0, 180]``, or the shape-lock ceiling is
+                not below the collapse floor.
         """
         non_negative = {
             'body_witness_disagreement_floor_px': self.body_witness_disagreement_floor_px,
             'body_witness_disagreement_frac': self.body_witness_disagreement_frac,
             'body_witness_agreement_sigma': self.body_witness_agreement_sigma,
             'blob_star_disagreement_floor_px': self.blob_star_disagreement_floor_px,
+            'agreement_compromise_px': self.agreement_compromise_px,
         }
         for name, value in non_negative.items():
             if not math.isfinite(value):
@@ -828,6 +853,7 @@ def ensemble(
         viable,
         agreement_sigma=cfg.agreement_sigma,
         agreement_pixel_floor=cfg.agreement_pixel_floor,
+        agreement_compromise_px=cfg.agreement_compromise_px,
         rcond=cfg.pinvh_rcond,
         max_allowed_rotation_deg=cfg.max_allowed_rotation_deg,
     )

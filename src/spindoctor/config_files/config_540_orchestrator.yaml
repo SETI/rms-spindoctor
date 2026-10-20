@@ -50,6 +50,22 @@ orchestrator:
     agreement_sigma: 2.0
     # Euclidean translation-distance fallback grouping threshold (px).
     agreement_pixel_floor: 5.0
+    # Largest compromise (px) the fusion of two results that agree only by
+    # Mahalanobis distance, from farther apart than agreement_pixel_floor,
+    # may make; beyond it the pair is a disagreement.  Along each principal
+    # axis of the pair the fusion lies on the member that is more precise
+    # there, or between the two when both are vague; the compromise is how
+    # far it lies from that member, over both axes.  Two vague answers far
+    # apart (a ring edge's along-edge position, uncertain by tens of pixels,
+    # and a one-star fix whose sigma is the size of its own offset) are
+    # statistically consistent, yet their fusion is a point between them that
+    # neither supports.  On a 1,614-frame Cassini F ring sample 375 pairs on
+    # 158 frames agreed this way: the pairs compromising by at most 0.85 px
+    # took each axis from the member precise along it (136 of their 150
+    # frames answered within 1 px of the bundle pointing), and the 9 frames
+    # with a pair at 1.03 px or more were compromises 1.4 to 18 px from it.
+    # 0.0 disables the test.
+    agreement_compromise_px: 1.0
     # Minimum summed-confidence gap between best and runner-up groups
     # before declaring a conflict.  Absolute when the runner-up has a
     # quorum (two or more members); in a lone-vs-lone standoff the gap
