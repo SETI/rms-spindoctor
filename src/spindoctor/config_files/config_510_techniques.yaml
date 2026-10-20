@@ -1140,7 +1140,10 @@ techniques:
       #  - model_error_size_frac (off by default) would scale the annulus
       #    radial span; the ring-annulus bulk error does not track span,
       #    so it stays 0.0 and the floor carries the template model error.
-      #  - model_error_floor_px is the size-independent floor.
+      #  - model_error_floor_px is the size-independent floor.  A camera
+      #    whose template error differs declares its own floor under
+      #    model_error_floor_px in its instrument config, which replaces
+      #    this one (the Cassini WAC does; see config_400_inst_coiss.yaml).
       localization_uncertainty_scale: 1.0
       model_error_size_frac: 0.0
       model_error_floor_px: 0.13

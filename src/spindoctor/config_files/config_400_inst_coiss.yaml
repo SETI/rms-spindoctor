@@ -57,6 +57,9 @@ cassini_iss:
       100: [9, 9]
     fit_camera_rotation: false
     max_rotation_deg: 5.0
+    # See the cassini_iss_calib WAC block for the calibration.
+    model_error_floor_px:
+      RingAnnulusNav: 0.9
     noise:
       saturation_dn: 4095
       full_well_dn: 4095
@@ -146,6 +149,25 @@ cassini_iss_calib:
       100: [9, 9]
     fit_camera_rotation: false
     max_rotation_deg: 5.0
+    # Model-error floor (px) of the annulus correlation on this camera, in
+    # place of RingAnnulusNav's tuning floor (0.13 px, which fits the NAC: over
+    # the 401 NAC annulus answers of the 20,584-frame F ring bundle run their
+    # Mahalanobis distance to the bundle has median 0.71 and 1.2% beyond 3).
+    # The WAC annulus template is off by a near-constant 1.5-1.9 px on whole
+    # observations (rev 173 and rev 199 spoke movies) while the correlation
+    # reports 0.2-0.7 px; the NCC curvature cannot see a template that misplaces
+    # the edges.  Calibrated on the run's 995 WAC annulus answers (44
+    # observations) against the bundle pointing corrected for the WAC bundle's
+    # constant offset (0.43, 0.69) px, the median star-minus-bundle offset of
+    # the run's 490 WAC star refinements, with a third of the observations held
+    # out: at 0.13 px, 44% (fit) and 44% (held out) of the answers lie beyond a
+    # Mahalanobis distance of 2 and 36% and 27% beyond 3; at 0.9 px 11.8% and
+    # 2.0% beyond 2, none beyond 3 (a Gaussian gives 13.5% and 1.1%).  The 134
+    # answers whose stars confirm the bundle have none beyond 2.  The median is
+    # 0.56 either way: most WAC answers already report a wide localization
+    # spread, which the floor does not change.
+    model_error_floor_px:
+      RingAnnulusNav: 0.9
     noise:
       marker_value: NaN
     image_quality_thresholds:

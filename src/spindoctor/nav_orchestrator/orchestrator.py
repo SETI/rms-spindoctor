@@ -1296,6 +1296,7 @@ class NavOrchestrator(NavBase):
             pre_filter_applied=pre_filter,
             fit_camera_rotation=settings.fit_camera_rotation,
             max_rotation_deg=settings.max_rotation_deg,
+            model_error_floor_px=settings.model_error_floor_px,
         )
         return context, classifier_result
 

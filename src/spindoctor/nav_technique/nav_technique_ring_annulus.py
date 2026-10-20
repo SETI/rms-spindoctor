@@ -284,12 +284,15 @@ class RingAnnulusNav(NavTechnique):
             # spread term was already folded in by the correlator).  The ring
             # annulus size term is disabled by default (bulk error does not
             # track the radial span), leaving the floor to cover the template
-            # model error.
+            # model error.  A camera whose template error differs from the one
+            # the tuning floor was calibrated on declares its own floor in its
+            # instrument config, which replaces the tuning's.
+            floor_px = self._model_error_floor_for(context)
             covariance_2x2 = add_size_scaled_model_error(
                 covariance_2x2,
                 size_px=_annulus_span_px(eligible),
                 size_frac=self._cov_tuning.model_error_size_frac,
-                floor_px=self._cov_tuning.model_error_floor_px,
+                floor_px=floor_px,
             )
             # Radial orbit-uncertainty channel: the NCC covariance describes the
             # statistical lock onto the MODELED annulus, but a catalog-orbit
@@ -391,6 +394,29 @@ class RingAnnulusNav(NavTechnique):
                 f'[1, {_MAX_UPSAMPLE_FACTOR}]; got {raw!r}'
             )
         return coerced
+
+    def _model_error_floor_for(self, context: NavContext) -> float:
+        """Return the model-error floor (px) to add to this navigation's covariance.
+
+        The camera's own floor (``NavContext.model_error_floor_px`` under this
+        technique's name, from the instrument config) when the instrument declares
+        one, otherwise the ``model_error_floor_px`` of this technique's tuning.
+
+        Parameters:
+            context: Per-image NavContext.
+
+        Returns:
+            The floor in pixels.
+        """
+        if self.name not in context.model_error_floor_px:
+            return self._cov_tuning.model_error_floor_px
+        floor_px = float(context.model_error_floor_px[self.name])
+        self.logger.info(
+            'Using the camera model-error floor %.3f px in place of the tuning floor %.3f px',
+            floor_px,
+            self._cov_tuning.model_error_floor_px,
+        )
+        return floor_px
 
 
 class _AnnulusConfidenceContext:
