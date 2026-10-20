@@ -240,6 +240,22 @@ techniques:
       # pyramid) and left at its 0.0 default.
       model_error_size_frac: 0.05
       model_error_floor_px: 0.1
+      # Each blob also carries a phase- and shape-dependent centroid bias,
+      # added to model_error_size_frac in quadrature as a fraction of its
+      # radius: the body model's phase_irregularity_factor (a shape irregular
+      # beyond its ellipsoid, worse as less of it is lit), and this fraction
+      # of a Lambertian sphere's photocenter offset (0.20 R at 30 deg phase,
+      # 0.59 R at 90 deg, 0.80 R at 135 deg), the part of the modeled
+      # lit-hemisphere shift that the rendered photometry, albedo, and shape
+      # and the noise threshold on the faint terminator side leave
+      # uncertain.  Measured on 498 Cassini F ring bundle frames whose blob
+      # lies inside its body and whose pointing another technique confirms
+      # to 0.5 px: with neither term the error was a median 3.6 times the
+      # reported sigma (7.1 times above 120 deg phase); with both, at 0.3,
+      # a median 0.97 times, and 14% of errors exceed twice the sigma, as
+      # 13.5% do for a correctly sized two-axis Gaussian.  At 0.2 it is 1.10
+      # and 20%, at 0.4 0.85 and 9%.
+      phase_centroid_error_frac: 0.3
 
   BodyLimbNav:
     # Sim campaign (seed 20260718, full-truth-axis renderer): n=461

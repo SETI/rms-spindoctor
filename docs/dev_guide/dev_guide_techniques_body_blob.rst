@@ -140,16 +140,40 @@ scales with the body radius, an error the per-blob CRLB is blind to. The reporte
 variance is therefore the reduced-chi-square weighted mean (with a ``1 / sum(w_i)``
 inverse-precision floor) plus two model-error terms added in quadrature:
 
-- a size-scaled centroid-model-error variance ``(model_error_size_frac * R_i)**2`` per blob,
-  combined across blobs by inverse-variance (so a single blob reports exactly
-  ``(model_error_size_frac * R)**2`` and a multi-blob fit tightens correctly), which makes the
-  reported sigma track body size the way the photon-only weight cannot;
+- a size-scaled centroid-model-error variance ``(f_i * R_i)**2`` per blob, combined across
+  blobs by inverse-variance (so a single blob reports exactly ``(f * R)**2`` and a multi-blob
+  fit tightens correctly), which makes the reported sigma track body size and lighting the
+  way the photon-only weight cannot;
 - an absolute ``model_error_floor_px`` floor for the size-independent residual (pointing).
 
-The size term uses ``R_i = D_{\mathrm{px},\,i} / 2``. The
-:attr:`~spindoctor.feature.flags.BodyBlobFlags.phase_irregularity_factor` still feeds the
-confidence formula (down-weighting irregular high-phase scenes) but is not folded into the
-covariance.
+The size term uses ``R_i = D_{\mathrm{px},\,i} / 2`` and a per-blob fraction ``f_i`` that
+adds three parts in quadrature: ``model_error_size_frac``, which every blob carries; the
+blob's :attr:`~spindoctor.feature.flags.BodyBlobFlags.phase_irregularity_factor`, the
+centroid bias of a shape irregular beyond its ellipsoid, which grows as less of the body is
+lit (see the phase-and-irregularity coupling in :doc:`dev_guide_navigation_models_body`);
+and ``phase_centroid_error_frac`` times
+the photocenter offset of a Lambertian sphere,
+
+.. math::
+
+    \frac{3\pi}{16}\,
+    \frac{\sin\alpha\,(1 + \cos\alpha)}{\sin\alpha + (\pi - \alpha)\cos\alpha}
+
+at phase angle :math:`\alpha` (0.20 at 30 degrees, 0.59 at 90, 0.80 at 135, and 0.88 in
+the limit of a vanishing crescent). The predicted center is already the rendered body's
+lit-weighted centroid, so the phase shift is modeled; the term sizes what the model leaves
+uncertain: the real photometric law, albedo, and shape, and the noise threshold that drops
+the faint terminator side of a crescent from the measured centroid. Atlas seen at
+135 degrees phase, 7.5 px across, with an irregularity factor of 0.45, reports a sigma of
+1.9 px where the size term alone gave 0.21 px; on that Cassini F ring frame its centroid lay
+1.6 px from the star-confirmed pointing.
+
+The two lighting-dependent parts were calibrated on 498 Cassini F ring bundle frames whose
+blob centroid lies inside its body and whose pointing another technique confirms to 0.5 px.
+With only the size term the centroid error was a median 3.6 times the reported sigma, and
+7.1 times above 120 degrees phase. With both parts, at ``phase_centroid_error_frac`` 0.3,
+it is a median 0.97 times the sigma at every phase, and 14% of errors exceed twice the
+sigma, as 13.5% do for a correctly sized two-axis Gaussian.
 
 Restrictions and assumptions
 ----------------------------
@@ -194,12 +218,11 @@ Sources of uncertainty
 ----------------------
 
 The reported covariance is the reduced-chi-square weighted-mean variance plus the size-scaled
-centroid-model-error and absolute-floor terms described above. It does
-not capture systematic biases from a body whose true rotational orientation differs from the
-rendered ellipsoid (the
-:attr:`~spindoctor.feature.flags.BodyBlobFlags.phase_irregularity_factor` term tracks this so the
-confidence formula can down-weight the technique on irregular high-phase scenes, but the
-centroid itself remains biased). When the converged offset sits within
+centroid-model-error and absolute-floor terms described above. The centroid bias of a body
+whose true shape or orientation differs from the rendered ellipsoid, and of a phase shift
+the rendered photometry gets wrong, is carried as uncertainty, sized by the
+:attr:`~spindoctor.feature.flags.BodyBlobFlags.phase_irregularity_factor` and the phase
+term; the centroid itself is not corrected for it. When the converged offset sits within
 :math:`\mathtt{at\_edge\_tolerance\_px}` of any axis bound, the result is flagged
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the hard-zero
 gate forces confidence to zero.
@@ -217,6 +240,10 @@ All numeric tunables for this technique live in ``techniques.BodyBlobNav.tuning`
   size-scaled centroid-model-error term (see "Joint covariance"). ``0.0`` disables it.
 - ``model_error_floor_px`` — float, default ``0.1`` px. Absolute size-independent floor added
   in quadrature. ``0.0`` disables it.
+- ``phase_centroid_error_frac`` — float, default ``0.3``. Fraction of a Lambertian sphere's
+  photocenter offset carried as each blob's phase-dependent centroid bias (see "Joint
+  covariance"). ``0.0`` disables the phase term; the irregularity term stays. Must be a
+  finite number of at least zero; construction raises otherwise.
 
 The remaining numeric thresholds (the per-blob CRLB scaling constants, the noise-floor
 detection threshold) are derived from the per-image
@@ -350,7 +377,9 @@ Call path traced through
      :class:`~spindoctor.nav_technique.diagnostics.BodyBlobDiagnostics`.
 
 4. The private joint-fit helper computes the inverse-variance-weighted-mean translation and
-   the reduced-chi-square covariance with the size-scaled and absolute model-error terms.
+   the reduced-chi-square covariance with the size-scaled (including each blob's phase and
+   irregularity bias) and absolute model-error terms; the covariance helpers live in
+   ``body_blob_covariance.py``.
 5. Apply the at-edge test against the search-window axis bounds.
 6. Result-shape branches on
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`:

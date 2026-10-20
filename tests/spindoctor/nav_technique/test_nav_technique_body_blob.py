@@ -16,18 +16,17 @@ from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import BodyBlobFlags
 from spindoctor.feature.geometry import BodyBlobGeometry
+from spindoctor.nav_technique.body_blob_covariance import _lambert_photocenter_fraction
 from spindoctor.nav_technique.diagnostics import BodyBlobDiagnostics
 from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANCE
 from spindoctor.nav_technique.nav_technique_body_blob import (
     BodyBlobNav,
-    _centroid_model_error_var,
     _clamped_kernel_radius,
     _coarse_crescent_offset,
     _coarse_disc_offset,
     _collect_per_blob_residuals,
     _crescent_kernel,
     _disc_kernel,
-    _joint_covariance,
     _kernel_centroid_offset,
     _shift_bbox,
 )
@@ -152,6 +151,45 @@ def test_body_blob_recovers_planted_offset_single_blob(
     # Hard cap at 0.4 — the technique cannot dominate the ensemble
     # even with perfect inputs.
     assert result.confidence <= 0.4 + 1e-12
+
+
+def test_body_blob_covariance_carries_the_blob_phase_and_shape_bias(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A blob at 80 deg phase with irregularity 0.2 reports its bias on top of the rest.
+
+    The same image and prediction at zero phase and zero irregularity measure the
+    same centroid, so the variance grows by exactly ``R**2`` times the bias
+    fraction squared.
+    """
+    image = disc_image((200, 200), (100.0, 100.0), 8.0)
+    context = make_nav_context(image)
+    covariances = []
+    for phase, irregularity in ((0.0, 0.0), (80.0, 0.2)):
+        feature = _make_blob_feature(
+            'moonA',
+            predicted_center_vu=(99.0, 101.0),
+            predicted_diameter_px=16.0,
+            phase_angle_deg=phase,
+            phase_irregularity_factor=irregularity,
+        )
+        covariances.append(np.asarray(BodyBlobNav().navigate([feature], context).covariance_px2))
+    phase_frac = float(BodyBlobNav.tuning['phase_centroid_error_frac'])
+    bias_sq = (phase_frac * float(_lambert_photocenter_fraction(np.array([80.0]))[0])) ** 2 + 0.04
+    assert covariances[1][0, 0] - covariances[0][0, 0] == pytest.approx(64.0 * bias_sq, rel=1e-9)
+
+
+@pytest.mark.parametrize('frac', [-0.1, math.nan])
+def test_body_blob_rejects_a_bad_phase_centroid_error_frac(
+    frac: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A negative or non-finite phase fraction fails at construction."""
+    bad_tuning = dict(BodyBlobNav.tuning)
+    bad_tuning['phase_centroid_error_frac'] = frac
+    monkeypatch.setattr(BodyBlobNav, 'tuning', bad_tuning)
+    with pytest.raises(ValueError, match='phase_centroid_error_frac must be a finite number >= 0'):
+        BodyBlobNav()
 
 
 def test_body_blob_multi_body_least_squares_average(
@@ -422,187 +460,6 @@ def test_body_blob_flags_reject_negative_phase_irregularity() -> None:
             predicted_diameter_px=10.0,
             phase_irregularity_factor=-0.01,
         )
-
-
-def test_joint_covariance_two_point_reduced_chi_square() -> None:
-    """Two-blob covariance matches the analytic reduced-chi-square weighted mean.
-
-    Derivation (per-axis: var = chi2_nu / sum(w), with
-    chi2_nu = sum(w * r^2) / max(N - p, 1), p = 2):
-
-    w = [1, 3], sum(w) = 4, N = 2, dof = max(2 - 2, 1) = 1.
-
-    V axis: offsets = [2, 4], mean = (1*2 + 3*4)/4 = 3.5,
-            r = [-1.5, 0.5], sum(w r^2) = 1*2.25 + 3*0.25 = 3.0,
-            chi2_nu = 3.0/1 = 3.0, var = 3.0/4 = 0.75 (> floor 1/4 = 0.25).
-    U axis: offsets = [-1, 1], mean = (1*-1 + 3*1)/4 = 0.5,
-            r = [-1.5, 0.5], sum(w r^2) = 3.0, var = 0.75 (identical).
-    """
-    weights = np.array([1.0, 3.0], dtype=np.float64)
-    offsets_v = np.array([2.0, 4.0], dtype=np.float64)
-    offsets_u = np.array([-1.0, 1.0], dtype=np.float64)
-    dv = float(np.sum(weights * offsets_v) / weights.sum())  # 3.5
-    du = float(np.sum(weights * offsets_u) / weights.sum())  # 0.5
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.zeros_like(offsets_v),
-    )
-    assert cov[0, 0] == pytest.approx(0.75, abs=1e-9)
-    assert cov[1, 1] == pytest.approx(0.75, abs=1e-9)
-    assert cov[0, 1] == pytest.approx(0.0, abs=1e-9)
-    assert cov[1, 0] == pytest.approx(0.0, abs=1e-9)
-
-
-def test_joint_covariance_n_point_reduced_chi_square() -> None:
-    """Four-blob covariance matches the analytic reduced-chi-square weighted mean.
-
-    w = [1, 1, 1, 1], sum(w) = 4, N = 4, dof = max(4 - 2, 1) = 2.
-
-    V axis: offsets = [0, 2, 4, 6], mean = 12/4 = 3.0,
-            r = [-3, -1, 1, 3], sum(w r^2) = 9 + 1 + 1 + 9 = 20,
-            chi2_nu = 20/2 = 10, var = 10/4 = 2.5 (> floor 0.25).
-    U axis: offsets = [1, 1, 1, 1], mean = 1.0, r = 0 everywhere,
-            sum(w r^2) = 0, chi2_nu = 0, candidate var = 0 -> floored at
-            1/sum(w) = 1/4 = 0.25.
-    """
-    weights = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float64)
-    offsets_v = np.array([0.0, 2.0, 4.0, 6.0], dtype=np.float64)
-    offsets_u = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float64)
-    dv = float(np.sum(weights * offsets_v) / weights.sum())  # 3.0
-    du = float(np.sum(weights * offsets_u) / weights.sum())  # 1.0
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.zeros_like(offsets_v),
-    )
-    assert cov[0, 0] == pytest.approx(2.5, abs=1e-9)
-    assert cov[1, 1] == pytest.approx(0.25, abs=1e-9)
-
-
-def test_joint_covariance_single_blob_is_large_not_overconfident() -> None:
-    """NAV-005: a single blob yields the (large) inverse-precision floor.
-
-    One point cannot constrain two translation parameters, so the
-    covariance must be large rather than a tiny over-confident value.
-    With a single small-weight blob (w = 0.01) the per-axis variance is
-    the pure inverse precision 1/sum(w) = 1/0.01 = 100.0 -- there is no
-    residual scatter (the lone residual is zero by construction).  The
-    old ``sum(w r^2)/(sum w)^2`` form would have reported 0 here (no
-    floor at the correct power), which the over-confidence fix corrects.
-    """
-    weights = np.array([0.01], dtype=np.float64)
-    offsets_v = np.array([3.0], dtype=np.float64)
-    offsets_u = np.array([-4.0], dtype=np.float64)
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=3.0,
-        du=-4.0,
-        extents_px=np.zeros_like(offsets_v),
-    )
-    # 1 / sum(w) = 1 / 0.01 = 100.0 on each axis.
-    assert cov[0, 0] == pytest.approx(100.0, abs=1e-9)
-    assert cov[1, 1] == pytest.approx(100.0, abs=1e-9)
-    # Far larger than a well-determined multi-blob fit (~O(1)).
-    assert cov[0, 0] > 1.0
-
-
-def test_joint_covariance_model_error_floor_inflates_diagonal_by_square() -> None:
-    """ORCH-001: model_error_floor_px>0 adds exactly its square to the diagonal.
-
-    Reuses the two-point fixture (var = 0.75 per axis with no floor).
-    With model_error_floor_px = 2.0 each diagonal grows by exactly
-    2.0**2 = 4.0 -> 0.75 + 4.0 = 4.75; the off-diagonal stays zero.
-    """
-    weights = np.array([1.0, 3.0], dtype=np.float64)
-    offsets_v = np.array([2.0, 4.0], dtype=np.float64)
-    offsets_u = np.array([-1.0, 1.0], dtype=np.float64)
-    dv = 3.5
-    du = 0.5
-    base = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.zeros_like(offsets_v),
-    )
-    floored = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.zeros_like(offsets_v),
-        model_error_floor_px=2.0,
-    )
-    assert floored[0, 0] == pytest.approx(4.75, abs=1e-9)
-    assert floored[1, 1] == pytest.approx(4.75, abs=1e-9)
-    assert floored[0, 0] - base[0, 0] == pytest.approx(4.0, abs=1e-9)
-    assert floored[1, 1] - base[1, 1] == pytest.approx(4.0, abs=1e-9)
-    assert floored[0, 1] == pytest.approx(0.0, abs=1e-9)
-
-
-def test_centroid_model_error_var_single_blob_is_radius_fraction_squared() -> None:
-    """One blob's size-error variance is exactly (frac * radius)**2."""
-    extents = np.array([100.0], dtype=np.float64)  # diameter -> radius 50
-    var = _centroid_model_error_var(extents, 0.05)
-    assert var == pytest.approx((0.05 * 50.0) ** 2, rel=1e-9)
-
-
-def test_centroid_model_error_var_combines_by_inverse_variance() -> None:
-    """Two equal blobs halve the single-blob size-error variance."""
-    extents = np.array([100.0, 100.0], dtype=np.float64)
-    single = _centroid_model_error_var(extents[:1], 0.05)
-    both = _centroid_model_error_var(extents, 0.05)
-    assert both == pytest.approx(single / 2.0, rel=1e-9)
-
-
-def test_centroid_model_error_var_disabled_returns_zero() -> None:
-    """A zero fraction disables the size term."""
-    extents = np.array([100.0, 40.0], dtype=np.float64)
-    assert _centroid_model_error_var(extents, 0.0) == 0.0
-
-
-def test_joint_covariance_size_term_tracks_body_radius() -> None:
-    """A single-blob covariance scales with body size through the size term.
-
-    The reported per-axis sigma of a lone blob should land within a factor
-    of 1.5 of the size-scaled centroid-model error (frac * radius) plus the
-    absolute floor -- the calibration property the photon-only weight lacked.
-    """
-    weights = np.array([100.0], dtype=np.float64)  # bright: photon floor ~0.01 px
-    offsets_v = np.array([0.0], dtype=np.float64)
-    offsets_u = np.array([0.0], dtype=np.float64)
-    extents = np.array([200.0], dtype=np.float64)  # radius 100 px
-    frac = 0.05
-    floor = 0.1
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=0.0,
-        du=0.0,
-        extents_px=extents,
-        model_error_floor_px=floor,
-        centroid_model_error_frac=frac,
-    )
-    reported_sigma = float(np.sqrt(cov[0, 0]))
-    expected_sigma = float(np.sqrt((frac * 100.0) ** 2 + floor**2 + 1.0 / 100.0))
-    assert 1.0 / 1.5 <= reported_sigma / expected_sigma <= 1.5
-
-
-# ---------------------------------------------------------------------------
-# Coarse blob-shaped-disc acquisition
-# ---------------------------------------------------------------------------
 
 
 def test_disc_kernel_is_a_filled_disc() -> None:

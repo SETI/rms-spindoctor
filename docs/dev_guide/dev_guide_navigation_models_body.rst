@@ -234,7 +234,10 @@ factor evaluates to 1 at full phase, 2 at 90 degrees, and 3 at full crescent —
 zero phase the body's rotational orientation is unknown, so a residual-scale centroid bias is
 always present. The blob feature's confidence formula consumes :math:`\kappa` directly so a
 high-phase, irregular scene can be down-weighted without re-deriving the formula at the
-technique layer.
+technique layer, and
+:class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` adds
+:math:`\kappa R` in quadrature to each blob's centroid-bias sigma (see
+:doc:`dev_guide_techniques_body_blob`).
 
 Feature emission gates
 ----------------------
