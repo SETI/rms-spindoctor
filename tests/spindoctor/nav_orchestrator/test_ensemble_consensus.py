@@ -133,3 +133,9 @@ def test_ensemble_config_rejects_a_negative_compromise_distance() -> None:
     """A negative compromise distance fails at construction."""
     with pytest.raises(ValueError, match='agreement_compromise_px must be non-negative'):
         EnsembleConfig(agreement_compromise_px=-1.0)
+
+
+def test_ensemble_config_rejects_a_negative_confirming_axis_sigma() -> None:
+    """A negative confirming-axis sigma fails at construction."""
+    with pytest.raises(ValueError, match='confirming_axis_max_sigma_px must be non-negative'):
+        EnsembleConfig(confirming_axis_max_sigma_px=-1.0)

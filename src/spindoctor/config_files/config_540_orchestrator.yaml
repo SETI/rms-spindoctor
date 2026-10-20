@@ -66,6 +66,15 @@ orchestrator:
     # with a pair at 1.03 px or more were compromises 1.4 to 18 px from it.
     # 0.0 disables the test.
     agreement_compromise_px: 1.0
+    # Largest standard deviation (px) along a principal axis of a body, ring or
+    # multi-star result for that axis to confirm a pass-2 single-star refine
+    # that replaces a one-star match on the same star.  The refine replaces the
+    # match only when some such axis exists and the refine agrees with the
+    # witness along it within agreement_sigma of the pair's combined standard
+    # deviation; a witness vague in every direction confirms nothing.  On the
+    # 1,614-frame Cassini F ring sample the confirming witnesses were ring
+    # edges, whose radial standard deviation was 0.13-0.76 px.
+    confirming_axis_max_sigma_px: 1.0
     # Minimum summed-confidence gap between best and runner-up groups
     # before declaring a conflict.  Absolute when the runner-up has a
     # quorum (two or more members); in a lone-vs-lone standoff the gap

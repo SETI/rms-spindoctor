@@ -29,7 +29,9 @@ estimates become one offset.  Every step is honest:
    casts no independent vote.
 5. Resolve the winning subset into mutually independent estimators before
    fusing (``resolve_independent_estimators``): drop a seeded single-star
-   refine that only re-observes its own prior, and collapse correlated
+   refine that only re-observes its own prior (or, when it polishes a
+   one-star match that every stronger witness confirms at the refine's
+   precision, let it replace that match), and collapse correlated
    witnesses that share one error source (two ring techniques on one
    catalog; disc and limb on one scattered-light gradient) to a single
    representative.  The information-form merge assumes independence, so
@@ -110,6 +112,12 @@ DEFAULT_AGREEMENT_PIXEL_FLOOR = 5.0
 # fusion farther than that from what either member supports is a compromise
 # neither supports.  Mirrored in config_540_orchestrator.yaml.
 DEFAULT_AGREEMENT_COMPROMISE_PX = 1.0
+# Largest standard deviation (px) of a witness axis precise enough to confirm
+# a single-star refine replacing a one-star match (resolve_independent_
+# estimators): sub-pixel, so a ring edge confirms across itself and a witness
+# vague in every direction confirms nothing.  Mirrored in
+# config_540_orchestrator.yaml.
+DEFAULT_CONFIRMING_AXIS_MAX_SIGMA_PX = 1.0
 DEFAULT_AGREEMENT_GAP = 0.5
 DEFAULT_DISAGREEMENT_PENALTY = 0.7
 DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER = 0.3
@@ -195,6 +203,13 @@ class EnsembleConfig:
             right.  A precise result beside a vague one, or two that are each
             precise where the other is vague, are unaffected.  Set to ``0.0``
             to disable.
+        confirming_axis_max_sigma_px: Largest standard deviation (px) along a
+            principal axis of a non-single-star result for that axis to confirm
+            a seeded single-star ``StarRefineNav`` refine that replaces a
+            one-star ``StarUniqueMatchNav`` match on the same star (see
+            ``resolve_independent_estimators``).  At least one such axis must
+            agree with the refine within ``agreement_sigma`` of the pair's
+            combined standard deviation along it.
         agreement_gap: Minimum summed-confidence gap between best and
             runner-up groups before declaring a conflict.  Applied as an
             absolute gap when the runner-up has a quorum (two or more
@@ -253,6 +268,7 @@ class EnsembleConfig:
     agreement_sigma: float = DEFAULT_AGREEMENT_SIGMA
     agreement_pixel_floor: float = DEFAULT_AGREEMENT_PIXEL_FLOOR
     agreement_compromise_px: float = DEFAULT_AGREEMENT_COMPROMISE_PX
+    confirming_axis_max_sigma_px: float = DEFAULT_CONFIRMING_AXIS_MAX_SIGMA_PX
     agreement_gap: float = DEFAULT_AGREEMENT_GAP
     disagreement_penalty: float = DEFAULT_DISAGREEMENT_PENALTY
     conflicted_confidence_multiplier: float = DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER
@@ -281,10 +297,10 @@ class EnsembleConfig:
         ``blob_star_disagreement_floor_px`` would drop every blob.
 
         Raises:
-            ValueError: if any body-witness or blob/star tolerance, or the
-                compromise distance, is non-finite or negative, a body-witness
-                phase falls outside ``[0, 180]``, or the shape-lock ceiling is
-                not below the collapse floor.
+            ValueError: if any body-witness or blob/star tolerance, the
+                compromise distance, or the confirming-axis sigma is non-finite
+                or negative, a body-witness phase falls outside ``[0, 180]``, or
+                the shape-lock ceiling is not below the collapse floor.
         """
         non_negative = {
             'body_witness_disagreement_floor_px': self.body_witness_disagreement_floor_px,
@@ -292,6 +308,7 @@ class EnsembleConfig:
             'body_witness_agreement_sigma': self.body_witness_agreement_sigma,
             'blob_star_disagreement_floor_px': self.blob_star_disagreement_floor_px,
             'agreement_compromise_px': self.agreement_compromise_px,
+            'confirming_axis_max_sigma_px': self.confirming_axis_max_sigma_px,
         }
         for name, value in non_negative.items():
             if not math.isfinite(value):
@@ -873,9 +890,19 @@ def ensemble(
         best_group,
         image_classifier=image_classifier,
         scattered_light_gradient_score=cfg.scattered_light_gradient_score,
+        agreement_sigma=cfg.agreement_sigma,
+        confirming_axis_max_sigma_px=cfg.confirming_axis_max_sigma_px,
         rcond=cfg.pinvh_rcond,
     )
     combine_set = resolution.estimators
+    for refine, match in resolution.replaced_matches:
+        IMAGE_LOGGER.info(
+            'Single-star refine %s replaces one-star match %s in the combine: '
+            'it centroids the star that match found, a stronger witness confirms '
+            'it to sub-pixel precision, and none contradicts it',
+            refine.technique_name,
+            match.technique_name,
+        )
     for dropped in resolution.dropped_descendants:
         IMAGE_LOGGER.info(
             'Dropping seeded single-star refine %s from the combine: it '
