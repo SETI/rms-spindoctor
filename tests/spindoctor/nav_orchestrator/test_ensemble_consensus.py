@@ -129,6 +129,54 @@ def test_a_precise_star_fix_sets_the_ring_edge_along_edge_component() -> None:
     assert result.offset_px == pytest.approx((expected_v, expected_u), abs=1e-9)
 
 
+def _two_star_result(offset: tuple[float, float], sigma_px: float) -> NavTechniqueResult:
+    """A two-star match with an isotropic sigma."""
+    return NavTechniqueResult(
+        technique_name='StarUniqueMatchNav',
+        feature_ids=('star:UCAC4:1', 'star:UCAC4:2'),
+        offset_px=offset,
+        covariance_px2=np.eye(2) * sigma_px**2,
+        confidence=0.7,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+    )
+
+
+def _fused_v(ring: NavTechniqueResult, star: NavTechniqueResult) -> float:
+    """The precision-weighted v of a ring and a star result with diagonal covariances."""
+    w_ring = 1.0 / float(ring.covariance_px2[0, 0])
+    w_star = 1.0 / float(star.covariance_px2[0, 0])
+    return (w_ring * ring.offset_px[0] + w_star * star.offset_px[0]) / (w_ring + w_star)
+
+
+def test_a_pair_past_the_floor_compromising_under_a_pixel_is_fused() -> None:
+    """Two answers 8 px apart whose fusion compromises by 0.85 px still agree.
+
+    The ring is 4 px uncertain along the edge (v) and the two-star match 1.38 px,
+    so the pair is 1.89 sigma apart and the fusion lies 0.85 px from the match,
+    inside the 1 px compromise limit.
+    """
+    ring = _ring_result(4.0)
+    star = _two_star_result((ring.offset_px[0] - 8.0, ring.offset_px[1]), 1.9**0.5)
+    compromise = fusion_compromise_px(
+        np.array([8.0, 0.0]), ring.covariance_px2, star.covariance_px2
+    )
+    assert compromise == pytest.approx(8.0 * 1.9 / 17.9, rel=1e-9)
+    result = _run([ring, star])
+    assert result.offset_px is not None
+    assert result.offset_px[0] == pytest.approx(_fused_v(ring, star), abs=1e-6)
+
+
+def test_a_pair_inside_the_floor_agrees_however_vague() -> None:
+    """Two answers 4 px apart agree by the pixel floor although fusing them compromises 2 px."""
+    ring = _ring_result(15.0)
+    star = _two_star_result((ring.offset_px[0] - 4.0, ring.offset_px[1]), 15.0)
+    result = _run([ring, star])
+    assert result.offset_px is not None
+    assert result.offset_px[0] == pytest.approx(_fused_v(ring, star), abs=1e-6)
+
+
 def test_ensemble_config_rejects_a_negative_compromise_distance() -> None:
     """A negative compromise distance fails at construction."""
     with pytest.raises(ValueError, match='agreement_compromise_px must be non-negative'):
