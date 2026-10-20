@@ -284,8 +284,9 @@ techniques:
       # columns.  Over 1,242 F ring bundle and library blobs: the 954 within
       # 5 px of truth reach at most 0.84 and never both; of the 219 more
       # than max(10 px, a diameter) off, 157 exceed both (median 0.94 and
-      # 0.31).  The rest are crescents past 110 deg phase whose lit arcs
-      # spread like a correct crescent.
+      # 0.31).  Of the 62 the rule misses, 49 are crescents past 110 deg
+      # phase and 11 lie at 94-108 deg, whose lit arcs spread like a correct
+      # crescent; 2 lie at 55-56 deg.
       max_gyration_radius_frac: 0.88
       max_edge_signal_frac: 0.2
 

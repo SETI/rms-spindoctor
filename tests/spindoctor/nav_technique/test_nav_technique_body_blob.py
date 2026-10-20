@@ -21,6 +21,7 @@ from spindoctor.nav_technique.diagnostics import BodyBlobDiagnostics
 from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANCE
 from spindoctor.nav_technique.nav_technique_body_blob import (
     BodyBlobNav,
+    _brightness_weighted_centroid,
     _clamped_kernel_radius,
     _coarse_crescent_offset,
     _coarse_disc_offset,
@@ -340,6 +341,54 @@ def test_body_blob_adds_the_model_error_floor(
     monkeypatch.setattr(BodyBlobNav, 'tuning', tuning)
     with_floor = _one_blob_covariance(disc_image, make_nav_context)
     np.testing.assert_allclose(with_floor - without, 4.0 * np.eye(2), atol=1e-9)
+
+
+def test_edge_signal_fraction_counts_the_outermost_rows_and_columns() -> None:
+    """A uniformly lit 6x6 box has 20 of its 36 pixels, and of its signal, on the edge.
+
+    The predicted 5 px disc centered on (12, 22) with no padding spans rows 9-14 and
+    columns 19-24.
+    """
+    image = np.zeros((40, 40), dtype=np.float64)
+    image[9:15, 19:25] = 10.0
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(12.0, 22.0), predicted_diameter_px=5.0, bbox_pad=0
+    )
+    assert isinstance(feature.geometry, BodyBlobGeometry)
+    measured = _brightness_weighted_centroid(image, 1.0, feature.geometry, 0.0)
+    assert measured.edge_signal_frac == pytest.approx(20.0 / 36.0, rel=1e-12)
+
+
+@pytest.mark.parametrize('which', ['gyration', 'edge'])
+def test_body_blob_lock_test_is_strict_at_its_thresholds(
+    which: str, disc_image: DiscImageFactory
+) -> None:
+    """A blob exactly at one threshold and beyond the other is kept: both tests are strict."""
+    image = disc_image((200, 200), (100.0, 100.0), 8.0)
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.0, 100.0), predicted_diameter_px=14.0, bbox_pad=0
+    )
+    assert isinstance(feature.geometry, BodyBlobGeometry)
+    measured = _brightness_weighted_centroid(image, 1.0, feature.geometry, 0.0)
+    ratio = measured.gyration_radius_px / 7.0
+    thresholds = (
+        (ratio, 0.5 * measured.edge_signal_frac)
+        if which == 'gyration'
+        else (0.5 * ratio, measured.edge_signal_frac)
+    )
+    residuals = _collect_per_blob_residuals(
+        [feature],
+        image,
+        1.0,
+        0.0,
+        cast(Any, _RecordingLogger()),
+        image_signal=np.clip(image, 0.0, None),
+        margin_vu=(32, 32),
+        prior_offset_vu=(0.0, 0.0),
+        max_gyration_radius_frac=thresholds[0],
+        max_edge_signal_frac=thresholds[1],
+    )
+    assert len(residuals.consumed) == 1
 
 
 def test_body_blob_flags_reject_a_negative_ephemeris_sigma() -> None:
