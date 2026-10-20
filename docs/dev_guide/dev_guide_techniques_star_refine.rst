@@ -35,8 +35,8 @@ For a single predicted catalog star at position :math:`x_{\mathrm{pred}}` with c
 :math:`\Sigma_{i}` (the Cramer-Rao lower bound carried on the feature), the refinement step
 takes the brightness-weighted moment of a small box around the predicted brightness peak in a
 search window centered on :math:`x_{\mathrm{pred}} + \mathbf{p}` (where :math:`\mathbf{p}` is the
-prior offset). The centroid is rejected when the brightest pixel in the window is below the
-detection threshold or the implied per-star residual exceeds a configured cap; the surviving
+prior offset). The centroid is rejected when the brightest pixel in the window stands less
+than the detection threshold above the window's median or the implied per-star residual exceeds a configured cap; the surviving
 correspondences are the inlier set.
 
 Translation-only fit
@@ -147,7 +147,8 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
   almost certainly a wrong peak.
 - ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
   multiplier on the per-image noise sigma; the brightest pixel in the refinement window must
-  clear ``detection_sigma * image_noise_sigma`` to be accepted.
+  stand ``detection_sigma * image_noise_sigma`` above the window's median to be accepted, so
+  the floor of a body's glare or a ring is no detection.
 - ``min_inliers`` — int, default ``1`` (count). Below this many surviving inliers the
   technique reports a spurious zero-confidence result instead of attempting the average.
 - ``at_edge_tolerance_px`` — float, default ``1.0`` px. The reported absolute translation

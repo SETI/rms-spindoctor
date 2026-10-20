@@ -46,8 +46,8 @@ Local centroid
 --------------
 
 For each candidate match, the technique slices a window of half-width ``search_window_px``
-around the predicted position, takes the brightest pixel above
-``detection_sigma * image_noise_sigma``, and fits a brightness-weighted moment over a
+around the predicted position, takes the brightest pixel standing at least
+``detection_sigma * image_noise_sigma`` above the window's median, and fits a brightness-weighted moment over a
 ``centroid_box_half_px``-half-width box around that peak to recover the sub-pixel centroid.
 A peak that fails the noise threshold collapses the candidate; on the 2-star path a
 best-assignment residual exceeding ``max_residual_px`` triggers the fall back to the 1-star

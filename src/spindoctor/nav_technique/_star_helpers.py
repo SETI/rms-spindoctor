@@ -41,6 +41,9 @@ __all__ = [
     'usable_stars',
 ]
 
+_BACKGROUND_ANNULUS_WIDTH_PX = 2
+"""Width of the ring around a centroid box whose median is a detection's background."""
+
 
 def star_features(features: list[NavFeature]) -> list[NavFeature]:
     """Return the input subset that carries STAR geometry + StarFlags."""
@@ -242,6 +245,33 @@ def similarity_transform_fit(
     )
 
 
+def _annulus_median(
+    image_ext: NDArrayFloatType, peak_v: int, peak_u: int, box_half_px: int
+) -> float:
+    """Return the median of the ring of pixels around a centroid box.
+
+    The ring is ``_BACKGROUND_ANNULUS_WIDTH_PX`` wide and surrounds the
+    ``(2 * box_half_px + 1)`` box centered on the peak; pixels beyond the image are
+    left out.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        peak_v: Row of the peak pixel.
+        peak_u: Column of the peak pixel.
+        box_half_px: Half-width of the centroid box.
+
+    Returns:
+        The ring's median.
+    """
+    outer = box_half_px + _BACKGROUND_ANNULUS_WIDTH_PX
+    h, w = image_ext.shape
+    v_lo, v_hi = max(0, peak_v - outer), min(h, peak_v + outer + 1)
+    u_lo, u_hi = max(0, peak_u - outer), min(w, peak_u + outer + 1)
+    vv, uu = np.mgrid[v_lo:v_hi, u_lo:u_hi]
+    ring = np.maximum(np.abs(vv - peak_v), np.abs(uu - peak_u)) > box_half_px
+    return float(np.median(image_ext[v_lo:v_hi, u_lo:u_hi][ring]))
+
+
 def local_centroid(
     image_ext: NDArrayFloatType,
     predicted_vu_pos: tuple[float, float],
@@ -260,8 +290,12 @@ def local_centroid(
        around the prediction (clamped to image bounds).
     2. Take the brightest pixel inside the window — this is the
        candidate peak.
-    3. Reject the candidate when its DN is below
-       ``detection_sigma * image_noise_sigma``.
+    3. Reject the candidate when it stands less than
+       ``detection_sigma * image_noise_sigma`` above its local background, the
+       median of a ring of pixels ``_BACKGROUND_ANNULUS_WIDTH_PX`` wide around
+       the centroid box.  The floor of a bright extended region, flat or
+       sloping (a body's glare or a ring), is then no detection: a slope's
+       brightest pixel stands no higher than the median of the ring around it.
     4. Fit a brightness-weighted moment (Gaussian-equivalent for noise-
        free fixtures) over a ``(2 * centroid_box_half_px + 1)`` box
        around the candidate to pull a sub-pixel centroid.
@@ -280,8 +314,9 @@ def local_centroid(
             pixels.
         image_noise_sigma: Robust per-pixel noise sigma in DN units.
         detection_sigma: Threshold multiplier on
-            ``image_noise_sigma``; the brightest peak must clear
-            ``detection_sigma * image_noise_sigma`` to be accepted.
+            ``image_noise_sigma``; the brightest peak must stand
+            ``detection_sigma * image_noise_sigma`` above its local background to
+            be accepted.
 
     Returns:
         ``(centroid, peak_dn)`` where ``centroid`` is the
@@ -302,10 +337,11 @@ def local_centroid(
     flat_idx = int(np.argmax(window))
     pv, pu = np.unravel_index(flat_idx, window.shape)
     peak_dn = float(window[pv, pu])
-    if peak_dn < detection_sigma * image_noise_sigma:
-        return None, peak_dn
     peak_v = v_lo + int(pv)
     peak_u = u_lo + int(pu)
+    background = _annulus_median(image_ext, peak_v, peak_u, centroid_box_half_px)
+    if peak_dn - background < detection_sigma * image_noise_sigma:
+        return None, peak_dn
     box_v_lo = max(0, peak_v - centroid_box_half_px)
     box_u_lo = max(0, peak_u - centroid_box_half_px)
     box_v_hi = min(h, peak_v + centroid_box_half_px + 1)
