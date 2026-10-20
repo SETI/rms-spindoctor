@@ -357,7 +357,9 @@ Tests and downstream tools read the canonical values via these symbols.
 - :data:`~spindoctor.nav_model.stars.catalog.CATALOG_MAGNITUDE_BINS` — tuple[float, ...]. The
   coarse magnitude grid the catalog reducer pulls stars by. Stars are pulled bin by bin
   until the configured ``max_stars`` budget is hit, which avoids the worst case of
-  pulling every dim star in a degree-square chunk of UCAC4.
+  pulling every dim star in a degree-square chunk of UCAC4. Adjacent bins share their edge
+  magnitude and both include it, so a star at an edge comes back from both; each catalog's
+  walk keeps the first record of a star it has already returned.
 - :data:`~spindoctor.nav_model.stars.saturation.UCAC4_SATURATION_VMAG_LIMIT` — float, ``8.0``.
   V-magnitude brighter than which UCAC4 aperture photometry is untrusted and a candidate
   record becomes a saturation-correction candidate. Chosen from the UCAC4-vs-YBSC residual
