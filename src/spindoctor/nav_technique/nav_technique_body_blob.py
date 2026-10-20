@@ -31,7 +31,7 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import BodyBlobGeometry
 from spindoctor.nav_technique.body_blob_covariance import (
     BlobCentroidBiasModel,
-    _blob_covariances,
+    _blob_bias_covariances,
     _generalized_least_squares,
     load_blob_bias_model,
 )
@@ -79,6 +79,7 @@ class _BlobResiduals:
     phase_angles_deg: list[float]
     phase_irregularity_factors: list[float]
     sun_dirs_vu: list[tuple[float, float]]
+    ephemeris_sigmas_px: list[float]
 
 
 @dataclass(frozen=True)
@@ -491,6 +492,7 @@ def _collect_per_blob_residuals(
     phase_angles_deg: list[float] = []
     phase_irregularity_factors: list[float] = []
     sun_dirs_vu: list[tuple[float, float]] = []
+    ephemeris_sigmas_px: list[float] = []
     prior_coarse = (
         (round(prior_offset_vu[0]), round(prior_offset_vu[1]))
         if prior_offset_vu is not None
@@ -591,6 +593,7 @@ def _collect_per_blob_residuals(
         phase_angles_deg.append(flags_phase)
         phase_irregularity_factors.append(max(0.0, flags_factor))
         sun_dirs_vu.append((float(sub_solar_dir_vu[0]), float(sub_solar_dir_vu[1])))
+        ephemeris_sigmas_px.append(float(getattr(feature.flags, 'ephemeris_sigma_px', 0.0)))
         # The offsets are differences and stay as they are; the two
         # positions beside them are stated the way a person reads one.
         reported_pred = reported_position_vu((pred_v, pred_u), margin_vu)
@@ -620,6 +623,7 @@ def _collect_per_blob_residuals(
         phase_angles_deg=phase_angles_deg,
         phase_irregularity_factors=phase_irregularity_factors,
         sun_dirs_vu=sun_dirs_vu,
+        ephemeris_sigmas_px=ephemeris_sigmas_px,
     )
 
 
@@ -631,23 +635,26 @@ def _joint_offset_from_residuals(
 ) -> _JointFit:
     """Combine the per-blob residuals by generalized least squares.
 
-    Each blob's covariance is its photon-noise variance (the inverse of its CRLB
-    weight) plus its centroid bias (:func:`_blob_covariances`): isotropic terms, and a
-    phase term along and across the blob's direction toward the Sun.  The blobs are
-    weighted by the inverses of those covariances, so the reported covariance is that
-    of the combination formed; ``model_error_floor_px`` is then added in quadrature to
-    both axes.
+    Each blob's error is its photon noise (the inverse of its CRLB weight) plus its
+    centroid bias (:func:`_blob_bias_covariances`): isotropic terms including the body's
+    ephemeris sigma, and a phase term along and across the blob's direction toward the
+    Sun.  The biases of different blobs are correlated (``bias_correlation``), and the
+    blobs are combined with the inverse of the full covariance, so the reported
+    covariance is that of the combination formed; ``model_error_floor_px`` is then added
+    in quadrature to both axes.
     """
     fit = _generalized_least_squares(
         np.column_stack([residuals.offsets_v, residuals.offsets_u]),
-        _blob_covariances(
-            photon_vars_px2=1.0 / residuals.weights,
+        1.0 / residuals.weights,
+        _blob_bias_covariances(
             diameters_px=np.asarray(residuals.extents, np.float64),
             phase_angles_deg=np.asarray(residuals.phase_angles_deg, np.float64),
             irregularity_factors=np.asarray(residuals.phase_irregularity_factors, np.float64),
             sun_dirs_vu=np.asarray(residuals.sun_dirs_vu, np.float64),
+            ephemeris_sigmas_px=np.asarray(residuals.ephemeris_sigmas_px, np.float64),
             model=bias_model,
         ),
+        bias_correlation=bias_model.bias_correlation,
     )
     dv, du = fit.offset_vu
     res_norms = np.hypot(residuals.offsets_v - dv, residuals.offsets_u - du)

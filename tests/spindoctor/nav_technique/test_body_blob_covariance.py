@@ -12,7 +12,7 @@ import pytest
 from spindoctor.nav_technique.body_blob_covariance import (
     BlobCentroidBiasModel,
     _along_sun_fractions,
-    _blob_covariances,
+    _blob_bias_covariances,
     _generalized_least_squares,
     _lambert_photocenter_fraction,
     load_blob_bias_model,
@@ -26,13 +26,14 @@ _MODEL = BlobCentroidBiasModel(
     regular_irregularity_max=0.02,
     irregular_irregularity_min=0.06,
     bias_radius_cap_px=10.0,
+    bias_correlation=0.5,
 )
 
 
 def _covariances(**overrides: Any) -> np.ndarray:
-    """One blob's covariance under ``_MODEL``, with keyword overrides of the inputs."""
+    """One blob's bias covariance under ``_MODEL``, with keyword overrides of the inputs."""
     inputs: dict[str, Any] = {
-        'photon_vars_px2': np.array([0.01]),
+        'ephemeris_sigmas_px': np.array([0.1]),
         'diameters_px': np.array([8.0]),
         'phase_angles_deg': np.array([90.0]),
         'irregularity_factors': np.array([0.04]),
@@ -40,7 +41,7 @@ def _covariances(**overrides: Any) -> np.ndarray:
         'model': _MODEL,
     }
     inputs.update(overrides)
-    return _blob_covariances(**inputs)
+    return _blob_bias_covariances(**inputs)
 
 
 # ---------------------------------------------------------------------------
@@ -98,8 +99,8 @@ def test_along_sun_fraction_interpolates_in_irregularity(
     assert float(got[0]) == pytest.approx(expected, rel=1e-12)
 
 
-_ISO = 0.01 + (0.05**2 + 0.04**2) * 16.0
-"""Isotropic variance of the default blob: photon, size fraction, irregularity 0.04."""
+_ISO = 0.1**2 + (0.05**2 + 0.04**2) * 16.0
+"""Isotropic variance of the default blob: ephemeris, size fraction, irregularity 0.04."""
 _G_R = 3.0 * math.pi / 16.0 * 4.0
 """Photocenter offset of the default blob (radius 4 px, 90 deg phase)."""
 
@@ -144,12 +145,12 @@ def test_blob_covariance_caps_the_phase_and_irregularity_radius() -> None:
     """Past the radius cap the phase and irregularity terms stop growing; the size term does not.
 
     A regular body 100 px across (radius 50) at 90 deg phase with irregularity 0.01:
-    along the Sun ``0.01 + 0.05**2 * 50**2 + (0.01 * 10)**2 + (0.9 * g * 10)**2``.
+    along the Sun ``0.1**2 + 0.05**2 * 50**2 + (0.01 * 10)**2 + (0.9 * g * 10)**2``.
     """
     cov = _covariances(diameters_px=np.array([100.0]), irregularity_factors=np.array([0.01]))[0]
     sun = np.array([0.6, 0.8])
     g_rc = 3.0 * math.pi / 16.0 * 10.0
-    expected = 0.01 + 0.05**2 * 2500.0 + 0.1**2 + (0.9 * g_rc) ** 2
+    expected = 0.1**2 + 0.05**2 * 2500.0 + 0.1**2 + (0.9 * g_rc) ** 2
     assert float(sun @ cov @ sun) == pytest.approx(expected, rel=1e-12)
 
 
@@ -158,42 +159,83 @@ def test_blob_covariance_caps_the_phase_and_irregularity_radius() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_blob_covariance_adds_the_ephemeris_sigma_on_both_axes() -> None:
+    """The ephemeris sigma adds its square to every direction."""
+    with_eph = _covariances(ephemeris_sigmas_px=np.array([2.0]))[0]
+    without = _covariances(ephemeris_sigmas_px=np.array([0.0]))[0]
+    np.testing.assert_allclose(with_eph - without, 4.0 * np.eye(2), atol=1e-12)
+
+
+def _gls(offsets: list[list[float]], photon: list[float], bias: list[Any], rho: float) -> Any:
+    """Run the joint fit on plain lists."""
+    return _generalized_least_squares(
+        np.array(offsets, np.float64),
+        np.array(photon, np.float64),
+        np.array(bias, np.float64),
+        bias_correlation=rho,
+    )
+
+
 def test_gls_single_blob_returns_its_offset() -> None:
     """One blob's offset is the joint offset."""
-    cov = np.array([[[4.0, 1.0], [1.0, 2.0]]])
-    fit = _generalized_least_squares(np.array([[3.0, -2.0]]), cov)
+    fit = _gls([[3.0, -2.0]], [0.5], [[[4.0, 1.0], [1.0, 2.0]]], 0.5)
     assert fit.offset_vu == pytest.approx((3.0, -2.0), abs=1e-12)
 
 
 def test_gls_single_blob_returns_its_covariance() -> None:
-    """One blob's covariance is the joint covariance, unscaled."""
-    cov = np.array([[[4.0, 1.0], [1.0, 2.0]]])
-    fit = _generalized_least_squares(np.array([[3.0, -2.0]]), cov)
-    np.testing.assert_allclose(fit.covariance, cov[0], rtol=1e-12)
+    """One blob's photon variance plus bias covariance is the joint covariance."""
+    fit = _gls([[3.0, -2.0]], [0.5], [[[4.0, 1.0], [1.0, 2.0]]], 0.5)
+    np.testing.assert_allclose(fit.covariance, [[4.5, 1.0], [1.0, 2.5]], rtol=1e-12)
 
 
 def test_gls_weights_each_axis_by_its_own_precision() -> None:
     """Two blobs precise on different axes each set the joint offset on their own axis."""
-    covs = np.array([np.diag([0.01, 100.0]), np.diag([100.0, 0.01])])
-    fit = _generalized_least_squares(np.array([[1.0, 5.0], [4.0, 2.0]]), covs)
+    bias = [np.diag([0.01, 100.0]), np.diag([100.0, 0.01])]
+    fit = _gls([[1.0, 5.0], [4.0, 2.0]], [0.0, 0.0], bias, 0.0)
     assert fit.offset_vu == pytest.approx((1.0003, 2.0003), abs=1e-4)
+
+
+def test_gls_correlated_bias_does_not_average_away() -> None:
+    """Two like blobs keep the shared share of their bias when combined.
+
+    The shared part is ``K = rho b I`` and each own part ``(p + b - rho b) I``, so the
+    joint covariance is ``(p + b (1 - rho)) / 2 + rho b``: photon 1, bias 3, rho 0.5
+    -> 2.75.
+    """
+    fit = _gls([[0.0, 0.0], [0.0, 0.0]], [1.0, 1.0], [3.0 * np.eye(2), 3.0 * np.eye(2)], 0.5)
+    np.testing.assert_allclose(fit.covariance, 2.75 * np.eye(2), rtol=1e-12)
+
+
+def test_gls_shared_bias_never_extrapolates() -> None:
+    """With a shared bias the joint offset stays between unequal blobs' offsets.
+
+    A precise blob at 0 and a vague one at 1 px, bias 0.5 and 2.25 px**2, rho 0.8: the
+    shared part 0.4 leaves own parts 0.1 and 1.85, so the joint offset is the own-part
+    weighted mean 1.85 / 1.95 * 0 + 0.1 / 1.95 * 1 = 0.0513.
+    """
+    fit = _gls([[0.0, 0.0], [1.0, 0.0]], [0.0, 0.0], [0.5 * np.eye(2), 2.25 * np.eye(2)], 0.8)
+    assert fit.offset_vu[0] == pytest.approx(0.1 / 1.95, rel=1e-9)
+
+
+def test_gls_uncorrelated_bias_averages_down() -> None:
+    """With no bias correlation two like blobs halve the variance."""
+    fit = _gls([[0.0, 0.0], [0.0, 0.0]], [1.0, 1.0], [3.0 * np.eye(2), 3.0 * np.eye(2)], 0.0)
+    np.testing.assert_allclose(fit.covariance, 2.0 * np.eye(2), rtol=1e-12)
 
 
 def test_gls_inflates_the_covariance_when_blobs_disagree() -> None:
     """Blobs that disagree beyond their covariances scale the joint covariance by chi2/dof.
 
-    Two unit-variance blobs 4 px apart in v: chi2 = 2 * 2**2 = 8 over 2 degrees of
-    freedom, so the inverse-information covariance 0.5 grows to 2.0.
+    Two unit-variance, uncorrelated blobs 4 px apart in v: chi2 = 2 * 2**2 = 8 over 2
+    degrees of freedom, so the inverse-information covariance 0.5 grows to 2.0.
     """
-    covs = np.array([np.eye(2), np.eye(2)])
-    fit = _generalized_least_squares(np.array([[0.0, 0.0], [4.0, 0.0]]), covs)
+    fit = _gls([[0.0, 0.0], [4.0, 0.0]], [1.0, 1.0], [np.zeros((2, 2)), np.zeros((2, 2))], 0.0)
     np.testing.assert_allclose(fit.covariance, 2.0 * np.eye(2), rtol=1e-12)
 
 
 def test_gls_does_not_shrink_the_covariance_when_blobs_agree() -> None:
     """Blobs that agree better than their covariances keep the inverse information."""
-    covs = np.array([np.eye(2), np.eye(2)])
-    fit = _generalized_least_squares(np.array([[0.0, 0.0], [0.1, 0.0]]), covs)
+    fit = _gls([[0.0, 0.0], [0.1, 0.0]], [1.0, 1.0], [np.zeros((2, 2)), np.zeros((2, 2))], 0.0)
     np.testing.assert_allclose(fit.covariance, 0.5 * np.eye(2), rtol=1e-12)
 
 
@@ -212,6 +254,7 @@ def test_load_blob_bias_model_reads_every_term() -> None:
         'regular_irregularity_max': 0.02,
         'irregular_irregularity_min': 0.06,
         'bias_radius_cap_px': 10.0,
+        'bias_correlation': 0.5,
     }
     assert load_blob_bias_model(tuning) == _MODEL
 
@@ -232,3 +275,9 @@ def test_bias_model_rejects_a_zero_radius_cap() -> None:
     """The radius cap must be positive."""
     with pytest.raises(ValueError, match='bias_radius_cap_px must be > 0'):
         replace(_MODEL, bias_radius_cap_px=0.0)
+
+
+def test_bias_model_rejects_a_correlation_of_one() -> None:
+    """A shared fraction of 1 would leave the most precise blob no own part."""
+    with pytest.raises(ValueError, match='bias_correlation must be < 1'):
+        replace(_MODEL, bias_correlation=1.0)

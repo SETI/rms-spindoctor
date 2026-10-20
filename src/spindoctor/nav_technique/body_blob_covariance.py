@@ -35,6 +35,14 @@ fraction is within 1e-6 of its limit and the formula is still well conditioned.
 """
 
 
+_MIN_SUN_DIRECTION_NORM: float = 0.5
+"""Length below which a blob's direction toward the Sun counts as unknown.
+
+The body model reports a unit vector or, when the lit and geometric centers nearly
+coincide, the zero vector; any length between the two halves marks the boundary.
+"""
+
+
 @dataclass(frozen=True)
 class BlobCentroidBiasModel:
     """Per-blob centroid bias terms of the ``BodyBlobNav`` covariance.
@@ -58,6 +66,9 @@ class BlobCentroidBiasModel:
         bias_radius_cap_px: Radius, in pixels, beyond which the phase and
             irregularity terms stop growing with the body; ``size_frac`` is not
             capped.
+        bias_correlation: Fraction, in ``[0, 1)``, of the smallest bias variance among
+            the blobs of one frame that all of them share (see
+            :func:`_generalized_least_squares`).
     """
 
     size_frac: float
@@ -67,13 +78,15 @@ class BlobCentroidBiasModel:
     regular_irregularity_max: float
     irregular_irregularity_min: float
     bias_radius_cap_px: float
+    bias_correlation: float
 
     def __post_init__(self) -> None:
         """Validate the terms.
 
         Raises:
             ValueError: If a term is negative or non-finite, the irregularity bounds
-                are not increasing, or the radius cap is not positive.
+                are not increasing, the radius cap is not positive, or the correlation
+                is not below 1.
         """
         for name in (
             'size_frac',
@@ -83,6 +96,7 @@ class BlobCentroidBiasModel:
             'regular_irregularity_max',
             'irregular_irregularity_min',
             'bias_radius_cap_px',
+            'bias_correlation',
         ):
             value = getattr(self, name)
             if not math.isfinite(value) or value < 0.0:
@@ -95,6 +109,10 @@ class BlobCentroidBiasModel:
         if self.bias_radius_cap_px <= 0.0:
             raise ValueError(
                 f'BodyBlobNav.bias_radius_cap_px must be > 0; got {self.bias_radius_cap_px!r}'
+            )
+        if self.bias_correlation >= 1.0:
+            raise ValueError(
+                f'BodyBlobNav.bias_correlation must be < 1; got {self.bias_correlation!r}'
             )
 
 
@@ -119,6 +137,7 @@ def load_blob_bias_model(tuning: Mapping[str, Any]) -> BlobCentroidBiasModel:
         regular_irregularity_max=float(tuning['regular_irregularity_max']),
         irregular_irregularity_min=float(tuning['irregular_irregularity_min']),
         bias_radius_cap_px=float(tuning['bias_radius_cap_px']),
+        bias_correlation=float(tuning['bias_correlation']),
     )
 
 
@@ -180,35 +199,36 @@ def _along_sun_fractions(
     )
 
 
-def _blob_covariances(
+def _blob_bias_covariances(
     *,
-    photon_vars_px2: NDArrayFloatType,
     diameters_px: NDArrayFloatType,
     phase_angles_deg: NDArrayFloatType,
     irregularity_factors: NDArrayFloatType,
     sun_dirs_vu: NDArrayFloatType,
+    ephemeris_sigmas_px: NDArrayFloatType,
     model: BlobCentroidBiasModel,
 ) -> NDArrayFloatType:
-    """Return each blob's 2x2 centroid covariance: photon noise plus model bias.
+    """Return each blob's 2x2 centroid bias covariance (photon noise excluded).
 
     With ``R`` the blob's radius, ``Rc = min(R, bias_radius_cap_px)``, ``g`` its
     Lambertian photocenter fraction, ``s`` the unit image direction toward the Sun and
     ``n`` the direction across it::
 
-        iso = photon_var + size_frac**2 * R**2 + (irregularity * Rc)**2
-        C   = (iso + (a * g * Rc)**2) s s^T + (iso + (across_sun_frac * g * Rc)**2) n n^T
+        iso = size_frac**2 * R**2 + (irregularity * Rc)**2 + ephemeris_sigma**2
+        B   = (iso + (a * g * Rc)**2) s s^T + (iso + (across_sun_frac * g * Rc)**2) n n^T
 
     where ``a`` is the blob's along-Sun fraction (:func:`_along_sun_fractions`).  A blob
-    whose direction toward the Sun is unknown (a zero vector, which the body model
-    reports at low phase) splits the two phase terms evenly over both axes.
+    whose direction toward the Sun is unknown (a vector shorter than
+    :data:`_MIN_SUN_DIRECTION_NORM`, which the body model reports at low phase) splits
+    the two phase terms evenly over both axes.
 
     Parameters:
-        photon_vars_px2: ``(N,)`` photon-noise centroid variances.
         diameters_px: ``(N,)`` predicted diameters.
         phase_angles_deg: ``(N,)`` phase angles.
         irregularity_factors: ``(N,)`` phase-irregularity factors (negative values are
             taken as zero).
         sun_dirs_vu: ``(N, 2)`` unit ``(v, u)`` directions toward the Sun, or zero rows.
+        ephemeris_sigmas_px: ``(N,)`` ephemeris position sigmas of the bodies, pixels.
         model: The bias model.
 
     Returns:
@@ -219,15 +239,15 @@ def _blob_covariances(
     irregular = np.clip(np.asarray(irregularity_factors, np.float64), 0.0, None)
     photocenter_px = _lambert_photocenter_fraction(np.asarray(phase_angles_deg)) * capped
     iso = (
-        np.asarray(photon_vars_px2, np.float64)
-        + (model.size_frac * radii) ** 2
+        (model.size_frac * radii) ** 2
         + (irregular * capped) ** 2
+        + np.asarray(ephemeris_sigmas_px, np.float64) ** 2
     )
     along = iso + (_along_sun_fractions(irregular, model) * photocenter_px) ** 2
     across = iso + (model.across_sun_frac * photocenter_px) ** 2
     sun = np.asarray(sun_dirs_vu, np.float64).reshape(-1, 2)
     norms = np.hypot(sun[:, 0], sun[:, 1])
-    known = norms > 0.5
+    known = norms >= _MIN_SUN_DIRECTION_NORM
     unit = np.where(known[:, None], sun / np.where(known, norms, 1.0)[:, None], 0.0)
     normal = np.column_stack([-unit[:, 1], unit[:, 0]])
     covariances = along[:, None, None] * np.einsum('ni,nj->nij', unit, unit) + across[
@@ -248,32 +268,60 @@ class _GlsFit:
 
 
 def _generalized_least_squares(
-    offsets_vu: NDArrayFloatType, covariances: NDArrayFloatType
+    offsets_vu: NDArrayFloatType,
+    photon_vars_px2: NDArrayFloatType,
+    bias_covariances: NDArrayFloatType,
+    *,
+    bias_correlation: float,
 ) -> _GlsFit:
-    """Combine per-blob offsets with weights equal to their inverse covariances.
+    """Combine per-blob offsets by generalized least squares over all blobs at once.
 
-    The joint offset is ``(sum W_i)^-1 sum W_i o_i`` with ``W_i = C_i^-1`` and its
-    covariance is ``(sum W_i)^-1``.  With two or more blobs the residual chi-square
-    ``sum r_i^T W_i r_i`` over ``2 N - 2`` degrees of freedom measures whether the blobs
-    agree as well as their covariances say; when they agree worse, the covariance is
-    scaled up by that ratio (it is never scaled down).
+    Each blob's error is its photon noise plus its centroid bias, and part of the bias
+    is common to every blob in the frame: the bodies share the Sun direction, the
+    rendering's photometric law, and an ephemeris solution, so their biases do not
+    average away.  The common part is isotropic, ``K = rho * m * I``, with ``rho`` the
+    ``bias_correlation`` and ``m`` the smallest eigenvalue of any blob's bias
+    covariance, so every blob's own part ``photon_i I + B_i - K`` stays
+    positive-semidefinite.  The ``2N x 2N`` covariance has blocks ``photon_i I + B_i``
+    on the diagonal and ``K`` off it.  With ``H`` the stack of ``N`` 2x2 identities, the
+    joint offset is ``(H^T C^-1 H)^-1 H^T C^-1 o`` and its covariance
+    ``(H^T C^-1 H)^-1``, which is the own parts combined by their inverses plus ``K``:
+    a common error moves every blob alike, so it neither enters the weights nor
+    averages away, and the joint offset always lies within the blobs' offsets.  With
+    two or more blobs the residual chi-square over ``2 N - 2`` degrees of freedom
+    measures whether the blobs agree as well as the covariance says; when they agree
+    worse, the covariance is scaled up by that ratio (never down).
 
     Parameters:
         offsets_vu: ``(N, 2)`` per-blob ``observed - predicted`` offsets, ``N >= 1``.
-        covariances: ``(N, 2, 2)`` positive-definite per-blob covariances.
+        photon_vars_px2: ``(N,)`` per-blob photon-noise variances.
+        bias_covariances: ``(N, 2, 2)`` per-blob bias covariances.
+        bias_correlation: Fraction ``rho`` in ``[0, 1)`` of the smallest bias variance
+            that every blob shares.
 
     Returns:
         The joint offset, its covariance, and the residual chi-square (``0.0`` for one
         blob).
     """
     offsets = np.asarray(offsets_vu, np.float64).reshape(-1, 2)
-    weights = np.linalg.inv(np.asarray(covariances, np.float64))
-    information = weights.sum(axis=0)
-    joint_cov = np.linalg.inv(information)
-    offset = joint_cov @ np.einsum('nij,nj->i', weights, offsets)
-    residuals = offsets - offset
-    chi_square = float(np.einsum('ni,nij,nj->', residuals, weights, residuals))
     n_blobs = offsets.shape[0]
+    bias = np.asarray(bias_covariances, np.float64).reshape(n_blobs, 2, 2)
+    photon = np.asarray(photon_vars_px2, np.float64).reshape(n_blobs)
+    shared = (
+        bias_correlation * float(min(np.linalg.eigvalsh(b)[0] for b in bias))
+        if n_blobs >= 2
+        else 0.0
+    )
+    full = np.kron(np.ones((n_blobs, n_blobs)), shared * np.eye(2))
+    for i in range(n_blobs):
+        full[2 * i : 2 * i + 2, 2 * i : 2 * i + 2] = photon[i] * np.eye(2) + bias[i]
+    design = np.tile(np.eye(2), (n_blobs, 1))
+    weights = np.linalg.inv(full)
+    joint_cov = np.linalg.inv(design.T @ weights @ design)
+    stacked = offsets.reshape(-1)
+    offset = joint_cov @ (design.T @ weights @ stacked)
+    residuals = stacked - design @ offset
+    chi_square = float(residuals @ weights @ residuals)
     if n_blobs >= 2:
         joint_cov = joint_cov * max(1.0, chi_square / (2.0 * n_blobs - 2.0))
     return _GlsFit(

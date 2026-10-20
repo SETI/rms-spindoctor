@@ -42,6 +42,7 @@ def _make_blob_feature(
     phase_angle_deg: float = 0.0,
     phase_irregularity_factor: float = 0.0,
     sub_solar_dir_vu: tuple[float, float] = (0.0, 0.0),
+    ephemeris_sigma_px: float = 0.0,
 ) -> NavFeature:
     """Build a BODY_BLOB feature whose bbox tightly bounds the predicted disc."""
     radius = predicted_diameter_px / 2.0
@@ -76,6 +77,7 @@ def _make_blob_feature(
             phase_angle_deg=phase_angle_deg,
             phase_irregularity_factor=phase_irregularity_factor,
             sub_solar_dir_vu=sub_solar_dir_vu,
+            ephemeris_sigma_px=ephemeris_sigma_px,
         ),
     )
 
@@ -294,6 +296,56 @@ def test_body_blob_rejects_a_non_positive_lock_threshold(
     monkeypatch.setattr(BodyBlobNav, 'tuning', bad_tuning)
     with pytest.raises(ValueError, match=f'{key} must be finite and > 0'):
         BodyBlobNav()
+
+
+def _one_blob_covariance(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    *,
+    ephemeris_sigma_px: float = 0.0,
+) -> np.ndarray:
+    """Covariance of one 16 px blob at zero phase."""
+    image = disc_image((200, 200), (100.0, 100.0), 8.0)
+    feature = _make_blob_feature(
+        'moonA',
+        predicted_center_vu=(99.0, 101.0),
+        predicted_diameter_px=16.0,
+        ephemeris_sigma_px=ephemeris_sigma_px,
+    )
+    return np.asarray(BodyBlobNav().navigate([feature], make_nav_context(image)).covariance_px2)
+
+
+def test_body_blob_adds_the_ephemeris_sigma(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A blob's ephemeris sigma adds its square to both axes of the covariance."""
+    base = _one_blob_covariance(disc_image, make_nav_context)
+    with_eph = _one_blob_covariance(disc_image, make_nav_context, ephemeris_sigma_px=1.5)
+    np.testing.assert_allclose(with_eph - base, 2.25 * np.eye(2), atol=1e-9)
+
+
+def test_body_blob_adds_the_model_error_floor(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The model-error floor adds its square to both axes of the joint covariance."""
+    tuning = dict(BodyBlobNav.tuning)
+    tuning['model_error_floor_px'] = 0.0
+    monkeypatch.setattr(BodyBlobNav, 'tuning', tuning)
+    without = _one_blob_covariance(disc_image, make_nav_context)
+    tuning = dict(tuning)
+    tuning['model_error_floor_px'] = 2.0
+    monkeypatch.setattr(BodyBlobNav, 'tuning', tuning)
+    with_floor = _one_blob_covariance(disc_image, make_nav_context)
+    np.testing.assert_allclose(with_floor - without, 4.0 * np.eye(2), atol=1e-9)
+
+
+def test_body_blob_flags_reject_a_negative_ephemeris_sigma() -> None:
+    """``BodyBlobFlags`` validates ``ephemeris_sigma_px`` is finite and non-negative."""
+    with pytest.raises(ValueError, match='ephemeris_sigma_px must be finite and >= 0'):
+        BodyBlobFlags(body_name='X', predicted_diameter_px=10.0, ephemeris_sigma_px=-0.1)
 
 
 def test_body_blob_multi_body_least_squares_average(

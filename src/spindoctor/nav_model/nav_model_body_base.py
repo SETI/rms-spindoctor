@@ -264,7 +264,7 @@ class NavModelBodyBase(NavModel):
         predicted body with no image signal anywhere in its search
         window is culled.
 
-        Three phase-aware decisions live here:
+        Four decisions live here:
 
         * **Lit-weighted predicted centroid.** At high phase the
           measured brightness centroid sits at the centroid of the lit
@@ -287,6 +287,10 @@ class NavModelBodyBase(NavModel):
           irregularity sigma is added to the photon-noise-limited
           centroid sigma in quadrature so the joint-fit covariance
           reflects both terms.
+        * **``ephemeris_sigma_px`` on the flags.** The body's SPK residual
+          (``spice_orbital_residual_km``) at the limb's image scale; the
+          whole blob moves with an ephemeris error, so ``BodyBlobNav`` adds
+          it to the blob's centroid variance.
         * **``phase_irregularity_factor`` on the flags.** Surfaces the
           dimensionless ``sin(phase/2) * residual / radius`` so the
           BLOB confidence formula can down-weight irregular high-phase
@@ -310,6 +314,13 @@ class NavModelBodyBase(NavModel):
         cov = (sigma_total_px * sigma_total_px) * np.eye(2, dtype=np.float64)
         predicted_center_vu = self._lit_weighted_centroid_vu()
         sub_solar_dir_vu = self._sub_solar_dir_vu(predicted_center_vu)
+        # The body's SPK position error moves the whole blob; it is in km, so it is
+        # converted at the limb's image scale (unknown scale: no term).
+        ephemeris_sigma_px = (
+            shape.spice_orbital_residual_km / self._km_per_pixel_at_limb
+            if self._km_per_pixel_at_limb > 0.0
+            else 0.0
+        )
         body_name = self._body_name
         return NavFeature(
             feature_id=f'body_blob:{body_name}',
@@ -336,6 +347,7 @@ class NavModelBodyBase(NavModel):
                 phase_angle_deg=phase_angle_deg,
                 phase_irregularity_factor=phase_irregularity_factor,
                 sub_solar_dir_vu=sub_solar_dir_vu,
+                ephemeris_sigma_px=ephemeris_sigma_px,
             ),
         )
 
