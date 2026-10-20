@@ -1,14 +1,24 @@
 """Covariance of ``BodyBlobNav``'s joint brightness-centroid fit.
 
-The joint fit's statistical scatter, the size-scaled centroid-bias floor, and the
-per-blob phase- and shape-dependent centroid bias.  These live apart from
-``nav_technique_body_blob`` so that module stays under the 1000-line limit.
+Each blob's centroid carries photon noise and a model bias: the measured
+brightness-weighted centroid is compared with the rendered lit centroid, and the
+rendering's photometry, shape, and albedo are not the real body's.  The bias has an
+isotropic part (a fixed fraction of the radius and the shape irregularity) and a phase
+part along the image direction toward the Sun, where an error in the modeled
+lit-hemisphere shift lands, with a smaller share across it.  The along-Sun share is
+larger for a regular body than for an irregular one, whose irregularity term already
+carries most of its bias.  The blobs combine by generalized least squares with weights
+that are the inverses of these covariances, so the reported covariance is that of the
+combination actually formed.  These helpers live apart from ``nav_technique_body_blob``
+so that module stays under the 1000-line limit.
 """
 
 from __future__ import annotations
 
 import math
-from typing import cast
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any, cast
 
 import numpy as np
 
@@ -23,6 +33,93 @@ _PHOTOCENTER_PHASE_GUARD_RAD: float = 1.0e-3
 The closed form is 0 / 0 at 180 degrees; a thousandth of a radian short of it the
 fraction is within 1e-6 of its limit and the formula is still well conditioned.
 """
+
+
+@dataclass(frozen=True)
+class BlobCentroidBiasModel:
+    """Per-blob centroid bias terms of the ``BodyBlobNav`` covariance.
+
+    Parameters:
+        size_frac: Isotropic bias sigma every blob carries, as a fraction of its
+            radius.
+        along_sun_frac_regular: Bias sigma along the image direction toward the Sun,
+            as a fraction of the Lambertian photocenter offset (see
+            :func:`_lambert_photocenter_fraction`), for a regular body: one whose
+            phase-irregularity factor is at most ``regular_irregularity_max``.
+        along_sun_frac_irregular: The same fraction for an irregular body, whose
+            factor is at least ``irregular_irregularity_min``; between the two
+            factors the fraction is interpolated linearly.
+        across_sun_frac: Bias sigma across the direction toward the Sun, as a
+            fraction of the photocenter offset, for every blob.
+        regular_irregularity_max: Phase-irregularity factor at and below which a body
+            takes ``along_sun_frac_regular``.
+        irregular_irregularity_min: Factor at and above which a body takes
+            ``along_sun_frac_irregular``; greater than ``regular_irregularity_max``.
+        bias_radius_cap_px: Radius, in pixels, beyond which the phase and
+            irregularity terms stop growing with the body; ``size_frac`` is not
+            capped.
+    """
+
+    size_frac: float
+    along_sun_frac_regular: float
+    along_sun_frac_irregular: float
+    across_sun_frac: float
+    regular_irregularity_max: float
+    irregular_irregularity_min: float
+    bias_radius_cap_px: float
+
+    def __post_init__(self) -> None:
+        """Validate the terms.
+
+        Raises:
+            ValueError: If a term is negative or non-finite, the irregularity bounds
+                are not increasing, or the radius cap is not positive.
+        """
+        for name in (
+            'size_frac',
+            'along_sun_frac_regular',
+            'along_sun_frac_irregular',
+            'across_sun_frac',
+            'regular_irregularity_max',
+            'irregular_irregularity_min',
+            'bias_radius_cap_px',
+        ):
+            value = getattr(self, name)
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(f'BodyBlobNav.{name} must be finite and >= 0; got {value!r}')
+        if self.irregular_irregularity_min <= self.regular_irregularity_max:
+            raise ValueError(
+                'BodyBlobNav.irregular_irregularity_min must exceed regular_irregularity_max; '
+                f'got {self.irregular_irregularity_min!r} <= {self.regular_irregularity_max!r}'
+            )
+        if self.bias_radius_cap_px <= 0.0:
+            raise ValueError(
+                f'BodyBlobNav.bias_radius_cap_px must be > 0; got {self.bias_radius_cap_px!r}'
+            )
+
+
+def load_blob_bias_model(tuning: Mapping[str, Any]) -> BlobCentroidBiasModel:
+    """Read the centroid bias terms from ``BodyBlobNav``'s tuning mapping.
+
+    Parameters:
+        tuning: The technique's YAML ``tuning`` mapping.
+
+    Returns:
+        The validated model.
+
+    Raises:
+        KeyError: If a term is missing.
+        ValueError: If a term is invalid (see :class:`BlobCentroidBiasModel`).
+    """
+    return BlobCentroidBiasModel(
+        size_frac=float(tuning['model_error_size_frac']),
+        along_sun_frac_regular=float(tuning['along_sun_frac_regular']),
+        along_sun_frac_irregular=float(tuning['along_sun_frac_irregular']),
+        across_sun_frac=float(tuning['across_sun_frac']),
+        regular_irregularity_max=float(tuning['regular_irregularity_max']),
+        irregular_irregularity_min=float(tuning['irregular_irregularity_min']),
+        bias_radius_cap_px=float(tuning['bias_radius_cap_px']),
+    )
 
 
 def _lambert_photocenter_fraction(phase_deg: NDArrayFloatType) -> NDArrayFloatType:
@@ -56,150 +153,131 @@ def _lambert_photocenter_fraction(phase_deg: NDArrayFloatType) -> NDArrayFloatTy
     return cast(NDArrayFloatType, np.where(alpha > 0.0, fraction, 0.0))
 
 
-def _centroid_bias_fractions(
+def _along_sun_fractions(
+    irregularity_factors: NDArrayFloatType, model: BlobCentroidBiasModel
+) -> NDArrayFloatType:
+    """Return each blob's along-Sun bias fraction, interpolated in its irregularity.
+
+    Parameters:
+        irregularity_factors: ``(N,)`` phase-irregularity factors.
+        model: The bias model.
+
+    Returns:
+        ``(N,)`` fractions: ``along_sun_frac_regular`` at and below
+        ``regular_irregularity_max``, ``along_sun_frac_irregular`` at and above
+        ``irregular_irregularity_min``, linear between.
+    """
+    weight_irregular = np.clip(
+        (np.asarray(irregularity_factors, np.float64) - model.regular_irregularity_max)
+        / (model.irregular_irregularity_min - model.regular_irregularity_max),
+        0.0,
+        1.0,
+    )
+    return cast(
+        NDArrayFloatType,
+        model.along_sun_frac_regular
+        + weight_irregular * (model.along_sun_frac_irregular - model.along_sun_frac_regular),
+    )
+
+
+def _blob_covariances(
+    *,
+    photon_vars_px2: NDArrayFloatType,
+    diameters_px: NDArrayFloatType,
     phase_angles_deg: NDArrayFloatType,
     irregularity_factors: NDArrayFloatType,
-    *,
-    phase_frac: float,
+    sun_dirs_vu: NDArrayFloatType,
+    model: BlobCentroidBiasModel,
 ) -> NDArrayFloatType:
-    """Return each blob's phase- and shape-dependent centroid bias, per unit radius.
+    """Return each blob's 2x2 centroid covariance: photon noise plus model bias.
 
-    The predicted center a blob is measured against is the brightness-weighted centroid
-    of the rendered body, so the lit-hemisphere shift is modeled, but not exactly: the
-    rendered photometric law, albedo, and shape differ from the real body's, and the
-    measured centroid counts only pixels above the noise threshold, which drops the faint
-    terminator side of a crescent.  Two terms, added in quadrature, size what is left:
+    With ``R`` the blob's radius, ``Rc = min(R, bias_radius_cap_px)``, ``g`` its
+    Lambertian photocenter fraction, ``s`` the unit image direction toward the Sun and
+    ``n`` the direction across it::
 
-    - ``phase_frac`` times the Lambertian photocenter offset
-      (:func:`_lambert_photocenter_fraction`), the part of the modeled phase shift that is
-      uncertain;
-    - the body model's ``phase_irregularity_factor``, the centroid bias of a shape
-      irregular beyond its ellipsoid, which grows as less of the body is lit.
+        iso = photon_var + size_frac**2 * R**2 + (irregularity * Rc)**2
+        C   = (iso + (a * g * Rc)**2) s s^T + (iso + (across_sun_frac * g * Rc)**2) n n^T
+
+    where ``a`` is the blob's along-Sun fraction (:func:`_along_sun_fractions`).  A blob
+    whose direction toward the Sun is unknown (a zero vector, which the body model
+    reports at low phase) splits the two phase terms evenly over both axes.
 
     Parameters:
-        phase_angles_deg: ``(N,)`` per-blob phase angles in degrees.
-        irregularity_factors: ``(N,)`` per-blob phase-irregularity factors (``>= 0``).
-        phase_frac: Uncertain fraction of the modeled photocenter shift; ``0.0``
-            disables the phase term.
+        photon_vars_px2: ``(N,)`` photon-noise centroid variances.
+        diameters_px: ``(N,)`` predicted diameters.
+        phase_angles_deg: ``(N,)`` phase angles.
+        irregularity_factors: ``(N,)`` phase-irregularity factors (negative values are
+            taken as zero).
+        sun_dirs_vu: ``(N, 2)`` unit ``(v, u)`` directions toward the Sun, or zero rows.
+        model: The bias model.
 
     Returns:
-        ``(N,)`` per-blob bias sigmas as fractions of each blob's radius.
+        ``(N, 2, 2)`` covariances in pixels squared.
     """
-    phase_term = phase_frac * _lambert_photocenter_fraction(phase_angles_deg)
+    radii = 0.5 * np.asarray(diameters_px, np.float64)
+    capped = np.minimum(radii, model.bias_radius_cap_px)
     irregular = np.clip(np.asarray(irregularity_factors, np.float64), 0.0, None)
-    return cast(NDArrayFloatType, np.hypot(phase_term, irregular))
+    photocenter_px = _lambert_photocenter_fraction(np.asarray(phase_angles_deg)) * capped
+    iso = (
+        np.asarray(photon_vars_px2, np.float64)
+        + (model.size_frac * radii) ** 2
+        + (irregular * capped) ** 2
+    )
+    along = iso + (_along_sun_fractions(irregular, model) * photocenter_px) ** 2
+    across = iso + (model.across_sun_frac * photocenter_px) ** 2
+    sun = np.asarray(sun_dirs_vu, np.float64).reshape(-1, 2)
+    norms = np.hypot(sun[:, 0], sun[:, 1])
+    known = norms > 0.5
+    unit = np.where(known[:, None], sun / np.where(known, norms, 1.0)[:, None], 0.0)
+    normal = np.column_stack([-unit[:, 1], unit[:, 0]])
+    covariances = along[:, None, None] * np.einsum('ni,nj->nij', unit, unit) + across[
+        :, None, None
+    ] * np.einsum('ni,nj->nij', normal, normal)
+    mean_var = 0.5 * (along + across)
+    covariances[~known] = mean_var[~known, None, None] * np.eye(2)
+    return cast(NDArrayFloatType, covariances)
 
 
-def _centroid_model_error_var(
-    extents_px: NDArrayFloatType,
-    frac: float,
-    *,
-    bias_fracs: NDArrayFloatType | None = None,
-) -> float:
-    """Return the size-scaled centroid-model-error variance for the joint fit.
+@dataclass(frozen=True)
+class _GlsFit:
+    """Generalized-least-squares combination of the per-blob offsets."""
 
-    A brightness-weighted centroid is a biased estimate of the geometric
-    center: the lit hemisphere and any shape irregularity shift it by a
-    roughly fixed *fraction* of the body radius, an error the photon-only
-    per-blob CRLB is blind to.  Each blob therefore carries a floor
-    variance ``(f_i * R_i)**2`` with ``R_i`` its predicted radius and
-    ``f_i**2 = frac**2 + bias_fracs[i]**2``: ``frac`` a bias every blob
-    carries, and ``bias_fracs`` the blob's own phase- and shape-dependent
-    bias (see :func:`_centroid_bias_fractions`).  These combine by
-    inverse-variance across blobs (the joint centroid is a precision-weighted
-    mean), so the joint size-error variance is ``1 / sum_i 1 / (f_i * R_i)**2``
-    -- for a single blob this is exactly ``(f * R)**2``, and it shrinks as more
-    blobs constrain the fit.
+    offset_vu: tuple[float, float]
+    covariance: NDArrayFloatType
+    chi_square: float
+
+
+def _generalized_least_squares(
+    offsets_vu: NDArrayFloatType, covariances: NDArrayFloatType
+) -> _GlsFit:
+    """Combine per-blob offsets with weights equal to their inverse covariances.
+
+    The joint offset is ``(sum W_i)^-1 sum W_i o_i`` with ``W_i = C_i^-1`` and its
+    covariance is ``(sum W_i)^-1``.  With two or more blobs the residual chi-square
+    ``sum r_i^T W_i r_i`` over ``2 N - 2`` degrees of freedom measures whether the blobs
+    agree as well as their covariances say; when they agree worse, the covariance is
+    scaled up by that ratio (it is never scaled down).
 
     Parameters:
-        extents_px: Per-blob predicted diameters in pixels.
-        frac: Fraction of the body radius taken as the centroid bias sigma of
-            every blob; ``0.0`` disables that part.
-        bias_fracs: Optional per-blob additional bias fractions, the same length
-            as ``extents_px``; ``None`` adds none.
+        offsets_vu: ``(N, 2)`` per-blob ``observed - predicted`` offsets, ``N >= 1``.
+        covariances: ``(N, 2, 2)`` positive-definite per-blob covariances.
 
     Returns:
-        The joint centroid-model-error variance in pixels squared (``0.0``
-        when both parts are zero or no blob has a positive extent).
+        The joint offset, its covariance, and the residual chi-square (``0.0`` for one
+        blob).
     """
-    radii = 0.5 * np.asarray(extents_px, np.float64)
-    frac_sq = np.full(radii.shape, frac * frac, np.float64)
-    if bias_fracs is not None:
-        frac_sq = frac_sq + np.asarray(bias_fracs, np.float64) ** 2
-    per_blob_var = frac_sq * radii * radii
-    positive = per_blob_var[per_blob_var > 0.0]
-    if positive.size == 0:
-        return 0.0
-    return float(1.0 / np.sum(1.0 / positive))
-
-
-def _joint_covariance(
-    *,
-    offsets_v: NDArrayFloatType,
-    offsets_u: NDArrayFloatType,
-    weights: NDArrayFloatType,
-    dv: float,
-    du: float,
-    extents_px: NDArrayFloatType,
-    model_error_floor_px: float = 0.0,
-    centroid_model_error_frac: float = 0.0,
-    bias_fracs: NDArrayFloatType | None = None,
-) -> NDArrayFloatType:
-    """Return the per-axis reduced-chi-square covariance of the joint fit.
-
-    The covariance is diagonal.  With ``N`` blobs and ``p = 2`` fitted
-    translation parameters, the per-axis reduced chi-square is
-
-    ::
-
-        chi2_nu_axis = sum_i w_i * r_axis_i**2 / max(N - p, 1)
-
-    and the weighted-mean variance is ``chi2_nu_axis / sum(w_i)``.
-
-    NAV-005: a single blob (``N = 1``) cannot constrain a 2-D
-    translation -- ``N - p = -1`` so ``max(N - p, 1) = 1`` and there is
-    no residual scatter to estimate (the lone residual is zero by
-    construction).  The result therefore collapses to the
-    inverse-precision floor ``1 / sum(w_i)``, which for a single blob is
-    the (large) per-blob centroid CRLB variance -- correctly reflecting
-    that one point is near-unobservable for two parameters rather than
-    over-confident.  The previous ``sum(w r^2) / (sum w)^2`` form was the
-    wrong power of ``sum w`` and carried no degrees-of-freedom factor.
-
-    The positive-definite floor is ``1 / sum(w_i)`` (pure
-    inverse-precision), NOT ``1 / (sum w_i)^2``.  Two model-error terms
-    are then added in quadrature: the size-scaled centroid-bias variance
-    (see :func:`_centroid_model_error_var`, which takes ``bias_fracs``, the
-    per-blob phase- and shape-dependent part), which makes the reported
-    sigma track body size and lighting the way the photon-only weights
-    cannot, and the absolute ``model_error_floor_px**2`` floor.
-
-    The cross-term ``cov(v, u)`` is intentionally zero -- per-axis
-    residuals are independent under the BODY_BLOB CRLB derivation,
-    and the precision-weighted ensemble combine downstream consumes
-    diagonals correctly.  Future readers tempted to add
-    ``cov_vu = sum(w * res_v * res_u) / sum(w)``: that term has no
-    physical interpretation here because the per-axis errors come
-    from independent moment integrals along orthogonal axes.
-    """
-    total_weight = float(weights.sum())
-    floor = 1.0 / max(total_weight, 1e-12)
-    model_error = model_error_floor_px * model_error_floor_px + _centroid_model_error_var(
-        extents_px, centroid_model_error_frac, bias_fracs=bias_fracs
+    offsets = np.asarray(offsets_vu, np.float64).reshape(-1, 2)
+    weights = np.linalg.inv(np.asarray(covariances, np.float64))
+    information = weights.sum(axis=0)
+    joint_cov = np.linalg.inv(information)
+    offset = joint_cov @ np.einsum('nij,nj->i', weights, offsets)
+    residuals = offsets - offset
+    chi_square = float(np.einsum('ni,nij,nj->', residuals, weights, residuals))
+    n_blobs = offsets.shape[0]
+    if n_blobs >= 2:
+        joint_cov = joint_cov * max(1.0, chi_square / (2.0 * n_blobs - 2.0))
+    return _GlsFit(
+        offset_vu=(float(offset[0]), float(offset[1])),
+        covariance=cast(NDArrayFloatType, joint_cov),
+        chi_square=chi_square,
     )
-    n = int(offsets_v.size)
-    if n <= 1:
-        # Single blob: under-determined for 2 translation params.  Report
-        # the inverse-precision floor (the per-blob centroid CRLB variance),
-        # not a tiny over-confident value.
-        return float(floor) * np.eye(2, dtype=np.float64) + model_error * np.eye(
-            2, dtype=np.float64
-        )
-    residuals_v = offsets_v - dv
-    residuals_u = offsets_u - du
-    dof = max(n - 2, 1)
-    chi2_nu_v = float(np.sum(weights * residuals_v * residuals_v)) / dof
-    chi2_nu_u = float(np.sum(weights * residuals_u * residuals_u)) / dof
-    var_v = max(chi2_nu_v / total_weight, floor) + model_error
-    var_u = max(chi2_nu_u / total_weight, floor) + model_error
-    return np.diag([var_v, var_u]).astype(np.float64)

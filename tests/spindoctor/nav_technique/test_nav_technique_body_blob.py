@@ -153,42 +153,63 @@ def test_body_blob_recovers_planted_offset_single_blob(
     assert result.confidence <= 0.4 + 1e-12
 
 
-def test_body_blob_covariance_carries_the_blob_phase_and_shape_bias(
+def _blob_covariance_at_phase(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    *,
+    phase_angle_deg: float,
+) -> np.ndarray:
+    """Covariance of one regular 8 px blob lit from +u at the given phase."""
+    image = disc_image((200, 200), (100.0, 100.0), 4.0)
+    context = make_nav_context(image)
+    feature = _make_blob_feature(
+        'moonA',
+        predicted_center_vu=(99.0, 101.0),
+        predicted_diameter_px=8.0,
+        phase_angle_deg=phase_angle_deg,
+        sub_solar_dir_vu=(0.0, 1.0),
+    )
+    return np.asarray(BodyBlobNav().navigate([feature], context).covariance_px2)
+
+
+def test_body_blob_phase_term_lies_along_the_sun_direction(
     disc_image: DiscImageFactory,
     make_nav_context: NavContextFactory,
 ) -> None:
-    """A blob at 80 deg phase with irregularity 0.2 reports its bias on top of the rest.
+    """At 80 deg phase the variance grows along the Sun direction by the along fraction.
 
-    The same image and prediction at zero phase and zero irregularity measure the
-    same centroid, so the variance grows by exactly ``R**2`` times the bias
-    fraction squared.
+    The same image at zero phase measures the same centroid, so the growth on the u
+    axis (toward the Sun) is exactly ``(along_sun_frac_regular * g * R)**2`` for a body
+    with no irregularity.
     """
-    image = disc_image((200, 200), (100.0, 100.0), 8.0)
-    context = make_nav_context(image)
-    covariances = []
-    for phase, irregularity in ((0.0, 0.0), (80.0, 0.2)):
-        feature = _make_blob_feature(
-            'moonA',
-            predicted_center_vu=(99.0, 101.0),
-            predicted_diameter_px=16.0,
-            phase_angle_deg=phase,
-            phase_irregularity_factor=irregularity,
-        )
-        covariances.append(np.asarray(BodyBlobNav().navigate([feature], context).covariance_px2))
-    phase_frac = float(BodyBlobNav.tuning['phase_centroid_error_frac'])
-    bias_sq = (phase_frac * float(_lambert_photocenter_fraction(np.array([80.0]))[0])) ** 2 + 0.04
-    assert covariances[1][0, 0] - covariances[0][0, 0] == pytest.approx(64.0 * bias_sq, rel=1e-9)
+    full = _blob_covariance_at_phase(disc_image, make_nav_context, phase_angle_deg=0.0)
+    crescent = _blob_covariance_at_phase(disc_image, make_nav_context, phase_angle_deg=80.0)
+    g_r = float(_lambert_photocenter_fraction(np.array([80.0]))[0]) * 4.0
+    frac = float(BodyBlobNav.tuning['along_sun_frac_regular'])
+    assert crescent[1, 1] - full[1, 1] == pytest.approx((frac * g_r) ** 2, rel=1e-9)
+
+
+def test_body_blob_phase_term_across_the_sun_direction(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """At 80 deg phase the variance across the Sun direction grows by the across fraction."""
+    full = _blob_covariance_at_phase(disc_image, make_nav_context, phase_angle_deg=0.0)
+    crescent = _blob_covariance_at_phase(disc_image, make_nav_context, phase_angle_deg=80.0)
+    g_r = float(_lambert_photocenter_fraction(np.array([80.0]))[0]) * 4.0
+    frac = float(BodyBlobNav.tuning['across_sun_frac'])
+    assert crescent[0, 0] - full[0, 0] == pytest.approx((frac * g_r) ** 2, rel=1e-9)
 
 
 @pytest.mark.parametrize('frac', [-0.1, math.nan])
-def test_body_blob_rejects_a_bad_phase_centroid_error_frac(
+def test_body_blob_rejects_a_bad_along_sun_fraction(
     frac: float, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A negative or non-finite phase fraction fails at construction."""
+    """A negative or non-finite along-Sun fraction fails at construction."""
     bad_tuning = dict(BodyBlobNav.tuning)
-    bad_tuning['phase_centroid_error_frac'] = frac
+    bad_tuning['along_sun_frac_regular'] = frac
     monkeypatch.setattr(BodyBlobNav, 'tuning', bad_tuning)
-    with pytest.raises(ValueError, match='phase_centroid_error_frac must be a finite number >= 0'):
+    with pytest.raises(ValueError, match='along_sun_frac_regular must be finite and >= 0'):
         BodyBlobNav()
 
 

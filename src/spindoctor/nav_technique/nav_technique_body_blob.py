@@ -30,8 +30,10 @@ from spindoctor.feature.feature import NavFeature, body_names_from_features
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import BodyBlobGeometry
 from spindoctor.nav_technique.body_blob_covariance import (
-    _centroid_bias_fractions,
-    _joint_covariance,
+    BlobCentroidBiasModel,
+    _blob_covariances,
+    _generalized_least_squares,
+    load_blob_bias_model,
 )
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import BodyBlobDiagnostics
@@ -39,7 +41,7 @@ from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     embed_rotation_unobservable,
-    load_ncc_covariance_tuning,
+    load_model_error_floor,
     log_confidence_breakdown,
     reported_position_vu,
     rotation_unobservable_sigma_rad,
@@ -76,6 +78,7 @@ class _BlobResiduals:
     extents: list[float]
     phase_angles_deg: list[float]
     phase_irregularity_factors: list[float]
+    sun_dirs_vu: list[tuple[float, float]]
 
 
 @dataclass(frozen=True)
@@ -450,6 +453,7 @@ def _collect_per_blob_residuals(
     extents: list[float] = []
     phase_angles_deg: list[float] = []
     phase_irregularity_factors: list[float] = []
+    sun_dirs_vu: list[tuple[float, float]] = []
     prior_coarse = (
         (round(prior_offset_vu[0]), round(prior_offset_vu[1]))
         if prior_offset_vu is not None
@@ -527,6 +531,7 @@ def _collect_per_blob_residuals(
         flags_factor = float(getattr(feature.flags, 'phase_irregularity_factor', 0.0))
         phase_angles_deg.append(flags_phase)
         phase_irregularity_factors.append(max(0.0, flags_factor))
+        sun_dirs_vu.append((float(sub_solar_dir_vu[0]), float(sub_solar_dir_vu[1])))
         # The offsets are differences and stay as they are; the two
         # positions beside them are stated the way a person reads one.
         reported_pred = reported_position_vu((pred_v, pred_u), margin_vu)
@@ -555,45 +560,41 @@ def _collect_per_blob_residuals(
         extents=extents,
         phase_angles_deg=phase_angles_deg,
         phase_irregularity_factors=phase_irregularity_factors,
+        sun_dirs_vu=sun_dirs_vu,
     )
 
 
 def _joint_offset_from_residuals(
     residuals: _BlobResiduals,
     *,
+    bias_model: BlobCentroidBiasModel,
     model_error_floor_px: float = 0.0,
-    centroid_model_error_frac: float = 0.0,
-    phase_centroid_error_frac: float = 0.0,
 ) -> _JointFit:
-    """Solve the precision-weighted joint translation across the per-blob residuals.
+    """Combine the per-blob residuals by generalized least squares.
 
-    Each blob's centroid bias (see :func:`_centroid_bias_fractions`) is formed from its
-    phase angle and phase-irregularity factor and carried into the covariance.
+    Each blob's covariance is its photon-noise variance (the inverse of its CRLB
+    weight) plus its centroid bias (:func:`_blob_covariances`): isotropic terms, and a
+    phase term along and across the blob's direction toward the Sun.  The blobs are
+    weighted by the inverses of those covariances, so the reported covariance is that
+    of the combination formed; ``model_error_floor_px`` is then added in quadrature to
+    both axes.
     """
-    offsets_v = residuals.offsets_v
-    offsets_u = residuals.offsets_u
-    weights = residuals.weights
-    total_weight = float(weights.sum())
-    dv = float(np.sum(weights * offsets_v) / total_weight)
-    du = float(np.sum(weights * offsets_u) / total_weight)
-    res_norms = np.hypot(offsets_v - dv, offsets_u - du)
-    rms = float(np.sqrt(float(np.mean(res_norms * res_norms))))
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.asarray(residuals.extents, np.float64),
-        model_error_floor_px=model_error_floor_px,
-        centroid_model_error_frac=centroid_model_error_frac,
-        bias_fracs=_centroid_bias_fractions(
-            np.asarray(residuals.phase_angles_deg, np.float64),
-            np.asarray(residuals.phase_irregularity_factors, np.float64),
-            phase_frac=phase_centroid_error_frac,
+    fit = _generalized_least_squares(
+        np.column_stack([residuals.offsets_v, residuals.offsets_u]),
+        _blob_covariances(
+            photon_vars_px2=1.0 / residuals.weights,
+            diameters_px=np.asarray(residuals.extents, np.float64),
+            phase_angles_deg=np.asarray(residuals.phase_angles_deg, np.float64),
+            irregularity_factors=np.asarray(residuals.phase_irregularity_factors, np.float64),
+            sun_dirs_vu=np.asarray(residuals.sun_dirs_vu, np.float64),
+            model=bias_model,
         ),
     )
-    return _JointFit(dv=dv, du=du, covariance=cov, residual_rms=rms)
+    dv, du = fit.offset_vu
+    res_norms = np.hypot(residuals.offsets_v - dv, residuals.offsets_u - du)
+    rms = float(np.sqrt(float(np.mean(res_norms * res_norms))))
+    covariance = fit.covariance + model_error_floor_px * model_error_floor_px * np.eye(2)
+    return _JointFit(dv=dv, du=du, covariance=covariance, residual_rms=rms)
 
 
 class BodyBlobNav(NavTechnique):
@@ -633,24 +634,13 @@ class BodyBlobNav(NavTechnique):
         super().__init__(config=config)
         self.config.read_config()  # ensure cls.tuning is populated
         self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        # Covariance model-error terms: the brightness-weighted centroid is a
-        # biased estimator of the geometric center (lit-hemisphere offset,
-        # shape irregularity), and that bias scales with the body radius --
-        # a term the photon-only per-blob CRLB cannot see.  ``model_error_size_frac``
-        # carries it; ``model_error_floor_px`` is the absolute floor.
-        self._cov_tuning = load_ncc_covariance_tuning(self.tuning, self.name)
-        # The part of the modeled lit-hemisphere shift that is uncertain, and
-        # the shape-irregularity bias the body model reports per blob, both
-        # grow with phase (see _centroid_bias_fractions).
-        self._phase_centroid_error_frac = float(self.tuning['phase_centroid_error_frac'])
-        if (
-            not math.isfinite(self._phase_centroid_error_frac)
-            or self._phase_centroid_error_frac < 0.0
-        ):
-            raise ValueError(
-                'BodyBlobNav.phase_centroid_error_frac must be a finite number >= 0; '
-                f'got {self._phase_centroid_error_frac!r}'
-            )
+        # Covariance terms: the brightness-weighted centroid is a biased estimate of
+        # the geometric center (lit-hemisphere shift, shape irregularity), and the
+        # photon-only per-blob CRLB cannot see that bias.  ``model_error_floor_px``
+        # is the absolute floor on the joint fit; the per-blob bias terms are in
+        # :class:`BlobCentroidBiasModel`.
+        self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
+        self._bias_model = load_blob_bias_model(self.tuning)
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable BODY_BLOB feature.
@@ -768,9 +758,8 @@ class BodyBlobNav(NavTechnique):
                 )
             fit = _joint_offset_from_residuals(
                 residuals,
-                model_error_floor_px=self._cov_tuning.model_error_floor_px,
-                centroid_model_error_frac=self._cov_tuning.model_error_size_frac,
-                phase_centroid_error_frac=self._phase_centroid_error_frac,
+                bias_model=self._bias_model,
+                model_error_floor_px=self._model_error_floor_px,
             )
             at_edge = (
                 abs(fit.dv) >= margin_v - self._at_edge_tolerance_px

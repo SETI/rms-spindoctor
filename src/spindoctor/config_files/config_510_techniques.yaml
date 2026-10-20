@@ -227,35 +227,45 @@ techniques:
       # Pixels of slack around the search-window axis bounds for the
       # at-edge check.  See ``RingEdgeNav.at_edge_tolerance_px``.
       at_edge_tolerance_px: 1.0
-      # Covariance model-error terms.  The per-blob centroid CRLB counts
-      # photon statistics only; the brightness-weighted centroid is a
-      # biased estimate of the geometric center (lit-hemisphere offset,
-      # shape irregularity) whose error scales with the body radius.
-      #  - model_error_size_frac is that centroid bias as a fraction of the
-      #    body radius; per-blob variances combine by inverse-variance so a
-      #    multi-blob fit tightens correctly (campaign corr(error, radius)
-      #    ~ 0.34).
-      #  - model_error_floor_px is the size-independent floor (pointing).
-      # localization_uncertainty_scale is unused here (no correlation
-      # pyramid) and left at its 0.0 default.
+      # Covariance.  Each blob's centroid carries its photon CRLB variance
+      # plus a model bias, and the blobs combine by generalized least
+      # squares with the inverses of those covariances as weights, so the
+      # reported covariance is that of the combination formed.  The bias
+      # of the brightness-weighted centroid against the rendered lit
+      # centroid has an isotropic part -- model_error_size_frac times the
+      # radius R, plus the body model's phase_irregularity_factor times
+      # Rc = min(R, bias_radius_cap_px) -- and a phase part, a fraction of
+      # a Lambertian sphere's photocenter offset g Rc (g = 0.20 at 30 deg
+      # phase, 0.59 at 90 deg, 0.80 at 135 deg), along the image direction
+      # toward the Sun and, smaller, across it.  A regular body (factor at
+      # most regular_irregularity_max) takes along_sun_frac_regular, an
+      # irregular one (at least irregular_irregularity_min)
+      # along_sun_frac_irregular, linear between: the measured centroids
+      # of the regular moons sit sunward of the rendered ones by most of g R
+      # (a median 2 px on WAC Tethys, Dione, and Rhea at 110-150 deg),
+      # while an irregular moon's bias is mostly in its irregularity term.
+      # Fitted by maximum likelihood on one half of 932 F ring bundle and 25
+      # library Cassini blobs (truth: bundle pointing or operator truth;
+      # lock failures and at-edge results excluded), checked on the other
+      # half: median Mahalanobis distance 0.71 / 0.87 / 1.14 for NAC
+      # blobs under 10 px, NAC 10-30 px, and WAC, P(> 2) 0.07 / 0.17 /
+      # 0.05 (a correctly sized two-axis Gaussian: 1.18 and 0.135); before,
+      # 0.75 / 0.96 / 2.93 and 0.08 / 0.19 / 0.85.  Past a radius of about
+      # 10 px the error stops growing with the body: ten operator-verified
+      # library blobs of irregular moons 80-750 px across lie within 1-2 px
+      # of truth.  Regular moons over 100 px across at more than 90 deg
+      # phase can still err by 15-75 px along the Sun direction, beyond
+      # their reported sigma; on those frames a limb or disc fit of the
+      # same body supersedes the blob.
+      # model_error_floor_px is the joint fit's absolute floor.
       model_error_size_frac: 0.05
       model_error_floor_px: 0.1
-      # Each blob also carries a phase- and shape-dependent centroid bias,
-      # added to model_error_size_frac in quadrature as a fraction of its
-      # radius: the body model's phase_irregularity_factor (a shape irregular
-      # beyond its ellipsoid, worse as less of it is lit), and this fraction
-      # of a Lambertian sphere's photocenter offset (0.20 R at 30 deg phase,
-      # 0.59 R at 90 deg, 0.80 R at 135 deg), the part of the modeled
-      # lit-hemisphere shift that the rendered photometry, albedo, and shape
-      # and the noise threshold on the faint terminator side leave
-      # uncertain.  Measured on 498 Cassini F ring bundle frames whose blob
-      # lies inside its body and whose pointing another technique confirms
-      # to 0.5 px: with neither term the error was a median 3.6 times the
-      # reported sigma (7.1 times above 120 deg phase); with both, at 0.3,
-      # a median 0.97 times, and 14% of errors exceed twice the sigma, as
-      # 13.5% do for a correctly sized two-axis Gaussian.  At 0.2 it is 1.10
-      # and 20%, at 0.4 0.85 and 9%.
-      phase_centroid_error_frac: 0.3
+      along_sun_frac_regular: 1.0
+      along_sun_frac_irregular: 0.4
+      across_sun_frac: 0.35
+      regular_irregularity_max: 0.02
+      irregular_irregularity_min: 0.05
+      bias_radius_cap_px: 10.0
 
   BodyLimbNav:
     # Sim campaign (seed 20260718, full-truth-axis renderer): n=461
