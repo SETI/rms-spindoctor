@@ -897,6 +897,20 @@ techniques:
       # Drop a star whose detection sits more than this many pixels from
       # the prior-shifted prediction; almost certainly a wrong peak.
       max_per_star_residual_px: 4.0
+      # With at least discordant_min_stars inliers, drop a star whose residual lies
+      # farther from the per-axis median residual than max(discordant_floor_px,
+      # discordant_median_factor * the median such distance).  The average weights
+      # each star by catalog brightness, so one bright star centroided on the wrong
+      # peak otherwise outweighs every faint star that agrees: on F ring frame
+      # N1802001372 a V 9.2 Tycho-2 star 2.6 px from the median of nine pulled the
+      # refine 1.1 px off seven stars that agree with each other to 0.4 px.  Four
+      # stars are the fewest whose median rests on an agreeing majority of three;
+      # of three, a 2-to-1 split cannot say which side is wrong (Voyager library
+      # frame C3448723: two bright stars 2 px from its operator-verified body fix,
+      # one faint star on it).
+      discordant_min_stars: 4
+      discordant_floor_px: 1.0
+      discordant_median_factor: 3.0
       # Detection-threshold multiplier on image_noise_sigma.
       detection_sigma: 4.0
       # Below this many surviving inliers the technique reports spurious.

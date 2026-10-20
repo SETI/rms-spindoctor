@@ -142,6 +142,9 @@ class StarRefineNav(NavTechnique):
         self._refine_window_px = float(self.tuning['refine_window_px'])
         self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
         self._max_per_star_residual_px = float(self.tuning['max_per_star_residual_px'])
+        self._discordant_min_stars = int(self.tuning['discordant_min_stars'])
+        self._discordant_floor_px = float(self.tuning['discordant_floor_px'])
+        self._discordant_median_factor = float(self.tuning['discordant_median_factor'])
         self._detection_sigma = float(self.tuning['detection_sigma'])
         self._min_inliers = int(self.tuning['min_inliers'])
         self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
@@ -205,6 +208,9 @@ class StarRefineNav(NavTechnique):
                 prior_v,
                 prior_u,
                 data_margin_vu=search_window_for_obs(context),
+            )
+            inliers, per_star_residuals_v, per_star_residuals_u, weights = self._reject_discordant(
+                inliers, per_star_residuals_v, per_star_residuals_u, weights
             )
             if len(inliers) < self._min_inliers:
                 return self._fail(
@@ -429,6 +435,57 @@ class StarRefineNav(NavTechnique):
             np.asarray(residuals_v, dtype=np.float64),
             np.asarray(residuals_u, dtype=np.float64),
             np.asarray(weights, dtype=np.float64),
+        )
+
+    def _reject_discordant(
+        self,
+        inliers: list[NavFeature],
+        residuals_v: NDArrayFloatType,
+        residuals_u: NDArrayFloatType,
+        weights: NDArrayFloatType,
+    ) -> tuple[list[NavFeature], NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+        """Drop stars whose residual disagrees with the rest before they are averaged.
+
+        The average weights each star by its catalog brightness, so one bright star
+        centroided on the wrong peak outweighs every faint star that agrees.  With at
+        least ``discordant_min_stars`` inliers, a star whose residual lies farther from the
+        per-axis median residual than ``max(discordant_floor_px, discordant_median_factor
+        * median distance)`` is dropped; fewer inliers are returned unchanged.
+
+        Parameters:
+            inliers: Stars that passed the per-star checks.
+            residuals_v: Their v residuals (px).
+            residuals_u: Their u residuals (px).
+            weights: Their inverse-variance weights.
+
+        Returns:
+            The same four collections with the discordant stars removed.
+        """
+        if len(inliers) < self._discordant_min_stars:
+            return inliers, residuals_v, residuals_u, weights
+        distances = np.hypot(
+            residuals_v - float(np.median(residuals_v)),
+            residuals_u - float(np.median(residuals_u)),
+        )
+        tolerance = max(
+            self._discordant_floor_px,
+            self._discordant_median_factor * float(np.median(distances)),
+        )
+        keep = distances <= tolerance
+        for star, distance in zip(inliers, distances, strict=True):
+            if distance > tolerance:
+                self.logger.debug(
+                    'Star %s: residual %.3f px from the median residual exceeds %.3f px; '
+                    'dropped as discordant',
+                    star.feature_id,
+                    float(distance),
+                    tolerance,
+                )
+        return (
+            [star for star, kept in zip(inliers, keep, strict=True) if kept],
+            residuals_v[keep],
+            residuals_u[keep],
+            weights[keep],
         )
 
     def _fit_rotation_3dof(

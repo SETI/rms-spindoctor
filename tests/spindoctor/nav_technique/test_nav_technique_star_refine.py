@@ -165,6 +165,137 @@ def test_star_refine_keeps_a_star_whose_centroid_box_just_fits(
     assert result.diagnostics.n_stars_used == 3
 
 
+def _refine_with_bright_star_offset(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    *,
+    faint_offsets_vu: list[tuple[float, float]],
+    bright_offset_vu: tuple[float, float],
+) -> tuple[float, float, int]:
+    """Refine a frame whose bright star is displaced from its prediction by an offset.
+
+    Each faint star is drawn displaced by its own offset; the bright star carries 100
+    times a faint star's weight.  Returns the refined offset and the inlier count.
+    """
+    image = np.zeros((220, 220), dtype=np.float64)
+    positions = [(60.0, 60.0), (60.0, 160.0), (160.0, 60.0), (160.0, 160.0)]
+    features = []
+    for i, ((v, u), (dv, du)) in enumerate(zip(positions, faint_offsets_vu, strict=False)):
+        draw_gaussian_star(image, (v + dv, u + du), peak_dn=200.0, sigma=1.2)
+        features.append(
+            make_star_feature(f'star:UCAC4:F{i}', predicted_vu=(v, u), predicted_snr=10.0)
+        )
+    draw_gaussian_star(
+        image, (110.0 + bright_offset_vu[0], 110.0 + bright_offset_vu[1]), peak_dn=400.0, sigma=1.2
+    )
+    features.append(
+        make_star_feature('star:UCAC4:B', predicted_vu=(110.0, 110.0), predicted_snr=100.0)
+    )
+    context = _attach_prior(make_nav_context(image), prior_offset_px=(0.0, 0.0))
+    result = StarRefineNav().navigate(features, context)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    return result.offset_px[0], result.offset_px[1], result.diagnostics.n_stars_used
+
+
+def test_star_refine_drops_a_bright_star_that_disagrees_with_the_rest(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A heavily weighted star 2.5 px from four that agree does not set the offset."""
+    dv, du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5)] * 4,
+        bright_offset_vu=(-1.5, -1.5),
+    )
+    assert n_used == 4
+    assert dv == pytest.approx(0.5, abs=0.05)
+    assert du == pytest.approx(0.5, abs=0.05)
+
+
+def test_star_refine_keeps_a_star_within_the_spread_of_the_rest(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """The tolerance grows with the stars' own spread: 3 times their median distance."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.6, 0.0), (-0.6, 0.0), (0.0, 0.6), (0.0, -0.6)],
+        bright_offset_vu=(1.5, 0.0),
+    )
+    assert n_used == 5
+
+
+def test_star_refine_drops_the_discordant_one_of_four(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Four inliers are enough to single out the one that disagrees."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5)] * 3,
+        bright_offset_vu=(-1.5, -1.5),
+    )
+    assert n_used == 3
+
+
+def test_star_refine_keeps_all_of_three_stars(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Of three stars a 2-to-1 split cannot say which side is wrong, so none is dropped."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5)] * 2,
+        bright_offset_vu=(-1.5, -1.5),
+    )
+    assert n_used == 3
+
+
+def test_star_refine_keeps_a_star_inside_the_one_pixel_floor(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Tightly agreeing stars do not make a star 0.9 px from them discordant."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5), (0.6, 0.5), (0.5, 0.6), (0.4, 0.5)],
+        bright_offset_vu=(1.4, 0.5),
+    )
+    assert n_used == 5
+
+
+def test_star_refine_keeps_two_disagreeing_stars(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Two stars that disagree are both kept."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5)],
+        bright_offset_vu=(-1.5, -1.5),
+    )
+    assert n_used == 2
+
+
 def test_star_refine_requires_prior(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
