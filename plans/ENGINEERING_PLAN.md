@@ -260,21 +260,34 @@ What remains of the family:
   an edge), so a star fix sets that component, a ring-only answer is
   reported at the low tier, and the ensemble refuses rather than averages a
   ring answer and an equally vague witness far from it (the compromise
-  test). But the position the coarse seed picks is unchanged: ring-only
-  answers keep their 2 to 9 px along-edge errors on the F ring diagnosis
-  frames. Against the bundle pointing on the 1,614-frame F ring sample, 11
-  answers became worse; star centroids measured in the image show the
-  reference wrong on 7 of them, and N1802002665 (0.95 to 1.07 px, its star
-  0.13 px from the reference), N1493649156 (0.42 to 1.26 px, no star),
-  W1763501382 (0.92 to 1.31 px, no star), and N1851235341 (0.70 to 1.04 px,
-  one star that disagrees with the reference) are not shown better, so the
-  issue stays open. Stepping the fit along the radius-gradient normals
-  (Jacobian and gradient-ridge pass) was measured on the 1,614-frame F ring
-  sample and not shipped: it brought RingEdgeNav within 1 px of the
-  ring-navigated reference on 296 of 391 frames against 244, but not of
-  star-confirmed pointing (129 of 627 against 138), and moved 23 ring-only
-  answers out of 1 px for 59 in. A future attempt at the position itself
-  starts from that measurement.
+  test). The position the coarse seed picks along the edge is unchanged,
+  but few frames now depend on it: the Cassini star limit is photometric
+  (filter pair, exposure, gain state; NAC 14.75 and WAC 11.66 at 1 s
+  through the clear filters, measured on F ring star detections), so on
+  the 1,614-frame F ring sample 422 of the 424 NAC ring-only answers gain
+  a star fix. Against the bundle pointing, NAC answers within 1 px went
+  from 561 to 1,020 and those over 2 px from 320 to 98; WAC from 86 to 210,
+  with refusals from 133 to 28 and one answer over 2 px. Supporting
+  changes: a star refine drops a star the frame edge cuts, a catalog star
+  on a magnitude-bin edge is kept once, a detection must stand above its
+  local background, a refine star that disagrees with four or more others
+  is dropped, a single-star refine replaces the one-star match it
+  confirms across a precise witness, the WAC annulus carries a 0.9 px
+  floor, and a body brightness center's bias lies along the Sun and
+  includes the ephemeris. 83 answers moved away from the bundle pointing:
+  star centroids in the image show the pointing wrong on 62; N1600250613
+  is refused where the pointing is right (a RingEdgeNav fit 2.1 sigma off
+  a tighter star fix, refused at the baseline too); 20 have no two
+  agreeing stars to decide (8 of them have one star that agrees with the
+  new answer and none with the pointing, and 4 of their 5 WAC frames lie
+  within 0.9 px of the pointing once its measured (0.43, 0.69) px WAC
+  offset is removed). So strictly better than the bundle is not shown and
+  the issue stays open. Stepping the fit along the radius-gradient
+  normals (Jacobian and gradient-ridge pass) was measured and not
+  shipped; a future attempt at the along-edge position starts from that
+  measurement. The library fails 31 of 75 against the sixteen on `main`:
+  the fifteen new are tier and primary-technique pins recorded with the
+  shallower limit (re-pins proposed in the Operator Playbook).
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
@@ -431,6 +444,11 @@ than the fitter. Fix it before reading any number it produces.
 - **#130** — per-instrument star limiting magnitudes measured from real
   star fields (a small campaign over the library's star classes;
   coordinate with #233's measured-SNR work — same frames, same tooling).
+  Cassini ISS is done on the #755 branch: photometric (CISSCAL filter
+  throughput, exposure, gain state) with the minimum detectable DN measured
+  on 517 F ring frames (CL1+CL2 full frames; other filters, gains and
+  summing rest on the CISSCAL scaling). Galileo, Voyager and New Horizons
+  keep their exposure-only anchors.
 - **#239** — implement the sub-5 px body policy the operator settled on
   (expected-failure curation); the open work is the targeted diameter-
   filtered cohort scan for a qualifying single-body frame.

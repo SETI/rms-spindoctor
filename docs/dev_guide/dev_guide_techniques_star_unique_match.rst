@@ -46,8 +46,12 @@ Local centroid
 --------------
 
 For each candidate match, the technique slices a window of half-width ``search_window_px``
-around the predicted position, takes the brightest pixel standing at least
-``detection_sigma * image_noise_sigma`` above the window's median, and fits a brightness-weighted moment over a
+around the predicted position and takes its brightest pixel. That pixel is a detection
+when it stands at least ``detection_sigma * image_noise_sigma`` above its local
+background, the median of a ring of pixels 2 px wide around its centroid box. The floor of
+a bright extended region, flat or sloping (a body's glare or a ring), is then no
+detection: the brightest pixel of a slope stands no higher than the median of the ring
+around it. The technique fits a brightness-weighted moment over a
 ``centroid_box_half_px``-half-width box around that peak to recover the sub-pixel centroid.
 A peak that fails the noise threshold collapses the candidate; on the 2-star path a
 best-assignment residual exceeding ``max_residual_px`` triggers the fall back to the 1-star

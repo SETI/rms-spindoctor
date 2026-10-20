@@ -159,10 +159,16 @@ from how much light a star sends through the frame's filter pair in its
 exposure at its gain state, against the least signal a star needs to be seen,
 and the search then reaches one magnitude fainter. Through the two clear
 filters at the usual gain, a 1 s exposure reaches magnitude 14.75 on the narrow
-angle camera and 11.65 on the wide angle camera, and each factor of 2.512 more
-exposure reaches one magnitude fainter. A colored or polarizing filter pair
-passes less light, so the same exposure does not reach as faint. The
-cataloged stars that fall behind the main rings are still set aside.
+angle camera and 11.66 on the wide angle camera, and each factor of 2.512 more
+exposure reaches one magnitude fainter, up to magnitude 17. A colored or
+polarizing filter pair passes less light, so the same exposure does not reach
+as faint. The cataloged stars that fall behind the main rings are set aside.
+
+**Ring annulus uncertainty.** On the wide angle camera, an answer from matching
+the rings' rendered brightness reports an uncertainty of at least 0.9 pixels.
+On some wide angle observations the rendered ring brightness misplaces the ring
+edges by 1.5 to 1.9 pixels, consistently from frame to frame, and the match
+itself cannot detect it.
 
 **Provisional values.** The calibrated block's blank and noisy thresholds, the
 expected-noise and read-noise figures in the raw block, and the

@@ -321,16 +321,14 @@ The known open defects:
   angle and await an operator re-pin. Same reduced sub-25 km/px exposure as
   #346.
 - **#755** — RingEdgeNav's along-edge position on gently curved edges.
-  The reported covariance now carries the weakness (radius-gradient
-  normals, information measured across the edge only, and a
-  correlated-shape term), the ensemble refuses rather than averages two
-  answers equally vague along their separation, and a body brightness
-  center's uncertainty grows with phase and irregularity. The position the
-  coarse seed picks along the edge is unchanged, and strictly better than
-  the bundle pointing is not yet shown: of 11 answers on the 1,614-frame F
-  ring sample that became worse against it, star centroids show the
-  reference wrong on 7, and 4 are not shown better (detail in the
-  engineering plan's ring-lock section). Stays open.
+  The reported covariance carries the weakness, the ensemble refuses two
+  answers equally vague along their separation, and the photometric Cassini
+  star limit gives 422 of 424 NAC ring-only F ring sample frames a star
+  fix. On the 1,614-frame sample NAC answers within 1 px of the bundle
+  pointing went from 561 to 1,020 and WAC from 86 to 210. Of 83 answers
+  that moved away from the pointing, image stars show the pointing wrong
+  on 62, one is refused where the pointing is right (N1600250613), and 20
+  cannot be decided, so strictly better than the bundle is not yet shown.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix
   (#447) leaves once it closes the coarse-grid and boundary-pinning halves.
@@ -389,6 +387,8 @@ The known open defects:
   (#639).
 - **#130** — star limiting-magnitude calibration against real fields
   (coordinate with #233's measured-SNR work — same frames, same tooling).
+  Cassini ISS is photometric on the #755 branch; the other three
+  instruments remain.
 - **#591** — the sparse 16x16 ring pre-check can skip a frame whose rings
   fall between its samples, so the frame is never offered a ring model.
 - **#585** — the correlation quality metric measures its background over a

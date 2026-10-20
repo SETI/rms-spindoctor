@@ -189,9 +189,9 @@ How faint a star can be and still be used is not a setting. It is worked out for
 image from the camera's aperture and detector and from the exposure time, and on some
 cameras also from the filters and the detector gain, as the instrument chapters describe:
 each factor of 2.512 more exposure buys one more magnitude of depth. A star fainter than
-that limit, or one that has no recorded magnitude, is dropped. How much brighter than the limit a star is
-determines its predicted signal-to-noise ratio, which in turn sets its reliability and how
-precisely its position can be measured.
+that limit, or one that has no recorded magnitude, is dropped. How much brighter than the
+limit a star is determines its predicted signal-to-noise ratio, which in turn sets its
+reliability and how precisely its position can be measured.
 
 If the spacecraft was turning during the exposure, stars are not points but short trails.
 The model computes each star's trail by projecting its direction through the camera at the
@@ -593,12 +593,24 @@ that offset, looks for a peak in a small window around each shifted prediction, 
 its center, and averages the leftover residuals, weighting each star by how precisely it
 can be located. A star whose peak is too far from the shifted prediction is dropped as a
 wrong identification, and so is one whose peak lies too close to the edge of the frame to
-be measured whole.
+be measured whole. With four or more stars, a star whose leftover residual disagrees with
+the others by much more than they disagree among themselves is dropped too, so a bright
+star measured on the wrong peak cannot outweigh the fainter ones.
 
 What it reports is a correction to the offset it was given. With two or more stars it
 reports the measured scatter as its uncertainty; with a single star it falls back to the
 theoretical best and caps its confidence at 0.5, deliberately below what a single unique
 match gets.
+
+A refinement that rests on one star usually measures nothing new: it looks again at the
+star the first round already used. Such a refinement is set aside when the final answer is
+combined, with one exception. When the first round found that star by itself, in a wide
+search around the predicted position, and a stronger technique in the same image that is
+certain to within a pixel in at least one direction, such as a ring edge across itself,
+agrees with the refined star, the refined star takes the place of the first-round match. A
+technique uncertain by more than a pixel in every direction cannot confirm the star this
+way. The first-round match reports an uncertainty as large as the offset it found, so only
+the refined star can fix the direction that the ring edge leaves open.
 
 Body Techniques
 ---------------
@@ -684,15 +696,30 @@ When a body is too small or too irregular to trace a limb on, all that can be me
 where its light is centered. This technique measures a brightness-weighted center for each
 ``BODY_BLOB`` feature inside its predicted box, and solves for the single shift that best
 maps the predicted centers onto the measured ones. With two or more bodies the problem is
-over-determined, which makes it tolerant of a poor center on any one of them.
+over-determined, and bodies whose centers disagree by more than their uncertainties allow
+widen the reported uncertainty.
 
 The predicted center already allows for the body's phase: a partly lit body's light is
 centered toward the Sun. How far it shifts depends on how the real surface scatters light
 and on the body's real shape, which the prediction knows only approximately, so the
-reported uncertainty grows with phase and with how irregular the body is. A small,
-irregular moon seen as a crescent is uncertain by a large fraction of its radius: Atlas at
-135 degrees phase, 7.5 pixels across, carries an uncertainty of about 2 pixels. The phase
-part is ``techniques.BodyBlobNav.tuning.phase_centroid_error_frac``.
+reported uncertainty grows with phase and with how irregular the body is, and it is
+larger along the direction toward the Sun than across it. A small, irregular moon seen as
+a crescent is uncertain by a large fraction of its radius: Atlas at 135 degrees phase,
+7.5 pixels across, carries an uncertainty of about 2 pixels. On a body more than about
+20 pixels across, the part that comes from phase and shape stops growing with size. The
+uncertainty also includes how far the body may lie from where its orbit puts it, converted
+to pixels at the image's scale; for Prometheus and Pandora that is 5 km. When several
+bodies are measured, each counts in proportion to how precisely its center is known. Part
+of the error is common to all of them, since they share the Sun's direction, the way the
+prediction renders them, and their orbit solutions, so a second body narrows the
+uncertainty less than two independent measurements would, and the combined answer always
+lies between the bodies' own answers.
+
+A brightness center can also lock onto something other than its body, such as a ring arc
+or the limb of a larger body that crosses the search window. Such a lock spreads its light
+across the whole predicted box, wider than the body could be, and that measurement is
+discarded. When every body in the frame is discarded this way, the technique reports no
+answer.
 
 Its confidence is capped at 0.4 by design. A brightness center is much weaker evidence
 than a fitted limb, so even a perfect blob match should not be allowed to outweigh a limb

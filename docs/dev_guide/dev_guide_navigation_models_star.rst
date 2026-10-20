@@ -187,9 +187,8 @@ or DN-to-image-unit scaling enters the decision. The catalog reduction applies t
 magnitude cap, so the gate in the model is mostly a self-contained re-check that also
 handles the missing-magnitude case.
 
-The :meth:`star_max_usable_vmag()
-<spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>` of Galileo SSI, Voyager ISS, and New
-Horizons LORRI follows the form
+The :meth:`star_max_usable_vmag() <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>`
+of Galileo SSI, Voyager ISS, and New Horizons LORRI follows the form
 
 .. math::
 
@@ -197,12 +196,11 @@ Horizons LORRI follows the form
         \mathrm{anchor} + \frac{\log t_{\mathrm{exp}}}{\log 2.512},
 
 where ``anchor`` is the limiting magnitude at a one-second exposure and each Pogson factor
-of exposure time buys one more magnitude of depth.  Cassini ISS computes its limit
-photometrically from the filter pair, the exposure, and the gain state, and
-searches one magnitude past the dimmest visible star (see :doc:`instruments/cassini_iss`).
-Its limit sits where a star's peak is about twice the dark-sky noise, the matched-filter
-boundary the simulator's limit uses, so ``SNR_REF`` at the limit carries the same meaning
-on both.
+of exposure time buys one more magnitude of depth. Cassini ISS computes its limit
+photometrically from the filter pair, the exposure, and the gain state, and searches one
+magnitude past the dimmest visible star (see :doc:`instruments/cassini_iss`). Its limit
+sits where a star's peak is about twice the dark-sky noise, the matched-filter boundary
+the simulator's limit uses, so ``SNR_REF`` at the limit carries the same meaning on both.
 
 Magnitude-margin effective SNR
 ------------------------------
@@ -221,6 +219,14 @@ at the limit gets ``SNR_REF`` (``8.0``, just below the reliability sigmoid cente
 magnitude of headroom multiplies the effective SNR by one Pogson ratio (``2.512``),
 matching the flux ratio per magnitude. ``SNR_FLOOR`` (``0.1``) keeps the covariance away
 from the zero-SNR huge-variance branch.
+
+On Cassini ISS the photometric limit sits about 4 magnitudes (NAC) and 4.5 magnitudes
+(WAC) deeper than an exposure-only anchor would put it, so every catalog star's
+synthesized SNR is that many Pogson factors higher and its CRLB covariance correspondingly
+tighter. A single-star refine reports that CRLB plus its 0.27 px model-error floor. On 44
+Cassini F ring frames the refined star sits a median 0.12 px (90th percentile 0.23 px)
+from the consensus of three or more other stars, so the floor dominates and the reported
+sigma of 0.28 to 0.36 px is conservative.
 
 When the per-image smear length exceeds the anisotropic-smear threshold the PSF is
 replaced by a smear-aware kernel built from the per-image smear vector via

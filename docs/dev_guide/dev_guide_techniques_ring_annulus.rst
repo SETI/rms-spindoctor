@@ -105,7 +105,8 @@ model-error terms added in quadrature, following the same derivation as
 content on unit-std-normalized surfaces (amplitude-invariant, inflated by the residual
 correlation area), and a ``localization_uncertainty_scale * consistency`` localization-spread
 term plus a ``model_error_floor_px`` absolute floor carry the template model error that
-dominates the true registration error. The ring annulus size (``model_error_size_frac``)
+dominates the true registration error. The floor can be set per camera (see
+"Configuration"). The ring annulus size (``model_error_size_frac``)
 term is disabled by default because the ring bulk error does not track the annulus radial
 span.
 
@@ -156,7 +157,14 @@ peak quality, consistency, and top-k count):
   inter-pyramid-level peak migration (``consistency``, px) into an added translation sigma.
 - ``model_error_size_frac`` — float, default ``0.0`` (fraction of the annulus radial span);
   disabled because the ring bulk error does not track span.
-- ``model_error_floor_px`` — float, default ``0.13`` px. Absolute floor added in quadrature.
+- ``model_error_floor_px`` — float, default ``0.13`` px. Absolute floor added in
+  quadrature. A camera whose instrument config declares ``model_error_floor_px:
+  {RingAnnulusNav: ...}`` uses that floor instead (see
+  :doc:`dev_guide_orchestrator_instrument_config`); the technique reads it from
+  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.model_error_floor_px` and
+  logs the replacement. The 0.13 px default fits the Cassini NAC: over the 401 NAC annulus
+  answers of a 20,584-frame Cassini F ring bundle run, the Mahalanobis distance to the
+  bundle pointing has a median of 0.71 and exceeds 3 on 1.2% of them.
 
 Feature-emission tunables (per-planet)
 --------------------------------------

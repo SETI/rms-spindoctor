@@ -74,7 +74,9 @@ hundreds of sigmas apart.
 
 A Mahalanobis agreement between results farther apart than the pixel floor counts only
 when their information-form fusion takes each direction from the result that is precise
-along it, to within ``agreement_compromise_px`` (default 1 px). Along one direction the
+along it, to within ``agreement_compromise_px`` (default 1 px). A pair within the pixel
+floor agrees by the floor alone, whatever its fusion would compromise, so the compromise
+is never consulted there. Along one direction the
 fusion of two estimates with variances :math:`s_{a}^{2}` and :math:`s_{b}^{2}` lies
 :math:`\delta\, s_{a}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`a` and
 :math:`\delta\, s_{b}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`b`. The separation is
@@ -127,11 +129,12 @@ searches a small window around the pass-1 prior — is conditionally dependent o
 techniques that set that prior. The orchestrator records those techniques on the
 result's :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.prior_source_techniques`;
 when such a technique sits in the same subset, the descendant re-observed its own seed
-and casts **no independent vote**. A multi-star refine may still lend its precision to
-the fused offset in Step 6; a *single*-star refine adds no independent constraint at all
-and is dropped from the combine entirely in Step 5 (below). This stops a marginal refine
-seeded by a wrong pass-1 answer from "confirming" that answer and inflating consensus, or
-from dragging the fused offset off the pass-1 techniques that agree at the truth.
+and casts **no independent vote**. A multi-star refine may still lend its precision to the
+fused offset in Step 6; a *single*-star refine adds no independent constraint at all and
+is dropped from the combine entirely in Step 5 (below), unless it confirms and replaces a
+one-star match there. This stops a marginal refine seeded by a wrong pass-1 answer from
+"confirming" that answer and inflating consensus, or from dragging the fused offset off
+the pass-1 techniques that agree at the truth.
 
 Exclusion forces the conflicted branch only when the excluded results constitute a
 genuine alternative answer: the strongest consensus formable among the excluded
@@ -168,9 +171,34 @@ correcting three known correlations:
 - **Seeded single-star refine.** A one-inlier
   :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` seeded by a
   technique in the subset (Step 4) re-observes its own prior near the predicted position
-  and adds no independent constraint, so it is dropped from the combine entirely. A
-  multi-star refine carries genuine catalog matches and is kept (it still casts no
-  corroboration vote).
+  and adds no independent constraint, so it is dropped from the combine entirely, with one
+  exception. When the subset holds a one-star
+  :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
+  result that the refine confirms, the refine replaces that match instead: the match is
+  dropped, and the refine stands in its place with an empty
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.prior_source_techniques`,
+  so it carries the match's independent vote. The match qualifies when it is not itself
+  seeded by a member of the subset, rests on the same star (equal ``feature_ids``), and
+  lies within ``agreement_sigma`` of the refine under the refine's own translation
+  covariance. The refine must also be confirmed: every member of the subset that is not a
+  single-star result agrees with it within ``agreement_sigma`` by Mahalanobis distance,
+  and at least one of them is precise in some direction, with a principal axis of its
+  observable translation covariance whose standard deviation is at most
+  ``confirming_axis_max_sigma_px`` (1 px). The Mahalanobis bound then holds the separation
+  along that axis within ``agreement_sigma`` of the pair's combined standard deviation
+  there, which is sub-pixel. A ring edge confirms across itself; a witness vague in every
+  direction, such as a brightness centroid uncertain by 15 px, confirms nothing, however
+  small its Mahalanobis distance. The wide one-star search found the star and the stronger
+  witness confirmed it, so the prior only told the refine where to look. Without the
+  replacement the one-star match, whose covariance is as large as its own offset, could
+  not fix the direction the stronger witness leaves open. On Cassini F ring frame
+  ``N1851235341`` a ring edge confirms one Tycho-2 star across the edge; the refined star
+  (0.32 px sigma) then sets the along-edge position, where averaging the ring with the
+  one-star match (20.8 px sigma) left the answer 2.67 px off the star. The ensemble logs
+  each replacement, and
+  :attr:`~spindoctor.nav_orchestrator.ensemble_independence.IndependenceResolution.replaced_matches`
+  lists the pairs. A multi-star refine carries genuine catalog matches and is kept (it
+  still casts no corroboration vote).
 - **Two ring techniques on one catalog.**
   :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav` and
   :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav` read the
@@ -435,6 +463,11 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
   Mahalanobis distance alone, from farther apart than the pixel floor, may make; beyond it
   the pair disagrees (see Step 3). One pixel is the scale at which an answer is judged
   right. ``0.0`` disables the test.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.confirming_axis_max_sigma_px` —
+  float, default ``1.0``. Largest standard deviation (px) along a principal axis of a
+  body, ring, or multi-star result for that axis to confirm a seeded single-star refine
+  that replaces a one-star match (see Step 5). A witness with no such axis confirms
+  nothing.
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_gap` — float, default
   ``0.5``. Minimum summed-confidence gap between best and runner-up groups before
   declaring a conflict. Applied as an absolute gap when the runner-up has a quorum; in a
