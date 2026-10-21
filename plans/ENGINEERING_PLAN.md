@@ -296,6 +296,19 @@ reaches 14 px. The WAC navigates 386 of its 794 tuning frames within 2 px
 (340 on `main`) and 13 of its 113 held-out frames (8 on `main`); 97 of those
 113 have no usable catalog star, the same limiting-magnitude cause as above.
 
+The unique match searches only stars whose window reaches the image (#763).
+The star catalog predicts stars across the padded field of view, which for
+the NAC extends 140 px past the image across samples against its 50 px
+window. With the deeper photometric limit of #755, such stars filled the five
+brightest ranks the pair search draws on: F ring frame `N1862698331` had no
+pair with both stars in the image and was refused, and with them set aside it
+answers 0.15 px from the bundle. Of 87 F ring frames checked (37 refused or
+right through the unique match in the full bundle run, and 50 right
+controls), it is the only verdict that changes with #755 present. On this
+branch alone the same frames gain one answer (`N1654043744`, refused before,
+now 0.02 px from the bundle) and lose none, and the library is unchanged (74
+of 75 frames identical, the other within 0.02 px).
+
 The Galileo SSI black-sky frames (507 star-calibration frames of `GO_0008`
 and `GO_0009`) have no outside pointing, so each answer was tested directly:
 at its offset, how many catalog stars sit on an isolated point source found
