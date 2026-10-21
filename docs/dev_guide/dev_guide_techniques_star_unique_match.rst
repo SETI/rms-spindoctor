@@ -427,6 +427,10 @@ Source files:
 - ``src/spindoctor/nav_technique/nav_technique_star_unique_match.py`` —
   :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` and the
   brightness-margin / 1-star / 2-star helpers.
+- ``src/spindoctor/nav_technique/_star_unique_two_star.py`` — package-private pair geometry
+  of the 2-star path: the assignment solve (``solve_two_star_assignment``,
+  ``similarity_fit_assignment``) and the match covariances (``build_star_covariance``,
+  ``two_star_covariance``, ``two_star_covariance_3dof``).
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — package-private helpers ``usable_stars``,
   ``search_window_bounds``, ``local_centroid``, ``detection_peak_ratio``,
   ``is_isolated_point_source``, ``isolated_response``, ``gaussian_psf_kernel``,

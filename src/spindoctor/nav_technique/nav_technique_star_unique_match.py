@@ -74,7 +74,6 @@ from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_technique._star_helpers import (
-    SimilarityFit,
     brightness_margin_mag,
     detection_peak_ratio,
     is_isolated_point_source,
@@ -82,17 +81,20 @@ from spindoctor.nav_technique._star_helpers import (
     local_centroid,
     predicted_snr,
     predicted_vu,
-    similarity_transform_fit,
     smear_length_px,
     stars_in_reach,
     third_star_votes,
     usable_stars,
 )
+from spindoctor.nav_technique._star_unique_two_star import (
+    build_star_covariance,
+    solve_two_star_assignment,
+    two_star_covariance,
+)
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
-    ROTATION_UNOBSERVABLE_VARIANCE,
     NavTechnique,
     embed_rotation_unobservable,
     log_confidence_breakdown,
@@ -115,36 +117,6 @@ __all__ = ['StarUniqueMatchNav']
 # ``techniques.StarUniqueMatchNav.tuning``.  No Python-level fallback;
 # missing-key access in ``__init__`` is a KeyError so a config typo
 # fails fast at process startup.
-
-
-def _build_covariance(feature: NavFeature, *, residual_px: float) -> NDArrayFloatType:
-    """Return a 2x2 covariance for the star match.
-
-    Uses the per-feature anisotropic CRLB covariance carried on the
-    ``NavFeature.position_cov_px`` (computed from predicted SNR + smear
-    by ``NavModelStars``) as the floor and inflates it by
-    ``residual_px**2`` so a noisy match honestly reports its scatter
-    rather than the noise-free CRLB lower bound.
-
-    The same inflation applies in both 1-star and 2-star modes: the
-    1-star path's ``residual_px`` is the prediction-to-detection
-    distance (no second observation to subtract), and the 2-star path's
-    ``residual_px`` is already a per-axis RMS, so squaring either
-    yields the right per-axis variance addend.
-
-    Parameters:
-        feature: The star feature whose CRLB cov is the floor.
-        residual_px: Final per-axis residual magnitude.
-
-    Returns:
-        2x2 float64 covariance matrix.
-    """
-    floor = feature.position_cov_px
-    base = (
-        np.eye(2, dtype=np.float64) if floor is None else np.asarray(floor, dtype=np.float64).copy()
-    )
-    inflation = residual_px * residual_px
-    return base + inflation * np.eye(2, dtype=np.float64)
 
 
 class _UniqueMatchConfidenceContext:
@@ -521,52 +493,18 @@ class StarUniqueMatchNav(NavTechnique):
                 det_separation_px,
             )
             return None
-        pred_a = chosen[0].geometry.predicted_vu  # type: ignore[union-attr]
-        pred_b = chosen[1].geometry.predicted_vu  # type: ignore[union-attr]
         fit_rotation = bool(context.fit_camera_rotation)
-        det_arr = np.asarray([det_a, det_b], dtype=np.float64)
-        if fit_rotation:
-            # Procrustes-style fit per assignment: each candidate pairs
-            # detections to predictions and solves the minimum-residual
-            # rigid (rotation + translation) fit.  With only two points
-            # the rigid fit is exact, so the residual reduces to the
-            # zero-mean component the unweighted-translation 2-DoF
-            # fallback already used for assignment selection.
-            sim_1, residual_1 = self._similarity_fit_assignment(det_arr, pred_a, pred_b, swap=False)
-            sim_2, residual_2 = self._similarity_fit_assignment(det_arr, pred_a, pred_b, swap=True)
-            if residual_1 <= residual_2:
-                sim_chosen = sim_1
-                residual_px = residual_1
-                assignment = 'a->1,b->2'
-            else:
-                sim_chosen = sim_2
-                residual_px = residual_2
-                assignment = 'a->2,b->1'
-            offset_v, offset_u = sim_chosen.translation_vu
-            rotation_rad: float | None = float(sim_chosen.rotation_rad)
-        else:
-            # Assignment 1: det_a -> pred_a, det_b -> pred_b.
-            offset_1_v = 0.5 * ((det_a[0] - pred_a[0]) + (det_b[0] - pred_b[0]))
-            offset_1_u = 0.5 * ((det_a[1] - pred_a[1]) + (det_b[1] - pred_b[1]))
-            residual_1 = math.hypot(
-                (det_a[0] - pred_a[0]) - offset_1_v,
-                (det_a[1] - pred_a[1]) - offset_1_u,
-            )
-            # Assignment 2: det_a -> pred_b, det_b -> pred_a.
-            offset_2_v = 0.5 * ((det_a[0] - pred_b[0]) + (det_b[0] - pred_a[0]))
-            offset_2_u = 0.5 * ((det_a[1] - pred_b[1]) + (det_b[1] - pred_a[1]))
-            residual_2 = math.hypot(
-                (det_a[0] - pred_b[0]) - offset_2_v,
-                (det_a[1] - pred_b[1]) - offset_2_u,
-            )
-            if residual_1 <= residual_2:
-                offset_v, offset_u, residual_px = offset_1_v, offset_1_u, residual_1
-                assignment = 'a->1,b->2'
-            else:
-                offset_v, offset_u, residual_px = offset_2_v, offset_2_u, residual_2
-                assignment = 'a->2,b->1'
-            sim_chosen = None
-            rotation_rad = None
+        solved = solve_two_star_assignment(
+            det_a,
+            det_b,
+            chosen[0].geometry.predicted_vu,  # type: ignore[union-attr]
+            chosen[1].geometry.predicted_vu,  # type: ignore[union-attr]
+            fit_rotation=fit_rotation,
+        )
+        offset_v, offset_u = solved.offset_vu
+        residual_px = solved.residual_px
+        assignment = solved.assignment
+        rotation_rad = solved.rotation_rad
         if residual_px > self._max_residual_px:
             self.logger.debug(
                 'Two-star path: best-assignment residual %.3f px exceeds '
@@ -617,18 +555,11 @@ class StarUniqueMatchNav(NavTechnique):
             confidence,
         )
         feature_ids = (chosen[0].feature_id, chosen[1].feature_id)
-        # Average the two stars' covariances as a coarse 2-star floor.
-        cov_a = _build_covariance(chosen[0], residual_px=residual_px)
-        cov_b = _build_covariance(chosen[1], residual_px=residual_px)
-        cov_2x2 = 0.5 * (cov_a + cov_b)
-        cov_2x2 = 0.5 * (cov_2x2 + cov_2x2.T)
-        sigma_rotation_rad: float | None
+        cov = two_star_covariance(
+            chosen[0], chosen[1], residual_px=residual_px, fit_rotation=fit_rotation
+        )
+        sigma_rotation_rad: float | None = None
         if fit_rotation:
-            cov = self._build_two_star_covariance_3dof(
-                cov_2x2=cov_2x2,
-                pred_a=pred_a,
-                pred_b=pred_b,
-            )
             sigma_rotation_rad = float(np.sqrt(max(float(cov[2, 2]), 0.0)))
             self.logger.info(
                 'Rotation = %+.4f deg (sigma %.4f deg)%s',
@@ -636,9 +567,6 @@ class StarUniqueMatchNav(NavTechnique):
                 math.degrees(sigma_rotation_rad),
                 ', AT_EDGE' if rotation_at_edge else '',
             )
-        else:
-            cov = cov_2x2
-            sigma_rotation_rad = None
         return NavTechniqueResult(
             technique_name=self.name,
             feature_ids=feature_ids,
@@ -651,99 +579,6 @@ class StarUniqueMatchNav(NavTechnique):
             rotation_rad=rotation_rad,
             sigma_rotation_rad=sigma_rotation_rad,
         )
-
-    @staticmethod
-    def _similarity_fit_assignment(
-        det_arr: NDArrayFloatType,
-        pred_a: tuple[float, float],
-        pred_b: tuple[float, float],
-        *,
-        swap: bool,
-    ) -> tuple[SimilarityFit, float]:
-        """Run a single-assignment Procrustes fit and report its residual.
-
-        Parameters:
-            det_arr: Ordered detection pair ``[det_a, det_b]`` shaped
-                ``(2, 2)``.
-            pred_a: Catalog prediction for the first chosen star.
-            pred_b: Catalog prediction for the second chosen star.
-            swap: When False the catalog cohort is ``[pred_a, pred_b]``;
-                when True the cohort is ``[pred_b, pred_a]`` (the
-                swapped detection-to-prediction assignment).
-
-        Returns:
-            ``(SimilarityFit, residual_px)`` where the residual is the
-            centroid-relative scalar used to compare assignments.
-            For a two-point rigid fit the Procrustes residuals are zero
-            by construction; the comparable scalar — the same one the
-            legacy translation-only path used — is computed directly
-            from the centroid-relative offset so the assignment-
-            selection criterion stays stable across legacy and 3-DoF
-            runs.
-        """
-        if swap:
-            cat_arr = np.asarray([pred_b, pred_a], dtype=np.float64)
-        else:
-            cat_arr = np.asarray([pred_a, pred_b], dtype=np.float64)
-        weights = np.ones(2, dtype=np.float64)
-        fit = similarity_transform_fit(det_arr, cat_arr, weights)
-        # Residuals from a 2-point rigid fit are zero by construction; the
-        # comparable scalar for the legacy assignment-selection logic is
-        # the centroid-relative residual prior to rotation, computed
-        # directly from the assignment to keep the selection criterion
-        # stable across legacy / 3-DoF runs.
-        det_a = det_arr[0]
-        cat_first = cat_arr[0]
-        offset = np.mean(det_arr - cat_arr, axis=0)
-        residual = math.hypot(
-            (det_a[0] - cat_first[0]) - float(offset[0]),
-            (det_a[1] - cat_first[1]) - float(offset[1]),
-        )
-        return fit, residual
-
-    @staticmethod
-    def _build_two_star_covariance_3dof(
-        *,
-        cov_2x2: NDArrayFloatType,
-        pred_a: tuple[float, float],
-        pred_b: tuple[float, float],
-    ) -> NDArrayFloatType:
-        """Build the 3x3 covariance for a 2-star Procrustes fit.
-
-        Translation block uses the per-feature CRLB-derived 2x2; the
-        rotation diagonal scales the sum of per-axis position variances
-        by ``1 / L**2`` where ``L`` is the catalog separation between
-        the two stars.  This is the analytic small-angle uncertainty:
-        a per-axis position error ``sigma_pos`` perturbs the rotation
-        by approximately ``sigma_pos / L`` per star, and the two stars
-        contribute independently.
-
-        Parameters:
-            cov_2x2: Per-feature CRLB-derived 2x2 translation covariance
-                (already symmetrised).
-            pred_a: Catalog prediction for the first chosen star.
-            pred_b: Catalog prediction for the second chosen star.
-
-        Returns:
-            3x3 covariance with the input ``cov_2x2`` in the
-            translation block and either the analytic
-            ``2 * (sigma_v**2 + sigma_u**2) / L**2`` rotation variance
-            on the diagonal, or :data:`ROTATION_UNOBSERVABLE_VARIANCE`
-            when the two predictions coincide (a degenerate input the
-            upstream guard already rejects).
-        """
-        separation_sq = (pred_a[0] - pred_b[0]) ** 2 + (pred_a[1] - pred_b[1]) ** 2
-        if separation_sq <= 0.0:
-            sigma_theta_sq = ROTATION_UNOBSERVABLE_VARIANCE
-        else:
-            # Sum of per-axis position variances aggregates the (v, u)
-            # pixel uncertainty assumed isotropic by the centroid CRLB;
-            # 2 / L^2 reflects the two-point lever-arm.
-            sigma_theta_sq = 2.0 * float(cov_2x2[0, 0] + cov_2x2[1, 1]) / separation_sq
-        cov = np.zeros((3, 3), dtype=np.float64)
-        cov[:2, :2] = cov_2x2
-        cov[2, 2] = sigma_theta_sq
-        return cov
 
     def _try_one_star(
         self,
@@ -939,7 +774,7 @@ class StarUniqueMatchNav(NavTechnique):
             margin_mag,
             confidence,
         )
-        cov = _build_covariance(brightest, residual_px=residual_px)
+        cov = build_star_covariance(brightest, residual_px=residual_px)
         fit_rotation = bool(context.fit_camera_rotation)
         cov_out = embed_rotation_unobservable(cov) if fit_rotation else cov
         return NavTechniqueResult(
