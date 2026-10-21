@@ -33,7 +33,8 @@ Per-star centroid model
 
 For a single predicted catalog star at position :math:`x_{\mathrm{pred}}` with covariance
 :math:`\Sigma_{i}` (the Cramer-Rao lower bound carried on the feature), the refinement step
-takes the brightness-weighted moment of a small box around the predicted brightness peak in a
+takes the brightness-weighted moment, above a plane background (see the star unique-match
+technique's local centroid), of a small box around the predicted brightness peak in a
 search window centered on :math:`x_{\mathrm{pred}} + \mathbf{p}` (where :math:`\mathbf{p}` is the
 prior offset). The centroid is rejected when the brightest pixel in the window stands less
 than the detection threshold above its local background (the median of a ring of pixels

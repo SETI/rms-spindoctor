@@ -59,3 +59,56 @@ def test_the_brightest_pixel_of_a_sloping_floor_holds_no_detection() -> None:
         detection_sigma=5.0,
     )
     assert detection is None
+
+
+def test_a_star_on_a_sloping_floor_is_centroided_where_it_lies() -> None:
+    """Glare rising across the centroid box does not pull the centroid uphill."""
+    image = _bright_floor()
+    vv, uu = np.mgrid[0:41, 0:41]
+    image += 4.0 * uu + 40.0 * np.exp(-((vv - 22.0) ** 2 + (uu - 18.0) ** 2) / (2.0 * 0.8**2))
+    detection, _peak = local_centroid(
+        image,
+        (20.0, 20.0),
+        search_window_px=6.0,
+        centroid_box_half_px=3,
+        image_noise_sigma=_NOISE_SIGMA,
+        detection_sigma=5.0,
+    )
+    assert detection is not None
+    assert detection[1] == pytest.approx(18.0, abs=0.2)
+
+
+def test_a_cosmic_ray_beside_the_box_does_not_tilt_its_background() -> None:
+    """A spike in the ring around the centroid box is left out of the background's slope."""
+    image = _bright_floor()
+    vv, uu = np.mgrid[0:41, 0:41]
+    image += 40.0 * np.exp(-((vv - 22.0) ** 2 + (uu - 18.0) ** 2) / (2.0 * 0.8**2))
+    image[22, 23] += 2000.0
+    detection, _peak = local_centroid(
+        image,
+        (22.0, 18.0),
+        search_window_px=2.0,
+        centroid_box_half_px=3,
+        image_noise_sigma=_NOISE_SIGMA,
+        detection_sigma=5.0,
+    )
+    assert detection is not None
+    assert detection[1] == pytest.approx(18.0, abs=0.2)
+
+
+def test_the_background_level_is_the_box_floor_not_the_ring() -> None:
+    """Glow filling the centroid box above the floor around it is background, not star."""
+    image = _bright_floor()
+    vv, uu = np.mgrid[0:41, 0:41]
+    image += 40.0 * np.exp(-((vv - 22.4) ** 2 + (uu - 18.0) ** 2) / (2.0 * 0.8**2))
+    image[19:26, 15:22] += 20.0
+    detection, _peak = local_centroid(
+        image,
+        (22.0, 18.0),
+        search_window_px=2.0,
+        centroid_box_half_px=3,
+        image_noise_sigma=_NOISE_SIGMA,
+        detection_sigma=5.0,
+    )
+    assert detection is not None
+    assert detection[0] == pytest.approx(22.4, abs=0.15)

@@ -272,6 +272,59 @@ def _annulus_median(
     return float(np.median(image_ext[v_lo:v_hi, u_lo:u_hi][ring]))
 
 
+def _box_background(
+    image_ext: NDArrayFloatType, v_lo: int, v_hi: int, u_lo: int, u_hi: int
+) -> NDArrayFloatType:
+    """Return a plane background for the centroid box ``[v_lo:v_hi, u_lo:u_hi]``.
+
+    The plane's slope is the least-squares fit to the ring of pixels
+    ``_BACKGROUND_ANNULUS_WIDTH_PX`` wide around the box (pixels beyond the image left
+    out), far enough from the star that its own light does not tilt the fit, less the ring
+    pixels more than three robust sigmas from the ring's median (the light of a source
+    larger than the box, or a cosmic ray), and its level is the median of the box less
+    that slope, so a flat background gives the box median.  Under a star on a sloping
+    glare of a ring or a body, the box median alone leaves the slope's upper half in the
+    moment's weights and pulls the centroid uphill.  When the kept ring pixels cannot fix
+    a plane (fewer than three, or all on one line, as a quantized background's median
+    absolute deviation of zero can leave them), the background is the box median.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        v_lo: First row of the box.
+        v_hi: Row after the box's last.
+        u_lo: First column of the box.
+        u_hi: Column after the box's last.
+
+    Returns:
+        The background at every pixel of the box.
+    """
+    # F ring frame N1571454567: a V 9.9 star on ring glare was measured 1.7 px from where
+    # a high-passed image puts it while the background was the box median.
+    h, w = image_ext.shape
+    width = _BACKGROUND_ANNULUS_WIDTH_PX
+    r_lo, r_hi = max(0, v_lo - width), min(h, v_hi + width)
+    c_lo, c_hi = max(0, u_lo - width), min(w, u_hi + width)
+    # Coordinates relative to the box's center, so the fitted slope carries no level.
+    v_mid = 0.5 * (v_lo + v_hi - 1)
+    u_mid = 0.5 * (u_lo + u_hi - 1)
+    vv, uu = np.mgrid[r_lo:r_hi, c_lo:c_hi]
+    ring = ~((vv >= v_lo) & (vv < v_hi) & (uu >= u_lo) & (uu < u_hi))
+    box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
+    values = np.asarray(image_ext[r_lo:r_hi, c_lo:c_hi], np.float64)[ring]
+    center = float(np.median(values))
+    spread = 1.4826 * float(np.median(np.abs(values - center)))
+    sky = np.abs(values - center) <= 3.0 * spread
+    design = np.column_stack(
+        [np.ones(int(sky.sum())), vv[ring][sky] - v_mid, uu[ring][sky] - u_mid]
+    ).astype(np.float64)
+    if int(np.linalg.matrix_rank(design)) < 3:
+        return np.full(box.shape, float(np.median(box)))
+    coeffs, *_ = np.linalg.lstsq(design, values[sky], rcond=None)
+    bv, bu = np.mgrid[v_lo:v_hi, u_lo:u_hi]
+    slope = coeffs[1] * (bv - v_mid) + coeffs[2] * (bu - u_mid)
+    return np.asarray(slope + float(np.median(box - slope)), np.float64)
+
+
 def local_centroid(
     image_ext: NDArrayFloatType,
     predicted_vu_pos: tuple[float, float],
@@ -298,7 +351,8 @@ def local_centroid(
        brightest pixel stands no higher than the median of the ring around it.
     4. Fit a brightness-weighted moment (Gaussian-equivalent for noise-
        free fixtures) over a ``(2 * centroid_box_half_px + 1)`` box
-       around the candidate to pull a sub-pixel centroid.
+       around the candidate to pull a sub-pixel centroid, above the plane
+       background of :func:`_box_background`.
 
     The star techniques use this purely-local fit rather than a global
     ``detect_sources`` call so they stay feasible on images where the
@@ -346,9 +400,9 @@ def local_centroid(
     box_u_lo = max(0, peak_u - centroid_box_half_px)
     box_v_hi = min(h, peak_v + centroid_box_half_px + 1)
     box_u_hi = min(w, peak_u + centroid_box_half_px + 1)
-    box = image_ext[box_v_lo:box_v_hi, box_u_lo:box_u_hi]
-    bg = float(np.median(box))
-    weights = np.clip(box.astype(np.float64) - bg, 0.0, None)
+    box = np.asarray(image_ext[box_v_lo:box_v_hi, box_u_lo:box_u_hi], np.float64)
+    plane = _box_background(image_ext, box_v_lo, box_v_hi, box_u_lo, box_u_hi)
+    weights = np.clip(box - plane, 0.0, None)
     total = float(weights.sum())
     if total <= 0.0:
         return None, peak_dn

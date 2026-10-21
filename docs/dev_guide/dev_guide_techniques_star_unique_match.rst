@@ -61,7 +61,8 @@ brightest pixel near its moved prediction stands
 ``detection_sigma`` times the local spread above the median of a ring around its centroid
 box, the spread being the larger of the ring's scaled median absolute deviation and the
 image noise, so a pixel of a body's limb or texture is not taken for a star, and its moment
-centroid lies within the tolerance. A frame whose field has no such near-equal star keeps the uncorroborated match. The margin
+centroid above the plane background of the local centroid lies within the tolerance. A
+frame whose field has no such near-equal star keeps the uncorroborated match. The margin
 the diagnostics report, and the confidence formula scores, is the margin in the field; a
 corroborated match is scored as meeting the floor exactly.
 
@@ -75,7 +76,12 @@ background, the median of a ring of pixels 2 px wide around its centroid box. Th
 a bright extended region, flat or sloping (a body's glare or a ring), is then no
 detection: the brightest pixel of a slope stands no higher than the median of the ring
 around it. The technique fits a brightness-weighted moment over a
-``centroid_box_half_px``-half-width box around that peak to recover the sub-pixel centroid.
+``centroid_box_half_px``-half-width box around that peak to recover the sub-pixel centroid,
+above a plane background: the plane's slope is fitted to the same 2 px ring, less its pixels
+more than three robust sigmas from the ring's median, and its level is the median of the box
+less that slope. The box median alone leaves the upper half of a sloping glare in the
+moment's weights and pulls the centroid uphill; on F ring frame ``N1571454567`` a V 9.9 star
+on ring glare was measured 1.7 px from where a high-passed image puts it.
 A peak that fails the noise threshold collapses the candidate; on the 2-star path a
 best-assignment residual exceeding ``max_residual_px`` triggers the fall back to the 1-star
 path, and on the 1-star path a no-rival detection whose prediction-to-detection distance

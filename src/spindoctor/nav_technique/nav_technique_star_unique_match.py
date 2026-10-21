@@ -53,6 +53,7 @@ from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_technique._star_helpers import (
     SimilarityFit,
+    _box_background,
     brightness_margin_mag,
     detection_peak_ratio,
     local_centroid,
@@ -169,8 +170,9 @@ def _found_at(
     median of the ring of pixels 1 to 3 px outside its ``box_half_px`` box, the spread
     being the larger of the ring's scaled median absolute deviation and
     ``noise_sigma``, so a pixel of a body's limb or texture, or a quantized background
-    step, is not taken for a star.  Its background-subtracted moment centroid over the
-    box must then lie within ``tolerance_px`` of the target.
+    step, is not taken for a star.  Its moment centroid over the box, above the plane
+    background the local centroid uses, must then lie within ``tolerance_px`` of the
+    target.
 
     Parameters:
         image_ext: The extended-FOV image.
@@ -211,8 +213,17 @@ def _found_at(
     box = patch[
         outer - box_half_px : outer + box_half_px + 1, outer - box_half_px : outer + box_half_px + 1
     ]
-    weights = np.clip(box - background, 0.0, None)
+    plane = _box_background(
+        image_ext,
+        p_v - box_half_px,
+        p_v + box_half_px + 1,
+        p_u - box_half_px,
+        p_u + box_half_px + 1,
+    )
+    weights = np.clip(box - plane, 0.0, None)
     total = float(weights.sum())
+    if total <= 0.0:
+        return False
     offsets = np.arange(-box_half_px, box_half_px + 1, dtype=np.float64)
     cen_v = p_v + float(np.sum(offsets[:, None] * weights) / total)
     cen_u = p_u + float(np.sum(offsets[None, :] * weights) / total)
