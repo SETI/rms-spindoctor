@@ -62,6 +62,13 @@ member is subordinate, so the pair is replaced by one representative).  The
 representative of a collapsed set is its highest-positional-precision member,
 with a deterministic tie-break, so the fused offset is the single best view of
 the shared measurement rather than a spuriously tightened average of two.
+
+The representative votes for the whole set, so it carries the set's seed
+dependence rather than its own: a technique seeded the set only when it seeded
+every member.  A set holding a pass-1 member found its answer without any prior,
+so its vote is independent even when the member standing in for it is a pass-2
+refine whose prior another technique of the group helped form; denying that vote
+leaves the group without the star witness it holds.
 """
 
 import dataclasses
@@ -337,6 +344,24 @@ def _correlation_adjacency(
     return adj
 
 
+def _collapsed_seed_sources(members: list[NavTechniqueResult]) -> frozenset[str]:
+    """Return the techniques that seeded every member of a collapsed set.
+
+    The set's representative votes for all of its members, so its vote depends on
+    a pass-1 prior only when every member's does.  Only a pass-2 result carries
+    seeds, and only the shared-feature collapse of the star techniques puts one in
+    a set, beside the pass-1 star fits that seeded it.
+
+    Parameters:
+        members: The collapsed set's members, in any order.
+
+    Returns:
+        The intersection over the members of their ``prior_source_techniques``;
+        empty when any member is prior-free.
+    """
+    return frozenset.intersection(*(m.prior_source_techniques for m in members))
+
+
 def _connected_components(adj: list[set[int]]) -> list[list[int]]:
     """Return the connected components of an undirected adjacency list.
 
@@ -478,7 +503,11 @@ def resolve_independent_estimators(
             ),
         )
         keep.add(rep_idx)
-        rep = survivors[rep_idx]
+        rep = dataclasses.replace(
+            survivors[rep_idx],
+            prior_source_techniques=_collapsed_seed_sources([survivors[i] for i in comp]),
+        )
+        survivors[rep_idx] = rep
         others = [survivors[i] for i in comp if i != rep_idx]
         collapsed_groups.append([rep, *others])
 

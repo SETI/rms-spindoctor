@@ -366,6 +366,46 @@ def test_r2_collapses_two_ring_techniques() -> None:
     assert res.collapsed_groups == [[edge, annulus]]
 
 
+def _seeded_ring_pair(
+    annulus_sources: frozenset[str],
+) -> tuple[NavTechniqueResult, NavTechniqueResult, NavTechniqueResult]:
+    """A blob, and a ring pair whose tight edge and annulus carry the given seeds.
+
+    Ring techniques carry no seeds in the pipeline: only a pass-2 result does, and
+    only the shared-feature collapse of the star techniques puts one in a set beside
+    the pass-1 fits that seeded it.  The ring pair stands in for such a set, the
+    edge playing the seeded refine that represents it.
+    """
+    blob = _result(technique_name='BodyBlobNav', cov=np.eye(2, dtype=np.float64) * 4.0)
+    edge = _result(
+        technique_name='RingEdgeNav',
+        cov=np.eye(2, dtype=np.float64) * 0.04,
+        diagnostics=RingEdgeDiagnostics(),
+        prior_sources=frozenset({'BodyBlobNav'}),
+    )
+    annulus = _result(
+        technique_name='RingAnnulusNav',
+        cov=np.eye(2, dtype=np.float64) * 0.25,
+        diagnostics=RingAnnulusDiagnostics(),
+        prior_sources=annulus_sources,
+    )
+    return blob, edge, annulus
+
+
+def test_collapsed_set_with_a_prior_free_member_is_unseeded() -> None:
+    """A seeded representative of a set holding a prior-free member carries no seed."""
+    blob, edge, annulus = _seeded_ring_pair(frozenset())
+    res = _resolve([blob, edge, annulus])
+    assert res.estimators[1].prior_source_techniques == frozenset()
+
+
+def test_collapsed_set_seeded_throughout_keeps_its_seed() -> None:
+    """A set every member of which the same technique seeded keeps that seed."""
+    blob, edge, annulus = _seeded_ring_pair(frozenset({'BodyBlobNav'}))
+    res = _resolve([blob, edge, annulus])
+    assert res.estimators[1].prior_source_techniques == frozenset({'BodyBlobNav'})
+
+
 def test_r3_collapses_disc_and_limb_only_when_scattered() -> None:
     """Disc and limb on one body collapse only above the scatter threshold."""
     disc = _result(

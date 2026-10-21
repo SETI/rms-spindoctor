@@ -223,6 +223,14 @@ reported on
 transparency, while the resolved set of independent witnesses drives the precision-weighted
 fusion, the agreement boost, the quorum count, and the vote mass.
 
+The representative votes for the whole set, so it carries the set's seed dependence (its
+``prior_source_techniques``) rather than its own: a technique seeded the set only when it
+seeded every member. A set holding a pass-1 member found its answer without a prior, so
+its vote stands even when the member standing in for it is a pass-2 refine whose prior
+another technique in the group helped form. Only the shared-feature collapse of the star
+techniques puts a pass-2 result in a set; ring pairs and disc/limb pairs hold pass-1
+results only.
+
 Step 6 — precision-weighted merge
 ---------------------------------
 
