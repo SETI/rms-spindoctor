@@ -566,10 +566,14 @@ nothing to work with. This technique handles exactly that case, and needs only o
 star.
 
 With one star, it requires that star to be clearly the brightest thing the catalog
-predicts in the frame, by a margin over the next candidate of
+predicts near it, by a margin over the next candidate close enough to fall in its search
+window of
 ``techniques.StarUniqueMatchNav.tuning.brightness_margin_to_next_catalog_star_mag``
 magnitudes, 1.5 by default. Then the brightest peak inside a search window around the
-prediction can only be that star, and the offset is simply the difference. Confidence is
+prediction can only be that star, and the offset is simply the difference. When another
+star elsewhere in the frame is nearly as bright, at least two other stars (or every other
+star the offset puts in the frame, when fewer) must also be found where the offset places
+them. Confidence is
 capped at 0.7, because a single match has nothing to check itself against. Guards exist
 against locking onto a noise spike or a hot pixel: the peak must stand clear of the
 window's background, and where there is no rival peak at all to measure against, the match

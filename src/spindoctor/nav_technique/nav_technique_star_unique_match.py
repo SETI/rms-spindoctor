@@ -4,8 +4,9 @@ Two paths share one technique:
 
 - **One-star path.**  When the catalog reduction produces one star whose
   predicted brightness is at least ``brightness_margin_to_next_catalog_star_mag``
-  brighter than the next-brightest predictable star, the brightest
-  detection inside its search window is unambiguously its match.  The
+  brighter than the next-brightest predictable star that can fall in its
+  search window, the brightest detection inside that window is
+  unambiguously its match.  The
   offset is the centroid minus the prediction; confidence is capped at
   the configured one-star limit (default 0.7) because a single match
   cannot cross-check itself.
@@ -13,7 +14,7 @@ Two paths share one technique:
   No-rival sentinels: the ``one_star_min_peak_ratio`` ambiguity
   gate and the brightness-margin gate both report ``inf`` when
   no rival exists (no runner-up detection above the window background /
-  no other predictable catalog star).  The sentinels deliberately PASS
+  no other predictable catalog star within reach of the window).  The sentinels deliberately PASS
   the ratio checks -- a genuinely unique bright star has no rival and
   must remain matchable -- but an infinite peak ratio also means the
   ambiguity gate measured nothing (a flat or quantized window, exactly
@@ -56,6 +57,7 @@ from spindoctor.nav_technique._star_helpers import (
     detection_peak_ratio,
     local_centroid,
     predicted_snr,
+    predicted_vu,
     similarity_transform_fit,
     usable_stars,
 )
@@ -117,6 +119,106 @@ def _build_covariance(feature: NavFeature, *, residual_px: float) -> NDArrayFloa
     return base + inflation * np.eye(2, dtype=np.float64)
 
 
+def _window_rivals(
+    brightest: NavFeature, rest: list[NavFeature], *, search_window_px: float
+) -> list[NavFeature]:
+    """Return the stars of ``rest`` that can fall in the brightest star's search window.
+
+    The window is the square of half-width ``search_window_px`` around the brightest
+    star's prediction, and a pointing error moves every star by the same offset, at most
+    that half-width on each axis.  A star predicted more than twice the half-width from
+    the brightest star on either axis therefore lies outside the window at every offset
+    the window allows, and cannot be the source the window detects.  The window is cut
+    on whole pixels and reaches up to a pixel past its half-width, so the reach allows
+    one pixel more.
+
+    Parameters:
+        brightest: The star whose window is searched.
+        rest: The other usable stars, in any order; the order is kept.
+        search_window_px: Half-width of the search window in pixels.
+
+    Returns:
+        The stars of ``rest`` within twice the half-width, plus a pixel, of the
+        brightest star on both axes.
+    """
+    # The window spans whole pixels from floor(prediction - half-width) to
+    # ceil(prediction + half-width), up to a pixel beyond the half-width.
+    reach = 2.0 * search_window_px + 1.0
+    b_v, b_u = predicted_vu(brightest)
+    out: list[NavFeature] = []
+    for star in rest:
+        s_v, s_u = predicted_vu(star)
+        if abs(s_v - b_v) <= reach and abs(s_u - b_u) <= reach:
+            out.append(star)
+    return out
+
+
+def _found_at(
+    image_ext: NDArrayFloatType,
+    target_vu: tuple[float, float],
+    *,
+    tolerance_px: float,
+    box_half_px: int,
+    noise_sigma: float,
+    detection_sigma: float,
+) -> bool:
+    """Return whether a point source lies within ``tolerance_px`` of ``target_vu``.
+
+    The brightest pixel within ``tolerance_px`` of the target on each axis is the
+    candidate.  It must stand ``detection_sigma`` times the local spread above the
+    median of the ring of pixels 1 to 3 px outside its ``box_half_px`` box, the spread
+    being the larger of the ring's scaled median absolute deviation and
+    ``noise_sigma``, so a pixel of a body's limb or texture, or a quantized background
+    step, is not taken for a star.  Its background-subtracted moment centroid over the
+    box must then lie within ``tolerance_px`` of the target.
+
+    Parameters:
+        image_ext: The extended-FOV image.
+        target_vu: Where the star should be, ``(v, u)``.
+        tolerance_px: Largest distance of the star from the target in pixels.
+        box_half_px: Half-width of the centroid box in pixels.
+        noise_sigma: Image noise sigma, the floor of the local spread.
+        detection_sigma: Multiplier on the local spread the peak must clear.
+
+    Returns:
+        True when a star is found at the target.
+    """
+    rows, cols = image_ext.shape
+    t_v, t_u = target_vu
+    reach = math.ceil(tolerance_px)
+    c_v, c_u = round(t_v), round(t_u)
+    v_lo, v_hi = max(0, c_v - reach), min(rows, c_v + reach + 1)
+    u_lo, u_hi = max(0, c_u - reach), min(cols, c_u + reach + 1)
+    if v_hi <= v_lo or u_hi <= u_lo:
+        return False
+    window = image_ext[v_lo:v_hi, u_lo:u_hi]
+    w_v, w_u = np.unravel_index(int(np.argmax(window)), window.shape)
+    p_v, p_u = v_lo + int(w_v), u_lo + int(w_u)
+    outer = box_half_px + 3
+    if not (outer <= p_v < rows - outer and outer <= p_u < cols - outer):
+        return False
+    patch = np.asarray(
+        image_ext[p_v - outer : p_v + outer + 1, p_u - outer : p_u + outer + 1], np.float64
+    )
+    dist = np.maximum(
+        np.abs(np.arange(-outer, outer + 1))[:, None], np.abs(np.arange(-outer, outer + 1))[None, :]
+    )
+    ring = patch[dist > box_half_px + 1]
+    background = float(np.median(ring))
+    spread = max(1.4826 * float(np.median(np.abs(ring - background))), noise_sigma)
+    if float(image_ext[p_v, p_u]) - background < detection_sigma * spread:
+        return False
+    box = patch[
+        outer - box_half_px : outer + box_half_px + 1, outer - box_half_px : outer + box_half_px + 1
+    ]
+    weights = np.clip(box - background, 0.0, None)
+    total = float(weights.sum())
+    offsets = np.arange(-box_half_px, box_half_px + 1, dtype=np.float64)
+    cen_v = p_v + float(np.sum(offsets[:, None] * weights) / total)
+    cen_u = p_u + float(np.sum(offsets[None, :] * weights) / total)
+    return math.hypot(cen_v - t_v, cen_u - t_u) <= tolerance_px
+
+
 class _UniqueMatchConfidenceContext:
     """Adapter binding ``StarUniqueMatchDiagnostics`` plus side flags."""
 
@@ -174,6 +276,18 @@ class StarUniqueMatchNav(NavTechnique):
         self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
         self._one_star_min_peak_ratio = float(self.tuning['one_star_min_peak_ratio'])
         self._one_star_max_residual_px = float(self.tuning['one_star_max_residual_px'])
+        self._corroboration_px = float(self.tuning['one_star_corroboration_px'])
+        self._corroboration_stars = int(self.tuning['one_star_corroboration_stars'])
+        self._corroboration_min = int(self.tuning['one_star_corroboration_min_stars'])
+        if self._corroboration_px <= 0.0:
+            raise ValueError(
+                f'one_star_corroboration_px must be > 0; got {self._corroboration_px!r}'
+            )
+        if self._corroboration_stars < 1 or self._corroboration_min < 1:
+            raise ValueError(
+                'one_star_corroboration_stars and one_star_corroboration_min_stars must be '
+                f'>= 1; got {self._corroboration_stars!r} and {self._corroboration_min!r}'
+            )
         if self._one_star_min_peak_ratio < 1.0:
             raise ValueError(
                 f'one_star_min_peak_ratio must be >= 1; got {self._one_star_min_peak_ratio!r}'
@@ -566,22 +680,38 @@ class StarUniqueMatchNav(NavTechnique):
         background), so the residual gate carries the acceptance burden
         there; a finite ratio was measured against real background
         statistics and acceptance stays with the ambiguity gate.
+
+        When some other usable star (``rest``), wherever it is predicted, is within the
+        margin floor of the brightest one, the brightest star is uniquely bright only in
+        its window, not in the frame, and the match must also be corroborated
+        (:meth:`_corroborated`).
         """
         brightest_snr = predicted_snr(brightest)
-        next_snr = predicted_snr(rest[0]) if rest else 0.0
-        margin_mag = brightness_margin_mag(brightest_snr, next_snr)
-        if margin_mag < self._brightness_margin_floor_mag:
+        # Only a star that can fall in the window competes with the brightest one for its
+        # detection; a brighter star elsewhere in the field is no rival, and counting it
+        # refuses every frame whose catalog reaches deep enough to predict one.
+        rivals = _window_rivals(brightest, rest, search_window_px=self._search_window_px)
+        next_snr = predicted_snr(rivals[0]) if rivals else 0.0
+        window_margin_mag = brightness_margin_mag(brightest_snr, next_snr)
+        field_margin_mag = brightness_margin_mag(
+            brightest_snr, predicted_snr(rest[0]) if rest else 0.0
+        )
+        # The reported margin, which the confidence formula scores, is the margin in the
+        # field, as it was calibrated; a match that needs corroboration because the field
+        # margin is below the floor is scored as just meeting it.
+        margin_mag = max(field_margin_mag, self._brightness_margin_floor_mag)
+        if window_margin_mag < self._brightness_margin_floor_mag:
             diagnostics = StarUniqueMatchDiagnostics(
                 mode='one_star',
                 predicted_snr=brightest_snr,
-                brightness_margin_mag=margin_mag,
+                brightness_margin_mag=window_margin_mag,
                 residual_px=0.0,
             )
             return self._fail(
                 features=[brightest, *rest],
                 diagnostics=diagnostics,
                 reason=(
-                    f'brightness_margin {margin_mag:.3f} mag below floor '
+                    f'brightness_margin {window_margin_mag:.3f} mag below floor '
                     f'{self._brightness_margin_floor_mag:.3f} mag'
                 ),
                 fit_rotation=bool(context.fit_camera_rotation),
@@ -673,6 +803,25 @@ class StarUniqueMatchNav(NavTechnique):
                 ),
                 fit_rotation=bool(context.fit_camera_rotation),
             )
+        if field_margin_mag < self._brightness_margin_floor_mag and not self._corroborated(
+            rest, (offset_v, offset_u), image_ext, noise_sigma, context
+        ):
+            diagnostics = StarUniqueMatchDiagnostics(
+                mode='one_star',
+                predicted_snr=brightest_snr,
+                brightness_margin_mag=margin_mag,
+                residual_px=residual_px,
+                detection_peak_ratio=peak_ratio,
+            )
+            return self._fail(
+                features=[brightest],
+                diagnostics=diagnostics,
+                reason=(
+                    'uncorroborated_one_star: a star elsewhere in the field is within the '
+                    'margin floor and too few other stars are found at the offset'
+                ),
+                fit_rotation=bool(context.fit_camera_rotation),
+            )
         # Even though "residual_px" is really the offset magnitude here
         # (the 1-star path has no second observation to subtract), it is
         # the only honest measure of how far we travelled to find the
@@ -744,6 +893,68 @@ class StarUniqueMatchNav(NavTechnique):
         )
         log_confidence_breakdown(self.logger, breakdown)
         return min(float(confidence), cap)
+
+    def _corroborated(
+        self,
+        others: list[NavFeature],
+        offset_vu: tuple[float, float],
+        image_ext: NDArrayFloatType,
+        noise_sigma: float,
+        context: NavContext,
+    ) -> bool:
+        """Return whether other stars of the field are found at a one-star offset.
+
+        The brightest stars of ``others`` (up to ``one_star_corroboration_stars``) whose
+        prediction, moved by the offset, falls inside the image are each searched for
+        within ``one_star_corroboration_px`` of that position.  The match is corroborated
+        when at least ``one_star_corroboration_min_stars`` of them are found there, or all
+        of them when fewer lie in the image, and at least one does.  A detection taken on
+        something other than its star puts the offset where the other stars are not.
+
+        Parameters:
+            others: The other usable stars, in any order.
+            offset_vu: The one-star offset ``(dv, du)`` in pixels.
+            image_ext: The extended-FOV image.
+            noise_sigma: Image noise sigma used by the detection threshold.
+            context: Per-image NavContext.
+
+        Returns:
+            True when enough of the other stars are found at the offset.
+        """
+        margin_v, margin_u = search_window_for_obs(context)
+        rows, cols = image_ext.shape
+        dv, du = offset_vu
+        targets: list[tuple[float, float]] = []
+        for star in sorted(others, key=predicted_snr, reverse=True):
+            s_v, s_u = predicted_vu(star)
+            t_v, t_u = s_v + dv, s_u + du
+            if (
+                margin_v - 0.5 <= t_v < rows - margin_v - 0.5
+                and margin_u - 0.5 <= t_u < cols - margin_u - 0.5
+            ):
+                targets.append((t_v, t_u))
+            if len(targets) == self._corroboration_stars:
+                break
+        found = sum(
+            _found_at(
+                image_ext,
+                target,
+                tolerance_px=self._corroboration_px,
+                box_half_px=self._centroid_box_half_px,
+                noise_sigma=noise_sigma,
+                detection_sigma=self._detection_sigma,
+            )
+            for target in targets
+        )
+        needed = min(self._corroboration_min, len(targets))
+        self.logger.info(
+            'One-star corroboration: %d of %d other star(s) in the image found at the offset '
+            '(%d needed)',
+            found,
+            len(targets),
+            max(needed, 1),
+        )
+        return found >= max(needed, 1)
 
     def _fail(
         self,

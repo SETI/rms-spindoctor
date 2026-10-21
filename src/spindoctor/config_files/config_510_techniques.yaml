@@ -782,9 +782,11 @@ techniques:
         divisor: 250.0
         cap_at: 1.0
       # Magnitude margin to the next-brightest predictable star in the
-      # extfov.  Below the 1.5 mag floor the technique short-circuits
-      # before reaching the formula; above the floor, additional margin
-      # earns confidence up to a 1.5 mag span.
+      # extfov.  The 1-star path short-circuits before reaching the formula
+      # when a star that can fall in the window is within the 1.5 mag
+      # floor; a match that needs corroboration because a star elsewhere
+      # is within it is scored as meeting the floor exactly.  Above the
+      # floor, additional margin earns confidence up to a 1.5 mag span.
       - feature: brightness_margin_mag
         alpha: 1.002
         offset: 1.5
@@ -800,7 +802,13 @@ techniques:
       spurious: true
     tuning:
       # Minimum magnitude difference to the next-brightest predictable
-      # star for the 1-star path to fire.
+      # star for the 1-star path to fire.  Only a star predicted within
+      # twice search_window_px (plus a pixel) of the brightest one on both
+      # axes counts: one farther away is outside the window at every
+      # offset the window allows.  Counting every star in the extfov refused F ring frames
+      # whose deeper photometric limit predicts 34-61 stars, the brighter
+      # ones hundreds of pixels away, though each frame's brightest star
+      # was found within 1.1 px of the bundle pointing.
       brightness_margin_to_next_catalog_star_mag: 1.5
       # Half-width of the search window around each prediction (px).
       # Should bracket the per-instrument SPICE pointing-error envelope
@@ -844,6 +852,21 @@ techniques:
       # library matches carry genuine one-star offsets up to ~24 px,
       # so no uniform residual cut can sit below the search window.
       one_star_max_residual_px: 10.0
+      # A one-star match whose star is uniquely bright only in its window
+      # (another star anywhere in the field is within the margin floor of
+      # it) must be corroborated: of the brightest
+      # one_star_corroboration_stars other stars that the offset puts in
+      # the image, at least one_star_corroboration_min_stars (or all of
+      # them, when fewer) must have a detection within
+      # one_star_corroboration_px of their moved prediction.  With a deep
+      # catalog a wrong peak in the window leaves the other stars where
+      # nothing is: on the operator-verified library, without this, 16
+      # frames took one-star offsets 5-65 px wrong once a rival outside
+      # the window stopped refusing them, while each of seven F ring
+      # frames refused for a distant rival has 4-10 stars at its offset.
+      one_star_corroboration_px: 1.5
+      one_star_corroboration_stars: 8
+      one_star_corroboration_min_stars: 2
       # Per-mode caps applied post-sigmoid; the 1-star path cannot
       # self-check, so its cap is lower than the 2-star path's.
       one_star_confidence_cap: 0.7
