@@ -11,7 +11,7 @@ prediction of each of the brightest predictable stars, takes the strongest detec
 a noise threshold, and reports the translation implied by a cross-checked pair of stars
 (2-star path) or, when no pair cross-checks, by the brightest star alone (1-star path);
 the 1-star path additionally requires the star to be a configured magnitude margin
-brighter than every other predictable star in the field. It runs without a prior — its job
+brighter than every other predictable star within reach of the image. It runs without a prior — its job
 is to seed the pass-2
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` on scenes where
 the SPICE pointing error is small enough that the brightest predictable star sits inside
@@ -35,9 +35,10 @@ by Procrustes alignment.
 Brightness-margin gate
 ----------------------
 
-The matcher computes a magnitude difference between the brightest predictable star and the
-next-brightest predictable star in the FOV (using the standard relation
-:math:`\Delta m = 2.5 \log_{10}(\mathrm{SNR}_{1} / \mathrm{SNR}_{2})`). The margin floor
+The matcher computes a magnitude difference between the brightest predictable star within
+reach of the image and the next-brightest one, using the standard relation
+:math:`\Delta m = 2.5 \log_{10}(\mathrm{SNR}_{1} / \mathrm{SNR}_{2})`; the 2-star path
+section below says which stars are within reach. The margin floor
 (``brightness_margin_to_next_catalog_star_mag``) gates only the 1-star path: a star whose
 brightness margin falls below it is not "uniquely bright" and the 1-star path fails. The
 2-star path is attempted first whenever at least two usable stars exist, regardless of the
@@ -214,6 +215,22 @@ navigates 710, 771, and 777 of the 1030 frames, every one within 2 px of the pub
 ring bundle. The narrower window is searched as well because the strongest detection of
 the wider one is more often something brighter than the star; with no narrower window the
 technique navigates 750 frames, none wrong.
+
+Both paths draw only on stars whose search window holds at least one pixel of the image.
+The extended field of view pads the image, and the star catalog predicts stars across all
+of it; the Cassini NAC's padding is 140 px across samples, wider than its 50 px window. A
+star predicted farther outside the image than the window reaches cannot be in the image at
+any offset the window allows, so it can neither be detected nor be confused with another
+star's detection. A photometric star limit deep enough to predict faint stars across the
+padding fills the brightest ranks with them. Under such a limit, the second through fifth
+brightest stars of F ring frame ``N1862698331`` all lie beyond the window's reach, no pair
+of the five has both stars in the image, and the frame is refused; with them set aside, a
+pair of stars in the image answers 0.15 px from the published F ring bundle. A star set
+aside this way is not the 1-star path's candidate either, and it does not count
+against that candidate's brightness margin. A frame whose every usable star is out of
+reach reports a spurious result.
+
+.. Setting aside stars out of the window's reach: #763.
 
 The residual tolerance is measured. With it opened to 4 px, the 704 two-star matches on
 that observation that lie within 2 px of the bundle have residuals of median 0.10 px and
@@ -469,7 +486,8 @@ Call path traced through
 :meth:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav.navigate`:
 
 1. Open a logged section. Filter the offered features down to ``usable_stars``
-   (predictable and not occluded by a body silhouette or ring annulus).
+   (predictable and not occluded by a body silhouette or ring annulus), then to
+   ``stars_in_reach`` (those whose search window overlaps the image).
 2. Sort the usable cohort by predicted SNR (brightest first) and compute the brightness
    margin between consecutive entries via ``brightness_margin_mag``.
 3. Branch on the usable-star count:

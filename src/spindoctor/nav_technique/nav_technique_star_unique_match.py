@@ -57,7 +57,9 @@ anywhere in it vetoes a fainter one, but is accepted only within
 ``inner_search_window_px`` of the prediction.  No global star-detection
 pass is needed (and this technique is feasible even on images where
 multi-star detection would fail because the rest of the field is too
-faint or too crowded).
+faint or too crowded).  A star whose window holds no pixel of the image
+cannot be in it at any offset the window allows, so both paths set such
+stars aside before ranking.
 """
 
 from __future__ import annotations
@@ -82,6 +84,7 @@ from spindoctor.nav_technique._star_helpers import (
     predicted_vu,
     similarity_transform_fit,
     smear_length_px,
+    stars_in_reach,
     third_star_votes,
     usable_stars,
 )
@@ -280,12 +283,25 @@ class StarUniqueMatchNav(NavTechnique):
         """
         with self.log_section(f'TECHNIQUE: {self.name}'):
             usable = usable_stars(features)
-            self.logger.info(
-                'Consuming %d usable STAR feature(s) (out of %d offered)',
-                len(usable),
-                len(features),
+            # A star whose window holds no image pixel can never be detected, and with a
+            # deep star limit such stars across the padding fill the brightest ranks the
+            # pairs and the one-star margin draw on (#763).
+            window_px = self._windows(context)[0]
+            reachable = stars_in_reach(
+                usable,
+                image_shape=np.shape(context.image_ext),
+                margin_vu=search_window_for_obs(context),
+                search_window_px=window_px,
             )
-            if not usable:
+            self.logger.info(
+                'Consuming %d usable STAR feature(s) (out of %d offered); setting aside %d '
+                'predicted beyond the %.1f px search window of the image',
+                len(reachable),
+                len(features),
+                len(usable) - len(reachable),
+                window_px,
+            )
+            if not reachable:
                 return self._fail(
                     features=features,
                     diagnostics=StarUniqueMatchDiagnostics(
@@ -294,10 +310,14 @@ class StarUniqueMatchNav(NavTechnique):
                         brightness_margin_mag=0.0,
                         residual_px=0.0,
                     ),
-                    reason='no_usable_star_features',
+                    reason=(
+                        'no_usable_star_features'
+                        if not usable
+                        else 'no_usable_star_within_reach_of_the_image'
+                    ),
                     fit_rotation=bool(context.fit_camera_rotation),
                 )
-            ranked = sorted(usable, key=predicted_snr, reverse=True)
+            ranked = sorted(reachable, key=predicted_snr, reverse=True)
             image_ext = np.asarray(context.image_ext, np.float64)
             noise_sigma = float(max(context.image_noise_sigma, 1e-9))
             if len(ranked) >= 2:

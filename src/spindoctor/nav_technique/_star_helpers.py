@@ -46,6 +46,7 @@ __all__ = [
     'search_window_bounds',
     'similarity_transform_fit',
     'star_features',
+    'stars_in_reach',
     'usable_stars',
 ]
 
@@ -316,6 +317,45 @@ def search_window_bounds(
     if v_hi <= v_lo or u_hi <= u_lo:
         return None
     return v_lo, v_hi, u_lo, u_hi
+
+
+def stars_in_reach(
+    stars: list[NavFeature],
+    *,
+    image_shape: tuple[int, ...],
+    margin_vu: tuple[int, int],
+    search_window_px: float,
+) -> list[NavFeature]:
+    """Return the stars whose search window holds at least one pixel of the image.
+
+    The extended field of view pads the image by ``margin_vu`` on each side, and the star
+    catalog predicts stars across all of it.  A star is searched for only inside the
+    window :func:`search_window_bounds` cuts around its prediction, so a star whose window
+    holds nothing but padding is not in the image at any offset the search allows, and
+    can be neither detected nor confused with another star's detection.
+
+    Parameters:
+        stars: Star features, in any order; the order is kept.
+        image_shape: Shape of the extended-FOV image, ``(rows, columns)``.
+        margin_vu: ``(margin_v, margin_u)`` padding of the extended field of view in whole
+            pixels.
+        search_window_px: Half-width of the search window in pixels.
+
+    Returns:
+        The stars whose window overlaps the image.
+    """
+    margin_v, margin_u = margin_vu
+    image_only = (int(image_shape[0]) - 2 * margin_v, int(image_shape[1]) - 2 * margin_u)
+    out: list[NavFeature] = []
+    for star in stars:
+        pred_v, pred_u = predicted_vu(star)
+        # Shifting the prediction by the whole-pixel margin moves the window's center
+        # pixel by exactly the margin, so the window is cut in the image's own frame.
+        if search_window_bounds(
+            (pred_v - margin_v, pred_u - margin_u), search_window_px, image_only
+        ):
+            out.append(star)
+    return out
 
 
 def _window_peaks(

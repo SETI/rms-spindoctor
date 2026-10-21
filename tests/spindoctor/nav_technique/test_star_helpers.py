@@ -15,6 +15,7 @@ from spindoctor.nav_technique._star_helpers import (
     isolation_radii,
     local_centroid,
     search_window_bounds,
+    stars_in_reach,
     third_star_votes,
 )
 
@@ -66,6 +67,36 @@ def test_the_search_window_reaches_whole_pixels_only() -> None:
 def test_the_search_window_off_the_image_is_empty() -> None:
     """A prediction farther off the image than the half-width has no window."""
     assert search_window_bounds((-50.0, 100.0), 10.0, (200, 200)) is None
+
+
+@pytest.mark.parametrize(
+    ('predicted_vu', 'in_reach'),
+    [
+        ((-18.0, 100.0), True),
+        ((-19.0, 100.0), False),
+        ((217.0, 100.0), True),
+        ((218.0, 100.0), False),
+        ((100.0, -18.0), True),
+        ((100.0, -19.0), False),
+    ],
+    ids=['top-edge', 'past-top', 'bottom-edge', 'past-bottom', 'left-edge', 'past-left'],
+)
+def test_a_star_is_in_reach_while_its_window_holds_an_image_pixel(
+    make_star_feature: NavFeatureFactory,
+    predicted_vu: tuple[float, float],
+    in_reach: bool,
+) -> None:
+    """A 50 px window on a 200 px image padded by 32 px reaches 18 px past either edge.
+
+    The image's pixels are rows and columns 32 through 167 of the padded frame, so a
+    window centered on row -18 reaches row 32, and one centered on row -19 reaches only
+    row 31, which is padding.
+    """
+    star = make_star_feature('star:UCAC4:1', predicted_vu=predicted_vu, predicted_snr=10.0)
+    reachable = stars_in_reach(
+        [star], image_shape=(200, 200), margin_vu=(32, 32), search_window_px=50.0
+    )
+    assert (reachable == [star]) is in_reach
 
 
 def test_a_brighter_single_pixel_does_not_win_the_stars_window(

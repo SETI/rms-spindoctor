@@ -983,3 +983,69 @@ def test_star_unique_match_inner_window_is_a_radius(
     result = technique.navigate([feature], make_nav_context(image))
     assert result.spurious is True
     assert 'one_star_detection_beyond_inner_window' in capsys.readouterr().out
+
+
+# A 300 x 600 padded frame whose image spans columns 140 through 459, as a Cassini NAC
+# frame's padding is wider across samples than the 50 px search window.  A star predicted
+# at column 40 is 100 px outside the image, beyond the reach of any window.
+_WIDE_MARGIN_VU = (32, 140)
+_WIDE_MARGIN_SHAPE = (300, 600)
+
+
+def test_star_unique_match_pairs_stars_past_unreachable_brighter_ones(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Five brighter stars out of reach do not take every slot of the pair search.
+
+    The pair search tries the five brightest stars; here those five are predicted 100 px
+    outside the image, so only once they are set aside are the two visible stars paired.
+    """
+    stars: list[tuple[tuple[float, float], tuple[float, float] | None]] = [
+        ((60.0 + 40.0 * k, 40.0), None) for k in range(5)
+    ]
+    stars += [((100.0, 250.0), (2.0, -3.0)), ((200.0, 380.0), (2.0, -3.0))]
+    image, features = _star_field(make_star_feature, draw_gaussian_star, _WIDE_MARGIN_SHAPE, stars)
+    result = StarUniqueMatchNav().navigate(
+        features, make_nav_context(image, extfov_margin_vu=_WIDE_MARGIN_VU)
+    )
+    assert result.feature_ids == ('star:UCAC4:5', 'star:UCAC4:6')
+
+
+def test_star_unique_match_matches_a_lone_star_past_an_unreachable_brighter_one(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A star predicted out of reach is neither the one-star candidate nor its rival."""
+    image, features = _star_field(
+        make_star_feature,
+        draw_gaussian_star,
+        _WIDE_MARGIN_SHAPE,
+        [((150.0, 40.0), None), ((150.0, 300.0), (2.0, -3.0))],
+    )
+    result = StarUniqueMatchNav().navigate(
+        features, make_nav_context(image, extfov_margin_vu=_WIDE_MARGIN_VU)
+    )
+    assert result.feature_ids == ('star:UCAC4:1',)
+
+
+def test_star_unique_match_refuses_when_no_star_is_in_reach(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every star predicted out of reach of the image leaves nothing to search."""
+    image, features = _star_field(
+        make_star_feature,
+        draw_gaussian_star,
+        _WIDE_MARGIN_SHAPE,
+        [((100.0, 40.0), None), ((200.0, 560.0), None)],
+    )
+    result = StarUniqueMatchNav().navigate(
+        features, make_nav_context(image, extfov_margin_vu=_WIDE_MARGIN_VU)
+    )
+    assert result.spurious is True
+    assert 'no_usable_star_within_reach_of_the_image' in capsys.readouterr().out
