@@ -19,18 +19,25 @@ import numpy as np
 
 from spindoctor.nav_orchestrator.ensemble_observability import (
     mahalanobis_distance,
+    observable_basis,
     observable_intersection_basis,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.exceptions import NavContractError
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
+#: Squared length of a unit direction's projection onto a result's observable
+#: subspace at or above which the result observes that direction.
+_FULLY_OBSERVED = 0.999
+
 __all__ = [
     'ConsensusSelection',
+    'FusionPruning',
     'consensus_selection',
     'corroborating_confidence',
     'corroborating_members',
     'fusion_compromise_px',
+    'leave_out_compromising_fusions',
     'result_param_vector',
 ]
 
@@ -110,21 +117,22 @@ def fusion_compromise_px(
 ) -> float:
     """How far the fusion of two estimates lies from what either one supports, in pixels.
 
-    Along a single direction the information-form fusion of two estimates
-    ``a`` and ``b`` lies ``delta * s_a**2 / (s_a**2 + s_b**2)`` from ``a`` and
-    ``delta * s_b**2 / (s_a**2 + s_b**2)`` from ``b``: on the more precise one
-    when the two differ, halfway between them when they are equally vague.
-    The separation is resolved onto the principal axes of ``C_a + C_b`` (the
-    axes along which the pair's disagreement is measured), each axis is
-    treated as such a one-dimensional fusion using the two estimates'
-    variances along it, the smaller of the two distances is kept per axis,
-    and the result is the length of those parts together.
+    The information-form fusion of two estimates ``a`` and ``b`` lies at
+    ``a + C_a (C_a + C_b)^-1 (b - a)``: on the more precise one along a
+    direction where the two differ in precision, halfway between them where
+    they are equally vague.  The fused point's offsets from ``a`` and from
+    ``b`` are resolved onto the principal axes of ``C_a + C_b`` (the axes along
+    which the pair's disagreement is measured), the smaller of the two is kept
+    per axis, and the result is the length of those parts together.
 
     So a precise estimate beside a vague one scores near zero, and so do two
     that complement each other, each precise along an axis where the other is
     vague (a ring edge fixing the radial direction and a body centroid the
     direction along the edge); two that are both vague along their separation
-    score about half of it.
+    score about half of it.  The fused point is computed from the full
+    matrices, not axis by axis: when the two estimates' principal axes differ,
+    a disagreement along one axis moves the fusion along the other, and two
+    estimates a few pixels apart can fuse at a point several pixels from both.
 
     Parameters:
         delta_vu: ``(k,)`` separation ``b - a`` expressed in a basis both
@@ -135,15 +143,12 @@ def fusion_compromise_px(
     Returns:
         The compromise in pixels.
     """
-    _, axes = np.linalg.eigh(cov_a + cov_b)
-    along = axes.T @ delta_vu
-    var_a = np.einsum('ik,ij,jk->k', axes, cov_a, axes)
-    var_b = np.einsum('ik,ij,jk->k', axes, cov_b, axes)
-    total = var_a + var_b
-    nearer = np.where(
-        total > 0.0, np.minimum(var_a, var_b) / np.where(total > 0.0, total, 1.0), 0.0
-    )
-    return float(np.linalg.norm(along * nearer))
+    total = cov_a + cov_b
+    _, axes = np.linalg.eigh(total)
+    fused = cov_a @ (np.linalg.pinv(total) @ delta_vu)
+    from_a = axes.T @ fused
+    from_b = axes.T @ (fused - delta_vu)
+    return float(np.linalg.norm(np.minimum(np.abs(from_a), np.abs(from_b))))
 
 
 def _agreement_adjacency(
@@ -374,4 +379,237 @@ def consensus_selection(
         excluded=[results[i] for i in excluded_indices],
         runner_up_confidence=runner_up_confidence,
         runner_up_has_quorum=runner_up_has_quorum,
+    )
+
+
+@dataclass(frozen=True)
+class FusionPruning:
+    """Output of :func:`leave_out_compromising_fusions`.
+
+    Parameters:
+        combine_set: The estimators the combine fuses, those left out removed.
+        best_group: The consensus subset, every left-out result removed.
+        excluded: The excluded results, every left-out result appended.
+        left_out: The results left out, in the order they were found.
+    """
+
+    combine_set: list[NavTechniqueResult]
+    best_group: list[NavTechniqueResult]
+    excluded: list[NavTechniqueResult]
+    left_out: list[NavTechniqueResult]
+
+
+def leave_out_compromising_fusions(
+    estimators: list[NavTechniqueResult],
+    combine_set: list[NavTechniqueResult],
+    collapsed_groups: list[list[NavTechniqueResult]],
+    best_group: list[NavTechniqueResult],
+    excluded: list[NavTechniqueResult],
+    *,
+    agreement_sigma: float,
+    agreement_pixel_floor: float,
+    agreement_compromise_px: float,
+    rcond: float,
+) -> FusionPruning:
+    """Leave out of the combine the less precise side of a fusion that would compromise.
+
+    A result joins the consensus by agreeing with the subset's sponsor, which may
+    be one member of a collapsed set, while the combine fuses the set through its
+    representative, which may be less precise than that member.  So each other
+    estimator that agrees with some member of a collapsed set (the selection's
+    pairwise test) is held again to the test against the set's representative: a
+    Mahalanobis agreement inside the pixel floor stands, and otherwise the pair
+    must agree by Mahalanobis distance or the pixel floor and fuse with a
+    compromise of at most ``agreement_compromise_px``
+    (:func:`fusion_compromise_px`).  Two estimates a few pixels apart at several
+    standard deviations are not one answer, and fusing them lands between them.
+
+    When the pair fails, the side less precise along the pair's separation is left
+    out: the estimator, or the whole set (its representative and every member).
+    A set is one measurement reported by several techniques, and its precision is
+    taken as its most precise member's: the joiner may disagree with any of them,
+    and the representative's own covariance can be the looser view (a fit chosen
+    for the features it consumed rather than its covariance).
+    A pair in which either side seeded the other's prior is not tested here: a
+    seeded refine is held to its seed when the consensus is selected.
+
+    Parameters:
+        estimators: The resolved independent estimators; each collapsed set's
+            representative is the same object as the set's first member.
+        combine_set: The set the combine fuses, position for position with
+            ``estimators`` (a representative may carry a blended confidence).
+        collapsed_groups: Each collapsed set, representative first.
+        best_group: The consensus subset.
+        excluded: The results already excluded from the consensus.
+        agreement_sigma: Maximum pairwise Mahalanobis distance for agreement.
+        agreement_pixel_floor: Translation distance (pixels) of the pixel-floor
+            agreement; ``0.0`` disables it.
+        agreement_compromise_px: Largest compromise (pixels) of a fusion; ``0.0``
+            disables the test (nothing is left out).
+        rcond: rcond passed to ``pinvh``.
+
+    Returns:
+        The pruned sets.  ``best_group`` and ``excluded`` are matched by result
+        equality (technique and consumed features), because a representative in
+        ``estimators`` is a copy of the consensus member it stands for.
+    """
+    if agreement_compromise_px <= 0.0:
+        return FusionPruning(list(combine_set), list(best_group), list(excluded), [])
+    index = {id(est): k for k, est in enumerate(estimators)}
+    representatives = {id(group[0]) for group in collapsed_groups}
+    dropped: set[int] = set()
+    left_out: list[NavTechniqueResult] = []
+    for group in collapsed_groups:
+        rep_k = index[id(group[0])]
+        for k, est in enumerate(estimators):
+            if rep_k in dropped:
+                break
+            if k in dropped or id(est) in representatives or _seeded_either_way(est, group):
+                continue
+            terms = _pair_terms(
+                est, group[0], agreement_pixel_floor=agreement_pixel_floor, rcond=rcond
+            )
+            if terms.fuses(agreement_sigma=agreement_sigma, compromise_px=agreement_compromise_px):
+                continue
+            set_variance = min(_variance_along(member, terms.separation_vu) for member in group)
+            if _variance_along(est, terms.separation_vu) >= set_variance:
+                dropped.add(k)
+                left_out.append(est)
+            else:
+                dropped.add(rep_k)
+                left_out.extend(group)
+    return FusionPruning(
+        combine_set=[r for k, r in enumerate(combine_set) if k not in dropped],
+        best_group=[r for r in best_group if r not in left_out],
+        excluded=[*excluded, *left_out],
+        left_out=left_out,
+    )
+
+
+def _seeded_either_way(est: NavTechniqueResult, group: list[NavTechniqueResult]) -> bool:
+    """Return whether ``est`` seeded the set's prior or a member of the set seeded ``est``'s."""
+    names = {member.technique_name for member in group}
+    return bool(
+        est.technique_name in group[0].prior_source_techniques
+        or est.prior_source_techniques & names
+    )
+
+
+def _variance_along(result: NavTechniqueResult, direction_vu: NDArrayFloatType) -> float:
+    """Return a result's translation variance along a direction (px^2).
+
+    Parameters:
+        result: The result.
+        direction_vu: ``(2,)`` unit direction in ``(v, u)``.
+
+    Returns:
+        ``d^T C d`` for the result's translation covariance ``C``, or infinity when
+        the result does not observe the whole direction (a rank-1 ring edge along
+        its tangent).
+    """
+    cov = np.asarray(result.covariance_px2, np.float64)[:2, :2]
+    observed = observable_basis(cov).T @ direction_vu
+    if float(observed @ observed) < _FULLY_OBSERVED:
+        return math.inf
+    return float(direction_vu @ cov @ direction_vu)
+
+
+@dataclass(frozen=True)
+class _PairTerms:
+    """The agreement and fusion measures of two results.
+
+    Parameters:
+        mahalanobis: Mahalanobis distance between the two.
+        pixel_match: Whether their observable separation is within the pixel floor.
+        compromise_px: How far their fusion lies from what either supports
+            (:func:`fusion_compromise_px`).
+        separation_vu: ``(2,)`` unit direction from the first to the second in
+            ``(v, u)``, within the directions both observe (zero when they coincide
+            there).
+    """
+
+    mahalanobis: float
+    pixel_match: bool
+    compromise_px: float
+    separation_vu: NDArrayFloatType
+
+    def agrees(self, *, agreement_sigma: float, compromise_px: float) -> bool:
+        """Return the selection's pairwise agreement (the floor, or Mahalanobis without compromise).
+
+        Parameters:
+            agreement_sigma: Maximum Mahalanobis distance for agreement.
+            compromise_px: Largest compromise of a Mahalanobis agreement past the floor.
+
+        Returns:
+            True when the pair agrees.
+        """
+        mahal_match = self.mahalanobis <= agreement_sigma
+        return self.pixel_match or (mahal_match and self.compromise_px <= compromise_px)
+
+    def fuses(self, *, agreement_sigma: float, compromise_px: float) -> bool:
+        """Return whether the pair agrees and its fusion does not compromise.
+
+        A Mahalanobis agreement inside the pixel floor fuses; otherwise the pair
+        must agree by either test and compromise by at most ``compromise_px``.
+
+        Parameters:
+            agreement_sigma: Maximum Mahalanobis distance for agreement.
+            compromise_px: Largest compromise of the fusion.
+
+        Returns:
+            True when the pair may be fused.
+        """
+        mahal_match = self.mahalanobis <= agreement_sigma
+        if mahal_match and self.pixel_match:
+            return True
+        return (mahal_match or self.pixel_match) and self.compromise_px <= compromise_px
+
+
+def _pair_terms(
+    a: NavTechniqueResult,
+    b: NavTechniqueResult,
+    *,
+    agreement_pixel_floor: float,
+    rcond: float,
+) -> _PairTerms:
+    """Return the agreement and fusion measures of two results.
+
+    Every translation measure is taken in the intersection of the two results'
+    observable subspaces, as the selection's pairwise test takes it.
+
+    Parameters:
+        a: The first result.
+        b: The second result.
+        agreement_pixel_floor: Translation distance (pixels) of the pixel-floor
+            agreement; ``0.0`` disables it.
+        rcond: rcond passed to ``pinvh``.
+
+    Returns:
+        The pair's measures.
+
+    Raises:
+        ValueError: if a 2-DoF and a 3-DoF result are mixed.
+    """
+    mu_a, mu_b = result_param_vector(a), result_param_vector(b)
+    cov_a = np.asarray(a.covariance_px2, np.float64)
+    cov_b = np.asarray(b.covariance_px2, np.float64)
+    if mu_a.shape != mu_b.shape:
+        raise ValueError(
+            'Mixed-DoF technique results in one ensemble: '
+            f'{a.technique_name} produced {mu_a.shape} parameters; '
+            f'{b.technique_name} produced {mu_b.shape}.'
+        )
+    basis_t = observable_intersection_basis(
+        np.ascontiguousarray(cov_a[:2, :2]), np.ascontiguousarray(cov_b[:2, :2])
+    )
+    delta_t = basis_t.T @ (mu_b[:2] - mu_a[:2])
+    cov_a_t = basis_t.T @ cov_a[:2, :2] @ basis_t
+    cov_b_t = basis_t.T @ cov_b[:2, :2] @ basis_t
+    separation = float(np.linalg.norm(delta_t))
+    direction = basis_t @ delta_t / separation if separation > 0.0 else np.zeros(2)
+    return _PairTerms(
+        mahalanobis=float(mahalanobis_distance(mu_a, cov_a, mu_b, cov_b, rcond=rcond)),
+        pixel_match=agreement_pixel_floor > 0.0 and separation <= agreement_pixel_floor,
+        compromise_px=fusion_compromise_px(delta_t, cov_a_t, cov_b_t),
+        separation_vu=cast(NDArrayFloatType, direction),
     )

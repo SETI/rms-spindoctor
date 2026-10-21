@@ -74,6 +74,7 @@ from spindoctor.nav_orchestrator.ensemble_consensus import (
     consensus_selection,
     corroborating_confidence,
     corroborating_members,
+    leave_out_compromising_fusions,
     result_param_vector,
 )
 from spindoctor.nav_orchestrator.ensemble_independence import (
@@ -917,6 +918,27 @@ def ensemble(
             collapsed[0].technique_name,
             ', '.join(r.technique_name for r in collapsed),
         )
+    # A result fused with a collapsed set must not compromise with the set's
+    # representative; the less precise side of such a pair is left out.
+    pruning = leave_out_compromising_fusions(
+        resolution.estimators,
+        combine_set,
+        resolution.collapsed_groups,
+        best_group,
+        excluded,
+        agreement_sigma=cfg.agreement_sigma,
+        agreement_pixel_floor=cfg.agreement_pixel_floor,
+        agreement_compromise_px=cfg.agreement_compromise_px,
+        rcond=cfg.pinvh_rcond,
+    )
+    if pruning.left_out:
+        IMAGE_LOGGER.info(
+            'Leaving %s out of the combine: fusing it would compromise between answers',
+            ', '.join(r.technique_name for r in pruning.left_out),
+        )
+    combine_set, best_group, excluded = pruning.combine_set, pruning.best_group, pruning.excluded
+    excluded_names = [r.technique_name for r in excluded]
+    consensus_names = [r.technique_name for r in best_group]
     # Vote mass and quorum count independent witnesses only, so they are
     # measured over the resolved ``combine_set`` -- the same set the merge
     # fuses -- not the raw consensus.  This keeps the conflict logic consistent

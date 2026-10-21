@@ -76,13 +76,21 @@ A Mahalanobis agreement between results farther apart than the pixel floor count
 when their information-form fusion takes each direction from the result that is precise
 along it, to within ``agreement_compromise_px`` (default 1 px). A pair within the pixel
 floor agrees by the floor alone, whatever its fusion would compromise, so the compromise
-is never consulted there. Along one direction the
-fusion of two estimates with variances :math:`s_{a}^{2}` and :math:`s_{b}^{2}` lies
+is never consulted there (but see the combine's check against a collapsed set's
+representative, Step 5). The information-form fusion of two estimates lies at
+:math:`a + \Sigma_{a} (\Sigma_{a} + \Sigma_{b})^{-1} (b - a)`; along one direction with
+variances :math:`s_{a}^{2}` and :math:`s_{b}^{2}` that is
 :math:`\delta\, s_{a}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`a` and
-:math:`\delta\, s_{b}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`b`. The separation is
-resolved onto the principal axes of :math:`\Sigma_{a} + \Sigma_{b}`, the smaller of the two
-distances is kept on each axis, and the compromise is the length of those parts together
-(:func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`). A precise
+:math:`\delta\, s_{b}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`b`. The fused point's
+offsets from the two are resolved onto the principal axes of
+:math:`\Sigma_{a} + \Sigma_{b}`, the smaller of the two is kept on each axis, and the
+compromise is the length of those parts together
+(:func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`). The fused
+point comes from the full matrices: when the two results' principal axes differ, a
+disagreement along one axis moves the fusion along the other. On F ring frame N1757245281
+a ring edge (0.2 px across a slightly tilted edge, 7.2 px along it) and a star refine
+(0.32 px in u, 2.65 px in v) 2.8 px apart fuse about 7 px from both, which an
+axis-by-axis account puts at 0.65 px. A precise
 result beside a vague one scores near zero, and so do two that complement each other: a
 ring edge precise across itself and a body brightness center precise along the edge each
 set their own axis. When both are about equally vague along the separation, they are
@@ -230,6 +238,30 @@ its vote stands even when the member standing in for it is a pass-2 refine whose
 another technique in the group helped form. Only the shared-feature collapse of the star
 techniques puts a pass-2 result in a set; ring pairs and disc/limb pairs hold pass-1
 results only.
+
+A result joins the consensus by agreeing with the subset's sponsor, which can be one
+member of a collapsed set (a precise two-star match, say), while the combine fuses the set
+through its representative (the multi-star fit, perhaps less precise). Each other result
+is therefore held to the agreement test again against every collapsed set's
+representative
+(:func:`~spindoctor.nav_orchestrator.ensemble_consensus.leave_out_compromising_fusions`):
+a Mahalanobis agreement inside the pixel floor stands, and otherwise the pair must agree
+by either test and fuse with a compromise of at most ``agreement_compromise_px``. When
+the pair fails, the side less precise along the pair's separation is left out of the
+combine and reported in
+:attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.excluded_from_consensus` (the
+disagreement penalty applies; it is not a runner-up): the result, or the whole set. A
+set is one measurement reported by several techniques, so its precision is its most
+precise member's along the separation (a member that does not observe that direction
+lends none). A pair in which either side seeded the other is left to the seeded-pair test
+of Step 3. On F ring frames N1492059417 and N1492059454 a ring-edge fit locked 3.5-3.8 px
+off radially (a 0.6 px sigma there, 4.3-4.7 sigma from the stars) joined through the
+0.09 px two-star match and was fused with the 0.5-0.75 px star representative, moving
+the answer 1.2-1.7 px toward the ring; the stars alone are within 0.25 px of the
+reference pointing. Over the 20,584 frames of the full F ring run, replayed offline from
+their recorded per-technique results with this branch combined with the sparse-star
+work, the check moves 65 answers (9 from 1-2 px and 4 from over 2 px to within 1 px;
+none past 1 px).
 
 Step 6 — precision-weighted merge
 ---------------------------------
@@ -469,7 +501,8 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_compromise_px` — float,
   default ``1.0``. Largest compromise (px) the fusion of two results that agree by
   Mahalanobis distance alone, from farther apart than the pixel floor, may make; beyond it
-  the pair disagrees (see Step 3). One pixel is the scale at which an answer is judged
+  the pair disagrees (see Step 3). The combine holds a result fused with a collapsed set's
+  representative to the same limit inside the floor (see Step 5). One pixel is the scale at which an answer is judged
   right. ``0.0`` disables the test.
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.confirming_axis_max_sigma_px` —
   float, default ``1.0``. Largest standard deviation (px) along a principal axis of a
@@ -564,8 +597,9 @@ The ensemble is split across the following modules under ``src/spindoctor/nav_or
   :func:`~spindoctor.nav_orchestrator.ensemble_consensus.consensus_selection`,
   :func:`~spindoctor.nav_orchestrator.ensemble_consensus.corroborating_members`,
   :func:`~spindoctor.nav_orchestrator.ensemble_consensus.corroborating_confidence`,
-  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`, and
-  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.result_param_vector`.
+  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`,
+  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.leave_out_compromising_fusions`,
+  and :func:`~spindoctor.nav_orchestrator.ensemble_consensus.result_param_vector`.
 - ``ensemble_independence.py`` — the independence-resolution step that collapses
   correlated witnesses before the merge:
   :func:`~spindoctor.nav_orchestrator.ensemble_independence.resolve_independent_estimators`,

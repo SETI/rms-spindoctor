@@ -64,7 +64,10 @@ orchestrator:
     # took each axis from the member precise along it (136 of their 150
     # frames answered within 1 px of the bundle pointing), and the 9 frames
     # with a pair at 1.03 px or more were compromises 1.4 to 18 px from it.
-    # 0.0 disables the test.
+    # The combine holds a result fused with a collapsed set's representative
+    # to the same limit inside the floor too: one that agrees through a
+    # precise member of the set but would compromise with the representative
+    # is left out as an outlier.  0.0 disables the test.
     agreement_compromise_px: 1.0
     # Largest standard deviation (px) along a principal axis of a body, ring or
     # multi-star result for that axis to confirm a pass-2 single-star refine
