@@ -329,6 +329,12 @@ The known open defects:
   that moved away from the pointing, image stars show the pointing wrong
   on 62, one is refused where the pointing is right (N1600250613), and 20
   cannot be decided, so strictly better than the bundle is not yet shown.
+  The full 20,584-frame run with #754 took NAC answers within 1 px from
+  6,726 to 14,934 (over 2 px 4,299 to 679); five fixes then addressed the
+  11 frames found ours, and a rerun of 2,570 frames shows none ours by two
+  agreeing stars but four refusals of answers the previous runs gave
+  (N1604017452, N1862698331, W1762900979, N1605530694); follow-ups #762,
+  #763, #764.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix
   (#447) leaves once it closes the coarse-grid and boundary-pinning halves.

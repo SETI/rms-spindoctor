@@ -288,6 +288,33 @@ What remains of the family:
   measurement. The library fails 31 of 75 against the sixteen on `main`:
   the fifteen new are tier and primary-technique pins recorded with the
   shallower limit (re-pins proposed in the Operator Playbook).
+  The full F ring bundle run on this branch combined with #754 (20,584
+  frames, 2026-10-20) took NAC answers within 1 px of the bundle pointing
+  from 6,726 to 14,934 and over 2 px from 4,299 to 679, and WAC within
+  1 px from 723 to 1,767; of 556 frames that got worse, stars showed the
+  pointing wrong on 383, 162 could not be decided, and 11 were ours. Five
+  fixes followed: the one-star brightness margin counts only stars that can
+  enter the star's search window, and a match whose star is uniquely bright
+  only there must be corroborated by two other stars at its offset; a
+  collapsed set of star witnesses keeps its vote when one member is a
+  seeded refine; a result fused with a collapsed set is held to the
+  compromise test against the set's representative, the side less precise
+  along their separation left out; a refine that agrees with its own seed
+  only by the pixel floor takes the compromise test; and a star's moment
+  centroid sits above a plane fitted to the ring around its box. A rerun of
+  the 556 worse frames, 2,000 right controls and the 14 ringcause frames on
+  the combination: 1,992 controls stay right; of the 536 frames worse than
+  either full run, stars show the pointing wrong on 375 and side with it on
+  none, and 161 cannot be decided (55 WAC frames within 1 px once the WAC
+  offset is removed, 88 within 0.1 px of the full run's answer). Still
+  worse than one of the two full runs: N1604017452 refused where 19 stars confirm the answer (a lone ring
+  alias 50 px off conflicts with the two-star pass-1 answer, so the refine
+  never runs, #762); N1862698331 refused (its pair search draws on stars no
+  window can reach, which only #754's pair search can skip, #763); the
+  cosmic-ray crowding of the star-field detector is #764; W1762900979
+  refused (a three-star refine 1.5 px from its two-star seed); and
+  N1605530694 and three ring-versus-star conflicts refused. So strictly
+  better than the bundle is still not shown and the issue stays open.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
