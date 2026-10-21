@@ -1,5 +1,7 @@
 """Tests for the consensus selection's fusion-compromise test and its use in the combine."""
 
+import dataclasses
+
 import numpy as np
 import pytest
 
@@ -340,6 +342,70 @@ def test_ensemble_answer_is_the_star_fit_alone() -> None:
     """With the ring pair left out, the answer is the star fit's offset."""
     result = _run(_ring_pair_and_a_star())
     assert result.offset_px == pytest.approx((0.0, 3.5), abs=1e-9)
+
+
+def _ring_and_its_refine(refine_confidence: float) -> list[NavTechniqueResult]:
+    """A ring edge and the refine its prior seeded, 2.8 px and 5.9 sigma apart.
+
+    The ring is precise across a slightly tilted edge (0.2 px) and vague along it
+    (7.18 px); the refine is precise in u (0.32 px).  Fused, they land 7-8 px from
+    both (F ring frame N1757245281).
+    """
+    tilt = np.array([[-1.0, -0.09], [-0.09, 1.0]]) / np.hypot(1.0, 0.09)
+    ring = NavTechniqueResult(
+        technique_name='RingEdgeNav',
+        feature_ids=('ring_edge:SATURN:a_ring:OER',),
+        offset_px=(-3.61, -15.95),
+        covariance_px2=tilt @ np.diag([7.18**2, 0.20**2]) @ tilt.T,
+        confidence=0.84,
+        spurious=False,
+        at_edge=False,
+        diagnostics=RingEdgeDiagnostics(),
+    )
+    refine = NavTechniqueResult(
+        technique_name='StarRefineNav',
+        feature_ids=('star:UCAC4:1', 'star:UCAC4:2', 'star:UCAC4:3'),
+        offset_px=(-4.46, -18.59),
+        covariance_px2=np.diag([2.65**2, 0.32**2]),
+        confidence=refine_confidence,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarRefineDiagnostics(n_stars_used=6),
+        prior_source_techniques=frozenset({'RingEdgeNav'}),
+    )
+    return [ring, refine]
+
+
+def test_a_refine_apart_from_its_seed_inside_the_floor_is_excluded() -> None:
+    """A refine 5.9 sigma from the ring that seeded it is not fused with it."""
+    result = _run(_ring_and_its_refine(0.31))
+    assert result.excluded_from_consensus == ['StarRefineNav']
+
+
+def test_a_refine_listed_before_its_seed_is_excluded_alike() -> None:
+    """The seeded-pair test does not depend on which of the two comes first."""
+    result = _run(_ring_and_its_refine(0.31)[::-1])
+    assert result.excluded_from_consensus == ['StarRefineNav']
+
+
+def test_an_excluded_refine_is_no_runner_up_against_its_seed() -> None:
+    """The excluded refine searched where its seed said, so it cannot contest it."""
+    result = _run(_ring_and_its_refine(0.5))
+    assert result.status == 'success'
+
+
+def test_a_refine_far_from_its_seed_still_contests_it() -> None:
+    """A refine 8 px from the ring that seeded it, past the floor, is a genuine rival.
+
+    Only the seeded-pair test inside the floor withholds a refine's runner-up vote;
+    a refine that disagrees with its seed outright still forces the conflict.
+    """
+    ring = _edge((0.0, 0.0), 0.2)
+    refine = dataclasses.replace(
+        _refine(0.3, seeds=frozenset({'RingEdgeNav'})), offset_px=(0.0, 8.0), confidence=0.8
+    )
+    result = _run([dataclasses.replace(ring, confidence=0.84), refine])
+    assert result.status == 'conflicted'
 
 
 def test_ensemble_config_rejects_a_negative_compromise_distance() -> None:

@@ -75,9 +75,14 @@ hundreds of sigmas apart.
 A Mahalanobis agreement between results farther apart than the pixel floor counts only
 when their information-form fusion takes each direction from the result that is precise
 along it, to within ``agreement_compromise_px`` (default 1 px). A pair within the pixel
-floor agrees by the floor alone, whatever its fusion would compromise, so the compromise
-is never consulted there (but see the combine's check against a collapsed set's
-representative, Step 5). The information-form fusion of two estimates lies at
+floor agrees by the floor alone, whatever its fusion would compromise, with one
+exception: a pass-2 result and a technique that seeded its prior (see Step 4) that agree
+by the floor but not by Mahalanobis distance are held to the same compromise test. The
+refine searched small windows the seed placed, so landing several standard deviations
+from the seed means it found something other than what the seed predicted there. On F
+ring frame N1757245281 a ring edge and its seeded refine, 2.8 px and 5.9 sigma apart,
+fused 7-8 px from both. (See also the combine's check against a collapsed set's
+representative, Step 5.) The information-form fusion of two estimates lies at
 :math:`a + \Sigma_{a} (\Sigma_{a} + \Sigma_{b})^{-1} (b - a)`; along one direction with
 variances :math:`s_{a}^{2}` and :math:`s_{b}^{2}` that is
 :math:`\delta\, s_{a}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`a` and
@@ -147,7 +152,10 @@ the pass-1 techniques that agree at the truth.
 Exclusion forces the conflicted branch only when the excluded results constitute a
 genuine alternative answer: the strongest consensus formable among the excluded
 results alone either has at least two corroborating members (an alternative with
-quorum) or the winning subset is itself a singleton (no quorum anywhere). The
+quorum) or the winning subset is itself a singleton (no quorum anywhere). A pass-2
+result that only the seeded-pair test of Step 3 keeps apart from its seed in the winning
+subset takes no part in that runner-up: its windows were placed by that seed, so it is no
+alternative to it. A pass-2 result that disagrees with its seed outright still is. The
 summed-confidence gap test that then decides a conflict is applied in two regimes:
 
 - **Runner-up has quorum:** an *absolute* gap — conflict when
@@ -501,9 +509,10 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_compromise_px` — float,
   default ``1.0``. Largest compromise (px) the fusion of two results that agree by
   Mahalanobis distance alone, from farther apart than the pixel floor, may make; beyond it
-  the pair disagrees (see Step 3). The combine holds a result fused with a collapsed set's
-  representative to the same limit inside the floor (see Step 5). One pixel is the scale at which an answer is judged
-  right. ``0.0`` disables the test.
+  the pair disagrees (see Step 3). A pass-2 result and a technique that seeded it, agreeing
+  by the floor but not by Mahalanobis distance, are held to the same limit (Step 3), and
+  so is a result fused with a collapsed set's representative (Step 5). One pixel is the
+  scale at which an answer is judged right. ``0.0`` disables the test.
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.confirming_axis_max_sigma_px` —
   float, default ``1.0``. Largest standard deviation (px) along a principal axis of a
   body, ring, or multi-star result for that axis to confirm a seeded single-star refine

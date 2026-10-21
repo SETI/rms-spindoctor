@@ -98,8 +98,9 @@ class ConsensusSelection:
         best: The winning consensus subset (never empty).
         excluded: Viable results outside the winning subset, in input order.
         runner_up_confidence: Highest corroborating summed confidence of
-            any consensus subset formed within ``excluded`` alone; ``0.0``
-            when nothing was excluded.
+            any consensus subset formed within ``excluded`` alone, leaving out
+            a pass-2 result the seeded-pair test keeps apart from its seed in
+            the winning subset; ``0.0`` when nothing else was excluded.
         runner_up_has_quorum: True when that runner-up subset has at least
             two *corroborating* members -- a genuine alternative consensus
             rather than a lone dissenter (or a dissenter echoed only by
@@ -158,7 +159,7 @@ def _agreement_adjacency(
     agreement_pixel_floor: float,
     agreement_compromise_px: float,
     rcond: float,
-) -> NDArrayBoolType:
+) -> tuple[NDArrayBoolType, NDArrayBoolType]:
     """Pairwise agreement matrix: Mahalanobis threshold with a pixel-floor fallback.
 
     Two results agree iff *either* their pairwise Mahalanobis distance is
@@ -176,6 +177,15 @@ def _agreement_adjacency(
     right; such a pair is a disagreement.  A precise result beside a vague
     one passes, and so do two that complement each other, each precise where
     the other is vague.
+
+    A pass-2 result and a technique that seeded its prior are held to the same
+    compromise test when they agree by the pixel floor but not by Mahalanobis
+    distance.  The refine searched small windows the seed placed, so landing
+    several standard deviations from the seed means it found something other
+    than what the seed predicted there, and fusing the two would put the
+    answer at a point neither supports: a fusion of two estimates with crossed
+    principal axes can slide along one's weak axis to several pixels from both.
+    Seeds are recorded by technique name, so a seeded pair is recognized by name.
 
     The Mahalanobis distance differences the rotation component of two
     3-DoF results linearly; that is correct here because every input
@@ -199,13 +209,17 @@ def _agreement_adjacency(
         rcond: rcond passed to ``pinvh``.
 
     Returns:
-        Symmetric boolean ``(n, n)`` matrix with a True diagonal.
+        ``(adj, seed_split)``: ``adj`` is the symmetric boolean ``(n, n)``
+        agreement matrix with a True diagonal; ``seed_split[i, j]`` is True when
+        result ``j`` seeded result ``i``'s prior and the seeded-pair test above
+        is what keeps them apart.
 
     Raises:
         ValueError: if 2-DoF and 3-DoF results are mixed.
     """
     n = len(results)
     adj = np.eye(n, dtype=bool)
+    seed_split = np.zeros((n, n), dtype=bool)
     for i in range(n):
         mu_i = result_param_vector(results[i])
         cov_i = np.asarray(results[i].covariance_px2, np.float64)
@@ -234,17 +248,26 @@ def _agreement_adjacency(
             delta_t = basis_t.T @ translation_delta
             pixel_dist = float(np.linalg.norm(delta_t))
             pixel_match = agreement_pixel_floor > 0.0 and pixel_dist <= agreement_pixel_floor
-            if mahal_match and not pixel_match and agreement_compromise_px > 0.0:
+            # A pass-2 result inside its own seed's floor but statistically
+            # apart from it is held to the compromise test as well.
+            i_seeded_j = results[i].technique_name in results[j].prior_source_techniques
+            j_seeded_i = results[j].technique_name in results[i].prior_source_techniques
+            floor_only = (i_seeded_j or j_seeded_i) and pixel_match and not mahal_match
+            if ((mahal_match and not pixel_match) or floor_only) and agreement_compromise_px > 0.0:
                 compromise = fusion_compromise_px(
                     delta_t,
                     basis_t.T @ cov_i[:2, :2] @ basis_t,
                     basis_t.T @ cov_j[:2, :2] @ basis_t,
                 )
-                mahal_match = compromise <= agreement_compromise_px
+                if compromise > agreement_compromise_px:
+                    seed_split[j, i] = floor_only and i_seeded_j
+                    seed_split[i, j] = floor_only and j_seeded_i
+                    mahal_match = False
+                    pixel_match = False
             if mahal_match or pixel_match:
                 adj[i, j] = True
                 adj[j, i] = True
-    return adj
+    return adj, seed_split
 
 
 def _best_neighborhood(
@@ -357,7 +380,7 @@ def consensus_selection(
             runner_up_confidence=0.0,
             runner_up_has_quorum=False,
         )
-    adj = _agreement_adjacency(
+    adj, seed_split = _agreement_adjacency(
         results,
         agreement_sigma=agreement_sigma,
         agreement_pixel_floor=agreement_pixel_floor,
@@ -369,8 +392,12 @@ def consensus_selection(
     excluded_indices = [i for i in range(n) if i not in best_set]
     runner_up_confidence = 0.0
     runner_up_has_quorum = False
-    if excluded_indices:
-        runner_indices = _best_neighborhood(results, adj, excluded_indices)
+    # A pass-2 result kept apart from its seed in the winning subset only by the
+    # seeded-pair test is not an alternative to that subset: its windows were
+    # placed by the seed, so it cannot form a runner-up.
+    contenders = [i for i in excluded_indices if not seed_split[i, sorted(best_set)].any()]
+    if contenders:
+        runner_indices = _best_neighborhood(results, adj, contenders)
         runner_group = [results[j] for j in runner_indices]
         runner_up_confidence = corroborating_confidence(runner_group)
         runner_up_has_quorum = len(corroborating_members(runner_group)) >= 2
