@@ -302,9 +302,9 @@ the NAC extends 140 px past the image across samples against its 50 px
 window. With the deeper photometric limit of #755, such stars filled the five
 brightest ranks the pair search draws on: F ring frame `N1862698331` had no
 pair with both stars in the image and was refused, and with them set aside it
-answers 0.15 px from the bundle. Of 87 F ring frames checked (37 refused or
-right through the unique match in the full bundle run, and 50 right
-controls), it is the only verdict that changes with #755 present. On this
+answers 0.15 px from the bundle. Of 87 F ring frames checked (37 that the
+full bundle run refused, or answered right with the unique match, and 50
+right controls), it is the only verdict that changes with #755 present. On this
 branch alone the same frames gain one answer (`N1654043744`, refused before,
 now 0.02 px from the bundle) and lose none, and the library is unchanged (74
 of 75 frames identical, the other within 0.02 px).
@@ -320,7 +320,9 @@ within a factor of 4 of the pair's peak per unit predicted SNR, which holds
 98% of 492 stars measured on 93 two-star frames) keeps a faint field source or
 a two-pixel hit at the moved prediction from canceling the contradiction. Of
 287 F ring frames rerun with the pair path, no verdict changes, and the
-library is unchanged.
+library is unchanged. One source that overlapping windows return for several
+stars now counts once against the pair; no pair was refused as contradicted in
+the 2,570-frame #755 rerun, so none of those frames can change.
 
 The Galileo SSI black-sky frames (507 star-calibration frames of `GO_0008`
 and `GO_0009`) have no outside pointing, so each answer was tested directly:
