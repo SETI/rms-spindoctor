@@ -1031,6 +1031,29 @@ def test_star_unique_match_matches_a_lone_star_past_an_unreachable_brighter_one(
     assert result.feature_ids == ('star:UCAC4:1',)
 
 
+def test_star_unique_match_reaches_the_image_through_the_wide_window(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A pair predicted beyond the inner window's reach but within the wide one's is kept.
+
+    Both stars are predicted 40 px left of the image, farther than the 30 px inner window
+    and nearer than the 50 px wide window, and a 45 px pointing error puts them in it.
+    """
+    image, features = _star_field(
+        make_star_feature,
+        draw_gaussian_star,
+        _WIDE_MARGIN_SHAPE,
+        [((100.0, 100.0), (0.0, 45.0)), ((200.0, 100.0), (0.0, 45.0))],
+    )
+    result = StarUniqueMatchNav().navigate(
+        features, make_nav_context(image, extfov_margin_vu=_WIDE_MARGIN_VU)
+    )
+    assert result.spurious is False
+    assert result.offset_px[1] == pytest.approx(45.0, abs=0.4)
+
+
 def test_star_unique_match_refuses_when_no_star_is_in_reach(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
