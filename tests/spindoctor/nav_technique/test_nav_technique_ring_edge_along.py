@@ -329,3 +329,19 @@ def test_ring_edge_nav_rejects_a_bad_shape_sigma(
     monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
     with pytest.raises(ValueError, match='shape_sigma_px must be a finite number >= 0'):
         RingEdgeNav()
+
+
+def test_converged_log_line_reports_the_rank_1_flag(
+    disc_image: DiscImageFactory,
+    make_ring_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The per-image log's converged line states whether the fit took the rank-1 path."""
+    image = disc_image(_SHAPE, _ARC_CENTER, _ARC_RADIUS)
+    vertices, outward = _gentle_arc()
+    feature = make_ring_feature(
+        'gentle', vertices=vertices, outward_normals=outward, is_straight_line=False
+    )
+    RingEdgeNav().navigate([feature], make_nav_context(image))
+    assert 'rank_1=False' in capsys.readouterr().out

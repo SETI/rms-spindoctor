@@ -739,7 +739,7 @@ class RingEdgeNav(NavTechnique):
                 result.rms_px,
                 result.inlier_count,
                 int(vertices.shape[0]),
-                is_rank_1,
+                rank_1,
                 float(confidence),
             )
             if fit_rotation and sigma_rotation_rad is not None and rotation_rad is not None:
