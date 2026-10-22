@@ -24,6 +24,7 @@ from spindoctor.dataset.dataset import ImageFile, ImageFiles
 from spindoctor.feature.feature import NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_orchestrator.ensemble import derive_confidence_rank
+from spindoctor.nav_orchestrator.ensemble_independence import matched_star_count_of
 from spindoctor.nav_orchestrator.feature_summary import NavFeatureSummary
 from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_technique.diagnostics import (
@@ -158,6 +159,7 @@ def cassini_star_and_limb() -> dict[str, Any]:
             extractors=('body:IAPETUS', 'stars'),
         ),
         consensus_techniques=['StarFieldFromCatalogNav', 'BodyLimbNav'],
+        matched_star_count=matched_star_count_of(per_technique),
     )
     result = with_pointing(
         result,

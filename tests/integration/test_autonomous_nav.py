@@ -5,10 +5,11 @@ this test runs ``navigate_image_files`` against the real PDS3 holdings
 (via ``PDS3_HOLDINGS_DIR``) and asserts:
 
 (a) ``NavResult.status`` exact-match against ``expected.status``.
-(b) ``NavResult.confidence_rank`` exact-match against ``expected.confidence_tier``.
-(c) For ``ok`` results, ``offset_px`` is within
+(b) For ``ok`` results, ``offset_px`` is within
     ``offset_uncertainty_px + 0.5 px`` slack of the operator-supplied
-    ground-truth on each axis.
+    ground-truth on each axis.  Checked before the tier, so a frame whose
+    offset is wrong is reported as wrong rather than as a tier change.
+(c) ``NavResult.confidence_rank`` exact-match against ``expected.confidence_tier``.
 (d) ``expected.primary_technique`` is the highest-confidence per-technique
     result with ties broken by ``(-confidence, technique_name)`` ascending
     (Part 0 §14; deterministic, registration-order-independent).
@@ -114,21 +115,8 @@ def test_one_library_image(sidecar: Sidecar, tmp_path: Path) -> None:
         f'{sidecar.expected.status!r})'
     )
 
-    # (b) confidence_rank (no slack, exact match), plus the optional
-    # status_reason pin (e.g. ``rank_1_only`` for a flat-ring frame).
-    actual_rank = nav_meta.get('confidence_rank')
-    assert actual_rank == sidecar.expected.confidence_tier, (
-        f'{sidecar.image_id}: expected confidence_tier='
-        f'{sidecar.expected.confidence_tier}, got {actual_rank}'
-    )
-    if sidecar.expected.status_reason is not None:
-        actual_reason = nav_meta.get('status_reason')
-        assert actual_reason == sidecar.expected.status_reason, (
-            f'{sidecar.image_id}: expected status_reason='
-            f'{sidecar.expected.status_reason}, got {actual_reason}'
-        )
-
-    # (c) offset within slack (only for ``ok`` outcomes).  A rank-1
+    # (b) offset within slack (only for ``ok`` outcomes), before the tier so a
+    # wrong offset is not reported as a tier change.  A rank-1
     # constrained ground truth compares only the component along the
     # constraint normal — the along-edge component is physically
     # unobservable, so per-axis comparison would score noise.
@@ -158,6 +146,20 @@ def test_one_library_image(sidecar: Sidecar, tmp_path: Path) -> None:
             assert du_err <= slack, (
                 f'{sidecar.image_id}: du error {du_err:.3f} px exceeds tolerance {slack:.3f} px'
             )
+
+    # (c) confidence_rank (no slack, exact match), plus the optional
+    # status_reason pin (e.g. ``rank_1_only`` for a flat-ring frame).
+    actual_rank = nav_meta.get('confidence_rank')
+    assert actual_rank == sidecar.expected.confidence_tier, (
+        f'{sidecar.image_id}: expected confidence_tier='
+        f'{sidecar.expected.confidence_tier}, got {actual_rank}'
+    )
+    if sidecar.expected.status_reason is not None:
+        actual_reason = nav_meta.get('status_reason')
+        assert actual_reason == sidecar.expected.status_reason, (
+            f'{sidecar.image_id}: expected status_reason='
+            f'{sidecar.expected.status_reason}, got {actual_reason}'
+        )
 
     per_technique = nav_meta.get('per_technique', [])
     technique_names = [entry.get('technique_name') for entry in per_technique]

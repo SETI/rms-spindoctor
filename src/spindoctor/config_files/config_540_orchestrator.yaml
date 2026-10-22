@@ -50,6 +50,15 @@ orchestrator:
     agreement_sigma: 2.0
     # Euclidean translation-distance fallback grouping threshold (px).
     agreement_pixel_floor: 5.0
+    # Translation distance (px) within which two results that consumed a
+    # common feature (two star techniques on the same star) agree; such a
+    # pair is judged by this alone.  Two results that found the same
+    # detection agree to the centroid precision, and two that did not have
+    # disagreed about which detection the feature is.  On the 1030 frames of
+    # ISS_006RI_LPHRLFMOV001_PRIME, correctly navigated pairs never sit more
+    # than 1.27 px apart (99th percentile 0.79 px) and a pair with a
+    # misidentified star at least 2.25 px apart.
+    shared_feature_agreement_px: 1.5
     # Minimum summed-confidence gap between best and runner-up groups
     # before declaring a conflict.  Absolute when the runner-up has a
     # quorum (two or more members); in a lone-vs-lone standoff the gap

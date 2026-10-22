@@ -31,6 +31,7 @@ optical axis ``oops`` reports.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import pytest
@@ -101,16 +102,25 @@ class FakeObs:
 
     The technique implementations only read ``obs.extfov_margin_vu`` (via the
     shared :func:`spindoctor.nav_technique.nav_technique.search_window_for_obs`
-    helper); the rest of the obs surface is irrelevant once a
-    fully-populated ``NavContext`` is supplied directly.
+    helper) and ``obs.inst_config`` (via
+    :func:`spindoctor.nav_technique.nav_technique.star_search_px_for_obs`); the
+    rest of the obs surface is irrelevant once a fully-populated ``NavContext``
+    is supplied directly.
 
     Parameters:
         extfov_margin_vu: ``(margin_v, margin_u)`` extfov margin tuple
             returned to callers; defaults to ``(32, 32)``.
+        inst_config: The camera's instrument configuration; ``None`` (the
+            default) leaves every technique on its own tuning.
     """
 
-    def __init__(self, extfov_margin_vu: tuple[int, int] = (32, 32)) -> None:
+    def __init__(
+        self,
+        extfov_margin_vu: tuple[int, int] = (32, 32),
+        inst_config: dict[str, Any] | None = None,
+    ) -> None:
         self.extfov_margin_vu = extfov_margin_vu
+        self.inst_config = inst_config
 
 
 # ---------------------------------------------------------------------------
@@ -501,6 +511,7 @@ def _make_star_feature(
     in_body_silhouette: bool = False,
     in_saturation_or_cosmic_mask: bool = False,
     vmag: float | None = 5.0,
+    smear_length_px: float = 0.0,
 ) -> NavFeature:
     """Build a STAR ``NavFeature`` with the supplied prediction + brightness."""
     pv, pu = predicted_vu
@@ -535,7 +546,7 @@ def _make_star_feature(
         usable_types=frozenset({NavFeatureType.STAR}),
         flags=StarFlags(
             saturated=False,
-            smear_length_px=0.0,
+            smear_length_px=smear_length_px,
             in_body_silhouette=in_body_silhouette,
             in_saturation_or_cosmic_mask=in_saturation_or_cosmic_mask,
             predicted_snr=predicted_snr,

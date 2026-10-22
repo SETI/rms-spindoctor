@@ -9,7 +9,7 @@ over-tightens the combined covariance (so the reported sigma is too small and
 the tier too high) and lets a redundant member drag the fused offset.
 
 This module resolves a winning consensus group into the set of estimators the
-combine may treat as independent, correcting three known correlations:
+combine may treat as independent, correcting four known correlations:
 
 * **Seeded second-pass refine (R1).**  A pass-2 ``StarRefineNav`` searches a
   small window around the pass-1 prior, so its offset is conditionally
@@ -39,19 +39,35 @@ combine may treat as independent, correcting three known correlations:
   threshold, the disc and limb results on the same body are collapsed to a
   single representative.
 
+* **Two techniques on one feature (R4).**  Two results that consumed a common
+  feature measured the same thing: the three star techniques centroid the same
+  detections of the same catalog stars, so a one-star unique match and the
+  one-inlier refine of that star agree to the last digit because they are one
+  measurement reported twice, and a misidentified star moves both by the same
+  amount.  Any two results whose ``feature_ids`` share an entry are collapsed
+  to a single representative.  Every non-star technique consumes a feature type
+  no other technique reads, so in practice the rule acts on the star family; it
+  is stated over features rather than technique names so that it holds for any
+  technique that comes to share one.
+
 R1 is a directional drop (the descendant is subordinate to its seeds, which
-remain independent of one another); R2 and R3 are symmetric collapses (neither
-member is subordinate, so the pair is replaced by one representative).  The
+remain independent of one another); R2, R3, and R4 are symmetric collapses
+(neither member is subordinate, so the pair is replaced by one representative).  The
 representative of a collapsed set is its highest-positional-precision member,
 with a deterministic tie-break, so the fused offset is the single best view of
-the shared measurement rather than a spuriously tightened average of two.
+the shared measurement rather than a spuriously tightened average of two.  A set
+joined by shared features is represented first by the member that consumed the
+most features, which holds every measurement the others made; a fit to fewer
+stars can carry the tighter covariance without being the better view.
 """
 
+import dataclasses
 from dataclasses import dataclass
 
 from spindoctor.nav_orchestrator.ensemble_observability import positional_precision
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
 from spindoctor.nav_technique.diagnostics import (
+    StarFieldDiagnostics,
     StarRefineDiagnostics,
     StarUniqueMatchDiagnostics,
 )
@@ -60,7 +76,9 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 __all__ = [
     'STAR_CONSENSUS_TECHNIQUES',
     'IndependenceResolution',
+    'blend_collapsed_confidence',
     'is_single_star_result',
+    'matched_star_count_of',
     'resolve_independent_estimators',
 ]
 
@@ -87,25 +105,29 @@ _SCATTER_SENSITIVE_BODY_TECHNIQUES = frozenset({'BodyDiscCorrelateNav', 'BodyLim
 def is_single_star_result(res: NavTechniqueResult) -> bool:
     """Return True when a result rests on a single star with no cross-check.
 
-    A one-star ``StarUniqueMatchNav`` match and a one-inlier
-    ``StarRefineNav`` refine each localize the offset from a single
-    detection: nothing in the solution corroborates the identification
-    itself.  Multi-star solutions and every non-star technique return False.
+    A one-star ``StarUniqueMatchNav`` match, a one-inlier ``StarRefineNav``
+    refine, and a one-inlier ``StarFieldFromCatalogNav`` lock each localize the
+    offset from a single detection: nothing in the solution corroborates the
+    identification itself.  Multi-star solutions and every non-star technique
+    return False.
 
     Parameters:
         res: The per-technique result to classify.
 
     Returns:
         True when ``res`` is a ``StarUniqueMatchNav`` result whose match mode
-        is ``'one_star'`` or a ``StarRefineNav`` result that used at most one
-        star; False for every other result, including multi-star star results
-        and all non-star techniques.
+        is ``'one_star'``, a ``StarRefineNav`` result that used at most one
+        star, or a ``StarFieldFromCatalogNav`` result with at most one inlier;
+        False for every other result, including multi-star star results and
+        all non-star techniques.
     """
     diag = res.diagnostics
     if isinstance(diag, StarUniqueMatchDiagnostics):
         return diag.mode == 'one_star'
     if isinstance(diag, StarRefineDiagnostics):
         return diag.n_stars_used <= 1
+    if isinstance(diag, StarFieldDiagnostics):
+        return diag.n_inliers <= 1
     return False
 
 
@@ -121,7 +143,7 @@ class IndependenceResolution:
         dropped_descendants: Seeded single-star refines removed by R1 (kept for
             logging / provenance; they cast no vote and lend no precision).
         collapsed_groups: One entry per correlated peer set that was collapsed
-            (R2 / R3), representative first, then the members it stood in for.
+            (R2 / R3 / R4), representative first, then the members it stood in for.
             Singletons are not listed.
     """
 
@@ -156,13 +178,15 @@ def _correlation_adjacency(
     *,
     scattered_light: bool,
 ) -> list[set[int]]:
-    """Return undirected correlation edges among group indices (R2 and R3).
+    """Return undirected correlation edges among group indices (R2, R3, and R4).
 
     Two results are joined by an edge when they are correlated witnesses of
     one shared error source: R2 joins any two ring techniques (both in
     ``_RING_TECHNIQUES``), which read one shared catalog model; R3 joins the
     disc and limb techniques (``_SCATTER_SENSITIVE_BODY_TECHNIQUES``) observing
-    a shared body, but only when ``scattered_light`` is True.
+    a shared body, but only when ``scattered_light`` is True; R4 joins any two
+    results whose ``feature_ids`` have an entry in common, since a feature both
+    consumed is one measurement whichever technique reports it.
 
     Parameters:
         group: The results to test pairwise, indexed positionally.
@@ -193,7 +217,9 @@ def _correlation_adjacency(
                 and ri.technique_name != rj.technique_name
                 and bool(ri.source_bodies & rj.source_bodies)
             )
-            if ring_pair or scatter_pair:
+            # R4: a feature both consumed is one measurement reported twice.
+            shared_feature = bool(set(ri.feature_ids) & set(rj.feature_ids))
+            if ring_pair or scatter_pair or shared_feature:
                 adj[i].add(j)
                 adj[j].add(i)
     return adj
@@ -287,7 +313,7 @@ def resolve_independent_estimators(
         survivors = list(group)
     dropped = [group[i] for i in sorted(dropped_idx)]
 
-    # R2 / R3: collapse each correlated peer set to a single representative.
+    # R2 / R3 / R4: collapse each correlated peer set to a single representative.
     score = image_classifier.background_gradient_score
     scattered_light = score is not None and score >= scattered_light_gradient_score
     adj = _correlation_adjacency(survivors, scattered_light=scattered_light)
@@ -299,11 +325,23 @@ def resolve_independent_estimators(
         if len(comp) == 1:
             keep.add(comp[0])
             continue
-        # Representative: highest positional precision, then a deterministic
-        # tie-break so the choice never depends on input order or hashing.
+        # Representative: in a set joined by shared features (R4), the member
+        # that consumed the most features, since it holds every measurement the
+        # others made and more; then the highest positional precision; then a
+        # deterministic tie-break so the choice never depends on input order or
+        # hashing.  Feature count comes first because a fit to fewer stars can
+        # report the tighter covariance -- a two-star match carries the
+        # predicted centroid bound, a seven-star fit its measured scatter.
+        shares_features = any(
+            set(survivors[i].feature_ids) & set(survivors[j].feature_ids)
+            for i in comp
+            for j in comp
+            if i < j
+        )
         rep_idx = max(
             comp,
             key=lambda i: (
+                len(set(survivors[i].feature_ids)) if shares_features else 0,
                 positional_precision(survivors[i].covariance_px2, rcond=rcond),
                 survivors[i].technique_name,
                 survivors[i].feature_ids,
@@ -320,3 +358,72 @@ def resolve_independent_estimators(
         dropped_descendants=dropped,
         collapsed_groups=collapsed_groups,
     )
+
+
+def matched_star_count_of(group: list[NavTechniqueResult]) -> int:
+    """Return how many distinct catalog stars a group of results matched.
+
+    Parameters:
+        group: The results whose consumed features are counted.
+
+    Returns:
+        The number of distinct ``feature_ids`` across the group's star-technique
+        results; ``0`` when none of them is a star technique.
+    """
+    return len(
+        {
+            feature_id
+            for r in group
+            if r.technique_name in STAR_CONSENSUS_TECHNIQUES
+            for feature_id in r.feature_ids
+        }
+    )
+
+
+def blend_collapsed_confidence(
+    estimators: list[NavTechniqueResult],
+    collapsed_groups: list[list[NavTechniqueResult]],
+    *,
+    rcond: float,
+) -> list[NavTechniqueResult]:
+    """Give each representative of a shared-feature set the set's blended confidence.
+
+    A set of results that consumed common features is one measurement, and its
+    representative stands in for all of them.  The representative's covariance is
+    its own; its confidence is replaced by the precision-weighted mean of the
+    members' confidences -- the average the information-form combine would have
+    taken over the members had they been independent, without the agreement boost
+    their shared measurement does not earn.  Using the representative's own
+    confidence instead would let the most confident view of one measurement set
+    the tier alone.  Sets collapsed for another reason (two ring techniques, disc
+    and limb under scattered light) keep their representative's confidence.
+
+    Parameters:
+        estimators: The independent estimators, representatives included.
+        collapsed_groups: Each collapsed set, representative first.
+        rcond: rcond for the precision weights.
+
+    Returns:
+        The estimators in the same order, with each shared-feature representative
+        replaced by a copy carrying the blended confidence.
+    """
+    blended: dict[int, float] = {}
+    for group in collapsed_groups:
+        shares_features = any(
+            set(a.feature_ids) & set(b.feature_ids)
+            for i, a in enumerate(group)
+            for b in group[i + 1 :]
+        )
+        if not shares_features:
+            continue
+        weights = [positional_precision(r.covariance_px2, rcond=rcond) for r in group]
+        total = sum(weights)
+        if total <= 0.0:
+            continue
+        blended[id(group[0])] = (
+            sum(w * r.confidence for w, r in zip(weights, group, strict=True)) / total
+        )
+    return [
+        dataclasses.replace(r, confidence=blended[id(r)]) if id(r) in blended else r
+        for r in estimators
+    ]

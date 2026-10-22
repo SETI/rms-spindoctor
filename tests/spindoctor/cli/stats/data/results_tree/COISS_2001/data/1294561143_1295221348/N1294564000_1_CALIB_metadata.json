@@ -132,6 +132,7 @@
     "excluded_from_consensus": [
       "BodyBlobNav"
     ],
+    "matched_star_count": 0,
     "feature_count_by_type": {
       "BODY_DISC": 1,
       "BODY_BLOB": 1,
