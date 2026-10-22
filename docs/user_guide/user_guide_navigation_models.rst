@@ -601,7 +601,11 @@ places each of them several pixels off, so a pair is also refused when three of 
 stars searched are found in the image, every one of them at a different offset, and none
 where the pair puts it (``techniques.StarUniqueMatchNav.tuning.pair_contradiction_stars``).
 A cosmic-ray hit brighter than a star near it therefore does not count against the pair
-while the star itself is where the pair puts it. A cross-checked pair
+while the star itself is where the pair puts it. A source found there counts as the star
+only when its peak brightness is within a factor of 4 of what the pair's two stars
+predict from the catalog magnitudes
+(``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor``), so a faint field star
+or a small cosmic-ray hit lying there by chance does not count for the pair. A cross-checked pair
 caps confidence a little higher, at 0.8.
 
 The search never covers the whole frame. It reaches

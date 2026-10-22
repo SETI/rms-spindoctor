@@ -973,11 +973,10 @@ def test_star_unique_match_a_brighter_source_beside_a_star_does_not_contradict_t
 ) -> None:
     """Other stars at the pair's offset agree though each window holds a brighter source.
 
-    Each of the three sits where the pair's offset puts it, with a brighter isolated source
-    15 to 18 px away inside its window, as a cosmic-ray hit lies in a frame taken in high
-    flux.
-    The brightest detection of each window is that source; the star at the offset still
-    votes for the pair.
+    Each of the three sits where the pair's offset puts it, with a brighter isolated
+    source 15 to 18 px away inside its window, as a cosmic-ray hit lies in a frame taken
+    in high flux.  The brightest detection of each window is that source; the star at the
+    offset still votes for the pair.
     """
     image = np.zeros((500, 500), dtype=np.float64)
     pair_offset = (2.0, -3.0)
@@ -999,6 +998,79 @@ def test_star_unique_match_a_brighter_source_beside_a_star_does_not_contradict_t
     result = StarUniqueMatchNav().navigate(features, make_nav_context(image))
     assert result.spurious is False
     assert 'pair_contradicted' not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ('stand_in', 'hit_dn'),
+    [('faint-field-source', 0.0), ('two-pixel-hit', 30.0)],
+    ids=['faint-field-source', 'two-pixel-hit'],
+)
+def test_star_unique_match_a_source_unlike_the_star_does_not_vote_for_the_pair(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    capsys: pytest.CaptureFixture[str],
+    stand_in: str,
+    hit_dn: float,
+) -> None:
+    """A pair three other stars contradict is refused with a stray source at its offset.
+
+    The three other stars are found elsewhere, and one more source lies 1.4 px from where
+    the pair's offset puts the third of them: a faint field star or a two-pixel cosmic-ray
+    hit, its peak a small fraction of the peak the pair's stars show for a star that
+    bright.
+    """
+    rng = np.random.default_rng(7644)
+    image = rng.normal(0.0, 1.0, (500, 500))
+    pair_offset = (2.0, -3.0)
+    stars = [
+        ((80.0, 80.0), pair_offset, 60.0),
+        ((80.0, 400.0), pair_offset, 58.0),
+        ((400.0, 80.0), (-15.0, 10.0), 50.0),
+        ((400.0, 400.0), (12.0, 14.0), 48.0),
+        ((240.0, 240.0), (-8.0, -20.0), 46.0),
+    ]
+    features = []
+    for k, (pred, offset, snr) in enumerate(stars):
+        draw_gaussian_star(image, (pred[0] + offset[0], pred[1] + offset[1]), peak_dn=200.0)
+        features.append(make_star_feature(f'star:UCAC4:{k}', predicted_vu=pred, predicted_snr=snr))
+    at_v, at_u = 400.0 + pair_offset[0] + 1.0, 80.0 + pair_offset[1] + 1.0
+    if stand_in == 'faint-field-source':
+        draw_gaussian_star(image, (at_v, at_u), peak_dn=8.0)
+    else:
+        image[round(at_v), round(at_u)] += hit_dn
+        image[round(at_v), round(at_u) + 1] += hit_dn
+    result = StarUniqueMatchNav().navigate(features, make_nav_context(image))
+    assert result.spurious is True
+    assert 'pair_contradicted' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(('peak_dn', 'found'), [(100.0, True), (24.0, False), (420.0, False)])
+def test_star_unique_match_a_source_votes_only_with_the_peak_the_star_should_show(
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    peak_dn: float,
+    found: bool,
+) -> None:
+    """At 10 DN per unit SNR an SNR-10 star peaks at 100 DN; 4 times off casts no vote."""
+    image = np.zeros((100, 100))
+    draw_gaussian_star(image, (50.0, 50.0), peak_dn=peak_dn)
+    star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
+    det = StarUniqueMatchNav()._star_like_detection_at(
+        image, star, (50.0, 50.0), 1.0, search_window_px=2.4, peak_per_snr=10.0
+    )
+    assert (det is not None) is found
+
+
+def test_star_unique_match_rejects_a_pair_vote_peak_factor_of_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Construction rejects a ``pair_vote_peak_factor`` that is not above 1."""
+    tuning = dict(StarUniqueMatchNav.tuning)
+    tuning['pair_vote_peak_factor'] = 1.0
+    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
+    with pytest.raises(ValueError, match='pair_vote_peak_factor must be finite and > 1'):
+        StarUniqueMatchNav()
 
 
 def test_star_unique_match_inner_window_is_a_radius(

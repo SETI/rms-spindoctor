@@ -5,8 +5,9 @@ StarUniqueMatchNav` detects two catalog stars and then solves for the offset tha
 carries the predictions onto the detections.  The pure arithmetic of that solve lives
 here: choosing the detection-to-prediction assignment with the smaller residual (with
 or without a rotation), and building the translation covariance a match reports and
-the three-parameter covariance of a pair fitted with a rotation.  The detection, the
-gates, the confidence, and the logging stay with the technique.
+the three-parameter covariance of a pair fitted with a rotation.  So does the photometry
+that says how bright another star found at the pair's offset should be.  The detection,
+the gates, the confidence, and the logging stay with the technique.
 
 The submodule is private (leading underscore on the file name); its functions carry no
 underscore prefix because the technique module imports them, but they are not part of
@@ -16,20 +17,30 @@ the package's public API.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 
 from spindoctor.feature.feature import NavFeature
-from spindoctor.nav_technique._star_helpers import SimilarityFit, similarity_transform_fit
+from spindoctor.feature.flags import StarFlags
+from spindoctor.nav_technique._star_helpers import (
+    SimilarityFit,
+    predicted_snr,
+    predicted_vu,
+    similarity_transform_fit,
+)
 from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANCE
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'TwoStarAssignment',
     'build_star_covariance',
+    'peak_per_snr',
+    'photometry_saturated',
     'similarity_fit_assignment',
     'solve_two_star_assignment',
+    'source_peak',
     'two_star_covariance',
     'two_star_covariance_3dof',
 ]
@@ -280,3 +291,91 @@ def two_star_covariance_3dof(
     cov[:2, :2] = cov_2x2
     cov[2, 2] = sigma_theta_sq
     return cov
+
+
+def source_peak(
+    image_ext: NDArrayFloatType, center_vu: tuple[float, float], *, box_half_px: int
+) -> float:
+    """Return a source's brightest pixel above the local background.
+
+    The brightest pixel is taken over the ``(2 * box_half_px + 1)`` box centered on the
+    pixel holding ``center_vu``, and the background is the median of the ring of pixels 1
+    to 3 px outside the box.  The ring median ignores another source covering less than
+    half the ring.  Stars in one frame share a point-spread function and smear, so their
+    peaks scale with their catalog fluxes; a sum over the box would follow the flux more
+    directly but takes in every gradient of a ring's flank.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        center_vu: ``(v, u)`` center of the source, such as a detection centroid.
+        box_half_px: Half-width of the box searched for the brightest pixel.
+
+    Returns:
+        The background-subtracted peak, at least ``0.0``; ``0.0`` when the box and its
+        ring do not fit inside the image.
+    """
+    outer = box_half_px + 3
+    v_c, u_c = round(center_vu[0]), round(center_vu[1])
+    rows, cols = image_ext.shape
+    if not (outer <= v_c < rows - outer and outer <= u_c < cols - outer):
+        return 0.0
+    patch = np.asarray(
+        image_ext[v_c - outer : v_c + outer + 1, u_c - outer : u_c + outer + 1], np.float64
+    )
+    steps = np.abs(np.arange(-outer, outer + 1))
+    dist = np.maximum(steps[:, None], steps[None, :])
+    background = float(np.median(patch[dist > box_half_px + 1]))
+    return max(float(patch[dist <= box_half_px].max()) - background, 0.0)
+
+
+def photometry_saturated(feature: NavFeature) -> bool:
+    """Return whether a STAR feature's catalog magnitude is a saturated lower bound."""
+    flags = feature.flags
+    return isinstance(flags, StarFlags) and flags.photometry_saturated
+
+
+def peak_per_snr(
+    image_ext: NDArrayFloatType,
+    stars: list[NavFeature],
+    offset_vu: tuple[float, float],
+    *,
+    detect_at: Callable[[NavFeature, tuple[float, float]], tuple[float, float] | None],
+    box_half_px: int,
+) -> float | None:
+    """Return the peak per unit of predicted SNR that stars found at an offset show.
+
+    Each star is sought with ``detect_at`` where the offset puts it, its prediction moved
+    by ``offset_vu``, and its peak above the local background (:func:`source_peak`) is
+    divided by its predicted SNR, which is proportional to its catalog flux.  The result
+    is the geometric mean of the quotients, the scale that converts a star's predicted
+    SNR into the peak it should show in this image.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        stars: The star features whose light sets the scale.
+        offset_vu: ``(dv, du)`` offset at which they are sought.
+        detect_at: Returns the detection centroid of a star sought around the given
+            ``(v, u)`` position, or ``None``.
+        box_half_px: Half-width of the box :func:`source_peak` searches.
+
+    Returns:
+        The scale, or ``None`` when ``stars`` is empty or any star is not found, shows no
+        peak, has no positive predicted SNR, or has a catalog magnitude that is only a
+        saturated lower bound.
+    """
+    log_sum = 0.0
+    for star in stars:
+        snr = predicted_snr(star)
+        if snr <= 0.0 or photometry_saturated(star):
+            return None
+        pred = predicted_vu(star)
+        det = detect_at(star, (pred[0] + offset_vu[0], pred[1] + offset_vu[1]))
+        if det is None:
+            return None
+        peak = source_peak(image_ext, det, box_half_px=box_half_px)
+        if peak <= 0.0:
+            return None
+        log_sum += math.log(peak / snr)
+    if not stars:
+        return None
+    return math.exp(log_sum / len(stars))

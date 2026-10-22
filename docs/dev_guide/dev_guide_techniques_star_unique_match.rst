@@ -196,11 +196,18 @@ twice ``max_residual_px`` from the pair's offset. Two stars can agree by coincid
 three more stars that are in the image and found elsewhere say they did. Each other star
 is first sought where the pair's offset puts it, in a window of half-width twice
 ``max_residual_px`` around its moved prediction. An isolated point source found there
-votes for the pair, whatever else the star's own window holds, so only a star that is
-absent at the pair's offset can vote against it. A frame taken in high cosmic-ray flux
-holds hits brighter than many of its stars: on F ring frame N1799563905 the brightest
-source in each of three other stars' windows was such a hit, and the pair, 0.12 px from
-the answer four other stars confirm, was refused until the stars at its offset voted. A simulated
+votes for the pair, whatever else the star's own window holds, when it is as bright as
+the star should be. The pair's two stars set the scale: each one's peak above its local
+background, divided by its predicted SNR, and the two quotients' geometric mean, times
+the other star's predicted SNR, is the peak that star should show. A source whose peak
+lies within a factor of ``pair_vote_peak_factor`` of that votes for the pair. A faint
+field star or a two-pixel cosmic-ray hit that lies there by chance is a small fraction
+of it, and the star is then sought in its own window as if nothing were found at the
+offset. Only a star that is absent at the pair's offset can vote against it. A frame
+taken in high cosmic-ray flux holds hits brighter than many of its stars: on F ring
+frame N1799563905 the brightest source in each of three other stars' windows is such a
+hit, and the stars at the pair's offset, with peaks 0.68 to 2.04 times what the pair
+predicts, keep the pair, 0.12 px from the answer four other stars confirm. A simulated
 six-star field whose catalog positions each scatter by 6 or 8 px has two stars agreeing to
 0.8 and 1.1 px, reported 5 and 7 px wrong without the refusal. Of the 6098 two-star
 answers in the F ring movies set aside for tuning, none has three such stars and 32 have
@@ -357,6 +364,13 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``pair_contradiction_stars`` — int, default ``3``. The 2-star path refuses its first
   passing pair when at least this many of the other searched stars are detected, all away
   from the pair's offset, and none is found where the pair's offset puts it.
+- ``pair_vote_peak_factor`` — float, default ``4.0`` (dimensionless), finite and above
+  1. A source found where the pair's offset puts another star counts as that star only
+  when its peak above the local background lies within this factor of the peak the
+  pair's stars predict for it. Among 93 two-star answers in the F ring movies set aside
+  for tuning, the 492 other stars at least a quarter as bright as the pair's fainter star
+  showed peaks 0.35 to 2.8 times the prediction (2nd to 99th percentile), and 4 sets
+  aside 9 of them.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
   moment box around the detection, and of the matched-filter kernel.
 - ``max_residual_px`` — float, default ``1.2`` px. Maximum allowed best-assignment

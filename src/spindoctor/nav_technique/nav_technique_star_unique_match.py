@@ -88,7 +88,10 @@ from spindoctor.nav_technique._star_helpers import (
 )
 from spindoctor.nav_technique._star_unique_two_star import (
     build_star_covariance,
+    peak_per_snr,
+    photometry_saturated,
     solve_two_star_assignment,
+    source_peak,
     two_star_covariance,
 )
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
@@ -173,6 +176,7 @@ class StarUniqueMatchNav(NavTechnique):
         self._max_residual_px = float(self.tuning['max_residual_px'])
         self._pair_search_stars = int(self.tuning['pair_search_stars'])
         self._pair_contradiction_stars = int(self.tuning['pair_contradiction_stars'])
+        self._pair_vote_peak_factor = float(self.tuning['pair_vote_peak_factor'])
         self._inner_search_window_px = float(self.tuning['inner_search_window_px'])
         self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
         self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
@@ -184,6 +188,10 @@ class StarUniqueMatchNav(NavTechnique):
         self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
         self._one_star_min_peak_ratio = float(self.tuning['one_star_min_peak_ratio'])
         self._one_star_max_residual_px = float(self.tuning['one_star_max_residual_px'])
+        if not 1.0 < self._pair_vote_peak_factor < math.inf:
+            raise ValueError(
+                f'pair_vote_peak_factor must be finite and > 1; got {self._pair_vote_peak_factor!r}'
+            )
         if self._one_star_min_peak_ratio < 1.0:
             raise ValueError(
                 f'one_star_min_peak_ratio must be >= 1; got {self._one_star_min_peak_ratio!r}'
@@ -376,14 +384,29 @@ class StarUniqueMatchNav(NavTechnique):
             # A pair that agrees by coincidence is contradicted by the other stars
             # that are in the image: each is found somewhere else.
             others = [f for f in ranked[:n_search] if f.feature_id not in chosen.feature_ids]
+            pair = [f for f in ranked if f.feature_id in chosen.feature_ids]
+            scale = peak_per_snr(
+                image_ext,
+                pair,
+                chosen.offset_px,
+                detect_at=lambda star, target: self._isolated_detection_at(
+                    image_ext, star, target, noise_sigma, search_window_px=tolerance_px
+                ),
+                box_half_px=self._centroid_box_half_px,
+            )
             agree, disagree = third_star_votes(
                 others,
                 chosen.offset_px,
                 detect=lambda star: self._isolated_detection(
                     image_ext, star, noise_sigma, search_window_px=chosen_window_px
                 ),
-                detect_near=lambda star, target: self._isolated_detection_at(
-                    image_ext, star, target, noise_sigma, search_window_px=tolerance_px
+                detect_near=lambda star, target: self._star_like_detection_at(
+                    image_ext,
+                    star,
+                    target,
+                    noise_sigma,
+                    search_window_px=tolerance_px,
+                    peak_per_snr=scale,
                 ),
                 tolerance_px=tolerance_px,
             )
@@ -422,7 +445,7 @@ class StarUniqueMatchNav(NavTechnique):
         *,
         search_window_px: float,
     ) -> tuple[float, float] | None:
-        """Return a star's window detection when it is an isolated point source, else None."""
+        """Return a star's window detection if it is an isolated point source."""
         return self._isolated_detection_at(
             image_ext, star, predicted_vu(star), noise_sigma, search_window_px=search_window_px
         )
@@ -436,10 +459,10 @@ class StarUniqueMatchNav(NavTechnique):
         *,
         search_window_px: float,
     ) -> tuple[float, float] | None:
-        """Return the isolated point source a window centered on ``center_vu`` holds, else None.
+        """Return the isolated point source in a window around ``center_vu``, else None.
 
-        The window is searched as :meth:`_isolated_detection` searches a star's own window;
-        ``star`` supplies the expected smear the isolation test allows for.
+        The window is searched as :meth:`_isolated_detection` searches a star's own
+        window; ``star`` supplies the expected smear the isolation test allows for.
         """
         det, _peak = local_centroid(
             image_ext,
@@ -453,6 +476,54 @@ class StarUniqueMatchNav(NavTechnique):
             refuse_outshone=False,
         )
         if det is None or not self._is_point_source(image_ext, det, smear_px=smear_length_px(star)):
+            return None
+        return det
+
+    def _star_like_detection_at(
+        self,
+        image_ext: NDArrayFloatType,
+        star: NavFeature,
+        center_vu: tuple[float, float],
+        noise_sigma: float,
+        *,
+        search_window_px: float,
+        peak_per_snr: float | None,
+    ) -> tuple[float, float] | None:
+        """Return the point source near ``center_vu`` when it is as bright as ``star``.
+
+        The source must be the isolated point source :meth:`_isolated_detection_at` finds,
+        and its peak above the local background must lie within a factor of
+        ``pair_vote_peak_factor`` of ``peak_per_snr`` times the star's predicted SNR, the
+        peak the pair's own stars show for a star of that catalog brightness.  A faint
+        field source or a cosmic-ray hit that happens to lie where the star should be is
+        then not taken for it.
+
+        Parameters:
+            image_ext: The extended-FOV image.
+            star: The star sought.
+            center_vu: Where the star should be, ``(v, u)``.
+            noise_sigma: Image noise sigma used by the detection threshold.
+            search_window_px: Half-width of the window searched around ``center_vu``.
+            peak_per_snr: The pair's peak per unit of predicted SNR
+                (:func:`peak_per_snr`), or ``None`` when the pair gave none.
+
+        Returns:
+            The source's centroid, or ``None`` when there is no such source, its peak is
+            outside the factor, ``peak_per_snr`` is ``None``, or the star's predicted SNR
+            or catalog magnitude cannot say how bright it should be.
+        """
+        snr = predicted_snr(star)
+        if peak_per_snr is None or snr <= 0.0 or photometry_saturated(star):
+            return None
+        det = self._isolated_detection_at(
+            image_ext, star, center_vu, noise_sigma, search_window_px=search_window_px
+        )
+        if det is None:
+            return None
+        ratio = source_peak(image_ext, det, box_half_px=self._centroid_box_half_px) / (
+            peak_per_snr * snr
+        )
+        if not 1.0 / self._pair_vote_peak_factor <= ratio <= self._pair_vote_peak_factor:
             return None
         return det
 

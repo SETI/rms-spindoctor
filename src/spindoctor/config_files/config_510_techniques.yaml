@@ -801,8 +801,22 @@ techniques:
       # such stars and 32 have two (all correct), so 3 refuses none of them.
       # A star found within twice max_residual_px of where the pair's offset
       # puts it votes for the pair whatever else its window holds, so a
-      # brighter cosmic-ray hit nearby does not count against it.
+      # brighter cosmic-ray hit nearby does not count against it, provided
+      # the source found there is as bright as the star should be (see
+      # pair_vote_peak_factor).
       pair_contradiction_stars: 3
+      # Factor within which the peak above the local background of a source
+      # found where the pair's offset puts another star must match the peak
+      # the pair's two stars show per unit of predicted SNR, for the source
+      # to vote for the pair.  A faint field star or a cosmic-ray hit lying
+      # there by chance is a small fraction of that and does not vote.  On 93
+      # two-star answers from the F ring movies set aside for tuning, the
+      # other stars found at the pair's offset had peaks 0.35 to 2.8 times
+      # their expected value (2nd and 99th percentiles of the 492 stars at
+      # least a quarter as bright as the pair's fainter star); 4 sets aside
+      # 9 of them (1.8 percent), and N1799563905's 15 stars lie within 0.68
+      # to 2.04.
+      pair_vote_peak_factor: 4.0
       # Detection-threshold multiplier on image_noise_sigma; a detection
       # whose brightest pixel stands less than this many noise sigmas
       # above the median of its centroid box is considered noise.

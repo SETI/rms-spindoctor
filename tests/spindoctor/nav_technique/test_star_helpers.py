@@ -454,7 +454,7 @@ def test_a_star_found_at_the_offset_agrees_whatever_else_its_window_holds(
     near: tuple[float, float] | None,
     votes: tuple[int, int],
 ) -> None:
-    """A brighter source elsewhere in the window decides the vote only when the star is absent."""
+    """A brighter source elsewhere in the window votes only when the star is absent."""
     star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
     result = third_star_votes(
         [star],
@@ -485,3 +485,20 @@ def test_a_star_is_sought_where_the_offset_puts_it(
         tolerance_px=2.4,
     )
     assert targets == [(52.0, 47.0)]
+
+
+@pytest.mark.parametrize('distance_px', [2.6, 3.3])
+def test_a_source_beyond_the_tolerance_of_the_offset_does_not_agree(
+    make_star_feature: NavFeatureFactory,
+    distance_px: float,
+) -> None:
+    """A near detection beyond the tolerance from the moved prediction casts no vote."""
+    star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
+    result = third_star_votes(
+        [star],
+        (2.0, -3.0),
+        detect=lambda feature: None,
+        detect_near=lambda feature, target: (target[0] + distance_px, target[1]),
+        tolerance_px=2.4,
+    )
+    assert result == (0, 0)
