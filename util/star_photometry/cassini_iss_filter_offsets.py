@@ -58,6 +58,18 @@ V0_PHOTON_FLUX_550NM = 1.0e4
 #: Wavelength (nm) at which the stellar spectrum is normalized to the V magnitude.
 V_REFERENCE_NM = 550.0
 
+#: Planck constant (J s).
+_PLANCK_J_S = 6.62607015e-34
+
+#: Speed of light (m / s).
+_LIGHT_SPEED_M_S = 2.99792458e8
+
+#: Boltzmann constant (J / K).
+_BOLTZMANN_J_K = 1.380649e-23
+
+#: Meters per nanometer.
+_METERS_PER_NM = 1.0e-9
+
 #: The previous software's per-filter multiplicative correction for G-class stars,
 #: measured on Cassini star fields (``flux.py``, ``STAR_FINE_CALIBRATION``), keyed by the
 #: simplified filter name of ``_simple_filter_name``.  Filters it did not measure take 1.0.
@@ -123,11 +135,10 @@ def read_cisscal_table(path: Path) -> FloatArray:
 
 def _planck_photons(wavelength_nm: FloatArray, temperature_k: float) -> FloatArray:
     """Return a Planck photon spectrum (arbitrary scale) at the given wavelengths."""
-    h = 6.62607015e-34
-    c = 2.99792458e8
-    k = 1.380649e-23
-    wl_m = wavelength_nm * 1.0e-9
-    return 1.0 / (wl_m**4 * np.expm1(h * c / (wl_m * k * temperature_k)))
+    wl_m = wavelength_nm * _METERS_PER_NM
+    return 1.0 / (
+        wl_m**4 * np.expm1(_PLANCK_J_S * _LIGHT_SPEED_M_S / (wl_m * _BOLTZMANN_J_K * temperature_k))
+    )
 
 
 def _simple_filter_name(filter1: str, filter2: str) -> str:
