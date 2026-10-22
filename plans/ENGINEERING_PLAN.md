@@ -309,6 +309,19 @@ branch alone the same frames gain one answer (`N1654043744`, refused before,
 now 0.02 px from the bundle) and lose none, and the library is unchanged (74
 of 75 frames identical, the other within 0.02 px).
 
+A pair the other searched stars contradict is still refused, but a star now
+votes for the pair when an isolated point source about as bright as that star
+should be sits where the pair's offset puts it, whatever brighter source its
+window also holds. With every star represented by its window's brightest
+source, cosmic-ray hits outvoted the stars of F ring frame `N1799563905` once
+#763 let its pair search run, and the frame, right in the #755 rerun, was
+refused; it now answers 0.08 px from the bundle. The brightness test (a peak
+within a factor of 4 of the pair's peak per unit predicted SNR, which holds
+98% of 492 stars measured on 93 two-star frames) keeps a faint field source or
+a two-pixel hit at the moved prediction from canceling the contradiction. Of
+287 F ring frames rerun with the pair path, no verdict changes, and the
+library is unchanged.
+
 The Galileo SSI black-sky frames (507 star-calibration frames of `GO_0008`
 and `GO_0009`) have no outside pointing, so each answer was tested directly:
 at its offset, how many catalog stars sit on an isolated point source found
