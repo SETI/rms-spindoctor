@@ -319,6 +319,27 @@ cutoff, and saturated stars are handled downstream.
 15x15 cutout, brighter than 8 gives 13x13, brighter than 9 gives 11x11, and
 everything fainter gives 9x9.
 
+``star_sharpness_psf_sigma`` is the sigma of the narrowest star each camera records,
+keyed by image row count. The star-field technique sets aside, as a cosmic-ray hit, a
+detection more concentrated than a Gaussian of that sigma allows. Each value is a little
+below the sigma of the Gaussian whose brightest-pixel share equals that of the narrowest
+star measured at that size:
+
+- NAC: 0.5 px at 1024 rows (narrowest of 122 stars on 24 F ring frames as concentrated as
+  sigma 0.54), 0.3 px at 512 rows (935 stars on 28 frames summed 2x2, narrowest 0.33), and
+  0.22 px at 256 rows (87 stars on 8 frames summed 4x4, narrowest 0.25).
+- WAC: 0.7 px at 1024 rows (18 stars on 6 F ring frames, narrowest 0.78) and 0.4 px at 512
+  rows (1,020 stars on 17 frames summed 2x2, narrowest 0.46). No 4x4-summed WAC frame with
+  measurable stars was found, so the WAC's 256-row frames have no value and the test does
+  not run on them.
+
+At the NAC's 0.22 px a 2x2 block may hold all of the box's light, so on 256-row frames a
+source is set aside only by its brightest pixel or brightest pair.
+
+Summing does not halve a star's width in pixels: the narrowest stars on summed frames are
+broader than half the full-frame value, so a halved value would let most compact hits
+through.
+
 **Magnitude offsets.** ``fallback_combo`` is ``'CL1+CL2'``, the two clear
 filter slots, and the table carries one entry with a default of 0.0. Both are
 placeholders.

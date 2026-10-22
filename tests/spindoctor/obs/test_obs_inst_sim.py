@@ -99,3 +99,9 @@ def test_scene_url_is_fetched_before_it_is_parsed(
     # which an interpolated POSIX path does.
     obs = ObsSim.from_file(scene_path.as_uri())
     assert obs.sim_params['scene_name'] == 'pebble_url'
+
+
+def test_a_simulated_frame_gives_no_sharpness_psf() -> None:
+    """A scene emulating a camera that bounds star sharpness still gives no bound."""
+    obs = ObsSim.from_file('/tmp/obs_sim_body.yaml', sim_params=_body_scene())
+    assert obs.star_sharpness_psf() is None

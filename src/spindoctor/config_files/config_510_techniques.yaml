@@ -1014,6 +1014,16 @@ techniques:
       psf_sigma_px: 1.0
       # Centroid box half-width around each detection peak (px).
       centroid_box_half_px: 3
+      # A detection whose brightest pixel, that pixel with the brightest
+      # of its eight neighbors, or brightest 2x2 block hold more of its
+      # 5x5 box's light than the instrument's narrowest star
+      # (star_sharpness_psf_sigma in the instrument config) allows, by
+      # more than this many noise sigmas of the difference, is a compact
+      # cosmic-ray hit and is set aside before the max_sources cut.  On
+      # 30 F ring frames (24 NAC, 6 WAC; 878 candidates within 1.5 px of
+      # a catalog star, 7195 others) 4.0 sets aside no star and 745
+      # others.
+      psf_sharpness_sigma: 4.0
       # Match radius in the (ratio, ratio, angle_rad) hash
       # space; weighted Euclidean.  0.05 is the empirical default for
       # centroid sigma ~0.1 px against typical triplet scales (Part 3

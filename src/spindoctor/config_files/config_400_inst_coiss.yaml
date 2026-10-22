@@ -12,6 +12,19 @@ cassini_iss:
       512: [25, 50]
       1024: [50, 140]
     star_psf_sigma: 0.54
+    # Gaussian sigma (px) of the narrowest star the camera records, per
+    # image row count (summing narrows a star in pixel units).  A source
+    # more concentrated than this allows is a cosmic-ray hit.  Each value
+    # is a little below the sigma of the Gaussian whose brightest-pixel
+    # share equals that of the narrowest star measured: 122 stars on 24
+    # full-size F ring frames (narrowest sigma 0.54), 935 stars on 28 SUM2
+    # frames (0.33), and 87 stars on 8 SUM4 frames (0.25).  At 0.22 a 2x2
+    # block may hold the whole box, so on 256-row frames only the pixel
+    # and pair shares can set a source aside.
+    star_sharpness_psf_sigma:
+      256: 0.22
+      512: 0.3
+      1024: 0.5
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -50,6 +63,12 @@ cassini_iss:
       512: [5, 10]
       1024: [5, 10]
     star_psf_sigma: 0.77
+    # As for the NAC: 18 stars on 6 full-size F ring frames (narrowest
+    # sigma 0.78) and 1020 stars on 17 SUM2 frames (0.46).  No SUM4 frame
+    # with measurable stars was found, so 256-row frames are not tested.
+    star_sharpness_psf_sigma:
+      512: 0.4
+      1024: 0.7
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -112,6 +131,19 @@ cassini_iss_calib:
       512: [25, 50]
       1024: [50, 140]
     star_psf_sigma: 0.54
+    # Gaussian sigma (px) of the narrowest star the camera records, per
+    # image row count (summing narrows a star in pixel units).  A source
+    # more concentrated than this allows is a cosmic-ray hit.  Each value
+    # is a little below the sigma of the Gaussian whose brightest-pixel
+    # share equals that of the narrowest star measured: 122 stars on 24
+    # full-size F ring frames (narrowest sigma 0.54), 935 stars on 28 SUM2
+    # frames (0.33), and 87 stars on 8 SUM4 frames (0.25).  At 0.22 a 2x2
+    # block may hold the whole box, so on 256-row frames only the pixel
+    # and pair shares can set a source aside.
+    star_sharpness_psf_sigma:
+      256: 0.22
+      512: 0.3
+      1024: 0.5
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -142,6 +174,12 @@ cassini_iss_calib:
       512: [5, 10]
       1024: [5, 10]
     star_psf_sigma: 0.77
+    # As for the NAC: 18 stars on 6 full-size F ring frames (narrowest
+    # sigma 0.78) and 1020 stars on 17 SUM2 frames (0.46).  No SUM4 frame
+    # with measurable stars was found, so 256-row frames are not tested.
+    star_sharpness_psf_sigma:
+      512: 0.4
+      1024: 0.7
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
