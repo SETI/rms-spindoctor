@@ -49,8 +49,8 @@ from spindoctor.nav_model.ring_polyline import (
     _mask_bbox,
     _mask_neighbor_polyline,
     _median_radial_scale,
-    _polyline_from_edge_mask,
     _radial_extent_px,
+    _radial_normals,
 )
 from spindoctor.nav_model.rings import (
     RingFeature,
@@ -895,19 +895,19 @@ class NavModelRings(NavModelRingsBase):
                     model_mask = model_mask & ~self._ring_occluded_ext
                 for edge_mask, label_text, edge_label in edge_info_list:
                     edge_orbit_rms_km = ring_feat.edge_uncertainty(edge_label)
-                    vertices_vu, normals_vu = _polyline_from_edge_mask(
-                        edge_mask, self._ring_radius_ext
-                    )
-                    if vertices_vu.shape[0] == 0:
-                        continue
                     # The edge/annulus emission gate below, and RingEdgeNav's
                     # edge-strength scores, were measured with the edge mask's
                     # pixel-neighbor normals and stay on them.  Along the true
                     # radial normals a long, gently curved arc measures only its
                     # sagitta and would route to the annulus composite, whose
                     # correlation is just as blind along such an arc (#755).
-                    _, neighbor_normals_vu = _mask_neighbor_polyline(
+                    vertices_vu, neighbor_normals_vu = _mask_neighbor_polyline(
                         edge_mask, self._ring_radius_ext
+                    )
+                    if vertices_vu.shape[0] == 0:
+                        continue
+                    normals_vu = _radial_normals(
+                        vertices_vu, neighbor_normals_vu, self._ring_radius_ext
                     )
                     radial_extent_px = _radial_extent_px(vertices_vu, neighbor_normals_vu)
                     straight = _is_straight_line(vertices_vu)

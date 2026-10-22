@@ -109,14 +109,37 @@ def _polyline_from_edge_mask(
         allowed the sense to be determined.
     """
     vertices_vu, neighbor_normals = _mask_neighbor_polyline(mask, ring_radius)
+    return vertices_vu, _radial_normals(vertices_vu, neighbor_normals, ring_radius)
+
+
+def _radial_normals(
+    vertices_vu: NDArrayFloatType,
+    neighbor_normals: NDArrayFloatType,
+    ring_radius: NDArrayFloatType | None,
+) -> NDArrayFloatType:
+    """Return the radius-gradient normals of a mask-neighbor polyline's vertices.
+
+    The normals :func:`_polyline_from_edge_mask` documents, for vertices and
+    pixel-neighbor normals already taken from :func:`_mask_neighbor_polyline`, so a
+    caller that needs both sets computes the polyline once.
+
+    Parameters:
+        vertices_vu: ``(N, 2)`` integer-valued vertex positions.
+        neighbor_normals: ``(N, 2)`` mask-neighbor normals of those vertices.
+        ring_radius: Optional ext-FOV ring-radius array (km); None returns
+            ``neighbor_normals``.
+
+    Returns:
+        ``(N, 2)`` unit normals: the radius gradient's direction where it can be
+        formed, the mask-neighbor normal elsewhere.
+    """
     if ring_radius is None or vertices_vu.shape[0] == 0:
-        return vertices_vu, neighbor_normals
+        return neighbor_normals
     radial = _radius_gradient_normals(
         ring_radius, vertices_vu[:, 0].astype(np.int64), vertices_vu[:, 1].astype(np.int64)
     )
     usable = np.isfinite(radial).all(axis=1)
-    normals_vu = np.where(usable[:, None], radial, neighbor_normals)
-    return vertices_vu, cast(NDArrayFloatType, normals_vu)
+    return cast(NDArrayFloatType, np.where(usable[:, None], radial, neighbor_normals))
 
 
 def _mask_neighbor_polyline(
