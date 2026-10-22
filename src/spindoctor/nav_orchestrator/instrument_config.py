@@ -31,8 +31,9 @@ __all__ = [
 #: camera's model error can differ from the one the technique floor was
 #: calibrated on (a template that matches one camera's sampling well can be
 #: biased on another's), and the floor must then follow the camera.  Any other
-#: key under an instrument's ``model_error_floor_px`` block is rejected at load,
-#: so a misspelled technique name fails fast instead of being ignored.
+#: key under an instrument's ``model_error_floor_px`` block is rejected when the
+#: camera's settings are first read for an image, so a misspelled technique name
+#: stops navigation instead of being ignored.
 MODEL_ERROR_FLOOR_TECHNIQUES = frozenset({'RingAnnulusNav'})
 
 

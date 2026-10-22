@@ -9,8 +9,11 @@ Overview
 1-star or 2-star unique-match technique. It searches a small window around the prediction of
 the brightest predictable star (or the brightest two), takes the brightest peak above a
 noise threshold, and reports the implied translation (1-star path) or the implied similarity
-transform (2-star path); the 1-star path additionally requires the star to be a configured
-magnitude margin brighter than every other predictable star in the field. It runs without a prior — its job is to seed the pass-2
+transform (2-star path). The 1-star path additionally requires the star to be a configured
+magnitude margin brighter than every other predictable star that can fall in its search
+window; when a star elsewhere in the field is within that margin, the match must also be
+corroborated by other stars found at its offset. It runs without a prior — its job is to
+seed the pass-2
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` on scenes where the SPICE
 pointing error is small enough that the brightest predictable star sits inside the
 per-instrument search window.
@@ -350,11 +353,13 @@ Call path traced through
      per-correspondence residual exceeds ``max_residual_px``, fall back to the 1-star
      path.
    - **1-star path.**  When fewer than two stars are usable (or the 2-star fallback
-     fired), require the brightest to clear the brightness-margin floor, slice a window
-     around its prediction, extract the sub-pixel
-     centroid, pass the peak-to-runner-up ambiguity gate (plus the
+     fired), require the brightest to clear the brightness-margin floor over the stars
+     that can fall in its window, slice a window around its prediction, extract the
+     sub-pixel centroid, pass the peak-to-runner-up ambiguity gate (plus the
      ``one_star_max_residual_px`` residual gate when that ratio is the no-rival
-     sentinel), and report the per-star residual as the translation.
+     sentinel), require the corroboration of other stars at the offset when another star
+     in the field is within the margin floor, and report the per-star residual as the
+     translation.
 
 4. Result-shape branches on the chosen path and
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`:

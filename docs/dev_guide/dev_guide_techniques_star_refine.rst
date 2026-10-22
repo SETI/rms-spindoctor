@@ -197,7 +197,7 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
 Per-instrument overrides
 ------------------------
 
-The nine keys above are global; the per-instrument YAML files in
+The keys above are global; the per-instrument YAML files in
 ``src/spindoctor/config_files/config_4N0_inst_*.yaml`` do not override any of them. The
 camera-rotation flag (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`) and the rotation cap (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg`)
 that this technique reads off the per-image
