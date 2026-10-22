@@ -54,7 +54,7 @@ correctness here is what makes the rest of the pipeline trustworthy.
 
 import copy
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from typing import Any
 
@@ -805,6 +805,7 @@ def ensemble(
     config: EnsembleConfig | None = None,
     model_metadata: dict[str, dict[str, Any]] | None = None,
     annotations: Annotations | None = None,
+    refuted: Sequence[NavTechniqueResult] = (),
 ) -> NavResult:
     """Reconcile per-technique results into a single NavResult.
 
@@ -817,6 +818,11 @@ def ensemble(
         model_metadata: Optional per-NavModel diagnostic dict map.
         annotations: Optional pre-built annotation collection from the
             orchestrator's ``_collect_annotations`` pass.
+        refuted: Results, the same objects as in ``results``, whose answer a pass-2
+            test of a conflicted pass 1 refuted.  They stay in ``per_technique`` and
+            are named among the excluded techniques, and the disagreement penalty
+            applies, but they cast no vote and take no part in the combine or the
+            body-witness veto.
 
     Returns:
         A single NavResult — ok / conflicted / failed.
@@ -832,7 +838,9 @@ def ensemble(
             model_metadata=md,
             annotations=ann,
         )
-    viable = [r for r in results if not r.spurious]
+    refuted_ids = {id(r) for r in refuted}
+    refuted_names = [r.technique_name for r in results if id(r) in refuted_ids]
+    viable = [r for r in results if not r.spurious and id(r) not in refuted_ids]
     if not viable:
         IMAGE_LOGGER.info(
             'All %d technique result(s) returned spurious=True: %s',
@@ -858,8 +866,8 @@ def ensemble(
     # contradicts: it is a weaker position witness than a multi-star fix, so it
     # must not force a conflict against the star solution or incur the
     # multi-group disagreement penalty.  The body-witness veto below still
-    # reads the full ``results`` list, so a geometric body consensus the blob
-    # contradicts is unaffected.
+    # reads every result but the refuted ones, so a geometric body consensus
+    # the blob contradicts is unaffected.
     viable = _drop_blob_outlier_against_star_consensus(
         viable,
         disagreement_floor_px=cfg.blob_star_disagreement_floor_px,
@@ -937,7 +945,7 @@ def ensemble(
             ', '.join(r.technique_name for r in pruning.left_out),
         )
     combine_set, best_group, excluded = pruning.combine_set, pruning.best_group, pruning.excluded
-    excluded_names = [r.technique_name for r in excluded]
+    excluded_names = [r.technique_name for r in excluded] + refuted_names
     consensus_names = [r.technique_name for r in best_group]
     # Vote mass and quorum count independent witnesses only, so they are
     # measured over the resolved ``combine_set`` -- the same set the merge
@@ -950,7 +958,7 @@ def ensemble(
     # independent vote (issue #222).
     best_summed_conf = corroborating_confidence(combine_set)
     best_has_quorum = len(corroborating_members(combine_set)) >= 2
-    apply_disagreement_penalty = bool(excluded)
+    apply_disagreement_penalty = bool(excluded) or bool(refuted_names)
     try:
         combined = _combine_precision_weighted(
             combine_set,
@@ -1039,7 +1047,7 @@ def ensemble(
             '(consensus %d member(s) summing %.3f; excluded runner-up %.3f, '
             'quorum: %s)',
             len(excluded),
-            ', '.join(excluded_names),
+            ', '.join(r.technique_name for r in excluded),
             len(best_group),
             best_summed_conf,
             selection.runner_up_confidence,
@@ -1069,10 +1077,10 @@ def ensemble(
     # corroboration floor corroborates the geometry and suppresses the shape-lock
     # verdict: the blob, not the lock, is then the outlier (the geometric-side
     # mirror of the blob-drop above, sharing its blob_star_disagreement_floor_px
-    # knob).
+    # knob).  A refuted result is no witness here either.
     veto = evaluate_body_witness_veto(
         best_group,
-        results,
+        [r for r in results if id(r) not in refuted_ids],
         combined.offset_px,
         combined.covariance_px2,
         shape_lock_max_phase_deg=cfg.body_witness_shape_lock_max_phase_deg,

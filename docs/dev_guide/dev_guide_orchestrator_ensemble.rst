@@ -171,6 +171,14 @@ A lone dissenter against a multi-technique consensus is outlier-rejected: the co
 is fused normally (with the Step 7 disagreement penalty) and the dissenter appears only
 in ``excluded_from_consensus`` and ``per_technique``.
 
+The orchestrator may name some results as *refuted* (the ``refuted`` argument): the pass-1
+results of an answer that the pass-2 test of a conflicted pass 1 did not confirm (see
+:doc:`dev_guide_orchestrator_orchestrator`). A refuted result is matched by identity,
+takes no part in the consensus selection, the combine, or the body-witness veto, and casts
+no vote, so it cannot force the conflicted branch again. It stays in ``per_technique``, is
+named in ``excluded_from_consensus``, and the Step 7 disagreement penalty applies, as for
+any excluded result.
+
 Step 5 — resolve independent estimators
 ---------------------------------------
 

@@ -141,6 +141,24 @@ orchestrator:
       high: {min_confidence: 0.85, max_sigma_px: 0.5}
       medium: {min_confidence: 0.35, max_sigma_px: 2.0}
       low: {min_confidence: 0.35, max_sigma_px: null}
+  # The pass-2 test of a conflicted pass 1: pass 2 runs seeded at the
+  # consensus answer and at the runner-up answer, and an answer is
+  # confirmed when the distinct features its non-spurious pass-2 results
+  # consumed number at least min_support and at least min_support_ratio
+  # times the other answer's.  The confirmed answer's pass-2 results go
+  # on; the other answer's pass-1 results are refuted.  min_support 0
+  # disables the test.  On 249 Cassini F ring frames whose pass 1 was
+  # conflicted (a two-star or pattern match against a ring-edge alias),
+  # a star refine at a wrong answer found 0 to 8 stars by chance, with
+  # median residuals of 1.7-3.9 px, and the right answer's refine found
+  # up to 63 at 0.1-1.6 px.  At these thresholds 238 frames were
+  # resolved; all were right against the bundle pointing or, on 11, the
+  # image stars showed the bundle pointing wrong and the answer right.
+  # The stars the answer's own pass-1 fit used are counted, so a
+  # two-star match needs at least two stars beyond its own.
+  conflict_arbitration:
+    min_support: 4
+    min_support_ratio: 2.0
   # Minimum reliability per feature type; features below their type's
   # threshold are gated out before any technique runs.  Feature types
   # not listed fall through with a 0.0 threshold (no gate).

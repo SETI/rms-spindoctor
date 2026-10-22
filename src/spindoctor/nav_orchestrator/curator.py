@@ -20,7 +20,7 @@ from spindoctor.feature.constants import JSON_INF_SENTINEL
 from spindoctor.feature.feature import NavReliabilityBreakdown
 from spindoctor.nav_orchestrator.feature_summary import NavFeatureSummary
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
-from spindoctor.nav_orchestrator.nav_result import NavResult
+from spindoctor.nav_orchestrator.nav_result import ConflictArbitrationRecord, NavResult
 from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.cmatrix import AttitudeBaseline, PointingSolution
@@ -234,6 +234,32 @@ def _flatten_rotation(matrix: NDArrayFloatType) -> list[float]:
     return [float(v) for v in np.asarray(matrix, np.float64).reshape(9)]
 
 
+def _curate_conflict_arbitration(record: ConflictArbitrationRecord) -> dict[str, Any]:
+    """Return a JSON-friendly entry for the pass-2 test of a conflicted pass 1.
+
+    Parameters:
+        record: What the test found.
+
+    Returns:
+        ``candidates`` (the consensus answer, then the runner-up answer, each with its
+        ``techniques``, ``offset_px``, ``support``, and ``confirmed``) and the sorted
+        ``refuted_techniques``.  Both name lists hold one entry per result, so a
+        technique that measured two bodies appears twice.
+    """
+    return {
+        'candidates': [
+            {
+                'techniques': list(c.techniques),
+                'offset_px': _round_pair(c.offset_px),
+                'support': c.support,
+                'confirmed': c.confirmed,
+            }
+            for c in record.candidates
+        ],
+        'refuted_techniques': sorted(record.refuted_techniques),
+    }
+
+
 def _curate_pointing(solution: PointingSolution) -> dict[str, Any]:
     """Return a JSON-friendly entry for a corrected-attitude solution.
 
@@ -350,6 +376,8 @@ def build_metadata_dict(result: NavResult) -> dict[str, Any]:
             'component': result.internal_error.component,
             'exception_type': result.internal_error.exception_type,
         }
+    if result.conflict_arbitration is not None:
+        out['conflict_arbitration'] = _curate_conflict_arbitration(result.conflict_arbitration)
     if result.pointing is not None:
         out['pointing'] = _curate_pointing(result.pointing)
         out['times'] = _curate_times(result.pointing.baseline)

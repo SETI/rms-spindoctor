@@ -63,6 +63,11 @@ spindoctor.nav_orchestrator
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_orchestrator.conflict_arbitration
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_orchestrator.body_witness_veto
    :members:
    :undoc-members:

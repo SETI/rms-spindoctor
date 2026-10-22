@@ -8,7 +8,9 @@ The orchestrator turns one observation into one ``NavResult``:
 3. Apply the ``FeatureReliabilityGate`` to drop bad-data features.
 4. Run every feasible prior-free technique on the surviving features.
 5. Combine pass-1 results via the ``ensemble`` function to derive a prior.
-6. Run prior-required techniques against the derived prior.
+6. Run prior-required techniques against the derived prior; after a
+   conflicted pass 1, run them at each answer and keep the one they confirm
+   (``conflict_arbitration``).
 7. Combine the union of pass-1 and pass-2 results via ``ensemble``.
 
 Glob-pattern filters at construction time let an operator restrict which
@@ -32,6 +34,10 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.reliability import FeatureReliabilityGate, GatedFeatureRecord
 from spindoctor.nav_model import NavModel
+from spindoctor.nav_orchestrator.conflict_arbitration import (
+    ConflictArbitrationConfig,
+    arbitrate_conflict,
+)
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig, ensemble
 from spindoctor.nav_orchestrator.feature_summary import NavFeatureSummary
 from spindoctor.nav_orchestrator.image_classifier import (
@@ -306,6 +312,9 @@ class NavOrchestrator(NavBase):
         self._explicit_thresholds = image_quality_thresholds
         self._image_derivatives_config = image_derivatives_config or ImageDerivativesConfig()
         self._gate = FeatureReliabilityGate.from_mapping(orch_cfg.get('reliability_gate'))
+        self._arbitration_config = ConflictArbitrationConfig.from_mapping(
+            orch_cfg.get('conflict_arbitration')
+        )
         self._spindoctor_version = spindoctor_version
 
     def prepare(
@@ -665,9 +674,14 @@ class NavOrchestrator(NavBase):
         # Pass 2 — prior-required techniques refine on the pass-1 prior.  Only
         # a 'success' pass-1 ensemble seeds the prior: a 'conflicted' result is
         # an explicitly untrustworthy "best group" offset, and installing it
-        # would lock pass-2 toward one arbitrary mode instead of letting pass-2
-        # evidence break the tie.  ('failed' already returned above.)
+        # would lock pass-2 toward one arbitrary mode.  A conflicted pass 1 is
+        # instead tested: pass 2 runs seeded at each of its answers, and when
+        # it holds up at only one, that one's pass-2 results go on and the
+        # other answer's pass-1 results are refuted (issue #762).  ('failed'
+        # already returned above.)
         prior_sources: frozenset[str] = frozenset()
+        refuted: list[NavTechniqueResult] = []
+        arbitration = None
         if (
             pass1_ensemble.status == 'success'
             and pass1_ensemble.offset_px is not None
@@ -680,8 +694,30 @@ class NavOrchestrator(NavBase):
             prior_sources = frozenset(pass1_ensemble.consensus_techniques)
         else:
             pass2_context = context
-        self._logger.info('Pass 2: running prior-required techniques')
-        pass2_results = self._run_pass(kept, pass2_context, requires_prior=True)
+            arbitration = arbitrate_conflict(
+                pass1_results,
+                pass1_ensemble,
+                combine=lambda group: ensemble(
+                    group,
+                    feature_inventory=feature_inventory,
+                    image_classifier=image_classifier,
+                    provenance=provenance,
+                    config=self._ensemble_config,
+                ),
+                run_pass2=lambda offset, cov: self._run_pass(
+                    kept,
+                    context.with_prior(offset_px=offset, covariance_px2=cov),
+                    requires_prior=True,
+                ),
+                config=self._arbitration_config,
+            )
+        if arbitration is not None and arbitration.confirmed:
+            # Already stamped with the seeds of the answer the test confirmed.
+            pass2_results = arbitration.pass2_results
+            refuted = arbitration.refuted
+        else:
+            self._logger.info('Pass 2: running prior-required techniques')
+            pass2_results = self._run_pass(kept, pass2_context, requires_prior=True)
         self._logger.info('Pass 2: %d technique result(s) produced', len(pass2_results))
         if prior_sources and pass2_results:
             # Stamp each pass-2 result with the techniques whose pass-1
@@ -705,7 +741,10 @@ class NavOrchestrator(NavBase):
             config=self._ensemble_config,
             model_metadata=model_metadata,
             annotations=annotations,
+            refuted=refuted,
         )
+        if arbitration is not None:
+            final = dataclasses.replace(final, conflict_arbitration=arbitration.record)
         self._log_final_result(final)
         self._log_status_reason(final.status_reason)
         return final
