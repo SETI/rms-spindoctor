@@ -315,6 +315,28 @@ What remains of the family:
   refused (a three-star refine 1.5 px from its two-star seed); and
   N1605530694 and three ring-versus-star conflicts refused. So strictly
   better than the bundle is still not shown and the issue stays open.
+  Three more fixes followed. A conflicted pass 1 is now tested: pass 2
+  runs seeded at the consensus answer and at the runner-up's, and an answer
+  whose pass-2 results find at least four stars, twice as many as at the
+  other, is confirmed while the other's pass-1 results are refuted (#762);
+  of 247 frames the full run refused that way, 228 now answer within 1 px of
+  the bundle and the 12 marginal or wrong are bundle wrong by stars. The
+  star-field detector sets aside a peak sharper than the camera's narrowest
+  star, a cosmic-ray hit, before its 30-source cut (#764). And a precise,
+  full-rank pass-1 answer breaks a 2-to-1 split of a three-star refine in its
+  own favor. A rerun of the same 2,570 frames on the combination with #754
+  (whose pair search now sets aside stars no window can reach, #763): against
+  the earlier rerun, 12 frames better and 6 worse, refusals 9 to 3; of the
+  529 frames worse than one of the two full runs or the earlier rerun, stars
+  show the pointing wrong on 376 and side with it on none, and 153 cannot be
+  decided (152 already undecided before). Still refused: `N1605530694`,
+  whose 6.5 px smear puts every peak at a random point along its streaks
+  (#765), and the ring-versus-star conflicts `N1543177345` and
+  `N1743090421`, where the previous run's answer is 5 to 7 px off the stars.
+  The library changes only pins: on this branch two frames' primary technique
+  becomes the star field and one frame's tier rises (closer to its verified
+  offset); non-Cassini frames are unchanged. Strictly better than the bundle
+  is still not shown: `N1605530694` was answered within 1 px before.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
