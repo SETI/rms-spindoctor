@@ -343,18 +343,18 @@ deliberate re-pin.
 decision; no sidecar has been edited).** The Cassini star limit is computed from
 the filter pair, exposure, and gain state and reaches about 4 magnitudes
 deeper on the NAC and 4.5 on the WAC, so StarRefineNav joins answers it
-could not reach before. On `rf_ring_edge_along_755` the library fails 31 of 75:
-the sixteen above plus fifteen. Thirteen of the fifteen are tier or
-primary-technique pins recorded when fewer stars were cataloged, with the
-answer the same or closer to operator truth. Two move the answer, and the
+could not reach before. On `rf_ring_edge_along_755` the library fails 34 of 75:
+the sixteen above plus eighteen. Sixteen of the eighteen are tier or
+primary-technique pins recorded when fewer stars were cataloged or detected,
+with the answer the same or closer to operator truth. Two move the answer, and the
 stars in the image say the recorded truth is off: on N1597846115_2 four stars
 (V 9.6 to 11.5, SNR 4.5 to 21) sit 0.09 to 0.52 px from the new answer and 2.7
 to 3.5 px from the truth; on N1550270436_1 ten stars sit 0.08 to 0.3 px from
 the new answer and 0.6 to 1.0 px from the truth, which equals an earlier
 one-star match. Both truths want a fresh operator check against the star
 overlay (`/data/fring-bundle-nav/nav755/s755c/lib/starcheck1.txt`). Three more
-answers move farther from their truth without failing, and the stars favor the
-new answer on each: N1488823805_1 (0.22 to 0.54 px; seven stars 0.07 to 0.35 px
+answers move farther from their truth, within its tolerance, and the stars favor
+the new answer on each: N1488823805_1 (0.22 to 0.54 px; seven stars 0.07 to 0.35 px
 from it and 0.55 to 0.76 px from the truth), N1519300016_2 (0.01 to 0.30 px), and
 W1444747627_1 (0.95 to 1.02 px; three stars 0.22 to 0.29 px from it and 1.1 to
 1.3 px from the truth) (`lib/starcheck2.txt`). N1867601758_1 (0.42 to 0.76 px)
@@ -363,7 +363,9 @@ uncertainty grew, and their truth is that brightness center's own answer.
 
 | frame | pinned tier / primary | branch tier / primary | distance to truth, main -> branch |
 |---|---|---|---|
+| N1459509270_1_CALIB | medium / StarRefineNav | medium / StarFieldFromCatalogNav | 0.01 -> 0.01 px |
 | N1465178827_2_CALIB | medium / BodyBlobNav | medium / StarRefineNav | 0.26 -> 0.06 px |
+| N1483174087_1_CALIB | medium / StarRefineNav | medium / StarFieldFromCatalogNav | 0.01 -> 0.01 px |
 | N1484688342_1_CALIB | medium / BodyLimbNav | low / BodyLimbNav | 0.81 -> 0.14 px |
 | N1489256001_1_CALIB | medium / BodyLimbNav | low / BodyLimbNav | 0.66 -> 0.27 px |
 | N1503576135_2_CALIB | medium / BodyDiscCorrelateNav | high / StarRefineNav | 0.01 -> 0.15 px |
@@ -377,7 +379,15 @@ uncertainty grew, and their truth is that brightness center's own answer.
 | N1598065103_1_CALIB | medium / BodyDiscCorrelateNav | high / StarRefineNav | 0.01 -> 0.06 px |
 | N1777325846_1_CALIB | low / BodyLimbNav | high / StarRefineNav | 0.48 -> 0.47 px |
 | N1828122657_1_CALIB | low / BodyBlobNav | low / StarRefineNav | 0.00 -> 0.00 px |
+| W1444747627_1_CALIB | medium / StarRefineNav | high / StarRefineNav | 0.95 -> 1.02 px |
 | W1449079117_1_CALIB | medium / StarUniqueMatchNav | high / StarRefineNav | 0.57 -> 0.55 px |
+
+N1459509270_1, N1483174087_1, and W1444747627_1 change when the star-field
+detector sets aside detections sharper than a star (cosmic-ray hits): on the
+first two StarFieldFromCatalogNav becomes the primary technique and the answer
+moves under 0.002 px; on W1444747627_1 it joins the two star answers that were
+already there and the tier rises to `high`, 0.006 px closer to truth than
+before that change.
 
 N1484688342_1 and N1489256001_1 drop to `low` because the glare detections
 that made their StarRefineNav answer are now refused; the answer is the limb
