@@ -602,12 +602,11 @@ looked for where the pair puts it. The pair is refused when none of them is foun
 and at least three distinct sources are found for them somewhere else
 (``techniques.StarUniqueMatchNav.tuning.pair_contradiction_stars``). A cosmic-ray hit
 brighter than a star near it therefore does not count against the pair while the star
-itself is where the pair puts it. A source found there counts as the star
-only when its peak brightness is within a factor of 4 of what the pair's two stars
-predict from the catalog magnitudes
-(``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor``), so a faint field star
-or a small cosmic-ray hit lying there by chance does not count for the pair. A cross-checked pair
-caps confidence a little higher, at 0.8.
+itself is where the pair puts it. A source found there counts as the star only when its
+peak brightness is within a factor of 4 of what the pair's two stars predict from the
+catalog magnitudes (``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor``), so
+a faint field star or a small cosmic-ray hit lying there by chance does not count for the
+pair. A cross-checked pair caps confidence a little higher, at 0.8.
 
 The search never covers the whole frame. It reaches
 ``techniques.StarUniqueMatchNav.tuning.search_window_px`` whole pixels in each direction

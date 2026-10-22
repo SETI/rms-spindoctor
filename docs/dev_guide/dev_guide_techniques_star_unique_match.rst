@@ -190,12 +190,12 @@ answer, unless another passing pair puts the offset more than twice ``max_residu
 from it. Two cross-checked answers that disagree mean at least one is a coincidence, and
 which one cannot be told, so the technique reports spurious with an ``ambiguous_pairs``
 reason. The first passing pair is refused in the same way, with a ``pair_contradicted``
-reason, when at least ``pair_contradiction_stars`` of the other searched stars have an
-isolated detection in the pair's window and every one of those detections lies more than
-twice ``max_residual_px`` from the pair's offset. Overlapping windows can return one source
-for several stars, so detections within 1 px of one another count once. Two stars can
-agree by coincidence;
-three more stars that are in the image and found elsewhere say they did. Each other star
+reason, when the other searched stars have at least ``pair_contradiction_stars`` distinct
+isolated detections in the pair's window and every one of those detections lies more than
+twice ``max_residual_px`` from the pair's offset. Overlapping windows can return one
+source for several stars, so detections within 1 px of one another count once. Two stars
+can agree by coincidence; three more stars that are in the image and found elsewhere say
+they did. Each other star
 is first sought where the pair's offset puts it, in a window of half-width twice
 ``max_residual_px`` around its moved prediction. An isolated point source found there
 votes for the pair, whatever else the star's own window holds, when it is as bright as
