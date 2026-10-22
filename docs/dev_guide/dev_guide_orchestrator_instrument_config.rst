@@ -93,9 +93,9 @@ The per-instrument YAML schema consumed by
   one the technique's floor was calibrated on (a template that matches one camera's
   sampling can be biased on another's). Only the techniques in
   :data:`~spindoctor.nav_orchestrator.instrument_config.MODEL_ERROR_FLOOR_TECHNIQUES` read
-  it, which is ``RingAnnulusNav`` alone; a key naming any other technique, a value that is
-  not a finite number at least zero, or a block that is not a mapping raises
-  ``ValueError`` when
+  it, which is ``RingAnnulusNav`` alone; a key naming any other technique or a value that
+  is not a finite number at least zero raises ``ValueError``, and a block that is not a
+  mapping raises ``TypeError``, when
   :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs`
   reads the camera's block, so a misspelled technique name stops the first image of that
   camera. Each instrument's own floors are stated in its

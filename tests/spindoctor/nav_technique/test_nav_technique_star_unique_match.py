@@ -525,3 +525,19 @@ def test_star_unique_match_one_star_reports_unambiguous_peak_ratio(
     assert result.spurious is False
     assert isinstance(result.diagnostics, StarUniqueMatchDiagnostics)
     assert result.diagnostics.detection_peak_ratio >= 1.5
+
+
+@pytest.mark.parametrize('distance_px', [0.0, math.nan, math.inf])
+def test_star_unique_match_rejects_a_corroboration_distance_not_finite_and_positive(
+    distance_px: float,
+) -> None:
+    """Construction refuses a ``one_star_corroboration_px`` that is not finite and > 0."""
+    original_tuning = StarUniqueMatchNav.tuning
+    bad_tuning = dict(original_tuning)
+    bad_tuning['one_star_corroboration_px'] = distance_px
+    try:
+        StarUniqueMatchNav.tuning = bad_tuning
+        with pytest.raises(ValueError, match='one_star_corroboration_px must be finite and > 0'):
+            StarUniqueMatchNav()
+    finally:
+        StarUniqueMatchNav.tuning = original_tuning

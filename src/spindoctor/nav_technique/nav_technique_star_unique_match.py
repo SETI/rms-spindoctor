@@ -297,9 +297,9 @@ class StarUniqueMatchNav(NavTechnique):
         self._corroboration_px = float(self.tuning['one_star_corroboration_px'])
         self._corroboration_stars = int(self.tuning['one_star_corroboration_stars'])
         self._corroboration_min = int(self.tuning['one_star_corroboration_min_stars'])
-        if self._corroboration_px <= 0.0:
+        if not math.isfinite(self._corroboration_px) or self._corroboration_px <= 0.0:
             raise ValueError(
-                f'one_star_corroboration_px must be > 0; got {self._corroboration_px!r}'
+                f'one_star_corroboration_px must be finite and > 0; got {self._corroboration_px!r}'
             )
         if self._corroboration_stars < 1 or self._corroboration_min < 1:
             raise ValueError(
