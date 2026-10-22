@@ -965,6 +965,42 @@ def test_star_unique_match_refuses_a_pair_the_other_stars_contradict(
     assert ('pair_contradicted' in capsys.readouterr().out) is spurious
 
 
+def test_star_unique_match_a_brighter_source_beside_a_star_does_not_contradict_the_pair(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Other stars at the pair's offset agree though each window holds a brighter source.
+
+    Each of the three sits where the pair's offset puts it, with a brighter isolated source
+    15 to 18 px away inside its window, as a cosmic-ray hit lies in a frame taken in high
+    flux.
+    The brightest detection of each window is that source; the star at the offset still
+    votes for the pair.
+    """
+    image = np.zeros((500, 500), dtype=np.float64)
+    pair_offset = (2.0, -3.0)
+    stars = [
+        ((80.0, 80.0), 60.0),
+        ((80.0, 400.0), 58.0),
+        ((400.0, 80.0), 50.0),
+        ((400.0, 400.0), 48.0),
+        ((240.0, 240.0), 46.0),
+    ]
+    beside = {2: (15.0, -9.0), 3: (-12.0, 14.0), 4: (10.0, 16.0)}
+    features = []
+    for k, (pred, snr) in enumerate(stars):
+        at = (pred[0] + pair_offset[0], pred[1] + pair_offset[1])
+        draw_gaussian_star(image, at, peak_dn=200.0)
+        if k in beside:
+            draw_gaussian_star(image, (at[0] + beside[k][0], at[1] + beside[k][1]), peak_dn=600.0)
+        features.append(make_star_feature(f'star:UCAC4:{k}', predicted_vu=pred, predicted_snr=snr))
+    result = StarUniqueMatchNav().navigate(features, make_nav_context(image))
+    assert result.spurious is False
+    assert 'pair_contradicted' not in capsys.readouterr().out
+
+
 def test_star_unique_match_inner_window_is_a_radius(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,

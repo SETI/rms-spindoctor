@@ -318,7 +318,9 @@ class StarUniqueMatchNav(NavTechnique):
         disagree mean at least one is a coincidence, and which one cannot be told,
         so the technique reports spurious.  It is spurious too when at least
         ``pair_contradiction_stars`` of the other searched stars are detected in
-        the pair's window and every one of them away from the pair's offset.
+        the pair's window, every one of them away from the pair's offset, and none
+        is found as an isolated point source within ``2 * max_residual_px`` of
+        where the pair's offset puts it (:func:`third_star_votes`).
 
         Parameters:
             ranked: Usable star features, brightest predicted SNR first.
@@ -380,6 +382,9 @@ class StarUniqueMatchNav(NavTechnique):
                 detect=lambda star: self._isolated_detection(
                     image_ext, star, noise_sigma, search_window_px=chosen_window_px
                 ),
+                detect_near=lambda star, target: self._isolated_detection_at(
+                    image_ext, star, target, noise_sigma, search_window_px=tolerance_px
+                ),
                 tolerance_px=tolerance_px,
             )
             if agree == 0 and disagree >= self._pair_contradiction_stars:
@@ -418,9 +423,27 @@ class StarUniqueMatchNav(NavTechnique):
         search_window_px: float,
     ) -> tuple[float, float] | None:
         """Return a star's window detection when it is an isolated point source, else None."""
+        return self._isolated_detection_at(
+            image_ext, star, predicted_vu(star), noise_sigma, search_window_px=search_window_px
+        )
+
+    def _isolated_detection_at(
+        self,
+        image_ext: NDArrayFloatType,
+        star: NavFeature,
+        center_vu: tuple[float, float],
+        noise_sigma: float,
+        *,
+        search_window_px: float,
+    ) -> tuple[float, float] | None:
+        """Return the isolated point source a window centered on ``center_vu`` holds, else None.
+
+        The window is searched as :meth:`_isolated_detection` searches a star's own window;
+        ``star`` supplies the expected smear the isolation test allows for.
+        """
         det, _peak = local_centroid(
             image_ext,
-            predicted_vu(star),
+            center_vu,
             search_window_px=search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
             psf_sigma_px=self._psf_sigma_px,

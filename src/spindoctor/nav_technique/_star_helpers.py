@@ -773,19 +773,27 @@ def third_star_votes(
     offset_vu: tuple[float, float],
     *,
     detect: Callable[[NavFeature], tuple[float, float] | None],
+    detect_near: Callable[[NavFeature, tuple[float, float]], tuple[float, float] | None],
     tolerance_px: float,
 ) -> tuple[int, int]:
-    """Return how many other stars' detections agree and disagree with an offset.
+    """Return how many other stars agree and disagree with an offset.
 
-    Each other star is searched for around its own prediction with ``detect``; a star
-    with a detection agrees when the detection's offset from the prediction lies within
-    ``tolerance_px`` of ``offset_vu`` and disagrees otherwise.  A star with no detection
-    casts no vote.
+    Each other star is first sought where the offset puts it, its prediction moved by
+    ``offset_vu``, with ``detect_near``; a detection there within ``tolerance_px`` of that
+    position agrees, whatever else the star's own search window holds.  Otherwise the star
+    is searched for around its own prediction with ``detect``: a detection whose offset
+    from the prediction lies within ``tolerance_px`` of ``offset_vu`` agrees, any other
+    detection disagrees, and a star with no detection casts no vote.  A brighter source
+    elsewhere in a star's window, such as a cosmic-ray hit, therefore outvotes the star
+    only when the star is not where the offset puts it.
 
     Parameters:
         others: Star features other than the two the offset rests on.
         offset_vu: ``(dv, du)`` offset the votes are cast on.
-        detect: Returns the detection centroid for a star, or ``None``.
+        detect: Returns the detection centroid for a star searched around its own
+            prediction, or ``None``.
+        detect_near: Returns the detection centroid for a star searched around the given
+            ``(v, u)`` position, or ``None``.
         tolerance_px: Largest offset difference that agrees.
 
     Returns:
@@ -794,13 +802,17 @@ def third_star_votes(
     agree = disagree = 0
     for feature in others:
         pred = predicted_vu(feature)
+        target = (pred[0] + offset_vu[0], pred[1] + offset_vu[1])
+        near = detect_near(feature, target)
+        if near is not None and math.hypot(near[0] - target[0], near[1] - target[1]) <= (
+            tolerance_px
+        ):
+            agree += 1
+            continue
         det = detect(feature)
         if det is None:
             continue
-        if (
-            math.hypot(det[0] - pred[0] - offset_vu[0], det[1] - pred[1] - offset_vu[1])
-            <= tolerance_px
-        ):
+        if math.hypot(det[0] - target[0], det[1] - target[1]) <= tolerance_px:
             agree += 1
         else:
             disagree += 1

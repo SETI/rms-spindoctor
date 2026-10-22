@@ -434,5 +434,54 @@ def test_a_star_with_no_detection_casts_no_vote(
         make_star_feature(f'star:UCAC4:{k}', predicted_vu=(50.0 * k, 50.0), predicted_snr=10.0)
         for k in range(3)
     ]
-    votes = third_star_votes(others, (2.0, -3.0), detect=lambda star: None, tolerance_px=2.4)
+    votes = third_star_votes(
+        others,
+        (2.0, -3.0),
+        detect=lambda star: None,
+        detect_near=lambda star, target: None,
+        tolerance_px=2.4,
+    )
     assert votes == (0, 0)
+
+
+@pytest.mark.parametrize(
+    ('near', 'votes'),
+    [((52.1, 46.9), (1, 0)), (None, (0, 1))],
+    ids=['found-at-the-offset', 'absent-at-the-offset'],
+)
+def test_a_star_found_at_the_offset_agrees_whatever_else_its_window_holds(
+    make_star_feature: NavFeatureFactory,
+    near: tuple[float, float] | None,
+    votes: tuple[int, int],
+) -> None:
+    """A brighter source elsewhere in the window decides the vote only when the star is absent."""
+    star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
+    result = third_star_votes(
+        [star],
+        (2.0, -3.0),
+        detect=lambda feature: (70.0, 30.0),
+        detect_near=lambda feature, target: near,
+        tolerance_px=2.4,
+    )
+    assert result == votes
+
+
+def test_a_star_is_sought_where_the_offset_puts_it(
+    make_star_feature: NavFeatureFactory,
+) -> None:
+    """The near search is centered on the prediction moved by the offset."""
+    star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
+    targets: list[tuple[float, float]] = []
+
+    def detect_near(feature: object, target: tuple[float, float]) -> tuple[float, float] | None:
+        targets.append(target)
+        return None
+
+    third_star_votes(
+        [star],
+        (2.0, -3.0),
+        detect=lambda feature: None,
+        detect_near=detect_near,
+        tolerance_px=2.4,
+    )
+    assert targets == [(52.0, 47.0)]

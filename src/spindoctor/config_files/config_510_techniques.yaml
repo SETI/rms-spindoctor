@@ -799,6 +799,9 @@ techniques:
       # reported 5 and 7 px wrong without this.  Of the 6098 two-star
       # answers in the F ring movies set aside for tuning, none has three
       # such stars and 32 have two (all correct), so 3 refuses none of them.
+      # A star found within twice max_residual_px of where the pair's offset
+      # puts it votes for the pair whatever else its window holds, so a
+      # brighter cosmic-ray hit nearby does not count against it.
       pair_contradiction_stars: 3
       # Detection-threshold multiplier on image_noise_sigma; a detection
       # whose brightest pixel stands less than this many noise sigmas
