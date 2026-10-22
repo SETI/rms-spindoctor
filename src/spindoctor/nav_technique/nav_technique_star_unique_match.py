@@ -59,6 +59,7 @@ from spindoctor.nav_technique._star_helpers import (
     local_centroid,
     predicted_snr,
     predicted_vu,
+    robust_center_spread,
     similarity_transform_fit,
     usable_stars,
 )
@@ -154,6 +155,13 @@ def _window_rivals(
     return out
 
 
+_FOUND_RING_INNER_GAP_PX = 2
+"""Gap in pixels between a centroid box's edge and the ring ``_found_at`` measures."""
+
+_FOUND_RING_OUTER_GAP_PX = 3
+"""Distance in pixels from a centroid box's edge to the outside of that ring."""
+
+
 def _found_at(
     image_ext: NDArrayFloatType,
     target_vu: tuple[float, float],
@@ -167,7 +175,7 @@ def _found_at(
 
     The brightest pixel within ``tolerance_px`` of the target on each axis is the
     candidate.  It must stand ``detection_sigma`` times the local spread above the
-    median of the ring of pixels 1 to 3 px outside its ``box_half_px`` box, the spread
+    median of the ring of pixels 2 to 3 px outside its ``box_half_px`` box, the spread
     being the larger of the ring's scaled median absolute deviation and
     ``noise_sigma``, so a pixel of a body's limb or texture, or a quantized background
     step, is not taken for a star.  Its moment centroid over the box, above the plane
@@ -196,18 +204,17 @@ def _found_at(
     window = image_ext[v_lo:v_hi, u_lo:u_hi]
     w_v, w_u = np.unravel_index(int(np.argmax(window)), window.shape)
     p_v, p_u = v_lo + int(w_v), u_lo + int(w_u)
-    outer = box_half_px + 3
+    outer = box_half_px + _FOUND_RING_OUTER_GAP_PX
     if not (outer <= p_v < rows - outer and outer <= p_u < cols - outer):
         return False
     patch = np.asarray(
         image_ext[p_v - outer : p_v + outer + 1, p_u - outer : p_u + outer + 1], np.float64
     )
-    dist = np.maximum(
-        np.abs(np.arange(-outer, outer + 1))[:, None], np.abs(np.arange(-outer, outer + 1))[None, :]
-    )
-    ring = patch[dist > box_half_px + 1]
-    background = float(np.median(ring))
-    spread = max(1.4826 * float(np.median(np.abs(ring - background))), noise_sigma)
+    offsets = np.abs(np.arange(-outer, outer + 1))
+    dist = np.maximum.outer(offsets, offsets)
+    ring = patch[dist >= box_half_px + _FOUND_RING_INNER_GAP_PX]
+    background, ring_spread = robust_center_spread(ring)
+    spread = max(ring_spread, noise_sigma)
     if float(image_ext[p_v, p_u]) - background < detection_sigma * spread:
         return False
     box = patch[

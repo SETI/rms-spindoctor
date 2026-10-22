@@ -36,6 +36,7 @@ __all__ = [
     'local_centroid',
     'predicted_snr',
     'predicted_vu',
+    'robust_center_spread',
     'similarity_transform_fit',
     'star_features',
     'usable_stars',
@@ -43,6 +44,25 @@ __all__ = [
 
 _BACKGROUND_ANNULUS_WIDTH_PX = 2
 """Width of the ring around a centroid box whose median is a detection's background."""
+
+MAD_TO_SIGMA = 1.4826
+"""Scale from a median absolute deviation to a Gaussian standard deviation."""
+
+_BACKGROUND_CLIP_SIGMAS = 3.0
+"""Robust sigmas from the ring's median past which a ring pixel leaves the plane fit."""
+
+
+def robust_center_spread(values: NDArrayFloatType) -> tuple[float, float]:
+    """Return the median of ``values`` and their spread as a Gaussian sigma.
+
+    Parameters:
+        values: Pixel values (any shape).
+
+    Returns:
+        ``(median, MAD_TO_SIGMA * median absolute deviation from it)``.
+    """
+    center = float(np.median(values))
+    return center, MAD_TO_SIGMA * float(np.median(np.abs(values - center)))
 
 
 def star_features(features: list[NavFeature]) -> list[NavFeature]:
@@ -311,9 +331,8 @@ def _box_background(
     ring = ~((vv >= v_lo) & (vv < v_hi) & (uu >= u_lo) & (uu < u_hi))
     box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
     values = np.asarray(image_ext[r_lo:r_hi, c_lo:c_hi], np.float64)[ring]
-    center = float(np.median(values))
-    spread = 1.4826 * float(np.median(np.abs(values - center)))
-    sky = np.abs(values - center) <= 3.0 * spread
+    center, spread = robust_center_spread(values)
+    sky = np.abs(values - center) <= _BACKGROUND_CLIP_SIGMAS * spread
     design = np.column_stack(
         [np.ones(int(sky.sum())), vv[ring][sky] - v_mid, uu[ring][sky] - u_mid]
     ).astype(np.float64)
