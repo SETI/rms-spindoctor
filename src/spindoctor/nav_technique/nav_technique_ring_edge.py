@@ -45,11 +45,11 @@ from spindoctor.nav_technique.ring_edge_geometry import (
     _absorbed_orbit_sensitivity,
     _aggregate_normal_orientation,
     _effective_orbit_sigma_px,
-    _is_rank_1,
     _orbit_inflated_covariance,
     _rank1_projected_covariance,
     _shape_tilt_covariance,
     _straight_edge_normals,
+    is_rank_1,
 )
 from spindoctor.nav_technique.ring_edge_stats import (
     _EdgeFitStat,
@@ -504,7 +504,7 @@ class RingEdgeNav(NavTechnique):
                 len(edge_stats),
             )
             translation_full_rank = not result.degenerate and not (
-                every_straight or _is_rank_1(np.asarray(covariance, np.float64))
+                every_straight or is_rank_1(np.asarray(covariance, np.float64))
             )
             veto_waived = (
                 len(edge_stats) >= 2
@@ -618,8 +618,8 @@ class RingEdgeNav(NavTechnique):
                 rotation_rad = None
                 sigma_rotation_rad = None
             covariance = np.asarray(covariance, np.float64)
-            is_rank_1 = _is_rank_1(covariance) or every_straight
-            if is_rank_1:
+            rank_1 = is_rank_1(covariance) or every_straight
+            if rank_1:
                 # Enforce the rank-1 contract on the reported covariance.
                 # On an all-straight scene the along-edge (tangent) offset
                 # component is physically unobservable, but the LM
@@ -660,7 +660,7 @@ class RingEdgeNav(NavTechnique):
             # independent witness set the axis the rings barely constrain
             # (#755).  A rank-1 result already reports that axis unobservable.
             sigma_shape_major_px = 0.0
-            if not is_rank_1:
+            if not rank_1:
                 shape_term = _shape_tilt_covariance(
                     vertices, polarity_normals, result.weights, self._shape_sigma_px
                 )
@@ -688,7 +688,7 @@ class RingEdgeNav(NavTechnique):
             # the covariance stays exactly singular along the tangent.
             sigma_orbit_px = _effective_orbit_sigma_px(features, result.weights)
             if sigma_orbit_px > 0.0:
-                if is_rank_1:
+                if rank_1:
                     orbit_g = _aggregate_normal_orientation(polarity_normals)
                 else:
                     orbit_g = _absorbed_orbit_sensitivity(polarity_normals, result.weights)
@@ -709,7 +709,7 @@ class RingEdgeNav(NavTechnique):
                 per_edge_dt_rms_mean=per_edge_rms_mean,
                 per_edge_dt_median_max=per_edge_median_max,
                 edge_count=edge_count,
-                is_rank_1=bool(is_rank_1),
+                is_rank_1=bool(rank_1),
                 lm_converged=gate_verdict.lm_converged,
                 coarse_peak_fraction=gate_verdict.coarse_peak_fraction,
                 sigma_orbit_radial_px=sigma_orbit_px,

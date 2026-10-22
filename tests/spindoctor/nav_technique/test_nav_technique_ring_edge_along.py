@@ -15,7 +15,7 @@ from tests.spindoctor.nav_technique.conftest import (
 
 from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.nav_technique_ring_edge import RingEdgeNav
-from spindoctor.nav_technique.ring_edge_geometry import _is_rank_1
+from spindoctor.nav_technique.ring_edge_geometry import is_rank_1
 from spindoctor.nav_technique.ring_edge_stats import _matched_edge_strength_fraction
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 
@@ -316,7 +316,7 @@ def test_rank_1_result_carries_no_shape_term(
     result = RingEdgeNav().navigate(features, make_nav_context(image))
     assert isinstance(result.diagnostics, RingEdgeDiagnostics)
     assert result.diagnostics.sigma_shape_major_px == 0.0
-    assert _is_rank_1(np.asarray(result.covariance_px2)) is True
+    assert is_rank_1(np.asarray(result.covariance_px2)) is True
 
 
 @pytest.mark.parametrize('sigma', [-0.1, math.inf])

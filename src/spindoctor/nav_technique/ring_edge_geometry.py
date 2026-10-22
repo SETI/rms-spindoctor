@@ -26,7 +26,7 @@ from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.support.types import NDArrayFloatType
 
-__all__: list[str] = []
+__all__ = ['is_rank_1']
 
 
 _MAX_SAME_SENSE_SENSITIVITY: float = 4.0 / math.pi
@@ -98,7 +98,7 @@ two paths agree on whether a result is rank-deficient.
 """
 
 
-def _is_rank_1(covariance: NDArrayFloatType) -> bool:
+def is_rank_1(covariance: NDArrayFloatType) -> bool:
     """Return True when the covariance is rank-deficient in its translation block.
 
     For both 2x2 (translation-only) and 3x3 (translation + rotation) inputs
@@ -107,6 +107,13 @@ def _is_rank_1(covariance: NDArrayFloatType) -> bool:
     rotation is fit.  Uses the same scale-independent test as the ensemble
     combine: the ratio of the smallest absolute eigenvalue to the largest
     must fall below :data:`_RANK1_NULL_RELATIVE_THRESHOLD`.
+
+    Parameters:
+        covariance: A 2x2 or 3x3 covariance; any other shape is not judged.
+
+    Returns:
+        True when the translation block is rank-deficient (an all-zero block counts);
+        False for a full-rank block or a covariance of any other shape.
     """
     if covariance.shape not in ((2, 2), (3, 3)):
         return False

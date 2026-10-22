@@ -927,10 +927,18 @@ techniques:
       # peak otherwise outweighs every faint star that agrees: on F ring frame
       # N1802001372 a V 9.2 Tycho-2 star 2.6 px from the median of nine pulled the
       # refine 1.1 px off seven stars that agree with each other to 0.4 px.  Four
-      # stars are the fewest whose median rests on an agreeing majority of three;
-      # of three, a 2-to-1 split cannot say which side is wrong (Voyager library
-      # frame C3448723: two bright stars 2 px from its operator-verified body fix,
-      # one faint star on it).
+      # votes are the fewest whose median rests on an agreeing majority of three.
+      # With exactly one star fewer, a prior precise to discordant_floor_px (full
+      # rank, sigma along its least certain axis) casts the missing vote as a zero
+      # residual: of three, a 2-to-1 split cannot say on its own which side is
+      # wrong.  The prior is the pass-1 answer, usually built from some of the
+      # same stars, so the vote is no independent evidence; it settles the split
+      # in the pass-1 answer's favor (WAC frame W1762900979: the two stars of the
+      # two-star match on the prior, a brighter third 3.9 px off it).  A pair off
+      # the prior cannot outvote a star on it (Voyager library frame C3448723: two
+      # bright stars 2 px from its operator-verified body fix, one faint star on
+      # it, all three kept).  A rank-deficient ring-edge prior, unconstrained
+      # along the arc, casts no vote (N1798993130).  Must be at least 2.
       discordant_min_stars: 4
       discordant_floor_px: 1.0
       discordant_median_factor: 3.0

@@ -55,6 +55,7 @@ from spindoctor.nav_technique.nav_technique import (
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
+from spindoctor.nav_technique.ring_edge_geometry import is_rank_1
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.types import NDArrayFloatType
 
@@ -153,6 +154,10 @@ class StarRefineNav(NavTechnique):
         self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
         if self._min_inliers < 1:
             raise ValueError(f'min_inliers must be >= 1; got {self._min_inliers}')
+        # Below two, a prior vote could stand in for every star and leave the median
+        # distance a median over no residuals at all.
+        if self._discordant_min_stars < 2:
+            raise ValueError(f'discordant_min_stars must be >= 2; got {self._discordant_min_stars}')
         if not 0.0 <= self._single_inlier_confidence_cap <= 1.0:
             raise ValueError(
                 f'single_inlier_confidence_cap must lie in [0, 1]; got '
@@ -210,7 +215,11 @@ class StarRefineNav(NavTechnique):
                 data_margin_vu=search_window_for_obs(context),
             )
             inliers, per_star_residuals_v, per_star_residuals_u, weights = self._reject_discordant(
-                inliers, per_star_residuals_v, per_star_residuals_u, weights
+                inliers,
+                per_star_residuals_v,
+                per_star_residuals_u,
+                weights,
+                prior_covariance_px2=context.prior_covariance_px2,
             )
             if len(inliers) < self._min_inliers:
                 return self._fail(
@@ -443,6 +452,8 @@ class StarRefineNav(NavTechnique):
         residuals_v: NDArrayFloatType,
         residuals_u: NDArrayFloatType,
         weights: NDArrayFloatType,
+        *,
+        prior_covariance_px2: NDArrayFloatType | None,
     ) -> tuple[list[NavFeature], NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
         """Drop stars whose residual disagrees with the rest before they are averaged.
 
@@ -450,22 +461,44 @@ class StarRefineNav(NavTechnique):
         centroided on the wrong peak outweighs every faint star that agrees.  With at
         least ``discordant_min_stars`` inliers, a star whose residual lies farther from the
         per-axis median residual than ``max(discordant_floor_px, discordant_median_factor
-        * median distance)`` is dropped; fewer inliers are returned unchanged.
+        * median distance)`` is dropped.  With exactly one inlier fewer than that, a prior
+        precise to ``discordant_floor_px`` (a covariance of full rank whose least certain
+        axis has a standard deviation of at most that) casts the missing vote: the
+        per-axis median is taken over the residuals and one more residual of zero, while
+        the median distance is still taken over the stars alone.  The prior is the pass-1
+        answer the stars were searched around, usually built from some of the same stars,
+        so its vote adds no independent evidence: it settles a 2-to-1 split of three stars
+        in the pass-1 answer's favor.  The star that disagrees with both the other two and
+        the prior is then dropped, and a pair that disagrees with the prior cannot outvote
+        a star that agrees with it.  A prior that is less precise, or rank-deficient like
+        a ring edge's that leaves the position along the arc unconstrained, casts no vote,
+        and fewer inliers still are returned unchanged.
 
         Parameters:
             inliers: Stars that passed the per-star checks.
             residuals_v: Their v residuals (px).
             residuals_u: Their u residuals (px).
             weights: Their inverse-variance weights.
+            prior_covariance_px2: The 2x2 covariance of the prior the residuals are
+                measured from, or None when there is none.
 
         Returns:
             The same four collections with the discordant stars removed.
         """
-        if len(inliers) < self._discordant_min_stars:
+        prior_votes = self._prior_is_precise(prior_covariance_px2)
+        if len(inliers) + int(prior_votes) < self._discordant_min_stars:
             return inliers, residuals_v, residuals_u, weights
+        votes_v, votes_u = residuals_v, residuals_u
+        if len(inliers) < self._discordant_min_stars:
+            # The prior is the zero residual: the pass-1 answer the stars were searched
+            # around, which settles a split the stars alone cannot in that answer's
+            # favor (F ring frame W1762900979: two stars on the prior, a third 3.9 px
+            # off it).
+            votes_v = np.append(residuals_v, 0.0)
+            votes_u = np.append(residuals_u, 0.0)
         distances = np.hypot(
-            residuals_v - float(np.median(residuals_v)),
-            residuals_u - float(np.median(residuals_u)),
+            residuals_v - float(np.median(votes_v)),
+            residuals_u - float(np.median(votes_u)),
         )
         tolerance = max(
             self._discordant_floor_px,
@@ -487,6 +520,34 @@ class StarRefineNav(NavTechnique):
             residuals_u[keep],
             weights[keep],
         )
+
+    def _prior_is_precise(self, prior_covariance_px2: NDArrayFloatType | None) -> bool:
+        """Return True when a prior is precise enough to vote on a discordant star.
+
+        A prior votes only when its covariance has full rank and the standard deviation
+        along its least certain axis is at most ``discordant_floor_px``: one less certain
+        than that cannot say that a star ``discordant_floor_px`` from it is wrong.  A
+        rank-deficient covariance, such as a ring edge's, reports a zero variance along
+        the direction it does not constrain, so its largest eigenvalue says nothing about
+        that direction and it casts no vote either.
+
+        Parameters:
+            prior_covariance_px2: The prior's 2x2 (or 3x3, of which the translation block
+                is read) covariance, or None.
+
+        Returns:
+            True when the covariance is present, finite, of full rank in its translation
+            block, and its largest eigenvalue is at most ``discordant_floor_px`` squared.
+        """
+        # F ring frame N1798993130: a ring-edge prior 2.4 px along the arc from the
+        # stars, with two stray peaks near it, would otherwise outvote the brightest
+        # star, which four fainter catalog stars place at the same offset.
+        if prior_covariance_px2 is None:
+            return False
+        cov = np.asarray(prior_covariance_px2, np.float64)[:2, :2]
+        if not bool(np.all(np.isfinite(cov))) or is_rank_1(cov):
+            return False
+        return float(np.linalg.eigvalsh(cov).max()) <= self._discordant_floor_px**2
 
     def _fit_rotation_3dof(
         self,

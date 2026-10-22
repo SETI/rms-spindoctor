@@ -148,9 +148,22 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
 - ``max_per_star_residual_px`` — float, default ``4.0`` px. A star whose detected centroid
   sits more than this many pixels from the shifted prediction is dropped before the average;
   almost certainly a wrong peak.
-- ``discordant_min_stars`` — int, default ``4`` (count). Fewest surviving stars for the
-  discordant-star check to run; four is the fewest whose median rests on an agreeing
-  majority of three, and of three a 2-to-1 split cannot say which side is wrong.
+- ``discordant_min_stars`` — int, default ``4`` (count), at least ``2``. Fewest votes the
+  discordant-star check needs; four is the fewest whose median rests on an agreeing
+  majority of three. With exactly one star fewer, a prior precise to
+  ``discordant_floor_px`` casts the missing vote as a residual of zero: of three stars, a
+  2-to-1 split cannot say on its own which side is wrong. The prior is the pass-1 answer
+  the stars were searched around, usually built from some of the same stars, so its vote
+  adds no independent evidence; it settles the split in the pass-1 answer's favor. On WAC
+  frame ``W1762900979`` the two stars of the two-star match, on the prior, otherwise lost
+  to a brighter third star 3.9 px off it, which pulled the refine 1.5 px. A pair that
+  disagrees with the prior cannot outvote a star that agrees with it, so on Voyager
+  library frame ``C3448723`` the faint star on the body fix still stays beside two bright
+  stars 2 px from it. A prior casts no vote when its least certain axis has a standard
+  deviation above ``discordant_floor_px`` or its covariance is rank-deficient, as a ring
+  edge's is along the arc: on F ring frame ``N1798993130`` a ring-edge prior 2.4 px along
+  the arc from the stars, with two stray peaks near it, would otherwise outvote the
+  brightest star, which four fainter catalog stars place at the same offset.
 - ``discordant_floor_px`` — float, default ``1.0`` px. Smallest distance from the median
   residual at which a star counts as discordant.
 - ``discordant_median_factor`` — float, default ``3.0`` (dimensionless). A star farther
@@ -289,7 +302,10 @@ Call path traced through
    farther from the per-axis median residual than ``max(discordant_floor_px,
    discordant_median_factor * median distance)``: the average weights each star by its
    catalog brightness, so one bright star centroided on the wrong peak would otherwise
-   outweigh every faint star that agrees with the others.
+   outweigh every faint star that agrees with the others. With exactly one survivor fewer
+   and a prior of full rank whose least certain axis has a standard deviation of at most
+   ``discordant_floor_px``, the per-axis median also counts the prior as a residual of
+   zero; the median distance is still taken over the stars alone.
 4. **Too few inliers.**  When the surviving inlier count is below ``min_inliers``, return a
    spurious zero-confidence result via ``_fail``.
 5. Compute the inverse-variance weighted delta, the median per-star residual distance, and
