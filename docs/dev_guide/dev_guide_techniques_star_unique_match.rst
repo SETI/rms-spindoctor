@@ -11,8 +11,8 @@ prediction of each of the brightest predictable stars, takes the strongest detec
 a noise threshold, and reports the translation implied by a cross-checked pair of stars
 (2-star path) or, when no pair cross-checks, by the brightest star alone (1-star path);
 the 1-star path additionally requires the star to be a configured magnitude margin
-brighter than every other predictable star within reach of the image. It runs without a prior — its job
-is to seed the pass-2
+brighter than every other predictable star within reach of the image. It runs without a
+prior — its job is to seed the pass-2
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` on scenes where
 the SPICE pointing error is small enough that the brightest predictable star sits inside
 the per-instrument search window.
