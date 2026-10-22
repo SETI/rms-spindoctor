@@ -244,8 +244,8 @@ def two_star_covariance(
         return cov_2x2
     return two_star_covariance_3dof(
         cov_2x2=cov_2x2,
-        pred_a=star_a.geometry.predicted_vu,  # type: ignore[union-attr]
-        pred_b=star_b.geometry.predicted_vu,  # type: ignore[union-attr]
+        pred_a=predicted_vu(star_a),
+        pred_b=predicted_vu(star_b),
     )
 
 

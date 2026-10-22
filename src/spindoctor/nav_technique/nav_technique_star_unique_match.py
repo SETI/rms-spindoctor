@@ -591,8 +591,8 @@ class StarUniqueMatchNav(NavTechnique):
         solved = solve_two_star_assignment(
             det_a,
             det_b,
-            chosen[0].geometry.predicted_vu,  # type: ignore[union-attr]
-            chosen[1].geometry.predicted_vu,  # type: ignore[union-attr]
+            predicted_vu(chosen[0]),
+            predicted_vu(chosen[1]),
             fit_rotation=fit_rotation,
         )
         offset_v, offset_u = solved.offset_vu
@@ -717,7 +717,7 @@ class StarUniqueMatchNav(NavTechnique):
             )
         det, peak = local_centroid(
             image_ext,
-            brightest.geometry.predicted_vu,  # type: ignore[union-attr]
+            predicted_vu(brightest),
             search_window_px=search_window_px,
             centroid_box_half_px=self._centroid_box_half_px,
             psf_sigma_px=self._psf_sigma_px,
@@ -739,7 +739,7 @@ class StarUniqueMatchNav(NavTechnique):
                 reason=f'no_detection_above_threshold (peak {peak:.3f} DN)',
                 fit_rotation=bool(context.fit_camera_rotation),
             )
-        pred_v, pred_u = brightest.geometry.predicted_vu  # type: ignore[union-attr]
+        pred_v, pred_u = predicted_vu(brightest)
         refusal = None
         if not self._is_point_source(image_ext, det, smear_px=smear_length_px(brightest)):
             refusal = (
