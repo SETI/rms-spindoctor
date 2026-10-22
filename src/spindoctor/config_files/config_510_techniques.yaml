@@ -803,7 +803,8 @@ techniques:
       # puts it votes for the pair whatever else its window holds, so a
       # brighter cosmic-ray hit nearby does not count against it, provided
       # the source found there is as bright as the star should be (see
-      # pair_vote_peak_factor).
+      # pair_vote_peak_factor).  One source detected for several stars whose
+      # windows overlap counts once.
       pair_contradiction_stars: 3
       # Factor within which the peak above the local background of a source
       # found where the pair's offset puts another star must match the peak

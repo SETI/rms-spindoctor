@@ -502,3 +502,31 @@ def test_a_source_beyond_the_tolerance_of_the_offset_does_not_agree(
         tolerance_px=2.4,
     )
     assert result == (0, 0)
+
+
+@pytest.mark.parametrize(
+    ('second_detection', 'votes'),
+    [((70.5, 30.4), (0, 1)), ((71.2, 30.0), (0, 2))],
+    ids=['same-source', 'distinct-sources'],
+)
+def test_one_source_in_two_windows_disagrees_once(
+    make_star_feature: NavFeatureFactory,
+    second_detection: tuple[float, float],
+    votes: tuple[int, int],
+) -> None:
+    """Two stars whose windows return one source cast one disagreeing vote between them."""
+    stars = [
+        make_star_feature(
+            f'star:UCAC4:{k}', predicted_vu=(50.0 + 20.0 * k, 50.0), predicted_snr=10.0
+        )
+        for k in range(2)
+    ]
+    detections = {stars[0].feature_id: (70.0, 30.0), stars[1].feature_id: second_detection}
+    result = third_star_votes(
+        stars,
+        (2.0, -3.0),
+        detect=lambda feature: detections[feature.feature_id],
+        detect_near=lambda feature, target: None,
+        tolerance_px=2.4,
+    )
+    assert result == votes

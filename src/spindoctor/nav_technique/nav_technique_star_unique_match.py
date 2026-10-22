@@ -324,11 +324,12 @@ class StarUniqueMatchNav(NavTechnique):
         pair is the answer unless another passing pair puts the offset more than
         ``2 * max_residual_px`` away from it: two cross-checked answers that
         disagree mean at least one is a coincidence, and which one cannot be told,
-        so the technique reports spurious.  It is spurious too when at least
-        ``pair_contradiction_stars`` of the other searched stars are detected in
-        the pair's window, every one of them away from the pair's offset, and none
-        is found as an isolated point source within ``2 * max_residual_px`` of
-        where the pair's offset puts it (:func:`third_star_votes`).
+        so the technique reports spurious.  It is spurious too when the other
+        searched stars' windows yield at least ``pair_contradiction_stars``
+        distinct detections, every one of them away from the pair's offset, and
+        none of those stars is found as an isolated point source within
+        ``2 * max_residual_px`` of where the pair's offset puts it
+        (:func:`third_star_votes`).
 
         Parameters:
             ranked: Usable star features, brightest predicted SNR first.
@@ -412,8 +413,8 @@ class StarUniqueMatchNav(NavTechnique):
             )
             if agree == 0 and disagree >= self._pair_contradiction_stars:
                 reason = (
-                    f'pair_contradicted: {disagree} other star(s) detected away from the '
-                    f"pair's offset and none at it"
+                    f'pair_contradicted: {disagree} distinct source(s) detected for other '
+                    f"stars away from the pair's offset and none at it"
                 )
         if reason is not None:
             return self._fail(

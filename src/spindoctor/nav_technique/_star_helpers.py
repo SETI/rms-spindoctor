@@ -768,6 +768,10 @@ def isolation_radii(inner_px: int, outer_px: int, smear_px: float) -> tuple[int,
     return inner_px + margin, outer_px + margin
 
 
+_SAME_SOURCE_PX = 1.0
+"""Detections of different stars closer than this (px) are one source in the pair votes."""
+
+
 def third_star_votes(
     others: list[NavFeature],
     offset_vu: tuple[float, float],
@@ -785,7 +789,9 @@ def third_star_votes(
     from the prediction lies within ``tolerance_px`` of ``offset_vu`` agrees, any other
     detection disagrees, and a star with no detection casts no vote.  A brighter source
     elsewhere in a star's window, such as a cosmic-ray hit, therefore outvotes the star
-    only when the star is not where the offset puts it.
+    only when the star is not where the offset puts it.  Overlapping windows can return
+    one source for several stars; a disagreeing detection within ``_SAME_SOURCE_PX`` of
+    one already counted is that source again and is not counted twice.
 
     Parameters:
         others: Star features other than the two the offset rests on.
@@ -799,7 +805,8 @@ def third_star_votes(
     Returns:
         ``(agree, disagree)`` counts.
     """
-    agree = disagree = 0
+    agree = 0
+    disagreeing: list[tuple[float, float]] = []
     for feature in others:
         pred = predicted_vu(feature)
         target = (pred[0] + offset_vu[0], pred[1] + offset_vu[1])
@@ -814,9 +821,12 @@ def third_star_votes(
             continue
         if math.hypot(det[0] - target[0], det[1] - target[1]) <= tolerance_px:
             agree += 1
-        else:
-            disagree += 1
-    return agree, disagree
+        elif all(
+            math.hypot(det[0] - seen[0], det[1] - seen[1]) >= _SAME_SOURCE_PX
+            for seen in disagreeing
+        ):
+            disagreeing.append(det)
+    return agree, len(disagreeing)
 
 
 def _annulus_footprint(inner_px: int, outer_px: int) -> NDArrayBoolType:

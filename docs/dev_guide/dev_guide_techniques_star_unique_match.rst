@@ -192,7 +192,9 @@ which one cannot be told, so the technique reports spurious with an ``ambiguous_
 reason. The first passing pair is refused in the same way, with a ``pair_contradicted``
 reason, when at least ``pair_contradiction_stars`` of the other searched stars have an
 isolated detection in the pair's window and every one of those detections lies more than
-twice ``max_residual_px`` from the pair's offset. Two stars can agree by coincidence;
+twice ``max_residual_px`` from the pair's offset. Overlapping windows can return one source
+for several stars, so detections within 1 px of one another count once. Two stars can
+agree by coincidence;
 three more stars that are in the image and found elsewhere say they did. Each other star
 is first sought where the pair's offset puts it, in a window of half-width twice
 ``max_residual_px`` around its moved prediction. An isolated point source found there
@@ -362,8 +364,9 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``pair_search_stars`` — int, default ``5``. The 2-star path tries every pair among this
   many brightest usable stars.
 - ``pair_contradiction_stars`` — int, default ``3``. The 2-star path refuses its first
-  passing pair when at least this many of the other searched stars are detected, all away
-  from the pair's offset, and none is found where the pair's offset puts it.
+  passing pair when at least this many distinct sources are detected for the other
+  searched stars, all away from the pair's offset, and none is found where the pair's
+  offset puts it.
 - ``pair_vote_peak_factor`` — float, default ``4.0`` (dimensionless), finite and above
   1. A source found where the pair's offset puts another star counts as that star only
   when its peak above the local background lies within this factor of the peak the
