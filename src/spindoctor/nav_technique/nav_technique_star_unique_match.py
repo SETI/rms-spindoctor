@@ -61,6 +61,7 @@ from spindoctor.nav_technique._star_helpers import (
     predicted_vu,
     robust_center_spread,
     similarity_transform_fit,
+    star_streak_vu,
     usable_stars,
 )
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
@@ -417,6 +418,7 @@ class StarUniqueMatchNav(NavTechnique):
             centroid_box_half_px=self._centroid_box_half_px,
             image_noise_sigma=noise_sigma,
             detection_sigma=self._detection_sigma,
+            streak_vu=star_streak_vu(chosen[0]),
         )
         det_b, peak_b = local_centroid(
             image_ext,
@@ -425,6 +427,7 @@ class StarUniqueMatchNav(NavTechnique):
             centroid_box_half_px=self._centroid_box_half_px,
             image_noise_sigma=noise_sigma,
             detection_sigma=self._detection_sigma,
+            streak_vu=star_streak_vu(chosen[1]),
         )
         if det_a is None or det_b is None:
             self.logger.debug(
@@ -741,6 +744,7 @@ class StarUniqueMatchNav(NavTechnique):
             centroid_box_half_px=self._centroid_box_half_px,
             image_noise_sigma=noise_sigma,
             detection_sigma=self._detection_sigma,
+            streak_vu=star_streak_vu(brightest),
         )
         if det is None:
             diagnostics = StarUniqueMatchDiagnostics(

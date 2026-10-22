@@ -59,6 +59,15 @@ with a Gaussian PSF kernel of the configured ``psf_sigma_px``, peaks above
 each peak gives the sub-pixel centroid. Up to ``max_sources`` brightest detections feed the
 hash-space search; the catalog side is similarly capped.
 
+On a frame whose stars draw a streak (the star model records one on every STAR feature as
+:attr:`~spindoctor.feature.flags.StarFlags.streak_vu` when it is at least 4.5 px long; see
+the measured streak in :doc:`dev_guide_navigation_models_star`), a round kernel responds
+along the flat top of each streak and its brightest point falls wherever the noise puts
+it. The kernel is then the Gaussian spread along the streak, which responds most at the
+streak's center. The moment box grows on each axis by half the streak's extent along that
+axis, rounded up, so it holds all of the streak's light, and only the box's pixels within
+``centroid_box_half_px`` of the streak's segment centered on the peak count in the moment.
+
 Before the ``max_sources`` cut, a peak more concentrated than any star can be is set aside
 as a cosmic-ray hit. The observation's narrowest star point-spread function
 (``star_sharpness_psf``, a Gaussian whose sigma the instrument configuration gives as
@@ -224,6 +233,8 @@ the pixel-centric coordinates it measures the array in (see :ref:`coordinate-sys
 whose fit fails (too close to the image edge, too few good pixels, no convergence) silently
 falls back to its moment centroid. The whole step is gated by ``psf_refine_enabled`` and the
 obs supplying a ``star_psf()``; without either it is a no-op and the moment centroids stand.
+It is also skipped on a frame whose stars draw a streak, because the PSF fit models an
+unsmeared star and would pull each streak's centroid toward one of its lumps.
 
 The observation that drives this is brightness-dependent: a dim field (vmag 3-4) improves its
 recovered-offset median from ~0.052 px (moment-only) to ~0.023 px, while a bright field

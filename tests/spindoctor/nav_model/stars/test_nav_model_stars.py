@@ -15,6 +15,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
+from tests.spindoctor.star_streak_images import draw_streak
 
 from spindoctor.annotation import Annotations
 from spindoctor.feature.constants import MIN_ANISOTROPIC_SMEAR_PX
@@ -77,9 +78,10 @@ class _FakeStarsConfig:
 
 @dataclass
 class _FakeContext:
-    """Per-image NavContext stand-in carrying the masks NavModelStars consults."""
+    """Per-image NavContext stand-in with the image and masks NavModelStars consults."""
 
     image_noise_sigma: float = 0.5
+    image_ext: np.ndarray = field(default_factory=lambda: np.zeros((128, 128)))
     saturation_mask_ext: np.ndarray = field(
         default_factory=lambda: np.zeros((128, 128), dtype=bool)
     )
@@ -505,3 +507,83 @@ def test_safe_mask_lookup_clamps_indices_to_bounds() -> None:
     mask2 = np.zeros((10, 10), dtype=bool)
     mask2[0, 0] = True
     assert _safe_mask_lookup(mask2, -100.0, -100.0) is True
+
+
+_STREAK_STAR_POSITIONS = [(30.0, 30.0), (30.0, 90.0), (90.0, 30.0), (90.0, 90.0), (60.0, 60.0)]
+"""Extended-FOV ``(v, u)`` of the stars the streak tests plant in the 128x128 frame."""
+
+
+@dataclass
+class _StreakContext:
+    """NavContext stand-in carrying an image of streaked stars."""
+
+    image_ext: np.ndarray
+    image_noise_sigma: float = 1.0
+    saturation_mask_ext: np.ndarray = field(
+        default_factory=lambda: np.zeros((128, 128), dtype=bool)
+    )
+    cosmic_ray_mask_ext: np.ndarray = field(
+        default_factory=lambda: np.zeros((128, 128), dtype=bool)
+    )
+
+
+def _streak_features(
+    streak_vu: tuple[float, float], predicted_smear_vu: tuple[float, float]
+) -> list[StarFlags]:
+    """Return the flags of the features a model emits over stars drawing ``streak_vu``.
+
+    Parameters:
+        streak_vu: The streak every planted star draws.
+        predicted_smear_vu: Each star's predicted smear.
+
+    Returns:
+        The star flags of each emitted feature.
+    """
+    model, obs = _make_model()
+    rng = np.random.default_rng(765)
+    image = rng.normal(0.0, 1.0, size=(128, 128))
+    stars = []
+    for i, (v, u) in enumerate(_STREAK_STAR_POSITIONS):
+        draw_streak(image, (v, u), streak_vu, flux=3000.0)
+        # A record's position is a pixel corner coordinate, half a pixel above the
+        # pixel-centric extended-FOV position less the margin.
+        stars.append(
+            _FakeMutableStar(
+                unique_number=i,
+                vmag=5.0 + 0.1 * i,
+                v=v - obs.extfov_margin_v + 0.5,
+                u=u - obs.extfov_margin_u + 0.5,
+                move_v=predicted_smear_vu[0],
+                move_u=predicted_smear_vu[1],
+            )
+        )
+    model._stars = [cast(MutableStar, s) for s in stars]
+    features = model.to_features(cast(NavContext, _StreakContext(image_ext=image)))
+    return [cast(StarFlags, f.flags) for f in features]
+
+
+def test_to_features_records_the_streak_the_stars_draw() -> None:
+    """On a smeared frame every STAR feature carries the streak measured on the image."""
+    flags = _streak_features((6.0, -1.0), (7.0, 2.0))
+    assert len(flags) == len(_STREAK_STAR_POSITIONS)
+    assert all(f.streak_vu == flags[0].streak_vu for f in flags)
+    assert flags[0].streak_vu[0] == pytest.approx(6.0, abs=0.5)
+    assert flags[0].streak_vu[1] == pytest.approx(-1.0, abs=0.5)
+
+
+def test_to_features_does_not_measure_a_frame_predicted_unsmeared() -> None:
+    """A frame whose predicted smear is below the floor is not measured for a streak."""
+    flags = _streak_features((6.0, -1.0), (1.5, 0.0))
+    assert flags[0].streak_vu == (0.0, 0.0)
+
+
+def test_to_features_centroids_points_when_the_streak_is_short() -> None:
+    """A measured streak too short to move a centroid is not recorded."""
+    flags = _streak_features((3.0, -0.5), (7.0, 2.0))
+    assert flags[0].streak_vu == (0.0, 0.0)
+
+
+def test_to_features_sets_aside_a_streak_far_longer_than_predicted() -> None:
+    """A streak more than twice the predicted smear is not the motion's, and not recorded."""
+    flags = _streak_features((6.0, -1.0), (2.5, 0.0))
+    assert flags[0].streak_vu == (0.0, 0.0)

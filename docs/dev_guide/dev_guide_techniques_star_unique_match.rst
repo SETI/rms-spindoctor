@@ -85,6 +85,23 @@ more than three robust sigmas from the ring's median, and its level is the media
 less that slope. The box median alone leaves the upper half of a sloping glare in the
 moment's weights and pulls the centroid uphill; on F ring frame ``N1571454567`` a V 9.9 star
 on ring glare was measured 1.7 px from where a high-passed image puts it.
+
+On a frame whose stars draw a streak (the star model records one on every STAR feature as
+:attr:`~spindoctor.feature.flags.StarFlags.streak_vu` when it is at least 4.5 px long; see
+the measured streak in :doc:`dev_guide_navigation_models_star`), the brightest pixel falls
+wherever the noise puts it along the streak, so the centroid is taken about the streak's
+center instead. The candidate is the pixel of the window where a line kernel along the
+streak responds most. The kernel takes one sample every quarter pixel, spreads each over
+its pixels by bilinear interpolation, and has its mean taken out, so an even slope of
+glare draws no response. The centroid box grows on each axis by half the streak's extent
+along that axis, rounded up, so it holds the whole streak, and only the box's pixels
+within ``centroid_box_half_px`` of the streak's segment centered on the candidate count in
+the moment. The candidate is a detection when one of those pixels stands the same
+threshold above the plane background, so the uphill end of a sloping glare is no
+detection. On F ring frame ``N1605530694`` (a 6 px
+streak), over the 62 stars both centroids find, the robust spread of the residuals along
+the streak is 1.26 px for boxes on the brightest pixels and 0.44 px for streak centroids.
+
 A peak that fails the noise threshold collapses the candidate; on the 2-star path a
 best-assignment residual exceeding ``max_residual_px`` triggers the fall back to the 1-star
 path, and on the 1-star path a no-rival detection whose prediction-to-detection distance
