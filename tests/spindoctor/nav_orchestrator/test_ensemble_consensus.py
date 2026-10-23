@@ -258,11 +258,26 @@ def test_a_joiner_less_precise_than_the_set_is_left_out() -> None:
     assert _pruned(edge, [_refine(0.6), _two_star_result((0.0, 0.0), 0.09)]) == [edge]
 
 
-def test_a_joiner_beside_a_precise_representative_is_fused() -> None:
-    """The same ring edge beside a 0.1 px representative fuses onto it and stays."""
-    assert (
-        _pruned(_edge((0.0, -3.6), 0.6), [_refine(0.1), _two_star_result((0.0, 0.0), 0.09)]) == []
-    )
+def test_a_joiner_apart_from_every_member_is_left_out_though_its_fusion_is_slight() -> None:
+    """A ring edge 3.7 px from a star set, 4.6 sigma from its nearest member, is left out.
+
+    Mirrors F ring frame N1862514394: the fusion with the 0.38 px representative would
+    move it only 0.82 px (under the 1 px compromise limit), but the edge is several
+    standard deviations from every member of the set.
+    """
+    edge = _edge((0.0, -3.7), 0.71)
+    group = [_refine(0.38), _two_star_result((0.0, 0.0), 0.03)]
+    assert _pruned(edge, group) == [edge]
+
+
+def test_a_joiner_agreeing_with_one_member_is_held_only_to_the_representative() -> None:
+    """A ring edge apart from the representative but consistent with a pass-1 member stays.
+
+    The edge is 2.4 sigma from the 0.3 px representative (pixel floor, 0.2 px
+    compromise) and 1.3 sigma from the set's 0.5 px member at (0, -1).
+    """
+    member = _two_star_result((0.0, -1.0), 0.5)
+    assert _pruned(_edge((0.0, -2.5), 1.0), [_refine(0.3), member]) == []
 
 
 def test_a_joiner_that_seeded_the_set_is_never_left_out() -> None:

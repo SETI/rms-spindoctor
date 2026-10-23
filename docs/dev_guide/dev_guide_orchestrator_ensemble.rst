@@ -262,9 +262,21 @@ is therefore held to the agreement test again against every collapsed set's
 representative
 (:func:`~spindoctor.nav_orchestrator.ensemble_consensus.leave_out_compromising_fusions`):
 a Mahalanobis agreement inside the pixel floor stands, and otherwise the pair must agree
-by either test and fuse with a compromise of at most ``agreement_compromise_px``. When
-the pair fails, the side less precise along the pair's separation is left out of the
-combine and reported in
+by either test and fuse with a compromise of at most ``agreement_compromise_px``. The
+result must also lie within ``agreement_sigma`` (Mahalanobis distance) of at least one
+member of the set. A result that agrees only through the pixel floor, several standard
+deviations from every member, contradicts the set: fused with it, the result drags the
+answer toward itself by up to the compromise limit when the two are about equally
+precise, and outweighs the set when it is the more precise. Any member counts, including
+a one-star match whose sigma is the size of its own offset. On F ring frame N1492083837
+that keeps a ring edge 5.3 standard deviations from the star refine, and the answer is
+0.55 px from the reference pointing rather than 0.08 px, while counting only members
+precise enough to resolve the separation loses other frames. The test is made against
+collapsed sets only, since the combine fuses a set through a member other than the one a
+result agreed with when the group formed. Two single techniques inside the pixel floor
+are combined however far apart statistically they lie, unless one seeded the other (the
+seeded-pair test of Step 3). When the pair fails, the side
+less precise along the pair's separation is left out of the combine and reported in
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.excluded_from_consensus` (the
 disagreement penalty applies; it is not a runner-up): the result, or the whole set. A
 set is one measurement reported by several techniques, so its precision is its most
@@ -278,6 +290,20 @@ reference pointing. Over the 20,584 frames of the full F ring run, replayed offl
 their recorded per-technique results with this branch combined with the sparse-star
 work, the check moves 65 answers (9 from 1-2 px and 4 from over 2 px to within 1 px;
 none past 1 px).
+
+The test against every member catches a result that the compromise limit lets through.
+On F ring frame N1862514394 a ring edge 4.8 px from 39 agreeing stars, 4.6 standard
+deviations from the nearest member of the star set, would fuse with the 0.38 px star
+refine at a compromise of 0.84 px and move the answer 0.8 px. It is left out. On
+N1584292832 a ring edge 0.17 px precise across the edge, 8.6 standard deviations from the
+star fit, would outweigh the fit and put the answer 4.3 px from the stars. It is left
+out, since the set's two-star member is more precise along the separation. Over the full
+F ring run, replayed as above, the test leaves a result out on 381 frames. On the 9 of
+them where that takes the answer across the 1 px or 2 px line away from the reference
+pointing, at least two image stars lie within 0.5 px of the answer and fewer at the
+reference. A star set left
+standing alone earns no agreement boost and carries the disagreement penalty, so 351 of
+those answers are at the medium tier. 85% of them are within 0.5 px of the reference.
 
 Step 6 — precision-weighted merge
 ---------------------------------

@@ -450,6 +450,11 @@ def leave_out_compromising_fusions(
     compromise of at most ``agreement_compromise_px``
     (:func:`fusion_compromise_px`).  Two estimates a few pixels apart at several
     standard deviations are not one answer, and fusing them lands between them.
+    The estimator must also lie within ``agreement_sigma`` (Mahalanobis distance) of
+    at least one member of the set.  One that agrees only through the pixel floor,
+    several standard deviations from every member, contradicts the set: fusing it
+    moves the answer toward it by as much as the compromise limit when the two are
+    about equally precise, and lets it outweigh the set when it is the more precise.
 
     When the pair fails, the side less precise along the pair's separation is left
     out: the estimator, or the whole set (its representative and every member).
@@ -496,7 +501,15 @@ def leave_out_compromising_fusions(
             terms = _pair_terms(
                 est, group[0], agreement_pixel_floor=agreement_pixel_floor, rcond=rcond
             )
-            if terms.fuses(agreement_sigma=agreement_sigma, compromise_px=agreement_compromise_px):
+            if terms.fuses(
+                agreement_sigma=agreement_sigma, compromise_px=agreement_compromise_px
+            ) and _consistent_with_a_member(
+                est,
+                group,
+                agreement_sigma=agreement_sigma,
+                agreement_pixel_floor=agreement_pixel_floor,
+                rcond=rcond,
+            ):
                 continue
             set_variance = min(_variance_along(member, terms.separation_vu) for member in group)
             if _variance_along(est, terms.separation_vu) >= set_variance:
@@ -511,6 +524,37 @@ def leave_out_compromising_fusions(
         excluded=[*excluded, *left_out],
         left_out=left_out,
     )
+
+
+def _consistent_with_a_member(
+    est: NavTechniqueResult,
+    group: list[NavTechniqueResult],
+    *,
+    agreement_sigma: float,
+    agreement_pixel_floor: float,
+    rcond: float,
+) -> bool:
+    """Return whether a result lies within ``agreement_sigma`` of some member of a set.
+
+    The distance is the Mahalanobis distance of :func:`_pair_terms`.
+
+    Parameters:
+        est: The result tested against the set.
+        group: The collapsed set's members.
+        agreement_sigma: Maximum Mahalanobis distance for agreement.
+        agreement_pixel_floor: Translation distance (pixels) of the pixel-floor agreement,
+            passed through to :func:`_pair_terms`.
+        rcond: rcond passed to ``pinvh``.
+
+    Returns:
+        True when the Mahalanobis distance to at least one member is at most
+        ``agreement_sigma``.
+    """
+    for member in group:
+        terms = _pair_terms(est, member, agreement_pixel_floor=agreement_pixel_floor, rcond=rcond)
+        if terms.mahalanobis <= agreement_sigma:
+            return True
+    return False
 
 
 def _seeded_either_way(est: NavTechniqueResult, group: list[NavTechniqueResult]) -> bool:
