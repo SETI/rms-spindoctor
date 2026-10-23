@@ -7,13 +7,16 @@ from typing import Any, cast
 
 import numpy as np
 from filecache import FCPath
+from oops.observation.snapshot import Snapshot
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
+from spindoctor.support.exposure_motion import ExposureMotion
 from spindoctor.support.filter_combo import canonicalize
 from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
+from .obs_inst_cassini_iss_motion import EXPOSURE_MOTION_SECTION, cassini_exposure_motion
 from .obs_snapshot_inst import ObsSnapshotInst
 
 # SCLK01_MODULI_82 and SCLK01_OFFSETS_82 of the Cassini spacecraft clock kernel,
@@ -253,6 +256,17 @@ class ObsCassiniISS(ObsSnapshotInst):
     ISS image data.
     """
 
+    def __init__(self, snapshot: Snapshot, **kwargs: Any) -> None:
+        """Wrap a Cassini ISS snapshot.
+
+        Parameters:
+            snapshot: The Snapshot oops read from the image file.
+            **kwargs: Additional keyword arguments for the base classes.
+        """
+        super().__init__(snapshot, **kwargs)
+        self._exposure_motion_read = False
+        self._exposure_motion: ExposureMotion | None = None
+
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
     def from_file(
@@ -395,6 +409,27 @@ class ObsCassiniISS(ObsSnapshotInst):
         )
         dimmest_visible = 2.5 * math.log10(dn_vmag0 / float(photometry['min_detectable_dn']))
         return dimmest_visible - float(offsets[combo]) + float(photometry['search_depth_mag'])
+
+    def exposure_motion(self) -> ExposureMotion | None:
+        """Return the spacecraft's turning during the exposure, from the as-flown kernels.
+
+        The motion is read from the as-flown predicted C-kernels the
+        ``cassini_iss_exposure_motion`` configuration section names, without furnishing
+        them, so the observation's pointing is unchanged; where they do not cover the
+        exposure it is the reconstructed kernels' mean rate over a window about it (see
+        :func:`~spindoctor.obs.obs_inst_cassini_iss_motion.cassini_exposure_motion`).  It
+        is read once per observation.
+
+        Returns:
+            The motion, or None to use the observation's own pointing at the exposure's
+            start and end.
+        """
+        if not self._exposure_motion_read:
+            self._exposure_motion = cassini_exposure_motion(
+                self, self.config.category(EXPOSURE_MOTION_SECTION)
+            )
+            self._exposure_motion_read = True
+        return self._exposure_motion
 
     @property
     def camera(self) -> str:

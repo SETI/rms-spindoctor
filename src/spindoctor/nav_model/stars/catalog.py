@@ -48,6 +48,7 @@ from spindoctor.nav_model.stars.saturation import (
     UCAC4_SATURATION_VMAG_LIMIT,
     correct_star_photometry,
 )
+from spindoctor.nav_model.stars.smeared_psf import exposure_ends_uv
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.flux import clean_sclass
 
@@ -335,7 +336,11 @@ def _project_stars_to_fov(
     ``move_v``, ``ra_pm``, ``dec_pm``.  ``u`` and ``v`` are whatever
     ``ObsSnapshot.uv_from_ra_and_dec`` returns, which is a pixel corner coordinate -- the
     convention :class:`~spindoctor.support.types.MutableStar` declares, half
-    a pixel above the index of the pixel the star lands on.  Stars whose PSF
+    a pixel above the index of the pixel the star lands on.  ``move_u`` and
+    ``move_v`` run from where the star lands at the start of the exposure to
+    where it lands at the end, as
+    :func:`~spindoctor.nav_model.stars.smeared_psf.exposure_ends_uv` gives
+    them.  Stars whose PSF
     support would spill off the extfov are excluded; so are stars whose
     smear motion would push them off the extfov mid-exposure.  The extfov
     bounds are whole-numbered, so they are converted before that
@@ -381,8 +386,7 @@ def _project_stars_to_fov(
             apparent=True,
         )
     else:
-        uv_start = obs.uv_from_ra_and_dec(ra_arr, dec_arr, tfrac=0.0, apparent=True)
-        uv_end = obs.uv_from_ra_and_dec(ra_arr, dec_arr, tfrac=1.0, apparent=True)
+        uv_start, uv_end = exposure_ends_uv(obs, ra_arr, dec_arr)
 
     u_start_arr = uv_start.to_scalars()[0].vals
     v_start_arr = uv_start.to_scalars()[1].vals

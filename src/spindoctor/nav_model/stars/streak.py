@@ -1,11 +1,12 @@
 """Measure the streak a smeared frame's stars draw.
 
 A star that moves across the detector during the exposure is recorded as a streak along
-its motion.  The motion predicted from the SPICE pointing at the start and end of the
-exposure is a poor guide to the streak's length and direction on many frames, so the
-star techniques take the streak from the image instead: the bright stars of a frame
-whose predicted smear is long enough to matter are each measured from the second
-moments of their light, and the streak is the one most of them agree on.
+its motion.  The star techniques take the streak from the image: the bright stars of a
+frame whose predicted smear is long enough to matter are each measured from the second
+moments of their light, and the streak is the one most of them agree on.  The predicted
+smear decides whether a frame is measured and whether a measured streak can be the
+motion's, and where the observation's host vouches for its prediction it stands in for a
+streak the image does not show (see :func:`streak_limits` and :func:`predicted_streak_vu`).
 
 Each measurement finds the brightest pixel near a predicted star (any star serves, since
 every star of a frame draws the same streak), keeps the light connected to that pixel
@@ -33,20 +34,14 @@ __all__ = [
     'MAX_STREAK_TO_PREDICTED',
     'MIN_PREDICTED_SMEAR_PX',
     'MIN_STREAK_PX',
+    'StreakLimits',
     'StreakMeasurement',
     'consensus_streak',
     'measure_streak',
+    'predicted_streak_vu',
     'star_streak_axis',
+    'streak_limits',
 ]
-
-MIN_PREDICTED_SMEAR_PX = 2.0
-"""Predicted smear length in pixels below which a frame's streak is not measured.
-
-Below it no star of the frame is centroided as a streak.  The predicted smear
-overstates the streak on many frames but rarely understates it by much, so a frame
-predicted below this length is treated as unsmeared; this keeps every frame of
-negligible predicted motion exactly as it is measured without a streak.
-"""
 
 MIN_STREAK_PX = 4.5
 """Measured streak length in pixels from which the star techniques centroid a streak.
@@ -64,13 +59,72 @@ does so on 52% of 86 frames, which is no gain.
 """
 
 MAX_STREAK_TO_PREDICTED = 2.0
-"""Largest ratio of a measured streak's length to the predicted smear that is recorded.
+"""Largest ratio of a measured streak's length to a predicted smear no host vouches for.
 
-The predicted smear overstates the streak on many frames but understates it by at most
-1.5 times on the 208 F ring frames whose streak could be measured.  A longer measurement
-is the work of something other than the motion, such as the blooms of saturated stars
-running along a column, which the saturation mask of a calibrated image does not show.
+A longer measurement is the work of something other than the motion, such as the blooms
+of saturated stars running along a column, which the saturation mask of a calibrated
+image does not show.  A prediction that may overstate the streak several times but
+rarely understates it by much is held to this ratio: smear predicted from Cassini's
+reconstructed C-kernels understates the streak by at most 1.5 times on the 208 F ring
+frames whose streak could be measured.  A host that vouches for its prediction sets its
+own ratio (see :func:`streak_limits`).
 """
+
+MIN_PREDICTED_SMEAR_PX = 2.0
+"""Predicted smear length in pixels below which a frame's streak is not measured.
+
+Applies to a prediction no host vouches for.  Below it no star of the frame is
+centroided as a streak; this keeps every frame of negligible predicted motion exactly as
+it is measured without a streak.
+"""
+
+
+@dataclass(frozen=True)
+class StreakLimits:
+    """How a frame's predicted smear bounds the streak recorded for it.
+
+    Parameters:
+        min_predicted_px: Median predicted smear in pixels below which the frame's streak
+            is not measured.
+        max_streak_to_predicted: Largest ratio of a measured streak's length to the
+            median predicted smear that is recorded.
+        prediction_stands_in: Whether the predicted streak is recorded when no streak is
+            measured that the stars agree on.
+    """
+
+    min_predicted_px: float
+    max_streak_to_predicted: float
+    prediction_stands_in: bool
+
+
+def streak_limits(vouched_ratio: float | None) -> StreakLimits:
+    """Return the limits a frame's predicted smear sets on its streak.
+
+    A prediction no host vouches for (``vouched_ratio`` None) is held to
+    :data:`MIN_PREDICTED_SMEAR_PX` and :data:`MAX_STREAK_TO_PREDICTED`, and never stands
+    in for a measurement.  A vouched-for prediction is held to its host's ratio, is
+    measured from :data:`MIN_STREAK_PX` over that ratio (a frame predicted shorter could
+    record a streak long enough to centroid on only by exceeding the ratio, so measuring
+    it could not change how its stars are centroided), and stands in for a streak the
+    image does not show.
+
+    Parameters:
+        vouched_ratio: The largest ratio of a measured streak to the predicted smear the
+            host has found on its images, or None when the host does not vouch for its
+            prediction.
+
+    Returns:
+        The limits.
+
+    Raises:
+        ValueError: if ``vouched_ratio`` is not greater than 1.
+    """
+    if vouched_ratio is None:
+        return StreakLimits(MIN_PREDICTED_SMEAR_PX, MAX_STREAK_TO_PREDICTED, False)
+    if not vouched_ratio > 1.0:
+        raise ValueError(f'vouched_ratio must be greater than 1; got {vouched_ratio!r}')
+    return StreakLimits(MIN_STREAK_PX / vouched_ratio, vouched_ratio, True)
+
 
 _STARS_EXAMINED = 12
 """Number of the brightest unflagged stars whose neighborhoods are measured."""
@@ -134,6 +188,20 @@ def _oriented(axis_v: float, axis_u: float) -> tuple[float, float]:
     if axis_v < 0.0 or (axis_v == 0.0 and axis_u < 0.0):
         return -axis_v, -axis_u
     return axis_v, axis_u
+
+
+def predicted_streak_vu(moves_vu: list[tuple[float, float]]) -> tuple[float, float]:
+    """Return the streak a frame's stars are predicted to draw.
+
+    Parameters:
+        moves_vu: Each examined star's predicted smear ``(v, u)`` in pixels, from the
+            start of the exposure to its end; not empty.
+
+    Returns:
+        The component-wise median smear, oriented to ``v >= 0`` like a measured streak.
+    """
+    moves = np.asarray(moves_vu, dtype=np.float64)
+    return _oriented(float(np.median(moves[:, 0])), float(np.median(moves[:, 1])))
 
 
 def star_streak_axis(

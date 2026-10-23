@@ -202,21 +202,26 @@ reliability and how precisely its position can be measured.
 If the spacecraft was turning during the exposure, stars are not points but short trails.
 The model computes each star's trail by projecting its direction through the camera at the
 start and at the end of the exposure, so stars in different parts of a distorted field
-trail by different amounts. A trail lengthens a star's uncertainty along the trail and
-leaves it alone across the trail, and it makes the star's predicted image a smeared
-version of the camera's point-spread function rather than a compact spot. A star whose
-trail exceeds ``stars.max_smear`` pixels is dropped as unmeasurable; the default of 100
-pixels is permissive enough that it rarely applies.
+trail by different amounts. Where an instrument's pointing kernels describe the camera's
+turning during an exposure poorly, the turning is taken from other kernels and the
+pointing itself is left as it is; the instrument chapters say where this applies. A trail
+lengthens a star's uncertainty along the trail and leaves it alone across the trail, and
+it makes the star's predicted image a smeared version of the camera's point-spread
+function rather than a compact spot. A star whose trail exceeds ``stars.max_smear`` pixels
+is dropped as unmeasurable; the default of 100 pixels is permissive enough that it rarely
+applies.
 
 A trail long enough to have a flat top makes its brightest pixel a poor guide to the
 star's position, because the noise decides where along the trail that pixel falls. The
-predicted trail is in turn a poor guide to the trail the camera recorded: on many frames
-the recorded trail is much shorter, or points in a somewhat different direction. So on a
-frame whose predicted trail is at least 2 pixels long, the model measures the trail that
-the frame's bright stars draw in the image. When at least three of them agree on a trail
-4.5 pixels long or longer, every star technique measures each star at the center of its
-trail. Shorter trails are measured as points, since a star's measurement box holds nearly
-all of such a trail.
+predicted trail can in turn differ from the trail the camera recorded. So on a frame whose
+predicted trail is at least 2 pixels long, the model measures the trail that the frame's
+bright stars draw in the image. When at least three of them agree on a trail 4.5 pixels
+long or longer, and no more than twice the predicted length, every star technique measures
+each star at the center of its trail. Shorter trails are measured as points, since a
+star's measurement box holds nearly all of such a trail, and so are the stars of a frame
+whose trail cannot be measured. An instrument whose predicted trails are reliable holds
+the measured trail closer to the prediction and lets the prediction stand in where no
+trail can be measured; its instrument chapter says so.
 
 Finally the model checks each star's predicted pixel against the solid bodies in the
 frame, and against the opaque parts of the ring system. A star predicted to fall on a

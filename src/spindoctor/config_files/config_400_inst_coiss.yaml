@@ -223,6 +223,37 @@ cassini_iss_calib:
       mag_offset_table:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
 
+# The spacecraft's turning during an exposure, from which the star model draws each
+# star's streak.  The reconstructed C-kernels hold one attitude every 4 s and on about a
+# third of their intervals repeat the attitude before, so over a 1 s exposure they show
+# either no motion or about twice the true motion; the as-flown predicted C-kernels hold
+# the commanded constant rate (#768).  The motion is read from the predicted kernels
+# without furnishing them, so the pointing stays the reconstructed kernels'.
+cassini_iss_exposure_motion:
+  # The SPICE id of the spacecraft, under which the SPICE database lists its kernels.
+  spacecraft_id: -82
+  # The CK object whose attitude is read: the spacecraft bus.  A constant rotation
+  # between the bus and a camera cancels from the motion, so it serves both cameras.
+  ck_object_id: -82000
+  # The SPICE database's name of the predicted C-kernels, and the release whose files
+  # are the as-flown set (CK-predicted-v02/*py_as_flown.bc, 2004-01-09T12:25 to
+  # 2017-09-15); the name also lists the earlier release in CK-predicted.
+  predicted_ck_name: CAS-CK-PREDICTED
+  predicted_ck_version: V02
+  # The largest ratio of a measured streak to the smear the as-flown kernels predict:
+  # over 1,101 F ring frames predicted to smear at least 2 px whose streak could be
+  # measured the ratio is at most 1.20 (99th percentile 1.12), and over the 140 measured
+  # at least 4.5 px 0.85 to 1.04.  It vouches for the prediction, so frames predicted
+  # under 4.5 / 1.5 = 3 px are not measured, and a predicted streak of 4.5 px or more
+  # stands in where none can be measured.
+  predicted_max_streak_to_predicted: 1.5
+  # Where no predicted kernel covers an exposure, the motion is the reconstructed
+  # kernels' mean rate over this many seconds either side of mid-exposure.  Over 1,796
+  # F ring NAC frames 8 s puts the predicted streak a median 0.42 px from the measured
+  # one (96% within 1 px); longer windows average across turns (30 s is off by up to
+  # 10 px on a frame within 30 s of one).
+  reconstructed_half_window_s: 8.0
+
 # Star photometry of the Cassini ISS cameras, read by ObsCassiniISS.star_max_usable_vmag
 # for raw and calibrated images alike.  A star of V magnitude m and the default spectral
 # class (G0) deposits

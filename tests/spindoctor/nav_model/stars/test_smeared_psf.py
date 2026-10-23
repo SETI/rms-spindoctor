@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import numpy as np
+import polymath
 import pytest
 
 from spindoctor.nav_model.stars.smeared_psf import (
@@ -15,6 +16,7 @@ from spindoctor.nav_model.stars.smeared_psf import (
     render_smeared_psf,
     smear_length_px,
 )
+from spindoctor.support.exposure_motion import ExposureMotion
 
 
 def test_smear_length_px_pythagorean() -> None:
@@ -145,6 +147,10 @@ class _FakeObsForBracket:
         self._du = du
         self._dv = dv
 
+    def exposure_motion(self) -> None:
+        """Return no motion, so the smear comes from the ``tfrac`` projections."""
+        return None
+
     def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
         """Return a constant sky direction.
 
@@ -214,3 +220,54 @@ def test_smear_from_an_obs_that_cannot_report_its_center_is_not_silently_zero() 
 
     with pytest.raises(AttributeError, match='center_ra_dec'):
         compute_smear_vector_px(cast(Any, _NoCenterObs()))
+
+
+_PX_PER_RAD = 1.0e4
+"""Pixels per radian of the linear sky projection below."""
+
+
+def _rotation_about_pole(angle: float) -> np.ndarray:
+    """Return the J2000 rotation turning every direction's right ascension by ``angle``."""
+    c, s = math.cos(angle), math.sin(angle)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
+class _FakeObsWithMotion:
+    """Observation stand-in that supplies its exposure motion.
+
+    The sky projects linearly, ``u = ra * _PX_PER_RAD`` and ``v = dec * _PX_PER_RAD``,
+    and only at mid-exposure: a projection at another ``tfrac`` raises, so a smear taken
+    from the pointing at the exposure's ends instead of from the motion fails the test.
+    """
+
+    def __init__(self, motion: ExposureMotion) -> None:
+        self._motion = motion
+
+    def exposure_motion(self) -> ExposureMotion:
+        """Return the planted motion."""
+        return self._motion
+
+    def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
+        """Return a direction on the celestial equator."""
+        return 0.5, 0.0
+
+    def uv_from_ra_and_dec(
+        self, ra: polymath.Scalar, dec: polymath.Scalar, *, tfrac: float = 0.5, apparent: bool
+    ) -> polymath.Pair:
+        """Project linearly at mid-exposure; refuse any other instant."""
+        if tfrac != 0.5:
+            raise AssertionError(f'projected at tfrac={tfrac}')
+        return polymath.Pair.from_scalars(ra * _PX_PER_RAD, dec * _PX_PER_RAD)
+
+
+def test_compute_smear_vector_px_takes_the_turning_from_the_exposure_motion() -> None:
+    """With a motion the smear runs between the turned directions' mid-exposure positions."""
+    turn = 2.0e-4
+    motion = ExposureMotion(
+        start_rotation=_rotation_about_pole(-turn),
+        end_rotation=_rotation_about_pole(turn),
+        source='test',
+    )
+    my, mx = compute_smear_vector_px(cast(Any, _FakeObsWithMotion(motion)))
+    assert mx == pytest.approx(2.0 * turn * _PX_PER_RAD, rel=1e-9)
+    assert my == pytest.approx(0.0, abs=1e-9)

@@ -23,6 +23,7 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.nav_model_stars import (
+    EXPOSURE_POINTING_SOURCE,
     SNR_REF,
     NavModelStars,
     _crlb_covariance,
@@ -32,6 +33,7 @@ from spindoctor.nav_model.stars.nav_model_stars import (
     _star_feature_id,
 )
 from spindoctor.nav_orchestrator.nav_context import NavContext
+from spindoctor.support.exposure_motion import ExposureMotion
 from spindoctor.support.types import MutableStar
 
 
@@ -101,6 +103,11 @@ class _FakeObs:
         self.data_shape_u = 100
         self._psf = _FakePSF(sigma=1.0)
         self._star_max_vmag = star_max_vmag
+        self.motion: ExposureMotion | None = None
+
+    def exposure_motion(self) -> ExposureMotion | None:
+        """Return the motion a test set, None by default."""
+        return self.motion
 
     def star_psf(self) -> _FakePSF:
         """Return the fake PSF shared by every test star."""
@@ -423,6 +430,38 @@ def test_create_model_populates_metadata_and_star_count(monkeypatch: pytest.Monk
     assert len(model.stars) == 1
 
 
+@pytest.mark.parametrize(
+    ('motion', 'expected'),
+    [
+        (None, EXPOSURE_POINTING_SOURCE),
+        (
+            ExposureMotion(np.eye(3), np.eye(3), 'predicted C-kernel x.bc'),
+            'predicted C-kernel x.bc',
+        ),
+    ],
+    ids=['no-motion', 'motion'],
+)
+def test_create_model_records_the_smear_source(
+    monkeypatch: pytest.MonkeyPatch, motion: ExposureMotion | None, expected: str
+) -> None:
+    """``smear_source`` names the observation's motion, or the pointing when it has none."""
+    model, obs = _make_model()
+    obs.motion = motion
+    monkeypatch.setattr(
+        'spindoctor.nav_model.stars.nav_model_stars.reduce_catalogs', lambda _obs, _config: []
+    )
+    monkeypatch.setattr(
+        'spindoctor.nav_model.stars.nav_model_stars.mark_body_and_ring_conflicts',
+        lambda _obs, _config, _stars: None,
+    )
+    monkeypatch.setattr(
+        'spindoctor.nav_model.stars.nav_model_stars.compute_smear_vector_px',
+        lambda _obs: (0.0, 0.0),
+    )
+    model.create_model()
+    assert model.metadata['smear_source'] == expected
+
+
 def test_to_annotations_renders_overlay_for_usable_stars() -> None:
     """``to_annotations`` paints star-box overlays + label entries for usable stars.
 
@@ -527,24 +566,32 @@ class _StreakContext:
     )
 
 
-def _streak_features(
-    streak_vu: tuple[float, float], predicted_smear_vu: tuple[float, float]
-) -> list[StarFlags]:
+def _streak_model(
+    streak_vu: tuple[float, float],
+    predicted_smear_vu: tuple[float, float],
+    *,
+    motion: ExposureMotion | None = None,
+    flux: float = 3000.0,
+) -> tuple[NavModelStars, list[StarFlags]]:
     """Return the flags of the features a model emits over stars drawing ``streak_vu``.
 
     Parameters:
         streak_vu: The streak every planted star draws.
         predicted_smear_vu: Each star's predicted smear.
+        motion: The exposure motion the observation supplies.
+        flux: Each planted streak's total flux; 0 plants no light.
 
     Returns:
-        The star flags of each emitted feature.
+        The model, and the star flags of each feature it emits.
     """
     model, obs = _make_model()
+    obs.motion = motion
     rng = np.random.default_rng(765)
     image = rng.normal(0.0, 1.0, size=(128, 128))
     stars = []
     for i, (v, u) in enumerate(_STREAK_STAR_POSITIONS):
-        draw_streak(image, (v, u), streak_vu, flux=3000.0)
+        if flux > 0.0:
+            draw_streak(image, (v, u), streak_vu, flux=flux)
         # A record's position is a pixel corner coordinate, half a pixel above the
         # pixel-centric extended-FOV position less the margin.
         stars.append(
@@ -559,7 +606,18 @@ def _streak_features(
         )
     model._stars = [cast(MutableStar, s) for s in stars]
     features = model.to_features(cast(NavContext, _StreakContext(image_ext=image)))
-    return [cast(StarFlags, f.flags) for f in features]
+    return model, [cast(StarFlags, f.flags) for f in features]
+
+
+def _streak_features(
+    streak_vu: tuple[float, float],
+    predicted_smear_vu: tuple[float, float],
+    *,
+    motion: ExposureMotion | None = None,
+    flux: float = 3000.0,
+) -> list[StarFlags]:
+    """Return the star flags :func:`_streak_model` emits, for the same arguments."""
+    return _streak_model(streak_vu, predicted_smear_vu, motion=motion, flux=flux)[1]
 
 
 def test_to_features_records_the_streak_the_stars_draw() -> None:
@@ -572,8 +630,9 @@ def test_to_features_records_the_streak_the_stars_draw() -> None:
 
 
 def test_to_features_does_not_measure_a_frame_predicted_unsmeared() -> None:
-    """A frame whose predicted smear is below the floor is not measured for a streak."""
-    flags = _streak_features((6.0, -1.0), (1.5, 0.0))
+    """A frame predicted below the default floor is not measured for a streak."""
+    model, flags = _streak_model((6.0, -1.0), (1.5, 0.0))
+    assert model.metadata['measured_streak_vu'] is None
     assert flags[0].streak_vu == (0.0, 0.0)
 
 
@@ -586,4 +645,53 @@ def test_to_features_centroids_points_when_the_streak_is_short() -> None:
 def test_to_features_sets_aside_a_streak_far_longer_than_predicted() -> None:
     """A streak more than twice the predicted smear is not the motion's, and not recorded."""
     flags = _streak_features((6.0, -1.0), (2.5, 0.0))
+    assert flags[0].streak_vu == (0.0, 0.0)
+
+
+_UNVOUCHED = ExposureMotion(np.eye(3), np.eye(3), 'reconstructed rate')
+"""An exposure motion that does not vouch for its predicted smear."""
+
+_VOUCHED = ExposureMotion(np.eye(3), np.eye(3), 'predicted C-kernel x.bc', 1.5)
+"""An exposure motion vouching for its predicted smear up to 1.5 times."""
+
+
+def test_vouched_prediction_is_not_measured_below_its_floor() -> None:
+    """A vouched prediction of 2.9 px is below its 3 px floor, so the frame is not measured."""
+    model, _flags = _streak_model((4.6, 0.0), (2.9, 0.0), motion=_VOUCHED)
+    assert model.metadata['measured_streak_vu'] is None
+
+
+def test_vouched_prediction_sets_aside_a_streak_beyond_its_ratio() -> None:
+    """A streak 1.7 times a vouched 1.5-times prediction is not recorded."""
+    flags = _streak_features((6.0, -1.0), (3.5, 0.0), motion=_VOUCHED)
+    assert flags[0].streak_vu == (0.0, 0.0)
+
+
+def test_unvouched_prediction_records_a_streak_within_twice_it() -> None:
+    """A streak 1.7 times a prediction nobody vouches for is still recorded."""
+    flags = _streak_features((6.0, -1.0), (3.5, 0.0), motion=_UNVOUCHED)
+    assert flags[0].streak_vu[0] == pytest.approx(6.0, abs=0.5)
+
+
+def test_to_features_centroids_on_the_predicted_streak_when_none_is_measured() -> None:
+    """With a vouched prediction and no measurable streak, the prediction stands in."""
+    flags = _streak_features((6.0, -1.0), (-7.0, 2.0), motion=_VOUCHED, flux=0.0)
+    assert flags[0].streak_vu == (7.0, -2.0)
+
+
+def test_unvouched_prediction_does_not_stand_in() -> None:
+    """A motion that does not vouch for its smear leaves an unmeasured frame as points."""
+    flags = _streak_features((6.0, -1.0), (-7.0, 2.0), motion=_UNVOUCHED, flux=0.0)
+    assert flags[0].streak_vu == (0.0, 0.0)
+
+
+def test_vouched_prediction_shorter_than_a_streak_does_not_stand_in() -> None:
+    """A vouched prediction of 4 px is too short to centroid on, so stars stay points."""
+    flags = _streak_features((6.0, -1.0), (4.0, 0.0), motion=_VOUCHED, flux=0.0)
+    assert flags[0].streak_vu == (0.0, 0.0)
+
+
+def test_to_features_keeps_a_measured_short_streak_over_the_prediction() -> None:
+    """A streak measured too short to record is not replaced by the predicted one."""
+    flags = _streak_features((3.0, -0.5), (7.0, 2.0), motion=_VOUCHED)
     assert flags[0].streak_vu == (0.0, 0.0)
