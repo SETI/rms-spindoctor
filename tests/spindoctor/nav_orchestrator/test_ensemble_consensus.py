@@ -239,7 +239,18 @@ def _prune(
     *,
     compromise_px: float = 1.0,
 ) -> FusionPruning:
-    """Prune a combine at the default thresholds; the combine set is ``estimators``."""
+    """Prune a combine at the default thresholds.
+
+    Parameters:
+        estimators: The independent estimators, each collapsed set's representative
+            among them; also passed as the combine set.
+        collapsed_groups: Each collapsed set, representative first.
+        best_group: The consensus subset the estimators came from.
+        compromise_px: The compromise limit (``0.0`` turns off the collapsed-set test).
+
+    Returns:
+        The pruning, with no result excluded beforehand.
+    """
     return leave_out_compromising_fusions(
         estimators,
         estimators,
