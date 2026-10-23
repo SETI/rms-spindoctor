@@ -7,6 +7,7 @@ import pytest
 
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig, ensemble
 from spindoctor.nav_orchestrator.ensemble_consensus import (
+    FusionPruning,
     fusion_compromise_px,
     leave_out_compromising_fusions,
 )
@@ -231,22 +232,32 @@ def _refine(sigma_px: float, *, seeds: frozenset[str] = frozenset()) -> NavTechn
     )
 
 
+def _prune(
+    estimators: list[NavTechniqueResult],
+    collapsed_groups: list[list[NavTechniqueResult]],
+    best_group: list[NavTechniqueResult],
+    *,
+    compromise_px: float = 1.0,
+) -> FusionPruning:
+    """Prune a combine at the default thresholds; the combine set is ``estimators``."""
+    return leave_out_compromising_fusions(
+        estimators,
+        estimators,
+        collapsed_groups,
+        best_group,
+        [],
+        agreement_sigma=2.0,
+        agreement_pixel_floor=5.0,
+        agreement_compromise_px=compromise_px,
+        rcond=1.0e-9,
+    )
+
+
 def _pruned(
     joiner: NavTechniqueResult, group: list[NavTechniqueResult]
 ) -> list[NavTechniqueResult]:
     """The results left out of a combine of ``joiner`` and a set ``group``, representative first."""
-    estimators = [joiner, group[0]]
-    return leave_out_compromising_fusions(
-        estimators,
-        estimators,
-        [group],
-        [joiner, *group],
-        [],
-        agreement_sigma=2.0,
-        agreement_pixel_floor=5.0,
-        agreement_compromise_px=1.0,
-        rcond=1.0e-9,
-    ).left_out
+    return _prune([joiner, group[0]], [group], [joiner, *group]).left_out
 
 
 def test_a_joiner_less_precise_than_the_set_is_left_out() -> None:
@@ -340,17 +351,7 @@ def _nine_star_refine(*, star_base: int = 10) -> NavTechniqueResult:
 
 def _left_out_of_pair(a: NavTechniqueResult, b: NavTechniqueResult) -> list[NavTechniqueResult]:
     """The results left out of a combine of two estimators and no collapsed set."""
-    return leave_out_compromising_fusions(
-        [a, b],
-        [a, b],
-        [],
-        [a, b],
-        [],
-        agreement_sigma=2.0,
-        agreement_pixel_floor=5.0,
-        agreement_compromise_px=1.0,
-        rcond=1.0e-9,
-    ).left_out
+    return _prune([a, b], [], [a, b]).left_out
 
 
 def test_of_two_disagreeing_star_results_the_one_on_fewer_stars_is_left_out() -> None:
@@ -365,17 +366,8 @@ def test_of_two_disagreeing_star_results_the_one_on_fewer_stars_is_left_out() ->
 def test_the_star_count_rule_holds_with_the_compromise_test_disabled() -> None:
     """A compromise limit of 0.0 turns off only the collapsed-set test."""
     match = _two_star_result((2.3, 0.0), 0.34)
-    pruned = leave_out_compromising_fusions(
-        [match, _nine_star_refine()],
-        [match, _nine_star_refine()],
-        [],
-        [match, _nine_star_refine()],
-        [],
-        agreement_sigma=2.0,
-        agreement_pixel_floor=5.0,
-        agreement_compromise_px=0.0,
-        rcond=1.0e-9,
-    )
+    refine = _nine_star_refine()
+    pruned = _prune([match, refine], [], [match, refine], compromise_px=0.0)
     assert pruned.left_out == [match]
 
 
@@ -401,17 +393,7 @@ def _star_fit(n_stars: int, offset: tuple[float, float], first: int) -> NavTechn
 
 def _left_out_names(results: list[NavTechniqueResult]) -> list[str]:
     """Sorted feature-id heads of the results left out of a combine of ``results``."""
-    pruned = leave_out_compromising_fusions(
-        results,
-        results,
-        [],
-        results,
-        [],
-        agreement_sigma=2.0,
-        agreement_pixel_floor=5.0,
-        agreement_compromise_px=1.0,
-        rcond=1.0e-9,
-    )
+    pruned = _prune(results, [], results)
     return sorted(r.feature_ids[0] for r in pruned.left_out)
 
 
