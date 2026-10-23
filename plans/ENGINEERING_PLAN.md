@@ -356,16 +356,30 @@ What remains of the family:
   0.52 px. The symmetric star check, which also looks for stars at the
   bundle's answer, changes no verdict of the full run's worse frames.
   Still refused: `N1543177345` and `N1743090421` (the previous answers are
-  5 px off the stars), `N1493641551` (no usable star either way), and the
-  smeared `N1605530694` and `N1605536089`, which #765 resolves
-  (`N1605536089` 0.18 px on its branch). Single results inside the floor are
-  still fused however far apart statistically (#767). The image library is
-  unchanged on this branch (75 of 75 identical); on the combination only the
+  5 px off the stars) and `N1493641551` (no usable star either way). Single
+  results inside the floor are still fused however far apart statistically
+  (#767). The image library is unchanged on this branch (75 of 75
+  identical); on the combination only the
   Galileo frame `C0059899900R` moves, 1 px farther from an operator truth that
   three catalog stars put 5.3 to 7 px off, and closer to those stars (mean
   0.85 px against 1.15 px). The confidence tiers keep their meaning over the
   replayed full run: at the high tier 86.6% of NAC answers lie within 0.5 px
   of the bundle (85.7% before) and 292 over 2 px (299).
+  Stars on a smeared frame are then centroided at their streaks' centers
+  (#765). The predicted smear is a poor guide to the streak (on frames
+  predicted to smear 4.5 to 8 px the streak is a median 0.6 times the
+  predicted length and 10 to 20 degrees off), so the star model measures the
+  streak the frame's bright stars draw and every star technique centroids on
+  it when it is at least 4.5 px long. `N1605530694`, whose peaks split 2.4 px
+  apart along its 6 px streaks, answers 0.01 px from the bundle and
+  `N1605536089` 0.18 px. A rerun on the round-5 combination of the 560
+  smeared frames of the 2,570, a 500-frame control and the final full run's
+  119 further streaked frames makes no verdict worse than the earlier rerun or
+  the final full run; 3 refusals and 2 marginal answers become right, the
+  streaked frames' median distance from the bundle falls from 0.14 to
+  0.09 px, and every unstreaked frame and the library are unchanged.
+  Strictly better than the bundle is still not shown: 150 frames cannot be
+  decided by stars.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
