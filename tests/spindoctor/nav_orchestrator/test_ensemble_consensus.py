@@ -362,6 +362,23 @@ def test_of_two_disagreeing_star_results_the_one_on_fewer_stars_is_left_out() ->
     assert _left_out_of_pair(match, _nine_star_refine()) == [match]
 
 
+def test_the_star_count_rule_holds_with_the_compromise_test_disabled() -> None:
+    """A compromise limit of 0.0 turns off only the collapsed-set test."""
+    match = _two_star_result((2.3, 0.0), 0.34)
+    pruned = leave_out_compromising_fusions(
+        [match, _nine_star_refine()],
+        [match, _nine_star_refine()],
+        [],
+        [match, _nine_star_refine()],
+        [],
+        agreement_sigma=2.0,
+        agreement_pixel_floor=5.0,
+        agreement_compromise_px=0.0,
+        rcond=1.0e-9,
+    )
+    assert pruned.left_out == [match]
+
+
 def test_star_results_sharing_a_star_are_not_judged_by_their_star_counts() -> None:
     """A refine that holds the match's own stars is not set against it here."""
     match = _two_star_result((2.3, 0.0), 0.34)

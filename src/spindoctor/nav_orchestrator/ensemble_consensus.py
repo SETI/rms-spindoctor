@@ -495,7 +495,8 @@ def leave_out_compromising_fusions(
         agreement_pixel_floor: Translation distance (pixels) of the pixel-floor
             agreement; ``0.0`` disables it.
         agreement_compromise_px: Largest compromise (pixels) of a fusion; ``0.0``
-            disables both tests (nothing is left out).
+            disables the test against collapsed sets (the star-count test still
+            applies).
         rcond: rcond passed to ``pinvh``.
 
     Returns:
@@ -503,13 +504,14 @@ def leave_out_compromising_fusions(
         equality (technique and consumed features), because a representative in
         ``estimators`` is a copy of the consensus member it stands for.
     """
-    if agreement_compromise_px <= 0.0:
-        return FusionPruning(list(combine_set), list(best_group), list(excluded), [])
     index = {id(est): k for k, est in enumerate(estimators)}
     representatives = {id(group[0]) for group in collapsed_groups}
     dropped: set[int] = set()
     left_out: list[NavTechniqueResult] = []
-    for group in collapsed_groups:
+    # The collapsed-set test is the compromise test, so a 0.0 limit turns it off; the
+    # star-count test below does not depend on the limit.
+    tested_sets = collapsed_groups if agreement_compromise_px > 0.0 else []
+    for group in tested_sets:
         rep_k = index[id(group[0])]
         for k, est in enumerate(estimators):
             if rep_k in dropped:

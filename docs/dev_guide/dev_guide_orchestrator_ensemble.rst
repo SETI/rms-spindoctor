@@ -560,7 +560,8 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
   the pair disagrees (see Step 3). A pass-2 result and a technique that seeded it, agreeing
   by the floor but not by Mahalanobis distance, are held to the same limit (Step 3), and
   so is a result fused with a collapsed set's representative (Step 5). One pixel is the
-  scale at which an answer is judged right. ``0.0`` disables the test.
+  scale at which an answer is judged right. ``0.0`` disables the test; the star-count
+  test of Step 5 does not depend on it.
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.confirming_axis_max_sigma_px` —
   float, default ``1.0``. Largest standard deviation (px) along a principal axis of a
   body, ring, or multi-star result for that axis to confirm a seeded single-star refine
