@@ -16,6 +16,7 @@ from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.nav_technique.diagnostics import (
     RingAnnulusDiagnostics,
     RingEdgeDiagnostics,
+    StarFieldDiagnostics,
     StarRefineDiagnostics,
     StarUniqueMatchDiagnostics,
 )
@@ -320,6 +321,136 @@ def test_a_member_blind_along_the_separation_lends_the_set_no_precision() -> Non
         'StarRefineNav',
         'StarUniqueMatchNav',
     ]
+
+
+def _nine_star_refine(*, star_base: int = 10) -> NavTechniqueResult:
+    """A nine-star refine at the origin (0.4 px), seeded by the two-star match."""
+    return NavTechniqueResult(
+        technique_name='StarRefineNav',
+        feature_ids=tuple(f'star:UCAC4:{star_base + k}' for k in range(9)),
+        offset_px=(0.0, 0.0),
+        covariance_px2=np.eye(2) * 0.4**2,
+        confidence=0.87,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarRefineDiagnostics(n_stars_used=9),
+        prior_source_techniques=frozenset({'StarUniqueMatchNav'}),
+    )
+
+
+def _left_out_of_pair(a: NavTechniqueResult, b: NavTechniqueResult) -> list[NavTechniqueResult]:
+    """The results left out of a combine of two estimators and no collapsed set."""
+    return leave_out_compromising_fusions(
+        [a, b],
+        [a, b],
+        [],
+        [a, b],
+        [],
+        agreement_sigma=2.0,
+        agreement_pixel_floor=5.0,
+        agreement_compromise_px=1.0,
+        rcond=1.0e-9,
+    ).left_out
+
+
+def test_of_two_disagreeing_star_results_the_one_on_fewer_stars_is_left_out() -> None:
+    """A two-star match 2.3 px (4.4 sigma) from a nine-star refine it seeded is left out.
+
+    Mirrors F ring frame N1772441050, where the two were fused at a 0.98 px compromise.
+    """
+    match = _two_star_result((2.3, 0.0), 0.34)
+    assert _left_out_of_pair(match, _nine_star_refine()) == [match]
+
+
+def test_star_results_sharing_a_star_are_not_judged_by_their_star_counts() -> None:
+    """A refine that holds the match's own stars is not set against it here."""
+    match = _two_star_result((2.3, 0.0), 0.34)
+    assert _left_out_of_pair(match, _nine_star_refine(star_base=1)) == []
+
+
+def _star_fit(n_stars: int, offset: tuple[float, float], first: int) -> NavTechniqueResult:
+    """A star-field fit on ``n_stars`` stars numbered from ``first``, sigma 0.3 px."""
+    return NavTechniqueResult(
+        technique_name='StarFieldFromCatalogNav',
+        feature_ids=tuple(f'star:UCAC4:{first + k}' for k in range(n_stars)),
+        offset_px=offset,
+        covariance_px2=np.eye(2) * 0.3**2,
+        confidence=0.8,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarFieldDiagnostics(n_inliers=n_stars),
+    )
+
+
+def _left_out_names(results: list[NavTechniqueResult]) -> list[str]:
+    """Sorted feature-id heads of the results left out of a combine of ``results``."""
+    pruned = leave_out_compromising_fusions(
+        results,
+        results,
+        [],
+        results,
+        [],
+        agreement_sigma=2.0,
+        agreement_pixel_floor=5.0,
+        agreement_compromise_px=1.0,
+        rcond=1.0e-9,
+    )
+    return sorted(r.feature_ids[0] for r in pruned.left_out)
+
+
+def _three_star_fits() -> list[NavTechniqueResult]:
+    """A two-star match, a five-star fit 2.5 px away, and a nine-star fit beside the match.
+
+    The nine-star fit agrees with the match (1.2 sigma) and contradicts the five-star
+    fit (7 sigma) without outnumbering it by the factor two.
+    """
+    return [
+        _two_star_result((0.5, 0.0), 0.3),
+        _star_fit(5, (3.0, 0.0), 100),
+        _star_fit(9, (0.0, 0.0), 200),
+    ]
+
+
+def test_a_contested_star_fit_leaves_nothing_out() -> None:
+    """The five-star fit, contradicted by the nine-star fit, does not outnumber the match."""
+    assert _left_out_names(_three_star_fits()) == []
+
+
+def test_a_contested_star_fit_leaves_nothing_out_in_reverse_order() -> None:
+    """The same results in reverse order leave nothing out either."""
+    assert _left_out_names(_three_star_fits()[::-1]) == []
+
+
+def test_an_uncontested_star_fit_outnumbers_a_match_it_contradicts() -> None:
+    """Without the nine-star fit, the five-star fit leaves the match 2.5 px away out."""
+    assert _left_out_names(_three_star_fits()[:2]) == ['star:UCAC4:1']
+
+
+def test_star_fits_differing_only_in_rotation_do_not_contradict() -> None:
+    """A rotation difference alone leaves nothing out; only translations are compared."""
+    few = dataclasses.replace(
+        _star_fit(2, (0.0, 0.0), 100),
+        covariance_px2=np.diag([0.09, 0.09, 1.0e-6]),
+        rotation_rad=0.01,
+    )
+    many = dataclasses.replace(
+        _star_fit(9, (0.0, 0.0), 200),
+        covariance_px2=np.diag([0.09, 0.09, 1.0e-6]),
+        rotation_rad=0.0,
+    )
+    assert _left_out_names([few, many]) == []
+
+
+def test_a_star_result_on_fewer_stars_than_twice_another_is_not_left_out() -> None:
+    """Three stars against four, 4.5 px apart, are left to the combine."""
+    assert _left_out_names([_star_fit(3, (0.0, 0.0), 100), _star_fit(4, (4.5, 0.0), 200)]) == []
+
+
+def test_ensemble_answer_is_the_star_result_on_more_stars() -> None:
+    """With the two-star match left out, the answer is the nine-star refine's offset."""
+    result = _run([_two_star_result((2.3, 0.0), 0.34), _nine_star_refine()])
+    assert result.status == 'success'
+    assert result.offset_px == pytest.approx((0.0, 0.0), abs=1e-9)
 
 
 def _ring_pair_and_a_star() -> list[NavTechniqueResult]:

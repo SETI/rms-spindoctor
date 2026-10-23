@@ -17,6 +17,7 @@ from typing import cast
 
 import numpy as np
 
+from spindoctor.nav_orchestrator.ensemble_independence import STAR_CONSENSUS_TECHNIQUES
 from spindoctor.nav_orchestrator.ensemble_observability import (
     mahalanobis_distance,
     observable_basis,
@@ -29,6 +30,11 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 #: Squared length of a unit direction's projection onto a result's observable
 #: subspace at or above which the result observes that direction.
 _FULLY_OBSERVED = 0.999
+
+#: Factor by which one star result's distinct matched stars must outnumber another's
+#: for it to leave the other out when the two contradict each other.  Below it the two
+#: are comparable evidence, and the combine weighs them by their covariances.
+_OUTNUMBERING_FACTOR = 2
 
 __all__ = [
     'ConsensusSelection',
@@ -465,6 +471,18 @@ def leave_out_compromising_fusions(
     A pair in which either side seeded the other's prior is not tested here: a
     seeded refine is held to its seed when the consensus is selected.
 
+    Two star results (:data:`STAR_CONSENSUS_TECHNIQUES`) that consumed no star in
+    common and whose translations lie more than ``agreement_sigma`` apart
+    (Mahalanobis distance) disagree about which detections are the catalog stars:
+    each places the whole star field.  When one matched at least
+    ``_OUTNUMBERING_FACTOR`` times as many distinct stars as the other, and no star
+    result on still more stars contradicts it, the other is left out, with every
+    member of its set when it represents one; closer counts are left to the combine.
+    Results are decided from the most stars down, so the outcome does not depend on
+    their order.  Seeding does not exempt such a pair: a
+    refine seeded at a two-star match that finds nine stars elsewhere has tested the
+    match and found the stars somewhere else.
+
     Parameters:
         estimators: The resolved independent estimators; each collapsed set's
             representative is the same object as the set's first member.
@@ -477,7 +495,7 @@ def leave_out_compromising_fusions(
         agreement_pixel_floor: Translation distance (pixels) of the pixel-floor
             agreement; ``0.0`` disables it.
         agreement_compromise_px: Largest compromise (pixels) of a fusion; ``0.0``
-            disables the test (nothing is left out).
+            disables both tests (nothing is left out).
         rcond: rcond passed to ``pinvh``.
 
     Returns:
@@ -518,12 +536,92 @@ def leave_out_compromising_fusions(
             else:
                 dropped.add(rep_k)
                 left_out.extend(group)
+    members = {id(group[0]): group for group in collapsed_groups}
+    for k in _outnumbered_star_results(
+        estimators,
+        members,
+        dropped,
+        agreement_sigma=agreement_sigma,
+        agreement_pixel_floor=agreement_pixel_floor,
+        rcond=rcond,
+    ):
+        dropped.add(k)
+        left_out.extend(members.get(id(estimators[k]), [estimators[k]]))
     return FusionPruning(
         combine_set=[r for k, r in enumerate(combine_set) if k not in dropped],
         best_group=[r for r in best_group if r not in left_out],
         excluded=[*excluded, *left_out],
         left_out=left_out,
     )
+
+
+def _outnumbered_star_results(
+    estimators: list[NavTechniqueResult],
+    members: dict[int, list[NavTechniqueResult]],
+    dropped: set[int],
+    *,
+    agreement_sigma: float,
+    agreement_pixel_floor: float,
+    rcond: float,
+) -> list[int]:
+    """Return the star estimators outnumbered by a star estimator they contradict.
+
+    Two star estimators contradict each other when they consumed no star in common
+    and their translations lie more than ``agreement_sigma`` apart (Mahalanobis
+    distance in the directions both observe).  An estimator is outnumbered by one it
+    contradicts that matched at least ``_OUTNUMBERING_FACTOR`` times as many distinct
+    stars, provided that one is uncontested: no surviving estimator on more stars
+    contradicts it.  Estimators are decided from the most stars down, so the outcome
+    does not depend on the order of ``estimators``.
+
+    Parameters:
+        estimators: The resolved independent estimators.
+        members: Each collapsed set's members keyed by ``id`` of its representative;
+            a representative's stars are those of every member.
+        dropped: Indices into ``estimators`` already left out; they neither outnumber
+            nor are returned.
+        agreement_sigma: Maximum Mahalanobis distance for agreement.
+        agreement_pixel_floor: Translation distance (pixels) of the pixel-floor
+            agreement, passed through to :func:`_pair_terms`.
+        rcond: rcond passed to ``pinvh``.
+
+    Returns:
+        The indices into ``estimators`` to leave out, in ascending order.
+    """
+    stars = {
+        k: {
+            feature_id
+            for member in members.get(id(est), [est])
+            if member.technique_name in STAR_CONSENSUS_TECHNIQUES
+            for feature_id in member.feature_ids
+        }
+        for k, est in enumerate(estimators)
+        if k not in dropped and est.technique_name in STAR_CONSENSUS_TECHNIQUES
+    }
+
+    def contradicts(a: int, b: int) -> bool:
+        if stars[a] & stars[b]:
+            return False
+        terms = _pair_terms(
+            estimators[a], estimators[b], agreement_pixel_floor=agreement_pixel_floor, rcond=rcond
+        )
+        return terms.translation_mahalanobis > agreement_sigma
+
+    order = sorted(stars, key=lambda k: (-len(stars[k]), k))
+    out: set[int] = set()
+    for i, k in enumerate(order):
+        if k in out:
+            continue
+        if any(
+            len(stars[m]) > len(stars[k]) and contradicts(m, k) for m in order[:i] if m not in out
+        ):
+            continue
+        for j in order[i + 1 :]:
+            if j in out or len(stars[k]) < _OUTNUMBERING_FACTOR * len(stars[j]):
+                continue
+            if contradicts(k, j):
+                out.add(j)
+    return sorted(out)
 
 
 def _consistent_with_a_member(
@@ -597,12 +695,16 @@ class _PairTerms:
         separation_vu: ``(2,)`` unit direction from the first to the second in
             ``(v, u)``, within the directions both observe (zero when they coincide
             there).
+        translation_mahalanobis: Mahalanobis distance of the translations alone,
+            within the directions both observe (a rotation difference does not
+            count).
     """
 
     mahalanobis: float
     pixel_match: bool
     compromise_px: float
     separation_vu: NDArrayFloatType
+    translation_mahalanobis: float
 
     def agrees(self, *, agreement_sigma: float, compromise_px: float) -> bool:
         """Return the selection's pairwise agreement (the floor, or Mahalanobis without compromise).
@@ -678,9 +780,11 @@ def _pair_terms(
     cov_b_t = basis_t.T @ cov_b[:2, :2] @ basis_t
     separation = float(np.linalg.norm(delta_t))
     direction = basis_t @ delta_t / separation if separation > 0.0 else np.zeros(2)
+    translation_d2 = float(delta_t @ np.linalg.pinv(cov_a_t + cov_b_t, rcond=rcond) @ delta_t)
     return _PairTerms(
         mahalanobis=float(mahalanobis_distance(mu_a, cov_a, mu_b, cov_b, rcond=rcond)),
         pixel_match=agreement_pixel_floor > 0.0 and separation <= agreement_pixel_floor,
         compromise_px=fusion_compromise_px(delta_t, cov_a_t, cov_b_t),
         separation_vu=cast(NDArrayFloatType, direction),
+        translation_mahalanobis=math.sqrt(max(translation_d2, 0.0)),
     )

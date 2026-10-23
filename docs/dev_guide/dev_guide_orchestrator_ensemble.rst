@@ -305,6 +305,20 @@ reference. A star set left
 standing alone earns no agreement boost and carries the disagreement penalty, so 351 of
 those answers are at the medium tier. 85% of them are within 0.5 px of the reference.
 
+The same step settles two star results that consumed no star in common and whose
+translations lie more than ``agreement_sigma`` apart (Mahalanobis distance). Each places
+the whole star field, so they disagree about which detections are the catalog stars. When
+one matched at least twice as many distinct stars as the other, and no star result on
+still more stars contradicts it, the other is left out (with every member of its set, when
+it represents one). Closer counts are left to the combine, and so is a result outnumbered
+only by one that is itself contradicted. Results are decided from the most stars down, so
+the outcome does not depend on their order. Seeding does not exempt the pair: on F ring
+frame N1772441050 a refine seeded at a two-star match found nine stars 2.4 px away (4.5
+standard deviations), which the selection's seeded-pair test, at a compromise of 0.98 px,
+would fuse 1.06 px from the reference pointing. With the match left out the answer is 0.25
+px from it. Over the replayed full F ring run the rule acts on three frames, and each
+answer is about 0.3 px or less from the reference.
+
 Step 6 — precision-weighted merge
 ---------------------------------
 

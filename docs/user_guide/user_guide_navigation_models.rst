@@ -41,11 +41,14 @@ one confident technique can outweigh several weaker ones that agree with each ot
 techniques left outside the surviving group are set aside, and those inside it are
 combined by weighting each by how tightly its offset is determined. When a set-aside
 group is close enough in summed confidence to stand as a rival answer, the image is
-reported as ``conflicted``. A technique inside the group that lies within a few pixels of
-techniques that measured the same thing, but well outside the uncertainty of every one of
-them, is not combined with them: whichever side is less precisely determined is set aside
-before the combination, and that does not make the image conflicted. What comes out is
-one offset in pixels, one uncertainty, and one confidence for the image.
+reported as ``conflicted``. Two further rules set techniques inside the group aside
+before the combination, and neither makes the image conflicted. A technique that lies
+within a few pixels of techniques that measured the same thing, but well outside the
+uncertainty of every one of them, is not combined with them: whichever side is less
+precisely determined is set aside. And when two star answers that share no star disagree
+and one rests on at least twice as many stars, the other is set aside, unless a star
+answer on still more stars contradicts the larger one. What comes out is one offset in
+pixels, one uncertainty, and one confidence for the image.
 
 The offset follows one convention throughout SpinDoctor: if the prediction puts something
 at row and column ``(v, u)``, the real thing is at ``(v + dv, u + du)``.
