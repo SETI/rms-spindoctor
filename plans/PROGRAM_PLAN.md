@@ -338,6 +338,11 @@ The known open defects:
   With #762, #763 and #764 addressed, three of those four answer within
   1 px and a rerun of the 2,570 frames shows none ours by stars; the smeared
   frame N1605530694 stays refused (#765).
+  A full run on the combination found three answers ours by stars and one
+  wrong at the high tier; two ensemble fixes (and one proposed for #754)
+  answer all four within 0.52 px, and a rerun shows none of 532 worse
+  frames ours by stars, 150 undecidable. Open: #765 for the two smeared
+  refusals, #767 for single results fused inside the pixel floor.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix
   (#447) leaves once it closes the coarse-grid and boundary-pinning halves.

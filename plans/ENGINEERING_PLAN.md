@@ -337,6 +337,35 @@ What remains of the family:
   becomes the star field and one frame's tier rises (closer to its verified
   offset); non-Cassini frames are unchanged. Strictly better than the bundle
   is still not shown: `N1605530694` was answered within 1 px before.
+  A full run of the 20,584 frames on that combination (2026-10-22) found
+  three answers ours by stars against the run before it, each a star answer
+  pulled just past 1 px, and one wrong at the high tier (`N1584292832`).
+  Two fixes followed. A result fused with a collapsed set must agree
+  statistically with at least one of its members: a ring edge inside the
+  5 px floor but 4.6 to 8.6 standard deviations from every star of the set
+  had passed whenever its fusion moved the answer under a pixel. And of two
+  star results that share no star and disagree, the one on at most half as
+  many stars is left out unless a result on still more stars contradicts the
+  larger. A third, proposed for #754, lets a three-star fit within a pixel
+  stand for a star set whose sixteen-star refine scatters over more than one.
+  Rerun of the 2,570 frames plus 342 the offline replay moved: against the
+  full run 12 better and 10 worse, every worse one bundle wrong by 2 to 45
+  stars; of the 532 frames worse than the full run or the earlier one, stars
+  show the pointing wrong on 382 and side with it on none, and 150 cannot be
+  decided (148 already undecided). The four losses above answer within
+  0.52 px. The symmetric star check, which also looks for stars at the
+  bundle's answer, changes no verdict of the full run's worse frames.
+  Still refused: `N1543177345` and `N1743090421` (the previous answers are
+  5 px off the stars), `N1493641551` (no usable star either way), and the
+  smeared `N1605530694` and `N1605536089`, which #765 resolves
+  (`N1605536089` 0.18 px on its branch). Single results inside the floor are
+  still fused however far apart statistically (#767). The image library is
+  unchanged on this branch (75 of 75 identical); on the combination only the
+  Galileo frame `C0059899900R` moves, 1 px farther from an operator truth that
+  three catalog stars put 5.3 to 7 px off, and closer to those stars (mean
+  0.85 px against 1.15 px). The confidence tiers keep their meaning over the
+  replayed full run: at the high tier 86.6% of NAC answers lie within 0.5 px
+  of the bundle (85.7% before) and 292 over 2 px (299).
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
