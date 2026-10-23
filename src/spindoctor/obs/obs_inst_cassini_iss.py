@@ -418,17 +418,21 @@ class ObsCassiniISS(ObsSnapshotInst):
         them, so the observation's pointing is unchanged; where they do not cover the
         exposure it is the reconstructed kernels' mean rate over a window about it (see
         :func:`~spindoctor.obs.obs_inst_cassini_iss_motion.cassini_exposure_motion`).  It
-        is read once per observation.
+        is read once per observation; a read that raises leaves None for later calls.
 
         Returns:
             The motion, or None to use the observation's own pointing at the exposure's
             start and end.
         """
         if not self._exposure_motion_read:
-            self._exposure_motion = cassini_exposure_motion(
-                self, self.config.category(EXPOSURE_MOTION_SECTION)
-            )
-            self._exposure_motion_read = True
+            # Read once even when the read raises, so a failure is not repeated by every
+            # caller of the same observation.
+            try:
+                self._exposure_motion = cassini_exposure_motion(
+                    self, self.config.category(EXPOSURE_MOTION_SECTION)
+                )
+            finally:
+                self._exposure_motion_read = True
         return self._exposure_motion
 
     @property

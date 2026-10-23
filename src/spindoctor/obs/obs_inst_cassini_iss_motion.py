@@ -67,63 +67,58 @@ RECONSTRUCTED_RATE_SOURCE = 'reconstructed C-kernels mean rate over {window:g} s
 """The motion's source when the reconstructed kernels' mean rate supplied it."""
 
 # What cspyce raises, through oops, when the furnished kernels cannot place a frame at an
-# epoch: a missing frame or clock as a LookupError, missing C-kernel data as an OSError,
-# and an unconnected frame chain as a RuntimeError.
+# epoch within seconds of an exposure: a missing frame or clock as a LookupError, missing
+# C-kernel data as an OSError, and an unconnected frame chain as a RuntimeError.  cspyce
+# also raises ValueError for an epoch outside the clock's range, which cannot happen this
+# close to an exposure, so a ValueError here is a defect and is left to propagate.
 _SPICE_FAILURES = (LookupError, OSError, RuntimeError)
 
 
 def predicted_ck_paths(
-    epochs_et: Sequence[float], *, spacecraft_id: int, kernel_name: str, kernel_version: str
+    epoch_et: float, *, spacecraft_id: int, kernel_name: str, kernel_version: str
 ) -> list[Path]:
-    """Return local copies of the predicted C-kernels the SPICE database lists at epochs.
+    """Return local copies of the predicted C-kernels the SPICE database lists at an epoch.
 
-    The kernels are selected from the database oops furnishes its kernels from, one
-    selection per epoch (the database's selection over a span keeps only the kernels
-    covering its start), restricted to one release of the set, and retrieved to the
-    local cache; none is furnished.  A listed kernel that cannot be retrieved is left
-    out and logged.
+    The kernels are selected from the database oops furnishes its kernels from,
+    restricted to one release of the set, and retrieved to the local cache; none is
+    furnished.  A listed kernel that cannot be retrieved is left out and logged.
 
     Parameters:
-        epochs_et: The epochs, TDB seconds past J2000.
+        epoch_et: The epoch, TDB seconds past J2000.
         spacecraft_id: SPICE id of the spacecraft the database lists the kernels under.
         kernel_name: The database's name of the kernel set, such as
             ``CAS-CK-PREDICTED``.
         kernel_version: The release of the set to use, such as ``V02``.
 
     Returns:
-        The kernels' local paths, each once, in the database's load order for the epochs
-        taken in turn, later ones taking precedence; empty when the database lists none.
+        The kernels' local paths in the database's load order, later ones taking
+        precedence; empty when the database lists none.
     """
     was_open = spicedb.db_is_open()
     spicedb.open_db()
-    filespecs: list[str] = []
+    tai = julian.tai_from_tdb(epoch_et)
     try:
-        for et in epochs_et:
-            tai = julian.tai_from_tdb(et)
-            try:
-                kernels = spicedb.select_ck(spacecraft_id, name=kernel_name, time=(tai, tai))
-            except ValueError:
-                # spicedb signals an empty selection by raising rather than by returning
-                # nothing; outside the kernel set's span that is the expected answer.
-                continue
-            for kernel in kernels:
-                if kernel.kernel_version != kernel_version:
-                    continue
-                for filespec in str(kernel.filespec).split(','):
-                    if filespec in filespecs:
-                        filespecs.remove(filespec)
-                    filespecs.append(filespec)
+        kernels = spicedb.select_ck(spacecraft_id, name=kernel_name, time=(tai, tai))
+    except ValueError:
+        # spicedb signals an empty selection by raising rather than by returning nothing;
+        # outside the kernel set's span that is the expected answer.
+        kernels = []
     finally:
         if not was_open:
             spicedb.close_db()
     prefix = spicedb.get_spice_filecache_prefix()
     paths: list[Path] = []
-    for filespec in filespecs:
-        local = prefix.retrieve(filespec, exception_on_fail=False)
-        if isinstance(local, Path):
-            paths.append(local)
-        else:
-            IMAGE_LOGGER.warning('Predicted C-kernel %s cannot be retrieved: %s', filespec, local)
+    for kernel in kernels:
+        if kernel.kernel_version != kernel_version:
+            continue
+        for filespec in str(kernel.filespec).split(','):
+            local = prefix.retrieve(filespec, exception_on_fail=False)
+            if isinstance(local, Path):
+                paths.append(local)
+            else:
+                IMAGE_LOGGER.warning(
+                    'Predicted C-kernel %s cannot be retrieved: %s', filespec, local
+                )
     return paths
 
 
@@ -152,9 +147,10 @@ def cassini_exposure_motion(
             ``spacecraft_id``, ``ck_object_id``, ``predicted_ck_name``,
             ``predicted_ck_version``, ``predicted_max_streak_to_predicted``, and
             ``reconstructed_half_window_s``.
-        kernel_paths: The predicted C-kernels to read, in load order; None selects them
-            with :func:`predicted_ck_paths` from ``settings['spacecraft_id']``,
-            ``settings['predicted_ck_name']``, and ``settings['predicted_ck_version']``.
+        kernel_paths: The predicted C-kernels to read for every instant, in load order;
+            None selects each instant's with :func:`predicted_ck_paths` from
+            ``settings['spacecraft_id']``, ``settings['predicted_ck_name']``, and
+            ``settings['predicted_ck_version']``.
 
     Returns:
         The motion, or None to use the observation's own pointing at the exposure's
@@ -165,25 +161,31 @@ def cassini_exposure_motion(
     epochs = (start_et, mid_et, end_et)
     ck_object_id = int(settings['ck_object_id'])
     if kernel_paths is None:
-        kernel_paths = predicted_ck_paths(
-            epochs,
-            spacecraft_id=int(settings['spacecraft_id']),
-            kernel_name=str(settings['predicted_ck_name']),
-            kernel_version=str(settings['predicted_ck_version']),
-        )
+        # One selection per instant: the database's selection over a span keeps only the
+        # kernels covering its start, and each instant is answered by its own kernels'
+        # priority, as SPICE would answer it.
+        per_instant = [
+            predicted_ck_paths(
+                et,
+                spacecraft_id=int(settings['spacecraft_id']),
+                kernel_name=str(settings['predicted_ck_name']),
+                kernel_version=str(settings['predicted_ck_version']),
+            )
+            for et in epochs
+        ]
+    else:
+        per_instant = [list(kernel_paths)] * len(epochs)
     sclk_id = CK_OBJECT_SCLK_ID[ck_object_id]
-    ticks = [float(cspyce.sce2c(sclk_id, et)) for et in epochs]
     attitudes: list[NDArrayFloatType | None] = [None, None, None]
     suppliers: list[Path | None] = [None, None, None]
-    for path in reversed(kernel_paths):
-        missing = [index for index, attitude in enumerate(attitudes) if attitude is None]
-        if len(missing) == 0:
-            break
-        found = ck_type3_attitudes(path, ck_object_id, [ticks[index] for index in missing])
-        for index, attitude in zip(missing, found, strict=True):
+    for index, (et, paths) in enumerate(zip(epochs, per_instant, strict=True)):
+        tick = float(cspyce.sce2c(sclk_id, et))
+        for path in reversed(paths):
+            (attitude,) = ck_type3_attitudes(path, ck_object_id, [tick])
             if attitude is not None:
                 attitudes[index] = attitude
                 suppliers[index] = path
+                break
     start, middle, end = attitudes
     mid_supplier = suppliers[1]
     if start is not None and middle is not None and end is not None and mid_supplier is not None:

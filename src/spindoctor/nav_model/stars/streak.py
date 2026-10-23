@@ -64,10 +64,9 @@ MAX_STREAK_TO_PREDICTED = 2.0
 A longer measurement is the work of something other than the motion, such as the blooms
 of saturated stars running along a column, which the saturation mask of a calibrated
 image does not show.  A prediction that may overstate the streak several times but
-rarely understates it by much is held to this ratio: smear predicted from Cassini's
-reconstructed C-kernels understates the streak by at most 1.5 times on the 208 F ring
-frames whose streak could be measured.  A host that vouches for its prediction sets its
-own ratio (see :func:`streak_limits`).
+rarely understates it by much is held to this ratio; the instrument chapters of the
+developer guide give the evidence.  A host that vouches for its prediction sets its own
+ratio (see :func:`streak_limits`).
 """
 
 MIN_PREDICTED_SMEAR_PX = 2.0

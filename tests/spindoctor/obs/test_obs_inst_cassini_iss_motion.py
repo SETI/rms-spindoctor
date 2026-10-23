@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, cast
 
 import cspyce
-import julian
 import numpy as np
 import polymath
 import pytest
@@ -277,37 +276,37 @@ class _Prefix:
         return self._root / filespec
 
 
-def test_predicted_ck_paths_selects_each_epoch_of_one_release(
+def test_predicted_ck_paths_keeps_one_release_and_the_retrievable_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Each epoch is selected on its own, other releases and unretrievable files left out."""
-    listed = {
-        1.0: [_Kernel('V01', 'old/a.bc'), _Kernel('V02', 'new/a.bc')],
-        2.0: [_Kernel('V02', 'new/a.bc'), _Kernel('V02', 'new/gone.bc')],
-        3.0: [_Kernel('V02', 'new/b.bc')],
-    }
-
-    def select_ck(_spacecraft: int, *, name: str, time: tuple[float, float]) -> list[_Kernel]:
-        if time[0] not in listed:
-            raise ValueError('no results found matching query')
-        return listed[time[0]]
-
+    """Other releases and files that cannot be retrieved are left out, in load order."""
+    listed = [_Kernel('V01', 'old/a.bc'), _Kernel('V02', 'new/a.bc,new/gone.bc')]
+    listed.append(_Kernel('V02', 'new/b.bc'))
     monkeypatch.setattr(spicedb, 'db_is_open', lambda: True)
-    monkeypatch.setattr(spicedb, 'open_db', lambda: None)
-    monkeypatch.setattr(spicedb, 'select_ck', select_ck)
+    monkeypatch.setattr(spicedb, 'select_ck', lambda _id, *, name, time: listed)
     monkeypatch.setattr(
-        spicedb,
-        'get_spice_filecache_prefix',
-        lambda: _Prefix(tmp_path, {'new/gone.bc'}),
+        spicedb, 'get_spice_filecache_prefix', lambda: _Prefix(tmp_path, {'new/gone.bc'})
     )
-    monkeypatch.setattr(julian, 'tai_from_tdb', lambda et: et)
     paths = predicted_ck_paths(
-        [1.0, 2.0, 3.0, 4.0],
-        spacecraft_id=-82,
-        kernel_name='CAS-CK-PREDICTED',
-        kernel_version='V02',
+        1.0e8, spacecraft_id=-82, kernel_name='CAS-CK-PREDICTED', kernel_version='V02'
     )
     assert paths == [tmp_path / 'new/a.bc', tmp_path / 'new/b.bc']
+
+
+def test_predicted_ck_paths_is_empty_where_the_database_lists_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The database's empty selection, which it signals by raising, is no kernels."""
+
+    def select_ck(_spacecraft: int, *, name: str, time: tuple[float, float]) -> list[_Kernel]:
+        raise ValueError('no results found matching query')
+
+    monkeypatch.setattr(spicedb, 'db_is_open', lambda: True)
+    monkeypatch.setattr(spicedb, 'select_ck', select_ck)
+    paths = predicted_ck_paths(
+        1.0e8, spacecraft_id=-82, kernel_name='CAS-CK-PREDICTED', kernel_version='V02'
+    )
+    assert paths == []
 
 
 def _pointing(obs: ObsCassiniISS) -> list[NDArrayFloatType]:
