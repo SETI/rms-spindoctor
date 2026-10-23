@@ -227,19 +227,68 @@ techniques:
       # Pixels of slack around the search-window axis bounds for the
       # at-edge check.  See ``RingEdgeNav.at_edge_tolerance_px``.
       at_edge_tolerance_px: 1.0
-      # Covariance model-error terms.  The per-blob centroid CRLB counts
-      # photon statistics only; the brightness-weighted centroid is a
-      # biased estimate of the geometric center (lit-hemisphere offset,
-      # shape irregularity) whose error scales with the body radius.
-      #  - model_error_size_frac is that centroid bias as a fraction of the
-      #    body radius; per-blob variances combine by inverse-variance so a
-      #    multi-blob fit tightens correctly (campaign corr(error, radius)
-      #    ~ 0.34).
-      #  - model_error_floor_px is the size-independent floor (pointing).
-      # localization_uncertainty_scale is unused here (no correlation
-      # pyramid) and left at its 0.0 default.
+      # Covariance.  Each blob's centroid carries its photon CRLB
+      # variance plus a model bias.  The bias of the brightness-weighted
+      # centroid against the rendered lit centroid has an isotropic part
+      # -- model_error_size_frac times the radius R, the body model's
+      # phase_irregularity_factor times Rc = min(R, bias_radius_cap_px),
+      # and the body's ephemeris sigma (its spice_orbital_residual_km at
+      # the limb's image scale) -- and a phase part, a fraction of a
+      # Lambertian sphere's photocenter offset g Rc (g = 0.20 at 30 deg
+      # phase, 0.59 at 90 deg, 0.80 at 135 deg), along the image
+      # direction toward the Sun and, smaller, across it.  A regular
+      # body (factor at most regular_irregularity_max) takes
+      # along_sun_frac_regular, an irregular one (at least
+      # irregular_irregularity_min) along_sun_frac_irregular, linear
+      # between: the measured centroids of the regular moons sit sunward
+      # of the rendered ones (a median 1.6 px on WAC Tethys, Dione, and
+      # Rhea at 110-150 deg against star-corrected pointing), while an
+      # irregular moon's bias is mostly in its irregularity term.  The
+      # blobs of one frame share part of their bias (the Sun direction,
+      # the rendering, an ephemeris solution): bias_correlation of the
+      # smallest bias variance among them is common to all, and the
+      # blobs are combined by generalized least squares over that
+      # covariance, so a second blob does not average the shared part
+      # away.  Fitted by maximum likelihood on the joint blob errors of
+      # one half of 906 F ring bundle and library frames (truth: a star
+      # technique's answer on 497 of them, else bundle pointing, the WAC
+      # bundle shifted by its measured (0.43, 0.69) px offset, or
+      # operator truth; lock failures and at-edge results excluded),
+      # checked on the other half.  Median Mahalanobis distance of the
+      # reported answer, P(> 2) (a correctly sized two-axis Gaussian:
+      # 1.18, 0.135): NAC single blobs under 10 px 0.62, 0.05; 10-30 px
+      # 0.75, 0.14; NAC two-blob joint answers 0.88, 0.00 (1.78 and 0.33
+      # before); WAC 1.04, 0.05.  Past a radius of 10 px the phase and
+      # irregularity terms stop growing: the blob error is not
+      # proportional to the body's size there (a median 4.5 px over 29
+      # library blobs 50-870 px across, against independent truth).
+      # Regular moons over 100 px across at more than 90 deg phase can
+      # still err by 15-75 px along the Sun direction, beyond their
+      # reported sigma; on those frames a limb or disc fit of the same
+      # body supersedes the blob.
+      # model_error_floor_px is the joint fit's absolute floor.
       model_error_size_frac: 0.05
       model_error_floor_px: 0.1
+      along_sun_frac_regular: 0.75
+      along_sun_frac_irregular: 0.15
+      across_sun_frac: 0.2
+      regular_irregularity_max: 0.02
+      irregular_irregularity_min: 0.05
+      bias_radius_cap_px: 10.0
+      bias_correlation: 0.85
+      # A blob is dropped as a lock on something other than its body -- a
+      # ring arc, another body's limb -- when its lit region spreads more
+      # than max_gyration_radius_frac of the predicted radius from its
+      # centroid (a uniform disc spreads 0.71) and more than
+      # max_edge_signal_frac of its signal lies on the box's outer rows and
+      # columns.  Over 1,242 F ring bundle and library blobs: the 954 within
+      # 5 px of truth reach at most 0.84 and never both; of the 219 more
+      # than max(10 px, a diameter) off, 157 exceed both (median 0.94 and
+      # 0.31).  Of the 62 the rule misses, 49 are crescents past 110 deg
+      # phase and 11 lie at 94-108 deg, whose lit arcs spread like a correct
+      # crescent; 2 lie at 55-56 deg.
+      max_gyration_radius_frac: 0.88
+      max_edge_signal_frac: 0.2
 
   BodyLimbNav:
     # Sim campaign (seed 20260718, full-truth-axis renderer): n=461
@@ -644,6 +693,26 @@ techniques:
       # and pole uncertainty, which measure 0.5 to 3 px on real frames
       # and so already exceed what the mask can resolve.
       edge_localization_sigma_px: 0.5
+      # RMS (px) over the fitted vertices of a radial model error that varies
+      # linearly across them -- a catalog orbit wrong by more at one end of
+      # an arc than the other, an uncorrected twist, a distortion residual.
+      # The error is common to every vertex, so the fit's statistical
+      # covariance cannot see it, and a nearly straight arc absorbs it as an
+      # along-edge slide of about sqrt(12) * R / L times this value (R the
+      # arc's radius of curvature, L its length); on a full ring it is a
+      # translation of this size.  The reported covariance carries the
+      # absorbed translation, so the ensemble lets an independent witness set
+      # the axis the rings barely constrain.  Calibrated on the 408 Cassini
+      # NAC frames of a 1,614-frame F ring bundle sample whose bundle pointing
+      # a star technique confirms to 0.5 px: at 0.22 the fit's along-edge
+      # errors are a median 0.68 times the reported along-edge sigma and 30%
+      # exceed it, where a correctly sized Gaussian sigma gives 0.67 and 32%.
+      # At 0.15 they were a median 0.99 times it (49% beyond); 0.30 matches
+      # the tail beyond twice the sigma instead (5.4%, Gaussian 4.6%) but
+      # makes the core too wide (median 0.51).  The tail beyond twice the
+      # sigma is 8.8% at 0.22: catalog orbit errors and alias seeds, which no
+      # Gaussian width describes.
+      shape_sigma_px: 0.22
       # See ``BodyLimbNav.lm_trust_region_px``.
       lm_trust_region_px: 1.0
       # See ``BodyLimbNav.lm_tikhonov_alpha``.
@@ -713,9 +782,11 @@ techniques:
         divisor: 250.0
         cap_at: 1.0
       # Magnitude margin to the next-brightest predictable star in the
-      # extfov.  Below the 1.5 mag floor the technique short-circuits
-      # before reaching the formula; above the floor, additional margin
-      # earns confidence up to a 1.5 mag span.
+      # extfov.  The 1-star path short-circuits before reaching the formula
+      # when a star that can fall in the window is within the 1.5 mag
+      # floor; a match that needs corroboration because a star elsewhere
+      # is within it is scored as meeting the floor exactly.  Above the
+      # floor, additional margin earns confidence up to a 1.5 mag span.
       - feature: brightness_margin_mag
         alpha: 1.002
         offset: 1.5
@@ -731,7 +802,13 @@ techniques:
       spurious: true
     tuning:
       # Minimum magnitude difference to the next-brightest predictable
-      # star for the 1-star path to fire.
+      # star for the 1-star path to fire.  Only a star predicted within
+      # twice search_window_px (plus a pixel) of the brightest one on both
+      # axes counts: one farther away is outside the window at every
+      # offset the window allows.  Counting every star in the extfov refused F ring frames
+      # whose deeper photometric limit predicts 34-61 stars, the brighter
+      # ones hundreds of pixels away, though each frame's brightest star
+      # was found within 1.1 px of the bundle pointing.
       brightness_margin_to_next_catalog_star_mag: 1.5
       # Half-width of the search window around each prediction (px).
       # Should bracket the per-instrument SPICE pointing-error envelope
@@ -775,6 +852,21 @@ techniques:
       # library matches carry genuine one-star offsets up to ~24 px,
       # so no uniform residual cut can sit below the search window.
       one_star_max_residual_px: 10.0
+      # A one-star match whose star is uniquely bright only in its window
+      # (another star anywhere in the field is within the margin floor of
+      # it) must be corroborated: of the brightest
+      # one_star_corroboration_stars other stars that the offset puts in
+      # the image, at least one_star_corroboration_min_stars (or all of
+      # them, when fewer) must have a detection within
+      # one_star_corroboration_px of their moved prediction.  With a deep
+      # catalog a wrong peak in the window leaves the other stars where
+      # nothing is: on the operator-verified library, without this, 16
+      # frames took one-star offsets 5-65 px wrong once a rival outside
+      # the window stopped refusing them, while each of seven F ring
+      # frames refused for a distant rival has 4-10 stars at its offset.
+      one_star_corroboration_px: 1.5
+      one_star_corroboration_stars: 8
+      one_star_corroboration_min_stars: 2
       # Per-mode caps applied post-sigmoid; the 1-star path cannot
       # self-check, so its cap is lower than the 2-star path's.
       one_star_confidence_cap: 0.7
@@ -828,6 +920,28 @@ techniques:
       # Drop a star whose detection sits more than this many pixels from
       # the prior-shifted prediction; almost certainly a wrong peak.
       max_per_star_residual_px: 4.0
+      # With at least discordant_min_stars inliers, drop a star whose residual lies
+      # farther from the per-axis median residual than max(discordant_floor_px,
+      # discordant_median_factor * the median such distance).  The average weights
+      # each star by catalog brightness, so one bright star centroided on the wrong
+      # peak otherwise outweighs every faint star that agrees: on F ring frame
+      # N1802001372 a V 9.2 Tycho-2 star 2.6 px from the median of nine pulled the
+      # refine 1.1 px off seven stars that agree with each other to 0.4 px.  Four
+      # votes are the fewest whose median rests on an agreeing majority of three.
+      # With exactly one star fewer, a prior precise to discordant_floor_px (full
+      # rank, sigma along its least certain axis) casts the missing vote as a zero
+      # residual: of three, a 2-to-1 split cannot say on its own which side is
+      # wrong.  The prior is the pass-1 answer, usually built from some of the
+      # same stars, so the vote is no independent evidence; it settles the split
+      # in the pass-1 answer's favor (WAC frame W1762900979: the two stars of the
+      # two-star match on the prior, a brighter third 3.9 px off it).  A pair off
+      # the prior cannot outvote a star on it (Voyager library frame C3448723: two
+      # bright stars 2 px from its operator-verified body fix, one faint star on
+      # it, all three kept).  A rank-deficient ring-edge prior, unconstrained
+      # along the arc, casts no vote (N1798993130).  Must be at least 2.
+      discordant_min_stars: 4
+      discordant_floor_px: 1.0
+      discordant_median_factor: 3.0
       # Detection-threshold multiplier on image_noise_sigma.
       detection_sigma: 4.0
       # Below this many surviving inliers the technique reports spurious.
@@ -908,6 +1022,16 @@ techniques:
       psf_sigma_px: 1.0
       # Centroid box half-width around each detection peak (px).
       centroid_box_half_px: 3
+      # A detection whose brightest pixel, that pixel with the brightest
+      # of its eight neighbors, or brightest 2x2 block hold more of its
+      # 5x5 box's light than the instrument's narrowest star
+      # (star_sharpness_psf_sigma in the instrument config) allows, by
+      # more than this many noise sigmas of the difference, is a compact
+      # cosmic-ray hit and is set aside before the max_sources cut.  On
+      # 30 F ring frames (24 NAC, 6 WAC; 878 candidates within 1.5 px of
+      # a catalog star, 7195 others) 4.0 sets aside no star and 745
+      # others.
+      psf_sharpness_sigma: 4.0
       # Match radius in the (ratio, ratio, angle_rad) hash
       # space; weighted Euclidean.  0.05 is the empirical default for
       # centroid sigma ~0.1 px against typical triplet scales (Part 3
@@ -1104,7 +1228,10 @@ techniques:
       #  - model_error_size_frac (off by default) would scale the annulus
       #    radial span; the ring-annulus bulk error does not track span,
       #    so it stays 0.0 and the floor carries the template model error.
-      #  - model_error_floor_px is the size-independent floor.
+      #  - model_error_floor_px is the size-independent floor.  A camera
+      #    whose template error differs declares its own floor under
+      #    model_error_floor_px in its instrument config, which replaces
+      #    this one (the Cassini WAC does; see config_400_inst_coiss.yaml).
       localization_uncertainty_scale: 1.0
       model_error_size_frac: 0.0
       model_error_floor_px: 0.13

@@ -46,6 +46,7 @@ from spindoctor.feature.geometry import (
     LimbPolyline,
     TerminatorPolyline,
 )
+from spindoctor.nav_model.body_shape import load_body_shape
 from spindoctor.nav_model.nav_model_body import NavModelBody
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -842,6 +843,20 @@ def test_sub_solar_direction_collapses_on_a_full_phase_disc(
     assert geometry.predicted_center_vu[1] == pytest.approx(60.0)
     assert blob.flags is not None
     assert getattr(blob.flags, 'sub_solar_dir_vu', None) == (0.0, 0.0)
+
+
+def test_blob_carries_the_ephemeris_sigma_at_the_limb_scale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The blob's ephemeris sigma is the body's SPK residual over the limb's km per pixel."""
+    model, obs = _make_model(monkeypatch, _SphereSpec((50.5, 50.5), 20.0), margin=10)
+    model.create_model()
+    blob = next(
+        f for f in model.to_features(_noise_context(obs)) if f.feature_type.name == 'BODY_BLOB'
+    )
+    shape = load_body_shape(model._body_name, config=model._config)
+    expected = shape.spice_orbital_residual_km / model._km_per_pixel_at_limb
+    assert getattr(blob.flags, 'ephemeris_sigma_px', None) == pytest.approx(expected, rel=1e-12)
 
 
 def test_no_features_for_subpixel_body(monkeypatch: pytest.MonkeyPatch) -> None:

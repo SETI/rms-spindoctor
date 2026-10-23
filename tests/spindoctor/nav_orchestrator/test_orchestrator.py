@@ -27,6 +27,11 @@ from spindoctor.feature.geometry import (
 from spindoctor.nav_model import NavModel
 from spindoctor.nav_orchestrator.image_classifier import ImageQualityThresholds
 from spindoctor.nav_orchestrator.nav_context import NavContext
+from spindoctor.nav_orchestrator.nav_result import (
+    ArbitrationCandidate,
+    ConflictArbitrationRecord,
+    NavResult,
+)
 from spindoctor.nav_orchestrator.orchestrator import NavOrchestrator
 from spindoctor.nav_technique.diagnostics import StarFieldDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
@@ -1346,6 +1351,193 @@ def test_orchestrator_stamps_pass2_prior_source_techniques(fake_obs: _FakeObs) -
     assert by_name['_PassTwoTechnique'].prior_source_techniques == frozenset({'_FakeStarTechnique'})
     # Pass-1 results are never stamped.
     assert by_name['_FakeStarTechnique'].prior_source_techniques == frozenset()
+
+
+class _FakeMatchTechnique(NavTechnique):
+    """Pass-1 two-star match at ``(1.5, 2.5)`` px on the first two stars."""
+
+    name = '_FakeMatchTechnique'
+    _abstract = True  # scoped to the tests that register it
+    accepts_feature_types = frozenset({NavFeatureType.STAR})
+    offset_px: tuple[float, float] = (1.5, 2.5)
+    confidence: float = 0.85
+
+    def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
+        return NavFeasibilityReport(feasible=True, reason='ok')
+
+    def navigate(self, features: list[NavFeature], context: NavContext) -> NavTechniqueResult:
+        return NavTechniqueResult(
+            technique_name=self.name,
+            feature_ids=tuple(f.feature_id for f in features[:2]),
+            offset_px=self.offset_px,
+            covariance_px2=np.eye(2, dtype=np.float64) * 0.25,
+            confidence=self.confidence,
+            spurious=False,
+            at_edge=False,
+            diagnostics=StarFieldDiagnostics(n_inliers=2),
+        )
+
+
+class _FakeAliasTechnique(_FakeMatchTechnique):
+    """Pass-1 technique locked on an alias far from ``_FakeMatchTechnique``'s answer."""
+
+    name = '_FakeAliasTechnique'
+    _abstract = True  # scoped to the tests that register it
+    offset_px = (40.0, 40.0)
+    confidence = 0.8
+
+    def navigate(self, features: list[NavFeature], context: NavContext) -> NavTechniqueResult:
+        return replace(super().navigate(features, context), feature_ids=('alias:0',))
+
+
+class _ArbiterPassTwoTechnique(NavTechnique):
+    """Pass-2 technique that finds every star near ``found_near`` and none elsewhere.
+
+    ``found_near`` ``None`` finds every star at any seeded prior.
+    """
+
+    name = '_ArbiterPassTwoTechnique'
+    _abstract = True  # scoped to the tests that register it
+    accepts_feature_types = frozenset({NavFeatureType.STAR})
+    requires_prior = True
+    found_near: tuple[float, float] | None = None
+
+    def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
+        return NavFeasibilityReport(feasible=True, reason='ok')
+
+    def navigate(self, features: list[NavFeature], context: NavContext) -> NavTechniqueResult:
+        prior = context.prior_offset_px
+        near = type(self).found_near
+        found = prior is not None and (
+            near is None or float(np.hypot(prior[0] - near[0], prior[1] - near[1])) < 5.0
+        )
+        return NavTechniqueResult(
+            technique_name=self.name,
+            feature_ids=tuple(f.feature_id for f in features) if found else (),
+            offset_px=prior if prior is not None and found else (0.0, 0.0),
+            covariance_px2=np.eye(2, dtype=np.float64) * 0.04,
+            confidence=0.9 if found else 0.0,
+            spurious=not found,
+            at_edge=False,
+            diagnostics=StarFieldDiagnostics(n_inliers=len(features) if found else 0),
+        )
+
+
+@pytest.fixture
+def _register_arbitration_fakes() -> Iterator[None]:
+    """Register the alias and arbiter fakes for one test."""
+    fakes: list[type[NavTechnique]] = [
+        _FakeMatchTechnique,
+        _FakeAliasTechnique,
+        _ArbiterPassTwoTechnique,
+    ]
+    NavTechnique._registry.extend(fakes)
+    try:
+        yield
+    finally:
+        for fake in fakes:
+            NavTechnique._registry.remove(fake)
+        _ArbiterPassTwoTechnique.found_near = None
+
+
+@pytest.mark.usefixtures('_register_arbitration_fakes')
+def test_a_conflicted_pass_1_is_resolved_by_the_pass_2_test(fake_obs: _FakeObs) -> None:
+    """Pass 2 finds the stars only at one answer of a conflict: that answer stands."""
+    _ArbiterPassTwoTechnique.found_near = (1.5, 2.5)
+    orch = NavOrchestrator(
+        [_FakeStarModel(fake_obs, feature_count=8)],
+        only_techniques=['_FakeMatchTechnique', '_FakeAliasTechnique', '_ArbiterPassTwoTechnique'],
+    )
+    result = orch.navigate(fake_obs)  # type: ignore[arg-type]
+    assert result.status == 'success'
+    assert result.offset_px == pytest.approx((1.5, 2.5))
+    assert result.excluded_from_consensus == ['_FakeAliasTechnique']
+
+
+def _pass_2_entries(result: NavResult) -> list[NavTechniqueResult]:
+    """Return the arbiter fake's entries in a result's per-technique list."""
+    return [r for r in result.per_technique if r.technique_name == '_ArbiterPassTwoTechnique']
+
+
+@pytest.mark.usefixtures('_register_arbitration_fakes')
+def test_the_confirmed_answers_pass_2_result_is_kept_with_its_seed(fake_obs: _FakeObs) -> None:
+    """The confirmed run's pass-2 result reaches the result, seeded by its answer."""
+    _ArbiterPassTwoTechnique.found_near = (1.5, 2.5)
+    orch = NavOrchestrator(
+        [_FakeStarModel(fake_obs, feature_count=8)],
+        only_techniques=['_FakeMatchTechnique', '_FakeAliasTechnique', '_ArbiterPassTwoTechnique'],
+    )
+    entries = _pass_2_entries(orch.navigate(fake_obs))  # type: ignore[arg-type]
+    assert [r.prior_source_techniques for r in entries] == [frozenset({'_FakeMatchTechnique'})]
+
+
+@pytest.mark.usefixtures('_register_arbitration_fakes')
+def test_the_confirmed_answers_pass_2_result_is_usable(fake_obs: _FakeObs) -> None:
+    """The kept pass-2 result is seeded at the confirmed answer, not run unseeded."""
+    _ArbiterPassTwoTechnique.found_near = (1.5, 2.5)
+    orch = NavOrchestrator(
+        [_FakeStarModel(fake_obs, feature_count=8)],
+        only_techniques=['_FakeMatchTechnique', '_FakeAliasTechnique', '_ArbiterPassTwoTechnique'],
+    )
+    entries = _pass_2_entries(orch.navigate(fake_obs))  # type: ignore[arg-type]
+    assert [r.spurious for r in entries] == [False]
+
+
+@pytest.mark.usefixtures('_register_arbitration_fakes')
+def test_the_pass_2_test_records_what_it_found(fake_obs: _FakeObs) -> None:
+    """The result records the supports, the confirmed answer, and the refuted names."""
+    _ArbiterPassTwoTechnique.found_near = (1.5, 2.5)
+    orch = NavOrchestrator(
+        [_FakeStarModel(fake_obs, feature_count=8)],
+        only_techniques=['_FakeMatchTechnique', '_FakeAliasTechnique', '_ArbiterPassTwoTechnique'],
+    )
+    record = orch.navigate(fake_obs).conflict_arbitration  # type: ignore[arg-type]
+    assert record == ConflictArbitrationRecord(
+        candidates=(
+            ArbitrationCandidate(
+                techniques=('_FakeMatchTechnique',),
+                offset_px=(1.5, 2.5),
+                support=8,
+                confirmed=True,
+            ),
+            ArbitrationCandidate(
+                techniques=('_FakeAliasTechnique',),
+                offset_px=(40.0, 40.0),
+                support=0,
+                confirmed=False,
+            ),
+        ),
+        refuted_techniques=('_FakeAliasTechnique',),
+    )
+
+
+@pytest.mark.usefixtures('_register_arbitration_fakes')
+def test_the_pass_2_test_can_confirm_the_runner_up(fake_obs: _FakeObs) -> None:
+    """Stars only at the runner-up answer: it stands and the consensus is refuted."""
+    _ArbiterPassTwoTechnique.found_near = (40.0, 40.0)
+    orch = NavOrchestrator(
+        [_FakeStarModel(fake_obs, feature_count=8)],
+        only_techniques=['_FakeMatchTechnique', '_FakeAliasTechnique', '_ArbiterPassTwoTechnique'],
+    )
+    result = orch.navigate(fake_obs)  # type: ignore[arg-type]
+    assert result.offset_px == pytest.approx((40.0, 40.0))
+    assert result.excluded_from_consensus == ['_FakeMatchTechnique']
+    assert [r.prior_source_techniques for r in _pass_2_entries(result)] == [
+        frozenset({'_FakeAliasTechnique'})
+    ]
+
+
+@pytest.mark.usefixtures('_register_arbitration_fakes')
+def test_a_conflict_the_pass_2_test_cannot_resolve_stays_conflicted(fake_obs: _FakeObs) -> None:
+    """Pass 2 finds the stars at both answers: the conflict stands as before."""
+    orch = NavOrchestrator(
+        [_FakeStarModel(fake_obs, feature_count=8)],
+        only_techniques=['_FakeMatchTechnique', '_FakeAliasTechnique', '_ArbiterPassTwoTechnique'],
+    )
+    result = orch.navigate(fake_obs)  # type: ignore[arg-type]
+    assert result.status == 'conflicted'
+    assert result.conflict_arbitration is not None
+    assert [c.confirmed for c in result.conflict_arbitration.candidates] == [False, False]
 
 
 # --- Status-reason INFO emission at every failed-nav site (#180) ---

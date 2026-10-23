@@ -460,6 +460,7 @@ def _make_ring_feature(
     sigma_radial_px: float = 0.5,
     sigma_orbit_radial_px: float = 0.0,
     planet_name: str = 'SATURN',
+    pixel_normals: np.ndarray | None = None,
 ) -> NavFeature:
     """Build a ``RING_EDGE`` ``NavFeature``."""
     n = vertices.shape[0]
@@ -475,6 +476,7 @@ def _make_ring_feature(
             is_straight_line=is_straight_line,
             bbox_extfov_vu=_bbox_for_vertices(vertices),
             sigma_orbit_radial_px=sigma_orbit_radial_px,
+            pixel_normals_vu=pixel_normals,
         ),
         subject_range_km=1.0e6,
         position_cov_px=None,

@@ -4,8 +4,8 @@ Each ``ObsSnapshotInst`` carries its already-resolved per-camera config
 mapping on ``obs.inst_config`` (set by ``ObsInst.from_file``).  This
 module reads the ``data_units``, ``noise``, and
 ``image_quality_thresholds`` blocks defined in
-``config_4N0_inst_*.yaml`` and returns the values the orchestrator
-needs.
+``config_4N0_inst_*.yaml``, plus the optional per-camera model-error floors,
+and returns the values the orchestrator needs.
 
 The returned ``InstrumentSettings`` is a plain dataclass so the
 orchestrator can branch on ``data_units`` without re-reading raw YAML.
@@ -15,15 +15,26 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
 from spindoctor.nav_orchestrator.image_classifier import ImageQualityThresholds
 
 __all__ = [
+    'MODEL_ERROR_FLOOR_TECHNIQUES',
     'InstrumentSettings',
     'instrument_settings_from_obs',
 ]
+
+#: Techniques that read a per-camera ``model_error_floor_px`` from the
+#: instrument config in place of the floor in their own technique tuning.  A
+#: camera's model error can differ from the one the technique floor was
+#: calibrated on (a template that matches one camera's sampling well can be
+#: biased on another's), and the floor must then follow the camera.  Any other
+#: key under an instrument's ``model_error_floor_px`` block is rejected when the
+#: camera's settings are first read for an image, so a misspelled technique name
+#: stops navigation instead of being ignored.
+MODEL_ERROR_FLOOR_TECHNIQUES = frozenset({'RingAnnulusNav'})
 
 
 DataUnits = Literal['raw_dn', 'calibrated_if']
@@ -54,6 +65,10 @@ class InstrumentSettings:
             fits.
         max_rotation_deg: Maximum allowed rotation magnitude when
             ``fit_camera_rotation`` is True.
+        model_error_floor_px: Per-technique model-error floors (px) for this
+            camera, keyed by technique name; each replaces the
+            ``model_error_floor_px`` of that technique's own tuning.  Empty when
+            the instrument config declares none.
     """
 
     data_units: DataUnits
@@ -62,6 +77,7 @@ class InstrumentSettings:
     thresholds: ImageQualityThresholds
     fit_camera_rotation: bool
     max_rotation_deg: float
+    model_error_floor_px: Mapping[str, float] = field(default_factory=dict)
 
 
 def _coerce_marker_value(value: Any) -> float:
@@ -94,6 +110,41 @@ def _required_float(block: Any, key: str, *, location: str) -> float:
     return coerced
 
 
+def _model_error_floors(block: Any) -> dict[str, float]:
+    """Read and validate an instrument's per-technique ``model_error_floor_px`` block.
+
+    Parameters:
+        block: The ``model_error_floor_px`` mapping from the instrument config, or
+            ``None`` when the config declares none.
+
+    Returns:
+        Technique name to floor in pixels; empty for ``None``.
+
+    Raises:
+        TypeError: If ``block`` is not a mapping.
+        ValueError: If a key is not in :data:`MODEL_ERROR_FLOOR_TECHNIQUES`, or a
+            value is not a finite number >= 0.
+    """
+    if block is None:
+        return {}
+    if not isinstance(block, Mapping):
+        raise TypeError(
+            f'instrument config model_error_floor_px must be a mapping; got {type(block).__name__}'
+        )
+    floors: dict[str, float] = {}
+    for name in block:
+        if name not in MODEL_ERROR_FLOOR_TECHNIQUES:
+            raise ValueError(
+                f'instrument config model_error_floor_px names {name!r}, which does not '
+                f'read a per-camera floor; expected one of {sorted(MODEL_ERROR_FLOOR_TECHNIQUES)}'
+            )
+        value = _required_float(block, name, location='model_error_floor_px')
+        if value < 0.0:
+            raise ValueError(f'model_error_floor_px.{name} must be >= 0; got {value!r}')
+        floors[name] = value
+    return floors
+
+
 def instrument_settings_from_obs(obs: Any) -> InstrumentSettings:
     """Build the orchestrator's per-instrument settings from an obs.
 
@@ -114,8 +165,11 @@ def instrument_settings_from_obs(obs: Any) -> InstrumentSettings:
 
     Raises:
         ValueError: If ``inst_config`` is supplied but missing
-            required fields, or carries an unrecognized ``data_units``
-            value.
+            required fields, carries an unrecognized ``data_units``
+            value, or declares an invalid ``model_error_floor_px`` block
+            (see :func:`_model_error_floors`).
+        TypeError: If ``inst_config``, its ``noise`` block, or its
+            ``model_error_floor_px`` block is not a mapping.
     """
     inst_config = getattr(obs, 'inst_config', None)
     if inst_config is None:
@@ -223,4 +277,5 @@ def instrument_settings_from_obs(obs: Any) -> InstrumentSettings:
         thresholds=thresholds,
         fit_camera_rotation=fit_rotation,
         max_rotation_deg=max_rotation,
+        model_error_floor_px=_model_error_floors(inst_config.get('model_error_floor_px')),
     )

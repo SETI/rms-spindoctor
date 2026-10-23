@@ -7,6 +7,7 @@ which fields exist for each type and lets curator code copy known fields by
 attribute.
 """
 
+import math
 from dataclasses import dataclass
 
 __all__ = [
@@ -203,6 +204,11 @@ class BodyBlobFlags:
             displaced beyond its predicted bounding box is still found; a
             filled-disc template cannot match a thin crescent.  Both
             components must lie in ``[-1, 1]``.
+        ephemeris_sigma_px: The body's ephemeris position uncertainty, in pixels
+            at the body: the SPK residual of its shape entry divided by the image
+            scale at its limb.  ``BodyBlobNav`` adds it to each blob's centroid
+            variance on both axes.  ``0.0`` when unknown.  Must be finite and
+            ``>= 0``.
     """
 
     body_name: str = ''
@@ -210,6 +216,7 @@ class BodyBlobFlags:
     phase_angle_deg: float = 0.0
     phase_irregularity_factor: float = 0.0
     sub_solar_dir_vu: tuple[float, float] = (0.0, 0.0)
+    ephemeris_sigma_px: float = 0.0
 
     def __post_init__(self) -> None:
         """Validate per-field constraints."""
@@ -227,6 +234,10 @@ class BodyBlobFlags:
         if not (-1.0 <= dir_v <= 1.0 and -1.0 <= dir_u <= 1.0):
             raise ValueError(
                 f'sub_solar_dir_vu components must lie in [-1, 1]; got {self.sub_solar_dir_vu!r}'
+            )
+        if not (math.isfinite(self.ephemeris_sigma_px) and self.ephemeris_sigma_px >= 0.0):
+            raise ValueError(
+                f'ephemeris_sigma_px must be finite and >= 0; got {self.ephemeris_sigma_px!r}'
             )
 
 

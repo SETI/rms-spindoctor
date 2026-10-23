@@ -84,6 +84,7 @@ def voyager_ring_edges() -> dict[str, Any]:
                 lm_converged=True,
                 coarse_peak_fraction=0.703,
                 sigma_orbit_radial_px=0.118,
+                sigma_shape_major_px=0.26,
             ),
         )
     ]

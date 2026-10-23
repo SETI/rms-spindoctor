@@ -135,6 +135,59 @@ def test_ensemble_disagreement_yields_conflicted() -> None:
     assert result.confidence_rank == 'conflicted'
 
 
+def _refuted_pair() -> tuple[NavTechniqueResult, NavTechniqueResult]:
+    """Two well-separated lone results of comparable confidence (a conflict)."""
+    cov = np.eye(2, dtype=np.float64) * 0.01
+    a = _make_result(technique_name='TechniqueA', offset=(1.0, 1.0), cov=cov, confidence=0.9)
+    b = _make_result(technique_name='TechniqueB', offset=(50.0, 50.0), cov=cov, confidence=0.9)
+    return a, b
+
+
+def test_ensemble_refuted_result_casts_no_vote() -> None:
+    """A refuted result leaves the other answer standing alone."""
+    a, b = _refuted_pair()
+    result = ensemble(
+        [a, b],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+        refuted=[b],
+    )
+    assert result.status == 'success'
+    assert result.offset_px == pytest.approx((1.0, 1.0))
+    assert result.excluded_from_consensus == ['TechniqueB']
+    assert result.per_technique == [a, b]
+
+
+def test_ensemble_refuted_result_takes_the_disagreement_penalty() -> None:
+    """The answer a refuted result contradicted carries the disagreement penalty."""
+    a, b = _refuted_pair()
+    alone = ensemble(
+        [a], feature_inventory=[], image_classifier=_classifier(), provenance=_provenance()
+    )
+    result = ensemble(
+        [a, b],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+        refuted=[b],
+    )
+    assert result.confidence == pytest.approx(alone.confidence * 0.7)
+
+
+def test_ensemble_refuted_is_matched_by_identity() -> None:
+    """An equal but distinct result is not the refuted one."""
+    a, b = _refuted_pair()
+    result = ensemble(
+        [a, b],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+        refuted=[dataclasses.replace(b)],
+    )
+    assert result.status == 'conflicted'
+
+
 def test_ensemble_pixel_floor_groups_crlb_tight_results_within_floor() -> None:
     """CRLB-tight covariances disagreeing within the pixel floor still group.
 
@@ -1735,6 +1788,40 @@ def test_ensemble_shape_lock_veto_reports_conflicted() -> None:
     )
     assert result.status == 'conflicted'
     assert result.status_reason.value == 'body_shape_lock_suspect'
+
+
+def test_ensemble_refuted_blob_is_no_shape_lock_witness() -> None:
+    """A refuted blob cannot turn the consensus into a shape-lock conflict."""
+    disc = NavTechniqueResult(
+        technique_name='BodyDiscCorrelateNav',
+        feature_ids=('disc:HYPERION',),
+        offset_px=(-14.5, -6.5),
+        covariance_px2=np.eye(2, dtype=np.float64) * 0.25,
+        confidence=0.8,
+        spurious=False,
+        at_edge=False,
+        diagnostics=BodyDiscDiagnostics(),
+        source_bodies=frozenset({'HYPERION'}),
+    )
+    blob = NavTechniqueResult(
+        technique_name='BodyBlobNav',
+        feature_ids=('blob:HYPERION',),
+        offset_px=(-3.8, -3.1),
+        covariance_px2=np.eye(2, dtype=np.float64) * 4.0,
+        confidence=0.4,
+        spurious=False,
+        at_edge=False,
+        diagnostics=BodyBlobDiagnostics(body_extent_px=150.0, max_phase_angle_deg=30.0),
+        source_bodies=frozenset({'HYPERION'}),
+    )
+    result = ensemble(
+        [disc, blob],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+        refuted=[blob],
+    )
+    assert result.status == 'success'
 
 
 def test_ensemble_shape_lock_suppressed_by_corroborating_star_fix() -> None:

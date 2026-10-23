@@ -15,6 +15,7 @@ from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     '_compute_residuals_and_jacobian',
+    '_project_translation_rows',
     '_rotate_directions',
     '_rotate_vertices',
     '_shift_vertices',
@@ -124,6 +125,37 @@ def _compute_residuals_and_jacobian(
     drdth = (plus - minus) / (2.0 * eps_t)
     jacobian = np.stack([drdv, drdu, drdth], axis=-1)
     return residuals, cast(NDArrayFloatType, jacobian)
+
+
+def _project_translation_rows(
+    jacobian: NDArrayFloatType, normals_vu: NDArrayFloatType, theta: float
+) -> NDArrayFloatType:
+    """Project each vertex's translation Jacobian row onto its own normal axis.
+
+    The DT of a binary edge mask is a staircase along any edge that is not
+    axis-aligned, so its finite-difference gradient carries a component ALONG
+    the edge that the edge itself does not have: summed over a nearly straight
+    arc it reports the along-edge position as well determined as the
+    across-edge one.  Replacing each translation row ``J_i`` by
+    ``(J_i . n_i) n_i``, with ``n_i`` rotated by ``theta``, keeps only what a
+    model edge measures, its displacement along its own normal.  A rotation
+    column, when present, is left as sampled.
+
+    Parameters:
+        jacobian: ``(N, 2)`` or ``(N, 3)`` residual Jacobian; the first two
+            columns are the translation ``(v, u)`` derivatives.
+        normals_vu: ``(N, 2)`` per-vertex unit normals in the unrotated model.
+        theta: Rotation (radians) the normals are carried through.
+
+    Returns:
+        A new Jacobian of the input shape.
+    """
+    normals = _rotate_directions(normals_vu, theta)
+    along_normal = jacobian[:, 0] * normals[:, 0] + jacobian[:, 1] * normals[:, 1]
+    projected = np.array(jacobian, dtype=np.float64, copy=True)
+    projected[:, 0] = along_normal * normals[:, 0]
+    projected[:, 1] = along_normal * normals[:, 1]
+    return cast(NDArrayFloatType, projected)
 
 
 def _weighted_normal_equations(

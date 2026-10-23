@@ -72,6 +72,44 @@ per-technique covariances are CRLB-tight — well below the actual position unce
 driven by model error — so results agreeing visually to a few pixels can register as
 hundreds of sigmas apart.
 
+A Mahalanobis agreement between results farther apart than the pixel floor counts only
+when their information-form fusion takes each direction from the result that is precise
+along it, to within ``agreement_compromise_px`` (default 1 px). A pair within the pixel
+floor agrees by the floor alone, whatever its fusion would compromise, with one
+exception: a pass-2 result and a technique that seeded its prior (see Step 4) that agree
+by the floor but not by Mahalanobis distance are held to the same compromise test. The
+refine searched small windows the seed placed, so landing several standard deviations
+from the seed means it found something other than what the seed predicted there. On F
+ring frame N1757245281 a ring edge and its seeded refine, 2.8 px and 5.9 sigma apart,
+fused 7-8 px from both. (See also the combine's check against a collapsed set's
+representative, Step 5.) The information-form fusion of two estimates lies at
+:math:`a + \Sigma_{a} (\Sigma_{a} + \Sigma_{b})^{-1} (b - a)`; along one direction with
+variances :math:`s_{a}^{2}` and :math:`s_{b}^{2}` that is
+:math:`\delta\, s_{a}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`a` and
+:math:`\delta\, s_{b}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`b`. The fused point's
+offsets from the two are resolved onto the principal axes of
+:math:`\Sigma_{a} + \Sigma_{b}`, the smaller of the two is kept on each axis, and the
+compromise is the length of those parts together
+(:func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`). The fused
+point comes from the full matrices: when the two results' principal axes differ, a
+disagreement along one axis moves the fusion along the other. On F ring frame N1757245281
+a ring edge (0.2 px across a slightly tilted edge, 7.2 px along it) and a star refine
+(0.32 px in u, 2.65 px in v) 2.8 px apart fuse about 7 px from both, which an
+axis-by-axis account puts at 0.65 px. A precise
+result beside a vague one scores near zero, and so do two that complement each other: a
+ring edge precise across itself and a body brightness center precise along the edge each
+set their own axis. When both are about equally vague along the separation, they are
+statistically consistent however far apart they lie, yet their fusion is a point between
+two answers at most one of which is right. On a Cassini F ring movie frame a ring-edge
+answer 38 px along a gently curved edge (sigma 15 px along it) and a one-star match (sigma
+14.5 px, the size of its own offset) are 1.8 sigma apart; their fusion lies 18 px from the
+star, which the star centroids in the image place within 0.1 px of the truth. Such a pair
+is a disagreement, and Step 4 decides between them. On a 1,614-frame sample of those
+frames, 375 pairs on 158 frames agreed by Mahalanobis distance alone from more than 5 px
+apart: every pair compromising by at most 0.85 px took each axis from its precise member,
+and the 9 frames with a pair at 1.03 px or more were compromises 1.4 to 18 px from the
+reference pointing.
+
 Both distances are measured **only in the intersection of the two results' observable
 subspaces**, not in the full parameter space. A rank-deficient result (a flat-ring
 rank-1 fit, or a rotation-unobservable star result) carries meaningless values along
@@ -104,16 +142,20 @@ searches a small window around the pass-1 prior — is conditionally dependent o
 techniques that set that prior. The orchestrator records those techniques on the
 result's :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.prior_source_techniques`;
 when such a technique sits in the same subset, the descendant re-observed its own seed
-and casts **no independent vote**. A multi-star refine may still lend its precision to
-the fused offset in Step 6; a *single*-star refine adds no independent constraint at all
-and is dropped from the combine entirely in Step 5 (below). This stops a marginal refine
-seeded by a wrong pass-1 answer from "confirming" that answer and inflating consensus, or
-from dragging the fused offset off the pass-1 techniques that agree at the truth.
+and casts **no independent vote**. A multi-star refine may still lend its precision to the
+fused offset in Step 6; a *single*-star refine adds no independent constraint at all and
+is dropped from the combine entirely in Step 5 (below), unless it confirms and replaces a
+one-star match there. This stops a marginal refine seeded by a wrong pass-1 answer from
+"confirming" that answer and inflating consensus, or from dragging the fused offset off
+the pass-1 techniques that agree at the truth.
 
 Exclusion forces the conflicted branch only when the excluded results constitute a
 genuine alternative answer: the strongest consensus formable among the excluded
 results alone either has at least two corroborating members (an alternative with
-quorum) or the winning subset is itself a singleton (no quorum anywhere). The
+quorum) or the winning subset is itself a singleton (no quorum anywhere). A pass-2
+result that only the seeded-pair test of Step 3 keeps apart from its seed in the winning
+subset takes no part in that runner-up: its windows were placed by that seed, so it is no
+alternative to it. A pass-2 result that disagrees with its seed outright still is. The
 summed-confidence gap test that then decides a conflict is applied in two regimes:
 
 - **Runner-up has quorum:** an *absolute* gap — conflict when
@@ -128,6 +170,14 @@ summed-confidence gap test that then decides a conflict is applied in two regime
 A lone dissenter against a multi-technique consensus is outlier-rejected: the consensus
 is fused normally (with the Step 7 disagreement penalty) and the dissenter appears only
 in ``excluded_from_consensus`` and ``per_technique``.
+
+The orchestrator may name some results as *refuted* (the ``refuted`` argument): the pass-1
+results of an answer that the pass-2 test of a conflicted pass 1 did not confirm (see
+:doc:`dev_guide_orchestrator_orchestrator`). A refuted result is matched by identity,
+takes no part in the consensus selection, the combine, or the body-witness veto, and casts
+no vote, so it cannot force the conflicted branch again. It stays in ``per_technique``, is
+named in ``excluded_from_consensus``, and the Step 7 disagreement penalty applies, as for
+any excluded result.
 
 Step 5 — resolve independent estimators
 ---------------------------------------
@@ -145,9 +195,34 @@ correcting three known correlations:
 - **Seeded single-star refine.** A one-inlier
   :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` seeded by a
   technique in the subset (Step 4) re-observes its own prior near the predicted position
-  and adds no independent constraint, so it is dropped from the combine entirely. A
-  multi-star refine carries genuine catalog matches and is kept (it still casts no
-  corroboration vote).
+  and adds no independent constraint, so it is dropped from the combine entirely, with one
+  exception. When the subset holds a one-star
+  :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
+  result that the refine confirms, the refine replaces that match instead: the match is
+  dropped, and the refine stands in its place with an empty
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.prior_source_techniques`,
+  so it carries the match's independent vote. The match qualifies when it is not itself
+  seeded by a member of the subset, rests on the same star (equal ``feature_ids``), and
+  lies within ``agreement_sigma`` of the refine under the refine's own translation
+  covariance. The refine must also be confirmed: every member of the subset that is not a
+  single-star result agrees with it within ``agreement_sigma`` by Mahalanobis distance,
+  and at least one of them is precise in some direction, with a principal axis of its
+  observable translation covariance whose standard deviation is at most
+  ``confirming_axis_max_sigma_px`` (1 px). The Mahalanobis bound then holds the separation
+  along that axis within ``agreement_sigma`` of the pair's combined standard deviation
+  there, which is sub-pixel. A ring edge confirms across itself; a witness vague in every
+  direction, such as a brightness centroid uncertain by 15 px, confirms nothing, however
+  small its Mahalanobis distance. The wide one-star search found the star and the stronger
+  witness confirmed it, so the prior only told the refine where to look. Without the
+  replacement the one-star match, whose covariance is as large as its own offset, could
+  not fix the direction the stronger witness leaves open. On Cassini F ring frame
+  ``N1851235341`` a ring edge confirms one Tycho-2 star across the edge; the refined star
+  (0.32 px sigma) then sets the along-edge position, where averaging the ring with the
+  one-star match (20.8 px sigma) left the answer 2.67 px off the star. The ensemble logs
+  each replacement, and
+  :attr:`~spindoctor.nav_orchestrator.ensemble_independence.IndependenceResolution.replaced_matches`
+  lists the pairs. A multi-star refine carries genuine catalog matches and is kept (it
+  still casts no corroboration vote).
 - **Two ring techniques on one catalog.**
   :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav` and
   :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav` read the
@@ -171,6 +246,78 @@ reported on
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.consensus_techniques` for
 transparency, while the resolved set of independent witnesses drives the precision-weighted
 fusion, the agreement boost, the quorum count, and the vote mass.
+
+The representative votes for the whole set, so it carries the set's seed dependence (its
+``prior_source_techniques``) rather than its own: a technique seeded the set only when it
+seeded every member. A set holding a pass-1 member found its answer without a prior, so
+its vote stands even when the member standing in for it is a pass-2 refine whose prior
+another technique in the group helped form. Only the shared-feature collapse of the star
+techniques puts a pass-2 result in a set; ring pairs and disc/limb pairs hold pass-1
+results only.
+
+A result joins the consensus by agreeing with the subset's sponsor, which can be one
+member of a collapsed set (a precise two-star match, say), while the combine fuses the set
+through its representative (the multi-star fit, perhaps less precise). Each other result
+is therefore held to the agreement test again against every collapsed set's
+representative
+(:func:`~spindoctor.nav_orchestrator.ensemble_consensus.leave_out_compromising_fusions`):
+a Mahalanobis agreement inside the pixel floor stands, and otherwise the pair must agree
+by either test and fuse with a compromise of at most ``agreement_compromise_px``. The
+result must also lie within ``agreement_sigma`` (Mahalanobis distance) of at least one
+member of the set. A result that agrees only through the pixel floor, several standard
+deviations from every member, contradicts the set: fused with it, the result drags the
+answer toward itself by up to the compromise limit when the two are about equally
+precise, and outweighs the set when it is the more precise. Any member counts, including
+a one-star match whose sigma is the size of its own offset. On F ring frame N1492083837
+that keeps a ring edge 5.3 standard deviations from the star refine, and the answer is
+0.55 px from the reference pointing rather than 0.08 px, while counting only members
+precise enough to resolve the separation loses other frames. The test is made against
+collapsed sets only, since the combine fuses a set through a member other than the one a
+result agreed with when the group formed. Two single techniques inside the pixel floor
+are combined however far apart statistically they lie, unless one seeded the other (the
+seeded-pair test of Step 3). When the pair fails, the side
+less precise along the pair's separation is left out of the combine and reported in
+:attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.excluded_from_consensus` (the
+disagreement penalty applies; it is not a runner-up): the result, or the whole set. A
+set is one measurement reported by several techniques, so its precision is its most
+precise member's along the separation (a member that does not observe that direction
+lends none). A pair in which either side seeded the other is left to the seeded-pair test
+of Step 3. On F ring frames N1492059417 and N1492059454 a ring-edge fit locked 3.5-3.8 px
+off radially (a 0.6 px sigma there, 4.3-4.7 sigma from the stars) joined through the
+0.09 px two-star match and was fused with the 0.5-0.75 px star representative, moving
+the answer 1.2-1.7 px toward the ring; the stars alone are within 0.25 px of the
+reference pointing. Over the 20,584 frames of the full F ring run, replayed offline from
+their recorded per-technique results with this branch combined with the sparse-star
+work, the check moves 65 answers (9 from 1-2 px and 4 from over 2 px to within 1 px;
+none past 1 px).
+
+The test against every member catches a result that the compromise limit lets through.
+On F ring frame N1862514394 a ring edge 4.8 px from 39 agreeing stars, 4.6 standard
+deviations from the nearest member of the star set, would fuse with the 0.38 px star
+refine at a compromise of 0.84 px and move the answer 0.8 px. It is left out. On
+N1584292832 a ring edge 0.17 px precise across the edge, 8.6 standard deviations from the
+star fit, would outweigh the fit and put the answer 4.3 px from the stars. It is left
+out, since the set's two-star member is more precise along the separation. Over the full
+F ring run, replayed as above, the test leaves a result out on 381 frames. On the 9 of
+them where that takes the answer across the 1 px or 2 px line away from the reference
+pointing, at least two image stars lie within 0.5 px of the answer and fewer at the
+reference. A star set left
+standing alone earns no agreement boost and carries the disagreement penalty, so 351 of
+those answers are at the medium tier. 85% of them are within 0.5 px of the reference.
+
+The same step settles two star results that consumed no star in common and whose
+translations lie more than ``agreement_sigma`` apart (Mahalanobis distance). Each places
+the whole star field, so they disagree about which detections are the catalog stars. When
+one matched at least twice as many distinct stars as the other, and no star result on
+still more stars contradicts it, the other is left out (with every member of its set, when
+it represents one). Closer counts are left to the combine, and so is a result outnumbered
+only by one that is itself contradicted. Results are decided from the most stars down, so
+the outcome does not depend on their order. Seeding does not exempt the pair: on F ring
+frame N1772441050 a refine seeded at a two-star match found nine stars 2.4 px away (4.5
+standard deviations), which the selection's seeded-pair test, at a compromise of 0.98 px,
+would fuse 1.06 px from the reference pointing. With the match left out the answer is 0.25
+px from it. Over the replayed full F ring run the rule acts on three frames, and each
+answer is about 0.3 px or less from the reference.
 
 Step 6 — precision-weighted merge
 ---------------------------------
@@ -407,6 +554,19 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_pixel_floor` — float,
   default ``5.0``. Euclidean translation-distance fallback for grouping: two results
   agree when either distance test passes (see Step 3). ``0.0`` disables the floor.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_compromise_px` — float,
+  default ``1.0``. Largest compromise (px) the fusion of two results that agree by
+  Mahalanobis distance alone, from farther apart than the pixel floor, may make; beyond it
+  the pair disagrees (see Step 3). A pass-2 result and a technique that seeded it, agreeing
+  by the floor but not by Mahalanobis distance, are held to the same limit (Step 3), and
+  so is a result fused with a collapsed set's representative (Step 5). One pixel is the
+  scale at which an answer is judged right. ``0.0`` disables the test; the star-count
+  test of Step 5 does not depend on it.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.confirming_axis_max_sigma_px` —
+  float, default ``1.0``. Largest standard deviation (px) along a principal axis of a
+  body, ring, or multi-star result for that axis to confirm a seeded single-star refine
+  that replaces a one-star match (see Step 5). A witness with no such axis confirms
+  nothing.
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_gap` — float, default
   ``0.5``. Minimum summed-confidence gap between best and runner-up groups before
   declaring a conflict. Applied as an absolute gap when the runner-up has a quorum; in a
@@ -494,8 +654,10 @@ The ensemble is split across the following modules under ``src/spindoctor/nav_or
 - ``ensemble_consensus.py`` — consensus-subset selection:
   :func:`~spindoctor.nav_orchestrator.ensemble_consensus.consensus_selection`,
   :func:`~spindoctor.nav_orchestrator.ensemble_consensus.corroborating_members`,
-  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.corroborating_confidence`, and
-  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.result_param_vector`.
+  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.corroborating_confidence`,
+  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`,
+  :func:`~spindoctor.nav_orchestrator.ensemble_consensus.leave_out_compromising_fusions`,
+  and :func:`~spindoctor.nav_orchestrator.ensemble_consensus.result_param_vector`.
 - ``ensemble_independence.py`` — the independence-resolution step that collapses
   correlated witnesses before the merge:
   :func:`~spindoctor.nav_orchestrator.ensemble_independence.resolve_independent_estimators`,

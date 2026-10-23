@@ -426,7 +426,9 @@ marked conditional.
      - array
      - Sorted names of the techniques whose usable answers were left out when
        the answers were combined: outliers rejected against a consensus of
-       several techniques, or the runner-up answer on a conflicted result.
+       several techniques, the runner-up answer on a conflicted result, or an
+       answer the star refinement refuted when it was run at each of two
+       disagreeing answers and found the stars at the other one only.
        Empty when every usable answer contributed.
    * - ``feature_count_by_type``
      - object
@@ -465,6 +467,11 @@ marked conditional.
      - object
      - *Conditional.* The exposure epochs the attitude belongs to; see
        `The times block`_. Present exactly when ``pointing`` is present.
+   * - ``conflict_arbitration``
+     - object
+     - *Conditional.* What the star refinement found when it was run at each of two
+       disagreeing answers; see `The conflict-arbitration block`_. Present only when
+       that test ran.
 
 The status_reason vocabulary
 ----------------------------
@@ -580,6 +587,48 @@ captured run, is under `Internal error`_ below.
 The exception's message and traceback are not repeated here. They are unbounded
 free text, which can run to array contents and machine-specific detail, so they are
 left to the per-image error log, which carries both.
+
+.. _conflict-arbitration-block:
+
+The conflict-arbitration block
+------------------------------
+
+When the first, prior-free measurements disagree, two answers of comparable
+confidence stand apart: for example a match of two catalog stars and a ring edge that
+locked onto the wrong edge 50 pixels away. The navigation then refines the catalog
+stars once at each answer. Where an answer is right, the stars are found where it puts
+them; where it is wrong, the refinement finds few stars or none. The answer at which
+the refinement finds clearly more stars is confirmed, and the measurements behind the
+other answer are refuted: they are listed in ``excluded_from_consensus`` and take no
+part in the reported offset. This block records what the test found. It is present
+only when the test ran, which needs a conflict between two answers that come from
+different techniques, each answer formed by techniques that agree with one another.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Key
+     - Meaning
+   * - ``candidates``
+     - The two answers that were tested: the stronger answer of the first
+       measurements, then the runner-up. Each entry has the four keys below.
+   * - ``techniques``
+     - The techniques whose measurements formed the answer, one entry per
+       measurement, so a technique that measured two bodies is listed twice.
+   * - ``offset_px``
+     - The answer, ``[dv, du]`` in pixels, at which the stars were refined.
+   * - ``support``
+     - How many distinct catalog stars, or other features, the refinement used at
+       that answer.
+   * - ``confirmed``
+     - ``true`` for the answer the test confirmed. Both are ``false`` when the test
+       could not tell the answers apart; the navigation then reports the conflict,
+       as it does when the test does not run.
+   * - ``refuted_techniques``
+     - Sorted names of the techniques whose measurements were refuted, one entry per
+       measurement, so a technique that measured two bodies is listed twice. Empty
+       when neither answer was confirmed.
 
 .. _rank-one-results:
 

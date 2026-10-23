@@ -26,6 +26,23 @@ combine may treat as independent, correcting three known correlations:
   information and is kept (the ensemble separately denies it a corroboration
   vote).
 
+  One seeded single-star refine is not a re-observation of its seed: the
+  polish of an unseeded one-star match.  When the group holds a one-star
+  ``StarUniqueMatchNav`` result on the same star, the refine lands on that
+  match (within ``agreement_sigma`` of it under the refine's own covariance),
+  no stronger witness contradicts the refine, and at least one stronger
+  witness confirms it at sub-pixel scale -- along each direction in which that
+  witness's standard deviation is at most ``confirming_axis_max_sigma_px``,
+  the two agree within ``agreement_sigma`` of their combined standard
+  deviation there (a ring edge across itself, say) -- the star was found by
+  the wide one-star search, the prior only told the refine where to look, and
+  the refine replaces the one-star match in the combine: the match is dropped
+  instead, and the refine carries the match's independent vote.  A witness
+  vague in every direction confirms nothing.  The one-star match reports a
+  covariance as large as its own offset, so without the replacement the star
+  could not fix the direction the stronger witness leaves open (along a ring
+  edge).
+
 * **Two ring techniques on one catalog (R2).**  ``RingEdgeNav`` and
   ``RingAnnulusNav`` observe the same predicted ring geometry from the same
   catalog model, so a radially misplaced catalog puts both wrong in the same
@@ -45,17 +62,33 @@ member is subordinate, so the pair is replaced by one representative).  The
 representative of a collapsed set is its highest-positional-precision member,
 with a deterministic tie-break, so the fused offset is the single best view of
 the shared measurement rather than a spuriously tightened average of two.
+
+The representative votes for the whole set, so it carries the set's seed
+dependence rather than its own: a technique seeded the set only when it seeded
+every member.  A set holding a pass-1 member found its answer without any prior,
+so its vote is independent even when the member standing in for it is a pass-2
+refine whose prior another technique of the group helped form; denying that vote
+leaves the group without the star witness it holds.
 """
 
+import dataclasses
 from dataclasses import dataclass
 
-from spindoctor.nav_orchestrator.ensemble_observability import positional_precision
+import numpy as np
+
+from spindoctor.nav_orchestrator.ensemble_observability import (
+    mahalanobis_distance,
+    mixed_scale_pinvh,
+    observable_basis,
+    positional_precision,
+)
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
 from spindoctor.nav_technique.diagnostics import (
     StarRefineDiagnostics,
     StarUniqueMatchDiagnostics,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'STAR_CONSENSUS_TECHNIQUES',
@@ -123,11 +156,19 @@ class IndependenceResolution:
         collapsed_groups: One entry per correlated peer set that was collapsed
             (R2 / R3), representative first, then the members it stood in for.
             Singletons are not listed.
+        replaced_matches: One ``(refine, match)`` pair per one-star match
+            that a confirmed single-star refine replaced: the match is absent
+            from ``estimators``, and the refine stands in its place with an
+            empty ``prior_source_techniques``, so it carries the match's
+            independent vote.
     """
 
     estimators: list[NavTechniqueResult]
     dropped_descendants: list[NavTechniqueResult]
     collapsed_groups: list[list[NavTechniqueResult]]
+    replaced_matches: list[tuple[NavTechniqueResult, NavTechniqueResult]] = dataclasses.field(
+        default_factory=list
+    )
 
 
 def _is_seeded_descendant(res: NavTechniqueResult, group_names: set[str]) -> bool:
@@ -149,6 +190,110 @@ def _is_seeded_descendant(res: NavTechniqueResult, group_names: set[str]) -> boo
         after removing ``res``'s own technique name; False otherwise.
     """
     return bool(res.prior_source_techniques & (group_names - {res.technique_name}))
+
+
+def _is_one_star_match(res: NavTechniqueResult) -> bool:
+    """Return True for a one-star ``StarUniqueMatchNav`` result."""
+    diag = res.diagnostics
+    return isinstance(diag, StarUniqueMatchDiagnostics) and diag.mode == 'one_star'
+
+
+def _has_precise_axis(cov: NDArrayFloatType, *, max_sigma_px: float) -> bool:
+    """Return True when a translation covariance pins down some direction to ``max_sigma_px``.
+
+    The covariance is resolved into principal axes within its observable
+    subspace, so a ring edge's unobservable along-edge direction (zero variance
+    by the null-space convention) is not an axis at all.
+
+    Parameters:
+        cov: ``(2, 2)`` translation covariance.
+        max_sigma_px: Largest standard deviation (px) of a precise axis.
+
+    Returns:
+        True when some observable principal axis has a standard deviation of at
+        most ``max_sigma_px``.
+    """
+    basis = observable_basis(cov)
+    if basis.shape[1] == 0:
+        return False
+    variances = np.linalg.eigvalsh(basis.T @ cov @ basis)
+    return bool(np.any(variances <= max_sigma_px * max_sigma_px))
+
+
+def _confirmed_one_star_match(
+    refine: NavTechniqueResult,
+    group: list[NavTechniqueResult],
+    *,
+    agreement_sigma: float,
+    confirming_axis_max_sigma_px: float,
+    rcond: float,
+) -> int | None:
+    """Return the index of the one-star match a single-star refine may replace.
+
+    The refine stands in for a one-star ``StarUniqueMatchNav`` result when all
+    of the following hold:
+
+    - the match is not itself seeded by a groupmate;
+    - the two rest on the same star (equal ``feature_ids``);
+    - the refine's offset lies within ``agreement_sigma`` of the match's under
+      the refine's own translation covariance (both centroid one detection, so
+      they coincide to within the refine's precision);
+    - every member of the group that is not a single-star result agrees with
+      the refine by Mahalanobis distance within ``agreement_sigma``;
+    - at least one such member is precise in some direction: a principal axis
+      of its observable covariance has a standard deviation of at most
+      ``confirming_axis_max_sigma_px``.  The Mahalanobis bound then holds the
+      separation along that axis within ``agreement_sigma`` of the pair's
+      combined standard deviation there, which is sub-pixel, so the refine is
+      confirmed at sub-pixel scale in at least one direction.  A ring edge
+      confirms across itself; a witness vague in every direction confirms
+      nothing, however small its Mahalanobis distance.
+
+    Parameters:
+        refine: A seeded single-star ``StarRefineNav`` result.
+        group: The consensus group holding ``refine``.
+        agreement_sigma: Threshold of every agreement test, in standard
+            deviations.
+        confirming_axis_max_sigma_px: Largest standard deviation (px) of a
+            witness axis that counts as precise.
+        rcond: rcond for the generalized inverses.
+
+    Returns:
+        The index into ``group`` of the match the refine replaces, or None when
+        no member qualifies (the first qualifying index when several do).
+    """
+    group_names = {r.technique_name for r in group}
+    strong = [r for r in group if not is_single_star_result(r)]
+    refine_mu = np.asarray(refine.offset_px[:2], np.float64)
+    refine_cov = np.asarray(refine.covariance_px2, np.float64)[:2, :2]
+    for res in strong:
+        dist = mahalanobis_distance(
+            refine_mu,
+            refine_cov,
+            np.asarray(res.offset_px[:2], np.float64),
+            np.asarray(res.covariance_px2, np.float64)[:2, :2],
+            rcond=rcond,
+        )
+        if dist > agreement_sigma:
+            return None
+    if not any(
+        _has_precise_axis(
+            np.asarray(res.covariance_px2, np.float64)[:2, :2],
+            max_sigma_px=confirming_axis_max_sigma_px,
+        )
+        for res in strong
+    ):
+        return None
+    refine_info = mixed_scale_pinvh(refine_cov, rcond=rcond)
+    for i, res in enumerate(group):
+        if not _is_one_star_match(res) or _is_seeded_descendant(res, group_names):
+            continue
+        if set(res.feature_ids) != set(refine.feature_ids):
+            continue
+        delta = refine_mu - np.asarray(res.offset_px[:2], np.float64)
+        if float(delta @ refine_info @ delta) <= agreement_sigma * agreement_sigma:
+            return i
+    return None
 
 
 def _correlation_adjacency(
@@ -199,6 +344,24 @@ def _correlation_adjacency(
     return adj
 
 
+def _collapsed_seed_sources(members: list[NavTechniqueResult]) -> frozenset[str]:
+    """Return the techniques that seeded every member of a collapsed set.
+
+    The set's representative votes for all of its members, so its vote depends on
+    a pass-1 prior only when every member's does.  Only a pass-2 result carries
+    seeds, and only the shared-feature collapse of the star techniques puts one in
+    a set, beside the pass-1 star fits that seeded it.
+
+    Parameters:
+        members: The collapsed set's members, in any order.
+
+    Returns:
+        The intersection over the members of their ``prior_source_techniques``;
+        empty when any member is prior-free.
+    """
+    return frozenset.intersection(*(m.prior_source_techniques for m in members))
+
+
 def _connected_components(adj: list[set[int]]) -> list[list[int]]:
     """Return the connected components of an undirected adjacency list.
 
@@ -237,6 +400,8 @@ def resolve_independent_estimators(
     *,
     image_classifier: NavImageClassifierResult,
     scattered_light_gradient_score: float,
+    agreement_sigma: float,
+    confirming_axis_max_sigma_px: float,
     rcond: float,
 ) -> IndependenceResolution:
     """Resolve a consensus group into mutually independent estimators.
@@ -247,6 +412,11 @@ def resolve_independent_estimators(
             ``background_gradient_score`` gates the R3 scattered-light rule.
         scattered_light_gradient_score: Background-gradient score at or above
             which a frame is treated as scattered-light for R3.
+        agreement_sigma: Threshold, in standard deviations, of the tests that
+            confirm a single-star refine replacing a one-star match (see the
+            module docstring).
+        confirming_axis_max_sigma_px: Largest standard deviation (px) of a
+            witness axis precise enough to confirm such a refine.
         rcond: rcond for the pseudo-inverse used to weigh precision.
 
     Returns:
@@ -272,20 +442,43 @@ def resolve_independent_estimators(
     group_names = {r.technique_name for r in group}
     strong_witness_present = any(not is_single_star_result(r) for r in group)
     dropped_idx: set[int] = set()
+    replaced_idx: dict[int, int] = {}
     if strong_witness_present:
-        dropped_idx = {
-            i
-            for i, r in enumerate(group)
-            if _is_seeded_descendant(r, group_names) and is_single_star_result(r)
-        }
-    survivors = [r for i, r in enumerate(group) if i not in dropped_idx]
-    if not survivors:
+        for i, r in enumerate(group):
+            if not (_is_seeded_descendant(r, group_names) and is_single_star_result(r)):
+                continue
+            match_idx = _confirmed_one_star_match(
+                r,
+                group,
+                agreement_sigma=agreement_sigma,
+                confirming_axis_max_sigma_px=confirming_axis_max_sigma_px,
+                rcond=rcond,
+            )
+            if match_idx is None or match_idx in replaced_idx.values():
+                dropped_idx.add(i)
+            else:
+                replaced_idx[i] = match_idx
+    survivors_idx = [
+        i for i in range(len(group)) if i not in dropped_idx and i not in replaced_idx.values()
+    ]
+    if not survivors_idx:
         # Defensive: strong_witness_present already guarantees a non-single-star
         # survivor, so this cannot fire; kept so the combine never sees an empty
         # set even if the drop rule changes.
         dropped_idx = set()
-        survivors = list(group)
+        replaced_idx = {}
+        survivors_idx = list(range(len(group)))
+    # A refine standing in for a one-star match carries the match's
+    # independence: the wide search found the star, so its vote is not a
+    # re-observation of the prior.
+    survivors = [
+        dataclasses.replace(group[i], prior_source_techniques=frozenset())
+        if i in replaced_idx
+        else group[i]
+        for i in survivors_idx
+    ]
     dropped = [group[i] for i in sorted(dropped_idx)]
+    replaced = [(group[i], group[m]) for i, m in sorted(replaced_idx.items())]
 
     # R2 / R3: collapse each correlated peer set to a single representative.
     score = image_classifier.background_gradient_score
@@ -310,7 +503,11 @@ def resolve_independent_estimators(
             ),
         )
         keep.add(rep_idx)
-        rep = survivors[rep_idx]
+        rep = dataclasses.replace(
+            survivors[rep_idx],
+            prior_source_techniques=_collapsed_seed_sources([survivors[i] for i in comp]),
+        )
+        survivors[rep_idx] = rep
         others = [survivors[i] for i in comp if i != rep_idx]
         collapsed_groups.append([rep, *others])
 
@@ -319,4 +516,5 @@ def resolve_independent_estimators(
         estimators=estimators,
         dropped_descendants=dropped,
         collapsed_groups=collapsed_groups,
+        replaced_matches=replaced,
     )

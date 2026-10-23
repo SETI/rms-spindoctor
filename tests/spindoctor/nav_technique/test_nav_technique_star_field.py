@@ -17,6 +17,7 @@ from tests.spindoctor.nav_technique.conftest import (
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.flags import StarFlags
+from spindoctor.nav_technique._star_sharpness import psf_concentration
 from spindoctor.nav_technique.diagnostics import StarFieldDiagnostics
 from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANCE, NavTechnique
 from spindoctor.nav_technique.nav_technique_star_field import (
@@ -105,7 +106,9 @@ def test_detect_image_sources_finds_planted_stars(
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=30,
-    )
+        psf_limits=None,
+        psf_sharpness_sigma=4.0,
+    ).sources
     assert len(detected) == 3
     detected_centers = sorted((s.v, s.u) for s in detected)
     expected = sorted(centers)
@@ -133,7 +136,9 @@ def test_detect_image_sources_caps_at_max_sources(
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=4,
-    )
+        psf_limits=None,
+        psf_sharpness_sigma=4.0,
+    ).sources
     assert len(detected) == 4
     assert all(s.peak_dn >= detected[-1].peak_dn for s in detected)
 
@@ -148,8 +153,74 @@ def test_detect_image_sources_returns_empty_when_blank() -> None:
         detection_sigma=4.0,
         centroid_box_half_px=3,
         max_sources=30,
-    )
+        psf_limits=None,
+        psf_sharpness_sigma=4.0,
+    ).sources
     assert detected == []
+
+
+class _SharpnessObs:
+    """Obs stand-in with an extfov margin and a narrowest star of Gaussian ``sigma``."""
+
+    def __init__(self, sigma: float, *, extfov_margin_vu: tuple[int, int]) -> None:
+        self._sigma = sigma
+        self.extfov_margin_vu = extfov_margin_vu
+
+    def star_sharpness_psf(self) -> GaussianPSF:
+        return GaussianPSF(sigma=self._sigma)
+
+
+_HIT_CENTERS = [(30 + 23 * (i % 10), 40 + 60 * (i // 10)) for i in range(40)]
+"""Where ``_add_two_pixel_hits`` puts its cosmic-ray hits, clear of the planted stars."""
+
+
+def _add_two_pixel_hits(image: np.ndarray) -> None:
+    """Add 40 bright two-pixel cosmic-ray hits, each brighter than any planted star."""
+    for v, u in _HIT_CENTERS:
+        image[v, u] += 900.0
+        image[v, u + 1] += 700.0
+
+
+def test_detect_image_sources_sets_aside_hits_sharper_than_the_psf(
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Hits more concentrated than the star PSF do not take the stars' cohort places."""
+    centers = [(50.0, 70.0), (120.0, 110.0), (200.0, 230.0)]
+    image = _star_field_image(centers, draw=draw_gaussian_star)
+    _add_two_pixel_hits(image)
+    detections = _detect_image_sources(
+        image,
+        image_noise_sigma=1.0,
+        sigma_px=1.2,
+        detection_sigma=4.0,
+        centroid_box_half_px=3,
+        max_sources=3,
+        psf_limits=psf_concentration(GaussianPSF(sigma=1.0)),
+        psf_sharpness_sigma=4.0,
+    )
+    got = sorted((round(s.v), round(s.u)) for s in detections.sources)
+    assert got == sorted((round(v), round(u)) for v, u in centers)
+    assert detections.n_sharper_than_psf == len(_HIT_CENTERS)
+
+
+def test_detect_image_sources_keeps_hits_without_psf_limits(
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """With no PSF to test against, the brighter hits fill the cohort."""
+    image = _star_field_image([(50.0, 70.0), (120.0, 110.0)], draw=draw_gaussian_star)
+    _add_two_pixel_hits(image)
+    detections = _detect_image_sources(
+        image,
+        image_noise_sigma=1.0,
+        sigma_px=1.2,
+        detection_sigma=4.0,
+        centroid_box_half_px=3,
+        max_sources=3,
+        psf_limits=None,
+        psf_sharpness_sigma=4.0,
+    )
+    hits = {(v, u) for v, u in _HIT_CENTERS}
+    assert all((round(s.v), round(s.u)) in hits for s in detections.sources)
 
 
 # ---------------------------------------------------------------------------
@@ -425,6 +496,48 @@ def test_star_field_recovers_planted_offset(
     assert result.offset_px[1] == pytest.approx(planted[1], abs=0.5)
     assert isinstance(result.diagnostics, StarFieldDiagnostics)
     assert result.diagnostics.n_inliers >= 6
+
+
+def test_star_field_recovers_planted_offset_through_cosmic_ray_hits(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Forty hits brighter than every star, filling the cohort, are set aside by shape."""
+    centers = [
+        (60.0, 80.0),
+        (110.0, 130.0),
+        (180.0, 90.0),
+        (220.0, 200.0),
+        (90.0, 240.0),
+        (250.0, 70.0),
+    ]
+    image = _star_field_image(centers, draw=draw_gaussian_star, shape=(320, 320))
+    _add_two_pixel_hits(image)
+    planted = (3.0, -2.5)
+    features = _make_star_field_features(centers, make_feature=make_star_feature, offset=planted)
+    context = replace(
+        make_nav_context(image, extfov_margin_vu=(32, 32)),
+        obs=_SharpnessObs(1.0, extfov_margin_vu=(32, 32)),
+    )
+    result = StarFieldFromCatalogNav().navigate(features, context)
+    assert result.spurious is False
+    assert result.offset_px[0] == pytest.approx(planted[0], abs=0.5)
+    assert result.offset_px[1] == pytest.approx(planted[1], abs=0.5)
+
+
+def test_star_field_psf_sharpness_sigma_not_positive_raises() -> None:
+    """Construction rejects a non-positive ``psf_sharpness_sigma``."""
+    technique_class = StarFieldFromCatalogNav
+    bad_tuning = dict(technique_class.tuning)
+    bad_tuning['psf_sharpness_sigma'] = 0.0
+    original_tuning = technique_class.tuning
+    try:
+        technique_class.tuning = bad_tuning
+        with pytest.raises(ValueError, match='psf_sharpness_sigma must be > 0'):
+            technique_class()
+    finally:
+        technique_class.tuning = original_tuning
 
 
 def test_star_field_is_deterministic_across_two_invocations(

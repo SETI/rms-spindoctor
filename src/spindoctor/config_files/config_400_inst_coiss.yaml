@@ -12,6 +12,19 @@ cassini_iss:
       512: [25, 50]
       1024: [50, 140]
     star_psf_sigma: 0.54
+    # Gaussian sigma (px) of the narrowest star the camera records, per
+    # image row count (summing narrows a star in pixel units).  A source
+    # more concentrated than this allows is a cosmic-ray hit.  Each value
+    # is a little below the sigma of the Gaussian whose brightest-pixel
+    # share equals that of the narrowest star measured: 122 stars on 24
+    # full-size F ring frames (narrowest sigma 0.54), 935 stars on 28 SUM2
+    # frames (0.33), and 87 stars on 8 SUM4 frames (0.25).  At 0.22 a 2x2
+    # block may hold the whole box, so on 256-row frames only the pixel
+    # and pair shares can set a source aside.
+    star_sharpness_psf_sigma:
+      256: 0.22
+      512: 0.3
+      1024: 0.5
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -50,6 +63,12 @@ cassini_iss:
       512: [5, 10]
       1024: [5, 10]
     star_psf_sigma: 0.77
+    # As for the NAC: 18 stars on 6 full-size F ring frames (narrowest
+    # sigma 0.78) and 1020 stars on 17 SUM2 frames (0.46).  No SUM4 frame
+    # with measurable stars was found, so 256-row frames are not tested.
+    star_sharpness_psf_sigma:
+      512: 0.4
+      1024: 0.7
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -57,6 +76,9 @@ cassini_iss:
       100: [9, 9]
     fit_camera_rotation: false
     max_rotation_deg: 5.0
+    # See the cassini_iss_calib WAC block for the calibration.
+    model_error_floor_px:
+      RingAnnulusNav: 0.9
     noise:
       saturation_dn: 4095
       full_well_dn: 4095
@@ -109,6 +131,19 @@ cassini_iss_calib:
       512: [25, 50]
       1024: [50, 140]
     star_psf_sigma: 0.54
+    # Gaussian sigma (px) of the narrowest star the camera records, per
+    # image row count (summing narrows a star in pixel units).  A source
+    # more concentrated than this allows is a cosmic-ray hit.  Each value
+    # is a little below the sigma of the Gaussian whose brightest-pixel
+    # share equals that of the narrowest star measured: 122 stars on 24
+    # full-size F ring frames (narrowest sigma 0.54), 935 stars on 28 SUM2
+    # frames (0.33), and 87 stars on 8 SUM4 frames (0.25).  At 0.22 a 2x2
+    # block may hold the whole box, so on 256-row frames only the pixel
+    # and pair shares can set a source aside.
+    star_sharpness_psf_sigma:
+      256: 0.22
+      512: 0.3
+      1024: 0.5
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -139,6 +174,12 @@ cassini_iss_calib:
       512: [5, 10]
       1024: [5, 10]
     star_psf_sigma: 0.77
+    # As for the NAC: 18 stars on 6 full-size F ring frames (narrowest
+    # sigma 0.78) and 1020 stars on 17 SUM2 frames (0.46).  No SUM4 frame
+    # with measurable stars was found, so 256-row frames are not tested.
+    star_sharpness_psf_sigma:
+      512: 0.4
+      1024: 0.7
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -146,6 +187,25 @@ cassini_iss_calib:
       100: [9, 9]
     fit_camera_rotation: false
     max_rotation_deg: 5.0
+    # Model-error floor (px) of the annulus correlation on this camera, in
+    # place of RingAnnulusNav's tuning floor (0.13 px, which fits the NAC: over
+    # the 401 NAC annulus answers of the 20,584-frame F ring bundle run their
+    # Mahalanobis distance to the bundle has median 0.71 and 1.2% beyond 3).
+    # The WAC annulus template is off by a near-constant 1.5-1.9 px on whole
+    # observations (rev 173 and rev 199 spoke movies) while the correlation
+    # reports 0.2-0.7 px; the NCC curvature cannot see a template that misplaces
+    # the edges.  Calibrated on the run's 995 WAC annulus answers (44
+    # observations) against the bundle pointing corrected for the WAC bundle's
+    # constant offset (0.43, 0.69) px, the median star-minus-bundle offset of
+    # the run's 490 WAC star refinements, with a third of the observations held
+    # out: at 0.13 px, 44% (fit) and 44% (held out) of the answers lie beyond a
+    # Mahalanobis distance of 2 and 36% and 27% beyond 3; at 0.9 px 11.8% and
+    # 2.0% beyond 2, none beyond 3 (a Gaussian gives 13.5% and 1.1%).  The 134
+    # answers whose stars confirm the bundle have none beyond 2.  The median is
+    # 0.56 either way: most WAC answers already report a wide localization
+    # spread, which the floor does not change.
+    model_error_floor_px:
+      RingAnnulusNav: 0.9
     noise:
       marker_value: NaN
     image_quality_thresholds:
@@ -162,3 +222,280 @@ cassini_iss_calib:
       fallback_combo: 'CL1+CL2'
       mag_offset_table:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
+
+# Star photometry of the Cassini ISS cameras, read by ObsCassiniISS.star_max_usable_vmag
+# for raw and calibrated images alike.  A star of V magnitude m and the default spectral
+# class (G0) deposits
+#     flux_electrons_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[pair])) * texp
+#         / electrons_per_dn[GAIN_MODE_ID]
+# DN.  The dimmest visible star deposits min_detectable_dn, and the catalog search reaches
+# search_depth_mag past it, as the previous navigation software did (flux.py and
+# model_star.py, _compute_dimmest_visible_star_vmag, which searched 1 mag deeper).
+#
+# flux_electrons_per_s_vmag0 and filter_mag_offset are generated by
+# util/star_photometry/cassini_iss_filter_offsets.py from the CISSCAL system-transmission
+# and quantum-efficiency-correction tables of the Cassini ISS archive's calibration
+# volume, through that software's photometric chain (a 5920 K photon spectrum scaled to
+# V, times the system transmission, times the collecting area, times its per-filter
+# correction for G-class stars).  A filter pair whose CISSCAL table is empty passes no
+# light and is absent.  electrons_per_dn is CISSCAL's gain (30.27 NAC, 27.68 WAC at
+# 29 e/DN) over its gain ratio for each state.
+cassini_iss_star_photometry:
+  nac:
+    flux_electrons_per_s_vmag0: 2.304e+08
+    electrons_per_dn:
+      '12 ELECTRONS PER DN': 12.841
+      '29 ELECTRONS PER DN': 30.27
+      '95 ELECTRONS PER DN': 97.78
+      '215 ELECTRONS PER DN': 223.58
+    min_detectable_dn: 24.0
+    search_depth_mag: 1.0
+    filter_mag_offset:
+      'BL1+BL2': 4.98
+      'BL1+CB1': 18.25
+      'BL1+CB2': 18.27
+      'BL1+CB3': 18.92
+      'BL1+CBB': 20.42
+      'BL1+CL2': 3.19
+      'BL1+GRN': 6.39
+      'BL1+IR1': 16.32
+      'BL1+IR3': 25.94
+      'BL1+MT1': 18.23
+      'BL1+MT2': 18.87
+      'BL1+MT3': 19.12
+      'BL1+UV3': 14.53
+      'BL2+CL1': 4.97
+      'BL2+HAL': 19.17
+      'BL2+IR2': 15.43
+      'BL2+IR4': 18.19
+      'BL2+P0': 6.30
+      'BL2+P120': 6.30
+      'BL2+P60': 6.30
+      'BL2+RED': 16.23
+      'BL2+UV1': 18.80
+      'BL2+UV2': 17.82
+      'CB1+CL1': 3.27
+      'CB1+HAL': 12.38
+      'CB1+IR2': 17.05
+      'CB1+IR4': 17.59
+      'CB1+IRP0': 4.41
+      'CB1+P0': 4.46
+      'CB1+P120': 4.46
+      'CB1+P60': 4.46
+      'CB1+RED': 3.40
+      'CB1+UV1': 18.28
+      'CB1+UV2': 18.84
+      'CB2+CL1': 3.99
+      'CB2+HAL': 17.38
+      'CB2+IR2': 17.14
+      'CB2+IR4': 18.30
+      'CB2+IRP0': 4.90
+      'CB2+P0': 4.84
+      'CB2+P120': 4.84
+      'CB2+P60': 4.84
+      'CB2+RED': 12.65
+      'CB2+UV1': 19.27
+      'CB2+UV2': 19.29
+      'CB3+CL1': 5.77
+      'CB3+HAL': 18.84
+      'CB3+IR2': 9.51
+      'CB3+IR4': 14.82
+      'CB3+IRP0': 6.81
+      'CB3+P0': 16.25
+      'CB3+P120': 16.25
+      'CB3+P60': 16.25
+      'CB3+RED': 16.11
+      'CB3+UV1': 19.46
+      'CB3+UV2': 19.46
+      'CBA+CL1': 4.04
+      'CBA+HAL': 12.47
+      'CBA+IR2': 16.95
+      'CBA+IRP0': 4.93
+      'CBA+P0': 5.19
+      'CBA+P120': 5.19
+      'CBA+P60': 5.19
+      'CBA+RED': 4.09
+      'CBB+CL1': 4.16
+      'CBB+IRP0': 5.44
+      'CBB+P0': 5.38
+      'CBB+P120': 5.38
+      'CBB+P60': 5.38
+      'CBB+RED': 4.23
+      'CL1+CL2': 0.00
+      'CL1+GRN': 1.60
+      'CL1+IR1': 1.02
+      'CL1+IR3': 2.39
+      'CL1+MT1': 5.19
+      'CL1+MT2': 4.87
+      'CL1+MT3': 4.93
+      'CL1+UV3': 4.74
+      'CL2+HAL': 4.19
+      'CL2+IR2': 2.18
+      'CL2+IR4': 5.21
+      'CL2+IRP0': 1.32
+      'CL2+P0': 1.36
+      'CL2+P120': 1.36
+      'CL2+P60': 1.36
+      'CL2+RED': 1.13
+      'CL2+UV1': 7.33
+      'CL2+UV2': 6.02
+      'GRN+HAL': 12.73
+      'GRN+IR2': 14.42
+      'GRN+IR4': 15.70
+      'GRN+IRP0': 3.96
+      'GRN+P0': 2.82
+      'GRN+P120': 2.82
+      'GRN+P60': 2.82
+      'GRN+RED': 2.38
+      'GRN+UV1': 16.36
+      'GRN+UV2': 16.62
+      'HAL+IR1': 11.40
+      'HAL+IR3': 19.64
+      'HAL+MT1': 16.01
+      'HAL+MT2': 19.88
+      'HAL+MT3': 20.05
+      'HAL+UV3': 18.70
+      'IR1+IR2': 3.33
+      'IR1+IR4': 14.35
+      'IR1+IRP0': 2.00
+      'IR1+P0': 2.12
+      'IR1+P120': 2.12
+      'IR1+P60': 2.12
+      'IR1+RED': 2.38
+      'IR1+UV1': 16.48
+      'IR1+UV2': 16.27
+      'IR2+IR3': 3.51
+      'IR2+MT1': 14.52
+      'IR2+MT2': 17.40
+      'IR2+MT3': 4.95
+      'IR2+UV3': 13.49
+      'IR3+IR4': 5.39
+      'IR3+IRP0': 3.90
+      'IR3+P0': 12.55
+      'IR3+P120': 12.55
+      'IR3+P60': 12.55
+      'IR3+RED': 13.27
+      'IR3+UV1': 16.43
+      'IR3+UV2': 16.56
+      'IR4+MT1': 18.06
+      'IR4+MT2': 19.49
+      'IR4+MT3': 15.14
+      'IR4+UV3': 15.26
+      'IRP0+MT1': 6.19
+      'IRP0+MT2': 5.84
+      'IRP0+MT3': 5.93
+      'MT1+P0': 6.37
+      'MT1+P120': 6.37
+      'MT1+P60': 6.37
+      'MT1+RED': 5.31
+      'MT1+UV1': 20.05
+      'MT1+UV2': 20.42
+      'MT2+P0': 5.79
+      'MT2+P120': 5.79
+      'MT2+P60': 5.79
+      'MT2+RED': 6.80
+      'MT2+UV1': 20.52
+      'MT2+UV2': 19.92
+      'MT3+P0': 16.99
+      'MT3+P120': 16.99
+      'MT3+P60': 16.99
+      'MT3+RED': 17.01
+      'MT3+UV1': 18.32
+      'MT3+UV2': 18.33
+      'P0+UV3': 6.23
+      'P120+UV3': 6.23
+      'P60+UV3': 6.23
+      'RED+UV3': 15.98
+      'UV1+UV3': 14.92
+      'UV2+UV3': 7.04
+  wac:
+    flux_electrons_per_s_vmag0: 2.959e+07
+    electrons_per_dn:
+      '12 ELECTRONS PER DN': 11.727
+      '29 ELECTRONS PER DN': 27.68
+      '95 ELECTRONS PER DN': 95.24
+      '215 ELECTRONS PER DN': 220.65
+    min_detectable_dn: 58.0
+    search_depth_mag: 1.0
+    filter_mag_offset:
+      'BL1+CB2': 17.93
+      'BL1+CB3': 18.51
+      'BL1+CL1': 3.27
+      'BL1+IR2': 16.46
+      'BL1+IR3': 17.27
+      'BL1+IR4': 19.31
+      'BL1+IR5': 19.38
+      'BL1+MT2': 17.86
+      'BL1+MT3': 18.08
+      'CB2+CL2': 3.93
+      'CB2+GRN': 16.60
+      'CB2+HAL': 18.09
+      'CB2+IR1': 4.01
+      'CB2+IRP0': 4.75
+      'CB2+IRP90': 4.75
+      'CB2+RED': 12.73
+      'CB2+VIO': 19.26
+      'CB3+CL2': 8.13
+      'CB3+GRN': 16.90
+      'CB3+HAL': 19.43
+      'CB3+IR1': 16.95
+      'CB3+IRP0': 8.90
+      'CB3+IRP90': 8.89
+      'CB3+RED': 16.75
+      'CB3+VIO': 20.27
+      'CL1+CL2': 0.00
+      'CL1+GRN': 1.20
+      'CL1+HAL': 3.93
+      'CL1+IR1': 0.62
+      'CL1+IRP0': 1.79
+      'CL1+IRP90': 1.79
+      'CL1+RED': 0.81
+      'CL1+VIO': 5.41
+      'CL2+IR2': 3.11
+      'CL2+IR3': 4.14
+      'CL2+IR4': 8.17
+      'CL2+IR5': 10.35
+      'CL2+MT2': 4.95
+      'CL2+MT3': 6.43
+      'GRN+IR2': 15.50
+      'GRN+IR3': 16.55
+      'GRN+IR4': 17.61
+      'GRN+IR5': 17.35
+      'GRN+MT2': 16.40
+      'GRN+MT3': 16.90
+      'HAL+IR2': 15.37
+      'HAL+IR3': 15.26
+      'HAL+IR4': 19.93
+      'HAL+IR5': 20.70
+      'HAL+MT2': 18.67
+      'HAL+MT3': 17.56
+      'IR1+IR2': 4.03
+      'IR1+IR3': 11.86
+      'IR1+IR4': 17.09
+      'IR1+IR5': 17.24
+      'IR1+MT2': 5.07
+      'IR1+MT3': 15.09
+      'IR2+IRP0': 3.88
+      'IR2+IRP90': 3.88
+      'IR2+RED': 15.35
+      'IR2+VIO': 16.39
+      'IR3+IRP0': 4.90
+      'IR3+IRP90': 4.90
+      'IR3+RED': 12.69
+      'IR3+VIO': 17.12
+      'IR4+IRP0': 8.93
+      'IR4+IRP90': 8.93
+      'IR4+RED': 17.24
+      'IR4+VIO': 20.84
+      'IR5+IRP0': 11.09
+      'IR5+IRP90': 11.11
+      'IR5+RED': 17.35
+      'IR5+VIO': 21.27
+      'IRP0+MT2': 5.79
+      'IRP0+MT3': 7.20
+      'IRP90+MT2': 5.79
+      'IRP90+MT3': 7.19
+      'MT2+RED': 6.82
+      'MT2+VIO': 20.09
+      'MT3+RED': 16.58
+      'MT3+VIO': 18.89

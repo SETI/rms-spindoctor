@@ -12,12 +12,16 @@ from tests.spindoctor.nav_technique.conftest import (
     NavFeatureFactory,
 )
 
+from spindoctor.feature.feature import NavFeature
 from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.nav_technique import (
     ROTATION_UNOBSERVABLE_VARIANCE,
     NavTechnique,
 )
-from spindoctor.nav_technique.nav_technique_star_unique_match import StarUniqueMatchNav
+from spindoctor.nav_technique.nav_technique_star_unique_match import (
+    StarUniqueMatchNav,
+    _found_at,
+)
 
 
 def test_star_unique_match_one_star_recovers_planted_offset(
@@ -117,9 +121,10 @@ def test_star_unique_match_one_star_fails_when_brightness_margin_too_small(
     draw_gaussian_star(image, actual, peak_dn=200.0, sigma=1.2)
     planted = (1.0, 1.0)
     pred_a = (actual[0] - planted[0], actual[1] - planted[1])
-    # Second prediction in a region with no signal so its detection
-    # fails — forcing the one-star fallback.
-    pred_b = (10.0, 10.0)
+    # Second prediction in a region with no signal of its own, so the 2-star
+    # path fails and the one-star fallback runs, but near enough (39 px on each
+    # axis) to fall in the first star's window at some offset.
+    pred_b = (60.0, 60.0)
     feat_a = make_star_feature('star:UCAC4:A', predicted_vu=pred_a, predicted_snr=20.0)
     feat_b = make_star_feature(
         'star:UCAC4:B',
@@ -134,6 +139,97 @@ def test_star_unique_match_one_star_fails_when_brightness_margin_too_small(
     # is below the 1.5 mag floor.
     assert result.spurious is True
     assert result.confidence == pytest.approx(0.0)
+
+
+def _rival_outside_window_case(
+    draw_gaussian_star: DrawGaussianStarFactory,
+    make_star_feature: NavFeatureFactory,
+    *,
+    drawn: tuple[str, ...],
+    others: tuple[str, ...] = ('C',),
+) -> tuple[np.ndarray, list[NavFeature]]:
+    """Return an image and stars whose near-equal rival cannot enter the window.
+
+    Star A (SNR 20) is drawn 1 px from its prediction.  Star B (SNR 18) is predicted
+    185 px from A in u, more than twice the 30 px window half-width, and beyond the
+    image's edge, so it is neither a window rival nor a corroboration target.  Stars C
+    and D (SNR 5), included when named in ``others``, are predicted in the image, far
+    from A, and drawn 1 px from their predictions when named in ``drawn``.
+    """
+    image = np.zeros((200, 300), dtype=np.float64)
+    draw_gaussian_star(image, (100.0, 100.0), peak_dn=200.0, sigma=1.2)
+    places = {'C': (59.0, 199.0), 'D': (159.0, 249.0)}
+    stars = [
+        make_star_feature('star:UCAC4:A', predicted_vu=(99.0, 99.0), predicted_snr=20.0),
+        make_star_feature('star:UCAC4:B', predicted_vu=(99.0, 284.0), predicted_snr=18.0),
+    ]
+    for name in others:
+        v, u = places[name]
+        stars.append(
+            make_star_feature(f'star:UCAC4:{name}', predicted_vu=(v, u), predicted_snr=5.0)
+        )
+        if name in drawn:
+            draw_gaussian_star(image, (v + 1.0, u + 1.0), peak_dn=50.0, sigma=1.2)
+    return image, stars
+
+
+def test_star_unique_match_one_star_ignores_a_rival_beyond_the_window(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A near-equal star that cannot enter the window does not refuse a corroborated match.
+
+    The match is scored as meeting the margin floor exactly.
+    """
+    image, stars = _rival_outside_window_case(draw_gaussian_star, make_star_feature, drawn=('C',))
+    result = StarUniqueMatchNav().navigate(stars, make_nav_context(image))
+    assert result.spurious is False
+    assert result.offset_px[0] == pytest.approx(1.0, abs=0.5)
+    assert result.offset_px[1] == pytest.approx(1.0, abs=0.5)
+    assert isinstance(result.diagnostics, StarUniqueMatchDiagnostics)
+    assert result.diagnostics.brightness_margin_mag == pytest.approx(1.5)
+
+
+@pytest.mark.parametrize(
+    ('drawn', 'others'),
+    [
+        ((), ('C',)),  # the one star in the image is not found
+        ((), ()),  # no other star is in the image
+        (('C',), ('C', 'D')),  # one of two stars in the image is found
+    ],
+)
+def test_star_unique_match_one_star_needs_corroboration_beside_a_near_equal_star(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    drawn: tuple[str, ...],
+    others: tuple[str, ...],
+) -> None:
+    """With a near-equal star elsewhere, a match too few other stars confirm is refused."""
+    image, stars = _rival_outside_window_case(
+        draw_gaussian_star, make_star_feature, drawn=drawn, others=others
+    )
+    result = StarUniqueMatchNav().navigate(stars, make_nav_context(image))
+    assert result.spurious is True
+
+
+def test_a_textured_body_is_not_a_corroborating_star() -> None:
+    """The brightest pixel of a textured body does not stand out from its surroundings.
+
+    It stands far above the image noise, but its surroundings spread as widely.
+    """
+    grid = 2.0 * np.pi * (np.arange(60, dtype=np.float64) - 30.0) / 12.0
+    image = 1000.0 + 200.0 * np.cos(grid)[:, None] * np.cos(grid)[None, :]
+    found = _found_at(
+        image,
+        (30.0, 30.0),
+        tolerance_px=1.5,
+        box_half_px=3,
+        noise_sigma=1.0,
+        detection_sigma=4.0,
+    )
+    assert found is False
 
 
 def test_star_unique_match_infeasible_on_empty_input() -> None:
@@ -429,3 +525,19 @@ def test_star_unique_match_one_star_reports_unambiguous_peak_ratio(
     assert result.spurious is False
     assert isinstance(result.diagnostics, StarUniqueMatchDiagnostics)
     assert result.diagnostics.detection_peak_ratio >= 1.5
+
+
+@pytest.mark.parametrize('distance_px', [0.0, math.nan, math.inf])
+def test_star_unique_match_rejects_a_corroboration_distance_not_finite_and_positive(
+    distance_px: float,
+) -> None:
+    """Construction refuses a ``one_star_corroboration_px`` that is not finite and > 0."""
+    original_tuning = StarUniqueMatchNav.tuning
+    bad_tuning = dict(original_tuning)
+    bad_tuning['one_star_corroboration_px'] = distance_px
+    try:
+        StarUniqueMatchNav.tuning = bad_tuning
+        with pytest.raises(ValueError, match='one_star_corroboration_px must be finite and > 0'):
+            StarUniqueMatchNav()
+    finally:
+        StarUniqueMatchNav.tuning = original_tuning

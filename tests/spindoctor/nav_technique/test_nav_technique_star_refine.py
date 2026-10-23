@@ -19,6 +19,7 @@ from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
 )
 from spindoctor.nav_technique.nav_technique_star_refine import StarRefineNav
+from spindoctor.support.types import NDArrayFloatType
 
 
 def _attach_prior(context: NavContext, *, prior_offset_px: tuple[float, float]) -> NavContext:
@@ -104,6 +105,272 @@ def test_star_refine_drops_outlier_star(
     # A and B contribute; the wild C prediction is dropped because no
     # bright peak sits inside its refine window.
     assert result.diagnostics.n_stars_used == 2
+
+
+@pytest.mark.parametrize(
+    ('actual_vu', 'predicted_vu'),
+    [
+        ((33.0, 100.0), (30.0, 100.0)),
+        ((186.0, 100.0), (189.0, 100.0)),
+        ((100.0, 33.0), (100.0, 30.0)),
+        ((100.0, 186.0), (100.0, 189.0)),
+    ],
+    ids=['top', 'bottom', 'left', 'right'],
+)
+def test_star_refine_drops_a_star_whose_centroid_box_the_frame_edge_cuts(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    actual_vu: tuple[float, float],
+    predicted_vu: tuple[float, float],
+) -> None:
+    """A star predicted beyond the frame edge cannot be centroided, so it is dropped.
+
+    The default fake obs pads 32 px on each side of a 220 px array, so the data area is
+    rows and columns 32 to 187.  Star C lies in the padding; its refine window reaches
+    the outermost data pixels, where a star sits whose centroid box the edge cuts.
+    """
+    image = np.zeros((220, 220), dtype=np.float64)
+    draw_gaussian_star(image, (60.0, 70.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (160.0, 130.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, actual_vu, peak_dn=200.0, sigma=1.2)
+    features = [
+        make_star_feature('star:UCAC4:A', predicted_vu=(60.0, 70.0), predicted_snr=30.0),
+        make_star_feature('star:UCAC4:B', predicted_vu=(160.0, 130.0), predicted_snr=30.0),
+        make_star_feature('star:UCAC4:C', predicted_vu=predicted_vu, predicted_snr=300.0),
+    ]
+    context = _attach_prior(make_nav_context(image), prior_offset_px=(0.0, 0.0))
+    result = StarRefineNav().navigate(features, context)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    assert result.diagnostics.n_stars_used == 2
+
+
+def test_star_refine_keeps_a_star_whose_centroid_box_just_fits(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A star whose 3 px centroid box reaches exactly the last data row is measured."""
+    image = np.zeros((220, 220), dtype=np.float64)
+    draw_gaussian_star(image, (60.0, 70.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (160.0, 130.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (184.0, 100.0), peak_dn=200.0, sigma=1.2)
+    features = [
+        make_star_feature('star:UCAC4:A', predicted_vu=(60.0, 70.0), predicted_snr=30.0),
+        make_star_feature('star:UCAC4:B', predicted_vu=(160.0, 130.0), predicted_snr=30.0),
+        make_star_feature('star:UCAC4:C', predicted_vu=(184.0, 100.0), predicted_snr=30.0),
+    ]
+    context = _attach_prior(make_nav_context(image), prior_offset_px=(0.0, 0.0))
+    result = StarRefineNav().navigate(features, context)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    assert result.diagnostics.n_stars_used == 3
+
+
+def _refine_with_bright_star_offset(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    *,
+    faint_offsets_vu: list[tuple[float, float]],
+    bright_offset_vu: tuple[float, float],
+    prior_covariance_px2: NDArrayFloatType | None = None,
+) -> tuple[float, float, int]:
+    """Refine a frame whose bright star is displaced from its prediction by an offset.
+
+    Each faint star is drawn displaced by its own offset; the bright star carries 100
+    times a faint star's weight.  The prior sits at zero offset with the given covariance
+    (the identity when None).  Returns the refined offset and the inlier count.
+    """
+    image = np.zeros((220, 220), dtype=np.float64)
+    positions = [(60.0, 60.0), (60.0, 160.0), (160.0, 60.0), (160.0, 160.0)]
+    features = []
+    for i, ((v, u), (dv, du)) in enumerate(zip(positions, faint_offsets_vu, strict=False)):
+        draw_gaussian_star(image, (v + dv, u + du), peak_dn=200.0, sigma=1.2)
+        features.append(
+            make_star_feature(f'star:UCAC4:F{i}', predicted_vu=(v, u), predicted_snr=10.0)
+        )
+    draw_gaussian_star(
+        image, (110.0 + bright_offset_vu[0], 110.0 + bright_offset_vu[1]), peak_dn=400.0, sigma=1.2
+    )
+    features.append(
+        make_star_feature('star:UCAC4:B', predicted_vu=(110.0, 110.0), predicted_snr=100.0)
+    )
+    context = make_nav_context(image).with_prior(
+        offset_px=(0.0, 0.0),
+        covariance_px2=(
+            np.eye(2, dtype=np.float64) if prior_covariance_px2 is None else prior_covariance_px2
+        ),
+    )
+    result = StarRefineNav().navigate(features, context)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    return result.offset_px[0], result.offset_px[1], result.diagnostics.n_stars_used
+
+
+def test_star_refine_drops_a_bright_star_that_disagrees_with_the_rest(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A heavily weighted star 2.5 px from four that agree does not set the offset."""
+    dv, du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5)] * 4,
+        bright_offset_vu=(-1.5, -1.5),
+    )
+    assert n_used == 4
+    assert dv == pytest.approx(0.5, abs=0.05)
+    assert du == pytest.approx(0.5, abs=0.05)
+
+
+def test_star_refine_keeps_a_star_within_the_spread_of_the_rest(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """The tolerance grows with the stars' own spread: 3 times their median distance."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.6, 0.0), (-0.6, 0.0), (0.0, 0.6), (0.0, -0.6)],
+        bright_offset_vu=(1.5, 0.0),
+    )
+    assert n_used == 5
+
+
+def test_star_refine_drops_the_discordant_one_of_four(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Four inliers are enough to single out the one that disagrees."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5)] * 3,
+        bright_offset_vu=(-1.5, -1.5),
+    )
+    assert n_used == 3
+
+
+def test_star_refine_lets_the_prior_settle_a_three_star_split(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Of three stars, the one disagreeing with the prior and the other two is dropped."""
+    dv, du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.2, 0.2)] * 2,
+        bright_offset_vu=(-3.0, -1.5),
+    )
+    assert n_used == 2
+    assert dv == pytest.approx(0.2, abs=0.05)
+    assert du == pytest.approx(0.2, abs=0.05)
+
+
+def test_star_refine_keeps_three_stars_beside_an_imprecise_prior(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A prior 1.5 px uncertain along one axis casts no vote, so a 2-to-1 split stands."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.2, 0.2)] * 2,
+        bright_offset_vu=(-3.0, -1.5),
+        prior_covariance_px2=np.diag([0.01, 2.25]),
+    )
+    assert n_used == 3
+
+
+def test_star_refine_keeps_three_stars_beside_a_rank_deficient_prior(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A ring-edge prior, precise across the edge but free along it, casts no vote."""
+    normal = np.array([0.6, 0.8], dtype=np.float64)
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.2, 0.2)] * 2,
+        bright_offset_vu=(-3.0, -1.5),
+        prior_covariance_px2=0.09 * np.outer(normal, normal),
+    )
+    assert n_used == 3
+
+
+def test_star_refine_prior_votes_only_one_star_short(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """With enough stars to vote alone, the prior adds no vote to move the median."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.0, 0.0), (0.0, 0.0), (1.0, 1.0), (2.5, 2.5)],
+        bright_offset_vu=(2.5, 2.5),
+    )
+    assert n_used == 5
+
+
+def test_star_refine_keeps_three_stars_when_the_prior_sides_with_the_one(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A pair the prior does not confirm cannot outvote the star the prior does."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(1.5, 1.5)] * 2,
+        bright_offset_vu=(0.0, 0.0),
+    )
+    assert n_used == 3
+
+
+def test_star_refine_keeps_a_star_inside_the_one_pixel_floor(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Tightly agreeing stars do not make a star 0.9 px from them discordant."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5), (0.6, 0.5), (0.5, 0.6), (0.4, 0.5)],
+        bright_offset_vu=(1.4, 0.5),
+    )
+    assert n_used == 5
+
+
+def test_star_refine_keeps_two_disagreeing_stars(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Two stars that disagree are both kept."""
+    _dv, _du, n_used = _refine_with_bright_star_offset(
+        make_nav_context,
+        make_star_feature,
+        draw_gaussian_star,
+        faint_offsets_vu=[(0.5, 0.5)],
+        bright_offset_vu=(-1.5, -1.5),
+    )
+    assert n_used == 2
 
 
 def test_star_refine_requires_prior(
@@ -203,6 +470,20 @@ def test_star_refine_rejects_invalid_single_inlier_cap() -> None:
     try:
         technique_class.tuning = bad_tuning
         with pytest.raises(ValueError, match='single_inlier_confidence_cap'):
+            technique_class()
+    finally:
+        technique_class.tuning = original_tuning
+
+
+def test_star_refine_rejects_discordant_min_stars_below_two() -> None:
+    """Construction rejects ``discordant_min_stars`` below two."""
+    technique_class = StarRefineNav
+    bad_tuning = dict(technique_class.tuning)
+    bad_tuning['discordant_min_stars'] = 1
+    original_tuning = technique_class.tuning
+    try:
+        technique_class.tuning = bad_tuning
+        with pytest.raises(ValueError, match='discordant_min_stars must be >= 2; got 1'):
             technique_class()
     finally:
         technique_class.tuning = original_tuning

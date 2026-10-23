@@ -16,7 +16,12 @@ from spindoctor.nav_orchestrator.curator import (
 )
 from spindoctor.nav_orchestrator.feature_summary import NavFeatureSummary
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
-from spindoctor.nav_orchestrator.nav_result import NavInternalErrorRecord, NavResult
+from spindoctor.nav_orchestrator.nav_result import (
+    ArbitrationCandidate,
+    ConflictArbitrationRecord,
+    NavInternalErrorRecord,
+    NavResult,
+)
 from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
@@ -501,3 +506,57 @@ def test_a_result_with_no_internal_error_emits_no_block() -> None:
     """An ordinary failure carries no internal_error key at all."""
     md = _json_round_trip(_gated_titan_result())
     assert 'internal_error' not in md
+
+
+def _arbitrated_result() -> NavResult:
+    """A failed result stamped with the record of a pass-2 test of a conflict."""
+    record = ConflictArbitrationRecord(
+        candidates=(
+            ArbitrationCandidate(
+                techniques=('StarUniqueMatchNav',),
+                offset_px=(-0.78049, 4.32012),
+                support=30,
+                confirmed=True,
+            ),
+            ArbitrationCandidate(
+                techniques=('RingEdgeNav', 'BodyLimbNav', 'BodyLimbNav'),
+                offset_px=(-18.0, -46.0),
+                support=1,
+                confirmed=False,
+            ),
+        ),
+        refuted_techniques=('RingEdgeNav', 'BodyLimbNav', 'BodyLimbNav'),
+    )
+    return dataclasses.replace(_gated_titan_result(), conflict_arbitration=record)
+
+
+def test_the_arbitration_record_reaches_the_json() -> None:
+    """Both tested answers, their supports, and the refuted techniques are written.
+
+    The runner-up answer holds a limb measured on two bodies: each measurement is one
+    entry, and the refuted names are sorted while each answer keeps its own order.
+    """
+    md = _json_round_trip(_arbitrated_result())
+    assert md['conflict_arbitration'] == {
+        'candidates': [
+            {
+                'techniques': ['StarUniqueMatchNav'],
+                'offset_px': [-0.7805, 4.3201],
+                'support': 30,
+                'confirmed': True,
+            },
+            {
+                'techniques': ['RingEdgeNav', 'BodyLimbNav', 'BodyLimbNav'],
+                'offset_px': [-18.0, -46.0],
+                'support': 1,
+                'confirmed': False,
+            },
+        ],
+        'refuted_techniques': ['BodyLimbNav', 'BodyLimbNav', 'RingEdgeNav'],
+    }
+
+
+def test_a_result_the_test_did_not_run_on_emits_no_arbitration_block() -> None:
+    """No conflict_arbitration key is written when the pass-2 test did not run."""
+    md = _json_round_trip(_gated_titan_result())
+    assert 'conflict_arbitration' not in md

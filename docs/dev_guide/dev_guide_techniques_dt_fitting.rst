@@ -283,6 +283,15 @@ eigenvalue is zero, the marginal variance along that axis is also zero in :math:
 the per-axis sigma reported by the ensemble correctly flags the rank deficiency rather than
 silently inverting floating-point noise.
 
+A caller that passes ``covariance_normals_vu`` has the covariance formed from a Jacobian
+whose translation rows are projected onto each vertex's own normal,
+:math:`(J_i \cdot n_i)\, n_i`. The DT of a binary edge mask is a staircase along any edge
+that is not axis-aligned, and its gradient's component along the edge is information the
+edge does not carry. The projection changes the reported covariance only: the iteration,
+and so the converged pose, residuals, and weights, are the same with and without it. Only
+:class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav` passes normals, for
+the reason given under its along-edge uncertainty in :doc:`dev_guide_techniques_ring_edge`.
+
 A single project-wide cutoff
 (:data:`~spindoctor.nav_technique.dt_fitting.DEFAULT_PINVH_RCOND`, ``1e-9``) keeps the threshold
 consistent across every technique that consumes this helper and across the orchestrator's

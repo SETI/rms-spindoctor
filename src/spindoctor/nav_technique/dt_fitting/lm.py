@@ -23,6 +23,7 @@ from spindoctor.nav_technique.dt_fitting.constants import (
 )
 from spindoctor.nav_technique.dt_fitting.transforms import (
     _compute_residuals_and_jacobian,
+    _project_translation_rows,
     _rotate_vertices,
     _shift_vertices,
     _step_norm_px,
@@ -52,7 +53,9 @@ class LMRefineResult:
             ``fit_rotation`` was False.
         covariance: ``(2, 2)`` or ``(3, 3)`` parameter covariance derived
             from the M-estimator information matrix ``J^T diag(w) J`` at
-            the converged point.  This is the DATA-ONLY covariance: it
+            the converged point, with each translation row projected onto
+            its vertex normal when ``covariance_normals_vu`` is given.  This
+            is the DATA-ONLY covariance: it
             deliberately EXCLUDES the Tikhonov anchor diagonal that
             ``tikhonov_alpha`` adds to the iteration Hessian, because that
             anchor is a fitting aid that biases the step rather than
@@ -162,6 +165,7 @@ def lm_subpixel_refine(
     trust_region_px: float | None = None,
     tikhonov_alpha: float = 0.0,
     final_gradient_ridge: bool = False,
+    covariance_normals_vu: NDArrayFloatType | None = None,
 ) -> LMRefineResult:
     """Refine a polyline-vs-image alignment by Levenberg-Marquardt.
 
@@ -246,6 +250,15 @@ def lm_subpixel_refine(
             spurious gates and the reported uncertainty stay on the same DT
             footing as without the stage.  ``False`` (default) leaves the
             DT-LM optimum unchanged.
+        covariance_normals_vu: Optional ``(N, 2)`` per-vertex unit normals.
+            When given, the reported covariance is formed from the Jacobian
+            with each vertex's translation row projected onto its own normal
+            (see ``_project_translation_rows``), so a vertex contributes
+            information only across the model edge.  The iteration, and so the
+            converged pose, residuals, and weights, are the same as without
+            it.  ``None`` (default) forms the covariance from the distance
+            transform's own finite-difference gradient.
+
     Returns:
         :class:`LMRefineResult`.
 
@@ -276,6 +289,11 @@ def lm_subpixel_refine(
         )
     if final_gradient_ridge and image_gradient_vu is None:
         raise ValueError('final_gradient_ridge=True requires image_gradient_vu')
+    if covariance_normals_vu is not None and np.shape(covariance_normals_vu) != verts.shape:
+        raise ValueError(
+            'covariance_normals_vu must match vertices_vu shape; '
+            f'got {np.shape(covariance_normals_vu)}'
+        )
     if use_polarity:
         if image_gradient_vu is None:
             raise ValueError('use_polarity=True requires image_gradient_vu')
@@ -580,8 +598,15 @@ def lm_subpixel_refine(
     if state.jacobian.size == 0 or state.jacobian.shape[1] != n_params or degenerate:
         covariance = cast(NDArrayFloatType, np.full((n_params, n_params), np.inf, dtype=np.float64))
     else:
+        information_jacobian = (
+            state.jacobian
+            if covariance_normals_vu is None
+            else _project_translation_rows(
+                state.jacobian, np.asarray(covariance_normals_vu, np.float64), state.dtheta
+            )
+        )
         covariance = information_matrix_to_covariance(
-            state.jacobian, final_weights, rcond=pinvh_rcond
+            information_jacobian, final_weights, rcond=pinvh_rcond
         )
     return LMRefineResult(
         offset_vu=(state.dv, state.du),

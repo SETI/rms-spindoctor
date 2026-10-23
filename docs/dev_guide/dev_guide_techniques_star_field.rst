@@ -59,6 +59,32 @@ with a Gaussian PSF kernel of the configured ``psf_sigma_px``, peaks above
 each peak gives the sub-pixel centroid. Up to ``max_sources`` brightest detections feed the
 hash-space search; the catalog side is similarly capped.
 
+Before the ``max_sources`` cut, a peak more concentrated than any star can be is set aside
+as a cosmic-ray hit. The observation's narrowest star point-spread function
+(``star_sharpness_psf``, a Gaussian whose sigma the instrument configuration gives as
+``star_sharpness_psf_sigma``) bounds, over every sub-pixel position of a star, the largest
+share of the light in the 5x5 box around its brightest pixel that the brightest pixel, the
+brightest pixel with the brightest of its eight neighbors, and the brightest 2x2 block
+holding the brightest pixel can hold. Only pixels touching the brightest one count, so a
+second hit or a hot pixel elsewhere in a star's box does not make the star look
+concentrated. Smear, saturation, and defocus only spread a star's light, so these bounds
+hold for every star. A candidate is set aside when the light in any of the three exceeds
+its bound's share of the box by more than ``psf_sharpness_sigma`` times the noise of that
+difference. The background is the median of a ring of pixels 2 wide around the box, and
+pixels below it count as no light, so a dark row or column through the box does not make a
+star look concentrated. An instrument whose configuration gives no
+``star_sharpness_psf_sigma``, or none for the image's row count, skips the test: the
+modeled star point-spread function is not a bound unless it has been checked against the
+narrowest stars the camera records. A simulated frame skips it as well, since a scene
+renders its stars at its own point-spread function.
+
+A cosmic-ray hit of two to four pixels, with nothing around it, is the case the test is
+for. On a long exposure taken in high cosmic-ray flux, such hits outnumber and outshine
+the faint stars: F ring frame N1597888595 (1.5 s, CL1 and CL2) holds about 220 compact
+sources away from the rings, 29 of them brighter than its V 10.7 star. On 30 F ring frames
+(24 NAC and 6 WAC), the test set aside none of the 878 candidates within 1.5 px of a
+catalog star at the bundle pointing and 745 of the 7,195 others.
+
 Hash-space match
 ----------------
 
@@ -285,6 +311,11 @@ in ``src/spindoctor/config_files/config_510_techniques.yaml``.
   loosen this once the integration library exercises the full instrument set.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
   moment box around each accepted peak.
+- ``psf_sharpness_sigma`` — float, default ``4.0`` (dimensionless). Noise multiplier by
+  which a detection's brightest pixel, that pixel with the brightest of its eight
+  neighbors, or its brightest 2x2 block must hold more of its 5x5 box than the narrowest
+  star point-spread function allows before the detection is set aside as a cosmic-ray hit.
+  Must be positive.
 - ``hash_match_tolerance`` — float, default ``0.05`` (dimensionless). Match radius in the
   (ratio, ratio, angle_rad) hash space; weighted Euclidean. Empirical default for centroid
   sigma ~0.1 px against typical triplet scales.

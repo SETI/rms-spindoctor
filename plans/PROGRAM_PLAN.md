@@ -236,9 +236,10 @@ its section names):
 
 **Confident-wrong families that poison the validation data** (they belong to
 Track B but gate the study, because it consumes navigator output at scale): the
-ring-lock family (#346, #476, #373, #755), whose remaining error is along nearly straight
-ring edges (a few pixels, reported at the medium tier with a sub-pixel sigma)
-and, on a few frames, a seed on the neighboring cataloged edge, and the sparse
+ring-lock family (#346, #476, #373, #755), whose remaining error is a seed on the
+neighboring cataloged edge and a few alias locks across the edge (the
+along-edge position of a ring-only answer on a gently curved edge is reported
+with its several pixels of sigma, at the low tier), and the sparse
 star field family -- a one- or two-star solution accepted as success and
 landing up to 23 px wrong (#622), two techniques reading the same single star
 counted as independent corroboration (#623), and a centroid that can measure
@@ -291,17 +292,15 @@ The known open defects:
   Below 25 km/px, against the published F ring bundle's pointing on 1,041
   held-out frames, the seed check took right answers from 692 to 877 and
   wrong ones from 283 to 129, the alias locks across the edge among them
-  from 188 to 4; the 129 left are mostly along nearly straight edges (115,
-  median 3.0 px, almost all at the medium tier), with 5 seeds on the
+  from 188 to 4; of the 129 left, 115 were along nearly straight edges,
+  which RingEdgeNav's covariance now reports as several pixels of sigma
+  along the edge, so a star fix sets that component (on a 1,614-frame F ring
+  sample NAC answers within 1 px went from 554 to 805, and answers more than
+  2 px off at medium or high from 313 to 28). The rest are 5 seeds on the
   neighboring cataloged edge (7 to 49 px), 4 alias locks across the edge
   (3.8 to 45 px, under #373) and 5 answers carried by star techniques. A
   same-code control on 150 of those frames reproduced `main` exactly, so the
-  counts carry no run-to-run noise. Two remedies for the
-  along-edge error (a nearest-prediction seed band, and inflating the
-  along-edge variance in the covariance the ensemble fuses) failed on the
-  263-frame tuning sample, taking it from 179 right and 68 wrong to 170 and
-  80; the untried alternative, lowering only RingEdgeNav's own confidence, is
-  tracked as #755. The annulus-gate recalibration (accepting
+  counts carry no run-to-run noise. The annulus-gate recalibration (accepting
   more of its correct answers, #566) and a correlation-picks-basin /
   edge-polishes hybrid (#567) are filed follow-ons; measured as a basin
   selector below 25 km/px, the annulus correlation was right across the edge
@@ -316,15 +315,34 @@ The known open defects:
   not (median 4.2 / 1.7 px v/u): every frame in them has a straight or
   nearly straight edge set and the remainder lies along the edge, which the
   criterion as written includes. The issue stays open until the operator
-  restates the criterion as the across-edge component or the along-edge
-  follow-up lands. Five `ring_only_flat` constraint pins record the quantized
+  restates the criterion as the across-edge component; the along-edge
+  covariance change leaves RingEdgeNav's offsets, and so these rows, as they
+  were. Five `ring_only_flat` constraint pins record the quantized
   angle and await an operator re-pin. Same reduced sub-25 km/px exposure as
   #346.
-- **#755** — RingEdgeNav reports along-edge error on nearly straight edges
-  at the medium tier with a sub-pixel sigma: 115 of the 1,041 held-out F
-  ring frames, a median 3.0 px along the edge. Two remedies failed on the
-  263-frame tuning sample (under #346 above); the untried one lowers only
-  RingEdgeNav's own confidence on such an edge.
+- **#755** — RingEdgeNav's along-edge position on gently curved edges.
+  The reported covariance carries the weakness, the ensemble refuses two
+  answers equally vague along their separation, and the photometric Cassini
+  star limit gives 422 of 424 NAC ring-only F ring sample frames a star
+  fix. On the 1,614-frame sample NAC answers within 1 px of the bundle
+  pointing went from 561 to 1,020 and WAC from 86 to 210. Of 83 answers
+  that moved away from the pointing, image stars show the pointing wrong
+  on 62, one is refused where the pointing is right (N1600250613), and 20
+  cannot be decided, so strictly better than the bundle is not yet shown.
+  The full 20,584-frame run with #754 took NAC answers within 1 px from
+  6,726 to 14,934 (over 2 px 4,299 to 679); five fixes then addressed the
+  11 frames found ours, and a rerun of 2,570 frames shows none ours by two
+  agreeing stars but four refusals of answers the previous runs gave
+  (N1604017452, N1862698331, W1762900979, N1605530694); follow-ups #762,
+  #763, #764.
+  With #762, #763 and #764 addressed, three of those four answer within
+  1 px and a rerun of the 2,570 frames shows none ours by stars; the smeared
+  frame N1605530694 stays refused (#765).
+  A full run on the combination found three answers ours by stars and one
+  wrong at the high tier; two ensemble fixes (and one proposed for #754)
+  answer all four within 0.52 px, and a rerun shows none of 532 worse
+  frames ours by stars, 150 undecidable. Open: #765 for the two smeared
+  refusals, #767 for single results fused inside the pixel floor.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix
   (#447) leaves once it closes the coarse-grid and boundary-pinning halves.
@@ -383,6 +401,8 @@ The known open defects:
   (#639).
 - **#130** — star limiting-magnitude calibration against real fields
   (coordinate with #233's measured-SNR work — same frames, same tooling).
+  Cassini ISS is photometric on the #755 branch; the other three
+  instruments remain.
 - **#591** — the sparse 16x16 ring pre-check can skip a frame whose rings
   fall between its samples, so the frame is never offered a ring model.
 - **#585** — the correlation quality metric measures its background over a

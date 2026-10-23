@@ -323,6 +323,7 @@ parsed ``Config`` — the citation lives in the file for human review only.
         crater_scale_km: 1.0
         albedo_mean: null
         albedo_variation: 0.06
+        spice_orbital_residual_km: null  # SPK position sigma (km); profile value
         shape_class_hint: regular
         _sources:
           radii_km: 'Archinal et al. 2011, CMDA 109, Table 5 (per Thomas
@@ -380,6 +381,17 @@ derived from these same residual-over-radius ratios, so the sim-anchored
 confidence coefficients and this table form one system: a developer who
 revises a residual here should re-run that calibration (see
 ``util/calibration/README.md``).
+
+``spice_orbital_residual_km``, the body's SPK position uncertainty, is set
+only where it was measured: Prometheus and Pandora carry 5.0 km, MEASURED
+from BodyBlobNav centroids against star-confirmed pointing on Cassini F ring
+bundle frames (per-observation mean offsets a median 9 km, nearly constant
+within one observation and different between observations; a
+maximum-likelihood fit of the blob covariance gives 4.8 to 4.9 km per axis).
+Every other body takes the value of its fallback profile (2 km for a body
+with none).  It is added to the LIMB_ARC per-vertex sigma and, at the limb's
+image scale, to each BODY_BLOB centroid's variance (see
+:doc:`dev_guide_navigation_models_body`).
 
 Anti-hallucination procedure
 ----------------------------

@@ -182,16 +182,18 @@ held-out F ring frames). The rank-1 axis now comes from a straight edge's own li
 the ring model's 45-degree per-vertex normals, which removes the along-edge
 leak into the ensemble's answer on flat ring frames; the five
 `ring_only_flat` pins that recorded the old axis are listed for re-pinning
-below. What remains is the along-edge error of nearly straight edges (115 of
-1,041 held-out F ring frames, a median 3.0 px along the edge, almost all
-reported at the medium tier with a sub-pixel sigma), a seed on the
-neighboring cataloged edge (5 of the 1,041, 7 to 49 px), and the 4 alias
-locks left (3.8 to 45 px, under #373). Two remedies for
-the first were measured on the tuning sample and failed; the untried one,
-lowering only RingEdgeNav's own confidence on such an edge, is tracked as
-#755. #476's criterion is met across the edge but not in the raw
-sweep rows, which include the along-edge part; whether to restate it is
-yours to decide.
+below. RingEdgeNav's covariance reports the along-edge weakness of a
+gently curved edge (several pixels along it), so a star fix sets that
+component and a ring-only answer is reported at the low tier; the offsets
+themselves are unchanged. What remains is a seed on the neighboring
+cataloged edge (5 of 1,041 held-out F ring frames, 7 to 49 px), the 4 alias
+locks left (3.8 to 45 px, under #373), and the along-edge position of a
+ring-only answer, which is reported but not reduced (#755, open: on the
+1,614-frame F ring sample 4 answers that became worse against the bundle
+pointing are not shown better by the stars in the image). #476's criterion is
+met across the edge but not in the raw sweep rows, which include the
+along-edge part and which the covariance change leaves as they were;
+whether to restate it is yours to decide.
 The Saturn
 routing decision (annulus composite at and above 25 km/px radial resolution,
 per-edge fit below) limits the family's exposure to the sub-25 km/px regime.
@@ -295,7 +297,7 @@ frame no longer navigates).
 |---|---|---|
 | N1492091163 | expects `failed`; now navigates to (5.21, -26.02) at medium tier, 1.70 px in du from operator truth: RingEdgeNav converges 1.1 px from truth and a two-star StarRefineNav moves the fused answer 0.7 px in du (the sparse-star family). The expectation predates a working ring fit | #346 |
 | N1867601758, N1867602424 | expect the medium tier, get low: with the rank-1 axis taken from the line the fused answer keeps the body blob and lands on operator truth, and the ring orbit channel puts the fused sigma just over 2 px | #346 |
-| N1853392805 | highly-irregular exclusion discards the terminator fit; the ring fit is right across the edge but about 8 px off along it, so the ensemble reports `conflicted` | #338 |
+| N1853392805 | highly-irregular exclusion discards the terminator fit; the ring fit is right across the edge, the Prometheus brightness center sets the along-edge component, and the answer lands 1.3 px from operator truth at the low tier (the blob sigma carries the body's irregularity at 51 degrees phase) with RingEdgeNav primary, so the medium-tier and `BodyTerminatorNav` primary pins fail | #338 |
 | N1484593951 | dv error 2.687 px, a limb bias pinned red on purpose | #350 |
 | N1487595731_1 | expects BodyDiscCorrelateNav primary, gets BodyLimbNav; the pin is stale | #483 |
 | N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
@@ -336,6 +338,65 @@ ensemble keeps the body blob and lands on operator truth (N1867601758_1 at
 because the ring orbit channel puts the fused sigma just over 2 px.
 N1867602424's own sidecar note predicts exactly that and asks for a
 deliberate re-pin.
+
+**Proposed re-pins for the photometric Cassini star limit (#755, #130; operator
+decision; no sidecar has been edited).** The Cassini star limit is computed from
+the filter pair, exposure, and gain state and reaches about 4 magnitudes
+deeper on the NAC and 4.5 on the WAC, so StarRefineNav joins answers it
+could not reach before. On `rf_ring_edge_along_755` the library fails 34 of 75:
+the sixteen above plus eighteen. Sixteen of the eighteen are tier or
+primary-technique pins recorded when fewer stars were cataloged or detected,
+with the answer the same or closer to operator truth. Two move the answer, and the
+stars in the image say the recorded truth is off: on N1597846115_2 four stars
+(V 9.6 to 11.5, SNR 4.5 to 21) sit 0.09 to 0.52 px from the new answer and 2.7
+to 3.5 px from the truth; on N1550270436_1 ten stars sit 0.08 to 0.3 px from
+the new answer and 0.6 to 1.0 px from the truth, which equals an earlier
+one-star match. Both truths want a fresh operator check against the star
+overlay (`/data/fring-bundle-nav/nav755/s755c/lib/starcheck1.txt`). Three more
+answers move farther from their truth, within its tolerance, and the stars favor
+the new answer on each: N1488823805_1 (0.22 to 0.54 px; seven stars 0.07 to 0.35 px
+from it and 0.55 to 0.76 px from the truth), N1519300016_2 (0.01 to 0.30 px), and
+W1444747627_1 (0.95 to 1.02 px; three stars 0.22 to 0.29 px from it and 1.1 to
+1.3 px from the truth) (`lib/starcheck2.txt`). N1867601758_1 (0.42 to 0.76 px)
+and N1867602424_1 (0.14 to 0.25 px) move because the brightness center's
+uncertainty grew, and their truth is that brightness center's own answer.
+
+| frame | pinned tier / primary | branch tier / primary | distance to truth, main -> branch |
+|---|---|---|---|
+| N1459509270_1_CALIB | medium / StarRefineNav | medium / StarFieldFromCatalogNav | 0.01 -> 0.01 px |
+| N1465178827_2_CALIB | medium / BodyBlobNav | medium / StarRefineNav | 0.26 -> 0.06 px |
+| N1483174087_1_CALIB | medium / StarRefineNav | medium / StarFieldFromCatalogNav | 0.01 -> 0.01 px |
+| N1484688342_1_CALIB | medium / BodyLimbNav | low / BodyLimbNav | 0.81 -> 0.14 px |
+| N1489256001_1_CALIB | medium / BodyLimbNav | low / BodyLimbNav | 0.66 -> 0.27 px |
+| N1503576135_2_CALIB | medium / BodyDiscCorrelateNav | high / StarRefineNav | 0.01 -> 0.15 px |
+| N1506004925_1_CALIB | medium / StarRefineNav | medium / StarFieldFromCatalogNav | 0.00 -> 0.00 px |
+| N1519300016_2_CALIB | medium / BodyDiscCorrelateNav | high / StarRefineNav | 0.01 -> 0.30 px |
+| N1548432342_1_CALIB | medium / StarRefineNav | high / StarRefineNav | 0.37 -> 0.37 px |
+| N1550270436_1_CALIB | medium / StarRefineNav | high / StarRefineNav | 0.17 -> 0.76 px |
+| N1555145539_1_CALIB | medium / StarUniqueMatchNav | high / StarRefineNav | 0.00 -> 0.01 px |
+| N1572105349_1_CALIB | medium / BodyLimbNav | high / StarRefineNav | 0.70 -> 0.14 px |
+| N1597846115_2_CALIB | low / BodyLimbNav | medium / BodyLimbNav | 0.47 -> 3.10 px |
+| N1598065103_1_CALIB | medium / BodyDiscCorrelateNav | high / StarRefineNav | 0.01 -> 0.06 px |
+| N1777325846_1_CALIB | low / BodyLimbNav | high / StarRefineNav | 0.48 -> 0.47 px |
+| N1828122657_1_CALIB | low / BodyBlobNav | low / StarRefineNav | 0.00 -> 0.00 px |
+| W1444747627_1_CALIB | medium / StarRefineNav | high / StarRefineNav | 0.95 -> 1.02 px |
+| W1449079117_1_CALIB | medium / StarUniqueMatchNav | high / StarRefineNav | 0.57 -> 0.55 px |
+
+N1459509270_1, N1483174087_1, and W1444747627_1 change when the star-field
+detector sets aside detections sharper than a star (cosmic-ray hits): on the
+first two StarFieldFromCatalogNav becomes the primary technique and the answer
+moves under 0.002 px; on W1444747627_1 it joins the two star answers that were
+already there and the tier rises to `high`, 0.006 px closer to truth than
+before that change.
+
+N1484688342_1 and N1489256001_1 drop to `low` because the glare detections
+that made their StarRefineNav answer are now refused; the answer is the limb
+fit, closer to truth, with a sigma of 2.6 px. Separately, N1633925572_1 (in
+the table above) moves from 0.13 to 0.61 px from its truth at the high tier:
+the refined star now replaces the one-star match and sets the answer. The
+truth is exactly (0.5, 0.5) px from that star's position as the pipeline
+measures it, which looks like a pixel-corner versus pixel-center datum in the
+truth rather than an error in the answer.
 
 **After any navigation-affecting merge, compare against `main` rather than
 against the table:**
@@ -519,8 +580,9 @@ Independent review before done; all CI gates; one PR."
   from the line so is the ensemble's (0.04 px, worst 0.31 px; it was 0.39 px,
   worst 17 px). The raw sweep rows are not (median 4.2 / 1.7 px v/u), the
   remainder lying along straight or nearly straight edges; the issue's
-  criterion as written includes that part, so it stays open until you
-  restate the criterion or #755 lands. The five
+  criterion as written includes that part, and the along-edge covariance
+  change leaves the offsets as they were, so it stays open until you
+  restate the criterion. The five
   `ring_only_flat` constraint pins whose recorded normal angle is the old
   quantized axis are listed above for an operator re-pin decision.
 - **Gates and the body-witness veto**: #747 (the combined polarity gate keys
@@ -652,7 +714,7 @@ deferred until an instrument fits rotation again; a test fails if one does.
   normal the technique and the ensemble are at the DT floor (the ensemble's
   rank-1 axis quantization is fixed); the raw sweep rows still carry the
   along-edge part, which the criterion as written includes, so it stays open
-  pending a restated criterion or #755; the five
+  pending a restated criterion; the five
   `ring_only_flat` re-pins it needs are an operator decision; exposure is
   limited to sub-25 km/px Saturn scenes by the routing decision
 - **#482** BodyDiscCorrelateNav misses by up to ~1 px on a weakly-constrained

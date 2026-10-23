@@ -50,6 +50,35 @@ orchestrator:
     agreement_sigma: 2.0
     # Euclidean translation-distance fallback grouping threshold (px).
     agreement_pixel_floor: 5.0
+    # Largest compromise (px) the fusion of two results that agree only by
+    # Mahalanobis distance, from farther apart than agreement_pixel_floor,
+    # may make; beyond it the pair is a disagreement.  Along each principal
+    # axis of the pair the fusion lies on the member that is more precise
+    # there, or between the two when both are vague; the compromise is how
+    # far it lies from that member, over both axes.  Two vague answers far
+    # apart (a ring edge's along-edge position, uncertain by tens of pixels,
+    # and a one-star fix whose sigma is the size of its own offset) are
+    # statistically consistent, yet their fusion is a point between them that
+    # neither supports.  On a 1,614-frame Cassini F ring sample 375 pairs on
+    # 158 frames agreed this way: the pairs compromising by at most 0.85 px
+    # took each axis from the member precise along it (136 of their 150
+    # frames answered within 1 px of the bundle pointing), and the 9 frames
+    # with a pair at 1.03 px or more were compromises 1.4 to 18 px from it.
+    # A pass-2 result and a technique that seeded it, agreeing by the floor
+    # but not by Mahalanobis distance, are held to the same limit.  So is a
+    # result fused with a collapsed set's representative, inside the floor
+    # too: when the two cannot fuse, the less precise side is left out as an
+    # outlier.  0.0 disables the test.
+    agreement_compromise_px: 1.0
+    # Largest standard deviation (px) along a principal axis of a body, ring or
+    # multi-star result for that axis to confirm a pass-2 single-star refine
+    # that replaces a one-star match on the same star.  The refine replaces the
+    # match only when some such axis exists and the refine agrees with the
+    # witness along it within agreement_sigma of the pair's combined standard
+    # deviation; a witness vague in every direction confirms nothing.  On the
+    # 1,614-frame Cassini F ring sample the confirming witnesses were ring
+    # edges, whose radial standard deviation was 0.13-0.76 px.
+    confirming_axis_max_sigma_px: 1.0
     # Minimum summed-confidence gap between best and runner-up groups
     # before declaring a conflict.  Absolute when the runner-up has a
     # quorum (two or more members); in a lone-vs-lone standoff the gap
@@ -112,6 +141,24 @@ orchestrator:
       high: {min_confidence: 0.85, max_sigma_px: 0.5}
       medium: {min_confidence: 0.35, max_sigma_px: 2.0}
       low: {min_confidence: 0.35, max_sigma_px: null}
+  # The pass-2 test of a conflicted pass 1: pass 2 runs seeded at the
+  # consensus answer and at the runner-up answer, and an answer is
+  # confirmed when the distinct features its non-spurious pass-2 results
+  # consumed number at least min_support and at least min_support_ratio
+  # times the other answer's.  The confirmed answer's pass-2 results go
+  # on; the other answer's pass-1 results are refuted.  min_support 0
+  # disables the test.  On 249 Cassini F ring frames whose pass 1 was
+  # conflicted (a two-star or pattern match against a ring-edge alias),
+  # a star refine at a wrong answer found 0 to 8 stars by chance, with
+  # median residuals of 1.7-3.9 px, and the right answer's refine found
+  # up to 63 at 0.1-1.6 px.  At these thresholds 238 frames were
+  # resolved; all were right against the bundle pointing or, on 11, the
+  # image stars showed the bundle pointing wrong and the answer right.
+  # The stars the answer's own pass-1 fit used are counted, so a
+  # two-star match needs at least two stars beyond its own.
+  conflict_arbitration:
+    min_support: 4
+    min_support_ratio: 2.0
   # Minimum reliability per feature type; features below their type's
   # threshold are gated out before any technique runs.  Feature types
   # not listed fall through with a 0.0 threshold (no gate).

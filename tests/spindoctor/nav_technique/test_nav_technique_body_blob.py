@@ -16,18 +16,18 @@ from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import BodyBlobFlags
 from spindoctor.feature.geometry import BodyBlobGeometry
+from spindoctor.nav_technique.body_blob_covariance import _lambert_photocenter_fraction
 from spindoctor.nav_technique.diagnostics import BodyBlobDiagnostics
 from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANCE
 from spindoctor.nav_technique.nav_technique_body_blob import (
     BodyBlobNav,
-    _centroid_model_error_var,
+    _brightness_weighted_centroid,
     _clamped_kernel_radius,
     _coarse_crescent_offset,
     _coarse_disc_offset,
     _collect_per_blob_residuals,
     _crescent_kernel,
     _disc_kernel,
-    _joint_covariance,
     _kernel_centroid_offset,
     _shift_bbox,
 )
@@ -43,6 +43,7 @@ def _make_blob_feature(
     phase_angle_deg: float = 0.0,
     phase_irregularity_factor: float = 0.0,
     sub_solar_dir_vu: tuple[float, float] = (0.0, 0.0),
+    ephemeris_sigma_px: float = 0.0,
 ) -> NavFeature:
     """Build a BODY_BLOB feature whose bbox tightly bounds the predicted disc."""
     radius = predicted_diameter_px / 2.0
@@ -77,6 +78,7 @@ def _make_blob_feature(
             phase_angle_deg=phase_angle_deg,
             phase_irregularity_factor=phase_irregularity_factor,
             sub_solar_dir_vu=sub_solar_dir_vu,
+            ephemeris_sigma_px=ephemeris_sigma_px,
         ),
     )
 
@@ -118,6 +120,8 @@ def test_the_blob_line_states_both_positions_in_the_image_frame(
         image_signal=np.clip(image, 0.0, None),
         margin_vu=(32, 32),
         prior_offset_vu=None,
+        max_gyration_radius_frac=0.88,
+        max_edge_signal_frac=0.2,
     )
     args = logger.debug_calls[-1][1]
     assert args[1:3] == (68.5, 68.5)
@@ -152,6 +156,245 @@ def test_body_blob_recovers_planted_offset_single_blob(
     # Hard cap at 0.4 — the technique cannot dominate the ensemble
     # even with perfect inputs.
     assert result.confidence <= 0.4 + 1e-12
+
+
+def _blob_covariance_at_phase(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    *,
+    phase_angle_deg: float,
+) -> np.ndarray:
+    """Covariance of one regular 8 px blob lit from +u at the given phase."""
+    image = disc_image((200, 200), (100.0, 100.0), 4.0)
+    context = make_nav_context(image)
+    feature = _make_blob_feature(
+        'moonA',
+        predicted_center_vu=(99.0, 101.0),
+        predicted_diameter_px=8.0,
+        phase_angle_deg=phase_angle_deg,
+        sub_solar_dir_vu=(0.0, 1.0),
+    )
+    return np.asarray(BodyBlobNav().navigate([feature], context).covariance_px2)
+
+
+def test_body_blob_phase_term_lies_along_the_sun_direction(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """At 80 deg phase the variance grows along the Sun direction by the along fraction.
+
+    The same image at zero phase measures the same centroid, so the growth on the u
+    axis (toward the Sun) is exactly ``(along_sun_frac_regular * g * R)**2`` for a body
+    with no irregularity.
+    """
+    full = _blob_covariance_at_phase(disc_image, make_nav_context, phase_angle_deg=0.0)
+    crescent = _blob_covariance_at_phase(disc_image, make_nav_context, phase_angle_deg=80.0)
+    g_r = float(_lambert_photocenter_fraction(np.array([80.0]))[0]) * 4.0
+    frac = float(BodyBlobNav.tuning['along_sun_frac_regular'])
+    assert crescent[1, 1] - full[1, 1] == pytest.approx((frac * g_r) ** 2, rel=1e-9)
+
+
+def test_body_blob_phase_term_across_the_sun_direction(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """At 80 deg phase the variance across the Sun direction grows by the across fraction."""
+    full = _blob_covariance_at_phase(disc_image, make_nav_context, phase_angle_deg=0.0)
+    crescent = _blob_covariance_at_phase(disc_image, make_nav_context, phase_angle_deg=80.0)
+    g_r = float(_lambert_photocenter_fraction(np.array([80.0]))[0]) * 4.0
+    frac = float(BodyBlobNav.tuning['across_sun_frac'])
+    assert crescent[0, 0] - full[0, 0] == pytest.approx((frac * g_r) ** 2, rel=1e-9)
+
+
+@pytest.mark.parametrize('frac', [-0.1, math.nan])
+def test_body_blob_rejects_a_bad_along_sun_fraction(
+    frac: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A negative or non-finite along-Sun fraction fails at construction."""
+    bad_tuning = dict(BodyBlobNav.tuning)
+    bad_tuning['along_sun_frac_regular'] = frac
+    monkeypatch.setattr(BodyBlobNav, 'tuning', bad_tuning)
+    with pytest.raises(ValueError, match='along_sun_frac_regular must be finite and >= 0'):
+        BodyBlobNav()
+
+
+def _band_image(shape: tuple[int, int], rows: tuple[int, int]) -> np.ndarray:
+    """A dark frame crossed by a uniformly bright horizontal band (a ring-like structure)."""
+    image = np.zeros(shape, dtype=np.float64)
+    image[rows[0] : rows[1], :] = 50.0
+    return image
+
+
+def test_body_blob_drops_a_blob_locked_on_something_larger(
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A lone blob whose box lies inside a bright band is not its body: the result is spurious."""
+    image = _band_image((200, 200), (60, 140))
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.0, 100.0), predicted_diameter_px=8.0
+    )
+    result = BodyBlobNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is True
+
+
+def test_body_blob_keeps_the_body_when_another_blob_is_dropped(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """With one blob on a bright band and one on its body, the body sets the offset alone."""
+    image = _band_image((220, 220), (150, 210)) + disc_image((220, 220), (60.0, 70.0), 6.0)
+    features = [
+        _make_blob_feature('moonA', predicted_center_vu=(59.0, 68.5), predicted_diameter_px=12.0),
+        _make_blob_feature('moonB', predicted_center_vu=(180.0, 110.0), predicted_diameter_px=8.0),
+    ]
+    result = BodyBlobNav().navigate(features, make_nav_context(image))
+    assert result.feature_ids == ('body_blob:moonA',)
+
+
+def test_body_blob_keeps_a_disc_filling_its_box(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A body that fills its unpadded box spreads like a disc and is kept.
+
+    A disc of radius 8 under a predicted 14 px diameter with no padding lights the whole
+    box, so over a fifth of its signal lies on the box edge and the edge test alone
+    would fire; its gyration radius (0.81 of the predicted radius) keeps it.
+    """
+    image = disc_image((200, 200), (100.0, 100.0), 8.0)
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.0, 100.0), predicted_diameter_px=14.0, bbox_pad=0
+    )
+    result = BodyBlobNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is False
+
+
+def test_body_blob_keeps_a_bright_rim_inside_its_box(
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A limb-bright ring the size of the body spreads widely but stays off the box edge.
+
+    The gyration-radius test alone would fire (0.94 of the radius); with no signal on
+    the box edge the blob is kept.
+    """
+    vv, uu = np.mgrid[0:200, 0:200]
+    rr = np.hypot(vv - 100.0, uu - 100.0)
+    image = np.where((rr > 7.0) & (rr < 8.0), 50.0, 0.0)
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.0, 100.0), predicted_diameter_px=16.0
+    )
+    result = BodyBlobNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is False
+
+
+@pytest.mark.parametrize('key', ['max_gyration_radius_frac', 'max_edge_signal_frac'])
+def test_body_blob_rejects_a_non_positive_lock_threshold(
+    key: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A zero lock-test threshold fails at construction, naming the key."""
+    bad_tuning = dict(BodyBlobNav.tuning)
+    bad_tuning[key] = 0.0
+    monkeypatch.setattr(BodyBlobNav, 'tuning', bad_tuning)
+    with pytest.raises(ValueError, match=f'{key} must be finite and > 0'):
+        BodyBlobNav()
+
+
+def _one_blob_covariance(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    *,
+    ephemeris_sigma_px: float = 0.0,
+) -> np.ndarray:
+    """Covariance of one 16 px blob at zero phase."""
+    image = disc_image((200, 200), (100.0, 100.0), 8.0)
+    feature = _make_blob_feature(
+        'moonA',
+        predicted_center_vu=(99.0, 101.0),
+        predicted_diameter_px=16.0,
+        ephemeris_sigma_px=ephemeris_sigma_px,
+    )
+    return np.asarray(BodyBlobNav().navigate([feature], make_nav_context(image)).covariance_px2)
+
+
+def test_body_blob_adds_the_ephemeris_sigma(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A blob's ephemeris sigma adds its square to both axes of the covariance."""
+    base = _one_blob_covariance(disc_image, make_nav_context)
+    with_eph = _one_blob_covariance(disc_image, make_nav_context, ephemeris_sigma_px=1.5)
+    np.testing.assert_allclose(with_eph - base, 2.25 * np.eye(2), atol=1e-9)
+
+
+def test_body_blob_adds_the_model_error_floor(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The model-error floor adds its square to both axes of the joint covariance."""
+    tuning = dict(BodyBlobNav.tuning)
+    tuning['model_error_floor_px'] = 0.0
+    monkeypatch.setattr(BodyBlobNav, 'tuning', tuning)
+    without = _one_blob_covariance(disc_image, make_nav_context)
+    tuning = dict(tuning)
+    tuning['model_error_floor_px'] = 2.0
+    monkeypatch.setattr(BodyBlobNav, 'tuning', tuning)
+    with_floor = _one_blob_covariance(disc_image, make_nav_context)
+    np.testing.assert_allclose(with_floor - without, 4.0 * np.eye(2), atol=1e-9)
+
+
+def test_edge_signal_fraction_counts_the_outermost_rows_and_columns() -> None:
+    """A uniformly lit 6x6 box has 20 of its 36 pixels, and of its signal, on the edge.
+
+    The predicted 5 px disc centered on (12, 22) with no padding spans rows 9-14 and
+    columns 19-24.
+    """
+    image = np.zeros((40, 40), dtype=np.float64)
+    image[9:15, 19:25] = 10.0
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(12.0, 22.0), predicted_diameter_px=5.0, bbox_pad=0
+    )
+    assert isinstance(feature.geometry, BodyBlobGeometry)
+    measured = _brightness_weighted_centroid(image, 1.0, feature.geometry, 0.0)
+    assert measured.edge_signal_frac == pytest.approx(20.0 / 36.0, rel=1e-12)
+
+
+@pytest.mark.parametrize('which', ['gyration', 'edge'])
+def test_body_blob_lock_test_is_strict_at_its_thresholds(
+    which: str, disc_image: DiscImageFactory
+) -> None:
+    """A blob exactly at one threshold and beyond the other is kept: both tests are strict."""
+    image = disc_image((200, 200), (100.0, 100.0), 8.0)
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.0, 100.0), predicted_diameter_px=14.0, bbox_pad=0
+    )
+    assert isinstance(feature.geometry, BodyBlobGeometry)
+    measured = _brightness_weighted_centroid(image, 1.0, feature.geometry, 0.0)
+    ratio = measured.gyration_radius_px / 7.0
+    thresholds = (
+        (ratio, 0.5 * measured.edge_signal_frac)
+        if which == 'gyration'
+        else (0.5 * ratio, measured.edge_signal_frac)
+    )
+    residuals = _collect_per_blob_residuals(
+        [feature],
+        image,
+        1.0,
+        0.0,
+        cast(Any, _RecordingLogger()),
+        image_signal=np.clip(image, 0.0, None),
+        margin_vu=(32, 32),
+        prior_offset_vu=(0.0, 0.0),
+        max_gyration_radius_frac=thresholds[0],
+        max_edge_signal_frac=thresholds[1],
+    )
+    assert len(residuals.consumed) == 1
+
+
+def test_body_blob_flags_reject_a_negative_ephemeris_sigma() -> None:
+    """``BodyBlobFlags`` validates ``ephemeris_sigma_px`` is finite and non-negative."""
+    with pytest.raises(ValueError, match='ephemeris_sigma_px must be finite and >= 0'):
+        BodyBlobFlags(body_name='X', predicted_diameter_px=10.0, ephemeris_sigma_px=-0.1)
 
 
 def test_body_blob_multi_body_least_squares_average(
@@ -422,187 +665,6 @@ def test_body_blob_flags_reject_negative_phase_irregularity() -> None:
             predicted_diameter_px=10.0,
             phase_irregularity_factor=-0.01,
         )
-
-
-def test_joint_covariance_two_point_reduced_chi_square() -> None:
-    """Two-blob covariance matches the analytic reduced-chi-square weighted mean.
-
-    Derivation (per-axis: var = chi2_nu / sum(w), with
-    chi2_nu = sum(w * r^2) / max(N - p, 1), p = 2):
-
-    w = [1, 3], sum(w) = 4, N = 2, dof = max(2 - 2, 1) = 1.
-
-    V axis: offsets = [2, 4], mean = (1*2 + 3*4)/4 = 3.5,
-            r = [-1.5, 0.5], sum(w r^2) = 1*2.25 + 3*0.25 = 3.0,
-            chi2_nu = 3.0/1 = 3.0, var = 3.0/4 = 0.75 (> floor 1/4 = 0.25).
-    U axis: offsets = [-1, 1], mean = (1*-1 + 3*1)/4 = 0.5,
-            r = [-1.5, 0.5], sum(w r^2) = 3.0, var = 0.75 (identical).
-    """
-    weights = np.array([1.0, 3.0], dtype=np.float64)
-    offsets_v = np.array([2.0, 4.0], dtype=np.float64)
-    offsets_u = np.array([-1.0, 1.0], dtype=np.float64)
-    dv = float(np.sum(weights * offsets_v) / weights.sum())  # 3.5
-    du = float(np.sum(weights * offsets_u) / weights.sum())  # 0.5
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.zeros_like(offsets_v),
-    )
-    assert cov[0, 0] == pytest.approx(0.75, abs=1e-9)
-    assert cov[1, 1] == pytest.approx(0.75, abs=1e-9)
-    assert cov[0, 1] == pytest.approx(0.0, abs=1e-9)
-    assert cov[1, 0] == pytest.approx(0.0, abs=1e-9)
-
-
-def test_joint_covariance_n_point_reduced_chi_square() -> None:
-    """Four-blob covariance matches the analytic reduced-chi-square weighted mean.
-
-    w = [1, 1, 1, 1], sum(w) = 4, N = 4, dof = max(4 - 2, 1) = 2.
-
-    V axis: offsets = [0, 2, 4, 6], mean = 12/4 = 3.0,
-            r = [-3, -1, 1, 3], sum(w r^2) = 9 + 1 + 1 + 9 = 20,
-            chi2_nu = 20/2 = 10, var = 10/4 = 2.5 (> floor 0.25).
-    U axis: offsets = [1, 1, 1, 1], mean = 1.0, r = 0 everywhere,
-            sum(w r^2) = 0, chi2_nu = 0, candidate var = 0 -> floored at
-            1/sum(w) = 1/4 = 0.25.
-    """
-    weights = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float64)
-    offsets_v = np.array([0.0, 2.0, 4.0, 6.0], dtype=np.float64)
-    offsets_u = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float64)
-    dv = float(np.sum(weights * offsets_v) / weights.sum())  # 3.0
-    du = float(np.sum(weights * offsets_u) / weights.sum())  # 1.0
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.zeros_like(offsets_v),
-    )
-    assert cov[0, 0] == pytest.approx(2.5, abs=1e-9)
-    assert cov[1, 1] == pytest.approx(0.25, abs=1e-9)
-
-
-def test_joint_covariance_single_blob_is_large_not_overconfident() -> None:
-    """NAV-005: a single blob yields the (large) inverse-precision floor.
-
-    One point cannot constrain two translation parameters, so the
-    covariance must be large rather than a tiny over-confident value.
-    With a single small-weight blob (w = 0.01) the per-axis variance is
-    the pure inverse precision 1/sum(w) = 1/0.01 = 100.0 -- there is no
-    residual scatter (the lone residual is zero by construction).  The
-    old ``sum(w r^2)/(sum w)^2`` form would have reported 0 here (no
-    floor at the correct power), which the over-confidence fix corrects.
-    """
-    weights = np.array([0.01], dtype=np.float64)
-    offsets_v = np.array([3.0], dtype=np.float64)
-    offsets_u = np.array([-4.0], dtype=np.float64)
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=3.0,
-        du=-4.0,
-        extents_px=np.zeros_like(offsets_v),
-    )
-    # 1 / sum(w) = 1 / 0.01 = 100.0 on each axis.
-    assert cov[0, 0] == pytest.approx(100.0, abs=1e-9)
-    assert cov[1, 1] == pytest.approx(100.0, abs=1e-9)
-    # Far larger than a well-determined multi-blob fit (~O(1)).
-    assert cov[0, 0] > 1.0
-
-
-def test_joint_covariance_model_error_floor_inflates_diagonal_by_square() -> None:
-    """ORCH-001: model_error_floor_px>0 adds exactly its square to the diagonal.
-
-    Reuses the two-point fixture (var = 0.75 per axis with no floor).
-    With model_error_floor_px = 2.0 each diagonal grows by exactly
-    2.0**2 = 4.0 -> 0.75 + 4.0 = 4.75; the off-diagonal stays zero.
-    """
-    weights = np.array([1.0, 3.0], dtype=np.float64)
-    offsets_v = np.array([2.0, 4.0], dtype=np.float64)
-    offsets_u = np.array([-1.0, 1.0], dtype=np.float64)
-    dv = 3.5
-    du = 0.5
-    base = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.zeros_like(offsets_v),
-    )
-    floored = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.zeros_like(offsets_v),
-        model_error_floor_px=2.0,
-    )
-    assert floored[0, 0] == pytest.approx(4.75, abs=1e-9)
-    assert floored[1, 1] == pytest.approx(4.75, abs=1e-9)
-    assert floored[0, 0] - base[0, 0] == pytest.approx(4.0, abs=1e-9)
-    assert floored[1, 1] - base[1, 1] == pytest.approx(4.0, abs=1e-9)
-    assert floored[0, 1] == pytest.approx(0.0, abs=1e-9)
-
-
-def test_centroid_model_error_var_single_blob_is_radius_fraction_squared() -> None:
-    """One blob's size-error variance is exactly (frac * radius)**2."""
-    extents = np.array([100.0], dtype=np.float64)  # diameter -> radius 50
-    var = _centroid_model_error_var(extents, 0.05)
-    assert var == pytest.approx((0.05 * 50.0) ** 2, rel=1e-9)
-
-
-def test_centroid_model_error_var_combines_by_inverse_variance() -> None:
-    """Two equal blobs halve the single-blob size-error variance."""
-    extents = np.array([100.0, 100.0], dtype=np.float64)
-    single = _centroid_model_error_var(extents[:1], 0.05)
-    both = _centroid_model_error_var(extents, 0.05)
-    assert both == pytest.approx(single / 2.0, rel=1e-9)
-
-
-def test_centroid_model_error_var_disabled_returns_zero() -> None:
-    """A zero fraction disables the size term."""
-    extents = np.array([100.0, 40.0], dtype=np.float64)
-    assert _centroid_model_error_var(extents, 0.0) == 0.0
-
-
-def test_joint_covariance_size_term_tracks_body_radius() -> None:
-    """A single-blob covariance scales with body size through the size term.
-
-    The reported per-axis sigma of a lone blob should land within a factor
-    of 1.5 of the size-scaled centroid-model error (frac * radius) plus the
-    absolute floor -- the calibration property the photon-only weight lacked.
-    """
-    weights = np.array([100.0], dtype=np.float64)  # bright: photon floor ~0.01 px
-    offsets_v = np.array([0.0], dtype=np.float64)
-    offsets_u = np.array([0.0], dtype=np.float64)
-    extents = np.array([200.0], dtype=np.float64)  # radius 100 px
-    frac = 0.05
-    floor = 0.1
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=0.0,
-        du=0.0,
-        extents_px=extents,
-        model_error_floor_px=floor,
-        centroid_model_error_frac=frac,
-    )
-    reported_sigma = float(np.sqrt(cov[0, 0]))
-    expected_sigma = float(np.sqrt((frac * 100.0) ** 2 + floor**2 + 1.0 / 100.0))
-    assert 1.0 / 1.5 <= reported_sigma / expected_sigma <= 1.5
-
-
-# ---------------------------------------------------------------------------
-# Coarse blob-shaped-disc acquisition
-# ---------------------------------------------------------------------------
 
 
 def test_disc_kernel_is_a_filled_disc() -> None:
