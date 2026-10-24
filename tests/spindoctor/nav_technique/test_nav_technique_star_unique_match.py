@@ -13,15 +13,13 @@ from tests.spindoctor.nav_technique.conftest import (
 )
 
 from spindoctor.feature.feature import NavFeature
+from spindoctor.nav_technique._star_presence import found_at
 from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.nav_technique import (
     ROTATION_UNOBSERVABLE_VARIANCE,
     NavTechnique,
 )
-from spindoctor.nav_technique.nav_technique_star_unique_match import (
-    StarUniqueMatchNav,
-    _found_at,
-)
+from spindoctor.nav_technique.nav_technique_star_unique_match import StarUniqueMatchNav
 
 
 def test_star_unique_match_one_star_recovers_planted_offset(
@@ -221,7 +219,7 @@ def test_a_textured_body_is_not_a_corroborating_star() -> None:
     """
     grid = 2.0 * np.pi * (np.arange(60, dtype=np.float64) - 30.0) / 12.0
     image = 1000.0 + 200.0 * np.cos(grid)[:, None] * np.cos(grid)[None, :]
-    found = _found_at(
+    found = found_at(
         image,
         (30.0, 30.0),
         tolerance_px=1.5,

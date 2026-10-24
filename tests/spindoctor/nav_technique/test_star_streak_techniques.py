@@ -11,14 +11,12 @@ from tests.spindoctor.nav_technique.conftest import FakeObs, NavContextFactory, 
 from tests.spindoctor.star_streak_images import draw_streak
 
 from spindoctor.feature.feature import NavFeature
+from spindoctor.nav_technique._star_presence import found_at
 from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.nav_technique import NavTechnique
 from spindoctor.nav_technique.nav_technique_star_field import StarFieldFromCatalogNav
 from spindoctor.nav_technique.nav_technique_star_refine import StarRefineNav
-from spindoctor.nav_technique.nav_technique_star_unique_match import (
-    StarUniqueMatchNav,
-    _found_at,
-)
+from spindoctor.nav_technique.nav_technique_star_unique_match import StarUniqueMatchNav
 
 _STREAK_VU = (8.0, -1.0)
 """The streak every planted star draws."""
@@ -163,7 +161,7 @@ def test_corroboration_finds_a_long_streak_at_its_center() -> None:
     streak_vu = (14.0, 0.0)
     image = np.random.default_rng(1).normal(0.0, 1.0, size=(120, 120))
     draw_streak(image, (60.0, 60.0), streak_vu, flux=3000.0)
-    found = _found_at(
+    found = found_at(
         image,
         (60.0, 60.0),
         tolerance_px=1.5,

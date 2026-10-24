@@ -307,6 +307,8 @@ Source files:
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — package-private helpers ``usable_stars``,
   ``local_centroid``, ``predicted_snr``, ``predicted_vu``, ``brightness_margin_mag``, and
   ``similarity_transform_fit``.
+- ``src/spindoctor/nav_technique/_star_presence.py`` — package-private ``found_at``, the
+  corroboration test of whether a star (a point source or a streak) is found at a position.
 - ``src/spindoctor/nav_technique/confidence.py`` — sigmoid-combination evaluator; documented at
   :doc:`dev_guide_techniques_confidence`.
 - ``src/spindoctor/nav_technique/diagnostics.py`` —
