@@ -11,7 +11,7 @@ produce, and there are two kinds available.
 | Module | Role |
 | --- | --- |
 | `boresight.py` | Where a C-matrix points, the angle between two answers in pixels of the camera that saw them, and that difference resolved onto the camera's axes. No mission constants, no spindoctor imports. |
-| `bundle_cassini_fring.py` | The published Cassini F ring bundle read as an independent pointing answer: where its per-frame supplementary files live, what they say, and the NAC plate scale. |
+| `bundle_cassini_fring.py` | The published Cassini F ring bundle read as an independent pointing answer: where its per-frame supplementary files live, what they say, the plate scales of both cameras, and the wide angle frame offset its WAC C-matrices were written without. |
 | `compare_pointing.py` | Per-frame comparison of a results root against that bundle. |
 | `measure_core_radius.py` | Where the ring core lands in a co-rotating mosaic, which needs no external answer at all. |
 | `tests/` | Unit tests on the arithmetic. No holdings and no SPICE needed. |
@@ -66,6 +66,63 @@ came out shifted by half a pixel in each axis, and the attitude written from tha
 offset was rotated by the same amount. With the star model's positions converted
 before the comparison, the shared difference on the same frames is `+0.005,
 -0.013` px and the scatter about it is unchanged.
+
+### The bundle's wide angle frames
+
+As published, the F ring bundle's WAC frames differ from ours by a shared
+`-0.686, -0.433` WAC px on the frames it navigated on stars, while its NAC frames
+agree. Its WAC C-matrices are not in the frame the standard Cassini kernels define,
+and the reader puts the difference back before anything is compared.
+
+The bundle was navigated with the rms-oops geometry library as it was before commit
+`08066b302a` ("Remove Cassini ISS offset", 2024-03-04). Until then the library defined
+the WAC frame as the SPICE WAC frame rotated by `(-7, +4.4)` NAC pixels, an offset of
+the WAC relative to the NAC that its documentation says was determined from star
+positions. That commit turned the rotation off, and the library this pipeline uses has
+none. The bundle's navigation was measured in the rotated frame, but its WAC
+C-matrices were written from the frame without the rotation.
+
+The rotation predicts the difference. Leaving it out puts the boresight `-0.699,
+-0.440` WAC px from where the rotated frame has it, along the camera axes. With the
+rotation restored, the shared difference on the star-navigated WAC frames of the full F
+ring run is `+0.003, +0.001` px, as small as on the NAC frames. The image stars favor
+the restored matrices over the published ones. On 30 star-rich WAC frames the star
+centroids sit a median 0.14 px from where our C-matrices put the catalog stars, 0.91 px
+from where the published bundle C-matrices put them, and 0.29 px with the rotation
+restored to all 30.
+
+The restoration comes from what the old library did, so nothing measured in the
+comparison enters it, and the shared difference is still measured and reported
+afterwards. The report says how many frames were restored.
+
+The exception is the bundle's eleven WAC frames from 2007, the FMONITOR observations of
+revs 039 to 043. Their matrices need no restoration, so they are compared as published.
+Restoring it would move them from a median of 0.13 px off our answers to 0.86 px off.
+The bundle's other WAC observations, from 2005 and from 2008 to 2017, come closer with
+the rotation restored: 63 of the 69 that the run answered do, and each of the six that
+do not is about half a pixel or more off either way. The bundle has no WAC frame
+between May 2005 and February 2007 or between April 2007 and June 2008, so the reader
+tells the two kinds apart by the mid time the supplementary file states: a frame taken
+in 2007 is read as published. A WAC frame that needs the rotation but quotes only the
+rounded boresight is not compared, because the rotation turns the whole attitude.
+
+The rule is by date, and the manually navigated frames do not all follow it. Eight of
+the ten in ISS_134RI_SPKMVDFHP001_PRIME (2010) and one in ISS_172RI_SPOKEMOV002_PRIME
+(2012) are closer to ours as published, and one manually navigated 2007 frame is closer
+restored. A manual navigation is good to about a pixel, and these frames have not been
+checked against the image stars, so the reader does not single them out.
+
+On the full F ring run this moves the WAC frames as follows:
+
+| WAC frames, 2448 compared | Agree (within 1 px) | Marginal (1 to 2 px) | Wrong (over 2 px) | Shared difference, px |
+| --- | --- | --- | --- | --- |
+| As published | 1837 | 576 | 35 | `-0.620, -0.444` |
+| Offset restored | 2262 | 84 | 102 | `+0.035, -0.034` |
+
+The wrong count rises because the shared difference of about 0.76 px had been hiding
+differences of other kinds. 75 of the 102 are the spoke movie ISS_201RI_SPOKEMOV009,
+which the bundle navigated on rings and whose frames show too few stars to say which
+answer is right. The NAC frames are unchanged.
 
 ## Measuring the mosaic instead
 

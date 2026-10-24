@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
+import numpy as np
+import oops
 import pytest
-from util.nav_verification.boresight import separation_px
+from util.nav_verification.boresight import offset_in_camera_px, separation_px
 from util.nav_verification.bundle_cassini_fring import (
     NAC_PLATE_SCALE_URAD,
+    WAC_AS_PUBLISHED,
+    WAC_OFFSET_RESTORED,
     WAC_PLATE_SCALE_URAD,
     bundle_image_names,
     plate_scale_urad,
     read_bundle_pointing,
+    restore_old_oops_wac_offset,
     suppl_path,
 )
 
@@ -28,6 +34,28 @@ C-Matrix =
     0.0430926715   -0.0324309172    0.9985445695
     0.1046206801    0.9941243419    0.0277724004
 """
+
+# A wide angle frame from 2013, as the bundle publishes it.
+WAC_SUPPL = """Source Data Product ID = 1738087703w_calib
+Image Mid Time (UTC) = 2013-01-28T17:14:09.581Z
+Navigation Type = Stars
+Navigated Boresight RA = 301.882569 deg (20h07m31.817s)
+Navigated Boresight Dec = 49.237139 deg (+049d14m13.699s)
+Navigated Boresight Roll = 11.502156 deg
+C-Matrix =
+    0.7523069074    0.6458196113    0.1301973373
+   -0.5613401896    0.5249106856    0.6398171330
+    0.3448644786   -0.5544238466    0.7574184377
+"""
+WAC_CMATRIX = np.array(
+    [
+        [0.7523069074, 0.6458196113, 0.1301973373],
+        [-0.5613401896, 0.5249106856, 0.6398171330],
+        [0.3448644786, -0.5544238466, 0.7574184377],
+    ]
+)
+# The same file moved to a 2007 date, when the bundle's matrices need no restoration.
+WAC_2007_SUPPL = WAC_SUPPL.replace('2013-01-28T17:14:09.581Z', '2007-03-17T19:32:12.015Z')
 
 
 def test_suppl_path_moves_the_camera_letter_to_the_end() -> None:
@@ -177,3 +205,87 @@ def test_a_width_that_divides_the_frame_but_no_mode_produces_is_refused() -> Non
     """A 128-column frame would be 8x8 summing, which Cassini ISS does not have."""
     with pytest.raises(ValueError, match='128 columns'):
         plate_scale_urad('NAC', 128)
+
+
+def test_a_nac_frame_is_read_as_published(tmp_path: Path) -> None:
+    """A narrow angle frame carries no note, so nothing was done to its matrix."""
+    path = tmp_path / 'suppl.txt'
+    path.write_text(SUPPL)
+    answer = read_bundle_pointing(path)
+    assert answer is not None
+    assert answer.note is None
+
+
+def test_the_restoration_is_the_old_oops_wac_frame() -> None:
+    """The rotation is the one oops builds from the old WAC offset, in SPICE axes.
+
+    The old library defined its WAC frame as Navigation((-7, +4.4) NAC pixels) on its
+    own camera frame, which is the SPICE camera frame turned half way round the
+    boresight.
+    """
+    nac_pixel = math.atan(math.tan(math.radians(0.175)) / 512.0)
+    navigation = oops.frame.Navigation((-7.0 * nac_pixel, 4.4 * nac_pixel), oops.Frame.J2000)
+    rot180 = np.diag([-1.0, -1.0, 1.0])
+    expected = rot180 @ navigation.transform_at_time(0.0).matrix.vals @ rot180 @ WAC_CMATRIX
+    assert restore_old_oops_wac_offset(WAC_CMATRIX) == pytest.approx(expected, abs=1e-15)
+
+
+def test_restoring_moves_the_published_boresight_by_the_predicted_amount() -> None:
+    """Seen from the restored attitude, the published boresight is (-0.699, -0.440) px."""
+    restored = restore_old_oops_wac_offset(WAC_CMATRIX)
+    published_from_restored = offset_in_camera_px(
+        restored.tolist(), WAC_CMATRIX[2], plate_scale_urad=WAC_PLATE_SCALE_URAD
+    )
+    assert published_from_restored == pytest.approx((-0.699, -0.440), abs=0.001)
+
+
+def test_a_wac_frame_has_the_old_offset_restored(tmp_path: Path) -> None:
+    """The boresight read is the restored matrix's third row."""
+    path = tmp_path / 'suppl.txt'
+    path.write_text(WAC_SUPPL)
+    answer = read_bundle_pointing(path)
+    assert answer is not None
+    assert answer.boresight == pytest.approx(restore_old_oops_wac_offset(WAC_CMATRIX)[2], abs=1e-9)
+
+
+def test_a_wac_frame_says_its_offset_was_restored(tmp_path: Path) -> None:
+    """The note says what was done, so a report can count it."""
+    path = tmp_path / 'suppl.txt'
+    path.write_text(WAC_SUPPL)
+    answer = read_bundle_pointing(path)
+    assert answer is not None
+    assert answer.note == WAC_OFFSET_RESTORED
+
+
+def test_a_2007_wac_frame_is_read_as_published(tmp_path: Path) -> None:
+    """The bundle's 2007 WAC matrices are in the standard frame, so none is restored."""
+    path = tmp_path / 'suppl.txt'
+    path.write_text(WAC_2007_SUPPL)
+    answer = read_bundle_pointing(path)
+    assert answer is not None
+    assert answer.boresight == pytest.approx(WAC_CMATRIX[2], abs=1e-9)
+
+
+def test_a_2007_wac_frame_says_it_was_read_as_published(tmp_path: Path) -> None:
+    """The exception is named in the note rather than left to look like a NAC frame."""
+    path = tmp_path / 'suppl.txt'
+    path.write_text(WAC_2007_SUPPL)
+    answer = read_bundle_pointing(path)
+    assert answer is not None
+    assert answer.note == WAC_AS_PUBLISHED
+
+
+def test_a_wac_frame_needing_the_offset_and_quoting_no_matrix_is_no_answer(
+    tmp_path: Path,
+) -> None:
+    """The rounded pair cannot carry a rotation of the whole attitude."""
+    path = tmp_path / 'suppl.txt'
+    path.write_text(WAC_SUPPL.split('C-Matrix')[0])
+    assert read_bundle_pointing(path) is None
+
+
+def test_a_wac_matrix_with_a_bad_first_row_is_no_answer(tmp_path: Path) -> None:
+    """The restored boresight mixes all three rows, so a bad first row reaches it."""
+    path = tmp_path / 'suppl.txt'
+    path.write_text(WAC_SUPPL.replace('0.7523069074', '1e999'))
+    assert read_bundle_pointing(path) is None
