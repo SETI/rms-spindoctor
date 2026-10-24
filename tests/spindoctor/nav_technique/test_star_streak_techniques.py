@@ -191,3 +191,31 @@ def test_corroboration_does_not_take_texture_for_a_streak() -> None:
     )
     assert found is False
 
+
+def test_one_star_corroboration_finds_other_streaks_at_the_offset(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+) -> None:
+    """The one-star match's corroboration looks for each other star as a streak.
+
+    Three 14 px streaks sit at their predictions moved by the offset.  Their brightest
+    pixels lie away from their centers, so they are found only as streaks.
+    """
+    streak_vu = (14.0, 0.0)
+    offset = (2.0, -3.0)
+    centers = [(60.0, 60.0), (60.0, 140.0), (140.0, 100.0)]
+    image = np.random.default_rng(3).normal(0.0, 1.0, size=(200, 200))
+    others = []
+    for i, (cv, cu) in enumerate(centers):
+        draw_streak(image, (cv, cu), streak_vu, flux=3000.0)
+        others.append(
+            make_star_feature(
+                f'star:UCAC4:{i}',
+                predicted_vu=(cv - offset[0], cu - offset[1]),
+                predicted_snr=30.0,
+                streak_vu=streak_vu,
+            )
+        )
+    context = make_nav_context(image)
+    technique = StarUniqueMatchNav()
+    assert technique._corroborated(others, offset, image, 1.0, context) is True
