@@ -28,7 +28,7 @@ from scipy.signal import convolve2d
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.flags import StarFlags
 from spindoctor.nav_model.stars.streak import MIN_STREAK_PX
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'frame_streak_vu',
@@ -169,7 +169,7 @@ def streak_aperture(
     center_vu: tuple[int, int],
     streak_vu: tuple[float, float],
     radius_px: float,
-) -> NDArrayFloatType:
+) -> NDArrayBoolType:
     """Return which pixels of a box lie within ``radius_px`` of a streak's segment.
 
     The segment runs from ``center - streak_vu / 2`` to ``center + streak_vu / 2``; the

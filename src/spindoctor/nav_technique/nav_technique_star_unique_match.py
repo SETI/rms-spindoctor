@@ -64,6 +64,7 @@ from spindoctor.nav_technique._star_helpers import (
     star_streak_vu,
     usable_stars,
 )
+from spindoctor.nav_technique._star_streak import streak_half_extent_px
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
@@ -766,13 +767,19 @@ class StarUniqueMatchNav(NavTechnique):
         # star, the brightest pixel of a multi-thousand-pixel window is
         # routinely a noise spike within a few percent of its
         # runner-up.  The single-detection premise of this path demands
-        # the peak be unambiguous, so an ambiguous one is spurious.
+        # the peak be unambiguous, so an ambiguous one is spurious.  The
+        # exclusion square grows by a streak's half extent, as the centroid
+        # box does, so a long streak's far pixels are not its own runner-up.
         peak_ratio = detection_peak_ratio(
             image_ext,
             (pred_v, pred_u),
             det,
             search_window_px=self._search_window_px,
-            exclude_half_px=self._centroid_box_half_px + 2,
+            exclude_half_px=(
+                self._centroid_box_half_px
+                + 2
+                + max(streak_half_extent_px(star_streak_vu(brightest)))
+            ),
         )
         if peak_ratio < self._one_star_min_peak_ratio:
             diagnostics = StarUniqueMatchDiagnostics(

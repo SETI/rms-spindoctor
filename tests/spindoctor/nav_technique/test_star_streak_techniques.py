@@ -103,3 +103,25 @@ def test_star_field_keeps_streak_centroids_out_of_the_psf_refit(
     result = StarFieldFromCatalogNav().navigate(features, context)
     assert result.offset_px[0] == pytest.approx(_TRUE_OFFSET[0], abs=0.15)
     assert result.offset_px[1] == pytest.approx(_TRUE_OFFSET[1], abs=0.15)
+
+
+def test_unique_match_keeps_a_long_streak_out_of_its_own_runner_up(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+) -> None:
+    """A lone 14 px streak is not its own runner-up in the one-star peak ratio.
+
+    The streak reaches 7 px from its center, past the exclusion square an unsmeared
+    star needs, so unless the square grows by the streak's half extent the streak's
+    far pixels rival its peak and the detection reads as ambiguous.
+    """
+    streak_vu = (14.0, 0.0)
+    image = np.random.default_rng(768).normal(0.0, 1.0, size=(200, 200))
+    draw_streak(image, (100.0, 100.0), streak_vu, flux=3000.0)
+    feature = make_star_feature(
+        'star:UCAC4:lone', predicted_vu=(98.0, 103.0), predicted_snr=40.0, streak_vu=streak_vu
+    )
+    result = StarUniqueMatchNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is False
+    assert result.offset_px[0] == pytest.approx(2.0, abs=0.15)
+    assert result.offset_px[1] == pytest.approx(-3.0, abs=0.15)
