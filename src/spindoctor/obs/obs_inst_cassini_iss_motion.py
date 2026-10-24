@@ -95,7 +95,8 @@ def predicted_ck_paths(
         precedence; empty when the database lists none.
     """
     was_open = spicedb.db_is_open()
-    spicedb.open_db()
+    if not was_open:
+        spicedb.open_db()
     tai = julian.tai_from_tdb(epoch_et)
     try:
         kernels = spicedb.select_ck(spacecraft_id, name=kernel_name, time=(tai, tai))
@@ -106,6 +107,8 @@ def predicted_ck_paths(
     finally:
         if not was_open:
             spicedb.close_db()
+    if len(kernels) == 0:
+        return []
     prefix = spicedb.get_spice_filecache_prefix()
     paths: list[Path] = []
     for kernel in kernels:
