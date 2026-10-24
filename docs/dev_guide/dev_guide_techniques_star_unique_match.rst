@@ -67,7 +67,9 @@ image noise, so a pixel of a body's limb or texture is not taken for a star, and
 centroid above the plane background of the local centroid lies within the tolerance. On a
 streak frame the star is instead centroided as the local centroid takes a streak, about the
 streak's center within the tolerance of its moved prediction, since the brightest pixel
-lies anywhere along the streak. A frame whose field has no such near-equal star keeps the
+lies anywhere along the streak, and the local centroid's acceptance of the streak is
+judged against the local spread, measured on a ring around the centroid box grown by the
+streak's half extent on each axis. A frame whose field has no such near-equal star keeps the
 uncorroborated match. The margin
 the diagnostics report, and the confidence formula scores, is the margin in the field; a
 corroborated match is scored as meeting the floor exactly.

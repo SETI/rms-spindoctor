@@ -171,3 +171,23 @@ def test_corroboration_finds_a_long_streak_at_its_center() -> None:
         streak_vu=streak_vu,
     )
     assert found is True
+
+
+def test_corroboration_does_not_take_texture_for_a_streak() -> None:
+    """A textured background the streak centroid locks onto is not a corroborating star.
+
+    Its center stands far above the image noise, but its surroundings spread as widely.
+    """
+    grid = 2.0 * np.pi * (np.arange(80, dtype=np.float64) - 40.0) / 12.0
+    image = 1000.0 + 200.0 * np.cos(grid)[:, None] * np.cos(grid)[None, :]
+    found = found_at(
+        image,
+        (40.0, 40.0),
+        tolerance_px=1.5,
+        box_half_px=3,
+        noise_sigma=1.0,
+        detection_sigma=4.0,
+        streak_vu=(14.0, 0.0),
+    )
+    assert found is False
+

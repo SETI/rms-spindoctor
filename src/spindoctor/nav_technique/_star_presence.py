@@ -20,7 +20,7 @@ from spindoctor.nav_technique._star_helpers import (
     local_centroid,
     robust_center_spread,
 )
-from spindoctor.nav_technique._star_streak import is_streak
+from spindoctor.nav_technique._star_streak import is_streak, streak_half_extent_px
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['found_at']
@@ -138,26 +138,49 @@ def _streak_found_at(
 
     The streak is centroided as :func:`local_centroid` takes one, about the streak's
     center within ``tolerance_px`` of the target, and must lie within ``tolerance_px`` of
-    it.
+    it.  The local centroid accepts a streak whose brightest pixel near its segment stands
+    ``detection_sigma`` times the noise above the plane fitted around its box; as for a
+    point source, that noise is the larger of ``noise_sigma`` and the scaled median
+    absolute deviation of the ring of pixels 2 to 3 px outside the centroid box, here
+    grown by the streak's half extent on each axis, so a textured background is not
+    taken for a streak.
 
     Parameters:
         image_ext: The extended-FOV image.
         target_vu: Where the star should be, ``(v, u)``.
         tolerance_px: Largest distance of the star from the target in pixels.
         box_half_px: Half-width of an unsmeared star's centroid box in pixels.
-        noise_sigma: Image noise sigma.
-        detection_sigma: Multiplier on the noise the detection must clear.
+        noise_sigma: Image noise sigma, the floor of the local spread.
+        detection_sigma: Multiplier on the local spread the streak must clear.
         streak_vu: The frame's star streak ``(v, u)`` in pixels.
 
     Returns:
         True when a streak is found at the target.
     """
+    rows, cols = image_ext.shape
+    ext_v, ext_u = streak_half_extent_px(streak_vu)
+    inner_v, inner_u = box_half_px + ext_v, box_half_px + ext_u
+    outer_v = inner_v + _FOUND_RING_OUTER_GAP_PX
+    outer_u = inner_u + _FOUND_RING_OUTER_GAP_PX
+    c_v, c_u = round(target_vu[0]), round(target_vu[1])
+    if not (outer_v <= c_v < rows - outer_v and outer_u <= c_u < cols - outer_u):
+        return False
+    patch = np.asarray(
+        image_ext[c_v - outer_v : c_v + outer_v + 1, c_u - outer_u : c_u + outer_u + 1],
+        np.float64,
+    )
+    off_v = np.abs(np.arange(-outer_v, outer_v + 1))[:, None]
+    off_u = np.abs(np.arange(-outer_u, outer_u + 1))[None, :]
+    in_ring = (off_v >= inner_v + _FOUND_RING_INNER_GAP_PX) | (
+        off_u >= inner_u + _FOUND_RING_INNER_GAP_PX
+    )
+    _, ring_spread = robust_center_spread(patch[in_ring])
     detection, _ = local_centroid(
         image_ext,
         target_vu,
         search_window_px=tolerance_px,
         centroid_box_half_px=box_half_px,
-        image_noise_sigma=noise_sigma,
+        image_noise_sigma=max(ring_spread, noise_sigma),
         detection_sigma=detection_sigma,
         streak_vu=streak_vu,
     )
