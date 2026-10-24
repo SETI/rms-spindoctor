@@ -122,10 +122,11 @@ maximum of the window's several thousand noise pixels sits at 3.5-4.5 sigma, so 
 marginal star the brightest pixel is routinely a noise spike that clears the threshold.
 The detection therefore also passes a peak-to-runner-up ambiguity gate
 (``one_star_min_peak_ratio``): the background-subtracted peak must exceed the window's
-runner-up (outside a square of half-width ``centroid_box_half_px`` plus 2 px around the
-detection, grown on a streak frame by the larger of the streak's half extents so a long
-streak's far pixels are not its own runner-up) by the configured ratio, or the result is
-spurious with an ``ambiguous_detection`` reason. A real star detection towers
+runner-up (outside a box of half-width ``centroid_box_half_px`` plus 2 px around the
+detection, grown on a streak frame on each axis by the streak's half extent along it, so a
+long streak's far pixels are not its own runner-up while a rival beside the streak still
+counts) by the configured ratio, or the result is spurious with an
+``ambiguous_detection`` reason. A real star detection towers
 over the window's noise order statistics while a matched spike sits within a few percent
 of its runner-up; the ratio is unit-free, so no DN-scale or photometric calibration enters
 the gate. The measured ratio is surfaced as the

@@ -768,18 +768,17 @@ class StarUniqueMatchNav(NavTechnique):
         # routinely a noise spike within a few percent of its
         # runner-up.  The single-detection premise of this path demands
         # the peak be unambiguous, so an ambiguous one is spurious.  The
-        # exclusion square grows by a streak's half extent, as the centroid
-        # box does, so a long streak's far pixels are not its own runner-up.
+        # exclusion box grows on each axis by the streak's half extent along
+        # it, as the centroid box does, so a long streak's far pixels are not
+        # its own runner-up while a rival beside the streak still counts.
+        ext_v, ext_u = streak_half_extent_px(star_streak_vu(brightest))
+        exclude_core_px = self._centroid_box_half_px + 2
         peak_ratio = detection_peak_ratio(
             image_ext,
             (pred_v, pred_u),
             det,
             search_window_px=self._search_window_px,
-            exclude_half_px=(
-                self._centroid_box_half_px
-                + 2
-                + max(streak_half_extent_px(star_streak_vu(brightest)))
-            ),
+            exclude_half_px=(exclude_core_px + ext_v, exclude_core_px + ext_u),
         )
         if peak_ratio < self._one_star_min_peak_ratio:
             diagnostics = StarUniqueMatchDiagnostics(

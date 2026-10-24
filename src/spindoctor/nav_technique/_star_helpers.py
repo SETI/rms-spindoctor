@@ -488,7 +488,7 @@ def detection_peak_ratio(
     detection_vu: tuple[float, float],
     *,
     search_window_px: float,
-    exclude_half_px: int,
+    exclude_half_px: tuple[int, int],
 ) -> float:
     """Return the detection's background-subtracted peak-to-runner-up ratio.
 
@@ -511,9 +511,10 @@ def detection_peak_ratio(
             ``exclude_half_px`` box (the source's own pixels) is removed
             before the runner-up is taken.
         search_window_px: Half-width of the search window in pixels.
-        exclude_half_px: Half-width of the exclusion box around the
-            detection; use at least the centroid-box half-width so the
-            source's own wings do not masquerade as the runner-up.
+        exclude_half_px: ``(v, u)`` half-widths of the exclusion box
+            around the detection; use at least the centroid-box half-width
+            on each axis, plus a streak's half extent along that axis, so
+            the source's own wings do not masquerade as the runner-up.
 
     Returns:
         ``(peak - background) / (runner_up - background)`` with the
@@ -536,10 +537,11 @@ def detection_peak_ratio(
         return 0.0
     masked = window.copy()
     det_v, det_u = detection_vu
-    bv_lo = max(0, round(det_v) - exclude_half_px - v_lo)
-    bu_lo = max(0, round(det_u) - exclude_half_px - u_lo)
-    bv_hi = min(window.shape[0], round(det_v) + exclude_half_px + 1 - v_lo)
-    bu_hi = min(window.shape[1], round(det_u) + exclude_half_px + 1 - u_lo)
+    half_v, half_u = exclude_half_px
+    bv_lo = max(0, round(det_v) - half_v - v_lo)
+    bu_lo = max(0, round(det_u) - half_u - u_lo)
+    bv_hi = min(window.shape[0], round(det_v) + half_v + 1 - v_lo)
+    bu_hi = min(window.shape[1], round(det_u) + half_u + 1 - u_lo)
     if bv_hi > bv_lo and bu_hi > bu_lo:
         masked[bv_lo:bv_hi, bu_lo:bu_hi] = background
     runner_up = float(masked.max()) - background

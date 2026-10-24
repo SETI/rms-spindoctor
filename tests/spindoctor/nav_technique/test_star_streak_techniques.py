@@ -11,6 +11,7 @@ from tests.spindoctor.nav_technique.conftest import FakeObs, NavContextFactory, 
 from tests.spindoctor.star_streak_images import draw_streak
 
 from spindoctor.feature.feature import NavFeature
+from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.nav_technique import NavTechnique
 from spindoctor.nav_technique.nav_technique_star_field import StarFieldFromCatalogNav
 from spindoctor.nav_technique.nav_technique_star_refine import StarRefineNav
@@ -125,3 +126,25 @@ def test_unique_match_keeps_a_long_streak_out_of_its_own_runner_up(
     assert result.spurious is False
     assert result.offset_px[0] == pytest.approx(2.0, abs=0.15)
     assert result.offset_px[1] == pytest.approx(-3.0, abs=0.15)
+
+
+def test_unique_match_still_counts_a_rival_beside_a_long_streak(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+) -> None:
+    """A star 9 px across a 14 px streak still rivals it in the one-star peak ratio.
+
+    The exclusion box grows only along the streak, so a rival beside it, as bright as
+    the streak's own pixels, keeps the detection ambiguous.
+    """
+    streak_vu = (14.0, 0.0)
+    image = np.random.default_rng(768).normal(0.0, 1.0, size=(200, 200))
+    draw_streak(image, (100.0, 100.0), streak_vu, flux=3000.0)
+    draw_streak(image, (100.0, 109.0), (0.0, 0.0), flux=280.0)
+    feature = make_star_feature(
+        'star:UCAC4:lone', predicted_vu=(98.0, 103.0), predicted_snr=40.0, streak_vu=streak_vu
+    )
+    result = StarUniqueMatchNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is True
+    assert isinstance(result.diagnostics, StarUniqueMatchDiagnostics)
+    assert result.diagnostics.detection_peak_ratio < 1.5
