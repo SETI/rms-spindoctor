@@ -64,7 +64,7 @@ from spindoctor.nav_technique._star_helpers import (
     star_streak_vu,
     usable_stars,
 )
-from spindoctor.nav_technique._star_streak import streak_half_extent_px
+from spindoctor.nav_technique._star_streak import is_streak, streak_half_extent_px
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
@@ -172,6 +172,7 @@ def _found_at(
     box_half_px: int,
     noise_sigma: float,
     detection_sigma: float,
+    streak_vu: tuple[float, float] = (0.0, 0.0),
 ) -> bool:
     """Return whether a point source lies within ``tolerance_px`` of ``target_vu``.
 
@@ -184,6 +185,10 @@ def _found_at(
     background the local centroid uses, must then lie within ``tolerance_px`` of the
     target.
 
+    On a streak frame the brightest pixel lands anywhere along the streak, so the star
+    is instead taken as :func:`local_centroid` takes a streak, about the streak's center
+    within ``tolerance_px`` of the target, and must lie within ``tolerance_px`` of it.
+
     Parameters:
         image_ext: The extended-FOV image.
         target_vu: Where the star should be, ``(v, u)``.
@@ -191,10 +196,24 @@ def _found_at(
         box_half_px: Half-width of the centroid box in pixels.
         noise_sigma: Image noise sigma, the floor of the local spread.
         detection_sigma: Multiplier on the local spread the peak must clear.
+        streak_vu: The frame's star streak ``(v, u)`` in pixels; ``(0, 0)`` for points.
 
     Returns:
         True when a star is found at the target.
     """
+    if is_streak(streak_vu):
+        detection, _ = local_centroid(
+            image_ext,
+            target_vu,
+            search_window_px=tolerance_px,
+            centroid_box_half_px=box_half_px,
+            image_noise_sigma=noise_sigma,
+            detection_sigma=detection_sigma,
+            streak_vu=streak_vu,
+        )
+        return detection is not None and (
+            math.hypot(detection[0] - target_vu[0], detection[1] - target_vu[1]) <= tolerance_px
+        )
     rows, cols = image_ext.shape
     t_v, t_u = target_vu
     reach = math.ceil(tolerance_px)
@@ -952,7 +971,7 @@ class StarUniqueMatchNav(NavTechnique):
         margin_v, margin_u = search_window_for_obs(context)
         rows, cols = image_ext.shape
         dv, du = offset_vu
-        targets: list[tuple[float, float]] = []
+        targets: list[tuple[tuple[float, float], tuple[float, float]]] = []
         for star in sorted(others, key=predicted_snr, reverse=True):
             s_v, s_u = predicted_vu(star)
             t_v, t_u = s_v + dv, s_u + du
@@ -960,7 +979,7 @@ class StarUniqueMatchNav(NavTechnique):
                 margin_v - 0.5 <= t_v < rows - margin_v - 0.5
                 and margin_u - 0.5 <= t_u < cols - margin_u - 0.5
             ):
-                targets.append((t_v, t_u))
+                targets.append(((t_v, t_u), star_streak_vu(star)))
             if len(targets) == self._corroboration_stars:
                 break
         found = sum(
@@ -971,8 +990,9 @@ class StarUniqueMatchNav(NavTechnique):
                 box_half_px=self._centroid_box_half_px,
                 noise_sigma=noise_sigma,
                 detection_sigma=self._detection_sigma,
+                streak_vu=streak_vu,
             )
-            for target in targets
+            for target, streak_vu in targets
         )
         needed = min(self._corroboration_min, len(targets))
         self.logger.info(

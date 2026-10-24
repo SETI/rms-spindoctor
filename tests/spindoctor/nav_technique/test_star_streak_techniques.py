@@ -15,7 +15,10 @@ from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.nav_technique import NavTechnique
 from spindoctor.nav_technique.nav_technique_star_field import StarFieldFromCatalogNav
 from spindoctor.nav_technique.nav_technique_star_refine import StarRefineNav
-from spindoctor.nav_technique.nav_technique_star_unique_match import StarUniqueMatchNav
+from spindoctor.nav_technique.nav_technique_star_unique_match import (
+    StarUniqueMatchNav,
+    _found_at,
+)
 
 _STREAK_VU = (8.0, -1.0)
 """The streak every planted star draws."""
@@ -148,3 +151,25 @@ def test_unique_match_still_counts_a_rival_beside_a_long_streak(
     assert result.spurious is True
     assert isinstance(result.diagnostics, StarUniqueMatchDiagnostics)
     assert result.diagnostics.detection_peak_ratio < 1.5
+
+
+def test_corroboration_finds_a_long_streak_at_its_center() -> None:
+    """A 14 px streak centered on a corroboration target is found there.
+
+    The brightest pixel lands anywhere along the streak, so a box around it would put
+    the centroid up to half the box's reach from the center; the streak centroid is
+    taken about the streak's center instead.
+    """
+    streak_vu = (14.0, 0.0)
+    image = np.random.default_rng(1).normal(0.0, 1.0, size=(120, 120))
+    draw_streak(image, (60.0, 60.0), streak_vu, flux=3000.0)
+    found = _found_at(
+        image,
+        (60.0, 60.0),
+        tolerance_px=1.5,
+        box_half_px=3,
+        noise_sigma=1.0,
+        detection_sigma=4.0,
+        streak_vu=streak_vu,
+    )
+    assert found is True

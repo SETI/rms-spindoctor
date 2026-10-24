@@ -64,8 +64,11 @@ brightest pixel near its moved prediction stands
 ``detection_sigma`` times the local spread above the median of a ring around its centroid
 box, the spread being the larger of the ring's scaled median absolute deviation and the
 image noise, so a pixel of a body's limb or texture is not taken for a star, and its moment
-centroid above the plane background of the local centroid lies within the tolerance. A
-frame whose field has no such near-equal star keeps the uncorroborated match. The margin
+centroid above the plane background of the local centroid lies within the tolerance. On a
+streak frame the star is instead centroided as the local centroid takes a streak, about the
+streak's center within the tolerance of its moved prediction, since the brightest pixel
+lies anywhere along the streak. A frame whose field has no such near-equal star keeps the
+uncorroborated match. The margin
 the diagnostics report, and the confidence formula scores, is the margin in the field; a
 corroborated match is scored as meeting the floor exactly.
 
