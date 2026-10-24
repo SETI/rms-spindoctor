@@ -68,6 +68,31 @@ FCPath(sys.argv[2]).write_text(path.as_posix())
 """
 
 
+# google-api-core warns on import once the running Python is within a year of
+# its end of life (3.11: 2027-10-24).  That notice comes from a third-party
+# import, not from the logging these tests are about, so the child drops it the
+# way the suite's own warning filters do.  The module is named in full because
+# PYTHONWARNINGS matches it exactly.
+_THIRD_PARTY_NOTICES = (
+    'ignore:You are using a Python version:FutureWarning:google.api_core._python_version_support'
+)
+
+
+def _task_environment() -> dict[str, str]:
+    """Return the child's environment, with third-party import notices dropped.
+
+    Returns:
+        The environment from ``child_interpreter_environment`` with
+        ``PYTHONWARNINGS`` extended to ignore the notices above.
+    """
+    environment = child_interpreter_environment()
+    inherited = environment.get('PYTHONWARNINGS')
+    environment['PYTHONWARNINGS'] = (
+        f'{inherited},{_THIRD_PARTY_NOTICES}' if inherited else _THIRD_PARTY_NOTICES
+    )
+    return environment
+
+
 @pytest.fixture(scope='module')
 def task_output(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, str, str]:
     """Run one cloud task in a worker-like subprocess.
@@ -97,7 +122,7 @@ def task_output(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, str, str
         text=True,
         check=False,
         timeout=300,
-        env=child_interpreter_environment(),
+        env=_task_environment(),
     )
     assert completed.returncode == 0, completed.stderr
     log_text = FCPath(path_file.read_text()).read_text()
@@ -258,7 +283,7 @@ def ingest_task_output(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, s
         text=True,
         check=False,
         timeout=300,
-        env=child_interpreter_environment(),
+        env=_task_environment(),
     )
     assert completed.returncode == 0, completed.stderr
     return completed.stdout, completed.stderr, json.loads(results_file.read_text())
