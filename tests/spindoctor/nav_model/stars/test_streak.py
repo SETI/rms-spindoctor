@@ -6,7 +6,16 @@ import numpy as np
 import pytest
 from tests.spindoctor.star_streak_images import draw_streak
 
-from spindoctor.nav_model.stars.streak import consensus_streak, measure_streak, star_streak_axis
+from spindoctor.nav_model.stars.streak import (
+    MAX_STREAK_TO_PREDICTED,
+    MIN_PREDICTED_SMEAR_PX,
+    StreakLimits,
+    consensus_streak,
+    measure_streak,
+    predicted_streak_vu,
+    star_streak_axis,
+    streak_limits,
+)
 
 _SHAPE = (128, 128)
 _NO_SATURATION = np.zeros(_SHAPE, dtype=bool)
@@ -105,3 +114,26 @@ def test_star_streak_axis_sets_aside_a_saturated_star() -> None:
     saturation[64, 64] = True
     axis = star_streak_axis(image, (64, 64), noise_sigma=1.0, saturation_mask=saturation)
     assert axis is None
+
+
+def test_streak_limits_of_a_prediction_no_host_vouches_for() -> None:
+    """An unvouched prediction keeps the default floor and ceiling and never stands in."""
+    assert streak_limits(None) == StreakLimits(
+        MIN_PREDICTED_SMEAR_PX, MAX_STREAK_TO_PREDICTED, False
+    )
+
+
+def test_streak_limits_of_a_vouched_prediction() -> None:
+    """A vouched prediction is held to its ratio, measured from 4.5 px over it, and stands in."""
+    assert streak_limits(1.5) == StreakLimits(3.0, 1.5, True)
+
+
+def test_streak_limits_refuse_a_ratio_that_cannot_hold_a_streak() -> None:
+    """A ratio of 1 or less would refuse the prediction's own length."""
+    with pytest.raises(ValueError, match=r'vouched_ratio must be greater than 1; got 1\.0'):
+        streak_limits(1.0)
+
+
+def test_predicted_streak_is_the_oriented_median_smear() -> None:
+    """The predicted streak is the component-wise median, pointing to v >= 0."""
+    assert predicted_streak_vu([(-6.0, 1.0), (-7.0, 2.0), (-8.0, 2.5)]) == (7.0, -2.0)

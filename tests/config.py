@@ -70,6 +70,12 @@ URL_CASSINI_ISS_STARS_02 = 'https://pds-rings.seti.org/holdings/calibrated/COISS
 # tour label does, and carries items of its own under different names.
 URL_CASSINI_ISS_CRUISE_01 = 'https://pds-rings.seti.org/holdings/calibrated/COISS_1xxx/COISS_1001/data/1294561143_1295221348/N1294562651_1_CALIB.IMG'
 
+# Image from late cruise, COISS_1009 (2003-10-15)
+# Camera: Cassini ISS NAC
+# Taken before the as-flown predicted C-kernels begin (2004-01-09), so the star model
+# takes the spacecraft's turning from the reconstructed C-kernels' mean rate.
+URL_CASSINI_ISS_CRUISE_02 = 'https://pds-rings.seti.org/holdings/calibrated/COISS_1xxx/COISS_1009/data/1444868363_1447062551/N1444869540_1_CALIB.IMG'
+
 # Image of Io
 # Camera: Galileo SSI
 # Size: 800x800 (cutout window 431x411)

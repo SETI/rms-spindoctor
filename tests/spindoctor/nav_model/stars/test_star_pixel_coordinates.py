@@ -155,6 +155,10 @@ class _Obs:
         """Return the PSF the model reads its Gaussian sigma from."""
         return GaussianPSF(sigma=_STAR_SIGMA_PX)
 
+    def exposure_motion(self) -> None:
+        """Return no motion: the smear is the pointing's at the exposure's ends."""
+        return None
+
     def star_max_usable_vmag(self) -> float:
         """Return the limiting magnitude, set well past the test star."""
         return 12.0

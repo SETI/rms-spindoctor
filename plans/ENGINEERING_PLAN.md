@@ -380,6 +380,39 @@ What remains of the family:
   0.09 px, and every unstreaked frame and the library are unchanged.
   Strictly better than the bundle is still not shown: 150 frames cannot be
   decided by stars.
+  The predicted smear then comes from the as-flown predicted C-kernels
+  rather than the reconstructed ones, whose 4 s records repeat an
+  attitude on 31% of intervals (#768): over 1,796 measured frames the
+  prediction moves from 0.58 times the streak, 20.8 degrees off and 15%
+  within 1 px to 0.96 times, 2.9 degrees and 99%. The as-flown kernel is
+  read without being furnished, so the a priori C-matrix is bit-identical
+  on every frame rerun. The as-flown motion vouches for a 1.5 streak
+  ratio, so Cassini frames are measured from 3 px and held to 1.5 times
+  the prediction, and where no star's streak can be measured a predicted
+  streak of 4.5 px or more stands in (on 202 of the 212 F ring frames
+  predicted that long whose stars measure no streak). A rerun of 1,699
+  frames (the 1,179 above, a 207-frame low-smear control, 178 frames newly
+  predicted over 2 px and the 212): against the previous rerun 1 better
+  (`N1723506317`, marginal 1.19 to right 0.19 px) and 1 worse; against the
+  final full run 14 better (9 refused and 4 marginal become right, 1
+  refused becomes marginal; 5 of them the previous rerun's) and 2 worse.
+  `N1860785342` (right 0.61 to marginal 1.40 px) is ours by stars, 5
+  streak centroids to none and 2 peaks to none. `N1748760905` (marginal to
+  refused) is a loss: stars agree with both answers within 0.12 px, but
+  pass-2 arbitration counts 11 stars refined from a prior 2 px off, since
+  the streak-grown box still reaches them, against 12 from the consensus,
+  so neither is confirmed; the support count should require the refined
+  stars to lie near the tested answer (#771). The control frames move at
+  most 0.008 px, the library's non-Cassini frames are unchanged (one
+  Cassini frame moves 1.98 px onto its verified offset, one rises to its
+  expected tier, one moves 0.13 px within its verified uncertainty, the
+  rest under 0.03 px), and of 122 frames whose predicted streak moved the
+  answer by more than 0.05 px, stars side with the new answer on 71, the
+  old on 35 (median separation 0.08 px) and 16 cannot be decided.
+  StarUniqueMatchNav's one-star ambiguity test masks a square grown by the
+  streak's half extent, so a streak of 12 px or more is not its own
+  runner-up; in both reruns one streaked frame reached that test, and it
+  passed either way.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the

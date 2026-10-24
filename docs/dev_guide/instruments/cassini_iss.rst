@@ -24,7 +24,12 @@ Code map
        a ``_pds3`` alias for each
    * - Config block
      - ``cassini_iss`` and ``cassini_iss_calib`` in
-       ``config_400_inst_coiss.yaml``, each nested per detector
+       ``config_400_inst_coiss.yaml``, each nested per detector; the camera-wide
+       ``cassini_iss_star_photometry`` and ``cassini_iss_exposure_motion`` in the
+       same file
+   * - Exposure motion
+     - :mod:`~spindoctor.obs.obs_inst_cassini_iss_motion`, read by
+       :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.exposure_motion`
    * - Sim instrument keys
      - ``coiss_nac``, ``coiss_wac``, ``coiss_calib_nac``, ``coiss_calib_wac``
    * - Statistics key
@@ -249,6 +254,16 @@ answers whose stars confirm the bundle have none beyond 2. The median distance
 is 0.56 at either floor, since most WAC answers already report a wide
 localization spread that the floor does not change.
 
+**Exposure motion.** ``cassini_iss_exposure_motion`` names the SPICE database's
+``spacecraft_id`` (-82), the CK object whose attitude is read
+(``ck_object_id``, -82000, the bus, which serves both cameras because the
+rotation between the bus and a camera cancels from the motion), the database
+name and release of the as-flown kernel set (``predicted_ck_name``,
+``predicted_ck_version``), the ratio the as-flown motion vouches for
+(``predicted_max_streak_to_predicted``), and the fallback window's half width
+(``reconstructed_half_window_s``). See **Star smear** under `Frames, attitude,
+and rotation fitting`_.
+
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
 ``expected_noise_dn`` and ``read_noise_dn``, the calibrated block's
 ``blank_max_if`` and ``noisy_threshold_if``, and both blocks'
@@ -382,6 +397,67 @@ alone.
 
 **Per-spacecraft variation.** None. One spacecraft, two cameras, one CK object
 and one clock.
+
+**Star smear.** The star model takes the spacecraft's turning during an
+exposure from the as-flown predicted C-kernels,
+``CK-predicted-v02/*py_as_flown.bc`` (2004-01-09T12:25 to 2017-09-15), while
+the pointing stays the reconstructed kernels' (see the exposure motion section
+of :doc:`../dev_guide_navigation_models_star`).
+:meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.exposure_motion` asks
+the SPICE database, once for each of the exposure's start, middle, and end (the
+database's selection over a span keeps only the kernels covering its start),
+for the kernels named ``predicted_ck_name`` (``CAS-CK-PREDICTED``) of release
+``predicted_ck_version`` (``V02``; the name also lists the earlier release in
+``CK-predicted``). It retrieves them through the database's file cache, leaving
+out and logging any it cannot retrieve, and reads the attitude of
+``ck_object_id`` (-82000) at the three instants without furnishing them. The
+source it records names the kernel that gave the middle attitude. It reads once
+per observation.
+
+The reconstructed kernels are type 3 with one record every 4 s, segment
+``TELEMETRY CASSINI S/C ATTITUDE``. On 31% of the 4 s intervals within 60 s of
+1,796 F ring NAC frames whose streaks were measured, a record repeats the
+previous quaternion exactly and the motion lands in the next interval: the
+median nonzero step is 62 microradians, about 10 NAC pixels, against a
+commanded 32 per interval. A typical F ring exposure (1.2 s) lies inside one
+interval, so the smear interpolated from those kernels is that interval's
+rate: zero, or about double. Over the 1,796 frames it is a median 0.58 times
+the measured streak's length, 20.8 degrees off its direction, and within 1 px
+of it on 15%. The as-flown kernels have a record every 6 s at the commanded
+constant rate (a median 7.9 microradians per second through these
+exposures); the smear they give is a median 0.96 times the measured length,
+2.9 degrees off, and within 1 px on 99% (0.26 px median vector error). On
+the 139 frames measured at 4.5 px or more it is 0.96 times, 0.6 degrees off,
+and within 1 px on 99%. Shifting the exposure window by up to 10 s leaves the
+as-flown agreement unchanged, and scaling the window about mid-exposure
+agrees best at the label's own exposure, so the window
+``[IMAGE_TIME - EXPOSURE_DURATION, IMAGE_TIME]`` is kept.
+
+The as-flown motion vouches for its prediction with
+``predicted_max_streak_to_predicted`` (1.5), so the measured streak of a
+Cassini frame is held to 1.5 times the prediction, frames predicted under 4.5 /
+1.5 = 3 px are not measured, and a predicted streak of 4.5 px or more stands in
+where none can be measured. Over 6,817 F ring frames whose streak was looked
+for, the as-flown prediction of none shorter than 4.48 px goes with a measured
+streak of 4.5 px or more, and none shorter than 3.5 px with one longer than
+3.39 px. On the 1,101 frames predicted at least 2 px whose streak could be
+measured, the streak is at most 1.20 times the prediction (99th percentile
+1.12); on the 140 measured at 4.5 px or more, 0.85 to 1.04 times. On 212 frames
+predicted at 4.5 px or more no single star's streak could be measured, and
+those frames are centroided on the prediction.
+
+Where no as-flown kernel covers all three instants (cruise before 2004-01-09,
+or a gap), the motion is the observation's mean rate between
+``reconstructed_half_window_s`` (8 s) either side of mid-exposure, scaled to
+the exposure: 0.42 px median vector error and 96% within 1 px on the same
+frames. Longer windows do slightly better on steady scans (0.33 px at half
+windows of 16 s, 0.28 px at 30 s) but average across turns: on the 13 frames
+within 30 s of a turn, a 16 s half window is off by up to 3.2 px and a 30 s one
+by up to 10.2 px (``N1869989098``), where the as-flown kernel is off by 0.30
+px. That motion vouches for nothing, so the default streak limits apply. An
+exposure of 16 s or more spans several reconstructed records, and its smear
+comes from the pointing at the exposure's ends; so does that of an exposure
+whose pointing cannot be evaluated across the window.
 
 **Rotation fitting.** ``fit_camera_rotation`` is ``false`` for both cameras,
 with ``max_rotation_deg: 5.0`` carried but unused. That is the measured

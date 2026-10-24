@@ -31,6 +31,7 @@ import numpy as np
 import polymath
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from spindoctor.support.exposure_motion import ExposureMotion
     from tests.shims.backplane import FakeBackplane
 
 __all__ = [
@@ -150,6 +151,8 @@ class FakeObs:
             star projects onto the FOV center.
         center_ra_rad: Right ascension of the frame center, in radians.
         center_dec_rad: Declination of the frame center, in radians.
+        motion: The exposure motion returned by ``exposure_motion``; None, the
+            default, leaves the smear to the ``tfrac`` projections.
     """
 
     data: np.ndarray
@@ -167,6 +170,7 @@ class FakeObs:
     center_ra_rad: float = 0.0
     center_dec_rad: float = 0.0
     fov: FakeFOV = field(default_factory=FakeFOV)
+    motion: ExposureMotion | None = None
 
     def __post_init__(self) -> None:
         """Build the extfov-padded ``extdata`` from ``data`` plus the margin."""
@@ -388,6 +392,10 @@ class FakeObs:
     # ------------------------------------------------------------------
     # SPICE-like surface
     # ------------------------------------------------------------------
+
+    def exposure_motion(self) -> ExposureMotion | None:
+        """Return the configured exposure motion."""
+        return self.motion
 
     def center_ra_dec(self, *, apparent: bool = True) -> tuple[float, float]:
         """Return the configured frame-center RA and DEC.

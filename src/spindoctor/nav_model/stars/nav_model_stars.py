@@ -44,10 +44,10 @@ from spindoctor.nav_model.stars.predicted_snr import (
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
 from spindoctor.nav_model.stars.streak import (
-    MAX_STREAK_TO_PREDICTED,
-    MIN_PREDICTED_SMEAR_PX,
     MIN_STREAK_PX,
     measure_streak,
+    predicted_streak_vu,
+    streak_limits,
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.flux import clean_sclass
@@ -61,9 +61,13 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 
 __all__ = [
+    'EXPOSURE_POINTING_SOURCE',
     'SCLASS_TO_B_MINUS_V',
     'NavModelStars',
 ]
+
+EXPOSURE_POINTING_SOURCE = 'pointing at the exposure start and end'
+"""The ``smear_source`` a star model records when the observation supplies no motion."""
 
 # Effective-SNR constants for the magnitude-margin reliability shape.
 #
@@ -142,7 +146,11 @@ class NavModelStars(NavModel):
 
         Steps:
 
-        1. Compute the per-image smear vector via ``compute_smear_vector_px``.
+        1. Compute the per-image smear vector via ``compute_smear_vector_px``, and
+           record in ``smear_source`` what the camera's turning during the exposure was
+           taken from: the observation's
+           :meth:`~spindoctor.obs.ObsSnapshot.exposure_motion` source, or
+           :data:`EXPOSURE_POINTING_SOURCE` when it supplies none.
         2. Reduce all configured catalogs through ``reduce_catalogs`` —
            pulls per-bin chunks, dedupes against precedence, marks
            visual overlaps.
@@ -158,7 +166,10 @@ class NavModelStars(NavModel):
         with self.log_section('CREATE STARS MODEL'):
             self._stars = reduce_catalogs(self.obs, self._config)
             self._smear_vu = compute_smear_vector_px(self.obs)
+            motion = self.obs.exposure_motion()
+            smear_source = EXPOSURE_POINTING_SOURCE if motion is None else motion.source
             mark_body_and_ring_conflicts(self.obs, self._config, self._stars)
+            self._metadata['smear_source'] = smear_source
             self._metadata['star_count'] = len(self._stars)
             self._metadata['stars'] = [_star_summary(star) for star in self._stars]
             body_conflicts = sum(1 for s in self._stars if (s.conflicts or '').startswith('BODY'))
@@ -166,11 +177,12 @@ class NavModelStars(NavModel):
             smear_len = math.hypot(self._smear_vu[0], self._smear_vu[1])
             self._logger.info(
                 '%d catalog stars after dedup; smear vector (v, u) = '
-                '(%.3f, %.3f) px (|smear| = %.3f)',
+                '(%.3f, %.3f) px (|smear| = %.3f) from the %s',
                 len(self._stars),
                 self._smear_vu[0],
                 self._smear_vu[1],
                 smear_len,
+                smear_source,
             )
             self._logger.info(
                 'Conflicts: body-occluded = %d, ring-occluded = %d',
@@ -430,16 +442,28 @@ class NavModelStars(NavModel):
         """Return the streak the frame's stars draw, or ``(0.0, 0.0)`` for points.
 
         The stars examined are those that conflict with no body, ring, or other star,
-        brightest first.  A frame whose examined stars' median predicted smear length is
-        shorter than :data:`~spindoctor.nav_model.stars.streak.MIN_PREDICTED_SMEAR_PX`
-        is not measured; the per-star smear stands in for the frame-center smear vector,
-        which reads zero on a frame rolling about its center.  Otherwise
-        :func:`~spindoctor.nav_model.stars.streak.measure_streak` measures the streak
-        around those stars' predictions, and a streak is returned only when one is
+        brightest first.  The limits on the streak are
+        :func:`~spindoctor.nav_model.stars.streak.streak_limits` of the
+        :attr:`~spindoctor.support.exposure_motion.ExposureMotion.max_streak_to_predicted`
+        of the observation's exposure motion (None when it supplies no motion), so a
+        prediction no host vouches for is held to
+        :data:`~spindoctor.nav_model.stars.streak.MIN_PREDICTED_SMEAR_PX` and
+        :data:`~spindoctor.nav_model.stars.streak.MAX_STREAK_TO_PREDICTED`.  A frame whose
+        examined stars' median predicted smear length is shorter than the limits'
+        ``min_predicted_px`` is not measured; the per-star smear stands in for the
+        frame-center smear vector, which reads zero on a frame rolling about its center.
+        Otherwise :func:`~spindoctor.nav_model.stars.streak.measure_streak` measures the
+        streak around those stars' predictions, and a streak is returned only when one is
         measured at least :data:`~spindoctor.nav_model.stars.streak.MIN_STREAK_PX` long
-        and at most
-        :data:`~spindoctor.nav_model.stars.streak.MAX_STREAK_TO_PREDICTED` times the
-        median predicted smear.  The model's metadata records the median predicted smear
+        and at most ``max_streak_to_predicted`` times the median predicted smear.  When
+        no streak is measured that the stars agree on and the limits let the prediction
+        stand in, the predicted streak
+        (:func:`~spindoctor.nav_model.stars.streak.predicted_streak_vu` of the examined
+        stars' smears) is returned when it is at least
+        :data:`~spindoctor.nav_model.stars.streak.MIN_STREAK_PX` long; otherwise the stars
+        are centroided as points.  A measured streak that is too short or too long is not
+        replaced by the prediction.  The model's metadata records the median predicted
+        smear
         (``predicted_smear_px``, None when no star is examined), the measured streak
         (``measured_streak_vu``, None when none was measured), and the streak returned
         (``streak_vu``).
@@ -462,7 +486,9 @@ class NavModelStars(NavModel):
             return 0.0, 0.0
         predicted_px = float(np.median([smear_length_px(s.move_v, s.move_u) for s in clear]))
         self._metadata['predicted_smear_px'] = predicted_px
-        if predicted_px < MIN_PREDICTED_SMEAR_PX:
+        motion = self.obs.exposure_motion()
+        limits = streak_limits(None if motion is None else motion.max_streak_to_predicted)
+        if predicted_px < limits.min_predicted_px:
             return 0.0, 0.0
         measurement = measure_streak(
             np.asarray(context.image_ext, np.float64),
@@ -471,6 +497,20 @@ class NavModelStars(NavModel):
             saturation_mask=np.asarray(context.saturation_mask_ext, bool),
         )
         if measurement is None:
+            streak_vu = predicted_streak_vu([(s.move_v, s.move_u) for s in clear])
+            if limits.prediction_stands_in and math.hypot(*streak_vu) >= MIN_STREAK_PX:
+                # The host vouches for its predicted smear (on Cassini, within 1 px of the
+                # measured streak on 99% of F ring frames), so where the image shows no
+                # streak the stars agree on, the prediction stands in for it (#768).
+                self._logger.info(
+                    'Predicted smear %.3f px; no streak the bright stars agree on; '
+                    'stars centroided on the predicted streak (v, u) = (%.3f, %.3f) px',
+                    predicted_px,
+                    streak_vu[0],
+                    streak_vu[1],
+                )
+                self._metadata['streak_vu'] = streak_vu
+                return streak_vu
             self._logger.info(
                 'Predicted smear %.3f px; no streak the bright stars agree on; '
                 'stars centroided as points',
@@ -495,11 +535,11 @@ class NavModelStars(NavModel):
                 'Streak shorter than %.1f px; stars centroided as points', MIN_STREAK_PX
             )
             return 0.0, 0.0
-        if length_px > MAX_STREAK_TO_PREDICTED * predicted_px:
+        if length_px > limits.max_streak_to_predicted * predicted_px:
             self._logger.info(
                 'Streak longer than %.1f times the predicted smear, so not drawn by the '
                 'motion; stars centroided as points',
-                MAX_STREAK_TO_PREDICTED,
+                limits.max_streak_to_predicted,
             )
             return 0.0, 0.0
         self._metadata['streak_vu'] = measurement.streak_vu

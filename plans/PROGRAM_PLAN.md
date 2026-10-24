@@ -343,8 +343,14 @@ The known open defects:
   answer all four within 0.52 px, and a rerun shows none of 532 worse
   frames ours by stars, 150 undecidable. The two smeared refusals answer
   within 0.2 px (N1605530694 0.01 px) once stars are centroided at their
-  streaks' centers (#765). Open: #767 for single results fused inside the
-  pixel floor.
+  streaks' centers (#765). The predicted smear now comes from the as-flown
+  C-kernels, read without changing the pointing, and agrees with the
+  measured streak within 1 px on 99% of frames (#768); a rerun of 1,699
+  frames makes 14 better than the final full run and 2 worse, one ours by
+  stars and one a refusal from pass-2 arbitration counting stars a
+  streak-grown box reaches from a wrong prior (#771). Open: #767 for single
+  results fused inside the pixel floor, #771 for that arbitration count, and
+  #772 to split the star helpers once #754 and the star-streak work meet.
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix
   (#447) leaves once it closes the coarse-grid and boundary-pinning halves.

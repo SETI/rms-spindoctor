@@ -8,6 +8,7 @@ from oops.observation.snapshot import Snapshot
 
 from spindoctor.config import Config
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.exposure_motion import ExposureMotion
 from spindoctor.support.image import pad_array
 from spindoctor.support.types import (
     DTypeLike,
@@ -491,6 +492,20 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
         ra = float(backplane.right_ascension(apparent=apparent).vals.item())
         dec = float(backplane.declination(apparent=apparent).vals.item())
         return ra, dec
+
+    def exposure_motion(self) -> ExposureMotion | None:
+        """Return how the camera turns during the exposure, when a host knows better.
+
+        The star model draws each star's streak between where the star lands at the
+        start and at the end of the exposure.  By default those are taken from the
+        observation's own pointing at the two instants; a host whose pointing describes
+        the camera's turning poorly over an exposure overrides this to supply the motion
+        from elsewhere, leaving the pointing itself unchanged.
+
+        Returns:
+            None, meaning the observation's own pointing at the exposure's start and end.
+        """
+        return None
 
     def extract_offset_array(
         self,

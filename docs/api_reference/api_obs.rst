@@ -28,6 +28,11 @@ spindoctor.obs
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.obs.obs_inst_cassini_iss_motion
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.obs.obs_inst_voyager_iss
    :members:
    :undoc-members:
