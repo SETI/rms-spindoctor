@@ -166,7 +166,10 @@ def cassini_exposure_motion(
     if kernel_paths is None:
         # One selection per instant: the database's selection over a span keeps only the
         # kernels covering its start, and each instant is answered by its own kernels'
-        # priority, as SPICE would answer it.
+        # priority, as SPICE would answer it.  An exposure across two kernels is read from
+        # both, as furnished kernels would read it, rather than falling back; each V02
+        # as-flown file covers one contiguous interval, and none of the 20,584 F ring
+        # frames of the 2026-10-22 run lies within 60 s of an interval's end.
         per_instant = [
             predicted_ck_paths(
                 et,
