@@ -422,6 +422,7 @@ Per-family data models live alongside the renderer classes:
   multi-catalog reduction (``catalog``), per-star body / ring conflict
   marking (``conflicts``), the raw-DN photometry diagnostic + B-V mapping
   (``predicted_snr``), smear-aware PSF construction (``smeared_psf``),
+  the measurement of the streak a smeared frame's stars draw (``streak``),
   and on-image source detection (``detection``); see
   :doc:`dev_guide_navigation_models_star` for details.
 - **Bodies** — per-body shape, albedo, and SPK-residual values live in

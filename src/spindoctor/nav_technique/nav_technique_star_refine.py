@@ -42,6 +42,11 @@ from spindoctor.nav_technique._star_helpers import (
     similarity_transform_fit,
     usable_stars,
 )
+from spindoctor.nav_technique._star_streak import (
+    frame_streak_vu,
+    is_streak,
+    streak_half_extent_px,
+)
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import StarRefineDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
@@ -382,14 +387,18 @@ class StarRefineNav(NavTechnique):
         """Per-star centroid residuals around the shifted predictions.
 
         A detection whose centroid box, ``centroid_box_half_px`` either side of the
-        centroid, is not wholly inside the image's data area (the extended-FOV array less
+        centroid and on a streak frame grown on each axis by half the streak's extent, is
+        not wholly inside the image's data area (the extended-FOV array less
         ``data_margin_vu`` on each side) is dropped: the padding
         beyond the frame holds no starlight, so a box it cuts measures a truncated star,
         or the frame's edge pixels when the star itself lies outside the frame.
         """
-        box = self._centroid_box_half_px
-        v_bounds = (data_margin_vu[0] + box, image_ext.shape[0] - data_margin_vu[0] - box - 1)
-        u_bounds = (data_margin_vu[1] + box, image_ext.shape[1] - data_margin_vu[1] - box - 1)
+        streak_vu = frame_streak_vu(stars)
+        ext_v, ext_u = streak_half_extent_px(streak_vu) if is_streak(streak_vu) else (0, 0)
+        box_v = self._centroid_box_half_px + ext_v
+        box_u = self._centroid_box_half_px + ext_u
+        v_bounds = (data_margin_vu[0] + box_v, image_ext.shape[0] - data_margin_vu[0] - box_v - 1)
+        u_bounds = (data_margin_vu[1] + box_u, image_ext.shape[1] - data_margin_vu[1] - box_u - 1)
         inliers: list[NavFeature] = []
         residuals_v: list[float] = []
         residuals_u: list[float] = []
@@ -406,6 +415,7 @@ class StarRefineNav(NavTechnique):
                 centroid_box_half_px=self._centroid_box_half_px,
                 image_noise_sigma=noise_sigma,
                 detection_sigma=self._detection_sigma,
+                streak_vu=star.flags.streak_vu,
             )
             if det is None:
                 self.logger.debug(

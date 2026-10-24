@@ -143,6 +143,11 @@ spindoctor.nav_model.stars
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_model.stars.streak
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_model.stars.detection
    :members:
    :undoc-members:

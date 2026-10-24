@@ -34,6 +34,12 @@ class StarFlags:
             brightness-weighted moment.
         smear_length_px: Expected smear length in pixels at this image's
             spacecraft attitude rate.  Must be ``>= 0``.
+        streak_vu: The streak ``(v, u)`` in pixels, from one end to the other, that the
+            frame's stars are measured to draw; the same on every STAR feature of a
+            frame.  ``(0.0, 0.0)`` when the frame's stars are centroided as points: the
+            star model measures a streak only on a frame whose predicted smear is
+            significant, and records it only when it is long enough that a centroid
+            placed on a star's brightest pixel would land at a random point along it.
         in_body_silhouette: True if the predicted star position falls inside
             a predicted body silhouette in extfov.
         in_saturation_or_cosmic_mask: True if the predicted star position
@@ -62,6 +68,7 @@ class StarFlags:
 
     saturated: bool = False
     smear_length_px: float = 0.0
+    streak_vu: tuple[float, float] = (0.0, 0.0)
     in_body_silhouette: bool = False
     in_saturation_or_cosmic_mask: bool = False
     predicted_snr: float = 0.0

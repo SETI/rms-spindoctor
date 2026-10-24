@@ -28,6 +28,12 @@ from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.geometry import StarGeometry
+from spindoctor.nav_technique._star_streak import (
+    is_streak,
+    streak_aperture,
+    streak_half_extent_px,
+    streak_peak,
+)
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -39,6 +45,7 @@ __all__ = [
     'robust_center_spread',
     'similarity_transform_fit',
     'star_features',
+    'star_streak_vu',
     'usable_stars',
 ]
 
@@ -108,6 +115,13 @@ def predicted_vu(feature: NavFeature) -> tuple[float, float]:
     geometry = feature.geometry
     assert isinstance(geometry, StarGeometry)
     return geometry.predicted_vu
+
+
+def star_streak_vu(feature: NavFeature) -> tuple[float, float]:
+    """Return the streak ``(v, u)`` in pixels carried on a STAR feature's flags."""
+    flags = feature.flags
+    assert isinstance(flags, StarFlags)
+    return flags.streak_vu
 
 
 def brightness_margin_mag(brightest_snr: float, runner_up_snr: float) -> float:
@@ -352,6 +366,7 @@ def local_centroid(
     centroid_box_half_px: int,
     image_noise_sigma: float,
     detection_sigma: float,
+    streak_vu: tuple[float, float] = (0.0, 0.0),
 ) -> tuple[tuple[float, float] | None, float]:
     """Return the brightest local detection centroid + matched-filter peak.
 
@@ -361,17 +376,28 @@ def local_centroid(
     1. Slice the image to a ``(2 * search_window_px + 1)`` half-window
        around the prediction (clamped to image bounds).
     2. Take the brightest pixel inside the window — this is the
-       candidate peak.
+       candidate peak.  For a streak (``streak_vu`` at least
+       :data:`~spindoctor.nav_model.stars.streak.MIN_STREAK_PX` long) the
+       candidate is instead the pixel of the window where a line kernel along the
+       streak responds most (:func:`~spindoctor.nav_technique._star_streak.streak_peak`),
+       the streak's center, and the centroid box below grows on each axis by
+       :func:`~spindoctor.nav_technique._star_streak.streak_half_extent_px` to hold
+       the whole streak.
     3. Reject the candidate when it stands less than
        ``detection_sigma * image_noise_sigma`` above its local background, the
        median of a ring of pixels ``_BACKGROUND_ANNULUS_WIDTH_PX`` wide around
        the centroid box.  The floor of a bright extended region, flat or
        sloping (a body's glare or a ring), is then no detection: a slope's
        brightest pixel stands no higher than the median of the ring around it.
+       For a streak the test is instead that some pixel within
+       ``centroid_box_half_px`` of the streak's segment stands that far above the
+       plane background of step 4.
     4. Fit a brightness-weighted moment (Gaussian-equivalent for noise-
        free fixtures) over a ``(2 * centroid_box_half_px + 1)`` box
        around the candidate to pull a sub-pixel centroid, above the plane
-       background of :func:`_box_background`.
+       background of :func:`_box_background`.  For a streak only the box's pixels
+       within ``centroid_box_half_px`` of the streak's segment centered on the
+       candidate count (:func:`~spindoctor.nav_technique._star_streak.streak_aperture`).
 
     The star techniques use this purely-local fit rather than a global
     ``detect_sources`` call so they stay feasible on images where the
@@ -390,6 +416,9 @@ def local_centroid(
             ``image_noise_sigma``; the brightest peak must stand
             ``detection_sigma * image_noise_sigma`` above its local background to
             be accepted.
+        streak_vu: The streak ``(v, u)`` in pixels the star draws (the
+            ``streak_vu`` of its flags); one shorter than ``MIN_STREAK_PX`` leaves
+            the measurement that of an unsmeared star.
 
     Returns:
         ``(centroid, peak_dn)`` where ``centroid`` is the
@@ -412,16 +441,37 @@ def local_centroid(
     peak_dn = float(window[pv, pu])
     peak_v = v_lo + int(pv)
     peak_u = u_lo + int(pu)
-    background = _annulus_median(image_ext, peak_v, peak_u, centroid_box_half_px)
-    if peak_dn - background < detection_sigma * image_noise_sigma:
-        return None, peak_dn
-    box_v_lo = max(0, peak_v - centroid_box_half_px)
-    box_u_lo = max(0, peak_u - centroid_box_half_px)
-    box_v_hi = min(h, peak_v + centroid_box_half_px + 1)
-    box_u_hi = min(w, peak_u + centroid_box_half_px + 1)
+    half_v = half_u = centroid_box_half_px
+    streak = is_streak(streak_vu)
+    if streak:
+        # A streak's brightest pixel lies wherever the noise puts it along the streak;
+        # its center is where the line kernel along the streak responds most (#765).
+        peak_v, peak_u = streak_peak(image_ext, (v_lo, u_lo, v_hi, u_hi), streak_vu)
+        ext_v, ext_u = streak_half_extent_px(streak_vu)
+        half_v += ext_v
+        half_u += ext_u
+    box_v_lo = max(0, peak_v - half_v)
+    box_u_lo = max(0, peak_u - half_u)
+    box_v_hi = min(h, peak_v + half_v + 1)
+    box_u_hi = min(w, peak_u + half_u + 1)
     box = np.asarray(image_ext[box_v_lo:box_v_hi, box_u_lo:box_u_hi], np.float64)
     plane = _box_background(image_ext, box_v_lo, box_v_hi, box_u_lo, box_u_hi)
-    weights = np.clip(box - plane, 0.0, None)
+    if streak:
+        # The streak's own pixels are judged against the plane fitted around its box, so
+        # the uphill end of a sloping glare does not stand in for a star.
+        aperture = streak_aperture(
+            (box_v_lo, box_u_lo, box_v_hi, box_u_hi),
+            (peak_v, peak_u),
+            streak_vu,
+            centroid_box_half_px,
+        )
+        excess = float(np.max(np.where(aperture, box - plane, -np.inf)))
+    else:
+        aperture = np.ones(box.shape, bool)
+        excess = peak_dn - _annulus_median(image_ext, peak_v, peak_u, centroid_box_half_px)
+    if excess < detection_sigma * image_noise_sigma:
+        return None, peak_dn
+    weights = np.clip(box - plane, 0.0, None) * aperture
     total = float(weights.sum())
     if total <= 0.0:
         return None, peak_dn
@@ -438,7 +488,7 @@ def detection_peak_ratio(
     detection_vu: tuple[float, float],
     *,
     search_window_px: float,
-    exclude_half_px: int,
+    exclude_half_px: tuple[int, int],
 ) -> float:
     """Return the detection's background-subtracted peak-to-runner-up ratio.
 
@@ -461,9 +511,10 @@ def detection_peak_ratio(
             ``exclude_half_px`` box (the source's own pixels) is removed
             before the runner-up is taken.
         search_window_px: Half-width of the search window in pixels.
-        exclude_half_px: Half-width of the exclusion box around the
-            detection; use at least the centroid-box half-width so the
-            source's own wings do not masquerade as the runner-up.
+        exclude_half_px: ``(v, u)`` half-widths of the exclusion box
+            around the detection; use at least the centroid-box half-width
+            on each axis, plus a streak's half extent along that axis, so
+            the source's own wings do not masquerade as the runner-up.
 
     Returns:
         ``(peak - background) / (runner_up - background)`` with the
@@ -486,10 +537,11 @@ def detection_peak_ratio(
         return 0.0
     masked = window.copy()
     det_v, det_u = detection_vu
-    bv_lo = max(0, round(det_v) - exclude_half_px - v_lo)
-    bu_lo = max(0, round(det_u) - exclude_half_px - u_lo)
-    bv_hi = min(window.shape[0], round(det_v) + exclude_half_px + 1 - v_lo)
-    bu_hi = min(window.shape[1], round(det_u) + exclude_half_px + 1 - u_lo)
+    half_v, half_u = exclude_half_px
+    bv_lo = max(0, round(det_v) - half_v - v_lo)
+    bu_lo = max(0, round(det_u) - half_u - u_lo)
+    bv_hi = min(window.shape[0], round(det_v) + half_v + 1 - v_lo)
+    bu_hi = min(window.shape[1], round(det_u) + half_u + 1 - u_lo)
     if bv_hi > bv_lo and bu_hi > bu_lo:
         masked[bv_lo:bv_hi, bu_lo:bu_hi] = background
     runner_up = float(masked.max()) - background
