@@ -275,6 +275,41 @@ def test_a_2007_wac_frame_says_it_was_read_as_published(tmp_path: Path) -> None:
     assert answer.note == WAC_AS_PUBLISHED
 
 
+@pytest.mark.parametrize(
+    ('mid_time', 'note'),
+    [
+        ('2006-12-31T23:59:59.999Z', WAC_OFFSET_RESTORED),
+        ('2007-01-01T00:00:00.000Z', WAC_AS_PUBLISHED),
+        ('2007-12-31T23:59:59.999Z', WAC_AS_PUBLISHED),
+        ('2008-01-01T00:00:00.000Z', WAC_OFFSET_RESTORED),
+    ],
+)
+def test_the_2007_window_has_closed_start_and_open_end(
+    tmp_path: Path, mid_time: str, note: str
+) -> None:
+    """The window is calendar 2007: its first instant is in, 2008's first is out.
+
+    Parameters:
+        tmp_path: Fixture used to write the supplementary file.
+        mid_time: The frame's mid time.
+        note: The note the frame must carry.
+    """
+    path = tmp_path / 'suppl.txt'
+    path.write_text(WAC_SUPPL.replace('2013-01-28T17:14:09.581Z', mid_time))
+    answer = read_bundle_pointing(path)
+    assert answer is not None
+    assert answer.note == note
+
+
+def test_a_wac_frame_quoting_no_mid_time_has_the_offset_restored(tmp_path: Path) -> None:
+    """Absent a date, the frame is read like every WAC frame outside 2007."""
+    path = tmp_path / 'suppl.txt'
+    path.write_text(WAC_SUPPL.replace('Image Mid Time (UTC) = 2013-01-28T17:14:09.581Z\n', ''))
+    answer = read_bundle_pointing(path)
+    assert answer is not None
+    assert answer.note == WAC_OFFSET_RESTORED
+
+
 def test_a_wac_frame_needing_the_offset_and_quoting_no_matrix_is_no_answer(
     tmp_path: Path,
 ) -> None:
