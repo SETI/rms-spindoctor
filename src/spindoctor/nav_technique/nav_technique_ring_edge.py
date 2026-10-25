@@ -846,7 +846,9 @@ class RingEdgeNav(NavTechnique):
         pixels across it: when the seed's credit, over the vertices both it
         and the tolerant maximum keep on the sensor, falls below
         ``coarse_basin_keep_ratio`` times the maximum's, the tolerant maximum
-        replaces it.
+        replaces it.  The seed is kept without that comparison when fewer than
+        ``coarse_basin_min_shared_vertices`` vertices are on the sensor at both
+        shifts, or when the maximum earns no credit over those vertices.
 
         Parameters:
             edge_mask: Binary image edge mask.

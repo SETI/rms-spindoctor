@@ -58,7 +58,9 @@ def check_seed_basin(
     ``seed`` is kept when its credit there is at least ``keep_ratio`` of the
     maximum's, and the maximum replaces it otherwise.  A maximum that wins only
     by dragging more of the model onto the sensor, where any ring texture
-    credits it, therefore does not displace the seed.
+    credits it, therefore does not displace the seed.  ``seed`` is also kept,
+    with a ratio of ``1.0``, when fewer than ``min_shared_vertices`` vertices
+    are on the sensor at both shifts or the maximum earns no credit over them.
 
     Parameters:
         seed: The seed chosen from the exact scores.
