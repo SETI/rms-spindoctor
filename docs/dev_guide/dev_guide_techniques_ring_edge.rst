@@ -115,6 +115,46 @@ Encke gap, and Maxwell ringlet frames at 0.2 to 0.4 km/px, and two F ring movie 
 contours 16 to 94 px off. On the latter frames the strongest alignment put the model within
 about 2 px of independent pointing across the edge.
 
+Both scores credit a vertex only where its rounded pixel is itself a detected edge pixel,
+and the edge mask is one pixel thin. A cataloged edge's image position differs from its
+rounded model vertices by a pixel or two: the sub-pixel phase of the edge, and catalog
+residuals that differ from one edge to the next (the A ring's outer edge sits up to 34 km
+from its catalog radius on some F ring movie frames, 6 px at 5.9 km/px). At the true shift
+a model of several edges therefore scores only the vertices of each edge that happen to
+round onto it, while a shift that lays one model edge exactly on one strong step scores
+that edge in full. On F ring movie frames at 5 to 10 km/px that alias is the Keeler gap's
+edges laid on the A ring's outer edge, 30 to 50 px across the edge, and it wins both the
+overlap search and the edge-strength check above.
+
+The seed the two searches choose is therefore checked once more with a tolerance across
+the edge. :class:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength`
+credits each vertex with the strongest :math:`|g \cdot n|` among the counted edge pixels
+within ``coarse_basin_tolerance_px`` pixel steps of it, along the pixel-grid direction
+nearest its normal, so every edge of the true alignment contributes in full and a model
+edge left on nothing contributes nothing. The seed and the tolerant maximum are then
+compared on the model vertices that both keep on the sensor
+(:meth:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength.compare`): the seed is
+kept when its credit there is at least ``coarse_basin_keep_ratio`` of the maximum's, and
+the maximum seeds the fit otherwise
+(:func:`~spindoctor.nav_technique.ring_edge_seed.check_seed_basin`). Comparing the same
+vertices matters where most of the model lies off the sensor at the true pointing: a
+shift that drags the rest of the model onto ring texture collects credit from vertices
+the seed cannot see, and texture within 2 px of almost every vertex is easy to find. On a
+2007 Cassini NAC spoke movie, whose B ring outer edge sits at the frame border, the
+tolerant maximum lays the Cassini Division's edges on B ring texture 55 to 60 px off, yet
+on the vertices both keep on the sensor the seed earns 0.65 to 0.9 of its credit. The
+check only ever chooses the basin across the edge: where it keeps the seed, the overlap
+search and the edge-strength check still set the position along the edge, for the reason
+given above. The coarse-acquisition gate still reads the plain match fraction at the
+chosen shift, and the seed's tolerant ratio is reported as
+:attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.coarse_basin_ratio`.
+
+Measured with a 2 px tolerance on 582 Cassini NAC F ring movie frames at 5 to 10 km/px,
+replaying the refinement from each seed: on 250 frames whose ring-edge answer was right,
+the seed's tolerant score was 0.65 to 1.00 of the maximum (one below 0.70, and its seed
+moves but stays right); on 332 frames whose answer was 5 to 127 px off across the edge it
+was mostly 0.4 to 0.6, and the check puts 206 of them within 1.5 px across the edge.
+
 A frame can also hold no cataloged edge at all at the true pointing: the edges lie in the
 extended margin outside the sensor, and the search drags the model onto whatever the
 thresholded image offers inside it, which in an F ring movie frame is the faint contour
@@ -556,6 +596,14 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   the edge-strength score under it is at least this fraction of the strongest alignment in
   the search window; otherwise the strongest alignment seeds the fit (see
   `The coarse seed`_). Must lie in ``[0, 1]``; construction raises otherwise.
+- ``coarse_basin_tolerance_px`` — int, default ``2`` pixel steps. The seed is rescored
+  with each vertex credited with the strongest counted edge within this many pixel steps
+  across it (see `The coarse seed`_); ``0`` makes the rescoring repeat the exact score.
+  Must be a non-negative integer; construction raises otherwise.
+- ``coarse_basin_keep_ratio`` — float, default ``0.6``. The seed is kept when its tolerant
+  credit, over the vertices both it and the tolerant maximum keep on the sensor, is at
+  least this fraction of the maximum's; otherwise the tolerant maximum seeds the fit. Must
+  lie in ``[0, 1]``; construction raises otherwise.
 - ``coarse_sensor_margin_px`` — int, default ``5`` px. Detected edges within this many
   pixels of the sensor boundary are left out of the edge-strength scores (see
   `The coarse seed`_). Five pixels covers the reach of the 1.2 px gradient smoothing into
@@ -665,6 +713,10 @@ Diagnostics
 - :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.sigma_shape_major_px` —
   major-axis sigma (px) of the correlated-shape term added to the covariance; along the
   edge, and many times ``shape_sigma_px``, on a gently curved arc. Zero on a rank-1 result.
+- :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.coarse_basin_ratio` —
+  the seed's tolerant credit over the tolerant maximum's, on the vertices both keep on the
+  sensor; below ``coarse_basin_keep_ratio`` the maximum seeded the fit (see
+  `The coarse seed`_).
 
 Call path
 ---------
@@ -683,7 +735,10 @@ Call path traced through
    :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored` for the overlap
    seed and :func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored`
    for the strongest alignment, and keep the overlap seed unless its edge-strength score
-   falls below ``coarse_strength_keep_ratio`` of the strongest.
+   falls below ``coarse_strength_keep_ratio`` of the strongest. Check that seed with
+   :func:`~spindoctor.nav_technique.ring_edge_seed.check_seed_basin`, which replaces it by
+   the tolerant edge-strength maximum when its tolerant credit, on the vertices both keep
+   on the sensor, falls below ``coarse_basin_keep_ratio`` of the maximum's.
 4. Read :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` and set the
    rotation pivot to the centroid of the concatenated vertices when rotation is fit.
 5. Call :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine`, with the
