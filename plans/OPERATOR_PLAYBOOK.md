@@ -185,9 +185,11 @@ leak into the ensemble's answer on flat ring frames; the five
 below. RingEdgeNav's covariance reports the along-edge weakness of a
 gently curved edge (several pixels along it), so a star fix sets that
 component and a ring-only answer is reported at the low tier; the offsets
-themselves are unchanged. What remains is a seed on the neighboring
-cataloged edge (5 of 1,041 held-out F ring frames, 7 to 49 px), the 4 alias
-locks left (3.8 to 45 px, under #373), and the along-edge position of a
+themselves are unchanged. A second seed check, within 2 px across the edge, then
+takes 622 of 825 F ring radial alias locks to within 1.5 px (19 more are
+refused as spurious); 153 remain, mostly where the edges lie outside the
+sensor at the true pointing, as does the 2007 NAC spoke movie
+ISS_037RI_SPKMRHPDF002 (under #373). What remains besides is the along-edge position of a
 ring-only answer, which is reported but not reduced (#755, open: on the
 1,614-frame F ring sample 4 answers that became worse against the bundle
 pointing are not shown better by the stars in the image). #476's criterion is
@@ -546,11 +548,11 @@ Independent review before done; all CI gates; one PR."
   the fix moves, which go to #483. The measurements are on #447.
 - **#373 (coarse-lock remainder)**: "Make the RingEdgeNav coarse seed
   robust against competing edge populations per #373 where the edge-strength
-  check does not reach: a competitor stronger than the cataloged edge, such
-  as a body limb in the search window, and the held-out frames still wrong
-  across the edge (5 neighboring-edge locks; 4 alias locks, N1492091385,
-  N1851236541, N1492064782 and N1851226701). Re-measure `N1467344214_2`
-  against the issue's gate."
+  and tolerance checks do not reach: a competitor stronger than the
+  cataloged edge, such as a body limb in the search window, and frames whose
+  cataloged edges lie mostly outside the sensor at the true pointing (most of
+  153 F ring frames; the 2007 NAC spoke movie ISS_037RI_SPKMRHPDF002, where a
+  gap-brightness test needs a planet mask and ringlet handling first)."
 - **#130**: "Calibrate the star limiting-magnitude model against real
   fields per #130."
 - **#394 (shape-lock veto residual)**: the veto is suppressed when a trusted

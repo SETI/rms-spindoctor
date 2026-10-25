@@ -142,18 +142,25 @@ shift that drags the rest of the model onto ring texture collects credit from ve
 the seed cannot see, and texture within 2 px of almost every vertex is easy to find. On a
 2007 Cassini NAC spoke movie, whose B ring outer edge sits at the frame border, the
 tolerant maximum lays the Cassini Division's edges on B ring texture 55 to 60 px off, yet
-on the vertices both keep on the sensor the seed earns 0.65 to 0.9 of its credit. The
-check only ever chooses the basin across the edge: where it keeps the seed, the overlap
+on the vertices both keep on the sensor the seed earns 0.66 to 0.97 of its credit. Fewer
+than ``coarse_basin_min_shared_vertices`` such vertices leave nothing to compare, and the
+seed stands. The check only ever chooses the basin across the edge: where it keeps the seed, the overlap
 search and the edge-strength check still set the position along the edge, for the reason
-given above. The coarse-acquisition gate still reads the plain match fraction at the
-chosen shift, and the seed's tolerant ratio is reported as
+given above. Where the tolerant maximum replaces the seed, the coarse-acquisition gate
+reads the best plain match fraction within ``coarse_basin_tolerance_px`` of it
+(:meth:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength.best_match_fraction`):
+the maximum's own plain fraction is near zero by construction when every edge sits a
+pixel or two off its rounded vertices. The seed's tolerant ratio is reported as
 :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.coarse_basin_ratio`.
 
-Measured with a 2 px tolerance on 582 Cassini NAC F ring movie frames at 5 to 10 km/px,
-replaying the refinement from each seed: on 250 frames whose ring-edge answer was right,
-the seed's tolerant score was 0.65 to 1.00 of the maximum (one below 0.70, and its seed
-moves but stays right); on 332 frames whose answer was 5 to 127 px off across the edge it
-was mostly 0.4 to 0.6, and the check puts 206 of them within 1.5 px across the edge.
+Measured on Cassini NAC F ring movie frames at 5 to 10 km/px, against the published F ring
+bundle's pointing (or the stars where they show it wrong): of 825 frames whose ring-edge
+answer lay more than 5 px off across the edge, 622 now lie within 1.5 px across it, 31
+within 5 px, and 19 are refused as spurious; 153 remain more than 5 px off. On 1,000
+frames with a right final answer, no ring-edge answer within 1.5 px across the edge moved
+beyond it, and those within it went from 866 to 874. Most of the remaining locks are on
+frames whose cataloged edges lie mostly or wholly outside the sensor at the true pointing,
+where little or no evidence for the true alignment is in the image.
 
 A frame can also hold no cataloged edge at all at the true pointing: the edges lie in the
 extended margin outside the sensor, and the search drags the model onto whatever the
@@ -465,16 +472,22 @@ Restrictions and assumptions
   in the basin of attraction of the correct ring edge. When the SPICE pointing error
   exceeds the per-instrument search-window margin the seed lands on a wrong edge and the
   LM converges to a wrong local minimum.
-- The edge-strength check assumes the cataloged edges are the strongest steps near the
-  prediction. Against the published F ring bundle's per-frame pointing on 1,041 held-out
-  frames below 25 km/px, it cuts the alias locks across the edge, answers displaced across
-  the edge by a distance that matches no spacing between cataloged edges, from 188 to 4:
-  N1492091385 at 45 px, N1851236541 at 44 px, N1492064782 at 34 px, and N1851226701 at
-  3.8 px. When two cataloged edges lie a few tens of pixels apart, one strong step can be
-  matched by the wrong one of them: on Cassini NAC F ring movie frames at 5 km/px the
-  strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge. On
-  the same frames 5 answers are wrong this way, 7 to 49 px across the edge (41 to 51 px on
-  four of them). All nine are reported at the ``medium`` tier.
+- The seed checks assume the image holds evidence for the true alignment. Where the
+  cataloged edges lie mostly or wholly outside the sensor at the true pointing, the search
+  can drag the model in and lay it on whatever edges the frame offers: on Cassini NAC F
+  ring movie frames at 5 to 10 km/px, 153 of 825 answers that were more than 5 px off
+  across the edge still are. On a 2007 Cassini NAC spoke movie, whose B ring outer edge
+  runs along the frame border, all 33 answered frames are wrong, the ring answer 4 to
+  64 px off across the edge with the Cassini Division's edges on outer B ring texture,
+  at the ``low`` and ``medium`` tiers. At that alias the image is as
+  bright inside the modeled gaps as around them; a test of gap brightness would catch it,
+  but a ringlet inside a gap (Herschel, Bond, Maxwell) or the planet seen through it breaks
+  that test at the right pointing too.
+- Once the seed is in the right basin a catalog radius error passes into the answer: the
+  A ring's outer edge in 2005 sits 11 to 17 km off its catalog radius, so on three F ring
+  movie frames at 6.8 km/px the ring answer, 1 to 2 px off across the edge, pulls the fused
+  answer from 0.1 to 0.4 px of the bundle pointing, which the stars confirm, to 1.01 to
+  1.05 px, two of them at the ``high`` tier.
 - The coarse search still chooses the along-edge position of a gently curved edge, and the
   refinement's trust region keeps it there: seeded at the bundle pointing on seven
   F ring frames the fit stays within about a pixel of it, and seeded normally it lands
@@ -600,6 +613,9 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   with each vertex credited with the strongest counted edge within this many pixel steps
   across it (see `The coarse seed`_); ``0`` makes the rescoring repeat the exact score.
   Must be a non-negative integer; construction raises otherwise.
+- ``coarse_basin_min_shared_vertices`` — int, default ``100``. Fewest model vertices on
+  the sensor at both the seed and the tolerant maximum for the two to be compared; with
+  fewer the seed stands. Must be a positive integer; construction raises otherwise.
 - ``coarse_basin_keep_ratio`` — float, default ``0.6``. The seed is kept when its tolerant
   credit, over the vertices both it and the tolerant maximum keep on the sensor, is at
   least this fraction of the maximum's; otherwise the tolerant maximum seeds the fit. Must
@@ -716,7 +732,8 @@ Diagnostics
 - :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.coarse_basin_ratio` —
   the seed's tolerant credit over the tolerant maximum's, on the vertices both keep on the
   sensor; below ``coarse_basin_keep_ratio`` the maximum seeded the fit (see
-  `The coarse seed`_).
+  `The coarse seed`_). It exceeds 1 when the seed earns more there, and is 1 when the two
+  coincide or share too few vertices to be compared.
 
 Call path
 ---------
