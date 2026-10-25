@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 
 import numpy as np
 import pytest
@@ -82,11 +83,11 @@ def test_ring_edge_nav_keeps_the_overlap_seed_on_a_comparably_strong_edge(
     assert result.offset_px[0] == pytest.approx(3.0, abs=0.3)
 
 
-@pytest.mark.parametrize('ratio', [-0.1, 1.5])
+@pytest.mark.parametrize('ratio', [-0.1, 1.5, math.nan])
 def test_ring_edge_nav_rejects_a_coarse_strength_keep_ratio_outside_unit_range(
     ratio: float, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A keep ratio outside [0, 1] fails at construction."""
+    """A keep ratio outside [0, 1], or NaN, fails at construction."""
     bad_tuning = dict(RingEdgeNav.tuning)
     bad_tuning['coarse_strength_keep_ratio'] = ratio
     monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
@@ -308,11 +309,11 @@ def test_ring_edge_nav_rejects_a_basin_shared_count_that_is_not_a_positive_int(
         RingEdgeNav()
 
 
-@pytest.mark.parametrize('ratio', [-0.1, 1.5])
+@pytest.mark.parametrize('ratio', [-0.1, 1.5, math.nan])
 def test_ring_edge_nav_rejects_a_basin_keep_ratio_outside_unit_range(
     ratio: float, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A basin keep ratio outside [0, 1] fails at construction."""
+    """A basin keep ratio outside [0, 1], or NaN, fails at construction."""
     bad_tuning = dict(RingEdgeNav.tuning)
     bad_tuning['coarse_basin_keep_ratio'] = ratio
     monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
