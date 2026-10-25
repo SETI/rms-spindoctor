@@ -179,7 +179,17 @@ class RingEdgeNav(NavTechnique):
                 against a half-pixel-quantized edge mask, and a
                 non-numeric value would otherwise fail far from the
                 config that caused it), or ``shape_sigma_px`` is not a finite
-                number of at least zero.
+                number of at least zero; if ``coarse_sensor_margin_px``
+                converted to ``int`` is negative; if
+                ``spurious_min_edge_strength_fraction``,
+                ``coarse_strength_keep_ratio``, or ``coarse_basin_keep_ratio``
+                is NaN or outside ``[0, 1]``; if ``coarse_basin_tolerance_px``
+                is not a non-negative ``int``; or if
+                ``coarse_basin_min_shared_vertices`` is not an ``int`` of at
+                least 1 (neither of the last two accepts a ``bool``); or if any
+                of the shared fit-gate thresholds that
+                :class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`
+                reads is not finite or lies outside ``[0, 1]``.
         """
         super().__init__(config=config)
         self.config.read_config()  # ensure cls.tuning is populated
