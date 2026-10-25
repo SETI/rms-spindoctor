@@ -255,9 +255,13 @@ class TolerantEdgeStrength:
         :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search`: a shift
         that keeps fewer than ``min_support_fraction`` of the vertices inside the
         array is skipped, and ties go to the smaller ``(|dv| + |du|, |dv|, dv,
-        du)``.  The reported :attr:`CoarseSearchResult.score` is the winning
-        shift's plain per-vertex match fraction, the fraction of its in-bounds
-        vertices on a detected edge pixel, as
+        du)``.  Support counts every vertex inside the array, as the exact
+        searches do, and a vertex off ``valid_mask`` still earns credit from a
+        counted edge within the tolerance; only :meth:`compare` restricts the
+        vertices to ``valid_mask``.  The reported
+        :attr:`CoarseSearchResult.score` is the winning shift's plain
+        per-vertex match fraction, the fraction of its in-bounds vertices on a
+        detected edge pixel, as
         :func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored`
         reports it.
 
